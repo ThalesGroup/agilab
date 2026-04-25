@@ -79,6 +79,8 @@ interactive exploration into a replayable, inspectable workflow:
 - the data connector facility report validates first-class SQL, OpenSearch,
   and object-storage connector definitions without opening live network
   connections
+- the data connector resolution report validates connector-aware app/page
+  resolution and keeps ``legacy_path_fallback`` rows available during migration
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
@@ -130,6 +132,8 @@ history:
 - the data connector facility report gives prototypes a plain-text connector
   catalog for external data systems while keeping credentials in environment
   references
+- connector-aware app/page resolution lets prototypes reference those
+  connectors from app settings without dropping legacy raw path fallbacks
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
 - the in-product first-proof wizard now guides one validated ``flight_project``
@@ -245,6 +249,8 @@ between research experiments and engineering validation:
   notebooks possible without weakening the supervisor fallback boundary
 - a data connector facility report that starts the practical external-data
   access layer with SQL, OpenSearch, and object-storage targets
+- a data connector resolution report that proves app/page connector references
+  resolve against the catalog while preserving legacy path migration fallback
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

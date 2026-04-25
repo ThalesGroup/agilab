@@ -56,6 +56,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "notebook_roundtrip_report_contract",
         "notebook_union_environment_report_contract",
         "data_connector_facility_report_contract",
+        "data_connector_resolution_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -406,6 +407,32 @@ def test_data_connector_facility_report_contract_validates_connector_targets() -
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["round_trip_ok"] is True
     assert "data_connector_facility_secret_boundary" in check["details"]["check_ids"]
+
+
+def test_data_connector_resolution_report_contract_resolves_app_page_refs() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_resolution_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.data_connector_resolution.v1"
+    assert check["details"]["summary"]["run_status"] == "resolved"
+    assert check["details"]["summary"]["execution_mode"] == "contract_resolution_only"
+    assert check["details"]["summary"]["connector_ref_count"] == 5
+    assert check["details"]["summary"]["top_level_ref_count"] == 3
+    assert check["details"]["summary"]["page_connector_ref_count"] == 2
+    assert check["details"]["summary"]["legacy_path_count"] == 2
+    assert check["details"]["summary"]["missing_ref_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["catalog_run_status"] == "validated"
+    assert check["details"]["summary"]["legacy_fallback_preserved"] is True
+    assert check["details"]["summary"]["resolved_kinds"] == [
+        "object_storage",
+        "opensearch",
+        "sql",
+    ]
+    assert "data_connector_resolution_page_refs" in check["details"]["check_ids"]
+    assert "data_connector_resolution_no_network" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:
