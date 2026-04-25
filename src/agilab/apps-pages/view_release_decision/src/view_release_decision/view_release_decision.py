@@ -144,6 +144,15 @@ def _build_reduce_artifact_rows(
                     "result_rows": None,
                     "engines": "",
                     "execution_models": "",
+                    "scenario_count": None,
+                    "scenarios": "",
+                    "packets_generated": None,
+                    "packets_delivered": None,
+                    "packets_dropped": None,
+                    "pdr": None,
+                    "mean_e2e_delay_ms": None,
+                    "mean_queue_wait_ms": None,
+                    "max_queue_depth_pkts": None,
                     "detail": str(exc),
                 }
             )
@@ -161,6 +170,15 @@ def _build_reduce_artifact_rows(
                 "result_rows": artifact_payload.get("result_rows"),
                 "engines": _comma_joined(artifact_payload.get("engines")),
                 "execution_models": _comma_joined(artifact_payload.get("execution_models")),
+                "scenario_count": artifact_payload.get("scenario_count"),
+                "scenarios": _comma_joined(artifact_payload.get("scenarios")),
+                "packets_generated": artifact_payload.get("packets_generated"),
+                "packets_delivered": artifact_payload.get("packets_delivered"),
+                "packets_dropped": artifact_payload.get("packets_dropped"),
+                "pdr": artifact_payload.get("pdr"),
+                "mean_e2e_delay_ms": artifact_payload.get("mean_e2e_delay_ms"),
+                "mean_queue_wait_ms": artifact_payload.get("mean_queue_wait_ms"),
+                "max_queue_depth_pkts": artifact_payload.get("max_queue_depth_pkts"),
                 "detail": "Reduce artifact parsed.",
             }
         )
