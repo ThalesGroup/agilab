@@ -41,6 +41,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "workflow_compatibility_report",
         "newcomer_first_proof_contract",
         "run_manifest_contract",
+        "revision_traceability_report_contract",
         "run_diff_evidence_report_contract",
         "ci_artifact_harvest_report_contract",
         "github_actions_artifact_index_contract",
@@ -129,6 +130,22 @@ def test_run_manifest_contract_reports_stable_schema() -> None:
         "target_seconds",
         "recommended_project",
     ]
+
+
+def test_revision_traceability_report_contract_fingerprints_repo() -> None:
+    module = _load_module()
+
+    check = module._check_revision_traceability_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.revision_traceability.v1"
+    assert check["details"]["summary"]["execution_mode"] == "revision_traceability_static"
+    assert check["details"]["summary"]["core_component_count"] == 5
+    assert check["details"]["summary"]["builtin_app_count"] == 7
+    assert check["details"]["summary"]["app_fingerprint_count"] == 7
+    assert check["details"]["summary"]["command_execution_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert "revision_traceability_builtin_apps" in check["details"]["check_ids"]
 
 
 def test_run_diff_evidence_report_contract_reports_counterfactuals() -> None:

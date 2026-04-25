@@ -121,6 +121,7 @@ source of truth for explanations.
 tools/newcomer_first_proof.py --json
 run_manifest.json
 tools/reduce_contract_benchmark.py --json
+tools/revision_traceability_report.py --compact
 tools/run_diff_evidence_report.py --compact
 tools/ci_artifact_harvest_report.py --compact
 tools/github_actions_artifact_index.py --archive <artifact.zip> --output artifact_index.json

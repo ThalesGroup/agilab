@@ -297,10 +297,11 @@ def _sample_kpi_bundle() -> dict[str, Any]:
         "kpi": "Overall public evaluation",
         "status": "pass",
         "supported_score": "3.8 / 5",
-        "summary": {"passed": 37, "failed": 0, "total": 37},
+        "summary": {"passed": 38, "failed": 0, "total": 38},
         "checks": [
             {"id": "workflow_compatibility_report", "status": "pass"},
             {"id": "run_manifest_contract", "status": "pass"},
+            {"id": "revision_traceability_report_contract", "status": "pass"},
             {"id": "run_diff_evidence_report_contract", "status": "pass"},
             {"id": "ci_artifact_harvest_report_contract", "status": "pass"},
             {"id": "github_actions_artifact_index_contract", "status": "pass"},

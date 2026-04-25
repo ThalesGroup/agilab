@@ -194,6 +194,10 @@ Current shipped baseline:
   counterfactual prompts for material deltas
 - the KPI evidence bundle includes this as `run_diff_evidence_report_contract`
   and verifies zero command, live-execution, and network-probe counts
+- `tools/revision_traceability_report.py --compact` validates
+  `agilab.revision_traceability.v1` and fingerprints repository HEAD, AGI core
+  package versions, and built-in app manifests without invoking git commands or
+  querying networks
 - `tools/ci_artifact_harvest_report.py --compact` now defines the
   no-network external-machine attachment contract for run manifests, KPI
   bundles, compatibility reports, and promotion decisions

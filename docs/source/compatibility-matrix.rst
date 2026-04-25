@@ -98,6 +98,7 @@ smokes with:
 
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bundle.py --compact
+   uv --preview-features extra-build-dependencies run python tools/revision_traceability_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
    uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --analysis-view view_maps --json
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
@@ -135,6 +136,7 @@ with ``--manifest`` or ``--manifest-dir``. When a manifest is present, the repor
 derives that path's effective status from the manifest result; without a
 manifest, it falls back to the checked-in matrix status. The compact KPI bundle
 consumes that report and includes the ``run_diff_evidence_report_contract``,
+``revision_traceability_report_contract``,
 ``ci_artifact_harvest_report_contract``,
 ``ci_provider_artifact_index_contract``,
 ``multi_app_dag_report_contract``,
@@ -163,6 +165,8 @@ consumes that report and includes the ``run_diff_evidence_report_contract``,
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
 static run-diff evidence report for baseline/candidate KPI, manifest, artifact,
 and counterfactual deltas without executing commands or network probes,
+the revision traceability report for repository HEAD, AGI core package, and
+built-in app manifest fingerprints without command or network execution,
 the CI artifact harvest report for external-machine manifest, KPI,
 compatibility, and promotion-decision attachments with SHA-256 and provenance
 checks but no live CI provider queries,
@@ -269,5 +273,5 @@ adapter.
 The larger roadmap work is still open:
 
 - live provider API coverage beyond GitHub Actions
-- broader app/core revision traceability beyond the first-proof manifest
+- deeper app/core supply-chain attestation beyond static revision fingerprints
 - explicit certification for more than the public newcomer/operator slices
