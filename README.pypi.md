@@ -68,9 +68,12 @@ installer after app changes:
 ./install.sh --non-interactive --apps-repository /path/to/apps-repository --install-apps all
 ```
 
-Existing non-link app/page directories are moved to `<name>.previous.<timestamp>`
-before the repository copy is linked. The public service-mode path docs define
-the full update contract.
+During an update, the apps repository is treated as the source of truth. If the
+target app/page already exists as a real directory instead of a symlink, AGILAB
+backs it up as `<name>.previous.<timestamp>`, then links the repository copy in
+its place. After the update, AGILAB runs the repository version; the
+`.previous` directory is kept only for manual recovery. The public service-mode
+path docs define the full update contract.
 
 ## Evidence And Scope
 

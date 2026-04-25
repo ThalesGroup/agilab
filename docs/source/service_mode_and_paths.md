@@ -38,10 +38,12 @@ bootstrapper, etc.) now assume.
 2. Every valid `*_project` folder inside the repository apps directory is linked
    into the active end-user workspace (for example `~/agi-space/apps`). Existing
    links are recreated on rerun.
-3. If a selected repository app/page already exists locally as a real directory,
-   the installer moves it to `<name>.previous.<timestamp>` and links the
-   repository copy in its place. This makes app updates from the repository the
-   source of truth while keeping the old local directory recoverable.
+3. If a selected repository app/page already exists locally as a real directory
+   instead of a symlink, the installer does not overwrite it in place. It first
+   renames that local directory to `<name>.previous.<timestamp>` as a backup,
+   then creates the symlink to the repository copy. After the update, AGILAB
+   uses the repository version; the `.previous` directory is only a manual
+   recovery backup.
 4. If the apps repository directory is missing or unset, `AgiEnv` falls back to
    the location stored in `~/.local/share/agilab/.agilab-path` and copies the
    public apps instead of linking them.
@@ -63,8 +65,10 @@ ${APPS_REPOSITORY}/
 
 During startup `AgiEnv.get_projects()` automatically removes dangling symlinks
 under the end-user `apps` directory. If you move, rename, or update projects in
-the apps repository, rerun the installer so repository links are refreshed and
-any stale real directories are moved aside before the new links are created.
+the apps repository, rerun the installer. The rerun refreshes the symlinks so
+the repository copy becomes the active app/page. Any existing real directory at
+the target path is renamed to `.previous` first, so it is preserved but no
+longer used by AGILAB.
 
 ## Practical Checklist
 
