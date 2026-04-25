@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import shlex
@@ -43,6 +44,7 @@ MANIFEST_INDEX_FILENAME = "manifest_index.json"
 MANIFEST_INDEX_SCHEMA = "agilab.manifest_index.v1"
 FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 REQUIRED_FIRST_PROOF_VALIDATIONS = ("proof_steps", "target_seconds", "recommended_project")
+MANIFEST_SIGNATURE_SUFFIXES = (".sig", ".minisig", ".asc")
 APP_DEFAULT_METRICS_GLOBS = {
     "meteo_forecast_project": "**/forecast_metrics.json",
 }
@@ -183,6 +185,115 @@ def _discover_imported_manifest_paths(
     return _dedupe_paths(discovered), errors
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _file_metadata(path: Path) -> dict[str, Any]:
+    stat = path.stat()
+    return {
+        "path": str(path),
+        "sha256": _sha256_file(path),
+        "size_bytes": stat.st_size,
+        "modified_at": datetime.fromtimestamp(stat.st_mtime, UTC)
+        .isoformat()
+        .replace("+00:00", "Z"),
+    }
+
+
+def _manifest_signature_sidecar(path: Path) -> dict[str, Any] | None:
+    for suffix in MANIFEST_SIGNATURE_SUFFIXES:
+        signature_path = Path(f"{path}{suffix}")
+        if not signature_path.is_file():
+            continue
+        try:
+            metadata = _file_metadata(signature_path)
+        except OSError:
+            continue
+        metadata["kind"] = suffix.lstrip(".")
+        return metadata
+    return None
+
+
+def _manifest_attachment_metadata(path: Path, provenance: str) -> dict[str, Any]:
+    path = path.expanduser()
+    try:
+        metadata = _file_metadata(path)
+    except OSError as exc:
+        return {
+            "path": str(path),
+            "provenance_tag": provenance,
+            "verification_status": "unverifiable",
+            "signature_status": "missing",
+            "error": str(exc),
+        }
+
+    signature = _manifest_signature_sidecar(path)
+    metadata.update(
+        {
+            "provenance_tag": provenance,
+            "signature_status": "sidecar_present" if signature else "missing",
+            "verification_status": "signed" if signature else "provenance_tagged",
+            "signature": signature,
+        }
+    )
+    return metadata
+
+
+def _attachment_field(manifest: dict[str, Any] | None, field: str, default: Any = "") -> Any:
+    if not manifest:
+        return default
+    attachment = manifest.get("attachment")
+    if not isinstance(attachment, dict):
+        return default
+    return attachment.get(field, default)
+
+
+def _manifest_attachment_status(manifest: dict[str, Any] | None) -> str:
+    status = str(_attachment_field(manifest, "verification_status", ""))
+    if status:
+        return status
+    if _attachment_field(manifest, "sha256", ""):
+        return "provenance_tagged"
+    return "missing"
+
+
+def _manifest_attachment_sha256(manifest: dict[str, Any] | None) -> str:
+    return str(_attachment_field(manifest, "sha256", ""))
+
+
+def _manifest_attachment_signature_path(manifest: dict[str, Any] | None) -> str:
+    signature = _attachment_field(manifest, "signature", None)
+    if isinstance(signature, dict):
+        return str(signature.get("path", ""))
+    return ""
+
+
+def _manifest_attachment_signature_sha256(manifest: dict[str, Any] | None) -> str:
+    signature = _attachment_field(manifest, "signature", None)
+    if isinstance(signature, dict):
+        return str(signature.get("sha256", ""))
+    return ""
+
+
+def _manifest_attachment_columns(manifest: dict[str, Any] | None, *, prefix: str = "") -> dict[str, Any]:
+    attachment = manifest.get("attachment") if isinstance(manifest, dict) else None
+    attachment = attachment if isinstance(attachment, dict) else {}
+    return {
+        f"{prefix}attachment_status": _manifest_attachment_status(manifest),
+        f"{prefix}attachment_sha256": attachment.get("sha256", ""),
+        f"{prefix}attachment_size_bytes": attachment.get("size_bytes"),
+        f"{prefix}attachment_modified_at": attachment.get("modified_at", ""),
+        f"{prefix}attachment_provenance_tag": attachment.get("provenance_tag", ""),
+        f"{prefix}attachment_signature_path": _manifest_attachment_signature_path(manifest),
+        f"{prefix}attachment_signature_sha256": _manifest_attachment_signature_sha256(manifest),
+    }
+
+
 def _build_manifest_import_rows(raw_value: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     manifest_paths, manifest_dirs, parse_errors = _parse_manifest_import_args(raw_value)
     discovered, discovery_errors = _discover_imported_manifest_paths(manifest_paths, manifest_dirs)
@@ -204,6 +315,7 @@ def _build_manifest_import_rows(raw_value: str) -> tuple[list[dict[str, Any]], d
     ]
 
     for path, provenance in discovered:
+        attachment = _manifest_attachment_metadata(path, provenance)
         base_row: dict[str, Any] = {
             "source": str(path),
             "provenance": provenance,
@@ -216,6 +328,8 @@ def _build_manifest_import_rows(raw_value: str) -> tuple[list[dict[str, Any]], d
             "validation_statuses": "",
             "detail": "",
             "loaded": False,
+            "attachment": attachment,
+            **_manifest_attachment_columns({"attachment": attachment}),
         }
         try:
             manifest = load_run_manifest(path)
@@ -255,6 +369,12 @@ def _build_manifest_import_rows(raw_value: str) -> tuple[list[dict[str, Any]], d
         "validated_manifest_count": sum(1 for row in rows if row["evidence_status"] == "validated"),
         "failed_manifest_count": sum(1 for row in rows if row["evidence_status"] == "failed"),
         "invalid_manifest_count": sum(1 for row in rows if row["evidence_status"] == "invalid"),
+        "attached_manifest_count": sum(1 for row in rows if row.get("attachment_sha256")),
+        "signed_attachment_count": sum(1 for row in rows if row.get("attachment_status") == "signed"),
+        "provenance_tagged_attachment_count": sum(
+            1 for row in rows if row.get("attachment_status") == "provenance_tagged"
+        ),
+        "unverifiable_attachment_count": sum(1 for row in rows if row.get("attachment_status") == "unverifiable"),
     }
     return rows, summary
 
@@ -341,6 +461,7 @@ def _build_manifest_index_record(row: dict[str, Any]) -> dict[str, Any]:
         "validation_statuses": row.get("validation_statuses", ""),
         "loaded": bool(row.get("loaded")),
         "detail": row.get("detail", ""),
+        "attachment": row.get("attachment", {}),
     }
 
 
@@ -415,6 +536,14 @@ def _manifest_index_summary(index: dict[str, Any], *, path: Path, loaded: bool, 
         "invalid_manifest_count": sum(
             1 for row in manifest_rows if row.get("evidence_status") == "invalid"
         ),
+        "attached_manifest_count": sum(1 for row in manifest_rows if _manifest_attachment_sha256(row)),
+        "signed_attachment_count": sum(1 for row in manifest_rows if _manifest_attachment_status(row) == "signed"),
+        "provenance_tagged_attachment_count": sum(
+            1 for row in manifest_rows if _manifest_attachment_status(row) == "provenance_tagged"
+        ),
+        "unverifiable_attachment_count": sum(
+            1 for row in manifest_rows if _manifest_attachment_status(row) == "unverifiable"
+        ),
     }
 
 
@@ -439,6 +568,7 @@ def _manifest_index_rows(index: dict[str, Any]) -> list[dict[str, Any]]:
                     "evidence_status": manifest.get("evidence_status", ""),
                     "duration_seconds": manifest.get("duration_seconds"),
                     "target_seconds": manifest.get("target_seconds"),
+                    **_manifest_attachment_columns(manifest),
                 }
             )
     return rows
@@ -495,6 +625,10 @@ def _best_manifest_record(records: list[dict[str, Any]]) -> dict[str, Any] | Non
 
 
 def _manifest_is_same_evidence(current: dict[str, Any], prior: dict[str, Any]) -> bool:
+    current_sha256 = _manifest_attachment_sha256(current)
+    prior_sha256 = _manifest_attachment_sha256(prior)
+    if current_sha256 and current_sha256 == prior_sha256:
+        return True
     current_run_id = str(current.get("run_id") or "")
     prior_run_id = str(prior.get("run_id") or "")
     if current_run_id and current_run_id == prior_run_id:
@@ -608,6 +742,13 @@ def _build_manifest_index_comparison_rows(
                 "prior_run_id": (prior_manifest or {}).get("run_id", ""),
                 "prior_evidence_status": (prior_manifest or {}).get("evidence_status", "missing"),
                 "prior_duration_seconds": _manifest_duration(prior_manifest),
+                **_manifest_attachment_columns(current_manifest, prefix="current_"),
+                **_manifest_attachment_columns(prior_manifest, prefix="prior_"),
+                "attachment_match": bool(
+                    _manifest_attachment_sha256(current_manifest)
+                    and _manifest_attachment_sha256(current_manifest)
+                    == _manifest_attachment_sha256(prior_manifest)
+                ),
                 "detail": detail,
             }
         )

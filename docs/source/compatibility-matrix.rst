@@ -117,14 +117,16 @@ validation status; the compact KPI bundle checks this as
 ``run_manifest_contract``, and the release-decision page consumes it as the
 first promotion gate. The same page can now import external manifest evidence
 with ``--manifest`` / ``--manifest-dir`` style inputs, display source path,
-provenance, path id, timing, validation status, and evidence status, and export
+provenance, path id, timing, validation status, evidence status, SHA-256, byte
+size, UTC modified time, and optional sidecar signature metadata, and export
 that import summary in ``promotion_decision.json``. Export also updates
 ``manifest_index.json`` under the artifact root so imported manifests are grouped
 by candidate bundle for later release decisions, and the page compares the
 current candidate against prior indexed evidence to flag better, stale, missing,
-failed, and newly validated manifests. The same export includes a cross-run
-evidence bundle comparison across selected manifest, KPI, required artifact, and
-reduce-artifact evidence for the baseline and prior indexed releases.
+failed, and newly validated manifests, including attachment hash matches. The
+same export includes a cross-run evidence bundle comparison across selected
+manifest, KPI, required artifact, and reduce-artifact evidence for the baseline
+and prior indexed releases.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and
@@ -140,6 +142,6 @@ This first matrix closes the small, manual version of the compatibility item.
 The larger roadmap work is still open:
 
 - automatic harvesting from external CI workflow artifacts
-- per-release compatibility status
+- per-release compatibility status driven by harvested attachments
 - broader app/core revision traceability beyond the first-proof manifest
 - explicit certification for more than the public newcomer/operator slices

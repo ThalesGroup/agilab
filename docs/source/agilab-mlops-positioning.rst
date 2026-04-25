@@ -131,8 +131,9 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
 - the release-decision page gates on the first-proof ``run_manifest.json``,
   imports external manifest evidence, applies artifact and KPI gates, and
   exports ``promotion_decision.json`` plus ``manifest_index.json`` with manifest
-  summary, import summary, per-release evidence history, cross-release manifest
-  comparison, cross-run evidence bundle comparison, and gate details
+  summary, import summary, provenance-tagged attachment metadata, per-release
+  evidence history, cross-release manifest comparison, cross-run evidence bundle
+  comparison, and gate details
 - ``SECURITY.md`` documents supported versions, disclosure expectations, and a
   deployment hardening checklist
 
@@ -156,8 +157,8 @@ between research experiments and engineering validation:
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because future app/template reducer adoption discipline, external
-manifest ingestion, and broader fresh-install validation are still roadmap work.
+higher yet because future app/template reducer adoption discipline, connector
+registry hardening, and broader fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------

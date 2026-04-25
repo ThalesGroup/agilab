@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -310,6 +311,8 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
     _write_bundle(candidate_root, mae=0.81, rmse=0.97, mape=5.42)
     imported_manifest_path = _write_first_proof_manifest(tmp_path / "external_machine")
+    Path(f"{imported_manifest_path}.sig").write_text("test signature\n", encoding="utf-8")
+    imported_manifest_sha256 = hashlib.sha256(imported_manifest_path.read_bytes()).hexdigest()
 
     at = _run_release_page(
         tmp_path,
@@ -359,6 +362,12 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert payload["imported_run_manifest_evidence"][0]["duration_seconds"] == 5.0
     assert payload["imported_run_manifest_evidence"][0]["target_seconds"] == 600.0
     assert "proof_steps=pass" in payload["imported_run_manifest_evidence"][0]["validation_statuses"]
+    assert payload["imported_run_manifest_evidence"][0]["attachment_status"] == "signed"
+    assert payload["imported_run_manifest_evidence"][0]["attachment_sha256"] == imported_manifest_sha256
+    assert (
+        payload["imported_run_manifest_evidence"][0]["attachment_signature_path"]
+        == f"{imported_manifest_path}.sig"
+    )
     manifest_index_path = export_root / "manifest_index.json"
     assert manifest_index_path.is_file()
     manifest_index = json.loads(manifest_index_path.read_text(encoding="utf-8"))
@@ -369,8 +378,11 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert release["baseline_bundle_root"] == str(baseline_root)
     assert release["selected_run_manifest_path"] == str(imported_manifest_path)
     assert release["import_summary"]["loaded_manifest_count"] == 1
+    assert release["import_summary"]["signed_attachment_count"] == 1
     assert release["manifests"][0]["source"] == str(imported_manifest_path)
     assert release["manifests"][0]["evidence_status"] == "validated"
+    assert release["manifests"][0]["attachment"]["verification_status"] == "signed"
+    assert release["manifests"][0]["attachment"]["sha256"] == imported_manifest_sha256
 
 
 def test_view_release_decision_compares_manifest_index_history(tmp_path, monkeypatch) -> None:
@@ -625,6 +637,10 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     assert import_rows[0]["path_id"] == "source-checkout-first-proof"
     assert import_rows[0]["evidence_status"] == "validated"
     assert import_rows[0]["duration_seconds"] == 601.0
+    assert import_rows[0]["attachment_status"] == "provenance_tagged"
+    assert import_rows[0]["attachment_sha256"] == hashlib.sha256(bad_manifest.read_bytes()).hexdigest()
+    assert import_summary["attached_manifest_count"] == 1
+    assert import_summary["provenance_tagged_attachment_count"] == 1
     assert "target_seconds=pass" in import_rows[0]["validation_statuses"]
     assert module._select_run_manifest_gate_path(tmp_path / "missing.json", import_rows) == bad_manifest
 
@@ -657,9 +673,12 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     assert merged_summary["loaded"] is True
     assert merged_summary["existing_index_loaded"] is False
     assert merged_summary["validated_manifest_count"] == 1
+    assert merged_summary["attached_manifest_count"] == 1
+    assert merged_summary["provenance_tagged_attachment_count"] == 1
     index_rows = module._manifest_index_rows(merged_index)
     assert index_rows[0]["release"] == "run_b"
     assert index_rows[0]["source"] == str(bad_manifest)
+    assert index_rows[0]["attachment_status"] == "provenance_tagged"
     written_index = module._write_manifest_index(manifest_index_path, merged_index)
     assert written_index == manifest_index_path
     loaded_index, loaded_summary = module._load_manifest_index(manifest_index_path)
@@ -678,6 +697,8 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     )
     comparison_rows = module._build_manifest_index_comparison_rows(loaded_index, stale_release)
     assert comparison_rows[0]["comparison_status"] == "stale"
+    assert comparison_rows[0]["attachment_match"] is True
+    assert comparison_rows[0]["current_attachment_status"] == "provenance_tagged"
     comparison_summary = module._manifest_index_comparison_summary(
         comparison_rows,
         loaded_index,
