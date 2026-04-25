@@ -201,13 +201,18 @@ Current shipped baseline:
   artifact status/checksum/provenance rows, block invalid harvests, and export
   `ci_artifact_harvest_summary` plus `ci_artifact_harvest_evidence` inside
   `promotion_decision.json`
+- `tools/github_actions_artifact_index.py --archive` converts downloaded
+  GitHub Actions artifact ZIPs into a harvest-compatible `artifact_index.json`,
+  and its opt-in `--live-github` path can query/download workflow-run artifacts
+  when credentials are available
 
 Remaining scope:
 
 - add richer domain-specific explanations for allocation, topology, and
   decision deltas
-- compare real external-machine evidence archives from live CI provider APIs
-  once provider-side artifact download is available
+- run the provider download path against release CI and use the downloaded
+  attachments to drive per-release compatibility status
+- add provider adapters beyond GitHub Actions
 
 Why it matters:
 

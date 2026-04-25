@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import tempfile
 from types import SimpleNamespace
 from typing import Any, Sequence
 
@@ -401,6 +402,82 @@ def _check_ci_artifact_harvest_report(repo_root: Path) -> dict[str, Any]:
         evidence=[
             "tools/ci_artifact_harvest_report.py",
             "src/agilab/ci_artifact_harvest.py",
+        ],
+        details=details,
+    )
+
+
+def _check_github_actions_artifact_index(repo_root: Path) -> dict[str, Any]:
+    try:
+        github_actions_artifact_index = _load_tool_module(
+            repo_root,
+            "github_actions_artifact_index",
+        )
+        ci_artifact_harvest_report = _load_tool_module(
+            repo_root,
+            "ci_artifact_harvest_report",
+        )
+        with tempfile.TemporaryDirectory(
+            prefix="agilab-github-actions-artifact-index-"
+        ) as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            archive_path = github_actions_artifact_index.write_sample_github_actions_archive(
+                tmp_path / "public-evidence.zip"
+            )
+            artifact_index = github_actions_artifact_index.build_artifact_index_from_archives(
+                [archive_path],
+                repository="ThalesGroup/agilab",
+                run_id="ci-sample-20260425",
+                workflow="public-evidence.yml",
+                run_attempt="1",
+                source_machine="github-actions:ubuntu-24.04",
+            )
+            artifact_index_path = tmp_path / "artifact_index.json"
+            github_actions_artifact_index.write_artifact_index(
+                artifact_index_path,
+                artifact_index,
+            )
+            harvest_report = ci_artifact_harvest_report.build_report(
+                repo_root=repo_root,
+                output_path=tmp_path / "ci_artifact_harvest.json",
+                artifact_index_path=artifact_index_path,
+            )
+        summary = artifact_index.get("summary", {})
+        harvest_summary = harvest_report.get("summary", {})
+        ok = (
+            artifact_index.get("schema") == "agilab.ci_provider_artifact_index.v1"
+            and summary.get("archive_count") == 1
+            and summary.get("artifact_count") == 4
+            and summary.get("required_artifact_count") == 4
+            and summary.get("missing_required_count") == 0
+            and summary.get("provider_query_count") == 0
+            and summary.get("download_count") == 0
+            and summary.get("network_probe_count") == 0
+            and harvest_report.get("status") == "pass"
+            and harvest_summary.get("release_status") == "validated"
+        )
+        details = {
+            "status": "pass" if ok else "fail",
+            "summary": summary,
+            "harvest_summary": harvest_summary,
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "github_actions_artifact_index_contract",
+        "GitHub Actions artifact index contract",
+        ok,
+        (
+            "GitHub Actions artifact archives can be converted into the "
+            "CI artifact harvest index without live provider access"
+            if ok
+            else "GitHub Actions artifact index contract is failing or disconnected"
+        ),
+        evidence=[
+            "tools/github_actions_artifact_index.py",
+            "src/agilab/ci_provider_artifacts.py",
+            "tools/ci_artifact_harvest_report.py",
         ],
         details=details,
     )
@@ -1795,6 +1872,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/reduce_contract_benchmark.py --json",
             "tools/run_diff_evidence_report.py --compact",
             "tools/ci_artifact_harvest_report.py --compact",
+            "tools/github_actions_artifact_index.py --archive",
             "tools/multi_app_dag_report.py --compact",
             "tools/global_pipeline_dag_report.py --compact",
             "tools/global_pipeline_execution_plan_report.py --compact",
@@ -1830,6 +1908,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/production_readiness_report.py",
             "tools/run_diff_evidence_report.py",
             "tools/ci_artifact_harvest_report.py",
+            "tools/github_actions_artifact_index.py",
             "tools/multi_app_dag_report.py",
             "tools/global_pipeline_dag_report.py",
             "tools/global_pipeline_execution_plan_report.py",
@@ -1901,6 +1980,7 @@ def build_bundle(
         _check_run_manifest_contract(repo_root),
         _check_run_diff_evidence_report(repo_root),
         _check_ci_artifact_harvest_report(repo_root),
+        _check_github_actions_artifact_index(repo_root),
         _check_multi_app_dag_report(repo_root),
         _check_global_pipeline_dag_report(repo_root),
         _check_global_pipeline_execution_plan_report(repo_root),

@@ -225,6 +225,10 @@ single notebook but less ceremony than a production MLOps platform:
   ``run_manifest.json``, KPI bundle, compatibility report, and promotion
   decision attachments to a release status with SHA-256 and provenance checks
   without querying live CI providers
+- the GitHub Actions artifact-index adapter converts downloaded workflow
+  artifact ZIPs with ``tools/github_actions_artifact_index.py --archive`` into
+  the same harvest input, while opt-in ``--live-github`` mode can query and
+  download a workflow run when operator credentials are available
 - the multi-app DAG contract now validates app-to-app dependencies and
   artifact handoffs with ``tools/multi_app_dag_report.py --compact`` against
   ``docs/source/data/multi_app_dag_sample.json``; the first sample links
@@ -327,6 +331,10 @@ production platform:
   external-machine attachment contract for CI-produced evidence bundles, and
   the Release Decision page can now consume that JSON without live CI or network
   access
+- ``tools/github_actions_artifact_index.py --archive`` bridges provider
+  artifacts into that contract by expanding GitHub Actions ZIP archives into a
+  harvest-compatible ``artifact_index.json``; ``--live-github`` is opt-in for
+  credentialed provider queries and downloads
 - the same evidence view surfaces reducer artifacts from benchmark distributed
   runs, meteo forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed

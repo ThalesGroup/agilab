@@ -227,7 +227,10 @@ execution. ``tools/ci_artifact_harvest_report.py --compact`` adds the
 corresponding ``ci_artifact_contract_only`` evidence-harvest contract for
 external-machine attachments, and Release Decision can import the resulting
 ``ci_artifact_harvest.json`` rows into ``promotion_decision.json`` before live
-provider harvesting is introduced.
+provider harvesting is introduced. ``tools/github_actions_artifact_index.py
+--archive`` converts already-downloaded GitHub Actions artifact ZIPs into the
+same harvest input, and its opt-in ``--live-github`` mode can query and download
+workflow-run artifacts when operator credentials are available.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and
@@ -240,11 +243,12 @@ What remains roadmap work
 -------------------------
 
 This first matrix closes the small, manual version of the compatibility item,
-and the CI artifact harvest report plus Release Decision import flow define the
-no-network attachment contract.
+and the CI artifact harvest report plus GitHub Actions artifact-index flow
+define both the no-network attachment contract and the first provider download
+adapter.
 The larger roadmap work is still open:
 
-- automatic download/harvesting from external CI workflow artifact APIs
 - per-release compatibility status driven by live downloaded attachments
+- broader provider coverage beyond GitHub Actions
 - broader app/core revision traceability beyond the first-proof manifest
 - explicit certification for more than the public newcomer/operator slices

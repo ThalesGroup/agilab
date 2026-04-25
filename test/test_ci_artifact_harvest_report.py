@@ -5,6 +5,20 @@ import json
 import sys
 from pathlib import Path
 
+SRC_ROOT = Path("src").resolve()
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+package = sys.modules.get("agilab")
+package_paths = getattr(package, "__path__", None)
+if package_paths is not None and str(SRC_ROOT / "agilab") not in list(package_paths):
+    package_paths.append(str(SRC_ROOT / "agilab"))
+
+from agilab.ci_provider_artifacts import (
+    build_artifact_index_from_archives,
+    write_artifact_index,
+    write_sample_github_actions_archive,
+)
+
 
 REPORT_PATH = Path("tools/ci_artifact_harvest_report.py").resolve()
 CORE_PATH = Path("src/agilab/ci_artifact_harvest.py").resolve()
@@ -90,6 +104,36 @@ def test_ci_artifact_harvest_persists_release_mapping(tmp_path: Path) -> None:
     assert payload["provenance"]["queries_ci_provider"] is False
     assert payload["provenance"]["executes_network_probe"] is False
     assert payload["provenance"]["executes_commands"] is False
+
+
+def test_ci_artifact_harvest_report_accepts_provider_artifact_index(
+    tmp_path: Path,
+) -> None:
+    module = _load_module(REPORT_PATH, "ci_artifact_harvest_provider_index_test_module")
+    archive_path = write_sample_github_actions_archive(tmp_path / "public-evidence.zip")
+    artifact_index_path = tmp_path / "artifact_index.json"
+    write_artifact_index(
+        artifact_index_path,
+        build_artifact_index_from_archives(
+            [archive_path],
+            repository="ThalesGroup/agilab",
+            run_id="123456789",
+            workflow="public-evidence.yml",
+            run_attempt="1",
+            source_machine="github-actions:ubuntu-24.04",
+        ),
+    )
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "ci_artifact_harvest.json",
+        artifact_index_path=artifact_index_path,
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["artifact_count"] == 4
+    assert report["summary"]["release_status"] == "validated"
+    assert report["summary"]["external_machine_evidence_count"] == 4
 
 
 def test_ci_artifact_harvest_core_detects_missing_required_artifacts() -> None:
