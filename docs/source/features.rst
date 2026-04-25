@@ -231,6 +231,12 @@ single notebook but less ceremony than a production MLOps platform:
   ``agilab.public_certification_profile.v1``; it turns the compatibility
   matrix into a ``bounded_public_evidence`` profile while explicitly avoiding
   production or third-party certification claims
+- the supply-chain attestation report validates
+  ``tools/supply_chain_attestation_report.py --compact`` in
+  ``supply_chain_static_attestation`` mode against
+  ``agilab.supply_chain_attestation.v1``; it fingerprints package metadata,
+  lockfile, license, bundled AGI core versions, and built-in app manifests
+  without formal supply-chain attestation claims
 - the run-diff evidence report validates
   ``tools/run_diff_evidence_report.py --compact`` in
   ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,
