@@ -49,6 +49,65 @@ def _write_bundle(root: Path, *, mae: float, rmse: float, mape: float, with_pred
         )
 
 
+def _write_first_proof_manifest(
+    runtime_root: Path,
+    *,
+    status: str = "pass",
+    path_id: str = "source-checkout-first-proof",
+    duration_seconds: float = 5.0,
+    target_seconds: float = 600.0,
+    validation_status: str = "pass",
+) -> Path:
+    manifest_path = runtime_root / "log" / "execute" / "flight" / "run_manifest.json"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    validations = [
+        {
+            "label": label,
+            "status": validation_status,
+            "summary": f"{label} {validation_status}",
+            "details": {},
+        }
+        for label in ("proof_steps", "target_seconds", "recommended_project")
+    ]
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "agilab.run_manifest",
+                "run_id": "first-proof-test",
+                "path_id": path_id,
+                "label": "Source checkout first proof",
+                "status": status,
+                "command": {
+                    "label": "newcomer first proof",
+                    "argv": ["tools/newcomer_first_proof.py", "--json"],
+                    "cwd": str(runtime_root),
+                    "env_overrides": {},
+                },
+                "environment": {
+                    "python_version": "3.13.0",
+                    "python_executable": sys.executable,
+                    "platform": "test",
+                    "repo_root": str(runtime_root),
+                    "active_app": str(runtime_root / "flight_project"),
+                    "app_name": "flight_project",
+                },
+                "timing": {
+                    "started_at": "2026-04-25T00:00:00Z",
+                    "finished_at": "2026-04-25T00:00:05Z",
+                    "duration_seconds": duration_seconds,
+                    "target_seconds": target_seconds,
+                },
+                "artifacts": [],
+                "validations": validations,
+                "created_at": "2026-04-25T00:00:05Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return manifest_path
+
+
 def _write_reduce_artifact(path: Path, *, engine: str = "pandas") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -181,6 +240,7 @@ def _run_release_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTest
         monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
         monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("AGI_LOG_DIR", str(tmp_path / "log"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)
@@ -205,6 +265,7 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     candidate_root = export_root / "run_2026_04_17"
     _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
     _write_bundle(candidate_root, mae=0.81, rmse=0.97, mape=5.42)
+    manifest_path = _write_first_proof_manifest(tmp_path)
 
     at = _run_release_page(tmp_path, monkeypatch, project_dir)
 
@@ -221,6 +282,15 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     payload = json.loads(decision_path.read_text(encoding="utf-8"))
     assert payload["status"] == "promotable"
     assert payload["candidate_bundle_root"] == str(candidate_root)
+    assert payload["run_manifest_path"] == str(manifest_path)
+    assert payload["run_manifest_summary"]["path_id"] == "source-checkout-first-proof"
+    assert payload["run_manifest_summary"]["status"] == "pass"
+    assert {row["gate"]: row["status"] for row in payload["run_manifest_gates"]} == {
+        "run_manifest_status": "pass",
+        "run_manifest_path_id": "pass",
+        "run_manifest_validations": "pass",
+        "run_manifest_target_seconds": "pass",
+    }
 
 
 def test_view_release_decision_blocks_candidate_with_missing_artifact(tmp_path, monkeypatch) -> None:
@@ -230,6 +300,7 @@ def test_view_release_decision_blocks_candidate_with_missing_artifact(tmp_path, 
     candidate_root = export_root / "run_b"
     _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
     _write_bundle(candidate_root, mae=0.81, rmse=0.97, mape=5.42, with_predictions=False)
+    _write_first_proof_manifest(tmp_path)
 
     at = _run_release_page(tmp_path, monkeypatch, project_dir)
 
@@ -289,6 +360,41 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     )
     assert same_status == "needs_review"
     assert "same metrics file" in same_summary
+
+    missing_rows, missing_summary = module._build_run_manifest_gate_rows(tmp_path / "missing.json")
+    assert missing_rows == [
+        {
+            "gate": "run_manifest_present",
+            "status": "fail",
+            "detail": f"Missing first-proof run manifest: {tmp_path / 'missing.json'}",
+        }
+    ]
+    assert missing_summary["error"] == "missing"
+
+    bad_manifest = _write_first_proof_manifest(
+        tmp_path,
+        status="pass",
+        duration_seconds=601.0,
+        target_seconds=600.0,
+    )
+    bad_rows, bad_summary = module._build_run_manifest_gate_rows(bad_manifest)
+    assert bad_summary["loaded"] is True
+    assert {row["gate"]: row["status"] for row in bad_rows} == {
+        "run_manifest_status": "pass",
+        "run_manifest_path_id": "pass",
+        "run_manifest_validations": "pass",
+        "run_manifest_target_seconds": "fail",
+    }
+
+    manifest_status, manifest_summary = module._decision_status(
+        baseline_path=Path("/tmp/baseline.json"),
+        candidate_path=Path("/tmp/candidate.json"),
+        artifact_rows=[],
+        metric_rows=[],
+        manifest_rows=bad_rows,
+    )
+    assert manifest_status == "blocked"
+    assert "manifest gate" in manifest_summary
 
     errors: list[str] = []
 
@@ -407,6 +513,7 @@ def test_view_release_decision_surfaces_reduce_artifacts_without_metrics(tmp_pat
         monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
         monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("AGI_LOG_DIR", str(tmp_path / "log"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)
@@ -425,11 +532,13 @@ def test_view_release_decision_reuses_existing_session_env(tmp_path, monkeypatch
     candidate_root = export_root / "run_b"
     _write_bundle(baseline_root, mae=1.1, rmse=1.2, mape=6.2)
     _write_bundle(candidate_root, mae=0.9, rmse=1.0, mape=5.9)
+    _write_first_proof_manifest(tmp_path)
 
     env = SimpleNamespace(
         app="meteo_forecast_project",
         target="meteo_forecast",
         AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+        AGILAB_LOG_ABS=tmp_path / "log",
         st_resources=tmp_path,
     )
     argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
@@ -437,6 +546,7 @@ def test_view_release_decision_reuses_existing_session_env(tmp_path, monkeypatch
         monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
         monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("AGI_LOG_DIR", str(tmp_path / "log"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)

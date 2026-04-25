@@ -109,7 +109,8 @@ For the source-checkout first proof, ``tools/newcomer_first_proof.py --json``
 also writes ``~/log/execute/flight/run_manifest.json``. That stable manifest is
 the shared run record for command, environment, timing, artifact references, and
 validation status; the compact KPI bundle checks this as
-``run_manifest_contract``.
+``run_manifest_contract``, and the release-decision page consumes it as the
+first promotion gate.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and

@@ -155,7 +155,8 @@ single notebook but less ceremony than a production MLOps platform:
   compatibility-report status
 - ``tools/newcomer_first_proof.py --json`` writes
   ``~/log/execute/flight/run_manifest.json`` so the first proof has one stable
-  command/environment/timing/artifact/validation record
+  command/environment/timing/artifact/validation record that the release
+  decision view can consume as promotion evidence
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -177,7 +178,9 @@ production platform:
 - ``tools/service_health_check.py`` evaluates service status against SLA
   thresholds and can emit JSON or Prometheus-compatible output
 - the release-decision analysis page compares baseline and candidate bundles,
-  applies artifact/KPI gates, and exports ``promotion_decision.json``
+  gates on the first-proof ``run_manifest.json``, evaluates artifact and KPI
+  gates, and exports ``promotion_decision.json`` with manifest summary and gate
+  details
 - the same evidence view surfaces reducer artifacts from benchmark distributed
   runs, meteo forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed

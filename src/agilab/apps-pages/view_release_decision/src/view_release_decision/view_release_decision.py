@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from datetime import datetime, UTC
@@ -37,12 +38,39 @@ from agi_node.reduction import ReduceArtifact
 LOWER_IS_BETTER_KEYWORDS = ("mae", "rmse", "mape", "loss", "error", "latency", "duration")
 HIGHER_IS_BETTER_KEYWORDS = ("accuracy", "f1", "precision", "recall", "throughput", "score", "auc", "r2")
 REDUCE_ARTIFACT_GLOB = "**/reduce_summary_worker_*.json"
+FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
+REQUIRED_FIRST_PROOF_VALIDATIONS = ("proof_steps", "target_seconds", "recommended_project")
 APP_DEFAULT_METRICS_GLOBS = {
     "meteo_forecast_project": "**/forecast_metrics.json",
 }
 APP_DEFAULT_REQUIRED_PATTERNS = {
     "meteo_forecast_project": ("forecast_metrics.json", "forecast_predictions.csv"),
 }
+
+
+def _load_run_manifest_module() -> Any:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        module_path = parent / "agilab" / "run_manifest.py"
+        if module_path.is_file():
+            spec = importlib.util.spec_from_file_location(
+                "agilab_run_manifest_for_release_decision",
+                module_path,
+            )
+            if not spec or not spec.loader:
+                break
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = module
+            spec.loader.exec_module(module)
+            return module
+    raise ModuleNotFoundError("Unable to load agilab/run_manifest.py for release decisions.")
+
+
+_run_manifest_module = _load_run_manifest_module()
+RUN_MANIFEST_FILENAME = _run_manifest_module.RUN_MANIFEST_FILENAME
+load_run_manifest = _run_manifest_module.load_run_manifest
+manifest_passed = _run_manifest_module.manifest_passed
+manifest_summary = _run_manifest_module.manifest_summary
 
 
 def _resolve_active_app() -> Path:
@@ -69,6 +97,11 @@ def _default_required_patterns(env: AgiEnv) -> list[str]:
     if patterns:
         return list(patterns)
     return ["*.json"]
+
+
+def _default_run_manifest_path(env: AgiEnv) -> Path:
+    log_root = Path(getattr(env, "AGILAB_LOG_ABS", Path.home() / "log")).expanduser()
+    return log_root / "execute" / "flight" / RUN_MANIFEST_FILENAME
 
 
 def _discover_files(base: Path, pattern: str) -> list[Path]:
@@ -322,14 +355,104 @@ def _build_artifact_rows(
     return rows
 
 
+def _build_run_manifest_gate_rows(manifest_path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    manifest_path = manifest_path.expanduser()
+    base_summary: dict[str, Any] = {
+        "path": str(manifest_path),
+        "loaded": False,
+        "error": None,
+    }
+    try:
+        manifest = load_run_manifest(manifest_path)
+    except FileNotFoundError:
+        return (
+            [
+                {
+                    "gate": "run_manifest_present",
+                    "status": "fail",
+                    "detail": f"Missing first-proof run manifest: {manifest_path}",
+                }
+            ],
+            {**base_summary, "error": "missing"},
+        )
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        return (
+            [
+                {
+                    "gate": "run_manifest_valid",
+                    "status": "fail",
+                    "detail": f"Invalid first-proof run manifest: {exc}",
+                }
+            ],
+            {**base_summary, "error": str(exc)},
+        )
+
+    summary = {
+        **base_summary,
+        **manifest_summary(manifest),
+        "loaded": True,
+        "validation_count": len(manifest.validations),
+    }
+    validation_statuses = {
+        validation.label: validation.status
+        for validation in manifest.validations
+    }
+    missing_validations = [
+        label
+        for label in REQUIRED_FIRST_PROOF_VALIDATIONS
+        if label not in validation_statuses
+    ]
+    validations_ok = (
+        manifest_passed(manifest)
+        and not missing_validations
+        and all(status == "pass" for status in validation_statuses.values())
+    )
+    target = manifest.timing.target_seconds
+    target_ok = target is not None and manifest.timing.duration_seconds <= target
+    rows = [
+        {
+            "gate": "run_manifest_status",
+            "status": "pass" if manifest.status == "pass" else "fail",
+            "detail": f"manifest status is {manifest.status!r}",
+        },
+        {
+            "gate": "run_manifest_path_id",
+            "status": "pass" if manifest.path_id == FIRST_PROOF_PATH_ID else "fail",
+            "detail": f"manifest path_id is {manifest.path_id!r}",
+        },
+        {
+            "gate": "run_manifest_validations",
+            "status": "pass" if validations_ok else "fail",
+            "detail": (
+                "all required validations passed"
+                if validations_ok
+                else f"validation statuses={validation_statuses}, missing={missing_validations}"
+            ),
+        },
+        {
+            "gate": "run_manifest_target_seconds",
+            "status": "pass" if target_ok else "fail",
+            "detail": (
+                f"duration {manifest.timing.duration_seconds:.2f}s <= target {target:.2f}s"
+                if target_ok
+                else f"duration={manifest.timing.duration_seconds:.2f}s target={target}"
+            ),
+        },
+    ]
+    return rows, summary
+
+
 def _decision_status(
     baseline_path: Path,
     candidate_path: Path,
     artifact_rows: list[dict[str, Any]],
     metric_rows: list[dict[str, Any]],
+    manifest_rows: list[dict[str, Any]] | None = None,
 ) -> tuple[str, str]:
     if baseline_path == candidate_path:
         return "needs_review", "Baseline and candidate point to the same metrics file."
+    if any(row["status"] == "fail" for row in manifest_rows or []):
+        return "blocked", "First-proof run manifest gate is failing or missing."
     if any(row["status"] == "fail" for row in artifact_rows):
         return "blocked", "Required evidence artifacts are missing from the candidate bundle."
     if any(row["status"] == "fail" for row in metric_rows):
@@ -349,6 +472,9 @@ def _decision_payload(
     artifact_rows: list[dict[str, Any]],
     metric_rows: list[dict[str, Any]],
     reduce_artifact_rows: list[dict[str, Any]],
+    run_manifest_path: Path,
+    run_manifest_rows: list[dict[str, Any]],
+    run_manifest_summary: dict[str, Any],
     status: str,
     summary: str,
     tolerance_pct: float,
@@ -368,6 +494,9 @@ def _decision_payload(
         "tolerance_pct": tolerance_pct,
         "baseline_metadata": _metadata_subset(baseline_payload),
         "candidate_metadata": _metadata_subset(candidate_payload),
+        "run_manifest_path": str(run_manifest_path),
+        "run_manifest_summary": run_manifest_summary,
+        "run_manifest_gates": run_manifest_rows,
         "artifact_gates": artifact_rows,
         "metric_gates": metric_rows,
         "reduce_artifacts": reduce_artifact_rows,
@@ -429,6 +558,15 @@ tolerance_pct = float(
     )
 )
 required_patterns = [line.strip() for line in required_patterns_value.splitlines() if line.strip()]
+run_manifest_path_value = st.sidebar.text_input(
+    "First-proof run manifest",
+    value=st.session_state.setdefault(
+        "release_decision_run_manifest_path",
+        str(_default_run_manifest_path(env)),
+    ),
+    key="release_decision_run_manifest_path",
+)
+run_manifest_path = Path(run_manifest_path_value).expanduser()
 
 if not artifact_root.exists():
     st.warning(f"Artifact directory does not exist yet: {artifact_root}")
@@ -478,11 +616,13 @@ baseline_metrics = _flatten_numeric_metrics(baseline_payload)
 candidate_metrics = _flatten_numeric_metrics(candidate_payload)
 metric_rows = _build_metric_rows(baseline_metrics, candidate_metrics, tolerance_pct=tolerance_pct)
 artifact_rows = _build_artifact_rows(baseline_path.parent, candidate_path.parent, required_patterns)
+run_manifest_rows, run_manifest_summary = _build_run_manifest_gate_rows(run_manifest_path)
 decision_status, decision_summary = _decision_status(
     baseline_path=baseline_path,
     candidate_path=candidate_path,
     artifact_rows=artifact_rows,
     metric_rows=metric_rows,
+    manifest_rows=run_manifest_rows,
 )
 payload = _decision_payload(
     env=env,
@@ -494,6 +634,9 @@ payload = _decision_payload(
     artifact_rows=artifact_rows,
     metric_rows=metric_rows,
     reduce_artifact_rows=reduce_artifact_rows,
+    run_manifest_path=run_manifest_path,
+    run_manifest_rows=run_manifest_rows,
+    run_manifest_summary=run_manifest_summary,
     status=decision_status,
     summary=decision_summary,
     tolerance_pct=tolerance_pct,
@@ -519,6 +662,11 @@ with meta_right:
 artifact_df = pd.DataFrame(artifact_rows)
 st.subheader("Evidence gates")
 st.dataframe(artifact_df, width="stretch", hide_index=True)
+
+manifest_df = pd.DataFrame(run_manifest_rows)
+st.subheader("First-proof run manifest gate")
+st.caption(str(run_manifest_path))
+st.dataframe(manifest_df, width="stretch", hide_index=True)
 
 metric_df = pd.DataFrame(metric_rows)
 if metric_df.empty:

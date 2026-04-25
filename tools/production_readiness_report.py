@@ -255,15 +255,20 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
             str(page_path.relative_to(repo_root)): [
                 "promotion_decision.json",
                 "Export promotion decision",
+                "run_manifest_gates",
+                "run_manifest_summary",
                 "artifact_gates",
                 "metric_gates",
             ],
             str(readme_path.relative_to(repo_root)): [
                 "apply explicit artifact and KPI gates",
+                "gate promotion on first-proof `run_manifest.json`",
                 "export `promotion_decision.json`",
             ],
             str(test_path.relative_to(repo_root)): [
                 "test_view_release_decision_renders_promotable_candidate_and_exports_json",
+                "run_manifest_gates",
+                "run_manifest_summary",
                 "promotion_decision.json",
             ],
         }
@@ -283,7 +288,7 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
         ok = False
         details = {"error": str(exc)}
     summary = (
-        "release-decision page exports promotion_decision.json with artifact/KPI gates"
+        "release-decision page exports promotion_decision.json with manifest/artifact/KPI gates"
         if ok
         else "release-decision page export contract is incomplete"
     )

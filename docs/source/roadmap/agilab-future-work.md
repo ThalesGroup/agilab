@@ -12,20 +12,20 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **Promotion / release decision workflow**
-   - the first-proof path now writes a stable `run_manifest.json`
-   - turn run manifests and evidence bundles into an explicit promotable /
-     blocked decision
-   - this is the first strong evidence-driven product surface
-2. **Compatibility matrix automation**
+1. **Compatibility matrix automation**
    - ingest local and external `run_manifest.json` files into release/path
      status
    - replace the current manual compatibility page with workflow-backed status
-3. **First-proof wizard follow-ups**
+2. **First-proof wizard follow-ups**
    - the shipped wizard now guides one validated `flight_project` path,
      consumes compatibility-report status, and detects `run_manifest.json`
    - future work is external run evidence ingestion and richer remediation, not
      the baseline in-product route
+3. **Run manifest external ingestion follow-ups**
+   - generalize manifest import beyond the local first-proof default consumed
+     by the release-decision page
+   - index external fresh-machine and CI manifests for compatibility and
+     release decisions
 4. **Connector registry hardening**
    - stabilize path portability and artefact resolution across apps/pages
    - this reduces glue before deeper cross-app automation
@@ -75,7 +75,8 @@ use this order:
 
 Why this order:
 
-- turn shipped first-proof evidence into decisions before broader automation
+- feed external manifest evidence into compatibility status before broader
+  onboarding automation
 - start with validated proof before broader onboarding automation
 - stabilize cross-app orchestration before claiming a global orchestrated DAG
 - keep notebook interop after the orchestration contract is clearer
@@ -708,7 +709,6 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Promotion / release decision workflow
 - Compatibility matrix automation
 - First-proof wizard follow-ups
 - Run manifest external ingestion follow-ups
