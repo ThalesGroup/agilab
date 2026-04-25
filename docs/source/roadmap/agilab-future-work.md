@@ -16,7 +16,8 @@ use this order:
    - let `PIPELINE` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
    - build on the shipped multi-app DAG contract, read-only global pipeline DAG
-     report, and pending execution-plan report, then add real dispatch plus
+     report, pending execution-plan report, read-only runner state, and
+     persisted dispatch-state proof, then add real app execution plus live
      operator-facing state
 2. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
@@ -208,8 +209,9 @@ Why it matters:
 
 Purpose:
 
-- turn the checked-in global DAG, execution plan, and read-only runner state
-  into live dispatched runs with persisted operator-visible status
+- turn the checked-in global DAG, execution plan, read-only runner state, and
+  persisted dispatch-state proof into live app execution with persisted
+  operator-visible status
 
 Current shipped baseline:
 
@@ -228,24 +230,32 @@ Current shipped baseline:
   `relay_followup` as `blocked`, and records transition, retry,
   partial-rerun, operator-message, and provenance metadata without executing
   apps
+- `tools/global_pipeline_dispatch_state_report.py --compact` writes and reads
+  back a persisted dispatch-state JSON proof, records `queue_baseline`
+  completion, publishes `queue_metrics`, marks `relay_followup` runnable, and
+  preserves timestamps, retry counters, partial-rerun flags, operator messages,
+  and provenance without executing apps
 - the compact KPI bundle includes this as
   `global_pipeline_dag_report_contract`,
-  `global_pipeline_execution_plan_report_contract`, and
-  `global_pipeline_runner_state_report_contract`
+  `global_pipeline_execution_plan_report_contract`,
+  `global_pipeline_runner_state_report_contract`, and
+  `global_pipeline_dispatch_state_report_contract`
 
 Remaining scope:
 
 - explicit upstream/downstream dependency visualization across apps
 - live orchestration-state updates for the full DAG
-- runner dispatch for executing the global graph and persisting retries,
-  partial reruns, provenance, and operator-visible state changes
+- runner dispatch that invokes the real app entry points instead of simulated
+  state transitions
+- persisted retries, partial reruns, provenance, and operator-visible state
+  changes from real app runs
 - UI components that render the persisted state and support operator actions
 
 Why it matters:
 
 - the report gives AGILab a clearer product story than isolated per-app
   pipelines without overclaiming execution
-- runner dispatch and live UI state are still needed before the orchestration
+- real app dispatch and live UI state are still needed before the orchestration
   layer is fully visible to operators and reviewers
 
 ### 8. Bidirectional notebook interop

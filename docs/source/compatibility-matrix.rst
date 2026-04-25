@@ -103,6 +103,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_execution_plan_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_runner_state_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_dispatch_state_report.py --compact
 
 The compact compatibility report checks the required public statuses, the proof
 commands behind validated entries, and optional ``run_manifest.json`` evidence.
@@ -113,14 +114,16 @@ manifest, it falls back to the checked-in matrix status. The compact KPI bundle
 consumes that report and includes the ``multi_app_dag_report_contract``,
 ``global_pipeline_dag_report_contract``,
 ``global_pipeline_execution_plan_report_contract``,
-``global_pipeline_runner_state_report_contract``, and
+``global_pipeline_runner_state_report_contract``,
+``global_pipeline_dispatch_state_report_contract``, and
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
 checked-in cross-app DAG handoff sample, assemble the read-only product-level
 graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
 runnable units with artifact dependencies and provenance, project runnable and
 blocked runner state with retry/partial-rerun metadata and operator messages,
-and verify that every non-template built-in app exposes a reducer contract
-while recording ``mycode_project`` as the explicit template-only exemption.
+persist a queue-to-relay dispatch-state transition proof, and verify that every
+non-template built-in app exposes a reducer contract while recording
+``mycode_project`` as the explicit template-only exemption.
 
 For the source-checkout first proof, ``tools/newcomer_first_proof.py --json``
 also writes ``~/log/execute/flight/run_manifest.json``. That stable manifest is

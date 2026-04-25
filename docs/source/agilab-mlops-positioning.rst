@@ -123,6 +123,11 @@ history:
 - the global DAG runner state report projects that plan into read-only
   ``runnable/blocked`` dispatch state, retry and partial-rerun metadata, and
   operator-facing readiness messages without starting the apps
+- the global DAG dispatch state report persists the first queue-to-relay
+  state transition proof, records ``queue_baseline`` completion,
+  ``queue_metrics`` availability, ``relay_followup`` unblocking, timestamps,
+  retry counters, partial-rerun flags, operator messages, and provenance
+  without claiming real app execution
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
