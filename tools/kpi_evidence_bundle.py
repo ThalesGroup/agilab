@@ -79,7 +79,10 @@ def _check_result(
 def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
     try:
         compatibility_report = _load_tool_module(repo_root, "compatibility_report")
-        report = compatibility_report.build_report(repo_root=repo_root)
+        report = compatibility_report.build_report(
+            repo_root=repo_root,
+            include_default_manifests=False,
+        )
         check_ids = [check.get("id") for check in report.get("checks", [])]
         status_check = next(
             (
@@ -89,12 +92,25 @@ def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
             ),
             {},
         )
-        ok = report.get("status") == "pass" and "workflow_evidence_commands" in check_ids
+        manifest_check = next(
+            (
+                check
+                for check in report.get("checks", [])
+                if check.get("id") == "run_manifest_evidence_ingestion"
+            ),
+            {},
+        )
+        ok = (
+            report.get("status") == "pass"
+            and "workflow_evidence_commands" in check_ids
+            and "run_manifest_evidence_ingestion" in check_ids
+        )
         details = {
             "status": report.get("status"),
             "summary": report.get("summary"),
             "check_ids": check_ids,
             "required_public_statuses": status_check.get("details", {}),
+            "run_manifest_evidence_ingestion": manifest_check.get("details", {}),
         }
     except Exception as exc:
         ok = False
@@ -104,7 +120,7 @@ def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
         "Workflow-backed compatibility report",
         ok,
         (
-            "compatibility report validates public path statuses and proof commands"
+            "compatibility report validates public path statuses, proof commands, and run manifests"
             if ok
             else "compatibility report is failing or disconnected from the KPI bundle"
         ),

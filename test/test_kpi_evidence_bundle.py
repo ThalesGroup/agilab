@@ -60,6 +60,8 @@ def test_workflow_compatibility_report_requires_hf_demo_validated() -> None:
     statuses = check["details"]["required_public_statuses"]["actual_statuses"]
     assert statuses["agilab-hf-demo"] == "validated"
     assert "workflow_evidence_commands" in check["details"]["check_ids"]
+    assert "run_manifest_evidence_ingestion" in check["details"]["check_ids"]
+    assert check["details"]["run_manifest_evidence_ingestion"]["loaded_manifest_count"] == 0
 
 
 def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:

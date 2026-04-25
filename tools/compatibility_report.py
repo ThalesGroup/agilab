@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import os
 from pathlib import Path
+import sys
 from typing import Any, Sequence
 import tomllib
 
@@ -13,6 +16,7 @@ import tomllib
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MATRIX_RELATIVE_PATH = Path("docs/source/data/compatibility_matrix.toml")
 COMPATIBILITY_DOC_RELATIVE_PATH = Path("docs/source/compatibility-matrix.rst")
+RUN_MANIFEST_FILENAME = "run_manifest.json"
 SUPPORTED_STATUSES = {"validated", "documented"}
 REQUIRED_ENTRY_FIELDS = {
     "id",
@@ -40,6 +44,20 @@ REQUIRED_VALIDATED_EVIDENCE = {
     "service-mode-operator-surface": ("tools/service_health_check.py", "health"),
 }
 DOCUMENTED_BOUNDARY_IDS = {"notebook-quickstart", "published-package-route"}
+
+
+def _load_run_manifest_module(repo_root: Path) -> Any:
+    module_path = repo_root / "src" / "agilab" / "run_manifest.py"
+    spec = importlib.util.spec_from_file_location(
+        "agilab_run_manifest_for_compatibility_report",
+        module_path,
+    )
+    if not spec or not spec.loader:
+        raise ModuleNotFoundError(f"Unable to load {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _check_result(
@@ -74,6 +92,133 @@ def _load_matrix(repo_root: Path) -> dict[str, Any]:
 
 def _entry_statuses(entries: Sequence[dict[str, Any]]) -> dict[str, str]:
     return {str(entry.get("id")): str(entry.get("status")) for entry in entries}
+
+
+def _dedupe_paths(paths: Sequence[Path]) -> list[Path]:
+    seen: set[str] = set()
+    deduped: list[Path] = []
+    for path in paths:
+        expanded = path.expanduser()
+        key = str(expanded.resolve()) if expanded.exists() else str(expanded.absolute())
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(expanded)
+    return deduped
+
+
+def _default_manifest_search_roots(repo_root: Path) -> list[Path]:
+    roots: list[Path] = []
+    for env_key in ("AGI_LOG_DIR", "AGILAB_LOG_ABS"):
+        env_value = os.environ.get(env_key)
+        if env_value:
+            roots.append(Path(env_value))
+    roots.extend([Path.home() / "log", repo_root / "log"])
+    return _dedupe_paths(roots)
+
+
+def _discover_manifest_paths(
+    repo_root: Path,
+    *,
+    manifest_paths: Sequence[Path] = (),
+    manifest_dirs: Sequence[Path] = (),
+    include_default_manifests: bool = True,
+) -> tuple[list[Path], list[dict[str, str]]]:
+    discovered: list[Path] = [Path(path) for path in manifest_paths]
+    discovery_errors: list[dict[str, str]] = []
+
+    for directory in manifest_dirs:
+        directory = Path(directory).expanduser()
+        if directory.is_file():
+            discovered.append(directory)
+        elif directory.is_dir():
+            discovered.extend(sorted(directory.rglob(RUN_MANIFEST_FILENAME)))
+        else:
+            discovery_errors.append(
+                {"path": str(directory), "error": "manifest directory not found"}
+            )
+
+    if include_default_manifests:
+        for root in _default_manifest_search_roots(repo_root):
+            if root.is_file():
+                discovered.append(root)
+                continue
+            if not root.is_dir():
+                continue
+            default_candidates = [
+                root / RUN_MANIFEST_FILENAME,
+                *sorted(root.glob(f"*/{RUN_MANIFEST_FILENAME}")),
+                *sorted(root.glob(f"execute/*/{RUN_MANIFEST_FILENAME}")),
+            ]
+            discovered.extend(path for path in default_candidates if path.is_file())
+
+    return _dedupe_paths(discovered), discovery_errors
+
+
+def _build_manifest_evidence(
+    repo_root: Path,
+    *,
+    manifest_paths: Sequence[Path] = (),
+    manifest_dirs: Sequence[Path] = (),
+    include_default_manifests: bool = True,
+) -> dict[str, Any]:
+    run_manifest = _load_run_manifest_module(repo_root)
+    paths, discovery_errors = _discover_manifest_paths(
+        repo_root,
+        manifest_paths=manifest_paths,
+        manifest_dirs=manifest_dirs,
+        include_default_manifests=include_default_manifests,
+    )
+    records: list[dict[str, Any]] = []
+    load_failures: list[dict[str, str]] = []
+
+    for path in paths:
+        try:
+            manifest = run_manifest.load_run_manifest(path)
+        except Exception as exc:
+            load_failures.append({"path": str(path), "error": str(exc)})
+            continue
+
+        summary = run_manifest.manifest_summary(manifest)
+        passed = bool(run_manifest.manifest_passed(manifest))
+        records.append(
+            {
+                **summary,
+                "source": str(path),
+                "evidence_status": "validated" if passed else "failed",
+                "passed": passed,
+            }
+        )
+
+    records_by_path_id: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        records_by_path_id.setdefault(str(record.get("path_id")), []).append(record)
+
+    path_statuses = {
+        path_id: "validated" if any(record["passed"] for record in path_records) else "failed"
+        for path_id, path_records in records_by_path_id.items()
+    }
+    return {
+        "manifest_paths": [str(path) for path in paths],
+        "loaded_manifest_count": len(records),
+        "records": records,
+        "records_by_path_id": records_by_path_id,
+        "path_statuses": path_statuses,
+        "load_failures": load_failures,
+        "discovery_errors": discovery_errors,
+    }
+
+
+def _effective_statuses(
+    entries: Sequence[dict[str, Any]],
+    manifest_evidence: dict[str, Any],
+) -> dict[str, str]:
+    matrix_statuses = _entry_statuses(entries)
+    path_statuses = manifest_evidence.get("path_statuses", {})
+    return {
+        entry_id: str(path_statuses.get(entry_id, matrix_status))
+        for entry_id, matrix_status in matrix_statuses.items()
+    }
 
 
 def _check_matrix_schema(repo_root: Path) -> dict[str, Any]:
@@ -133,10 +278,69 @@ def _check_matrix_schema(repo_root: Path) -> dict[str, Any]:
     )
 
 
-def _check_required_public_statuses(repo_root: Path) -> dict[str, Any]:
+def _check_run_manifest_evidence_ingestion(
+    repo_root: Path,
+    manifest_evidence: dict[str, Any],
+) -> dict[str, Any]:
     try:
         entries = _load_matrix(repo_root)["entries"]
-        statuses = _entry_statuses(entries)
+        matrix_ids = {str(entry.get("id")) for entry in entries}
+        path_statuses = {
+            str(path_id): str(status)
+            for path_id, status in manifest_evidence.get("path_statuses", {}).items()
+        }
+        unknown_path_ids = sorted(set(path_statuses) - matrix_ids)
+        failed_path_ids = sorted(
+            path_id
+            for path_id, status in path_statuses.items()
+            if status != "validated"
+        )
+        load_failures = list(manifest_evidence.get("load_failures", []))
+        discovery_errors = list(manifest_evidence.get("discovery_errors", []))
+        ok = not unknown_path_ids and not failed_path_ids and not load_failures and not discovery_errors
+        loaded_count = int(manifest_evidence.get("loaded_manifest_count", 0))
+        details = {
+            "loaded_manifest_count": loaded_count,
+            "manifest_paths": manifest_evidence.get("manifest_paths", []),
+            "path_statuses": path_statuses,
+            "records_by_path_id": manifest_evidence.get("records_by_path_id", {}),
+            "unknown_path_ids": unknown_path_ids,
+            "failed_path_ids": failed_path_ids,
+            "load_failures": load_failures,
+            "discovery_errors": discovery_errors,
+        }
+    except Exception as exc:
+        ok = False
+        loaded_count = 0
+        details = {"error": str(exc)}
+    return _check_result(
+        "run_manifest_evidence_ingestion",
+        "Run manifest evidence ingestion",
+        ok,
+        (
+            f"loaded {loaded_count} run manifest(s) and derived compatibility status"
+            if loaded_count
+            else "run manifest ingestion is wired; no local or external manifests were found"
+        )
+        if ok
+        else "run manifest evidence is invalid, failing, or not mapped to the compatibility matrix",
+        evidence=["src/agilab/run_manifest.py", str(MATRIX_RELATIVE_PATH)],
+        details=details,
+    )
+
+
+def _check_required_public_statuses(
+    repo_root: Path,
+    manifest_evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    try:
+        entries = _load_matrix(repo_root)["entries"]
+        matrix_statuses = _entry_statuses(entries)
+        statuses = (
+            _effective_statuses(entries, manifest_evidence)
+            if manifest_evidence is not None
+            else matrix_statuses
+        )
         missing = sorted(set(REQUIRED_PUBLIC_STATUSES) - set(statuses))
         mismatched = {
             entry_id: {"expected": expected, "actual": statuses.get(entry_id)}
@@ -146,10 +350,19 @@ def _check_required_public_statuses(repo_root: Path) -> dict[str, Any]:
         ok = not missing and not mismatched
         details = {
             "required_statuses": REQUIRED_PUBLIC_STATUSES,
+            "matrix_statuses": {
+                entry_id: matrix_statuses.get(entry_id)
+                for entry_id in sorted(REQUIRED_PUBLIC_STATUSES)
+            },
             "actual_statuses": {
                 entry_id: statuses.get(entry_id)
                 for entry_id in sorted(REQUIRED_PUBLIC_STATUSES)
             },
+            "manifest_evidence_statuses": (
+                manifest_evidence.get("path_statuses", {})
+                if manifest_evidence is not None
+                else {}
+            ),
             "missing": missing,
             "mismatched": mismatched,
         }
@@ -268,6 +481,7 @@ def _check_docs_report_reference(repo_root: Path) -> dict[str, Any]:
             "tools/compatibility_report.py --compact",
             "workflow-backed compatibility report",
             "required public statuses",
+            "run-manifest evidence ingestion",
         ]
         stale = [
             "broader promotion from this matrix to a "
@@ -294,11 +508,24 @@ def _check_docs_report_reference(repo_root: Path) -> dict[str, Any]:
     )
 
 
-def build_report(*, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+def build_report(
+    *,
+    repo_root: Path = REPO_ROOT,
+    manifest_paths: Sequence[Path] = (),
+    manifest_dirs: Sequence[Path] = (),
+    include_default_manifests: bool = True,
+) -> dict[str, Any]:
     repo_root = repo_root.resolve()
+    manifest_evidence = _build_manifest_evidence(
+        repo_root,
+        manifest_paths=manifest_paths,
+        manifest_dirs=manifest_dirs,
+        include_default_manifests=include_default_manifests,
+    )
     checks = [
         _check_matrix_schema(repo_root),
-        _check_required_public_statuses(repo_root),
+        _check_run_manifest_evidence_ingestion(repo_root, manifest_evidence),
+        _check_required_public_statuses(repo_root, manifest_evidence),
         _check_workflow_evidence_commands(repo_root),
         _check_documented_boundaries(repo_root),
         _check_docs_report_reference(repo_root),
@@ -311,8 +538,19 @@ def build_report(*, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             status: sum(1 for entry in entries if entry.get("status") == status)
             for status in sorted(SUPPORTED_STATUSES)
         }
+        effective_statuses = _effective_statuses(entries, manifest_evidence)
+        effective_status_counts = {
+            status: sum(1 for actual in effective_statuses.values() if actual == status)
+            for status in sorted(set(SUPPORTED_STATUSES) | {"failed"})
+        }
     except Exception:
         status_counts = {}
+        effective_status_counts = {}
+    failed_manifest_paths = [
+        path_id
+        for path_id, status in manifest_evidence.get("path_statuses", {}).items()
+        if status != "validated"
+    ]
     return {
         "report": "Compatibility report",
         "status": "pass" if failed == 0 else "fail",
@@ -321,13 +559,21 @@ def build_report(*, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             "failed": failed,
             "total": len(checks),
             "status_counts": status_counts,
+            "effective_status_counts": effective_status_counts,
             "required_public_paths": len(REQUIRED_PUBLIC_STATUSES),
             "workflow_backed_validated_paths": len(REQUIRED_VALIDATED_EVIDENCE),
+            "manifest_evidence": {
+                "loaded": manifest_evidence.get("loaded_manifest_count", 0),
+                "path_ids": sorted(manifest_evidence.get("path_statuses", {})),
+                "failed_path_ids": sorted(failed_manifest_paths),
+                "load_failures": len(manifest_evidence.get("load_failures", [])),
+            },
         },
         "scope": (
             "Validates the public compatibility matrix schema, required public "
-            "path statuses, and executable proof-command references. It does not "
-            "claim broad OS, network, or remote-topology certification."
+            "path statuses, executable proof-command references, and optional "
+            "run-manifest evidence. It does not claim broad OS, network, or "
+            "remote-topology certification."
         ),
         "checks": checks,
     }
@@ -342,12 +588,35 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit compact JSON without indentation.",
     )
+    parser.add_argument(
+        "--manifest",
+        action="append",
+        default=[],
+        type=Path,
+        help="Load one run_manifest.json as compatibility evidence. May be repeated.",
+    )
+    parser.add_argument(
+        "--manifest-dir",
+        action="append",
+        default=[],
+        type=Path,
+        help="Recursively load run_manifest.json files from a directory. May be repeated.",
+    )
+    parser.add_argument(
+        "--no-default-manifests",
+        action="store_true",
+        help="Do not scan default local log roots such as ~/log/execute/*/run_manifest.json.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
-    report = build_report()
+    report = build_report(
+        manifest_paths=args.manifest,
+        manifest_dirs=args.manifest_dir,
+        include_default_manifests=not args.no_default_manifests,
+    )
     if args.compact:
         print(json.dumps(report, sort_keys=True, separators=(",", ":")))
     else:
