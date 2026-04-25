@@ -85,6 +85,9 @@ interactive exploration into a replayable, inspectable workflow:
   without executing network checks in public evidence
 - the data connector health actions report exposes operator-triggered health
   probes while keeping public evidence network-free
+- the data connector runtime adapters report binds credentialed connector
+  adapters to runtime operations without materializing secrets in public
+  evidence
 - the data connector UI preview report renders connector state and
   connector-derived provenance as static JSON+HTML evidence
 - the data connector live UI report wires connector state and
@@ -149,6 +152,8 @@ history:
   claiming live connectivity in static public evidence
 - operator-triggered health actions make the opt-in boundary actionable without
   executing connector probes in public evidence
+- runtime connector adapter bindings define where SQL, OpenSearch, and
+  object-storage probes execute once an operator supplies runtime credentials
 - static connector UI preview makes connector cards, page bindings, legacy
   fallbacks, and probe boundaries reviewable before live UI integration
 - Release Decision connector live UI integration makes the same connector
@@ -277,6 +282,8 @@ between research experiments and engineering validation:
   without opening networks in public evidence
 - a data connector health actions report that turns those planned probes into
   operator-trigger rows
+- a data connector runtime adapters report that binds connector definitions to
+  runtime operations and credential-deferral metadata
 - a data connector UI preview report that turns connector provenance into a
   static review artifact
 - a data connector live UI report that proves Release Decision renders that
