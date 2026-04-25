@@ -28,6 +28,8 @@ use this order:
 3. **Data connector facility**
    - make SQL, ELK, object storage, and other external data sources first-class
      connector targets
+   - build on the shipped data connector facility report for SQL, OpenSearch,
+     and object-storage definitions
    - this turns connector work into a practical data-access layer, not just path
      cleanup
 4. **Reduce contract adoption**
@@ -631,6 +633,22 @@ Why it matters:
 
 - expands AGILab beyond local file-driven workflows
 - makes observability, reporting, and traceability easier to industrialize
+
+Current shipped baseline:
+
+- `tools/data_connector_facility_report.py --compact` validates
+  `agilab.data_connector_facility.v1` against
+  `docs/source/data/data_connectors_sample.toml`
+- the sample covers SQL, OpenSearch/ELK, and object-storage connector
+  definitions with kind-specific required fields
+- remote credentials are represented as `env:` references and the report runs
+  in `contract_validation_only` mode without live network probes
+
+Remaining scope:
+
+- connector-aware app/page resolution beyond the current catalog contract
+- health/status probes that can be explicitly enabled in operator contexts
+- UI previews for connector state and connector-derived provenance
 
 ### 3. Connector-aware views
 

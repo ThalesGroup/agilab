@@ -162,6 +162,12 @@ single notebook but less ceremony than a production MLOps platform:
   ``single-kernel union notebook`` only for compatible ``runpy``/current-kernel
   steps and marks mixed runtimes or environments as
   ``supervisor_notebook_required``
+- the data connector facility report validates
+  ``tools/data_connector_facility_report.py --compact`` against
+  ``SQL, OpenSearch, and object-storage connector definitions`` in a plain-text
+  TOML catalog; it runs in ``contract_validation_only`` mode, checks
+  kind-specific fields, and requires environment references instead of embedded
+  remote credentials
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a
