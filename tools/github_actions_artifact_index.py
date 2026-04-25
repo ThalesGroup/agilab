@@ -39,6 +39,7 @@ from agilab.ci_provider_artifacts import (  # noqa: E402
     token_from_env,
     write_artifact_index,
     write_sample_github_actions_archive,
+    write_sample_github_actions_directory,
 )
 
 
@@ -89,6 +90,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Write a deterministic public-evidence sample archive and exit.",
     )
+    parser.add_argument(
+        "--write-sample-directory",
+        type=Path,
+        default=None,
+        help="Write deterministic public-evidence files in an uploadable directory and exit.",
+    )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--compact", action="store_true")
     return parser
@@ -101,6 +108,15 @@ def _build_index(args: argparse.Namespace) -> dict[str, object]:
             "schema": SCHEMA,
             "status": "sample_archive_written",
             "path": str(archive_path),
+        }
+    if args.write_sample_directory is not None:
+        directory_path = write_sample_github_actions_directory(
+            args.write_sample_directory
+        )
+        return {
+            "schema": SCHEMA,
+            "status": "sample_directory_written",
+            "path": str(directory_path),
         }
     if args.live_github:
         if not args.repo or not args.run_id:

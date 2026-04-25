@@ -184,6 +184,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
             "test/test_streamlit_args.py",
             "test/test_pagelib.py",
             "test/test_*_report.py",
+            "test/test_*_workflow.py",
             "test/test_connector_registry.py",
             "test/test_run_manifest.py",
         ]

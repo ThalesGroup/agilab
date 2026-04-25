@@ -208,13 +208,16 @@ Current shipped baseline:
 - `tools/compatibility_report.py --artifact-index` can derive per-release
   compatibility status from those downloaded artifact indexes or from
   `ci_artifact_harvest.json` summaries
+- the `pypi-publish` release workflow includes a `release-evidence` job that
+  uploads sample external evidence, retrieves it through the live GitHub
+  Actions artifact API with `--live-github`, and validates the resulting
+  artifact index through the harvest and compatibility reports before publish
+  jobs proceed
 
 Remaining scope:
 
 - add richer domain-specific explanations for allocation, topology, and
   decision deltas
-- run the provider download path inside release CI instead of only as an
-  operator-triggered adapter
 - add provider adapters beyond GitHub Actions
 
 Why it matters:

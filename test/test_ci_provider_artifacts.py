@@ -23,6 +23,7 @@ from agilab.ci_provider_artifacts import (
     build_artifact_index_from_archives,
     build_github_actions_artifact_index,
     write_sample_github_actions_archive,
+    write_sample_github_actions_directory,
 )
 
 
@@ -142,6 +143,15 @@ def test_github_actions_artifact_index_cli_writes_harvest_input(
     assert payload["summary"]["artifact_count"] == 4
     assert payload["summary"]["missing_required_count"] == 0
     assert payload["artifacts"][0]["workflow"] == "public-evidence.yml"
+
+
+def test_github_actions_sample_directory_matches_archive_layout(tmp_path: Path) -> None:
+    sample_dir = write_sample_github_actions_directory(tmp_path / "public-evidence")
+
+    assert (sample_dir / "ci/source-checkout-first-proof/run_manifest.json").is_file()
+    assert (sample_dir / "ci/evidence/kpi_evidence_bundle.json").is_file()
+    assert (sample_dir / "ci/evidence/compatibility_report.json").is_file()
+    assert (sample_dir / "ci/release/promotion_decision.json").is_file()
 
 
 def test_live_github_artifact_index_uses_api_downloads(tmp_path: Path) -> None:
