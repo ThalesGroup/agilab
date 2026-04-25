@@ -1557,6 +1557,51 @@ def _check_data_connector_runtime_adapters_report(repo_root: Path) -> dict[str, 
     )
 
 
+def _check_data_connector_live_endpoint_smoke_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        data_connector_live_endpoint_smoke_report = _load_tool_module(
+            repo_root,
+            "data_connector_live_endpoint_smoke_report",
+        )
+        report = data_connector_live_endpoint_smoke_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema")
+            == "agilab.data_connector_live_endpoint_smoke.v1"
+            and summary.get("execution_mode") == "live_endpoint_smoke_plan_only"
+            and summary.get("connector_count") == 3
+            and summary.get("planned_endpoint_count") == 3
+            and summary.get("executed_endpoint_count") == 0
+            and summary.get("network_probe_count") == 0
+            and summary.get("sqlite_smoke_healthy_count") == 1
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "data_connector_live_endpoint_smoke_report_contract",
+        "Data connector live endpoint smoke report contract",
+        ok,
+        (
+            "data connector live endpoint smoke report gates external endpoint "
+            "checks behind operator opt-in and validates local SQLite execution"
+            if ok
+            else "data connector live endpoint smoke report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/data_connector_live_endpoint_smoke_report.py",
+            "src/agilab/data_connector_live_endpoint_smoke.py",
+        ],
+        details=details,
+    )
+
+
 def _check_data_connector_ui_preview_report(repo_root: Path) -> dict[str, Any]:
     try:
         data_connector_report = _load_tool_module(
@@ -1906,6 +1951,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_health_report.py --compact",
             "tools/data_connector_health_actions_report.py --compact",
             "tools/data_connector_runtime_adapters_report.py --compact",
+            "tools/data_connector_live_endpoint_smoke_report.py --compact",
             "tools/data_connector_ui_preview_report.py --compact",
             "tools/data_connector_live_ui_report.py --compact",
             "tools/data_connector_app_catalogs_report.py --compact",
@@ -1942,6 +1988,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_health_report.py",
             "tools/data_connector_health_actions_report.py",
             "tools/data_connector_runtime_adapters_report.py",
+            "tools/data_connector_live_endpoint_smoke_report.py",
             "tools/data_connector_ui_preview_report.py",
             "tools/data_connector_live_ui_report.py",
             "tools/data_connector_app_catalogs_report.py",
@@ -2014,6 +2061,7 @@ def build_bundle(
         _check_data_connector_health_report(repo_root),
         _check_data_connector_health_actions_report(repo_root),
         _check_data_connector_runtime_adapters_report(repo_root),
+        _check_data_connector_live_endpoint_smoke_report(repo_root),
         _check_data_connector_ui_preview_report(repo_root),
         _check_data_connector_live_ui_report(repo_root),
         _check_data_connector_app_catalogs_report(repo_root),
