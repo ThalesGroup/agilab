@@ -49,6 +49,30 @@ def _write_bundle(root: Path, *, mae: float, rmse: float, mape: float, with_pred
         )
 
 
+def _write_reduce_artifact(path: Path, *, engine: str = "pandas") -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "name": f"execution_{engine}_reduce_summary",
+                "reducer": f"execution_{engine}.weighted-score.v1",
+                "partial_count": 1,
+                "partial_ids": [f"execution_{engine}_worker_0"],
+                "payload": {
+                    "row_count": 48,
+                    "result_rows": 24,
+                    "source_file_count": 2,
+                    "engines": [engine],
+                    "execution_models": ["process" if engine == "pandas" else "threads"],
+                },
+                "metadata": {"app": f"execution_{engine}_project"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _run_release_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTest:
     argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
     with patch.object(sys, "argv", argv):
@@ -174,6 +198,58 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     with pytest.raises(RuntimeError, match="stop"):
         module._resolve_active_app()
     assert any("Provided --active-app path not found" in message for message in errors)
+
+
+def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(tmp_path) -> None:
+    module = _load_release_helpers()
+    artifact_root = tmp_path / "artifacts"
+    valid_path = artifact_root / "run_a" / "reduce_summary_worker_0.json"
+    invalid_path = artifact_root / "run_b" / "reduce_summary_worker_1.json"
+    _write_reduce_artifact(valid_path, engine="polars")
+    invalid_path.parent.mkdir(parents=True, exist_ok=True)
+    invalid_path.write_text("{broken", encoding="utf-8")
+
+    rows = module._build_reduce_artifact_rows(artifact_root)
+
+    valid = next(row for row in rows if row["status"] == "pass")
+    invalid = next(row for row in rows if row["status"] == "invalid")
+    assert valid["artifact"] == "run_a/reduce_summary_worker_0.json"
+    assert valid["reducer"] == "execution_polars.weighted-score.v1"
+    assert valid["partial_count"] == 1
+    assert valid["source_file_count"] == 2
+    assert valid["row_count"] == 48
+    assert valid["engines"] == "polars"
+    assert valid["execution_models"] == "threads"
+    assert invalid["artifact"] == "run_b/reduce_summary_worker_1.json"
+    assert "Expecting property name" in invalid["detail"]
+
+
+def test_view_release_decision_surfaces_reduce_artifacts_without_metrics(tmp_path, monkeypatch) -> None:
+    artifact_root = tmp_path / "export" / "execution_pandas_project"
+    _write_reduce_artifact(artifact_root / "results" / "reduce_summary_worker_0.json")
+    project_dir = tmp_path / "apps" / "execution_pandas_project"
+    project_dir.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        app="execution_pandas_project",
+        target="execution_pandas_project",
+        AGILAB_EXPORT_ABS=str(tmp_path / "export"),
+        st_resources=tmp_path,
+    )
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+    with patch.object(sys, "argv", argv):
+        monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
+        monkeypatch.setenv("AGI_LOCAL_SHARE", str(tmp_path / "localshare"))
+        monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
+        monkeypatch.setenv("OPENAI_API_KEY", "dummy")
+        monkeypatch.setenv("IS_SOURCE_ENV", "1")
+        at = AppTest.from_file(PAGE_PATH, default_timeout=20)
+        at.session_state["env"] = env
+        at.run()
+
+    assert not at.exception
+    assert any(header.value == "Reduce artifacts" for header in at.subheader)
+    assert any("No metrics file found" in warning.value for warning in at.warning)
 
 
 def test_view_release_decision_reuses_existing_session_env(tmp_path, monkeypatch) -> None:

@@ -74,13 +74,15 @@ interactive exploration into a replayable, inspectable workflow:
 - ``execution_pandas_project`` and ``execution_polars_project`` emit named
   ``reduce_summary_worker_<id>.json`` reduce artefacts through that shared
   contract
+- the Release Decision evidence view surfaces those reducer artefacts and flags
+  invalid reduce JSON without hiding the rest of the evidence page
 - the public reducer benchmark validates 8 partials / 80,000 synthetic items in
   ``0.003s`` against a ``5.0s`` target
 
 That supports a ``Research experimentation`` score of ``4.0 / 5``. It is not
 scored higher yet because a generic evidence bundle, broader non-benchmark
-reduce-contract app migration, analysis-view surfacing, and broader fresh-machine
-reproducibility matrix are still roadmap work.
+reduce-contract app migration, and broader fresh-machine reproducibility matrix
+are still roadmap work.
 
 Engineering prototyping evidence
 --------------------------------
@@ -137,8 +139,8 @@ between research experiments and engineering validation:
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
 higher yet because the generic evidence bundle, reduce-contract migration
-across non-benchmark public apps, analysis-view surfacing, and broader fresh-install
-validation are still roadmap work.
+across non-benchmark public apps, and broader fresh-install validation are still
+roadmap work.
 
 Where AGILab helps
 ------------------

@@ -60,11 +60,13 @@ agi-core
   - ``execution_pandas_project`` and ``execution_polars_project`` emit named
     ``reduce_summary_worker_<id>.json`` reduce artefacts through that shared
     contract.
+  - The Release Decision evidence view discovers those artefacts, validates
+    their schema, and displays reducer name, partial count, row/source totals,
+    engines, execution models, and artifact path.
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
   - Other existing apps still own their final merge semantics, so broader
-    non-benchmark app migration and analysis-view surfacing remain roadmap
-    work.
+    non-benchmark app migration remains roadmap work.
 
 - **Optimized Run-Mode Selection:**
 
@@ -142,9 +144,8 @@ single notebook but less ceremony than a production MLOps platform:
   shareable dashboard without becoming a full product
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
-scored higher yet because the first-proof wizard, generic evidence bundle,
-broader non-benchmark reduce-contract app migration, and analysis-view
-surfacing remain roadmap work.
+scored higher yet because the first-proof wizard, generic evidence bundle, and
+broader non-benchmark reduce-contract app migration remain roadmap work.
 
 Production-readiness controls
 -----------------------------
@@ -162,6 +163,8 @@ production platform:
   thresholds and can emit JSON or Prometheus-compatible output
 - the release-decision analysis page compares baseline and candidate bundles,
   applies artifact/KPI gates, and exports ``promotion_decision.json``
+- the same evidence view surfaces reducer artifacts from benchmark distributed
+  runs, including invalid-artifact diagnostics when JSON cannot be parsed
 - ``SECURITY.md`` provides the public vulnerability-reporting and deployment
   hardening baseline
 

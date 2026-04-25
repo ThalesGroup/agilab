@@ -54,8 +54,8 @@ use this order:
      items in `0.003s` against a `5.0s` target
    - `execution_pandas_project` and `execution_polars_project` now emit named
      `reduce_summary_worker_<id>.json` reduce artefacts through that contract
-   - the remaining work is broader non-benchmark public-app adoption and
-     analysis-view surfacing
+   - Release Decision now surfaces those benchmark reduce artefacts as evidence
+   - the remaining work is broader non-benchmark public-app adoption
 11. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
@@ -476,6 +476,9 @@ Current state:
 - `execution_pandas_project` and `execution_polars_project` write
   worker-scoped `reduce_summary_worker_<id>.json` artefacts through the shared
   contract
+- Release Decision surfaces those reduce artefacts with schema validation,
+  reducer name, partial count, row/source totals, engines, execution models, and
+  artifact path
 - aggregation outside the migrated benchmark apps is still mostly app-specific
 
 Current gap:
@@ -483,8 +486,8 @@ Current gap:
 - docs can overstate the capability as a full generic map/reduce mechanism
 - most apps beyond `execution_pandas_project` and `execution_polars_project`
   have not migrated their merge logic to the shared reducer contract
-- analysis views do not yet surface the reduce artefacts as first-class run
-  evidence
+- non-benchmark app reduce artefacts are not yet standard enough to surface as
+  first-class run evidence
 
 ### 1. Reduce contract adoption
 
@@ -511,13 +514,15 @@ Completed benchmark-app slices:
 
 - `execution_pandas_project` and `execution_polars_project` now emit named
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files from worker results
+- Release Decision now discovers `reduce_summary_worker_*.json`, parses it with
+  `ReduceArtifact.from_dict`, displays reducer evidence, and flags invalid JSON
 
 Next concrete change request:
 
 - migrate the next public app beyond the benchmark pair to the shared reducer
   contract
-- expose reducer artefacts in analysis views instead of leaving them only as
-  files beside app-specific outputs
+- extend the surfaced reducer evidence once non-benchmark apps adopt the same
+  artifact contract
 
 Compatibility rule:
 

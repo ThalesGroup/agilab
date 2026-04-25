@@ -32,9 +32,11 @@ _ensure_repo_on_path()
 
 from agi_env import AgiEnv
 from agi_env.pagelib import render_logo
+from agi_node.reduction import ReduceArtifact
 
 LOWER_IS_BETTER_KEYWORDS = ("mae", "rmse", "mape", "loss", "error", "latency", "duration")
 HIGHER_IS_BETTER_KEYWORDS = ("accuracy", "f1", "precision", "recall", "throughput", "score", "auc", "r2")
+REDUCE_ARTIFACT_GLOB = "**/reduce_summary_worker_*.json"
 APP_DEFAULT_METRICS_GLOBS = {
     "meteo_forecast_project": "**/forecast_metrics.json",
 }
@@ -98,6 +100,71 @@ def _load_metrics(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError(f"Metrics payload must be a JSON object: {path}")
     return payload
+
+
+def _relative_display_path(path: Path, root: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
+def _comma_joined(value: Any) -> str:
+    if isinstance(value, (list, tuple)):
+        return ", ".join(str(item) for item in value)
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _build_reduce_artifact_rows(
+    artifact_root: Path,
+    pattern: str = REDUCE_ARTIFACT_GLOB,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for path in _discover_files(artifact_root, pattern):
+        base_row: dict[str, Any] = {
+            "artifact": _relative_display_path(path, artifact_root),
+            "path": str(path),
+        }
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            artifact = ReduceArtifact.from_dict(payload)
+            artifact_payload = artifact.payload
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+            rows.append(
+                {
+                    **base_row,
+                    "status": "invalid",
+                    "name": "",
+                    "reducer": "",
+                    "partial_count": None,
+                    "source_file_count": None,
+                    "row_count": None,
+                    "result_rows": None,
+                    "engines": "",
+                    "execution_models": "",
+                    "detail": str(exc),
+                }
+            )
+            continue
+
+        rows.append(
+            {
+                **base_row,
+                "status": "pass",
+                "name": artifact.name,
+                "reducer": artifact.reducer,
+                "partial_count": artifact.partial_count,
+                "source_file_count": artifact_payload.get("source_file_count"),
+                "row_count": artifact_payload.get("row_count"),
+                "result_rows": artifact_payload.get("result_rows"),
+                "engines": _comma_joined(artifact_payload.get("engines")),
+                "execution_models": _comma_joined(artifact_payload.get("execution_models")),
+                "detail": "Reduce artifact parsed.",
+            }
+        )
+    return rows
 
 
 def _flatten_numeric_metrics(payload: dict[str, Any], prefix: str = "") -> dict[str, float]:
@@ -215,6 +282,7 @@ def _decision_payload(
     candidate_payload: dict[str, Any],
     artifact_rows: list[dict[str, Any]],
     metric_rows: list[dict[str, Any]],
+    reduce_artifact_rows: list[dict[str, Any]],
     status: str,
     summary: str,
     tolerance_pct: float,
@@ -236,6 +304,7 @@ def _decision_payload(
         "candidate_metadata": _metadata_subset(candidate_payload),
         "artifact_gates": artifact_rows,
         "metric_gates": metric_rows,
+        "reduce_artifacts": reduce_artifact_rows,
     }
 
 
@@ -299,6 +368,16 @@ if not artifact_root.exists():
     st.warning(f"Artifact directory does not exist yet: {artifact_root}")
     st.stop()
 
+reduce_artifact_rows = _build_reduce_artifact_rows(artifact_root)
+st.subheader("Reduce artifacts")
+if reduce_artifact_rows:
+    reduce_artifact_df = pd.DataFrame(reduce_artifact_rows)
+    st.dataframe(reduce_artifact_df, width="stretch", hide_index=True)
+else:
+    st.info(
+        "No `reduce_summary_worker_*.json` artifacts found under the selected artifact directory."
+    )
+
 metrics_files = _discover_files(artifact_root, metrics_pattern)
 if not metrics_files:
     st.warning(f"No metrics file found in {artifact_root} with pattern {metrics_pattern!r}.")
@@ -348,6 +427,7 @@ payload = _decision_payload(
     candidate_payload=candidate_payload,
     artifact_rows=artifact_rows,
     metric_rows=metric_rows,
+    reduce_artifact_rows=reduce_artifact_rows,
     status=decision_status,
     summary=decision_summary,
     tolerance_pct=tolerance_pct,
