@@ -12,43 +12,42 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **Run manifest + evidence bundle**
-   - establish one factual run record and one portable evidence surface
-   - this is the dependency for promotion, compatibility automation, and the
-     first-proof wizard
-2. **Promotion / release decision workflow**
-   - turn the evidence bundle into an explicit promotable / blocked decision
+1. **Promotion / release decision workflow**
+   - the first-proof path now writes a stable `run_manifest.json`
+   - turn run manifests and evidence bundles into an explicit promotable /
+     blocked decision
    - this is the first strong evidence-driven product surface
-3. **Compatibility matrix automation**
+2. **Compatibility matrix automation**
+   - ingest local and external `run_manifest.json` files into release/path
+     status
    - replace the current manual compatibility page with workflow-backed status
-   - this becomes much cleaner once run evidence is standardized
-4. **First-proof wizard follow-ups**
-   - the shipped wizard now guides one validated `flight_project` path and
-     consumes compatibility-report status
+3. **First-proof wizard follow-ups**
+   - the shipped wizard now guides one validated `flight_project` path,
+     consumes compatibility-report status, and detects `run_manifest.json`
    - future work is external run evidence ingestion and richer remediation, not
      the baseline in-product route
-5. **Connector registry hardening**
+4. **Connector registry hardening**
    - stabilize path portability and artefact resolution across apps/pages
    - this reduces glue before deeper cross-app automation
-6. **Multi-app DAG orchestration**
+5. **Multi-app DAG orchestration**
    - extend orchestration from one app flow to DAGs that span multiple apps
    - this is the contract needed before the pipeline can become a true
      cross-app orchestrated graph
-7. **Global orchestrated pipeline DAG**
+6. **Global orchestrated pipeline DAG**
    - let `PIPELINE` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
    - this depends on clearer multi-app orchestration contracts
-8. **Bidirectional notebook interop**
+7. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
    - add notebook-to-pipeline import maturity and optional single-kernel
      union-environment notebooks when step environments are compatible
-9. **Data connector facility**
+8. **Data connector facility**
    - make SQL, ELK, object storage, and other external data sources first-class
      connector targets
    - this turns connector work into a practical data-access layer, not just path
      cleanup
-10. **Reduce contract adoption**
+9. **Reduce contract adoption**
    - AGILab already has distributed work-plan execution and an initial shared
      reducer contract
    - the public reducer benchmark now validates 8 partials / 80,000 synthetic
@@ -70,13 +69,13 @@ use this order:
      has no concrete merge output yet
    - future apps/templates must opt in when they produce durable worker
      summaries
-11. **Intent-first operator mode**
+10. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
 
 Why this order:
 
-- start with evidence before decisions
+- turn shipped first-proof evidence into decisions before broader automation
 - start with validated proof before broader onboarding automation
 - stabilize cross-app orchestration before claiming a global orchestrated DAG
 - keep notebook interop after the orchestration contract is clearer
@@ -110,27 +109,27 @@ Why it matters:
 - keeps the shipped wizard tied to compatibility and proof contracts
 - avoids growing a separate tutorial-only proof path
 
-### 0b. Run manifest + evidence bundle
+### 0b. Run manifest external ingestion follow-ups
 
 Purpose:
 
-- give every meaningful run one stable factual record and one exportable
-  evidence bundle
+- extend the shipped first-proof `run_manifest.json` contract beyond local
+  source-checkout proof runs
+- import external fresh-machine and CI manifests into compatibility and release
+  decisions
 
 Suggested contents:
 
-- resolved inputs and settings
-- output artefact references
-- KPI summary
-- provenance and execution context
-- validation results
-- human-reviewable evidence attachments
+- manifest import and validation UI
+- signed or provenance-tagged external manifest attachments
+- per-release manifest index
+- cross-run evidence bundle comparison
 
 Why it matters:
 
-- this is the base layer for promotion, compatibility automation, and
-  onboarding proof
-- without it, release and newcomer flows stay partly implicit
+- the baseline manifest exists for the first proof
+- external ingestion is the next step for compatibility automation and release
+  decisions
 
 ### 1. Experiment Cockpit
 
@@ -709,10 +708,10 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Run manifest + evidence bundle
 - Promotion / release decision workflow
-- First-proof wizard follow-ups
 - Compatibility matrix automation
+- First-proof wizard follow-ups
+- Run manifest external ingestion follow-ups
 - Connector registry hardening
 - Multi-app DAG orchestration
 - Global orchestrated pipeline DAG

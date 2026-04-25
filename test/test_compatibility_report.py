@@ -62,6 +62,8 @@ def test_workflow_evidence_commands_resolve_public_proof_tools() -> None:
     assert check["details"]["missing_files"] == {}
     assert check["details"]["required_evidence"]["source-checkout-first-proof"] == (
         "tools/newcomer_first_proof.py",
+        "--json",
+        "run_manifest.json",
     )
 
 

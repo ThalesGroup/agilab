@@ -30,8 +30,10 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
     assert content["compatibility_status"] == "validated"
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
+    assert content["run_manifest_filename"] == "run_manifest.json"
     assert [label for label, _ in content["steps"]] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
     assert "tools/newcomer_first_proof.py --json" in content["cli_command"]
+    assert any("run_manifest.json" in item for item in content["success_criteria"])
 
 
 def test_first_proof_tool_contract_uses_newcomer_smoke_defaults() -> None:
@@ -64,6 +66,9 @@ def test_first_proof_state_routes_only_to_flight_project(tmp_path: Path) -> None
     assert state["recommended_path_id"] == "source-checkout-first-proof"
     assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
     assert state["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight" / "run_manifest.json"
+    assert state["run_manifest_loaded"] is False
+    assert state["run_manifest_status"] == "missing"
     assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
 
 
@@ -76,6 +81,7 @@ def test_first_proof_state_detects_completion_outputs(tmp_path: Path) -> None:
     output_dir.mkdir(parents=True)
     (output_dir / "AGI_install_flight.py").write_text("# helper", encoding="utf-8")
     (output_dir / "AGI_run_flight.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "run_manifest.json").write_text("{}", encoding="utf-8")
     (output_dir / "trajectory_summary.json").write_text("{}", encoding="utf-8")
 
     env = SimpleNamespace(
@@ -90,4 +96,61 @@ def test_first_proof_state_detects_completion_outputs(tmp_path: Path) -> None:
     assert state["helper_scripts_present"] is True
     assert state["run_output_detected"] is True
     assert [path.name for path in state["visible_outputs"]] == ["trajectory_summary.json"]
+    assert state["next_step"] == "First proof done. Now you can try another demo."
+
+
+def test_first_proof_state_prefers_passing_run_manifest(tmp_path: Path) -> None:
+    module = _load_module()
+    run_manifest = module._load_run_manifest_module()
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "flight_project"
+    flight_project.mkdir(parents=True)
+    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir.mkdir(parents=True)
+    manifest = run_manifest.build_run_manifest(
+        path_id="source-checkout-first-proof",
+        label="Source checkout first proof",
+        status="pass",
+        command=run_manifest.RunManifestCommand(
+            label="newcomer first proof",
+            argv=("tools/newcomer_first_proof.py", "--json"),
+            cwd=str(tmp_path),
+        ),
+        environment=run_manifest.RunManifestEnvironment.from_paths(
+            repo_root=tmp_path,
+            active_app=flight_project,
+        ),
+        timing=run_manifest.RunManifestTiming(
+            started_at="2026-04-25T00:00:00Z",
+            finished_at="2026-04-25T00:00:05Z",
+            duration_seconds=5.0,
+            target_seconds=600.0,
+        ),
+        artifacts=[],
+        validations=[
+            run_manifest.RunManifestValidation(
+                label="proof_steps",
+                status="pass",
+                summary="all proof steps passed",
+            )
+        ],
+        run_id="first-proof-demo",
+        created_at="2026-04-25T00:00:05Z",
+    )
+    run_manifest.write_run_manifest(manifest, output_dir / "run_manifest.json")
+
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app=str(flight_project),
+        AGILAB_LOG_ABS=tmp_path / "log",
+    )
+
+    state = module.newcomer_first_proof_state(env)
+
+    assert state["run_manifest_loaded"] is True
+    assert state["run_manifest_status"] == "pass"
+    assert state["run_manifest_passed"] is True
+    assert state["run_manifest_summary"]["run_id"] == "first-proof-demo"
+    assert state["run_output_detected"] is True
+    assert state["visible_outputs"] == []
     assert state["next_step"] == "First proof done. Now you can try another demo."

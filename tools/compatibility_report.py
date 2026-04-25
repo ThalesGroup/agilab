@@ -34,7 +34,7 @@ REQUIRED_PUBLIC_STATUSES = {
     "published-package-route": "documented",
 }
 REQUIRED_VALIDATED_EVIDENCE = {
-    "source-checkout-first-proof": ("tools/newcomer_first_proof.py",),
+    "source-checkout-first-proof": ("tools/newcomer_first_proof.py", "--json", "run_manifest.json"),
     "web-ui-local-first-proof": ("streamlit run", "src/agilab/About_agilab.py"),
     "agilab-hf-demo": ("tools/hf_space_smoke.py", "--json"),
     "service-mode-operator-surface": ("tools/service_health_check.py", "health"),

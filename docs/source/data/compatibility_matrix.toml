@@ -3,14 +3,14 @@ version = 1
 updated = "2026-04-25"
 owner = "manual-public-docs"
 purpose = "Public compatibility and demo-tour slice for AGILAB"
-notes = "Matrix promoted into tools/compatibility_report.py for public status and proof-command validation. External CI ingestion and broader certification remain roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
+notes = "Matrix promoted into tools/compatibility_report.py for public status, proof-command validation, and first-proof run_manifest.json evidence. External CI ingestion and broader certification remain roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
 
 [[entries]]
 id = "source-checkout-first-proof"
 label = "Source checkout first proof"
 status = "validated"
 surface = "local source checkout"
-primary_proof = "uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py"
+primary_proof = "uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json (writes ~/log/execute/flight/run_manifest.json)"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
 scope = "Public built-in flight_project, local execution, newcomer proof contract"

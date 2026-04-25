@@ -54,6 +54,10 @@ source-checkout proof passed on a fresh external machine in ``26.87s``:
 
    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 
+The JSON proof writes ``~/log/execute/flight/run_manifest.json``. That manifest
+is the portable first-proof run record: command, Python/platform context, active
+app, timing, artifact references, and validation status.
+
 That supports an ``Ease of adoption`` score of ``3.5 / 5``: the public demo
 works, the first routes are explicit, PyCharm is optional, installer tests are
 opt-in, and the source-checkout proof now has one fresh external-machine

@@ -40,6 +40,17 @@ def _load_tool_module(repo_root: Path, name: str) -> Any:
     return module
 
 
+def _load_source_module(repo_root: Path, relative_path: str, module_name: str) -> Any:
+    module_path = repo_root / relative_path
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"unable to load source module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
@@ -108,16 +119,11 @@ def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
 def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
     try:
         newcomer_first_proof = _load_tool_module(repo_root, "newcomer_first_proof")
-        wizard_path = repo_root / "src" / "agilab" / "first_proof_wizard.py"
-        wizard_spec = importlib.util.spec_from_file_location(
+        first_proof_wizard = _load_source_module(
+            repo_root,
+            "src/agilab/first_proof_wizard.py",
             "first_proof_wizard_for_kpi_bundle",
-            wizard_path,
         )
-        if not wizard_spec or not wizard_spec.loader:
-            raise RuntimeError(f"unable to load first-proof wizard module: {wizard_path}")
-        first_proof_wizard = importlib.util.module_from_spec(wizard_spec)
-        sys.modules[wizard_spec.name] = first_proof_wizard
-        wizard_spec.loader.exec_module(first_proof_wizard)
 
         active_app = newcomer_first_proof.DEFAULT_ACTIVE_APP
         commands = newcomer_first_proof.build_proof_commands(active_app, with_install=False)
@@ -136,6 +142,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             and wizard_content["compatibility_status"] == "validated"
             and wizard_content["compatibility_report_status"] == "pass"
             and wizard_content["proof_command_labels"] == labels
+            and wizard_content["run_manifest_filename"] == "run_manifest.json"
             and [label for label, _ in wizard_content["steps"]] == [
                 "PROJECT",
                 "ORCHESTRATE",
@@ -154,6 +161,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
                 "documented_route_ids": wizard_content.get("documented_route_ids"),
                 "compatibility_status": wizard_content.get("compatibility_status"),
                 "compatibility_report_status": wizard_content.get("compatibility_report_status"),
+                "run_manifest_filename": wizard_content.get("run_manifest_filename"),
                 "steps": [label for label, _ in wizard_content.get("steps", [])],
             },
         }
@@ -174,6 +182,91 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             "src/agilab/first_proof_wizard.py",
             "src/agilab/About_agilab.py",
             "README.md",
+        ],
+        details=details,
+    )
+
+
+def _check_run_manifest_contract(repo_root: Path) -> dict[str, Any]:
+    try:
+        run_manifest = _load_source_module(
+            repo_root,
+            "src/agilab/run_manifest.py",
+            "run_manifest_for_kpi_bundle",
+        )
+        newcomer_first_proof = _load_tool_module(repo_root, "newcomer_first_proof")
+        active_app = newcomer_first_proof.DEFAULT_ACTIVE_APP
+        commands = newcomer_first_proof.build_proof_commands(active_app, with_install=False)
+        results = [
+            newcomer_first_proof.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=0,
+                duration_seconds=1.0,
+                stdout="ok",
+                env=command.env,
+            )
+            for command in commands
+        ]
+        summary = newcomer_first_proof.summarize_kpi(
+            command_count=len(commands),
+            results=results,
+            max_seconds=float(newcomer_first_proof.DEFAULT_MAX_SECONDS),
+        )
+        manifest_path = newcomer_first_proof.default_manifest_path(active_app)
+        manifest = newcomer_first_proof.build_run_manifest(
+            active_app=active_app,
+            with_install=False,
+            commands=commands,
+            results=results,
+            summary=summary,
+            max_seconds=float(newcomer_first_proof.DEFAULT_MAX_SECONDS),
+            manifest_path=manifest_path,
+        )
+        encoded = manifest.as_dict()
+        validation_labels = [validation["label"] for validation in encoded["validations"]]
+        ok = (
+            run_manifest.SCHEMA_VERSION == 1
+            and run_manifest.RUN_MANIFEST_FILENAME == "run_manifest.json"
+            and encoded["schema_version"] == 1
+            and encoded["kind"] == "agilab.run_manifest"
+            and encoded["path_id"] == "source-checkout-first-proof"
+            and encoded["status"] == "pass"
+            and encoded["command"]["argv"] == ["tools/newcomer_first_proof.py", "--json"]
+            and encoded["environment"]["app_name"] == "flight_project"
+            and encoded["timing"]["target_seconds"] == 600.0
+            and validation_labels == ["proof_steps", "target_seconds", "recommended_project"]
+            and run_manifest.manifest_passed(manifest)
+        )
+        details = {
+            "schema_version": encoded.get("schema_version"),
+            "kind": encoded.get("kind"),
+            "filename": run_manifest.RUN_MANIFEST_FILENAME,
+            "path_id": encoded.get("path_id"),
+            "status": encoded.get("status"),
+            "command": encoded.get("command"),
+            "environment_keys": sorted(encoded.get("environment", {})),
+            "timing_keys": sorted(encoded.get("timing", {})),
+            "artifact_count": len(encoded.get("artifacts", [])),
+            "validation_labels": validation_labels,
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "run_manifest_contract",
+        "Run manifest contract",
+        ok,
+        (
+            "newcomer first proof emits the stable run_manifest.json evidence schema"
+            if ok
+            else "run manifest contract is missing or disconnected"
+        ),
+        evidence=[
+            "src/agilab/run_manifest.py",
+            "tools/newcomer_first_proof.py",
+            "src/agilab/first_proof_wizard.py",
         ],
         details=details,
     )
@@ -470,6 +563,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
     required = {
         "README.md": [
             "tools/newcomer_first_proof.py --json",
+            "run_manifest.json",
             "tools/reduce_contract_benchmark.py --json",
             "Overall public evaluation",
             "compatibility matrix",
@@ -477,6 +571,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
         "docs/source/compatibility-matrix.rst": [
             "AGILAB Hugging Face demo",
             "validated",
+            "run_manifest.json",
             "tools/compatibility_report.py",
             "tools/hf_space_smoke.py --json",
             "tools/agilab_web_robot.py",
@@ -527,6 +622,7 @@ def build_bundle(
     checks = [
         _check_workflow_compatibility_report(repo_root),
         _check_newcomer_first_proof_contract(repo_root),
+        _check_run_manifest_contract(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

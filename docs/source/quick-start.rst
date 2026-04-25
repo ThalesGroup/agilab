@@ -44,10 +44,12 @@ Use this path exactly once before trying anything broader.
 
 2. **Optional preflight check**::
 
-       uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
+       uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
 
    Use this before launching the UI when you want an explicit source-checkout
-   readiness check.
+   readiness check. The JSON run writes ``~/log/execute/flight/run_manifest.json``
+   with command, environment, timing, artifact references, and validation
+   status.
 
 3. **Launch the web interface**::
 
@@ -64,8 +66,9 @@ Use this path exactly once before trying anything broader.
 
 5. **Check the first proof outcome**
 
-   You are past the newcomer hurdle when both are true:
+   You are past the newcomer hurdle when these are true:
 
+   - ``~/log/execute/flight/run_manifest.json`` has ``status: pass``
    - fresh output exists under ``~/log/execute/flight/``
    - you can open the default ``ANALYSIS`` view for ``flight_project``
 

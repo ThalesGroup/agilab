@@ -179,6 +179,16 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
             f"({', '.join(state['proof_command_labels'])}; "
             f"target <= {state['target_seconds']:.0f}s)."
         )
+        if state["run_manifest_loaded"]:
+            manifest_summary = state["run_manifest_summary"]
+            st.caption(
+                "Run manifest: "
+                f"`{state['run_manifest_path']}` "
+                f"({state['run_manifest_status']}; "
+                f"{manifest_summary.get('artifact_count', 0)} artifact refs)."
+            )
+        else:
+            st.caption(f"Run manifest expected at: `{state['run_manifest_path']}`.")
         st.markdown("**Do this now**")
         step_lines = [
             f"{index}. {detail}"

@@ -105,6 +105,12 @@ report and includes the ``reduce_contract_adoption_guardrail`` check, which
 verifies that every non-template built-in app exposes a reducer contract and
 records ``mycode_project`` as the explicit template-only exemption.
 
+For the source-checkout first proof, ``tools/newcomer_first_proof.py --json``
+also writes ``~/log/execute/flight/run_manifest.json``. That stable manifest is
+the shared run record for command, environment, timing, artifact references, and
+validation status; the compact KPI bundle checks this as
+``run_manifest_contract``.
+
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and
 keeps notebook and packaged-install routes documented, not recommended, until
@@ -118,5 +124,5 @@ The larger roadmap work is still open:
 
 - automatic ingestion from external CI workflow artifacts
 - per-release compatibility status
-- stronger app/core revision traceability
+- broader app/core revision traceability beyond the first-proof manifest
 - explicit certification for more than the public newcomer/operator slices

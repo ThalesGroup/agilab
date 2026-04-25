@@ -40,6 +40,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     assert check_ids == {
         "workflow_compatibility_report",
         "newcomer_first_proof_contract",
+        "run_manifest_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -74,7 +75,25 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     assert wizard["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
     assert wizard["compatibility_status"] == "validated"
     assert wizard["compatibility_report_status"] == "pass"
+    assert wizard["run_manifest_filename"] == "run_manifest.json"
     assert wizard["steps"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+
+
+def test_run_manifest_contract_reports_stable_schema() -> None:
+    module = _load_module()
+
+    check = module._check_run_manifest_contract(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["schema_version"] == 1
+    assert check["details"]["kind"] == "agilab.run_manifest"
+    assert check["details"]["filename"] == "run_manifest.json"
+    assert check["details"]["path_id"] == "source-checkout-first-proof"
+    assert check["details"]["validation_labels"] == [
+        "proof_steps",
+        "target_seconds",
+        "recommended_project",
+    ]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

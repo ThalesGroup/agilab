@@ -85,6 +85,8 @@ def test_main_print_only_json_emits_selected_commands(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["with_install"] is True
     assert payload["kpi_target_seconds"] == module.DEFAULT_MAX_SECONDS
+    assert payload["run_manifest_filename"] == "run_manifest.json"
+    assert payload["run_manifest_path"].endswith("/log/execute/flight/run_manifest.json")
     assert payload["commands"][0]["label"] == "preinit smoke"
     assert payload["commands"][-1]["label"] == "seeded script check"
 
@@ -144,6 +146,80 @@ def test_run_proof_stops_on_first_failure() -> None:
 
     assert [result.label for result in results] == ["preinit smoke", "source ui smoke"]
     assert results[-1].returncode == 7
+
+
+def test_build_run_manifest_records_first_proof_contract(tmp_path: Path) -> None:
+    module = _load_module()
+    commands = module.build_proof_commands(module.DEFAULT_ACTIVE_APP, with_install=False)
+    results = [
+        module.ProofStepResult(
+            label=command.label,
+            description=command.description,
+            argv=list(command.argv),
+            returncode=0,
+            duration_seconds=1.5,
+            stdout="ok",
+            env=command.env,
+        )
+        for command in commands
+    ]
+    summary = module.summarize_kpi(command_count=2, results=results, max_seconds=600.0)
+    manifest_path = module.default_manifest_path(module.DEFAULT_ACTIVE_APP)
+
+    manifest = module.build_run_manifest(
+        active_app=module.DEFAULT_ACTIVE_APP,
+        with_install=False,
+        commands=commands,
+        results=results,
+        summary=summary,
+        max_seconds=600.0,
+        manifest_path=manifest_path,
+    )
+    encoded = manifest.as_dict()
+
+    assert encoded["schema_version"] == 1
+    assert encoded["kind"] == "agilab.run_manifest"
+    assert encoded["path_id"] == "source-checkout-first-proof"
+    assert encoded["status"] == "pass"
+    assert encoded["command"]["argv"] == ["tools/newcomer_first_proof.py", "--json"]
+    assert encoded["environment"]["app_name"] == "flight_project"
+    assert encoded["timing"]["target_seconds"] == 600.0
+    assert encoded["artifacts"][0]["name"] == "run_manifest"
+    assert {item["label"]: item["status"] for item in encoded["validations"]} == {
+        "proof_steps": "pass",
+        "target_seconds": "pass",
+        "recommended_project": "pass",
+    }
+
+
+def test_build_run_manifest_records_custom_manifest_path(tmp_path: Path) -> None:
+    module = _load_module()
+    commands = module.build_proof_commands(module.DEFAULT_ACTIVE_APP, with_install=False)
+    results = [
+        module.ProofStepResult(
+            label=command.label,
+            description=command.description,
+            argv=list(command.argv),
+            returncode=0,
+            duration_seconds=1.0,
+            stdout="ok",
+            env=command.env,
+        )
+        for command in commands
+    ]
+    summary = module.summarize_kpi(command_count=2, results=results, max_seconds=600.0)
+
+    manifest = module.build_run_manifest(
+        active_app=module.DEFAULT_ACTIVE_APP,
+        with_install=False,
+        commands=commands,
+        results=results,
+        summary=summary,
+        max_seconds=600.0,
+        manifest_path=tmp_path / "custom" / "run_manifest.json",
+    )
+
+    assert "--manifest-out" in manifest.command.argv
 
 
 def test_run_command_filters_known_bare_mode_streamlit_noise() -> None:
