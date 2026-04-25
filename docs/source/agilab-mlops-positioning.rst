@@ -85,6 +85,9 @@ interactive exploration into a replayable, inspectable workflow:
   without executing network checks in public evidence
 - the data connector UI preview report renders connector state and
   connector-derived provenance as static JSON+HTML evidence
+- the data connector live UI report wires connector state and
+  connector-derived provenance into the Release Decision Streamlit page without
+  running connector probes
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
@@ -142,6 +145,9 @@ history:
   claiming live connectivity in static public evidence
 - static connector UI preview makes connector cards, page bindings, legacy
   fallbacks, and probe boundaries reviewable before live UI integration
+- Release Decision connector live UI integration makes the same connector
+  provenance visible in an operator-facing page while keeping health probes
+  opt-in
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
 - the in-product first-proof wizard now guides one validated ``flight_project``
@@ -263,6 +269,8 @@ between research experiments and engineering validation:
   without opening networks in public evidence
 - a data connector UI preview report that turns connector provenance into a
   static review artifact
+- a data connector live UI report that proves Release Decision renders that
+  connector provenance through reusable Streamlit components
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

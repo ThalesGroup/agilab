@@ -1294,6 +1294,60 @@ def _check_data_connector_ui_preview_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_data_connector_live_ui_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        data_connector_report = _load_tool_module(
+            repo_root,
+            "data_connector_live_ui_report",
+        )
+        report = data_connector_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.data_connector_live_ui.v1"
+            and summary.get("run_status") == "ready_for_live_ui"
+            and summary.get("execution_mode") == "streamlit_render_contract_only"
+            and summary.get("connector_card_count") == 3
+            and summary.get("page_binding_count") == 2
+            and summary.get("legacy_fallback_count") == 2
+            and summary.get("health_probe_status_count") == 3
+            and summary.get("streamlit_metric_count") == 4
+            and summary.get("streamlit_dataframe_count") == 4
+            and summary.get("network_probe_count") == 0
+            and summary.get("operator_opt_in_required_for_health") is True
+            and summary.get("release_decision_hooked") is True
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "data_connector_live_ui_report_contract",
+        "Data connector live UI report contract",
+        ok,
+        (
+            "data connector live UI report wires connector provenance into "
+            "Release Decision without executing network probes"
+            if ok
+            else "data connector live UI report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/data_connector_live_ui_report.py",
+            "src/agilab/data_connector_live_ui.py",
+            "src/agilab/apps-pages/view_release_decision/src/"
+            "view_release_decision/view_release_decision.py",
+            "docs/source/data/data_connector_app_settings_sample.toml",
+            "docs/source/data/data_connectors_sample.toml",
+        ],
+        details=details,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -1473,6 +1527,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_resolution_report.py --compact",
             "tools/data_connector_health_report.py --compact",
             "tools/data_connector_ui_preview_report.py --compact",
+            "tools/data_connector_live_ui_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -1502,6 +1557,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_resolution_report.py",
             "tools/data_connector_health_report.py",
             "tools/data_connector_ui_preview_report.py",
+            "tools/data_connector_live_ui_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -1567,6 +1623,7 @@ def build_bundle(
         _check_data_connector_resolution_report(repo_root),
         _check_data_connector_health_report(repo_root),
         _check_data_connector_ui_preview_report(repo_root),
+        _check_data_connector_live_ui_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

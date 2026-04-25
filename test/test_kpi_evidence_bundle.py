@@ -59,6 +59,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "data_connector_resolution_report_contract",
         "data_connector_health_report_contract",
         "data_connector_ui_preview_report_contract",
+        "data_connector_live_ui_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -477,6 +478,28 @@ def test_data_connector_ui_preview_report_contract_renders_connector_state() -> 
     assert check["details"]["summary"]["html_written"] is True
     assert "data_connector_ui_preview_html_render" in check["details"]["check_ids"]
     assert "data_connector_ui_preview_health_boundary" in check["details"]["check_ids"]
+
+
+def test_data_connector_live_ui_report_contract_wires_release_decision() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_live_ui_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.data_connector_live_ui.v1"
+    assert check["details"]["summary"]["run_status"] == "ready_for_live_ui"
+    assert check["details"]["summary"]["execution_mode"] == "streamlit_render_contract_only"
+    assert check["details"]["summary"]["connector_card_count"] == 3
+    assert check["details"]["summary"]["page_binding_count"] == 2
+    assert check["details"]["summary"]["legacy_fallback_count"] == 2
+    assert check["details"]["summary"]["health_probe_status_count"] == 3
+    assert check["details"]["summary"]["streamlit_metric_count"] == 4
+    assert check["details"]["summary"]["streamlit_dataframe_count"] == 4
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["operator_opt_in_required_for_health"] is True
+    assert check["details"]["summary"]["release_decision_hooked"] is True
+    assert "data_connector_live_ui_release_decision_hook" in check["details"]["check_ids"]
+    assert "data_connector_live_ui_health_boundary" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

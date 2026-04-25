@@ -183,6 +183,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``static_ui_preview_only`` mode; it renders connector state and
   connector-derived provenance as static JSON+HTML cards, page bindings,
   legacy fallbacks, and health opt-in boundary evidence
+- the data connector live UI report validates
+  ``tools/data_connector_live_ui_report.py --compact`` in
+  ``streamlit_render_contract_only`` mode; it wires connector state and
+  connector-derived provenance into the Release Decision page while keeping
+  connector network probes at zero
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a
