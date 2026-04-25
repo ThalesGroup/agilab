@@ -70,6 +70,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "data_connector_live_endpoint_smoke_report_contract",
         "data_connector_ui_preview_report_contract",
         "data_connector_live_ui_report_contract",
+        "data_connector_view_surface_report_contract",
         "data_connector_app_catalogs_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
@@ -743,6 +744,36 @@ def test_data_connector_live_ui_report_contract_wires_release_decision() -> None
     assert check["details"]["summary"]["release_decision_hooked"] is True
     assert "data_connector_live_ui_release_decision_hook" in check["details"]["check_ids"]
     assert "data_connector_live_ui_health_boundary" in check["details"]["check_ids"]
+
+
+def test_data_connector_view_surface_report_contract_maps_release_decision_panels() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_view_surface_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == (
+        "agilab.data_connector_view_surface.v1"
+    )
+    assert check["details"]["summary"]["run_status"] == "validated"
+    assert check["details"]["summary"]["execution_mode"] == (
+        "connector_view_surface_contract_only"
+    )
+    assert check["details"]["summary"]["view_surface_count"] == 4
+    assert check["details"]["summary"]["ready_view_surface_count"] == 4
+    assert check["details"]["summary"]["release_decision_surface_count"] == 4
+    assert check["details"]["summary"]["page_source_loaded"] is True
+    assert check["details"]["summary"]["live_ui_run_status"] == "ready_for_live_ui"
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["command_execution_count"] == 0
+    assert (
+        "data_connector_view_surface_external_artifact_traceability"
+        in check["details"]["check_ids"]
+    )
+    assert (
+        "data_connector_view_surface_import_export_provenance"
+        in check["details"]["check_ids"]
+    )
 
 
 def test_data_connector_app_catalogs_report_contract_validates_builtin_apps() -> None:

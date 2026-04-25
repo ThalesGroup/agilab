@@ -567,6 +567,10 @@ Completed baseline:
 - `tools/data_connector_live_ui_report.py --compact` wires connector state and
   connector-derived provenance into the Release Decision Streamlit page in
   `streamlit_render_contract_only` mode
+- `tools/data_connector_view_surface_report.py --compact` verifies the
+  connector-aware Release Decision panels for state/provenance, health
+  boundary, import/export provenance, and external artifact traceability in
+  `connector_view_surface_contract_only` mode
 - `tools/data_connector_app_catalogs_report.py --compact` validates app-local
   connector catalogs referenced from built-in `app_settings.toml` files
 
@@ -776,6 +780,11 @@ Current shipped baseline:
   `agilab.data_connector_live_ui.v1` and wires connector state plus
   connector-derived provenance into the Release Decision Streamlit page without
   opening connector networks
+- `tools/data_connector_view_surface_report.py --compact` validates
+  `agilab.data_connector_view_surface.v1` and checks the Release Decision
+  connector state/provenance panel, health/status boundary, import/export
+  provenance panel, and external artifact traceability panel without opening
+  connector networks
 - `tools/data_connector_app_catalogs_report.py --compact` validates
   `agilab.data_connector_app_catalogs.v1` for app-local connector catalogs
   across every non-template built-in app
@@ -797,6 +806,27 @@ Typical views:
 - import or export provenance panel
 - connector health/status panel
 - external artefact traceability panel
+
+Current shipped baseline:
+
+- `tools/data_connector_view_surface_report.py --compact` validates
+  `agilab.data_connector_view_surface.v1` in
+  `connector_view_surface_contract_only` mode
+- the report verifies four Release Decision surfaces: connector
+  state/provenance, connector health/status boundary, import/export
+  provenance, and external artifact traceability
+- the evidence reads local page source plus the connector live-UI render
+  contract, uses the existing Streamlit recorder, and keeps command execution
+  and network probes at zero
+- the KPI evidence bundle includes this as
+  `data_connector_view_surface_report_contract`
+
+Remaining scope:
+
+- move the same pattern beyond Release Decision as additional live UI pages
+  need connector-aware panels
+- run live connector health/status actions only in credentialed operator
+  environments
 
 Why it matters:
 

@@ -202,6 +202,13 @@ single notebook but less ceremony than a production MLOps platform:
   ``streamlit_render_contract_only`` mode; it wires connector state and
   connector-derived provenance into the Release Decision page while keeping
   connector network probes at zero
+- the connector-aware view surface report validates
+  ``tools/data_connector_view_surface_report.py --compact`` in
+  ``connector_view_surface_contract_only`` mode against
+  ``agilab.data_connector_view_surface.v1``; it verifies the Release Decision
+  connector state/provenance panel, health/status boundary, import/export
+  provenance panel, and external artifact traceability panel without network
+  probes
 - the data connector app catalogs report validates
   ``tools/data_connector_app_catalogs_report.py --compact`` in
   ``app_catalog_validation_only`` mode; it proves app-local connector catalogs
