@@ -754,6 +754,56 @@ def _check_global_pipeline_operator_state_report(repo_root: Path) -> dict[str, A
     )
 
 
+def _check_global_pipeline_dependency_view_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        dependency_view_report = _load_tool_module(
+            repo_root, "global_pipeline_dependency_view_report"
+        )
+        report = dependency_view_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("run_status") == "ready_for_operator_review"
+            and summary.get("persistence_format") == "json"
+            and summary.get("round_trip_ok") is True
+            and summary.get("node_count") == 2
+            and summary.get("edge_count") == 1
+            and summary.get("cross_app_edge_count") == 1
+            and summary.get("upstream_dependency_count") == 1
+            and summary.get("downstream_dependency_count") == 1
+            and summary.get("visible_unit_ids") == ["queue_baseline", "relay_followup"]
+            and summary.get("source_real_execution_scope") == "full_dag_smoke"
+            and "queue_metrics" in summary.get("available_artifact_ids", [])
+        )
+        details = {
+            "status": report.get("status"),
+            "dag_path": report.get("dag_path"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "global_pipeline_dependency_view_report_contract",
+        "Global pipeline dependency view report contract",
+        ok,
+        (
+            "global pipeline dependency view report exposes cross-app "
+            "upstream/downstream adjacency"
+            if ok
+            else "global pipeline dependency view report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/global_pipeline_dependency_view_report.py",
+            "src/agilab/global_pipeline_dependency_view.py",
+            "tools/global_pipeline_operator_state_report.py",
+        ],
+        details=details,
+        executed=True,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -922,6 +972,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_dispatch_state_report.py --compact",
             "tools/global_pipeline_app_dispatch_smoke_report.py --compact",
             "tools/global_pipeline_operator_state_report.py --compact",
+            "tools/global_pipeline_dependency_view_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -940,6 +991,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_dispatch_state_report.py",
             "tools/global_pipeline_app_dispatch_smoke_report.py",
             "tools/global_pipeline_operator_state_report.py",
+            "tools/global_pipeline_dependency_view_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -994,6 +1046,7 @@ def build_bundle(
         _check_global_pipeline_dispatch_state_report(repo_root),
         _check_global_pipeline_app_dispatch_smoke_report(repo_root),
         _check_global_pipeline_operator_state_report(repo_root),
+        _check_global_pipeline_dependency_view_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

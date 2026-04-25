@@ -17,8 +17,9 @@ use this order:
      not just one app-local execution view
    - build on the shipped multi-app DAG contract, read-only global pipeline DAG
      report, pending execution-plan report, read-only runner state, and
-     persisted dispatch-state proof plus the two-unit app dispatch smoke, then
-     add live operator-facing state
+     persisted dispatch-state proof plus the two-unit app dispatch smoke,
+     operator-state report, and dependency-view report, then add live
+     operator-facing state
 2. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
@@ -244,17 +245,21 @@ Current shipped baseline:
   persisted full-DAG dispatch state and exposes completed unit state,
   queue-to-relay handoffs, available artifacts, and retry/partial-rerun action
   rows for future operator flows
+- `tools/global_pipeline_dependency_view_report.py --compact` reads the
+  operator-state proof and exposes upstream/downstream dependency visualization
+  for `queue_baseline -> relay_followup`, including the `queue_metrics` edge,
+  producer/consumer apps, adjacency lists, and artifact-flow rows
 - the compact KPI bundle includes this as
   `global_pipeline_dag_report_contract`,
   `global_pipeline_execution_plan_report_contract`,
   `global_pipeline_runner_state_report_contract`, and
   `global_pipeline_dispatch_state_report_contract`, plus
   `global_pipeline_app_dispatch_smoke_report_contract` and
-  `global_pipeline_operator_state_report_contract`
+  `global_pipeline_operator_state_report_contract` and
+  `global_pipeline_dependency_view_report_contract`
 
 Remaining scope:
 
-- explicit upstream/downstream dependency visualization across apps
 - live orchestration-state updates for the full DAG
 - execution of retry and partial-rerun actions from operator requests
 - UI components that render the persisted state and support operator actions

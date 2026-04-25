@@ -136,6 +136,10 @@ history:
 - the global DAG operator state report projects that persisted full-DAG state
   into operator-visible completed unit state, available artifact handoffs, and
   retry/partial-rerun action rows while still avoiding live UI claims
+- the global DAG dependency view report turns that operator-state proof into
+  cross-app upstream/downstream adjacency, the ``queue_baseline ->
+  relay_followup`` ``queue_metrics`` edge, and artifact-flow rows without
+  claiming live UI rendering
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -190,6 +194,8 @@ between research experiments and engineering validation:
   ``relay_followup`` for real while keeping live UI orchestration separate
 - an operator-state report that exposes completed units, handoffs, and
   retry/partial-rerun actions before UI components are added
+- a dependency-view report that makes the cross-app upstream/downstream
+  relationship explicit before live UI rendering is added
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

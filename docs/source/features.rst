@@ -200,6 +200,12 @@ single notebook but less ceremony than a production MLOps platform:
   projects ``operator-visible state`` for the completed units, the
   queue-to-relay artifact handoff, available artifacts, and
   ``retry/partial-rerun actions`` without claiming a live UI
+- the global DAG dependency view report reads the operator-state proof with
+  ``tools/global_pipeline_dependency_view_report.py --compact``; it provides
+  ``upstream/downstream dependency visualization`` for
+  ``queue_baseline -> relay_followup``, including the ``queue_metrics`` edge,
+  producer/consumer apps, adjacency lists, artifact flow, and linkage back to
+  persisted operator state without claiming a live UI component
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
