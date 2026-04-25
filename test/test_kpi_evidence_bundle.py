@@ -134,7 +134,14 @@ def test_multi_app_dag_report_contract_reports_cross_app_handoff() -> None:
         "relay_followup",
     ]
     assert check["details"]["summary"]["cross_app_edge_count"] == 1
+    assert check["details"]["summary"]["sample_count"] == 2
+    assert check["details"]["summary"]["supplemental_sample_count"] == 1
+    assert check["details"]["summary"]["suite_node_count"] == 6
+    assert check["details"]["summary"]["suite_edge_count"] == 4
+    assert check["details"]["summary"]["suite_app_count"] == 6
+    assert check["details"]["summary"]["suite_cross_app_edge_count"] == 4
     assert "multi_app_dag_artifact_handoffs" in check["details"]["check_ids"]
+    assert "multi_app_dag_sample_suite" in check["details"]["check_ids"]
 
 
 def test_global_pipeline_dag_report_contract_reports_read_only_graph() -> None:

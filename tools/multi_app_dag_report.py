@@ -7,11 +7,14 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_DAG_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
+SUPPLEMENTAL_DAG_RELATIVE_PATHS = (
+    Path("docs/source/data/multi_app_dag_portfolio_sample.json"),
+)
 DOC_RELATIVE_PATH = Path("docs/source/features.rst")
 
 
@@ -75,6 +78,7 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "multi-app DAG contract",
         "tools/multi_app_dag_report.py --compact",
         "multi_app_dag_sample.json",
+        "multi_app_dag_portfolio_sample.json",
     ]
     try:
         text = doc_path.read_text(encoding="utf-8")
@@ -98,6 +102,113 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _apps_for_payload(payload: Mapping[str, Any]) -> set[str]:
+    nodes = payload.get("nodes", [])
+    if not isinstance(nodes, list):
+        return set()
+    return {
+        str(node.get("app", "")).strip()
+        for node in nodes
+        if isinstance(node, dict) and str(node.get("app", "")).strip()
+    }
+
+
+def _sample_result(
+    *,
+    repo_root: Path,
+    sample_path: Path,
+) -> dict[str, Any]:
+    payload, load_details = _load_payload(sample_path)
+    if payload is None:
+        return {
+            "dag_path": _relative(sample_path, repo_root),
+            "status": "fail",
+            "load_details": load_details,
+        }
+    validation = validate_multi_app_dag(payload, repo_root=repo_root)
+    return {
+        "dag_path": _relative(sample_path, repo_root),
+        "dag_id": payload.get("dag_id", ""),
+        "status": "pass" if validation.ok else "fail",
+        "apps": sorted(_apps_for_payload(payload)),
+        "summary": validation.as_dict(),
+    }
+
+
+def _sample_suite_check(
+    *,
+    repo_root: Path,
+    primary_payload: Mapping[str, Any] | None,
+    primary_validation: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    supplemental = [
+        _sample_result(repo_root=repo_root, sample_path=repo_root / sample_path)
+        for sample_path in SUPPLEMENTAL_DAG_RELATIVE_PATHS
+    ]
+    primary_apps = _apps_for_payload(primary_payload or {})
+    suite_apps = set(primary_apps)
+    suite_node_count = int(primary_validation.get("node_count", 0) or 0)
+    suite_edge_count = int(primary_validation.get("edge_count", 0) or 0)
+    suite_cross_app_edge_count = int(
+        primary_validation.get("cross_app_edge_count", 0) or 0
+    )
+    for result in supplemental:
+        suite_apps.update(result.get("apps", []))
+        summary = result.get("summary", {})
+        if isinstance(summary, dict):
+            suite_node_count += int(summary.get("node_count", 0) or 0)
+            suite_edge_count += int(summary.get("edge_count", 0) or 0)
+            suite_cross_app_edge_count += int(
+                summary.get("cross_app_edge_count", 0) or 0
+            )
+
+    suite_summary = {
+        "sample_count": 1 + len(supplemental),
+        "supplemental_sample_count": len(supplemental),
+        "validated_dag_paths": [
+            str(SAMPLE_DAG_RELATIVE_PATH),
+            *[str(path) for path in SUPPLEMENTAL_DAG_RELATIVE_PATHS],
+        ],
+        "supplemental_dag_paths": [
+            str(path) for path in SUPPLEMENTAL_DAG_RELATIVE_PATHS
+        ],
+        "suite_app_count": len(suite_apps),
+        "suite_apps": sorted(suite_apps),
+        "suite_node_count": suite_node_count,
+        "suite_edge_count": suite_edge_count,
+        "suite_cross_app_edge_count": suite_cross_app_edge_count,
+        "supplemental_results": supplemental,
+    }
+    ok = (
+        primary_validation.get("ok") is True
+        and len(supplemental) == 1
+        and all(result.get("status") == "pass" for result in supplemental)
+        and suite_summary["sample_count"] == 2
+        and suite_summary["suite_app_count"] >= 6
+        and suite_summary["suite_cross_app_edge_count"] >= 4
+        and any(
+            result.get("dag_id") == "flight-meteo-execution-portfolio"
+            for result in supplemental
+        )
+    )
+    return (
+        _check_result(
+            "multi_app_dag_sample_suite",
+            "Multi-app DAG sample suite",
+            ok,
+            (
+                "multi-app DAG report validates the default executable sample "
+                "and supplemental portfolio sample"
+                if ok
+                else "multi-app DAG sample suite is incomplete or failing"
+            ),
+            evidence=suite_summary["validated_dag_paths"],
+            details=suite_summary,
+        ),
+        suite_summary,
+    )
+
+
 def build_report(
     *,
     repo_root: Path = REPO_ROOT,
@@ -110,6 +221,8 @@ def build_report(
     payload, load_details = _load_payload(dag_path)
 
     checks: list[dict[str, Any]] = []
+    validation_details: dict[str, Any] = {}
+    suite_summary: dict[str, Any] = {}
     if payload is None:
         checks.append(
             _check_result(
@@ -121,7 +234,6 @@ def build_report(
                 details=load_details,
             )
         )
-        validation_details: dict[str, Any] = {}
     else:
         validation = validate_multi_app_dag(payload, repo_root=repo_root)
         validation_details = validation.as_dict()
@@ -200,6 +312,13 @@ def build_report(
                 ),
             ]
         )
+        if dag_path == repo_root / SAMPLE_DAG_RELATIVE_PATH:
+            suite_check, suite_summary = _sample_suite_check(
+                repo_root=repo_root,
+                primary_payload=payload,
+                primary_validation=validation_details,
+            )
+            checks.append(suite_check)
 
     checks.append(_docs_check(repo_root))
     passed = sum(1 for check in checks if check["status"] == "pass")
@@ -218,6 +337,7 @@ def build_report(
             "failed": failed,
             "total": len(checks),
             **validation_details,
+            **suite_summary,
         },
         "checks": checks,
     }

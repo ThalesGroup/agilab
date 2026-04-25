@@ -1,0 +1,101 @@
+{
+  "schema": "agilab.multi_app_dag.v1",
+  "dag_id": "flight-meteo-execution-portfolio",
+  "label": "Flight, meteo, and execution portfolio handoff",
+  "description": "Supplemental cross-app DAG contract that broadens sample coverage beyond the UAV queue family without changing the executable global-DAG smoke baseline.",
+  "execution": {
+    "mode": "sequential_dependency_order",
+    "runner_status": "contract_only"
+  },
+  "nodes": [
+    {
+      "id": "flight_context",
+      "app": "flight_project",
+      "purpose": "Run the flight scenario and produce trajectory summary context for downstream analysis.",
+      "produces": [
+        {
+          "id": "flight_reduce_summary",
+          "kind": "reduce_summary",
+          "path": "flight_analysis/reduce_summary_worker_0.json"
+        }
+      ]
+    },
+    {
+      "id": "meteo_forecast_review",
+      "app": "meteo_forecast_project",
+      "purpose": "Use flight summary context to produce forecast quality metrics for portfolio review.",
+      "consumes": [
+        {
+          "id": "flight_reduce_summary",
+          "kind": "reduce_summary",
+          "path": "flight_analysis/reduce_summary_worker_0.json"
+        }
+      ],
+      "produces": [
+        {
+          "id": "forecast_metrics",
+          "kind": "summary_metrics",
+          "path": "forecast_analysis/forecast_metrics.json"
+        }
+      ]
+    },
+    {
+      "id": "pandas_benchmark_review",
+      "app": "execution_pandas_project",
+      "purpose": "Use forecast metrics as a portfolio context row for the pandas execution benchmark.",
+      "consumes": [
+        {
+          "id": "forecast_metrics",
+          "kind": "summary_metrics",
+          "path": "forecast_analysis/forecast_metrics.json"
+        }
+      ],
+      "produces": [
+        {
+          "id": "pandas_reduce_summary",
+          "kind": "reduce_summary",
+          "path": "execution_pandas/reduce_summary_worker_0.json"
+        }
+      ]
+    },
+    {
+      "id": "polars_benchmark_review",
+      "app": "execution_polars_project",
+      "purpose": "Use forecast metrics as a portfolio context row for the polars execution benchmark.",
+      "consumes": [
+        {
+          "id": "forecast_metrics",
+          "kind": "summary_metrics",
+          "path": "forecast_analysis/forecast_metrics.json"
+        }
+      ],
+      "produces": [
+        {
+          "id": "polars_reduce_summary",
+          "kind": "reduce_summary",
+          "path": "execution_polars/reduce_summary_worker_0.json"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "flight_context",
+      "to": "meteo_forecast_review",
+      "artifact": "flight_reduce_summary",
+      "handoff": "Use flight trajectory reduce summary as the forecast-review context."
+    },
+    {
+      "from": "meteo_forecast_review",
+      "to": "pandas_benchmark_review",
+      "artifact": "forecast_metrics",
+      "handoff": "Use forecast metrics as an execution benchmark context row."
+    },
+    {
+      "from": "meteo_forecast_review",
+      "to": "polars_benchmark_review",
+      "artifact": "forecast_metrics",
+      "handoff": "Use forecast metrics as an execution benchmark context row."
+    }
+  ]
+}

@@ -41,6 +41,15 @@ def test_multi_app_dag_report_validates_checked_in_sample() -> None:
     assert report["summary"]["app_count"] == 2
     assert report["summary"]["cross_app_edge_count"] == 1
     assert report["summary"]["execution_order"] == ["queue_baseline", "relay_followup"]
+    assert report["summary"]["sample_count"] == 2
+    assert report["summary"]["supplemental_sample_count"] == 1
+    assert report["summary"]["suite_node_count"] == 6
+    assert report["summary"]["suite_edge_count"] == 4
+    assert report["summary"]["suite_app_count"] == 6
+    assert report["summary"]["suite_cross_app_edge_count"] == 4
+    assert report["summary"]["supplemental_dag_paths"] == [
+        "docs/source/data/multi_app_dag_portfolio_sample.json"
+    ]
     assert report["summary"]["artifact_handoffs"] == [
         {
             "artifact": "queue_metrics",
@@ -52,6 +61,41 @@ def test_multi_app_dag_report_validates_checked_in_sample() -> None:
             "to_app": "uav_relay_queue_project",
         }
     ]
+    assert {check["id"] for check in report["checks"]} == {
+        "multi_app_dag_schema",
+        "multi_app_dag_app_nodes",
+        "multi_app_dag_dependencies",
+        "multi_app_dag_artifact_handoffs",
+        "multi_app_dag_sample_suite",
+        "multi_app_dag_docs_reference",
+    }
+
+
+def test_multi_app_dag_report_validates_portfolio_sample() -> None:
+    module = _load_report_module()
+
+    report = module.build_report(
+        repo_root=Path.cwd(),
+        dag_path=Path("docs/source/data/multi_app_dag_portfolio_sample.json"),
+    )
+
+    assert report["status"] == "pass"
+    assert report["dag_path"] == "docs/source/data/multi_app_dag_portfolio_sample.json"
+    assert report["summary"]["node_count"] == 4
+    assert report["summary"]["edge_count"] == 3
+    assert report["summary"]["app_count"] == 4
+    assert report["summary"]["cross_app_edge_count"] == 3
+    assert report["summary"]["execution_order"] == [
+        "flight_context",
+        "meteo_forecast_review",
+        "pandas_benchmark_review",
+        "polars_benchmark_review",
+    ]
+    assert "sample_count" not in report["summary"]
+    assert {handoff["artifact"] for handoff in report["summary"]["artifact_handoffs"]} == {
+        "flight_reduce_summary",
+        "forecast_metrics",
+    }
     assert {check["id"] for check in report["checks"]} == {
         "multi_app_dag_schema",
         "multi_app_dag_app_nodes",

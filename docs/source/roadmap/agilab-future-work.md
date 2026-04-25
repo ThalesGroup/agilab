@@ -203,8 +203,13 @@ Current shipped baseline:
 - `agilab.multi_app_dag.v1` defines the first portable cross-app DAG contract
 - `docs/source/data/multi_app_dag_sample.json` links `uav_queue_project` to
   `uav_relay_queue_project` through the explicit `queue_metrics` handoff
+- `docs/source/data/multi_app_dag_portfolio_sample.json` broadens the
+  contract-only sample suite across `flight_project`,
+  `meteo_forecast_project`, `execution_pandas_project`, and
+  `execution_polars_project`
 - `tools/multi_app_dag_report.py --compact` validates schema, checked-in app
-  nodes, acyclic dependencies, docs references, and artifact handoffs
+  nodes, acyclic dependencies, docs references, artifact handoffs, and the
+  two-sample DAG suite
 - the KPI evidence bundle includes this as `multi_app_dag_report_contract`
 - the global DAG report family now covers execution planning, persisted
   dispatch state, real two-app app-entry smoke execution, operator state,
@@ -213,8 +218,8 @@ Current shipped baseline:
 
 Remaining scope:
 
-- no open report-driven contract gap remains for the shipped two-app DAG
-  baseline
+- no open report-driven contract gap remains for the shipped two-app executable
+  DAG baseline or the broader contract-only sample suite
 - future work is broader app coverage, placement in the live product surface,
   external validation, and production hardening
 
