@@ -225,6 +225,12 @@ single notebook but less ceremony than a production MLOps platform:
   ``agilab.revision_traceability.v1``; it fingerprints the repository HEAD,
   bundled AGI core package versions, and built-in app manifests without
   invoking git commands or querying networks
+- the public certification profile report validates
+  ``tools/public_certification_profile_report.py --compact`` in
+  ``public_certification_static`` mode against
+  ``agilab.public_certification_profile.v1``; it turns the compatibility
+  matrix into a ``bounded_public_evidence`` profile while explicitly avoiding
+  production or third-party certification claims
 - the run-diff evidence report validates
   ``tools/run_diff_evidence_report.py --compact`` in
   ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,
