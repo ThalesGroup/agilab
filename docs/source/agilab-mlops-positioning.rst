@@ -69,11 +69,12 @@ interactive exploration into a replayable, inspectable workflow:
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
+- the initial first-class reduce contract in ``agi_node`` defines partial
+  inputs, reducer merge semantics, and a standard reduce artefact schema
 
 That supports a ``Research experimentation`` score of ``4.0 / 5``. It is not
-scored higher yet because a generic evidence bundle, first-class reduce
-contract, and broader fresh-machine reproducibility matrix are still roadmap
-work.
+scored higher yet because a generic evidence bundle, public reduce benchmark,
+and broader fresh-machine reproducibility matrix are still roadmap work.
 
 Engineering prototyping evidence
 --------------------------------
@@ -90,7 +91,7 @@ history:
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
-first-class reduce contract remain roadmap work.
+reduce-contract adoption across public apps remain roadmap work.
 
 Production readiness evidence
 -----------------------------
@@ -129,8 +130,9 @@ between research experiments and engineering validation:
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because the generic evidence bundle, first-class reduce contract,
-and broader fresh-install validation are still roadmap work.
+higher yet because the generic evidence bundle, reduce-contract migration
+across public apps, and broader fresh-install validation are still roadmap
+work.
 
 Where AGILab helps
 ------------------

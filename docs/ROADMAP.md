@@ -7,7 +7,7 @@ Recommended near-term order:
 3. First-proof wizard in product
 4. Compatibility matrix automation
 5. Connector registry hardening
-6. First-class reduce contract for distributed aggregation
+6. Reduce contract adoption and public benchmark for distributed aggregation
 7. Intent-first operator mode
 
 Supporting roadmap documents:
