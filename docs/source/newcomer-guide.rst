@@ -17,7 +17,7 @@ Choose one route
      - Route
      - Use when
    * - See the UI now
-     - :doc:`demos`
+     - :doc:`agilab-demo`
      - You want a browser-only look at the AGILAB web UI before installing
        anything.
    * - Prove it locally
@@ -109,7 +109,9 @@ Where to go next
 
 - :doc:`quick-start` for the exact first-proof commands.
 - :doc:`newcomer-troubleshooting` if the local ``flight_project`` proof fails.
-- :doc:`demos` if you want the public demo chooser instead of a local install.
+- :doc:`agilab-demo` if you want the public hosted web UI instead of a local
+  install.
+- :doc:`demos` if you want the public demo chooser.
 - :doc:`notebook-quickstart` only if you intentionally choose the
   ``agi-core`` notebook path.
 - :doc:`distributed-workers` only after the local proof works and you are ready
