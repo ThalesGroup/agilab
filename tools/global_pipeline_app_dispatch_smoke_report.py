@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit real first-unit dispatch-smoke evidence for AGILAB global pipeline DAGs."""
+"""Emit real app-dispatch smoke evidence for AGILAB global pipeline DAGs."""
 
 from __future__ import annotations
 
@@ -35,8 +35,10 @@ _ensure_repo_on_path(REPO_ROOT)
 
 from agilab.global_pipeline_app_dispatch_smoke import (
     DEFAULT_RUN_ID,
+    QUEUE_UNIT_ID,
     READY_ONLY_UNIT_ID,
     REAL_UNIT_ID,
+    RELAY_UNIT_ID,
     SCHEMA as APP_DISPATCH_SMOKE_SCHEMA,
     persist_app_dispatch_smoke,
 )
@@ -70,8 +72,8 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
     required = [
         "global DAG app dispatch smoke report",
         "tools/global_pipeline_app_dispatch_smoke_report.py --compact",
-        "real queue_baseline execution",
-        "relay_followup readiness-only",
+        "real queue_baseline and relay_followup execution",
+        "relay_metrics",
     ]
     try:
         text = doc_path.read_text(encoding="utf-8")
@@ -109,7 +111,8 @@ def _load_failure_report(dag_path: Path | None, exc: Exception) -> dict[str, Any
         "status": "fail",
         "scope": (
             "Executes queue_baseline through the real UAV queue app entry, "
-            "persists dispatch state, and marks relay_followup readiness-only."
+            "executes relay_followup through the real UAV relay queue app "
+            "entry, and persists dispatch state."
         ),
         "dag_path": str(dag_path or SAMPLE_DAG_RELATIVE_PATH),
         "summary": {
@@ -128,7 +131,12 @@ def _resolve_smoke_path(state: dict[str, Any], value: str) -> Path:
     if path.is_absolute():
         return path
     for unit in state.get("units", []):
-        if isinstance(unit, dict) and unit.get("id") == REAL_UNIT_ID:
+        if isinstance(unit, dict):
+            workspace = unit.get("real_execution", {}).get("workspace")
+            if workspace and (Path(str(workspace)) / path).exists():
+                return Path(str(workspace)) / path
+    for unit in state.get("units", []):
+        if isinstance(unit, dict):
             workspace = unit.get("real_execution", {}).get("workspace")
             if workspace:
                 return Path(str(workspace)) / path
@@ -215,12 +223,18 @@ def _build_report_with_paths(
     queue = unit_by_id.get(REAL_UNIT_ID, {})
     relay = unit_by_id.get(READY_ONLY_UNIT_ID, {})
     queue_execution = queue.get("real_execution", {}) if isinstance(queue, dict) else {}
-    metrics = queue_execution.get("summary_metrics", {}) if isinstance(queue_execution, dict) else {}
+    relay_execution = relay.get("real_execution", {}) if isinstance(relay, dict) else {}
+    queue_metrics = queue_execution.get("summary_metrics", {}) if isinstance(queue_execution, dict) else {}
+    relay_metrics = relay_execution.get("summary_metrics", {}) if isinstance(relay_execution, dict) else {}
     artifacts = _artifact_by_id(state)
     queue_metrics_artifact = artifacts.get("queue_metrics", {})
-    reduce_artifact = artifacts.get("queue_reduce_summary", {})
+    queue_reduce_artifact = artifacts.get("queue_reduce_summary", {})
+    relay_metrics_artifact = artifacts.get("relay_metrics", {})
+    relay_reduce_artifact = artifacts.get("relay_reduce_summary", {})
     queue_metrics_path = _resolve_smoke_path(state, str(queue_metrics_artifact.get("path", "")))
-    reduce_artifact_path = _resolve_smoke_path(state, str(reduce_artifact.get("path", "")))
+    queue_reduce_artifact_path = _resolve_smoke_path(state, str(queue_reduce_artifact.get("path", "")))
+    relay_metrics_path = _resolve_smoke_path(state, str(relay_metrics_artifact.get("path", "")))
+    relay_reduce_artifact_path = _resolve_smoke_path(state, str(relay_reduce_artifact.get("path", "")))
 
     checks = [
         _check_result(
@@ -251,12 +265,12 @@ def _build_report_with_paths(
         _check_result(
             "global_pipeline_app_dispatch_smoke_real_queue",
             "Global pipeline app dispatch smoke real queue execution",
-            summary.get("real_executed_unit_ids") == [REAL_UNIT_ID]
+            QUEUE_UNIT_ID in summary.get("real_executed_unit_ids", [])
             and queue.get("dispatch_status") == "completed"
             and queue.get("execution_mode") == "real_app_entry"
-            and int(metrics.get("packets_generated", 0) or 0) > 0
-            and int(metrics.get("packets_delivered", 0) or 0) >= 0
-            and metrics.get("routing_policy") == "queue_aware",
+            and int(queue_metrics.get("packets_generated", 0) or 0) > 0
+            and int(queue_metrics.get("packets_delivered", 0) or 0) >= 0
+            and queue_metrics.get("routing_policy") == "queue_aware",
             "queue_baseline executed through the real UAV queue manager and worker",
             evidence=[
                 "src/agilab/apps/builtin/uav_queue_project/src/uav_queue/uav_queue.py",
@@ -267,7 +281,32 @@ def _build_report_with_paths(
                 "queue_status": queue.get("dispatch_status"),
                 "execution_mode": queue.get("execution_mode"),
                 "app_entry": queue_execution.get("app_entry"),
-                "summary_metrics": metrics,
+                "summary_metrics": queue_metrics,
+            },
+        ),
+        _check_result(
+            "global_pipeline_app_dispatch_smoke_real_relay",
+            "Global pipeline app dispatch smoke real relay execution",
+            RELAY_UNIT_ID in summary.get("real_executed_unit_ids", [])
+            and relay.get("dispatch_status") == "completed"
+            and relay.get("execution_mode") == "real_app_entry"
+            and relay.get("unblocked_by") == ["queue_metrics"]
+            and int(relay_metrics.get("packets_generated", 0) or 0) > 0
+            and int(relay_metrics.get("packets_delivered", 0) or 0) >= 0
+            and relay_metrics.get("routing_policy") == "queue_aware",
+            "relay_followup executed through the real UAV relay queue manager and worker",
+            evidence=[
+                "src/agilab/apps/builtin/uav_relay_queue_project/src/uav_relay_queue/uav_relay_queue.py",
+                "src/agilab/apps/builtin/uav_relay_queue_project/src/uav_relay_queue_worker/uav_relay_queue_worker.py",
+            ],
+            details={
+                "real_executed_unit_ids": summary.get("real_executed_unit_ids"),
+                "relay_status": relay.get("dispatch_status"),
+                "execution_mode": relay.get("execution_mode"),
+                "app_entry": relay_execution.get("app_entry"),
+                "unblocked_by": relay.get("unblocked_by"),
+                "consumed_artifacts": relay_execution.get("consumed_artifacts"),
+                "summary_metrics": relay_metrics,
             },
         ),
         _check_result(
@@ -275,32 +314,47 @@ def _build_report_with_paths(
             "Global pipeline app dispatch smoke artifacts",
             "queue_metrics" in proof.available_artifact_ids
             and "queue_reduce_summary" in proof.available_artifact_ids
+            and "relay_metrics" in proof.available_artifact_ids
+            and "relay_reduce_summary" in proof.available_artifact_ids
             and queue_metrics_path.is_file()
-            and reduce_artifact_path.is_file(),
-            "real queue_metrics and reduce-summary artifacts exist on disk",
-            evidence=[str(queue_metrics_path), str(reduce_artifact_path)],
+            and queue_reduce_artifact_path.is_file()
+            and relay_metrics_path.is_file()
+            and relay_reduce_artifact_path.is_file(),
+            "real queue/relay metrics and reduce-summary artifacts exist on disk",
+            evidence=[
+                str(queue_metrics_path),
+                str(queue_reduce_artifact_path),
+                str(relay_metrics_path),
+                str(relay_reduce_artifact_path),
+            ],
             details={
                 "available_artifact_ids": list(proof.available_artifact_ids),
                 "queue_metrics_path": str(queue_metrics_path),
-                "queue_reduce_summary_path": str(reduce_artifact_path),
+                "queue_reduce_summary_path": str(queue_reduce_artifact_path),
+                "relay_metrics_path": str(relay_metrics_path),
+                "relay_reduce_summary_path": str(relay_reduce_artifact_path),
                 "queue_metrics_exists": queue_metrics_path.is_file(),
-                "queue_reduce_summary_exists": reduce_artifact_path.is_file(),
+                "queue_reduce_summary_exists": queue_reduce_artifact_path.is_file(),
+                "relay_metrics_exists": relay_metrics_path.is_file(),
+                "relay_reduce_summary_exists": relay_reduce_artifact_path.is_file(),
             },
         ),
         _check_result(
-            "global_pipeline_app_dispatch_smoke_relay_readiness",
-            "Global pipeline app dispatch smoke relay readiness",
-            summary.get("readiness_only_unit_ids") == [READY_ONLY_UNIT_ID]
-            and relay.get("dispatch_status") == "runnable"
-            and relay.get("execution_mode") == "readiness_only"
-            and relay.get("unblocked_by") == ["queue_metrics"],
-            "relay_followup is readiness-only and runnable after queue_metrics is available",
+            "global_pipeline_app_dispatch_smoke_full_dag",
+            "Global pipeline app dispatch smoke full DAG completion",
+            summary.get("completed_unit_ids") == [QUEUE_UNIT_ID, RELAY_UNIT_ID]
+            and summary.get("runnable_unit_ids") == []
+            and summary.get("blocked_unit_ids") == []
+            and summary.get("readiness_only_unit_ids") == []
+            and summary.get("real_execution_scope") == "full_dag_smoke",
+            "queue_baseline and relay_followup both complete through real app entries",
             evidence=["docs/source/data/multi_app_dag_sample.json"],
             details={
+                "completed_unit_ids": summary.get("completed_unit_ids"),
+                "runnable_unit_ids": summary.get("runnable_unit_ids"),
+                "blocked_unit_ids": summary.get("blocked_unit_ids"),
                 "readiness_only_unit_ids": summary.get("readiness_only_unit_ids"),
-                "relay_status": relay.get("dispatch_status"),
-                "relay_execution_mode": relay.get("execution_mode"),
-                "unblocked_by": relay.get("unblocked_by"),
+                "real_execution_scope": summary.get("real_execution_scope"),
             },
         ),
         _check_result(
@@ -319,9 +373,9 @@ def _build_report_with_paths(
             "global_pipeline_app_dispatch_smoke_provenance",
             "Global pipeline app dispatch smoke provenance",
             state.get("provenance", {}).get("real_app_execution") is True
-            and state.get("provenance", {}).get("real_execution_scope") == "first_unit_only"
-            and summary.get("real_execution_scope") == "first_unit_only",
-            "provenance records first-unit-only real app execution",
+            and state.get("provenance", {}).get("real_execution_scope") == "full_dag_smoke"
+            and summary.get("real_execution_scope") == "full_dag_smoke",
+            "provenance records full-DAG smoke real app execution",
             evidence=["tools/global_pipeline_app_dispatch_smoke_report.py"],
             details={
                 "provenance": state.get("provenance", {}),
@@ -338,8 +392,9 @@ def _build_report_with_paths(
         "status": "pass" if failed == 0 else "fail",
         "scope": (
             "Executes queue_baseline through the real UAV queue app entry, "
-            "persists dispatch state, and marks relay_followup readiness-only. "
-            "It does not execute the full global DAG."
+            "executes relay_followup through the real UAV relay queue app "
+            "entry, and persists dispatch state. It does not provide live "
+            "operator UI."
         ),
         "dag_path": state.get("source", {}).get("dag_path", str(dag_path or SAMPLE_DAG_RELATIVE_PATH)),
         "summary": {
@@ -361,10 +416,16 @@ def _build_report_with_paths(
             "available_artifact_ids": list(proof.available_artifact_ids),
             "real_execution_scope": summary.get("real_execution_scope"),
             "event_count": proof.event_count,
+            "queue_packets_generated": summary.get("queue_packets_generated"),
+            "queue_packets_delivered": summary.get("queue_packets_delivered"),
+            "relay_packets_generated": summary.get("relay_packets_generated"),
+            "relay_packets_delivered": summary.get("relay_packets_delivered"),
             "packets_generated": summary.get("packets_generated"),
             "packets_delivered": summary.get("packets_delivered"),
             "queue_metrics_path": str(queue_metrics_path),
-            "queue_reduce_summary_path": str(reduce_artifact_path),
+            "queue_reduce_summary_path": str(queue_reduce_artifact_path),
+            "relay_metrics_path": str(relay_metrics_path),
+            "relay_reduce_summary_path": str(relay_reduce_artifact_path),
             "issues": [issue.as_dict() for issue in proof.issues],
         },
         "persistence": proof_details,
@@ -374,7 +435,7 @@ def _build_report_with_paths(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Emit real first-unit dispatch-smoke evidence for AGILAB global pipeline DAGs."
+        description="Emit real app-dispatch smoke evidence for AGILAB global pipeline DAGs."
     )
     parser.add_argument(
         "--dag",

@@ -128,11 +128,11 @@ history:
   ``queue_metrics`` availability, ``relay_followup`` unblocking, timestamps,
   retry counters, partial-rerun flags, operator messages, and provenance
   without claiming real app execution
-- the global DAG app dispatch smoke report executes the first real
-  ``queue_baseline`` app entry through ``uav_queue_project``, persists the
-  produced queue artifacts into dispatch-state JSON, and keeps
-  ``relay_followup`` readiness-only/runnable rather than claiming full DAG
-  execution
+- the global DAG app dispatch smoke report executes real ``queue_baseline`` and
+  ``relay_followup`` app entries through ``uav_queue_project`` and
+  ``uav_relay_queue_project``, persists ``queue_metrics``, ``relay_metrics``,
+  and reducer artifacts into dispatch-state JSON, and stops short of claiming
+  live operator UI
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -183,14 +183,14 @@ between research experiments and engineering validation:
   the cross-app handoff contract
 - a runner-facing execution-plan report that defines dependency state before
   real dispatch is introduced
-- a first-unit app dispatch smoke that executes ``queue_baseline`` for real
-  while keeping the downstream relay step readiness-only
+- a two-unit app dispatch smoke that executes ``queue_baseline`` and
+  ``relay_followup`` for real while keeping live UI orchestration separate
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because future app/template reducer adoption discipline, global DAG
-full-runner/UI work, and broader fresh-install validation are still roadmap work.
+higher yet because future app/template reducer adoption discipline, live UI
+work, and broader fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------

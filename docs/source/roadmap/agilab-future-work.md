@@ -17,8 +17,8 @@ use this order:
      not just one app-local execution view
    - build on the shipped multi-app DAG contract, read-only global pipeline DAG
      report, pending execution-plan report, read-only runner state, and
-     persisted dispatch-state proof plus the first-unit app dispatch smoke,
-     then add full relay execution plus live operator-facing state
+     persisted dispatch-state proof plus the two-unit app dispatch smoke, then
+     add live operator-facing state
 2. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
@@ -236,10 +236,10 @@ Current shipped baseline:
   preserves timestamps, retry counters, partial-rerun flags, operator messages,
   and provenance without executing apps
 - `tools/global_pipeline_app_dispatch_smoke_report.py --compact` executes
-  `queue_baseline` through the real checked-in `uav_queue_project`
-  manager/worker entry, writes the actual `queue_metrics` and reducer artifacts,
-  persists them in dispatch-state JSON, and keeps `relay_followup`
-  readiness-only/runnable
+  `queue_baseline` and `relay_followup` through the real checked-in
+  `uav_queue_project` and `uav_relay_queue_project` manager/worker entries,
+  writes the actual `queue_metrics`, `relay_metrics`, and reducer artifacts,
+  and persists them in dispatch-state JSON
 - the compact KPI bundle includes this as
   `global_pipeline_dag_report_contract`,
   `global_pipeline_execution_plan_report_contract`,
@@ -251,8 +251,6 @@ Remaining scope:
 
 - explicit upstream/downstream dependency visualization across apps
 - live orchestration-state updates for the full DAG
-- relay execution and full-DAG dispatch beyond the first real `queue_baseline`
-  app-entry smoke
 - persisted retries, partial reruns, provenance, and operator-visible state
   changes from real app runs
 - UI components that render the persisted state and support operator actions
@@ -261,8 +259,8 @@ Why it matters:
 
 - the report gives AGILab a clearer product story than isolated per-app
   pipelines without overclaiming execution
-- full relay dispatch and live UI state are still needed before the
-  orchestration layer is fully visible to operators and reviewers
+- live UI state is still needed before the orchestration layer is fully visible
+  to operators and reviewers
 
 ### 8. Bidirectional notebook interop
 
