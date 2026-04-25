@@ -116,6 +116,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/data_connector_facility_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_resolution_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_health_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_health_actions_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_ui_preview_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_live_ui_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_app_catalogs_report.py --compact
@@ -143,6 +144,7 @@ consumes that report and includes the ``multi_app_dag_report_contract``,
 ``data_connector_facility_report_contract``,
 ``data_connector_resolution_report_contract``,
 ``data_connector_health_report_contract``,
+``data_connector_health_actions_report_contract``,
 ``data_connector_ui_preview_report_contract``,
 ``data_connector_live_ui_report_contract``,
 ``data_connector_app_catalogs_report_contract``, and
@@ -172,6 +174,8 @@ validate connector-aware app/page resolution with ``legacy_path_fallback``
 preserved for migration,
 plan connector health/status probes behind operator opt-in without executing
 network checks,
+expose operator-triggered health probe action rows without executing network
+checks in public evidence,
 render connector state and connector-derived provenance as static JSON+HTML
 preview evidence,
 wire connector state and connector-derived provenance into the Release Decision

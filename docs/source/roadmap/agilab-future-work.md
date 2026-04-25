@@ -33,6 +33,8 @@ use this order:
      for connector-aware app/page resolution
    - add the shipped data connector health report for operator-gated probe
      planning without live public network checks
+   - add the shipped data connector health actions report for explicit
+     operator-triggered health probe rows
    - add the shipped data connector UI preview report for static connector
      state and provenance review
    - add the shipped data connector live UI report for Release Decision
@@ -486,6 +488,9 @@ Completed baseline:
 - `tools/data_connector_health_report.py --compact` plans SQL, OpenSearch, and
   object-storage health/status probes behind operator opt-in while keeping
   public evidence in `health_probe_plan_only` mode
+- `tools/data_connector_health_actions_report.py --compact` exposes those
+  probes as operator-triggered action rows in `operator_trigger_contract_only`
+  mode
 - `tools/data_connector_ui_preview_report.py --compact` renders connector
   state, page bindings, legacy fallbacks, and health-boundary provenance as
   static JSON+HTML evidence
@@ -532,7 +537,7 @@ Expected impact:
 
 Remaining scope:
 
-- add operator-triggered live health probes
+- add real credentialed connector adapters for runtime environments
 
 ## Distributed execution and reduction
 
@@ -684,6 +689,9 @@ Current shipped baseline:
 - `tools/data_connector_health_report.py --compact` validates
   `agilab.data_connector_health.v1` and plans connector health/status probes
   behind operator opt-in without executing network checks
+- `tools/data_connector_health_actions_report.py --compact` validates
+  `agilab.data_connector_health_actions.v1` and exposes operator-triggered
+  health probe action rows without executing network checks
 - `tools/data_connector_ui_preview_report.py --compact` validates
   `agilab.data_connector_ui_preview.v1` and renders static connector state plus
   connector-derived provenance as JSON+HTML preview evidence
@@ -697,7 +705,7 @@ Current shipped baseline:
 
 Remaining scope:
 
-- operator-triggered live health probes
+- real credentialed connector adapters for runtime environments
 
 ### 3. Connector-aware views
 

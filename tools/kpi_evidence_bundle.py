@@ -1242,6 +1242,60 @@ def _check_data_connector_health_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_data_connector_health_actions_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        data_connector_report = _load_tool_module(
+            repo_root,
+            "data_connector_health_actions_report",
+        )
+        report = data_connector_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.data_connector_health_actions.v1"
+            and summary.get("run_status") == "ready_for_operator_trigger"
+            and summary.get("execution_mode") == "operator_trigger_contract_only"
+            and summary.get("action_count") == 3
+            and summary.get("connector_count") == 3
+            and summary.get("operator_trigger_count") == 3
+            and summary.get("pending_action_count") == 3
+            and summary.get("pending_operator_trigger_count") == 3
+            and summary.get("executed_probe_count") == 0
+            and summary.get("network_probe_count") == 0
+            and summary.get("operator_context_required_count") == 3
+            and summary.get("credential_gated_count") == 2
+            and summary.get("no_credential_required_count") == 1
+            and summary.get("default_status_values") == ["unknown_not_probed"]
+            and summary.get("result_status_values") == ["unknown_not_probed"]
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "data_connector_health_actions_report_contract",
+        "Data connector health actions report contract",
+        ok,
+        (
+            "data connector health actions report exposes operator-triggered "
+            "health probes without executing network checks"
+            if ok
+            else "data connector health actions report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/data_connector_health_actions_report.py",
+            "src/agilab/data_connector_health_actions.py",
+            "src/agilab/data_connector_health.py",
+        ],
+        details=details,
+    )
+
+
 def _check_data_connector_ui_preview_report(repo_root: Path) -> dict[str, Any]:
     try:
         data_connector_report = _load_tool_module(
@@ -1586,6 +1640,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_facility_report.py --compact",
             "tools/data_connector_resolution_report.py --compact",
             "tools/data_connector_health_report.py --compact",
+            "tools/data_connector_health_actions_report.py --compact",
             "tools/data_connector_ui_preview_report.py --compact",
             "tools/data_connector_live_ui_report.py --compact",
             "tools/data_connector_app_catalogs_report.py --compact",
@@ -1617,6 +1672,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_facility_report.py",
             "tools/data_connector_resolution_report.py",
             "tools/data_connector_health_report.py",
+            "tools/data_connector_health_actions_report.py",
             "tools/data_connector_ui_preview_report.py",
             "tools/data_connector_live_ui_report.py",
             "tools/data_connector_app_catalogs_report.py",
@@ -1684,6 +1740,7 @@ def build_bundle(
         _check_data_connector_facility_report(repo_root),
         _check_data_connector_resolution_report(repo_root),
         _check_data_connector_health_report(repo_root),
+        _check_data_connector_health_actions_report(repo_root),
         _check_data_connector_ui_preview_report(repo_root),
         _check_data_connector_live_ui_report(repo_root),
         _check_data_connector_app_catalogs_report(repo_root),

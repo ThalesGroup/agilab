@@ -83,6 +83,8 @@ interactive exploration into a replayable, inspectable workflow:
   resolution and keeps ``legacy_path_fallback`` rows available during migration
 - the data connector health report plans opt-in connector health/status probes
   without executing network checks in public evidence
+- the data connector health actions report exposes operator-triggered health
+  probes while keeping public evidence network-free
 - the data connector UI preview report renders connector state and
   connector-derived provenance as static JSON+HTML evidence
 - the data connector live UI report wires connector state and
@@ -145,6 +147,8 @@ history:
   connectors from app settings without dropping legacy raw path fallbacks
 - opt-in connector health planning gives prototypes a status boundary without
   claiming live connectivity in static public evidence
+- operator-triggered health actions make the opt-in boundary actionable without
+  executing connector probes in public evidence
 - static connector UI preview makes connector cards, page bindings, legacy
   fallbacks, and probe boundaries reviewable before live UI integration
 - Release Decision connector live UI integration makes the same connector
@@ -271,6 +275,8 @@ between research experiments and engineering validation:
   resolve against the catalog while preserving legacy path migration fallback
 - a data connector health report that plans operator-gated connector probes
   without opening networks in public evidence
+- a data connector health actions report that turns those planned probes into
+  operator-trigger rows
 - a data connector UI preview report that turns connector provenance into a
   static review artifact
 - a data connector live UI report that proves Release Decision renders that
