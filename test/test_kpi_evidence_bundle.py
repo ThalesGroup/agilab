@@ -48,6 +48,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "global_pipeline_dispatch_state_report_contract",
         "global_pipeline_app_dispatch_smoke_report_contract",
         "global_pipeline_operator_state_report_contract",
+        "global_pipeline_dependency_view_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -237,6 +238,27 @@ def test_global_pipeline_operator_state_report_contract_exposes_actions() -> Non
     assert "queue_metrics" in check["details"]["summary"]["available_artifact_ids"]
     assert "relay_metrics" in check["details"]["summary"]["available_artifact_ids"]
     assert "global_pipeline_operator_state_actions" in check["details"]["check_ids"]
+
+
+def test_global_pipeline_dependency_view_report_contract_exposes_adjacency() -> None:
+    module = _load_module()
+
+    check = module._check_global_pipeline_dependency_view_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["executed"] is True
+    assert check["details"]["summary"]["run_status"] == "ready_for_operator_review"
+    assert check["details"]["summary"]["persistence_format"] == "json"
+    assert check["details"]["summary"]["round_trip_ok"] is True
+    assert check["details"]["summary"]["node_count"] == 2
+    assert check["details"]["summary"]["edge_count"] == 1
+    assert check["details"]["summary"]["cross_app_edge_count"] == 1
+    assert check["details"]["summary"]["upstream_dependency_count"] == 1
+    assert check["details"]["summary"]["downstream_dependency_count"] == 1
+    assert check["details"]["summary"]["visible_unit_ids"] == ["queue_baseline", "relay_followup"]
+    assert check["details"]["summary"]["source_real_execution_scope"] == "full_dag_smoke"
+    assert "queue_metrics" in check["details"]["summary"]["available_artifact_ids"]
+    assert "global_pipeline_dependency_view_cross_app_edge" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:
