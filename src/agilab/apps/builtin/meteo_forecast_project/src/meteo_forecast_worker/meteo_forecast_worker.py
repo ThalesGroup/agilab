@@ -14,6 +14,7 @@ from skforecast.model_selection import TimeSeriesFold, backtesting_forecaster
 from skforecast.recursive import ForecasterRecursive
 
 from agi_node.pandas_worker import PandasWorker
+from meteo_forecast.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -183,6 +184,10 @@ class MeteoForecastWorker(PandasWorker):
             "mae": round(mae, 4),
             "rmse": round(rmse, 4),
             "mape": round(mape, 4) if mape is not None else None,
+            "prediction_rows": int(len(df)),
+            "backtest_rows": int(len(backtest)),
+            "forecast_rows": int((df["split"] == "forecast").sum()),
+            "source_files": sorted(str(item) for item in df["source_file"].dropna().unique().tolist()),
             "notes": (
                 "Built-in AGILAB forecast app migrated from the skforecast + Meteo-France "
                 "notebook sequence."
@@ -207,6 +212,11 @@ class MeteoForecastWorker(PandasWorker):
             (root / "forecast_metrics.json").write_text(
                 json.dumps(metrics, indent=2),
                 encoding="utf-8",
+            )
+            write_reduce_artifact(
+                metrics,
+                root,
+                worker_id=getattr(self, "_worker_id", 0),
             )
 
         logger.info("Saved forecast artifacts to %s and %s", self.data_out, self.artifact_dir)

@@ -108,6 +108,40 @@ def _write_uav_reduce_artifact(
     )
 
 
+def _write_forecast_reduce_artifact(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "name": "meteo_forecast_reduce_summary",
+                "reducer": "meteo_forecast.forecast-metrics.v1",
+                "partial_count": 1,
+                "partial_ids": ["meteo_forecast_worker_0"],
+                "payload": {
+                    "forecast_run_count": 1,
+                    "stations": ["Paris-Montsouris"],
+                    "targets": ["tmax_c"],
+                    "model_names": ["ForecasterRecursive(RandomForestRegressor)"],
+                    "source_files": ["meteo_fr_daily_sample.csv"],
+                    "source_file_count": 1,
+                    "horizon_days": ["7"],
+                    "validation_days": ["21"],
+                    "lags": ["7"],
+                    "prediction_rows": 28,
+                    "backtest_rows": 21,
+                    "forecast_rows": 7,
+                    "mae": 0.81,
+                    "rmse": 0.97,
+                    "mape": 5.42,
+                },
+                "metadata": {"app": "meteo_forecast_project"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _run_release_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTest:
     argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
     with patch.object(sys, "argv", argv):
@@ -241,6 +275,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     valid_path = artifact_root / "run_a" / "reduce_summary_worker_0.json"
     uav_path = artifact_root / "run_uav" / "reduce_summary_worker_0.json"
     relay_path = artifact_root / "run_uav_relay" / "reduce_summary_worker_0.json"
+    forecast_path = artifact_root / "run_forecast" / "reduce_summary_worker_0.json"
     invalid_path = artifact_root / "run_b" / "reduce_summary_worker_1.json"
     _write_reduce_artifact(valid_path, engine="polars")
     _write_uav_reduce_artifact(uav_path)
@@ -251,6 +286,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
         app="uav_relay_queue_project",
         scenario="uav_relay_queue_hotspot",
     )
+    _write_forecast_reduce_artifact(forecast_path)
     invalid_path.parent.mkdir(parents=True, exist_ok=True)
     invalid_path.write_text("{broken", encoding="utf-8")
 
@@ -259,6 +295,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     valid = next(row for row in rows if row["status"] == "pass")
     uav = next(row for row in rows if row["reducer"] == "uav_queue.queue-metrics.v1")
     relay = next(row for row in rows if row["reducer"] == "uav_relay_queue.queue-metrics.v1")
+    forecast = next(row for row in rows if row["reducer"] == "meteo_forecast.forecast-metrics.v1")
     invalid = next(row for row in rows if row["status"] == "invalid")
     assert valid["artifact"] == "run_a/reduce_summary_worker_0.json"
     assert valid["reducer"] == "execution_polars.weighted-score.v1"
@@ -284,6 +321,21 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     assert relay["packets_delivered"] == 20
     assert relay["packets_dropped"] == 5
     assert relay["pdr"] == 0.8
+    assert forecast["artifact"] == "run_forecast/reduce_summary_worker_0.json"
+    assert forecast["forecast_run_count"] == 1
+    assert forecast["stations"] == "Paris-Montsouris"
+    assert forecast["targets"] == "tmax_c"
+    assert forecast["model_names"] == "ForecasterRecursive(RandomForestRegressor)"
+    assert forecast["source_file_count"] == 1
+    assert forecast["prediction_rows"] == 28
+    assert forecast["backtest_rows"] == 21
+    assert forecast["forecast_rows"] == 7
+    assert forecast["mae"] == 0.81
+    assert forecast["rmse"] == 0.97
+    assert forecast["mape"] == 5.42
+    assert forecast["horizon_days"] == "7"
+    assert forecast["validation_days"] == "21"
+    assert forecast["lags"] == "7"
     assert invalid["artifact"] == "run_b/reduce_summary_worker_1.json"
     assert "Expecting property name" in invalid["detail"]
 
