@@ -64,6 +64,17 @@ For the most representative first proof, prefer the source-checkout
 `flight_project` path above because it exercises the same app installation,
 execution, and analysis flow documented in the web UI.
 
+## Reduce Contract
+
+AGILAB now exposes a first-class `agi_node` reduce contract for distributed
+work-plan results. `ReducePartial` captures worker outputs, `ReduceContract`
+declares merge semantics and validation hooks, and `ReduceArtifact` serializes
+the named reducer result with a stable schema.
+
+Existing apps can keep their app-owned aggregation while they migrate. The
+remaining work is a public reduce benchmark and wider adoption across built-in
+apps, not the shared reducer interface itself.
+
 ## Evaluation Snapshot
 
 CODEX 5.5 working scores, not production MLOps claims:
@@ -71,7 +82,7 @@ CODEX 5.5 working scores, not production MLOps claims:
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
 | Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Single external-machine smoke; broader OS/network replication remains open. |
-| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages. | First-class reduce contract is still roadmap. |
+| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, and shared `agi_node` reduce contract. | Public reduce benchmark and app migrations remain open. |
 | Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates. | First-proof wizard and external replication remain open. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
 | Overall public evaluation | `3.6 / 5` | Mean of the four scored public KPIs: `(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625`. Cross-KPI evidence bundle documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |

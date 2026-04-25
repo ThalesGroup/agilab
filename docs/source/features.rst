@@ -54,10 +54,11 @@ agi-core
   - AGILab currently standardizes the ``map`` side of the workflow: building
     distribution plans, dispatching partitions, and running them on local or
     cluster workers.
-  - What is still missing is a first-class generic ``reduce`` contract.
-    Today, most final merge semantics and aggregation artefacts are still
-    defined by each app.
-  - A shared framework-level reduce contract remains roadmap work.
+  - AGILab now exposes a shared ``agi_node`` reduce contract with explicit
+    partial inputs, reducer merge semantics, and a standard reduce artefact
+    schema.
+  - Most existing apps still own their final merge semantics, so broad app
+    migration and a public reduce benchmark remain roadmap work.
 
 - **Optimized Run-Mode Selection:**
 
@@ -135,8 +136,8 @@ single notebook but less ceremony than a production MLOps platform:
   shareable dashboard without becoming a full product
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
-scored higher yet because the first-proof wizard, generic evidence bundle, and
-first-class reduce contract remain roadmap work.
+scored higher yet because the first-proof wizard, generic evidence bundle,
+public reduce benchmark, and broad app migration remain roadmap work.
 
 Production-readiness controls
 -----------------------------

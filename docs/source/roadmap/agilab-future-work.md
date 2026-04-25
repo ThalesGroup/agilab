@@ -47,10 +47,11 @@ use this order:
      connector targets
    - this turns connector work into a practical data-access layer, not just path
      cleanup
-10. **First-class reduce contract**
-   - AGILab already has distributed work-plan execution; the missing piece is a
-     shared reducer contract
-   - this should come after evidence and connector stabilization, not before
+10. **Reduce contract adoption**
+   - AGILab already has distributed work-plan execution and an initial shared
+     reducer contract
+   - the remaining work is public-app adoption, named reduce artefacts, and a
+     public benchmark
 11. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
@@ -458,33 +459,34 @@ Expected impact:
 ## Distributed execution and reduction
 
 AGILab already ships real distributed execution primitives, but the product
-surface is not yet a first-class generic map/reduce layer.
+surface is not yet a fully migrated generic map/reduce layer.
 
 Current state:
 
 - apps can build explicit distribution plans
 - workers execute partitioned plans locally or on Dask-backed clusters
+- `agi_node.reduction` defines a shared reducer contract with partial inputs,
+  merge semantics, validation hooks, and a standard reduce artefact schema
 - aggregation is still mostly app-specific
 
 Current gap:
 
 - docs can overstate the capability as a full generic map/reduce mechanism
-- reducer semantics are not declared in shared core
-- merge artefacts and aggregation summaries are not standardized across apps
+- most apps have not migrated their merge logic to the shared reducer contract
+- there is no public benchmark/demo that proves the end-to-end reducer path yet
 
-### 1. First-class reduce contract
+### 1. Reduce contract adoption and public benchmark
 
 Purpose:
 
-- promote the current distributed work-plan execution model into a clear,
+- move the current distributed work-plan execution model onto the shared
   reusable aggregation contract
 
 Focus areas:
 
-- explicit reducer interface
-- merge semantics for partial outputs
-- standard aggregation artefacts
-- validation hooks for reducer correctness
+- reducer adoption in public apps
+- public benchmark/demo coverage
+- user-visible reduce artefacts in analysis views
 - user-visible evidence that a distributed run was merged successfully
 
 Why it matters:
@@ -497,8 +499,7 @@ Why it matters:
 
 Concrete change request:
 
-- define a reducer contract in shared core with explicit inputs, partial
-  outputs, merge operation, and final artefact schema
+- migrate one public app to the shared reducer contract
 - expose the reducer result as a named run artefact instead of leaving it
   implicit in app-specific outputs
 - ship one public benchmark/demo app that proves the end-to-end model
@@ -660,7 +661,7 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - Global orchestrated pipeline DAG
 - Bidirectional notebook interop
 - Data connector facility
-- First-class reduce contract
+- Reduce contract adoption and public benchmark
 - Intent-first operator mode
 
 If the `roadmap` label is not visible yet in GitHub, the issue form still
