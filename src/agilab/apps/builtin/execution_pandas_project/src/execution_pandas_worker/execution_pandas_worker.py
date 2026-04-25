@@ -10,6 +10,7 @@ import time
 import pandas as pd
 
 from agi_node.pandas_worker import PandasWorker
+from execution_pandas.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -137,3 +138,9 @@ class ExecutionPandasWorker(PandasWorker):
             df.to_parquet(output_path.with_suffix(".parquet"))
         else:
             df.to_csv(output_path.with_suffix(".csv"), index=False)
+        artifact_path = write_reduce_artifact(
+            df,
+            self.data_out,
+            worker_id=getattr(self, "_worker_id", 0),
+        )
+        logger.info("wrote execution_pandas reduce artifact: %s", artifact_path)
