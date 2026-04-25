@@ -63,8 +63,12 @@ use this order:
    - `meteo_forecast_project` now emits forecast-metrics reduce artefacts
    - Release Decision now surfaces benchmark, flight, meteo forecast, and UAV
      queue-family reduce artefacts as evidence
-   - the remaining work is broader public-app adoption beyond those migrated
-     slices
+   - a repository guardrail now requires every non-template built-in app to
+     expose a reducer contract
+   - `mycode_project` is the only explicit template-only exemption because it
+     has no concrete merge output yet
+   - future apps/templates must opt in when they produce durable worker
+     summaries
 11. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
@@ -493,16 +497,16 @@ Current state:
 - aggregation outside the migrated benchmark, flight, meteo, and UAV
   queue-family apps is still mostly app-specific
 
-Current gap:
+Current guardrail:
 
-- docs can overstate the capability as a full generic map/reduce mechanism
-- most apps beyond `execution_pandas_project`, `execution_polars_project`,
-  `flight_project`, `meteo_forecast_project`, `uav_queue_project`, and
-  `uav_relay_queue_project` have not migrated their merge logic to the shared
-  reducer contract
-- non-benchmark app reduce artefacts are only standardized for
-  `flight_project`, `meteo_forecast_project`, and the UAV queue-family apps so
-  far
+- all non-template built-in apps now expose a reducer contract
+- `mycode_project` is template-only and intentionally exempt because its worker
+  hooks are placeholders with no concrete merge output
+- future apps/templates must add `reduction.py`, emit
+  `reduce_summary_worker_<id>.json`, and export a `*_REDUCE_CONTRACT` once they
+  produce durable worker summaries
+- docs should avoid describing AGILab as a full generic map/reduce mechanism
+  beyond the explicit contract and migrated apps
 
 ### 1. Reduce contract adoption
 
@@ -543,11 +547,15 @@ Completed slices:
   quality metrics
 - Release Decision now discovers `reduce_summary_worker_*.json`, parses it with
   `ReduceArtifact.from_dict`, displays reducer evidence, and flags invalid JSON
+- a repository guardrail now fails if a non-template built-in app lacks a
+  reducer contract or worker-scoped artifact writer
+- `mycode_project` is documented as template-only rather than counted as a
+  reducer migration gap
 
 Next concrete change request:
 
-- keep the template and future public apps aligned with the shared reducer
-  contract as they gain concrete merge semantics
+- keep future public apps/templates aligned with the shared reducer contract as
+  they gain concrete merge semantics
 - extend the surfaced reducer evidence as more non-benchmark apps adopt the
   same artifact contract
 

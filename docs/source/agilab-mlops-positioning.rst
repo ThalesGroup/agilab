@@ -81,13 +81,17 @@ interactive exploration into a replayable, inspectable workflow:
   including flight row/aircraft/speed fields, meteo forecast MAE/RMSE/MAPE
   fields, and UAV queue-family packet/PDR fields, and flags invalid reduce JSON
   without hiding the rest of the evidence page
+- a repository guardrail requires every non-template built-in app to expose a
+  reducer contract, while ``mycode_project`` is explicitly template-only until
+  a clone adds concrete merge outputs
 - the public reducer benchmark validates 8 partials / 80,000 synthetic items in
   ``0.003s`` against a ``5.0s`` target
 
 That supports a ``Research experimentation`` score of ``4.0 / 5``. It is not
-scored higher yet because a generic evidence bundle, broader reduce-contract app
-migration beyond the migrated public apps, and broader fresh-machine
-reproducibility matrix are still roadmap work.
+scored higher yet because a generic evidence bundle and broader fresh-machine
+reproducibility matrix are still roadmap work. For reducer adoption, the
+remaining rule is maintenance discipline: future apps/templates must opt in when
+they produce concrete merge outputs.
 
 Engineering prototyping evidence
 --------------------------------
@@ -104,8 +108,8 @@ history:
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
-broader reduce-contract adoption beyond the migrated public apps remain roadmap
-items.
+future app/template reducer adoption when concrete merge outputs appear remain
+roadmap items.
 
 Production readiness evidence
 -----------------------------
@@ -144,9 +148,8 @@ between research experiments and engineering validation:
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because the generic evidence bundle, reduce-contract migration
-beyond the migrated public apps, and broader fresh-install validation are still
-roadmap work.
+higher yet because the generic evidence bundle, future app/template reducer
+adoption discipline, and broader fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------
