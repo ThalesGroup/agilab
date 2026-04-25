@@ -231,12 +231,157 @@ def _kernel_name(notebook: Mapping[str, Any]) -> str:
     return ""
 
 
+def _agilab_export_payload(notebook: Mapping[str, Any]) -> dict[str, Any]:
+    metadata = notebook.get("metadata", {})
+    agilab_payload = metadata.get("agilab", {}) if isinstance(metadata, dict) else {}
+    return agilab_payload if isinstance(agilab_payload, dict) else {}
+
+
+def _agilab_supervisor_steps(notebook: Mapping[str, Any]) -> list[dict[str, Any]]:
+    payload = _agilab_export_payload(notebook)
+    steps = payload.get("steps", [])
+    if not isinstance(steps, list):
+        return []
+    return [step for step in steps if isinstance(step, dict)]
+
+
+def _supervisor_context_text(step: Mapping[str, Any]) -> str:
+    parts = [
+        str(step.get("description", "") or "").strip(),
+        str(step.get("question", "") or "").strip(),
+    ]
+    return "\n\n".join(part for part in parts if part)
+
+
+def _build_from_supervisor_metadata(
+    *,
+    notebook: Mapping[str, Any],
+    source_notebook: Path | str,
+    run_id: str,
+    supervisor_steps: list[dict[str, Any]],
+) -> dict[str, Any]:
+    payload = _agilab_export_payload(notebook)
+    cells = _notebook_cells(notebook)
+    pipeline_steps: list[dict[str, Any]] = []
+    context_blocks: list[dict[str, Any]] = []
+    all_env_hints: list[str] = []
+    all_artifact_references: list[dict[str, Any]] = []
+
+    for step_index, step in enumerate(supervisor_steps, start=1):
+        source = str(step.get("code", "") or "")
+        if not source.strip():
+            continue
+        context_id = f"agilab-step-{step_index}-context"
+        context_text = _supervisor_context_text(step)
+        context_blocks.append(
+            {
+                "id": context_id,
+                "source_cell_index": 0,
+                "source_lines": context_text.splitlines(keepends=True),
+                "text": context_text,
+            }
+        )
+        env_hints = extract_env_hints(source)
+        artifact_references = extract_artifact_references(source, step_index)
+        all_env_hints.extend(env_hints)
+        all_artifact_references.extend(artifact_references)
+        pipeline_steps.append(
+            {
+                "id": f"supervisor-step-{step_index}",
+                "order": len(pipeline_steps) + 1,
+                "source_cell_index": 0,
+                "cell_type": "code",
+                "execution_count": None,
+                "source_lines": source.splitlines(keepends=True),
+                "source_hash": _hash_source(source),
+                "context_ids": [context_id],
+                "env_hints": env_hints,
+                "artifact_references": artifact_references,
+                "runnable": True,
+                "description": str(step.get("description", "") or ""),
+                "question": str(step.get("question", "") or ""),
+                "model": str(step.get("model", "") or ""),
+                "runtime": str(step.get("runtime", "") or ""),
+                "env": str(step.get("env", "") or ""),
+                "pipeline_mapping": {
+                    "format": "lab_steps.toml-preview",
+                    "description_field": "D",
+                    "question_field": "Q",
+                    "model_field": "M",
+                    "code_field": "C",
+                    "runtime_field": "R",
+                    "environment_field": "E",
+                },
+            }
+        )
+
+    code_cell_count = sum(1 for cell in cells if cell.get("cell_type") == "code")
+    markdown_cell_count = sum(1 for cell in cells if cell.get("cell_type") == "markdown")
+    env_hints_unique = sorted(dict.fromkeys(all_env_hints))
+    return {
+        "schema": SCHEMA,
+        "run_id": run_id,
+        "persistence_format": PERSISTENCE_FORMAT,
+        "run_status": "imported",
+        "execution_mode": "not_executed_import",
+        "created_at": CREATED_AT,
+        "updated_at": UPDATED_AT,
+        "source": {
+            "source_notebook": str(source_notebook),
+            "source_format": "ipynb",
+            "import_mode": "agilab_supervisor_metadata",
+            "nbformat": notebook.get("nbformat"),
+            "nbformat_minor": notebook.get("nbformat_minor"),
+            "kernel_name": _kernel_name(notebook),
+            "export_mode": str(payload.get("export_mode", "") or ""),
+            "project_name": str(payload.get("project_name", "") or ""),
+            "steps_file": str(payload.get("steps_file", "") or ""),
+        },
+        "summary": {
+            "cell_count": len(cells),
+            "code_cell_count": code_cell_count,
+            "markdown_cell_count": markdown_cell_count,
+            "supervisor_step_count": len(supervisor_steps),
+            "pipeline_step_count": len(pipeline_steps),
+            "context_block_count": len(context_blocks),
+            "env_hint_count": len(env_hints_unique),
+            "artifact_reference_count": len(all_artifact_references),
+            "execution_count_present_count": 0,
+            "step_ids": [step["id"] for step in pipeline_steps],
+            "context_ids": [block["id"] for block in context_blocks],
+        },
+        "pipeline_steps": pipeline_steps,
+        "context_blocks": context_blocks,
+        "env_hints": env_hints_unique,
+        "artifact_references": all_artifact_references,
+        "provenance": {
+            "projection_mode": "agilab_supervisor_notebook_metadata",
+            "executes_notebook": False,
+            "preserves_markdown_context": True,
+            "preserves_code_cells": True,
+            "preserves_execution_counts": True,
+            "extracts_environment_hints": True,
+            "extracts_artifact_references": True,
+            "preserves_lab_steps_fields": True,
+        },
+    }
+
+
 def build_notebook_pipeline_import(
     *,
     notebook: Mapping[str, Any],
     source_notebook: Path | str,
     run_id: str = DEFAULT_RUN_ID,
 ) -> dict[str, Any]:
+    supervisor_steps = _agilab_supervisor_steps(notebook)
+    if supervisor_steps:
+        return _build_from_supervisor_metadata(
+            notebook=notebook,
+            source_notebook=source_notebook,
+            run_id=run_id,
+            supervisor_steps=supervisor_steps,
+        )
+
     cells = _notebook_cells(notebook)
     pipeline_steps: list[dict[str, Any]] = []
     context_blocks: list[dict[str, Any]] = []
@@ -419,10 +564,12 @@ def build_lab_steps_preview(
             if str(context_id)
         ]
         entry: dict[str, Any] = {
-            "D": _context_summary(context_ids, contexts),
-            "Q": f"Imported notebook cell {step.get('id', '')}",
+            "D": str(step.get("description", "") or "")
+            or _context_summary(context_ids, contexts),
+            "Q": str(step.get("question", "") or "")
+            or f"Imported notebook cell {step.get('id', '')}",
             "C": code,
-            "M": "",
+            "M": str(step.get("model", "") or ""),
             "NB_CELL_ID": str(step.get("id", "")),
             "NB_CELL_INDEX": int(step.get("source_cell_index", 0) or 0),
             "NB_CONTEXT_IDS": context_ids,
@@ -434,6 +581,12 @@ def build_lab_steps_preview(
         execution_count = step.get("execution_count")
         if execution_count is not None:
             entry["NB_EXECUTION_COUNT"] = int(execution_count)
+        runtime = str(step.get("runtime", "") or "")
+        if runtime:
+            entry["R"] = runtime
+        env = str(step.get("env", "") or "")
+        if env:
+            entry["E"] = env
         entries.append(entry)
     return {module_name: entries}
 

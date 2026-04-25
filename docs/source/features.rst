@@ -152,6 +152,11 @@ single notebook but less ceremony than a production MLOps platform:
   plus artifact references, writes a richer ``lab_steps.toml`` preview used by
   the existing ``PIPELINE`` upload path, and emits ``not_executed_import``
   metadata without running notebook cells
+- the notebook round-trip report validates
+  ``tools/notebook_roundtrip_report.py --compact`` across
+  ``lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`` so
+  saved step description, prompt, model, code, runtime, import hints, and
+  artifact references survive the non-executing round trip
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a

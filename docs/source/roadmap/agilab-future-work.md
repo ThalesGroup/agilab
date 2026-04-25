@@ -304,13 +304,17 @@ Current shipped baseline:
   markdown context, code cells, import hints, execution-count metadata, and
   artifact references as `not_executed_import` pipeline-step evidence, writes a
   richer `lab_steps.toml` preview, and feeds the existing `PIPELINE` upload path
+- `tools/notebook_roundtrip_report.py --compact` validates
+  `lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`
+  preservation for saved step description, prompt, model, code, runtime,
+  import hints, and artifact references
 - this is intentionally not the same thing as flattening a multi-venv pipeline
   into one notebook kernel
 
 Suggested scope:
 
 - harden notebook-to-pipeline import beyond the initial report and upload path,
-  including round-trip validation against exported supervisor notebooks
+  including broader edge cases for exported supervisor notebooks
 - keep the supervisor-notebook export as the default for mixed-runtime or
   multi-venv pipelines
 - generate an optional union notebook environment only when the pipeline step
