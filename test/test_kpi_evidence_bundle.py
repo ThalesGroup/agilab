@@ -44,6 +44,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "run_diff_evidence_report_contract",
         "ci_artifact_harvest_report_contract",
         "github_actions_artifact_index_contract",
+        "ci_provider_artifact_index_contract",
         "multi_app_dag_report_contract",
         "global_pipeline_dag_report_contract",
         "global_pipeline_execution_plan_report_contract",
@@ -185,6 +186,23 @@ def test_github_actions_artifact_index_contract_feeds_harvest() -> None:
     check = module._check_github_actions_artifact_index(Path.cwd())
 
     assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.ci_provider_artifact_index.v1"
+    assert check["details"]["summary"]["archive_count"] == 1
+    assert check["details"]["summary"]["artifact_count"] == 4
+    assert check["details"]["summary"]["missing_required_count"] == 0
+    assert check["details"]["summary"]["provider_query_count"] == 0
+    assert check["details"]["summary"]["download_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["harvest_summary"]["release_status"] == "validated"
+
+
+def test_ci_provider_artifact_index_contract_feeds_gitlab_harvest() -> None:
+    module = _load_module()
+
+    check = module._check_ci_provider_artifact_index(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["provider"] == "gitlab_ci"
     assert check["details"]["summary"]["schema"] == "agilab.ci_provider_artifact_index.v1"
     assert check["details"]["summary"]["archive_count"] == 1
     assert check["details"]["summary"]["artifact_count"] == 4

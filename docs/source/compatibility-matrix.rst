@@ -103,6 +103,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/run_diff_evidence_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/ci_artifact_harvest_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/ci_provider_artifact_index.py --provider gitlab_ci --archive artifact.zip --compact
    uv --preview-features extra-build-dependencies run python tools/multi_app_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_execution_plan_report.py --compact
@@ -135,6 +136,7 @@ derives that path's effective status from the manifest result; without a
 manifest, it falls back to the checked-in matrix status. The compact KPI bundle
 consumes that report and includes the ``run_diff_evidence_report_contract``,
 ``ci_artifact_harvest_report_contract``,
+``ci_provider_artifact_index_contract``,
 ``multi_app_dag_report_contract``,
 ``global_pipeline_dag_report_contract``,
 ``global_pipeline_execution_plan_report_contract``,
@@ -164,6 +166,8 @@ and counterfactual deltas without executing commands or network probes,
 the CI artifact harvest report for external-machine manifest, KPI,
 compatibility, and promotion-decision attachments with SHA-256 and provenance
 checks but no live CI provider queries,
+the downloaded GitLab CI/generic provider artifact-index adapter for the same
+harvest input without live provider access,
 checked-in cross-app DAG handoff sample plus supplemental portfolio sample,
 assemble the read-only product-level
 graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
@@ -234,10 +238,13 @@ execution. ``tools/ci_artifact_harvest_report.py --compact`` adds the
 corresponding ``ci_artifact_contract_only`` evidence-harvest contract for
 external-machine attachments, and Release Decision can import the resulting
 ``ci_artifact_harvest.json`` rows into ``promotion_decision.json`` before live
-provider harvesting is introduced. ``tools/github_actions_artifact_index.py
---archive`` converts already-downloaded GitHub Actions artifact ZIPs into the
-same harvest input, and its opt-in ``--live-github`` mode can query and download
-workflow-run artifacts when operator credentials are available.
+provider harvesting is introduced.
+``tools/ci_provider_artifact_index.py --provider gitlab_ci --archive`` converts
+downloaded GitLab CI or generic provider artifact ZIPs into the same harvest
+input without provider API queries. ``tools/github_actions_artifact_index.py
+--archive`` keeps the GitHub Actions-specific ZIP path, and its opt-in
+``--live-github`` mode can query and download workflow-run artifacts when
+operator credentials are available.
 ``tools/compatibility_report.py --artifact-index artifact_index.json`` can then
 derive per-release compatibility status from those downloaded attachments or
 from ``ci_artifact_harvest.json`` summaries.
@@ -255,11 +262,12 @@ What remains roadmap work
 -------------------------
 
 This first matrix closes the small, manual version of the compatibility item,
-and the CI artifact harvest report plus GitHub Actions artifact-index flow
-define both the no-network attachment contract and the first provider download
+and the CI artifact harvest report plus GitHub Actions and generic provider
+artifact-index flows define the no-network attachment contract, downloaded
+GitLab CI/generic archive coverage, and the first live provider download
 adapter.
 The larger roadmap work is still open:
 
-- broader provider coverage beyond GitHub Actions
+- live provider API coverage beyond GitHub Actions
 - broader app/core revision traceability beyond the first-proof manifest
 - explicit certification for more than the public newcomer/operator slices
