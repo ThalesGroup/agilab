@@ -97,6 +97,9 @@ If the first proof fails
 
 Do not broaden the problem immediately. Stay on the built-in local path.
 Use :doc:`newcomer-troubleshooting` first.
+The landing page wizard reads ``run_manifest.json``; if it is missing,
+invalid, incomplete, or failing, it shows a recovery checklist plus the exact
+first-proof and compatibility-report commands to rerun.
 
 If you want the preflight to also check the built-in installer and seeded helper
 scripts::

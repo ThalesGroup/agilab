@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import importlib.util
 from pathlib import Path
+import shlex
 import sys
 from typing import Any
 
@@ -22,7 +23,21 @@ FIRST_PROOF_CLI_COMMAND = (
     "uv --preview-features extra-build-dependencies run python "
     "tools/newcomer_first_proof.py --json"
 )
+COMPATIBILITY_REPORT_COMMAND = (
+    "uv --preview-features extra-build-dependencies run python "
+    "tools/compatibility_report.py --manifest {manifest_path} --compact"
+)
+FIRST_PROOF_REQUIRED_VALIDATIONS = (
+    "proof_steps",
+    "target_seconds",
+    "recommended_project",
+)
 DOCUMENTED_ROUTE_IDS = ("notebook-quickstart", "published-package-route")
+REMEDIATION_LINKS = (
+    ("Troubleshooting", "https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html"),
+    ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
+    ("Compatibility matrix", "https://thalesgroup.github.io/agilab/compatibility-matrix.html"),
+)
 
 
 @dataclass(frozen=True)
@@ -105,7 +120,13 @@ class FirstProofWizardState:
     run_manifest_status: str
     run_manifest_passed: bool
     run_manifest_summary: dict[str, Any]
+    run_manifest_validation_rows: tuple[dict[str, Any], ...]
     run_manifest_error: str | None
+    remediation_status: str
+    remediation_title: str
+    remediation_actions: tuple[str, ...]
+    remediation_links: tuple[tuple[str, str], ...]
+    evidence_commands: tuple[str, ...]
     helper_scripts_present: bool
     visible_outputs: tuple[Path, ...]
     run_output_detected: bool
@@ -135,7 +156,13 @@ class FirstProofWizardState:
             "run_manifest_status": self.run_manifest_status,
             "run_manifest_passed": self.run_manifest_passed,
             "run_manifest_summary": self.run_manifest_summary,
+            "run_manifest_validation_rows": list(self.run_manifest_validation_rows),
             "run_manifest_error": self.run_manifest_error,
+            "remediation_status": self.remediation_status,
+            "remediation_title": self.remediation_title,
+            "remediation_actions": list(self.remediation_actions),
+            "remediation_links": list(self.remediation_links),
+            "evidence_commands": list(self.evidence_commands),
             "helper_scripts_present": self.helper_scripts_present,
             "visible_outputs": list(self.visible_outputs),
             "run_output_detected": self.run_output_detected,
@@ -308,6 +335,144 @@ def load_first_proof_run_manifest(output_dir: Path) -> tuple[Any | None, str | N
     return run_manifest.try_load_run_manifest(first_proof_run_manifest_path(output_dir))
 
 
+def first_proof_compatibility_report_command(manifest_path: Path) -> str:
+    quoted_path = shlex.quote(str(manifest_path.expanduser()))
+    return COMPATIBILITY_REPORT_COMMAND.format(manifest_path=quoted_path)
+
+
+def _manifest_validation_rows(manifest: Any | None) -> tuple[dict[str, Any], ...]:
+    if manifest is None:
+        return ()
+    rows = [
+        {
+            "label": str(validation.label),
+            "status": str(validation.status),
+            "summary": str(validation.summary),
+            "required": validation.label in FIRST_PROOF_REQUIRED_VALIDATIONS,
+        }
+        for validation in manifest.validations
+    ]
+    recorded_labels = {row["label"] for row in rows}
+    rows.extend(
+        {
+            "label": label,
+            "status": "missing",
+            "summary": "Required first-proof validation was not recorded.",
+            "required": True,
+        }
+        for label in FIRST_PROOF_REQUIRED_VALIDATIONS
+        if label not in recorded_labels
+    )
+    return tuple(rows)
+
+
+def _first_proof_manifest_passed(run_manifest_module: Any, manifest: Any | None) -> bool:
+    if manifest is None:
+        return False
+    validation_statuses = {
+        str(validation.label): str(validation.status)
+        for validation in manifest.validations
+    }
+    target = manifest.timing.target_seconds
+    return (
+        manifest.path_id == FIRST_PROOF_RECOMMENDED_ENTRY_ID
+        and run_manifest_module.manifest_passed(manifest)
+        and all(validation_statuses.get(label) == "pass" for label in FIRST_PROOF_REQUIRED_VALIDATIONS)
+        and target is not None
+        and manifest.timing.duration_seconds <= target
+    )
+
+
+def _first_proof_remediation(
+    *,
+    manifest: Any | None,
+    manifest_error: str | None,
+    manifest_path: Path,
+    manifest_passed: bool,
+    validation_rows: tuple[dict[str, Any], ...],
+    visible_outputs: tuple[Path, ...],
+) -> dict[str, Any]:
+    evidence_command = first_proof_compatibility_report_command(manifest_path)
+    base_commands = (FIRST_PROOF_CLI_COMMAND, evidence_command)
+    if manifest_passed:
+        return {
+            "status": "passed",
+            "title": "First-proof evidence is valid.",
+            "actions": (
+                "Use the compatibility report command when you need to attach this manifest as evidence.",
+                "Continue with another built-in demo only after this path stays green.",
+            ),
+            "links": REMEDIATION_LINKS,
+            "evidence_commands": base_commands,
+        }
+
+    if manifest is None:
+        if manifest_error and manifest_error != "missing":
+            return {
+                "status": "invalid",
+                "title": "Run manifest exists but cannot be parsed.",
+                "actions": (
+                    f"Open `{manifest_path}` and fix or remove the malformed JSON.",
+                    "Rerun the first-proof JSON command so AGILAB rewrites the manifest.",
+                    "Run the compatibility report command to confirm the manifest loads.",
+                ),
+                "links": REMEDIATION_LINKS,
+                "evidence_commands": base_commands,
+            }
+        if visible_outputs:
+            return {
+                "status": "missing_manifest_with_outputs",
+                "title": "Generated outputs exist, but the manifest is missing.",
+                "actions": (
+                    "Rerun the first-proof JSON command to create the portable run manifest.",
+                    "Keep the active app on `flight_project`; do not switch routes yet.",
+                    "Run the compatibility report command after the manifest appears.",
+                ),
+                "links": REMEDIATION_LINKS,
+                "evidence_commands": base_commands,
+            }
+        return {
+            "status": "missing",
+            "title": "No first-proof run manifest yet.",
+            "actions": (
+                "In the UI: PROJECT -> choose `flight_project`, then ORCHESTRATE -> INSTALL and EXECUTE.",
+                "Or run the first-proof JSON command from the repository root.",
+                "Run the compatibility report command after `run_manifest.json` appears.",
+            ),
+            "links": REMEDIATION_LINKS,
+            "evidence_commands": base_commands,
+        }
+
+    issues: list[str] = []
+    if manifest.path_id != FIRST_PROOF_RECOMMENDED_ENTRY_ID:
+        issues.append(
+            f"path_id is `{manifest.path_id}`, expected `{FIRST_PROOF_RECOMMENDED_ENTRY_ID}`"
+        )
+    if manifest.status != "pass":
+        issues.append(f"manifest status is `{manifest.status}`")
+    failed_rows = [row for row in validation_rows if row["status"] != "pass"]
+    if failed_rows:
+        issue_summary = ", ".join(f"{row['label']}={row['status']}" for row in failed_rows)
+        issues.append(f"validation issue(s): {issue_summary}")
+    target = manifest.timing.target_seconds
+    if target is None:
+        issues.append("target_seconds is missing")
+    elif manifest.timing.duration_seconds > target:
+        issues.append(f"duration {manifest.timing.duration_seconds:.2f}s exceeds target {target:.2f}s")
+
+    return {
+        "status": "failing",
+        "title": "Run manifest found, but the first proof is not green.",
+        "actions": (
+            "Fix the manifest issue(s): " + "; ".join(issues or ("unknown manifest failure",)),
+            "Rerun the first-proof JSON command from the repository root.",
+            "Run the compatibility report command to verify the evidence-backed status.",
+        ),
+        "links": REMEDIATION_LINKS,
+        "evidence_commands": base_commands,
+    }
+
+
 def list_first_proof_outputs(output_dir: Path) -> tuple[Path, ...]:
     if not output_dir.exists():
         return ()
@@ -340,14 +505,23 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
     run_manifest_module = _load_run_manifest_module()
     run_manifest, run_manifest_error = load_first_proof_run_manifest(output_dir)
     run_manifest_loaded = run_manifest is not None
-    run_manifest_passed = bool(run_manifest and run_manifest_module.manifest_passed(run_manifest))
+    validation_rows = _manifest_validation_rows(run_manifest)
+    visible_outputs = list_first_proof_outputs(output_dir)
+    run_manifest_passed = _first_proof_manifest_passed(run_manifest_module, run_manifest)
     run_manifest_status = str(getattr(run_manifest, "status", "missing" if run_manifest_error == "missing" else "invalid"))
     run_manifest_summary = (
         run_manifest_module.manifest_summary(run_manifest)
         if run_manifest is not None
         else {}
     )
-    visible_outputs = list_first_proof_outputs(output_dir)
+    remediation = _first_proof_remediation(
+        manifest=run_manifest,
+        manifest_error=run_manifest_error,
+        manifest_path=run_manifest_path,
+        manifest_passed=run_manifest_passed,
+        validation_rows=validation_rows,
+        visible_outputs=visible_outputs,
+    )
     helper_scripts_present = all(
         (output_dir / script_name).exists()
         for script_name in (
@@ -361,10 +535,12 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
         next_step = "Fix the app list first. `flight_project` is missing."
     elif not current_app_matches:
         next_step = "Go to `PROJECT`. Choose `flight_project`."
-    elif not run_manifest_passed and not visible_outputs:
+    elif not run_manifest_loaded and not visible_outputs:
         next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
+    elif not run_manifest_loaded:
+        next_step = "Generate `run_manifest.json` with the first-proof JSON command."
     elif run_manifest_loaded and not run_manifest_passed:
-        next_step = "Run manifest found but not passing. Inspect the manifest validation details."
+        next_step = "Run manifest found but not passing. Follow the remediation checklist."
     else:
         next_step = "First proof done. Now you can try another demo."
 
@@ -390,7 +566,13 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
         run_manifest_status=run_manifest_status,
         run_manifest_passed=run_manifest_passed,
         run_manifest_summary=run_manifest_summary,
+        run_manifest_validation_rows=validation_rows,
         run_manifest_error=None if run_manifest_error == "missing" else run_manifest_error,
+        remediation_status=str(remediation["status"]),
+        remediation_title=str(remediation["title"]),
+        remediation_actions=tuple(str(action) for action in remediation["actions"]),
+        remediation_links=tuple((str(label), str(url)) for label, url in remediation["links"]),
+        evidence_commands=tuple(str(command) for command in remediation["evidence_commands"]),
         helper_scripts_present=helper_scripts_present,
         visible_outputs=visible_outputs,
         run_output_detected=run_manifest_passed or bool(visible_outputs),

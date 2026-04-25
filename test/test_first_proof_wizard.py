@@ -69,6 +69,9 @@ def test_first_proof_state_routes_only_to_flight_project(tmp_path: Path) -> None
     assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight" / "run_manifest.json"
     assert state["run_manifest_loaded"] is False
     assert state["run_manifest_status"] == "missing"
+    assert state["remediation_status"] == "missing"
+    assert "tools/newcomer_first_proof.py --json" in state["evidence_commands"][0]
+    assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
     assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
 
 
@@ -81,7 +84,6 @@ def test_first_proof_state_detects_completion_outputs(tmp_path: Path) -> None:
     output_dir.mkdir(parents=True)
     (output_dir / "AGI_install_flight.py").write_text("# helper", encoding="utf-8")
     (output_dir / "AGI_run_flight.py").write_text("# helper", encoding="utf-8")
-    (output_dir / "run_manifest.json").write_text("{}", encoding="utf-8")
     (output_dir / "trajectory_summary.json").write_text("{}", encoding="utf-8")
 
     env = SimpleNamespace(
@@ -96,7 +98,8 @@ def test_first_proof_state_detects_completion_outputs(tmp_path: Path) -> None:
     assert state["helper_scripts_present"] is True
     assert state["run_output_detected"] is True
     assert [path.name for path in state["visible_outputs"]] == ["trajectory_summary.json"]
-    assert state["next_step"] == "First proof done. Now you can try another demo."
+    assert state["remediation_status"] == "missing_manifest_with_outputs"
+    assert state["next_step"] == "Generate `run_manifest.json` with the first-proof JSON command."
 
 
 def test_first_proof_state_prefers_passing_run_manifest(tmp_path: Path) -> None:
@@ -129,10 +132,11 @@ def test_first_proof_state_prefers_passing_run_manifest(tmp_path: Path) -> None:
         artifacts=[],
         validations=[
             run_manifest.RunManifestValidation(
-                label="proof_steps",
+                label=label,
                 status="pass",
-                summary="all proof steps passed",
+                summary=f"{label} passed",
             )
+            for label in ("proof_steps", "target_seconds", "recommended_project")
         ],
         run_id="first-proof-demo",
         created_at="2026-04-25T00:00:05Z",
@@ -151,6 +155,74 @@ def test_first_proof_state_prefers_passing_run_manifest(tmp_path: Path) -> None:
     assert state["run_manifest_status"] == "pass"
     assert state["run_manifest_passed"] is True
     assert state["run_manifest_summary"]["run_id"] == "first-proof-demo"
+    assert {row["label"]: row["status"] for row in state["run_manifest_validation_rows"]} == {
+        "proof_steps": "pass",
+        "target_seconds": "pass",
+        "recommended_project": "pass",
+    }
+    assert state["remediation_status"] == "passed"
     assert state["run_output_detected"] is True
     assert state["visible_outputs"] == []
     assert state["next_step"] == "First proof done. Now you can try another demo."
+
+
+def test_first_proof_state_explains_failing_run_manifest(tmp_path: Path) -> None:
+    module = _load_module()
+    run_manifest = module._load_run_manifest_module()
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "flight_project"
+    flight_project.mkdir(parents=True)
+    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir.mkdir(parents=True)
+    manifest = run_manifest.build_run_manifest(
+        path_id="source-checkout-first-proof",
+        label="Source checkout first proof",
+        status="fail",
+        command=run_manifest.RunManifestCommand(
+            label="newcomer first proof",
+            argv=("tools/newcomer_first_proof.py", "--json"),
+            cwd=str(tmp_path),
+        ),
+        environment=run_manifest.RunManifestEnvironment.from_paths(
+            repo_root=tmp_path,
+            active_app=flight_project,
+        ),
+        timing=run_manifest.RunManifestTiming(
+            started_at="2026-04-25T00:00:00Z",
+            finished_at="2026-04-25T00:10:05Z",
+            duration_seconds=605.0,
+            target_seconds=600.0,
+        ),
+        artifacts=[],
+        validations=[
+            run_manifest.RunManifestValidation(
+                label="proof_steps",
+                status="pass",
+                summary="proof steps passed",
+            ),
+            run_manifest.RunManifestValidation(
+                label="target_seconds",
+                status="fail",
+                summary="proof exceeded target",
+            ),
+        ],
+        run_id="first-proof-fail",
+        created_at="2026-04-25T00:10:05Z",
+    )
+    run_manifest.write_run_manifest(manifest, output_dir / "run_manifest.json")
+
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app=str(flight_project),
+        AGILAB_LOG_ABS=tmp_path / "log",
+    )
+
+    state = module.newcomer_first_proof_state(env)
+
+    assert state["run_manifest_loaded"] is True
+    assert state["run_manifest_passed"] is False
+    assert state["remediation_status"] == "failing"
+    assert state["next_step"] == "Run manifest found but not passing. Follow the remediation checklist."
+    assert any("target_seconds=fail" in action for action in state["remediation_actions"])
+    assert any("recommended_project=missing" in action for action in state["remediation_actions"])
+    assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]

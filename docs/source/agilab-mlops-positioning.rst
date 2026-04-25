@@ -108,7 +108,8 @@ history:
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
 - the in-product first-proof wizard now guides one validated ``flight_project``
-  source-checkout path and shows its compatibility-report status
+  source-checkout path, reads ``run_manifest.json``, and shows
+  manifest-driven remediation with exact evidence commands
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future

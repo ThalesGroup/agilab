@@ -120,7 +120,9 @@ first promotion gate.
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and
 keeps notebook and packaged-install routes documented, not recommended, until
-that local proof has passed once.
+that local proof has passed once. It reads the same ``run_manifest.json`` and
+turns missing, invalid, incomplete, or failing evidence into a recovery
+checklist with the exact first-proof and compatibility-report commands.
 
 What remains roadmap work
 -------------------------
