@@ -14,6 +14,8 @@ from pathlib import Path
 import re
 from typing import Any, Mapping
 
+import tomli_w
+
 
 SCHEMA = "agilab.notebook_pipeline_import.v1"
 DEFAULT_RUN_ID = "notebook-pipeline-import-proof"
@@ -336,6 +338,115 @@ def build_notebook_pipeline_import(
             "extracts_artifact_references": True,
         },
     }
+
+
+def _context_lookup(notebook_import: Mapping[str, Any]) -> dict[str, str]:
+    blocks = notebook_import.get("context_blocks", [])
+    result: dict[str, str] = {}
+    if not isinstance(blocks, list):
+        return result
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        context_id = str(block.get("id", ""))
+        if context_id:
+            result[context_id] = str(block.get("text", "") or "")
+    return result
+
+
+def _context_summary(context_ids: list[str], contexts: Mapping[str, str]) -> str:
+    for context_id in context_ids:
+        text = contexts.get(context_id, "")
+        for line in text.splitlines():
+            summary = line.strip().lstrip("#").strip()
+            if summary:
+                return summary
+    return ""
+
+
+def _source_from_step(step: Mapping[str, Any]) -> str:
+    return "".join(_coerce_source_lines(step.get("source_lines", [])))
+
+
+def _artifact_paths(step: Mapping[str, Any]) -> list[str]:
+    references = step.get("artifact_references", [])
+    if not isinstance(references, list):
+        return []
+    paths: list[str] = []
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        path = str(reference.get("path", "") or "")
+        if path:
+            paths.append(path)
+    return paths
+
+
+def _step_env_hints(step: Mapping[str, Any]) -> list[str]:
+    hints = step.get("env_hints", [])
+    if isinstance(hints, list):
+        return [str(hint) for hint in hints]
+    return []
+
+
+def build_lab_steps_preview(
+    notebook_import: Mapping[str, Any],
+    *,
+    module_name: str = "notebook_import_project",
+) -> dict[str, list[dict[str, Any]]]:
+    """Project imported notebook metadata into AGILAB lab_steps TOML entries."""
+    module_name = str(module_name or "lab_steps")
+    contexts = _context_lookup(notebook_import)
+    source = notebook_import.get("source", {})
+    source_notebook = ""
+    if isinstance(source, dict):
+        source_notebook = str(source.get("source_notebook", "") or "")
+    execution_mode = str(notebook_import.get("execution_mode", "not_executed_import"))
+    steps = notebook_import.get("pipeline_steps", [])
+    if not isinstance(steps, list):
+        return {module_name: []}
+
+    entries: list[dict[str, Any]] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        code = _source_from_step(step)
+        if not code.strip():
+            continue
+        context_ids = [
+            str(context_id)
+            for context_id in step.get("context_ids", [])
+            if str(context_id)
+        ]
+        entry: dict[str, Any] = {
+            "D": _context_summary(context_ids, contexts),
+            "Q": f"Imported notebook cell {step.get('id', '')}",
+            "C": code,
+            "M": "",
+            "NB_CELL_ID": str(step.get("id", "")),
+            "NB_CELL_INDEX": int(step.get("source_cell_index", 0) or 0),
+            "NB_CONTEXT_IDS": context_ids,
+            "NB_ENV_HINTS": _step_env_hints(step),
+            "NB_ARTIFACT_REFERENCES": _artifact_paths(step),
+            "NB_EXECUTION_MODE": execution_mode,
+            "NB_SOURCE_NOTEBOOK": source_notebook,
+        }
+        execution_count = step.get("execution_count")
+        if execution_count is not None:
+            entry["NB_EXECUTION_COUNT"] = int(execution_count)
+        entries.append(entry)
+    return {module_name: entries}
+
+
+def write_lab_steps_preview(
+    path: Path,
+    preview: Mapping[str, list[Mapping[str, Any]]],
+) -> Path:
+    path = path.expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as stream:
+        tomli_w.dump(preview, stream)
+    return path
 
 
 def write_notebook_pipeline_import(path: Path, notebook_import: Mapping[str, Any]) -> Path:

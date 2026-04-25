@@ -112,9 +112,11 @@ uv --preview-features extra-build-dependencies run python tools/notebook_pipelin
 
 The report reads a checked-in `.ipynb`, projects markdown cells, code cells,
 import hints, execution-count metadata, and artifact references into AGILAB
-pipeline-step metadata, and writes a round-tripped JSON proof. This is a
-`not_executed_import` contract: it proves notebook-to-pipeline import shape
-without executing notebook cells or claiming a single-kernel union environment.
+pipeline-step metadata, and writes a round-tripped JSON proof plus a richer
+`lab_steps.toml` preview. The existing `PIPELINE` notebook upload path now uses
+the same importer. This is a `not_executed_import` contract: it proves
+notebook-to-pipeline import shape without executing notebook cells or claiming
+a single-kernel union environment.
 
 ## Reduce Contract
 

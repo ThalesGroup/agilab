@@ -76,6 +76,15 @@ build_notebook_export_context = _notebook_export_support_module.build_notebook_e
 pycharm_notebook_mirror_path = _notebook_export_support_module.pycharm_notebook_mirror_path
 pycharm_notebook_sitecustomize_text = _notebook_export_support_module.pycharm_notebook_sitecustomize_text
 
+_notebook_pipeline_import_module = import_agilab_module(
+    "agilab.notebook_pipeline_import",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "notebook_pipeline_import.py",
+    fallback_name="agilab_notebook_pipeline_import_fallback",
+)
+build_lab_steps_preview = _notebook_pipeline_import_module.build_lab_steps_preview
+build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
+
 logger = logging.getLogger(__name__)
 
 
@@ -777,21 +786,16 @@ def notebook_to_toml(
     if not isinstance(notebook_content, dict):
         _emit_streamlit_message("error", "Invalid notebook format: expected a JSON object.")
         return 0
-    toml_content = {}
     module = module_dir.name
     if not module:
         module = "lab_steps"
-    toml_content[module] = []
-    cell_count = 0
-    for cell in notebook_content.get("cells", []):
-        if cell.get("cell_type") == "code":
-            source = _coerce_source_lines(cell.get("source", []))
-            code_text = "".join(source)
-            if not code_text:
-                continue
-            step = {"D": "", "Q": "", "C": code_text, "M": ""}
-            toml_content[module].append(step)
-            cell_count += 1
+    source_name = str(getattr(uploaded_file, "name", "") or "uploaded.ipynb")
+    notebook_import = build_notebook_pipeline_import(
+        notebook=notebook_content,
+        source_notebook=source_name,
+    )
+    toml_content = build_lab_steps_preview(notebook_import, module_name=module)
+    cell_count = int(notebook_import.get("summary", {}).get("pipeline_step_count", 0) or 0)
     try:
         with open(toml_path, "wb") as toml_file:
             tomli_w.dump(toml_content, toml_file)

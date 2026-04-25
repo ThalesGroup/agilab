@@ -145,8 +145,10 @@ project upstream/downstream dependency visualization for
 live orchestration-state update payloads from the dependency view, execute
 retry and partial-rerun operator requests through real app-entry action replay,
 render persisted global-DAG state into operator UI components, validate
-notebook-to-pipeline import from a checked-in ``.ipynb`` without executing cells,
-and verify that every non-template built-in app exposes a reducer contract while recording
+notebook-to-pipeline import from a checked-in ``.ipynb``, write a richer
+``lab_steps.toml`` preview used by the ``PIPELINE`` upload path without
+executing cells, and verify that every non-template built-in app exposes a
+reducer contract while recording
 ``mycode_project`` as the explicit template-only exemption.
 
 For the source-checkout first proof, ``tools/newcomer_first_proof.py --json``

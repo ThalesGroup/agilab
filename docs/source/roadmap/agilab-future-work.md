@@ -302,14 +302,15 @@ Current shipped baseline:
 - `tools/notebook_pipeline_import_report.py --compact` now validates the first
   notebook-to-pipeline import contract from a checked-in `.ipynb`; it preserves
   markdown context, code cells, import hints, execution-count metadata, and
-  artifact references as `not_executed_import` pipeline-step evidence
+  artifact references as `not_executed_import` pipeline-step evidence, writes a
+  richer `lab_steps.toml` preview, and feeds the existing `PIPELINE` upload path
 - this is intentionally not the same thing as flattening a multi-venv pipeline
   into one notebook kernel
 
 Suggested scope:
 
-- harden notebook-to-pipeline import beyond the initial report, including
-  richer `lab_steps.toml` preview output and UI import integration
+- harden notebook-to-pipeline import beyond the initial report and upload path,
+  including round-trip validation against exported supervisor notebooks
 - keep the supervisor-notebook export as the default for mixed-runtime or
   multi-venv pipelines
 - generate an optional union notebook environment only when the pipeline step

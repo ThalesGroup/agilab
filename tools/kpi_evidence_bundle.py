@@ -974,6 +974,7 @@ def _check_notebook_pipeline_import_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("markdown_cell_count") == 2
             and summary.get("pipeline_step_count") == 2
             and summary.get("context_block_count") == 2
+            and summary.get("lab_steps_preview_step_count") == 2
             and int(summary.get("env_hint_count", 0) or 0) >= 3
             and int(summary.get("artifact_reference_count", 0) or 0) >= 3
         )
@@ -999,6 +1000,7 @@ def _check_notebook_pipeline_import_report(repo_root: Path) -> dict[str, Any]:
         evidence=[
             "tools/notebook_pipeline_import_report.py",
             "src/agilab/notebook_pipeline_import.py",
+            "src/agilab/pipeline_editor.py",
             "docs/source/data/notebook_pipeline_import_sample.ipynb",
         ],
         details=details,

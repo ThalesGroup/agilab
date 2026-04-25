@@ -38,6 +38,7 @@ def test_notebook_pipeline_import_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["context_block_count"] == 2
     assert report["summary"]["env_hint_count"] == 3
     assert report["summary"]["artifact_reference_count"] == 3
+    assert report["summary"]["lab_steps_preview_step_count"] == 2
     assert report["summary"]["step_ids"] == ["cell-2", "cell-4"]
     assert {check["id"] for check in report["checks"]} == {
         "notebook_pipeline_import_schema",
@@ -45,6 +46,7 @@ def test_notebook_pipeline_import_report_passes(tmp_path: Path) -> None:
         "notebook_pipeline_import_metadata",
         "notebook_pipeline_import_context_links",
         "notebook_pipeline_import_execution_boundary",
+        "notebook_pipeline_import_lab_steps_preview",
         "notebook_pipeline_import_persistence",
         "notebook_pipeline_import_docs_reference",
     }
@@ -82,6 +84,20 @@ def test_notebook_pipeline_import_reads_fixture_and_round_trips(tmp_path: Path) 
         "artifacts/summary.json",
         "artifacts/trajectory.png",
     }
+    preview = core_module.build_lab_steps_preview(
+        imported,
+        module_name="flight_project",
+    )
+    assert [step["NB_CELL_ID"] for step in preview["flight_project"]] == [
+        "cell-2",
+        "cell-4",
+    ]
+    assert preview["flight_project"][0]["D"] == "Flight import context"
+    assert preview["flight_project"][0]["NB_ENV_HINTS"] == ["pandas", "pathlib"]
+    assert preview["flight_project"][1]["NB_ARTIFACT_REFERENCES"] == [
+        "artifacts/summary.json",
+        "artifacts/trajectory.png",
+    ]
 
 
 def test_notebook_pipeline_import_report_handles_load_failure(tmp_path: Path) -> None:
