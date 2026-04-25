@@ -73,17 +73,17 @@ interactive exploration into a replayable, inspectable workflow:
   inputs, reducer merge semantics, and a standard reduce artefact schema
 - ``execution_pandas_project`` and ``execution_polars_project`` emit named
   benchmark reduce artefacts through that shared contract, and
-  ``uav_queue_project`` emits the same
+  ``uav_queue_project`` and ``uav_relay_queue_project`` emit the same
   ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics
 - the Release Decision evidence view surfaces those reducer artefacts,
-  including UAV queue packet/PDR fields, and flags invalid reduce JSON without
-  hiding the rest of the evidence page
+  including UAV queue-family packet/PDR fields, and flags invalid reduce JSON
+  without hiding the rest of the evidence page
 - the public reducer benchmark validates 8 partials / 80,000 synthetic items in
   ``0.003s`` against a ``5.0s`` target
 
 That supports a ``Research experimentation`` score of ``4.0 / 5``. It is not
 scored higher yet because a generic evidence bundle, broader reduce-contract app
-migration beyond the benchmark pair and first user-facing app, and broader
+migration beyond the benchmark pair and first two user-facing apps, and broader
 fresh-machine reproducibility matrix are still roadmap work.
 
 Engineering prototyping evidence
@@ -101,8 +101,8 @@ history:
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
-broader reduce-contract adoption beyond the benchmark pair and first user-facing
-app remain roadmap items.
+broader reduce-contract adoption beyond the benchmark pair and first two
+user-facing apps remain roadmap items.
 
 Production readiness evidence
 -----------------------------
@@ -142,7 +142,7 @@ between research experiments and engineering validation:
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
 higher yet because the generic evidence bundle, reduce-contract migration
-beyond the benchmark pair and first user-facing app, and broader fresh-install
+beyond the benchmark pair and first two user-facing apps, and broader fresh-install
 validation are still roadmap work.
 
 Where AGILab helps
