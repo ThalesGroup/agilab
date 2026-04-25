@@ -205,13 +205,16 @@ Current shipped baseline:
   GitHub Actions artifact ZIPs into a harvest-compatible `artifact_index.json`,
   and its opt-in `--live-github` path can query/download workflow-run artifacts
   when credentials are available
+- `tools/compatibility_report.py --artifact-index` can derive per-release
+  compatibility status from those downloaded artifact indexes or from
+  `ci_artifact_harvest.json` summaries
 
 Remaining scope:
 
 - add richer domain-specific explanations for allocation, topology, and
   decision deltas
-- run the provider download path against release CI and use the downloaded
-  attachments to drive per-release compatibility status
+- run the provider download path inside release CI instead of only as an
+  operator-triggered adapter
 - add provider adapters beyond GitHub Actions
 
 Why it matters:

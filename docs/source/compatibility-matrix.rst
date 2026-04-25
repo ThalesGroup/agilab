@@ -253,7 +253,8 @@ define both the no-network attachment contract and the first provider download
 adapter.
 The larger roadmap work is still open:
 
-- per-release compatibility status driven by live downloaded attachments
+- running the GitHub Actions download path inside release CI instead of only as
+  an operator-triggered adapter
 - broader provider coverage beyond GitHub Actions
 - broader app/core revision traceability beyond the first-proof manifest
 - explicit certification for more than the public newcomer/operator slices
