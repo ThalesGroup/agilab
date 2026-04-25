@@ -51,6 +51,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "global_pipeline_dependency_view_report_contract",
         "global_pipeline_live_state_updates_report_contract",
         "global_pipeline_operator_actions_report_contract",
+        "global_pipeline_operator_ui_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -305,6 +306,29 @@ def test_global_pipeline_operator_actions_report_contract_executes_actions() -> 
     assert check["details"]["summary"]["event_count"] == 4
     assert check["details"]["summary"]["source_real_execution_scope"] == "full_dag_smoke"
     assert "global_pipeline_operator_actions_real_replay" in check["details"]["check_ids"]
+
+
+def test_global_pipeline_operator_ui_report_contract_renders_components() -> None:
+    module = _load_module()
+
+    check = module._check_global_pipeline_operator_ui_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["executed"] is True
+    assert check["details"]["summary"]["run_status"] == "ready_for_operator_review"
+    assert check["details"]["summary"]["persistence_format"] == "json+html"
+    assert check["details"]["summary"]["round_trip_ok"] is True
+    assert check["details"]["summary"]["component_count"] == 6
+    assert check["details"]["summary"]["unit_card_count"] == 2
+    assert check["details"]["summary"]["action_control_count"] == 2
+    assert check["details"]["summary"]["artifact_row_count"] == 4
+    assert check["details"]["summary"]["timeline_update_count"] == 6
+    assert check["details"]["summary"]["supported_action_ids"] == [
+        "queue_baseline:retry",
+        "relay_followup:partial_rerun",
+    ]
+    assert check["details"]["summary"]["source_real_execution_scope"] == "full_dag_smoke"
+    assert "global_pipeline_operator_ui_html_render" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

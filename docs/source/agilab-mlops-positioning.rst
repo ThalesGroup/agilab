@@ -146,6 +146,9 @@ history:
 - the global DAG operator actions report executes retry and partial-rerun
   operator requests through real queue and relay app-entry replays, then
   persists action outcomes and output artifacts without claiming UI controls
+- the global DAG operator UI report renders persisted state into reusable
+  status, unit-card, dependency, timeline, action-control, and artifact
+  components with a static HTML proof
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -206,12 +209,14 @@ between research experiments and engineering validation:
   UI components or runtime transport are added
 - an operator-action execution report that proves retry and partial-rerun
   requests can replay the real app entries before UI controls are added
+- an operator-UI report that makes the persisted state and supported actions
+  renderable as reusable components
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because future app/template reducer adoption discipline, live UI
-components, and broader fresh-install validation are still roadmap work.
+higher yet because future app/template reducer adoption discipline and broader
+fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------

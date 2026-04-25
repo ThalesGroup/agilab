@@ -217,11 +217,15 @@ single notebook but less ceremony than a production MLOps platform:
   ``relay_followup:partial_rerun`` through ``real app-entry action replay`` and
   persists action outcomes plus output artifacts without claiming a UI control
   surface
+- the global DAG operator UI report reads action outcomes with
+  ``tools/global_pipeline_operator_ui_report.py --compact``; it builds
+  ``operator UI components`` for status, unit cards, dependency graph, update
+  timeline, action controls, and artifacts that render persisted state and support operator actions through a static HTML proof
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
 app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear, and live operator UI remains roadmap work.
+merge outputs appear.
 
 Production-readiness controls
 -----------------------------

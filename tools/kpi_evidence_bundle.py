@@ -906,6 +906,56 @@ def _check_global_pipeline_operator_actions_report(repo_root: Path) -> dict[str,
     )
 
 
+def _check_global_pipeline_operator_ui_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        operator_ui_report = _load_tool_module(
+            repo_root, "global_pipeline_operator_ui_report"
+        )
+        report = operator_ui_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("run_status") == "ready_for_operator_review"
+            and summary.get("persistence_format") == "json+html"
+            and summary.get("round_trip_ok") is True
+            and summary.get("component_count") == 6
+            and summary.get("unit_card_count") == 2
+            and summary.get("action_control_count") == 2
+            and summary.get("artifact_row_count") == 4
+            and summary.get("timeline_update_count") == 6
+            and summary.get("supported_action_ids")
+            == ["queue_baseline:retry", "relay_followup:partial_rerun"]
+            and summary.get("source_real_execution_scope") == "full_dag_smoke"
+        )
+        details = {
+            "status": report.get("status"),
+            "dag_path": report.get("dag_path"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "global_pipeline_operator_ui_report_contract",
+        "Global pipeline operator UI report contract",
+        ok,
+        (
+            "global pipeline operator UI report renders persisted state and "
+            "operator action controls"
+            if ok
+            else "global pipeline operator UI report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/global_pipeline_operator_ui_report.py",
+            "src/agilab/global_pipeline_operator_ui.py",
+            "tools/global_pipeline_operator_actions_report.py",
+        ],
+        details=details,
+        executed=True,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -1077,6 +1127,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_dependency_view_report.py --compact",
             "tools/global_pipeline_live_state_updates_report.py --compact",
             "tools/global_pipeline_operator_actions_report.py --compact",
+            "tools/global_pipeline_operator_ui_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -1098,6 +1149,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_dependency_view_report.py",
             "tools/global_pipeline_live_state_updates_report.py",
             "tools/global_pipeline_operator_actions_report.py",
+            "tools/global_pipeline_operator_ui_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -1155,6 +1207,7 @@ def build_bundle(
         _check_global_pipeline_dependency_view_report(repo_root),
         _check_global_pipeline_live_state_updates_report(repo_root),
         _check_global_pipeline_operator_actions_report(repo_root),
+        _check_global_pipeline_operator_ui_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),
