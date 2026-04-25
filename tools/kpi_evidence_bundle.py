@@ -1348,6 +1348,56 @@ def _check_data_connector_live_ui_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        data_connector_report = _load_tool_module(
+            repo_root,
+            "data_connector_app_catalogs_report",
+        )
+        report = data_connector_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.data_connector_app_catalogs.v1"
+            and summary.get("run_status") == "validated"
+            and summary.get("execution_mode") == "app_catalog_validation_only"
+            and summary.get("app_catalog_count") == 2
+            and summary.get("connector_count") == 6
+            and summary.get("page_connector_ref_count") == 5
+            and summary.get("legacy_path_count") == 4
+            and summary.get("missing_ref_count") == 0
+            and summary.get("network_probe_count") == 0
+            and summary.get("apps") == ["flight_project", "meteo_forecast_project"]
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "data_connector_app_catalogs_report_contract",
+        "Data connector app catalogs report contract",
+        ok,
+        (
+            "data connector app catalogs report validates app-local connector "
+            "catalogs without executing network probes"
+            if ok
+            else "data connector app catalogs report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/data_connector_app_catalogs_report.py",
+            "src/agilab/data_connector_app_catalogs.py",
+            "src/agilab/apps/builtin/flight_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/meteo_forecast_project/src/app_settings.toml",
+        ],
+        details=details,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -1528,6 +1578,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_health_report.py --compact",
             "tools/data_connector_ui_preview_report.py --compact",
             "tools/data_connector_live_ui_report.py --compact",
+            "tools/data_connector_app_catalogs_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -1558,6 +1609,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_health_report.py",
             "tools/data_connector_ui_preview_report.py",
             "tools/data_connector_live_ui_report.py",
+            "tools/data_connector_app_catalogs_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -1624,6 +1676,7 @@ def build_bundle(
         _check_data_connector_health_report(repo_root),
         _check_data_connector_ui_preview_report(repo_root),
         _check_data_connector_live_ui_report(repo_root),
+        _check_data_connector_app_catalogs_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

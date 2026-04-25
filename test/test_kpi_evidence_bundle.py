@@ -60,6 +60,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "data_connector_health_report_contract",
         "data_connector_ui_preview_report_contract",
         "data_connector_live_ui_report_contract",
+        "data_connector_app_catalogs_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -500,6 +501,29 @@ def test_data_connector_live_ui_report_contract_wires_release_decision() -> None
     assert check["details"]["summary"]["release_decision_hooked"] is True
     assert "data_connector_live_ui_release_decision_hook" in check["details"]["check_ids"]
     assert "data_connector_live_ui_health_boundary" in check["details"]["check_ids"]
+
+
+def test_data_connector_app_catalogs_report_contract_validates_builtin_apps() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_app_catalogs_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.data_connector_app_catalogs.v1"
+    assert check["details"]["summary"]["run_status"] == "validated"
+    assert check["details"]["summary"]["execution_mode"] == "app_catalog_validation_only"
+    assert check["details"]["summary"]["app_catalog_count"] == 2
+    assert check["details"]["summary"]["connector_count"] == 6
+    assert check["details"]["summary"]["page_connector_ref_count"] == 5
+    assert check["details"]["summary"]["legacy_path_count"] == 4
+    assert check["details"]["summary"]["missing_ref_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["apps"] == [
+        "flight_project",
+        "meteo_forecast_project",
+    ]
+    assert "data_connector_app_catalogs_discovery" in check["details"]["check_ids"]
+    assert "data_connector_app_catalogs_no_network" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

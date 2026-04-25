@@ -1,0 +1,27 @@
+[[connectors]]
+id = "meteo_training_sql"
+kind = "sql"
+label = "Meteo Training SQL"
+description = "Read-only station weather training data for forecast experiments."
+uri = "postgresql://meteo.example.invalid/agilab"
+driver = "postgresql"
+query_mode = "read_only"
+
+[[connectors]]
+id = "meteo_ops_opensearch"
+kind = "opensearch"
+label = "Meteo Operations OpenSearch"
+description = "Forecast run and promotion evidence index."
+url = "https://opensearch.example.invalid"
+index = "agilab-meteo-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "meteo_artifact_store"
+kind = "object_storage"
+label = "Meteo Artifact Store"
+description = "Object-storage prefix for forecast metrics and predictions."
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "meteo_forecast/"
+auth_ref = "env:AWS_PROFILE"

@@ -1,0 +1,27 @@
+[[connectors]]
+id = "flight_tracks_sql"
+kind = "sql"
+label = "Flight Tracks SQL"
+description = "Read-only trajectory and aircraft metadata source."
+uri = "postgresql://flight.example.invalid/agilab"
+driver = "postgresql"
+query_mode = "read_only"
+
+[[connectors]]
+id = "flight_ops_opensearch"
+kind = "opensearch"
+label = "Flight Operations OpenSearch"
+description = "Flight analysis and network-view evidence index."
+url = "https://opensearch.example.invalid"
+index = "agilab-flight-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "flight_artifact_store"
+kind = "object_storage"
+label = "Flight Artifact Store"
+description = "Object-storage prefix for generated trajectory artifacts."
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "flight/"
+auth_ref = "env:AWS_PROFILE"

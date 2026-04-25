@@ -37,6 +37,8 @@ use this order:
      state and provenance review
    - add the shipped data connector live UI report for Release Decision
      Streamlit integration without connector network probes
+   - add the shipped data connector app catalogs report for app-local
+     `flight_project` and `meteo_forecast_project` connector catalogs
    - this turns connector work into a practical data-access layer, not just path
      cleanup
 4. **Reduce contract adoption**
@@ -490,6 +492,8 @@ Completed baseline:
 - `tools/data_connector_live_ui_report.py --compact` wires connector state and
   connector-derived provenance into the Release Decision Streamlit page in
   `streamlit_render_contract_only` mode
+- `tools/data_connector_app_catalogs_report.py --compact` validates app-local
+  connector catalogs referenced from built-in `app_settings.toml` files
 
 First connector model:
 
@@ -528,8 +532,8 @@ Expected impact:
 
 Remaining scope:
 
-- add operator-triggered live health probes and page-specific connector
-  catalogs beyond the checked-in sample evidence
+- add operator-triggered live health probes and broaden app-specific connector
+  catalogs beyond the first two built-in apps
 
 ## Distributed execution and reduction
 
@@ -688,10 +692,14 @@ Current shipped baseline:
   `agilab.data_connector_live_ui.v1` and wires connector state plus
   connector-derived provenance into the Release Decision Streamlit page without
   opening connector networks
+- `tools/data_connector_app_catalogs_report.py --compact` validates
+  `agilab.data_connector_app_catalogs.v1` for app-local connector catalogs in
+  `flight_project` and `meteo_forecast_project`
 
 Remaining scope:
 
-- operator-triggered live health probes and app-specific connector catalogs
+- operator-triggered live health probes and app-specific connector catalog
+  rollout to the remaining built-in apps
 
 ### 3. Connector-aware views
 

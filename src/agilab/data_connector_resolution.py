@@ -58,15 +58,26 @@ def _connector_target(connector: Mapping[str, Any]) -> str:
     return ""
 
 
-def _settings_catalog_path(settings: Mapping[str, Any], repo_root: Path) -> Path:
+def _settings_catalog_path(
+    settings: Mapping[str, Any],
+    repo_root: Path,
+    settings_path: Path | None = None,
+) -> Path:
     catalog = settings.get("connector_catalog", {})
     raw_path = ""
     if isinstance(catalog, dict):
         raw_path = str(catalog.get("path", "") or "")
     path = Path(raw_path) if raw_path else repo_root / DEFAULT_CONNECTORS_RELATIVE_PATH
-    if not path.is_absolute():
-        path = repo_root / path
-    return path
+    if path.is_absolute():
+        return path
+    repo_candidate = repo_root / path
+    if repo_candidate.exists() or str(path).startswith("docs/"):
+        return repo_candidate
+    if settings_path is not None:
+        settings_candidate = settings_path.parent / path
+        if settings_candidate.exists():
+            return settings_candidate
+    return repo_candidate
 
 
 def _top_level_refs(settings: Mapping[str, Any]) -> dict[str, str]:
@@ -269,7 +280,7 @@ def persist_data_connector_resolution(
     if not settings_path.is_absolute():
         settings_path = repo_root / settings_path
     settings = load_app_settings(settings_path)
-    catalog_path = catalog_path or _settings_catalog_path(settings, repo_root)
+    catalog_path = catalog_path or _settings_catalog_path(settings, repo_root, settings_path)
     if not catalog_path.is_absolute():
         catalog_path = repo_root / catalog_path
     catalog = load_connector_catalog(catalog_path)
