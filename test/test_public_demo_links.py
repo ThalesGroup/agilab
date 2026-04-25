@@ -125,7 +125,7 @@ def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     assert "PROJECT` -> select" not in readme
     assert "tools/newcomer_first_proof.py --json" in readme
     assert "Ease of adoption" in readme
-    assert "3.5 / 5" in readme
+    assert "4.0 / 5" in readme
     assert "5.86s" in readme
 
 
@@ -172,10 +172,10 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
     assert "project setup, environment management, execution, and result analysis" in readme
     assert "Overall public evaluation" in readme
     assert "3.2 / 5` ->" not in readme
-    assert "3.6 / 5" in readme
+    assert "3.8 / 5" in readme
     assert "Mean of the four scored public KPIs" in readme
-    assert "(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625" in readme
-    assert "3.5 / 5" in readme
+    assert "(4.0 + 4.0 + 4.0 + 3.0) / 4 = 3.75" in readme
+    assert "4.0 / 5" in readme
     assert "cross-kpi evidence bundle" in readme.lower()
 
 
@@ -228,7 +228,7 @@ def test_newcomer_docs_capture_adoption_evidence() -> None:
 
     assert "Adoption evidence" in text
     assert "Ease of adoption" in text
-    assert "3.5 / 5" in text
+    assert "4.0 / 5" in text
     assert "5.86s" in text
     assert "600s" in text
 
