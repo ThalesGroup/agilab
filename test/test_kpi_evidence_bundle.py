@@ -50,6 +50,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "global_pipeline_operator_state_report_contract",
         "global_pipeline_dependency_view_report_contract",
         "global_pipeline_live_state_updates_report_contract",
+        "global_pipeline_operator_actions_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -283,6 +284,27 @@ def test_global_pipeline_live_state_updates_report_contract_exposes_stream() -> 
     assert check["details"]["summary"]["visible_unit_ids"] == ["queue_baseline", "relay_followup"]
     assert check["details"]["summary"]["source_real_execution_scope"] == "full_dag_smoke"
     assert "global_pipeline_live_state_updates_sequence" in check["details"]["check_ids"]
+
+
+def test_global_pipeline_operator_actions_report_contract_executes_actions() -> None:
+    module = _load_module()
+
+    check = module._check_global_pipeline_operator_actions_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["executed"] is True
+    assert check["details"]["summary"]["run_status"] == "completed"
+    assert check["details"]["summary"]["persistence_format"] == "json"
+    assert check["details"]["summary"]["round_trip_ok"] is True
+    assert check["details"]["summary"]["action_request_count"] == 2
+    assert check["details"]["summary"]["completed_action_count"] == 2
+    assert check["details"]["summary"]["retry_execution_count"] == 1
+    assert check["details"]["summary"]["partial_rerun_execution_count"] == 1
+    assert check["details"]["summary"]["real_action_execution_count"] == 2
+    assert check["details"]["summary"]["output_artifact_count"] == 4
+    assert check["details"]["summary"]["event_count"] == 4
+    assert check["details"]["summary"]["source_real_execution_scope"] == "full_dag_smoke"
+    assert "global_pipeline_operator_actions_real_replay" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

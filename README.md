@@ -263,6 +263,20 @@ unit-state, artifact-state, dependency-state, and operator-action refresh
 payloads for `queue_baseline`, `relay_followup`, and `queue_metrics`. This is
 an update-payload contract, not a streaming service or UI renderer.
 
+## Global DAG Operator Actions
+
+AGILAB now executes persisted operator action requests through real app-entry
+replays:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_actions_report.py --compact
+```
+
+The report reads live-state update payloads, accepts `queue_baseline:retry` and
+`relay_followup:partial_rerun`, runs the corresponding queue and relay app
+entries, and persists the action outcomes plus output artifacts. This is retry
+and partial-rerun action execution, not a UI control surface.
+
 ## Evaluation Snapshot
 
 CODEX 5.5 working scores, not production MLOps claims:
@@ -270,8 +284,8 @@ CODEX 5.5 working scores, not production MLOps claims:
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
 | Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Validated locally, on one external macOS machine, on AI Lightning, on Hugging Face, on one bare-metal cluster, and on one VM-based cluster. Remaining validation gap: Azure, AWS, and GCP cloud deployments. |
-| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, flight, meteo forecast, and UAV queue-family reduce artifacts, a non-template built-in app guardrail, public reduce benchmark: `0.003s` vs `5.0s`, multi-app DAG report, global pipeline DAG report, global execution-plan report, global runner-state report, global dispatch-state persistence report, global app-dispatch smoke report, global operator-state report, global dependency-view report, and global live-update report. | Future apps/templates must opt in when they produce concrete merge outputs. |
-| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, a guided in-product first-proof wizard, stable `run_manifest.json` evidence consumed by the KPI bundle, the multi-app DAG contract, a read-only global pipeline graph, pending execution-plan units, read-only runnable/blocked operator state, persisted queue-to-relay dispatch-state transition proof, real two-unit global DAG app dispatch smoke, operator-visible retry/partial-rerun action state, cross-app upstream/downstream dependency visualization, and deterministic full-DAG live-update payloads. | Additional external replication beyond the current public first-proof paths is not claimed; live operator UI and execution of retry/partial-rerun actions remain roadmap work. |
+| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, flight, meteo forecast, and UAV queue-family reduce artifacts, a non-template built-in app guardrail, public reduce benchmark: `0.003s` vs `5.0s`, multi-app DAG report, global pipeline DAG report, global execution-plan report, global runner-state report, global dispatch-state persistence report, global app-dispatch smoke report, global operator-state report, global dependency-view report, global live-update report, and global operator-action report. | Future apps/templates must opt in when they produce concrete merge outputs. |
+| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, a guided in-product first-proof wizard, stable `run_manifest.json` evidence consumed by the KPI bundle, the multi-app DAG contract, a read-only global pipeline graph, pending execution-plan units, read-only runnable/blocked operator state, persisted queue-to-relay dispatch-state transition proof, real two-unit global DAG app dispatch smoke, operator-visible retry/partial-rerun action state, cross-app upstream/downstream dependency visualization, deterministic full-DAG live-update payloads, and retry/partial-rerun real app-entry action replay. | Additional external replication beyond the current public first-proof paths is not claimed; live operator UI remains roadmap work. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, connector-registry release paths, provenance-tagged manifest-indexing, cross-release, and cross-run release-decision page export, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
 | Overall public evaluation | `3.6 / 5` | Mean of the four scored public KPIs: `(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625`. Cross-KPI evidence bundle and workflow-backed compatibility report documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |
 

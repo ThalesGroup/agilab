@@ -211,12 +211,17 @@ single notebook but less ceremony than a production MLOps platform:
   ``deterministic update stream`` for ``live orchestration-state updates``
   across graph-ready, unit-state, artifact-state, dependency-state, and
   operator-action refresh payloads without claiming a streaming service or UI
+- the global DAG operator actions report reads those update payloads with
+  ``tools/global_pipeline_operator_actions_report.py --compact``; it performs
+  ``retry and partial-rerun action execution`` for ``queue_baseline:retry`` and
+  ``relay_followup:partial_rerun`` through ``real app-entry action replay`` and
+  persists action outcomes plus output artifacts without claiming a UI control
+  surface
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
 app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear, and live operator UI plus execution of retry/partial-rerun
-actions remain roadmap work.
+merge outputs appear, and live operator UI remains roadmap work.
 
 Production-readiness controls
 -----------------------------
