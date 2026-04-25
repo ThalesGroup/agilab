@@ -116,6 +116,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/data_connector_facility_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_resolution_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_health_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_ui_preview_report.py --compact
 
 The compact compatibility report checks the required public statuses, the proof
 commands behind validated entries, and optional ``run_manifest.json`` evidence.
@@ -139,7 +140,8 @@ consumes that report and includes the ``multi_app_dag_report_contract``,
 ``notebook_union_environment_report_contract``,
 ``data_connector_facility_report_contract``,
 ``data_connector_resolution_report_contract``,
-``data_connector_health_report_contract``, and
+``data_connector_health_report_contract``,
+``data_connector_ui_preview_report_contract``, and
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
 checked-in cross-app DAG handoff sample, assemble the read-only product-level
 graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
@@ -166,6 +168,8 @@ validate connector-aware app/page resolution with ``legacy_path_fallback``
 preserved for migration,
 plan connector health/status probes behind operator opt-in without executing
 network checks,
+render connector state and connector-derived provenance as static JSON+HTML
+preview evidence,
 and verify that every non-template built-in app exposes a reducer contract while recording
 ``mycode_project`` as the explicit template-only exemption.
 

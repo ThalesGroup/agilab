@@ -83,6 +83,8 @@ interactive exploration into a replayable, inspectable workflow:
   resolution and keeps ``legacy_path_fallback`` rows available during migration
 - the data connector health report plans opt-in connector health/status probes
   without executing network checks in public evidence
+- the data connector UI preview report renders connector state and
+  connector-derived provenance as static JSON+HTML evidence
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
@@ -138,6 +140,8 @@ history:
   connectors from app settings without dropping legacy raw path fallbacks
 - opt-in connector health planning gives prototypes a status boundary without
   claiming live connectivity in static public evidence
+- static connector UI preview makes connector cards, page bindings, legacy
+  fallbacks, and probe boundaries reviewable before live UI integration
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
 - the in-product first-proof wizard now guides one validated ``flight_project``
@@ -257,6 +261,8 @@ between research experiments and engineering validation:
   resolve against the catalog while preserving legacy path migration fallback
 - a data connector health report that plans operator-gated connector probes
   without opening networks in public evidence
+- a data connector UI preview report that turns connector provenance into a
+  static review artifact
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

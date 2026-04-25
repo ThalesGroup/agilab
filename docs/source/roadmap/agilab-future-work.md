@@ -33,6 +33,8 @@ use this order:
      for connector-aware app/page resolution
    - add the shipped data connector health report for operator-gated probe
      planning without live public network checks
+   - add the shipped data connector UI preview report for static connector
+     state and provenance review
    - this turns connector work into a practical data-access layer, not just path
      cleanup
 4. **Reduce contract adoption**
@@ -480,6 +482,9 @@ Completed baseline:
 - `tools/data_connector_health_report.py --compact` plans SQL, OpenSearch, and
   object-storage health/status probes behind operator opt-in while keeping
   public evidence in `health_probe_plan_only` mode
+- `tools/data_connector_ui_preview_report.py --compact` renders connector
+  state, page bindings, legacy fallbacks, and health-boundary provenance as
+  static JSON+HTML evidence
 
 First connector model:
 
@@ -518,7 +523,7 @@ Expected impact:
 
 Remaining scope:
 
-- surface connector provenance and fallback state in the relevant UI pages
+- wire the static connector preview components into the relevant Streamlit pages
 
 ## Distributed execution and reduction
 
@@ -670,16 +675,21 @@ Current shipped baseline:
 - `tools/data_connector_health_report.py --compact` validates
   `agilab.data_connector_health.v1` and plans connector health/status probes
   behind operator opt-in without executing network checks
+- `tools/data_connector_ui_preview_report.py --compact` validates
+  `agilab.data_connector_ui_preview.v1` and renders static connector state plus
+  connector-derived provenance as JSON+HTML preview evidence
 
 Remaining scope:
 
-- UI previews for connector state and connector-derived provenance
+- live Streamlit integration for connector state and connector-derived
+  provenance components
 
 ### 3. Connector-aware views
 
 Purpose:
 
-- expose connector state and connector-derived provenance directly in the UI
+- move the shipped static connector state and connector-derived provenance
+  preview into the live UI pages
 
 Typical views:
 
