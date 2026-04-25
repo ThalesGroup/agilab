@@ -55,6 +55,13 @@ LOG_DETAIL_LIMIT = _logging_utils_module.LOG_DETAIL_LIMIT
 LOG_PATH_LIMIT = _logging_utils_module.LOG_PATH_LIMIT
 bound_log_value = _logging_utils_module.bound_log_value
 
+_first_proof_wizard_module = import_agilab_module(
+    "agilab.first_proof_wizard",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "first_proof_wizard.py",
+    fallback_name="agilab_first_proof_wizard_fallback",
+)
+
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset() -> None:
     # If last run asked for a reset, clear BEFORE widgets are created this run
@@ -78,127 +85,33 @@ from agi_env.credential_store_support import (
 from agi_env.ui_support import detect_agilab_version, load_last_active_app, store_last_active_app
 
 FIRST_PROOF_PROJECT = "flight_project"
-FIRST_PROOF_COMPATIBILITY_SLICE = "Web UI local first proof"
-FIRST_PROOF_HELPER_SCRIPT_PREFIXES = (
-    "AGI_install_",
-    "AGI_run_",
-    "AGI_get_",
-)
+FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
+FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _first_proof_wizard_module.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
 
 # ----------------- Fast-Loading Banner UI -----------------
 def _newcomer_first_proof_content() -> Dict[str, Any]:
     """Return the first-proof onboarding contract shown on the landing page."""
-    return {
-        "title": "Start here",
-        "intro": "Goal: make one demo work on your computer. Start from PROJECT, not from this page.",
-        "steps": [
-            ("PROJECT", "Go to `PROJECT`. Choose `flight_project`."),
-            ("ORCHESTRATE", "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."),
-        ],
-        "success_criteria": [
-            "`flight_project` runs without error.",
-            "Generated files are created for `flight_project`.",
-            "Now you can try another demo.",
-        ],
-        "links": [
-            ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
-            ("Newcomer guide", "https://thalesgroup.github.io/agilab/newcomer-guide.html"),
-            ("Compatibility matrix", "https://thalesgroup.github.io/agilab/compatibility-matrix.html"),
-            ("Flight project guide", "https://thalesgroup.github.io/agilab/flight-project.html"),
-        ],
-    }
+    return _first_proof_wizard_module.newcomer_first_proof_content()
 
 
 def _newcomer_first_proof_project_path(env: Any) -> Path | None:
     """Return the preferred built-in first-proof app path when available."""
-    candidates: list[Path] = []
-    try:
-        apps_path = Path(getattr(env, "apps_path", "")).expanduser()
-    except (TypeError, ValueError, RuntimeError):
-        apps_path = Path()
-    if str(apps_path):
-        candidates.extend(
-            [
-                apps_path / FIRST_PROOF_PROJECT,
-                apps_path / "builtin" / FIRST_PROOF_PROJECT,
-            ]
-        )
-
-    module_builtin = Path(__file__).resolve().parent / "apps" / "builtin" / FIRST_PROOF_PROJECT
-    candidates.append(module_builtin)
-
-    seen: set[Path] = set()
-    for candidate in candidates:
-        try:
-            resolved = candidate.expanduser().resolve()
-        except OSError:
-            continue
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        if resolved.exists():
-            return resolved
-    return None
+    return _first_proof_wizard_module.newcomer_first_proof_project_path(env)
 
 
 def _first_proof_output_dir(env: Any) -> Path:
     """Return the log directory used by the built-in first-proof route."""
-    log_root = Path(getattr(env, "AGILAB_LOG_ABS", Path.home() / "log")).expanduser()
-    return log_root / "execute" / "flight"
+    return _first_proof_wizard_module.first_proof_output_dir(env)
 
 
 def _list_first_proof_outputs(output_dir: Path) -> list[Path]:
     """Return evidence-like outputs, excluding seeded AGI helper scripts."""
-    if not output_dir.exists():
-        return []
-    outputs: list[Path] = []
-    for child in sorted(output_dir.iterdir(), key=lambda item: item.name):
-        if child.name.startswith("."):
-            continue
-        if child.is_file() and child.suffix == ".py" and child.name.startswith(FIRST_PROOF_HELPER_SCRIPT_PREFIXES):
-            continue
-        outputs.append(child)
-    return outputs
+    return list(_first_proof_wizard_module.list_first_proof_outputs(output_dir))
 
 
 def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
     """Return concrete wizard state for the in-product first-proof path."""
-    content = _newcomer_first_proof_content()
-    project_path = _newcomer_first_proof_project_path(env)
-    active_app_name = str(getattr(env, "app", "") or "")
-    output_dir = _first_proof_output_dir(env)
-    visible_outputs = _list_first_proof_outputs(output_dir)
-    helper_scripts_present = all(
-        (output_dir / script_name).exists()
-        for script_name in (
-            "AGI_install_flight.py",
-            "AGI_run_flight.py",
-        )
-    )
-    current_app_matches = active_app_name == FIRST_PROOF_PROJECT
-
-    if project_path is None:
-        next_step = "Fix the app list first. `flight_project` is missing."
-    elif not current_app_matches:
-        next_step = "Go to `PROJECT`. Choose `flight_project`."
-    elif not visible_outputs:
-        next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
-    else:
-        next_step = "First proof done. Now you can try another demo."
-
-    return {
-        "content": content,
-        "compatibility_slice": FIRST_PROOF_COMPATIBILITY_SLICE,
-        "project_path": project_path,
-        "project_available": project_path is not None,
-        "active_app_name": active_app_name,
-        "current_app_matches": current_app_matches,
-        "output_dir": output_dir,
-        "helper_scripts_present": helper_scripts_present,
-        "visible_outputs": visible_outputs,
-        "run_output_detected": bool(visible_outputs),
-        "next_step": next_step,
-    }
+    return _first_proof_wizard_module.newcomer_first_proof_state(env)
 
 
 def _activate_newcomer_first_proof_project(env: Any, project_path: Path) -> bool:
@@ -255,6 +168,17 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
 
     with st.expander(content["title"], expanded=True):
         st.write(content["intro"])
+        st.caption(
+            "Validated path: "
+            f"{state['recommended_path_label']} "
+            f"({state['compatibility_status']}; report: {state['compatibility_report_status']})."
+        )
+        st.caption(
+            "Preflight evidence: "
+            f"`{state['cli_command']}` "
+            f"({', '.join(state['proof_command_labels'])}; "
+            f"target <= {state['target_seconds']:.0f}s)."
+        )
         st.markdown("**Do this now**")
         step_lines = [
             f"{index}. {detail}"

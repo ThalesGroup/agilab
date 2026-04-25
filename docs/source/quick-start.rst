@@ -55,7 +55,8 @@ Use this path exactly once before trying anything broader.
 
 4. **Keep the first run local and use the built-in flight demo**
 
-   In the UI, use:
+   The landing page first-proof wizard points to this same validated path. In
+   the UI, use:
 
    - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
    - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``

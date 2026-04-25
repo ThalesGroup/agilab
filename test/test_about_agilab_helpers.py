@@ -137,13 +137,20 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
     assert content["title"] == "Start here"
-    assert content["intro"] == "Goal: make one demo work on your computer. Start from PROJECT, not from this page."
+    assert "validated flight_project source-checkout proof" in content["intro"]
+    assert content["recommended_path_id"] == "source-checkout-first-proof"
+    assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
+    assert content["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
     assert [label for label, _ in content["steps"]] == [
         "PROJECT",
         "ORCHESTRATE",
+        "ANALYSIS",
     ]
     assert any("flight_project" in detail for _, detail in content["steps"])
     assert any("Generated files" in item for item in content["success_criteria"])
+    assert content["compatibility_status"] == "validated"
+    assert content["compatibility_report_status"] == "pass"
+    assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
     assert any("newcomer-guide" in url for _, url in content["links"])
     assert any("compatibility-matrix" in url for _, url in content["links"])
 
@@ -173,7 +180,10 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     assert state["project_path"] == flight_project.resolve()
     assert state["project_available"] is True
     assert state["current_app_matches"] is False
-    assert state["compatibility_slice"] == "Web UI local first proof"
+    assert state["compatibility_slice"] == "Source checkout first proof"
+    assert state["compatibility_status"] == "validated"
+    assert state["recommended_path_id"] == "source-checkout-first-proof"
+    assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
     assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
 
 
@@ -218,5 +228,6 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
     assert "Start here" in body
     assert "PROJECT" in body
     assert "ORCHESTRATE" in body
+    assert "ANALYSIS" in body
     assert "flight_project" in body
     assert "You are done when" in body

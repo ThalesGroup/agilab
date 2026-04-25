@@ -19,13 +19,14 @@ use this order:
 2. **Promotion / release decision workflow**
    - turn the evidence bundle into an explicit promotable / blocked decision
    - this is the first strong evidence-driven product surface
-3. **First-proof wizard in product**
-   - guide newcomers through one validated proof path in the UI
-   - it should consume the same run/evidence model instead of inventing a
-     separate onboarding proof contract
-4. **Compatibility matrix automation**
+3. **Compatibility matrix automation**
    - replace the current manual compatibility page with workflow-backed status
    - this becomes much cleaner once run evidence is standardized
+4. **First-proof wizard follow-ups**
+   - the shipped wizard now guides one validated `flight_project` path and
+     consumes compatibility-report status
+   - future work is external run evidence ingestion and richer remediation, not
+     the baseline in-product route
 5. **Connector registry hardening**
    - stabilize path portability and artefact resolution across apps/pages
    - this reduces glue before deeper cross-app automation
@@ -88,25 +89,26 @@ The most promising Streamlit-style view patterns for AGILab are not generic
 gallery clones. They are focused application views that reinforce AGILab's core
 value: orchestration, evidence, and domain-specific interaction.
 
-### 0. First-proof wizard
+### 0. First-proof wizard follow-ups
 
 Purpose:
 
-- guide a newcomer to one successful proof path inside the product
-- reduce early branching into cluster, package, or notebook routes
+- extend the shipped first-proof wizard with richer remediation and external
+  run evidence
+- keep newcomers on one successful proof path before branching into cluster,
+  package, or notebook routes
 
 Suggested layout:
 
-- environment readiness check
-- recommended proof path card
-- one guided launch flow
-- explicit success or failure evidence at the end
+- environment readiness checks beyond the current compatibility status
+- failure-specific remediation cards
+- optional external fresh-machine evidence import
+- explicit success or failure evidence history
 
 Why it matters:
 
-- strongest adoption accelerator after evidence-backed runs
-- reuses the same compatibility and proof contracts instead of inventing a
-  separate tutorial-only path
+- keeps the shipped wizard tied to compatibility and proof contracts
+- avoids growing a separate tutorial-only proof path
 
 ### 0b. Run manifest + evidence bundle
 
@@ -709,7 +711,7 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 - Run manifest + evidence bundle
 - Promotion / release decision workflow
-- First-proof wizard in product
+- First-proof wizard follow-ups
 - Compatibility matrix automation
 - Connector registry hardening
 - Multi-app DAG orchestration
