@@ -444,6 +444,209 @@ def _manifest_index_rows(index: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _release_display_id(release_key: str, release: dict[str, Any]) -> str:
+    return str(release.get("release_id") or Path(str(release_key)).name)
+
+
+def _manifest_comparison_key(manifest: dict[str, Any]) -> str:
+    return str(
+        manifest.get("path_id")
+        or manifest.get("source")
+        or manifest.get("run_id")
+        or "unknown"
+    )
+
+
+def _manifest_evidence_rank(manifest: dict[str, Any] | None) -> int:
+    if not manifest:
+        return -1
+    status = str(manifest.get("evidence_status", ""))
+    return {
+        "invalid": 0,
+        "failed": 1,
+        "validated": 2,
+    }.get(status, 0)
+
+
+def _manifest_duration(manifest: dict[str, Any] | None) -> float | None:
+    if not manifest:
+        return None
+    value = manifest.get("duration_seconds")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def _manifest_duration_sort_value(manifest: dict[str, Any]) -> float:
+    duration = _manifest_duration(manifest)
+    return -duration if duration is not None else -float("inf")
+
+
+def _best_manifest_record(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    if not records:
+        return None
+    return sorted(
+        records,
+        key=lambda record: (
+            _manifest_evidence_rank(record["manifest"]),
+            _manifest_duration_sort_value(record["manifest"]),
+            record["release_id"],
+        ),
+        reverse=True,
+    )[0]
+
+
+def _manifest_is_same_evidence(current: dict[str, Any], prior: dict[str, Any]) -> bool:
+    current_run_id = str(current.get("run_id") or "")
+    prior_run_id = str(prior.get("run_id") or "")
+    if current_run_id and current_run_id == prior_run_id:
+        return True
+    current_source = str(current.get("source") or "")
+    prior_source = str(prior.get("source") or "")
+    return bool(current_source and current_source == prior_source)
+
+
+def _classify_manifest_comparison(
+    current: dict[str, Any] | None,
+    prior: dict[str, Any] | None,
+) -> tuple[str, str]:
+    if current is None:
+        return (
+            "missing_current_evidence",
+            "Prior indexed evidence exists, but the current candidate has no matching manifest.",
+        )
+    current_status = str(current.get("evidence_status") or "invalid")
+    if prior is None:
+        if current_status == "validated":
+            return "newly_validated", "Current candidate adds validated evidence with no prior indexed match."
+        if current_status == "failed":
+            return "failed", "Current candidate adds failing evidence with no prior indexed match."
+        return "new_evidence_not_validated", "Current candidate adds evidence that is not validated yet."
+    prior_status = str(prior.get("evidence_status") or "invalid")
+    if current_status == "failed":
+        return "failed", "Current candidate evidence is failing."
+    if _manifest_is_same_evidence(current, prior):
+        return "stale", "Current candidate reuses the same manifest evidence as the prior indexed release."
+    current_rank = _manifest_evidence_rank(current)
+    prior_rank = _manifest_evidence_rank(prior)
+    if current_rank < prior_rank:
+        return "regressed", f"Current evidence status {current_status!r} is weaker than prior status {prior_status!r}."
+    if current_rank > prior_rank:
+        return "improved", f"Current evidence status {current_status!r} improves on prior status {prior_status!r}."
+    current_duration = _manifest_duration(current)
+    prior_duration = _manifest_duration(prior)
+    if current_status == "validated" and prior_status == "validated":
+        if current_duration is not None and prior_duration is not None:
+            if current_duration < prior_duration:
+                return "better", "Current validated evidence is faster than the prior indexed evidence."
+            if current_duration > prior_duration:
+                return "slower", "Current validated evidence is slower than the prior indexed evidence."
+        return "stable", "Current validated evidence matches the prior indexed evidence status."
+    return "stable", "Current evidence status matches the prior indexed evidence status."
+
+
+def _build_manifest_index_comparison_rows(
+    existing_index: dict[str, Any],
+    current_release: dict[str, Any],
+) -> list[dict[str, Any]]:
+    current_release_id = str(current_release.get("release_id", "current"))
+    current_candidate = str(current_release.get("candidate_bundle_root", ""))
+    current_by_key: dict[str, list[dict[str, Any]]] = {}
+    for manifest in current_release.get("manifests", []):
+        if isinstance(manifest, dict):
+            key = _manifest_comparison_key(manifest)
+            current_by_key.setdefault(key, []).append(
+                {
+                    "release_id": current_release_id,
+                    "candidate_bundle": current_candidate,
+                    "manifest": manifest,
+                }
+            )
+
+    prior_by_key: dict[str, list[dict[str, Any]]] = {}
+    for release_key, release in existing_index.get("releases", {}).items():
+        if (
+            not isinstance(release, dict)
+            or str(release.get("candidate_bundle_root", release_key)) == current_candidate
+        ):
+            continue
+        release_id = _release_display_id(str(release_key), release)
+        candidate_bundle = str(release.get("candidate_bundle_root", release_key))
+        for manifest in release.get("manifests", []):
+            if not isinstance(manifest, dict):
+                continue
+            key = _manifest_comparison_key(manifest)
+            prior_by_key.setdefault(key, []).append(
+                {
+                    "release_id": release_id,
+                    "candidate_bundle": candidate_bundle,
+                    "manifest": manifest,
+                }
+            )
+
+    rows: list[dict[str, Any]] = []
+    for key in sorted(set(current_by_key) | set(prior_by_key)):
+        current_record = _best_manifest_record(current_by_key.get(key, []))
+        prior_record = _best_manifest_record(prior_by_key.get(key, []))
+        current_manifest = current_record["manifest"] if current_record else None
+        prior_manifest = prior_record["manifest"] if prior_record else None
+        comparison_status, detail = _classify_manifest_comparison(current_manifest, prior_manifest)
+        rows.append(
+            {
+                "comparison_key": key,
+                "path_id": (
+                    (current_manifest or {}).get("path_id")
+                    or (prior_manifest or {}).get("path_id")
+                    or ""
+                ),
+                "comparison_status": comparison_status,
+                "current_release": current_release_id if current_record else "",
+                "current_candidate_bundle": current_candidate if current_record else "",
+                "current_run_id": (current_manifest or {}).get("run_id", ""),
+                "current_evidence_status": (current_manifest or {}).get("evidence_status", "missing"),
+                "current_duration_seconds": _manifest_duration(current_manifest),
+                "prior_release": prior_record["release_id"] if prior_record else "",
+                "prior_candidate_bundle": prior_record["candidate_bundle"] if prior_record else "",
+                "prior_run_id": (prior_manifest or {}).get("run_id", ""),
+                "prior_evidence_status": (prior_manifest or {}).get("evidence_status", "missing"),
+                "prior_duration_seconds": _manifest_duration(prior_manifest),
+                "detail": detail,
+            }
+        )
+    return rows
+
+
+def _manifest_index_comparison_summary(
+    rows: list[dict[str, Any]],
+    existing_index: dict[str, Any],
+    current_release: dict[str, Any],
+) -> dict[str, Any]:
+    current_candidate = str(current_release.get("candidate_bundle_root", ""))
+    previous_release_count = sum(
+        1
+        for release_key, release in existing_index.get("releases", {}).items()
+        if isinstance(release, dict)
+        and str(release.get("candidate_bundle_root", release_key)) != current_candidate
+    )
+    status_counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("comparison_status", "unknown"))
+        status_counts[status] = status_counts.get(status, 0) + 1
+    blocking_statuses = {"failed", "missing_current_evidence", "regressed"}
+    return {
+        "current_release_id": str(current_release.get("release_id", "current")),
+        "current_candidate_bundle_root": current_candidate,
+        "previous_release_count": previous_release_count,
+        "compared_path_count": len(rows),
+        "status_counts": dict(sorted(status_counts.items())),
+        "better_count": status_counts.get("better", 0),
+        "improved_count": status_counts.get("improved", 0),
+        "newly_validated_count": status_counts.get("newly_validated", 0),
+        "stale_count": status_counts.get("stale", 0),
+        "failed_count": status_counts.get("failed", 0),
+        "missing_current_count": status_counts.get("missing_current_evidence", 0),
+        "blocking_count": sum(status_counts.get(status, 0) for status in blocking_statuses),
+    }
+
+
 def _write_manifest_index(path: Path, payload: dict[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
@@ -825,6 +1028,8 @@ def _decision_payload(
     imported_manifest_summary: dict[str, Any],
     manifest_index_path: Path,
     manifest_index_summary: dict[str, Any],
+    manifest_index_comparison_rows: list[dict[str, Any]],
+    manifest_index_comparison_summary: dict[str, Any],
     status: str,
     summary: str,
     tolerance_pct: float,
@@ -851,6 +1056,8 @@ def _decision_payload(
         "imported_run_manifest_evidence": imported_manifest_rows,
         "manifest_index_path": str(manifest_index_path),
         "manifest_index_summary": manifest_index_summary,
+        "manifest_index_comparison": manifest_index_comparison_rows,
+        "manifest_index_comparison_summary": manifest_index_comparison_summary,
         "artifact_gates": artifact_rows,
         "metric_gates": metric_rows,
         "reduce_artifacts": reduce_artifact_rows,
@@ -1012,6 +1219,15 @@ manifest_index_summary = _manifest_index_summary(
     loaded=bool(existing_manifest_index_summary.get("loaded")),
     error=existing_manifest_index_summary.get("error"),
 )
+manifest_index_comparison_rows = _build_manifest_index_comparison_rows(
+    existing_manifest_index,
+    current_manifest_index_release,
+)
+manifest_index_comparison_summary = _manifest_index_comparison_summary(
+    manifest_index_comparison_rows,
+    existing_manifest_index,
+    current_manifest_index_release,
+)
 decision_status, decision_summary = _decision_status(
     baseline_path=baseline_path,
     candidate_path=candidate_path,
@@ -1036,6 +1252,8 @@ payload = _decision_payload(
     imported_manifest_summary=imported_manifest_summary,
     manifest_index_path=manifest_index_path,
     manifest_index_summary=manifest_index_summary,
+    manifest_index_comparison_rows=manifest_index_comparison_rows,
+    manifest_index_comparison_summary=manifest_index_comparison_summary,
     status=decision_status,
     summary=decision_summary,
     tolerance_pct=tolerance_pct,
@@ -1082,6 +1300,15 @@ if manifest_index_rows:
     st.dataframe(pd.DataFrame(manifest_index_rows), width="stretch", hide_index=True)
 else:
     st.info("No imported run manifests are indexed for this artifact root yet.")
+
+st.subheader("Cross-release manifest comparison")
+st.caption(
+    "Compares current candidate evidence against prior releases already stored in `manifest_index.json`."
+)
+if manifest_index_comparison_rows:
+    st.dataframe(pd.DataFrame(manifest_index_comparison_rows), width="stretch", hide_index=True)
+else:
+    st.info("No current or prior indexed run manifests are available for comparison.")
 
 metric_df = pd.DataFrame(metric_rows)
 if metric_df.empty:
