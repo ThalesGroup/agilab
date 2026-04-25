@@ -58,6 +58,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "data_connector_facility_report_contract",
         "data_connector_resolution_report_contract",
         "data_connector_health_report_contract",
+        "data_connector_health_actions_report_contract",
         "data_connector_ui_preview_report_contract",
         "data_connector_live_ui_report_contract",
         "data_connector_app_catalogs_report_contract",
@@ -457,6 +458,31 @@ def test_data_connector_health_report_contract_plans_opt_in_probes() -> None:
     assert check["details"]["summary"]["unhealthy_count"] == 0
     assert "data_connector_health_opt_in_boundary" in check["details"]["check_ids"]
     assert "data_connector_health_no_network" in check["details"]["check_ids"]
+
+
+def test_data_connector_health_actions_report_contract_exposes_operator_triggers() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_health_actions_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.data_connector_health_actions.v1"
+    assert check["details"]["summary"]["run_status"] == "ready_for_operator_trigger"
+    assert check["details"]["summary"]["execution_mode"] == "operator_trigger_contract_only"
+    assert check["details"]["summary"]["action_count"] == 3
+    assert check["details"]["summary"]["connector_count"] == 3
+    assert check["details"]["summary"]["operator_trigger_count"] == 3
+    assert check["details"]["summary"]["pending_action_count"] == 3
+    assert check["details"]["summary"]["pending_operator_trigger_count"] == 3
+    assert check["details"]["summary"]["executed_probe_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["operator_context_required_count"] == 3
+    assert check["details"]["summary"]["credential_gated_count"] == 2
+    assert check["details"]["summary"]["no_credential_required_count"] == 1
+    assert check["details"]["summary"]["default_status_values"] == ["unknown_not_probed"]
+    assert check["details"]["summary"]["result_status_values"] == ["unknown_not_probed"]
+    assert "data_connector_health_actions_operator_trigger" in check["details"]["check_ids"]
+    assert "data_connector_health_actions_no_network" in check["details"]["check_ids"]
 
 
 def test_data_connector_ui_preview_report_contract_renders_connector_state() -> None:

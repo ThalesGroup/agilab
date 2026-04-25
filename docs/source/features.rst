@@ -178,6 +178,10 @@ single notebook but less ceremony than a production MLOps platform:
   ``health_probe_plan_only`` mode; it plans SQL, OpenSearch, and
   object-storage health/status probes behind operator opt-in and records
   ``unknown_not_probed`` public evidence without network checks
+- the data connector health actions report validates
+  ``tools/data_connector_health_actions_report.py --compact`` in
+  ``operator_trigger_contract_only`` mode; it exposes operator-triggered health
+  probes as explicit action rows while keeping public network execution at zero
 - the data connector UI preview report validates
   ``tools/data_connector_ui_preview_report.py --compact`` in
   ``static_ui_preview_only`` mode; it renders connector state and
