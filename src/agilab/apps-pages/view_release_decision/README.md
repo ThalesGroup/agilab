@@ -9,6 +9,7 @@ Primary use:
 - import external run-manifest evidence with `--manifest` / `--manifest-dir`
 - apply explicit artifact and KPI gates
 - export `promotion_decision.json`
+- maintain a per-artifact-root `manifest_index.json`
 
 Default search root:
 
@@ -38,5 +39,9 @@ Imported manifests are shown with source path, provenance, path id, manifest
 status, timing, validation statuses, and evidence status. A passing imported
 `source-checkout-first-proof` manifest can satisfy the first-proof gate, and the
 same import summary is written to `promotion_decision.json`.
+
+Export also updates `<artifact_root>/manifest_index.json`. The index groups
+imported run manifests by candidate bundle, so later release decisions can keep
+durable evidence history instead of relying only on pasted import arguments.
 
 This is the first app-layer MVP for AGILAB's promotion / release decision workflow.

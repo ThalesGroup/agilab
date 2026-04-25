@@ -183,7 +183,8 @@ production platform:
   gates on the first-proof ``run_manifest.json``, imports external manifest
   evidence with ``--manifest`` / ``--manifest-dir`` style inputs, evaluates
   artifact and KPI gates, and exports ``promotion_decision.json`` with manifest
-  summary, import summary, and gate details
+  summary, import summary, per-release ``manifest_index.json`` evidence
+  history, and gate details
 - the same evidence view surfaces reducer artifacts from benchmark distributed
   runs, meteo forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed

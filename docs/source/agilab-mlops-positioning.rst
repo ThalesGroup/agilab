@@ -130,8 +130,8 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
 - service health gates expose JSON and Prometheus-compatible operator checks
 - the release-decision page gates on the first-proof ``run_manifest.json``,
   imports external manifest evidence, applies artifact and KPI gates, and
-  exports ``promotion_decision.json`` with manifest summary, import summary,
-  and gate details
+  exports ``promotion_decision.json`` plus ``manifest_index.json`` with manifest
+  summary, import summary, per-release evidence history, and gate details
 - ``SECURITY.md`` documents supported versions, disclosure expectations, and a
   deployment hardening checklist
 
