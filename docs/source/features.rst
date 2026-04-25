@@ -59,16 +59,17 @@ agi-core
     schema.
   - ``execution_pandas_project`` and ``execution_polars_project`` emit named
     benchmark reduce artefacts through that shared contract, and the
-    user-facing ``uav_queue_project`` now emits the same
-    ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics.
+    user-facing ``uav_queue_project`` and ``uav_relay_queue_project`` now emit
+    the same ``reduce_summary_worker_<id>.json`` artifact shape for queue
+    metrics.
   - The Release Decision evidence view discovers those artefacts, validates
     their schema, and displays reducer name, partial count, artifact path,
-    benchmark row/source/execution fields, and UAV queue packet/PDR fields when
-    present.
+    benchmark row/source/execution fields, and UAV queue-family packet/PDR
+    fields when present.
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
   - Other existing apps still own their final merge semantics, so broader app
-    migration beyond the benchmark pair and first user-facing app remains
+    migration beyond the benchmark pair and first two user-facing apps remains
     roadmap work.
 
 - **Optimized Run-Mode Selection:**
@@ -148,8 +149,8 @@ single notebook but less ceremony than a production MLOps platform:
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
-broader reduce-contract app migration beyond the benchmark pair and first
-user-facing app remain roadmap work.
+broader reduce-contract app migration beyond the benchmark pair and first two
+user-facing apps remain roadmap work.
 
 Production-readiness controls
 -----------------------------
@@ -168,8 +169,8 @@ production platform:
 - the release-decision analysis page compares baseline and candidate bundles,
   applies artifact/KPI gates, and exports ``promotion_decision.json``
 - the same evidence view surfaces reducer artifacts from benchmark distributed
-  runs and UAV queue results, including invalid-artifact diagnostics when JSON
-  cannot be parsed
+  runs and UAV queue-family results, including invalid-artifact diagnostics when
+  JSON cannot be parsed
 - ``SECURITY.md`` provides the public vulnerability-reporting and deployment
   hardening baseline
 

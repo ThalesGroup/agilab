@@ -20,6 +20,7 @@ import simpy
 
 from agi_node.agi_dispatcher import BaseWorker
 from agi_node.pandas_worker import PandasWorker
+from uav_relay_queue.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -665,6 +666,11 @@ class UavRelayQueueWorker(PandasWorker):
             (root / f"{stem}_summary_metrics.json").write_text(
                 json.dumps(metrics, indent=2),
                 encoding="utf-8",
+            )
+            write_reduce_artifact(
+                metrics,
+                root,
+                worker_id=getattr(self, "_worker_id", 0),
             )
             for name, df in csv_payloads.items():
                 payload_df = df if isinstance(df, pd.DataFrame) else pd.DataFrame(df)

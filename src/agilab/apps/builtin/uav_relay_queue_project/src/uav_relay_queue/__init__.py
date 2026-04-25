@@ -10,9 +10,11 @@ from .app_args import (
     load_args,
     merge_args,
 )
+from .reduction import UAV_RELAY_QUEUE_REDUCE_CONTRACT
 from .uav_relay_queue import UavRelayQueue, UavRelayQueueApp, UavQueue, UavQueueApp
 
 __all__ = [
+    "UAV_RELAY_QUEUE_REDUCE_CONTRACT",
     "UavRelayQueue",
     "UavRelayQueueApp",
     "UavRelayQueueArgs",

@@ -73,19 +73,26 @@ def _write_reduce_artifact(path: Path, *, engine: str = "pandas") -> None:
     )
 
 
-def _write_uav_reduce_artifact(path: Path) -> None:
+def _write_uav_reduce_artifact(
+    path: Path,
+    *,
+    name: str = "uav_queue_reduce_summary",
+    reducer: str = "uav_queue.queue-metrics.v1",
+    app: str = "uav_queue_project",
+    scenario: str = "uav_queue_hotspot",
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "name": "uav_queue_reduce_summary",
-                "reducer": "uav_queue.queue-metrics.v1",
+                "name": name,
+                "reducer": reducer,
                 "partial_count": 1,
                 "partial_ids": ["uav_queue_worker_0_hotspot_seed2026"],
                 "payload": {
                     "scenario_count": 1,
-                    "scenarios": ["uav_queue_hotspot"],
+                    "scenarios": [scenario],
                     "packets_generated": 25,
                     "packets_delivered": 20,
                     "packets_dropped": 5,
@@ -94,7 +101,7 @@ def _write_uav_reduce_artifact(path: Path) -> None:
                     "mean_queue_wait_ms": 1.7,
                     "max_queue_depth_pkts": 6,
                 },
-                "metadata": {"app": "uav_queue_project"},
+                "metadata": {"app": app},
             }
         ),
         encoding="utf-8",
@@ -233,9 +240,17 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     artifact_root = tmp_path / "artifacts"
     valid_path = artifact_root / "run_a" / "reduce_summary_worker_0.json"
     uav_path = artifact_root / "run_uav" / "reduce_summary_worker_0.json"
+    relay_path = artifact_root / "run_uav_relay" / "reduce_summary_worker_0.json"
     invalid_path = artifact_root / "run_b" / "reduce_summary_worker_1.json"
     _write_reduce_artifact(valid_path, engine="polars")
     _write_uav_reduce_artifact(uav_path)
+    _write_uav_reduce_artifact(
+        relay_path,
+        name="uav_relay_queue_reduce_summary",
+        reducer="uav_relay_queue.queue-metrics.v1",
+        app="uav_relay_queue_project",
+        scenario="uav_relay_queue_hotspot",
+    )
     invalid_path.parent.mkdir(parents=True, exist_ok=True)
     invalid_path.write_text("{broken", encoding="utf-8")
 
@@ -243,6 +258,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
 
     valid = next(row for row in rows if row["status"] == "pass")
     uav = next(row for row in rows if row["reducer"] == "uav_queue.queue-metrics.v1")
+    relay = next(row for row in rows if row["reducer"] == "uav_relay_queue.queue-metrics.v1")
     invalid = next(row for row in rows if row["status"] == "invalid")
     assert valid["artifact"] == "run_a/reduce_summary_worker_0.json"
     assert valid["reducer"] == "execution_polars.weighted-score.v1"
@@ -261,6 +277,13 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     assert uav["mean_e2e_delay_ms"] == 12.4
     assert uav["mean_queue_wait_ms"] == 1.7
     assert uav["max_queue_depth_pkts"] == 6
+    assert relay["artifact"] == "run_uav_relay/reduce_summary_worker_0.json"
+    assert relay["scenario_count"] == 1
+    assert relay["scenarios"] == "uav_relay_queue_hotspot"
+    assert relay["packets_generated"] == 25
+    assert relay["packets_delivered"] == 20
+    assert relay["packets_dropped"] == 5
+    assert relay["pdr"] == 0.8
     assert invalid["artifact"] == "run_b/reduce_summary_worker_1.json"
     assert "Expecting property name" in invalid["detail"]
 
