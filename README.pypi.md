@@ -132,8 +132,22 @@ uv --preview-features extra-build-dependencies run python tools/global_pipeline_
 The report marks `queue_baseline` and `relay_followup` as
 `pending/not_executed`, records `relay_followup` as blocked on the
 `queue_metrics` artifact from `queue_baseline`, and keeps provenance back to
-the multi-app DAG sample plus each app-local `pipeline_view.dot`. Real runner
-dispatch, retries, and operator UI state remain future work.
+the multi-app DAG sample plus each app-local `pipeline_view.dot`.
+
+## Global DAG Runner State
+
+AGILAB now projects that execution plan into read-only dispatch and operator
+state without executing apps:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/global_pipeline_runner_state_report.py --compact
+```
+
+The report marks `queue_baseline` as `runnable` and `relay_followup` as
+`blocked`, models `pending -> runnable -> completed/failed` plus retry and
+partial-rerun transitions, and records operator-facing readiness messages with
+provenance back to the execution plan, DAG sample, and `pipeline_view.dot`
+files. Real runner dispatch and live operator UI remain future work.
 
 ## Evaluation Snapshot
 
@@ -142,8 +156,8 @@ CODEX 5.5 working scores, not production MLOps claims:
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
 | Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Validated locally, on one external macOS machine, on AI Lightning, on Hugging Face, on one bare-metal cluster, and on one VM-based cluster. Remaining validation gap: Azure, AWS, and GCP cloud deployments. |
-| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, flight, meteo forecast, and UAV queue-family reduce artifacts, a non-template built-in app guardrail, public reduce benchmark: `0.003s` vs `5.0s`, multi-app DAG report, global pipeline DAG report, and global execution-plan report. | Future apps/templates must opt in when they produce concrete merge outputs. |
-| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, a guided in-product first-proof wizard, stable `run_manifest.json` evidence consumed by the KPI bundle, the multi-app DAG contract, a read-only global pipeline graph, and pending execution-plan units. | Additional external replication beyond the current public first-proof paths is not claimed; real cross-app DAG execution and operator UI state remain roadmap work. |
+| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, flight, meteo forecast, and UAV queue-family reduce artifacts, a non-template built-in app guardrail, public reduce benchmark: `0.003s` vs `5.0s`, multi-app DAG report, global pipeline DAG report, global execution-plan report, and global runner-state report. | Future apps/templates must opt in when they produce concrete merge outputs. |
+| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, a guided in-product first-proof wizard, stable `run_manifest.json` evidence consumed by the KPI bundle, the multi-app DAG contract, a read-only global pipeline graph, pending execution-plan units, and read-only runnable/blocked operator state. | Additional external replication beyond the current public first-proof paths is not claimed; real cross-app DAG execution and live operator UI remain roadmap work. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, connector-registry release paths, provenance-tagged manifest-indexing, cross-release, and cross-run release-decision page export, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
 | Overall public evaluation | `3.6 / 5` | Mean of the four scored public KPIs: `(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625`. Cross-KPI evidence bundle and workflow-backed compatibility report documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |
 
