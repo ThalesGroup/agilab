@@ -3,7 +3,7 @@ version = 1
 updated = "2026-04-25"
 owner = "manual-public-docs"
 purpose = "Public compatibility and demo-tour slice for AGILAB"
-notes = "Matrix promoted into tools/compatibility_report.py for public status, proof-command validation, and optional local/external run_manifest.json evidence ingestion. External CI harvesting and broader certification remain roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
+notes = "Matrix promoted into tools/compatibility_report.py for public status, proof-command validation, optional local/external run_manifest.json evidence ingestion, and downloaded CI artifact-index ingestion. Broader certification remains roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
 
 [[entries]]
 id = "source-checkout-first-proof"

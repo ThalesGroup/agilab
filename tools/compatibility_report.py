@@ -160,6 +160,7 @@ def _build_manifest_evidence(
     *,
     manifest_paths: Sequence[Path] = (),
     manifest_dirs: Sequence[Path] = (),
+    artifact_index_paths: Sequence[Path] = (),
     include_default_manifests: bool = True,
 ) -> dict[str, Any]:
     run_manifest = _load_run_manifest_module(repo_root)
@@ -187,8 +188,80 @@ def _build_manifest_evidence(
                 "source": str(path),
                 "evidence_status": "validated" if passed else "failed",
                 "passed": passed,
+                "source_type": "run_manifest_file",
             }
         )
+
+    artifact_index_records: list[dict[str, Any]] = []
+    artifact_index_load_failures: list[dict[str, str]] = []
+    artifact_index_release_ids: set[str] = set()
+    expanded_artifact_index_paths = [Path(path).expanduser() for path in artifact_index_paths]
+    for path in expanded_artifact_index_paths:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("artifact index must be a JSON object")
+            release = payload.get("release", {})
+            if not isinstance(release, dict):
+                release = {}
+            release_id = str(payload.get("release_id") or release.get("release_id", ""))
+            if release_id:
+                artifact_index_release_ids.add(release_id)
+            artifacts = payload.get("artifacts", [])
+            if not isinstance(artifacts, list):
+                raise ValueError("artifact index must contain an artifacts list")
+        except Exception as exc:
+            artifact_index_load_failures.append({"path": str(path), "error": str(exc)})
+            continue
+
+        for index, artifact in enumerate(artifacts):
+            if not isinstance(artifact, dict) or artifact.get("kind") != "run_manifest":
+                continue
+            source = str(artifact.get("path") or f"{path}#artifacts[{index}]")
+            artifact_payload = artifact.get("payload")
+            try:
+                if isinstance(artifact_payload, dict):
+                    manifest = run_manifest.RunManifest.from_dict(artifact_payload)
+                    summary = run_manifest.manifest_summary(manifest)
+                    passed = bool(run_manifest.manifest_passed(manifest))
+                else:
+                    payload_summary = artifact.get("payload_summary", {})
+                    if not isinstance(payload_summary, dict):
+                        raise ValueError("run_manifest artifact lacks payload or payload_summary")
+                    summary = {
+                        "run_id": str(artifact.get("run_id", "")),
+                        "path_id": str(payload_summary.get("path_id", "")),
+                        "label": str(payload_summary.get("label", "")),
+                        "status": str(payload_summary.get("status", "")),
+                        "duration_seconds": payload_summary.get("duration_seconds"),
+                        "target_seconds": payload_summary.get("target_seconds"),
+                        "artifact_count": payload_summary.get("artifact_count", 0),
+                        "validation_statuses": payload_summary.get(
+                            "validation_statuses",
+                            {},
+                        ),
+                    }
+                    passed = artifact.get("payload_status") == "validated"
+                if not summary.get("path_id"):
+                    raise ValueError("run_manifest artifact does not declare path_id")
+            except Exception as exc:
+                artifact_index_load_failures.append(
+                    {"path": source, "artifact_index": str(path), "error": str(exc)}
+                )
+                continue
+
+            record = {
+                **summary,
+                "source": source,
+                "evidence_status": "validated" if passed else "failed",
+                "passed": passed,
+                "source_type": "artifact_index",
+                "artifact_index": str(path),
+                "release_id": release_id,
+                "provider": str(artifact.get("provider") or payload.get("provider", "")),
+            }
+            artifact_index_records.append(record)
+            records.append(record)
 
     records_by_path_id: dict[str, list[dict[str, Any]]] = {}
     for record in records:
@@ -200,11 +273,18 @@ def _build_manifest_evidence(
     }
     return {
         "manifest_paths": [str(path) for path in paths],
+        "artifact_index_paths": [str(path) for path in expanded_artifact_index_paths],
         "loaded_manifest_count": len(records),
+        "loaded_file_manifest_count": len(records) - len(artifact_index_records),
+        "loaded_artifact_index_count": len(expanded_artifact_index_paths),
+        "artifact_index_manifest_count": len(artifact_index_records),
+        "artifact_index_release_ids": sorted(artifact_index_release_ids),
+        "artifact_index_records": artifact_index_records,
         "records": records,
         "records_by_path_id": records_by_path_id,
         "path_statuses": path_statuses,
         "load_failures": load_failures,
+        "artifact_index_load_failures": artifact_index_load_failures,
         "discovery_errors": discovery_errors,
     }
 
@@ -325,6 +405,73 @@ def _check_run_manifest_evidence_ingestion(
         if ok
         else "run manifest evidence is invalid, failing, or not mapped to the compatibility matrix",
         evidence=["src/agilab/run_manifest.py", str(MATRIX_RELATIVE_PATH)],
+        details=details,
+    )
+
+
+def _check_artifact_index_evidence_ingestion(
+    repo_root: Path,
+    manifest_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    try:
+        entries = _load_matrix(repo_root)["entries"]
+        matrix_ids = {str(entry.get("id")) for entry in entries}
+        records = list(manifest_evidence.get("artifact_index_records", []))
+        path_statuses = {
+            str(record.get("path_id")): "validated"
+            if record.get("passed")
+            else "failed"
+            for record in records
+            if record.get("path_id")
+        }
+        unknown_path_ids = sorted(set(path_statuses) - matrix_ids)
+        failed_path_ids = sorted(
+            path_id
+            for path_id, status in path_statuses.items()
+            if status != "validated"
+        )
+        load_failures = list(manifest_evidence.get("artifact_index_load_failures", []))
+        ok = not unknown_path_ids and not failed_path_ids and not load_failures
+        loaded_index_count = int(manifest_evidence.get("loaded_artifact_index_count", 0))
+        loaded_manifest_count = int(
+            manifest_evidence.get("artifact_index_manifest_count", 0)
+        )
+        details = {
+            "loaded_artifact_index_count": loaded_index_count,
+            "artifact_index_manifest_count": loaded_manifest_count,
+            "artifact_index_paths": manifest_evidence.get("artifact_index_paths", []),
+            "artifact_index_release_ids": manifest_evidence.get(
+                "artifact_index_release_ids",
+                [],
+            ),
+            "path_statuses": path_statuses,
+            "records": records,
+            "unknown_path_ids": unknown_path_ids,
+            "failed_path_ids": failed_path_ids,
+            "load_failures": load_failures,
+        }
+    except Exception as exc:
+        ok = False
+        loaded_index_count = 0
+        loaded_manifest_count = 0
+        details = {"error": str(exc)}
+    return _check_result(
+        "artifact_index_evidence_ingestion",
+        "Artifact-index evidence ingestion",
+        ok,
+        (
+            f"loaded {loaded_manifest_count} run manifest(s) from "
+            f"{loaded_index_count} artifact index file(s)"
+            if loaded_index_count
+            else "artifact-index ingestion is wired; no provider or harvest indexes were supplied"
+        )
+        if ok
+        else "artifact-index evidence is invalid, failing, or not mapped to the compatibility matrix",
+        evidence=[
+            "tools/github_actions_artifact_index.py",
+            "tools/ci_artifact_harvest_report.py",
+            str(MATRIX_RELATIVE_PATH),
+        ],
         details=details,
     )
 
@@ -479,9 +626,11 @@ def _check_docs_report_reference(repo_root: Path) -> dict[str, Any]:
         normalized_doc = " ".join(doc_text.split())
         required = [
             "tools/compatibility_report.py --compact",
+            "tools/compatibility_report.py --artifact-index",
             "workflow-backed compatibility report",
             "required public statuses",
             "run-manifest evidence ingestion",
+            "artifact-index evidence ingestion",
         ]
         stale = [
             "broader promotion from this matrix to a "
@@ -513,6 +662,7 @@ def build_report(
     repo_root: Path = REPO_ROOT,
     manifest_paths: Sequence[Path] = (),
     manifest_dirs: Sequence[Path] = (),
+    artifact_index_paths: Sequence[Path] = (),
     include_default_manifests: bool = True,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
@@ -520,11 +670,13 @@ def build_report(
         repo_root,
         manifest_paths=manifest_paths,
         manifest_dirs=manifest_dirs,
+        artifact_index_paths=artifact_index_paths,
         include_default_manifests=include_default_manifests,
     )
     checks = [
         _check_matrix_schema(repo_root),
         _check_run_manifest_evidence_ingestion(repo_root, manifest_evidence),
+        _check_artifact_index_evidence_ingestion(repo_root, manifest_evidence),
         _check_required_public_statuses(repo_root, manifest_evidence),
         _check_workflow_evidence_commands(repo_root),
         _check_documented_boundaries(repo_root),
@@ -568,12 +720,26 @@ def build_report(
                 "failed_path_ids": sorted(failed_manifest_paths),
                 "load_failures": len(manifest_evidence.get("load_failures", [])),
             },
+            "artifact_index_evidence": {
+                "loaded_indexes": manifest_evidence.get(
+                    "loaded_artifact_index_count",
+                    0,
+                ),
+                "loaded_manifests": manifest_evidence.get(
+                    "artifact_index_manifest_count",
+                    0,
+                ),
+                "release_ids": manifest_evidence.get("artifact_index_release_ids", []),
+                "load_failures": len(
+                    manifest_evidence.get("artifact_index_load_failures", [])
+                ),
+            },
         },
         "scope": (
             "Validates the public compatibility matrix schema, required public "
             "path statuses, executable proof-command references, and optional "
-            "run-manifest evidence. It does not claim broad OS, network, or "
-            "remote-topology certification."
+            "run-manifest and artifact-index evidence. It does not claim broad "
+            "OS, network, or remote-topology certification."
         ),
         "checks": checks,
     }
@@ -603,6 +769,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Recursively load run_manifest.json files from a directory. May be repeated.",
     )
     parser.add_argument(
+        "--artifact-index",
+        action="append",
+        default=[],
+        type=Path,
+        help=(
+            "Load a provider artifact_index.json or ci_artifact_harvest.json "
+            "as compatibility evidence. May be repeated."
+        ),
+    )
+    parser.add_argument(
         "--no-default-manifests",
         action="store_true",
         help="Do not scan default local log roots such as ~/log/execute/*/run_manifest.json.",
@@ -615,6 +791,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = build_report(
         manifest_paths=args.manifest,
         manifest_dirs=args.manifest_dir,
+        artifact_index_paths=args.artifact_index,
         include_default_manifests=not args.no_default_manifests,
     )
     if args.compact:
