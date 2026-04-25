@@ -332,12 +332,30 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert payload["run_manifest_path"] == str(imported_manifest_path)
     assert payload["run_manifest_import_summary"]["loaded_manifest_count"] == 1
     assert payload["run_manifest_import_summary"]["validated_manifest_count"] == 1
+    assert payload["manifest_index_path"] == str(export_root / "manifest_index.json")
+    assert payload["manifest_index_summary"]["loaded"] is True
+    assert payload["manifest_index_summary"]["existing_index_loaded"] is False
+    assert payload["manifest_index_summary"]["existing_index_error"] == "missing"
+    assert payload["manifest_index_summary"]["release_count"] == 1
+    assert payload["manifest_index_summary"]["manifest_count"] == 1
     assert payload["imported_run_manifest_evidence"][0]["source"] == str(imported_manifest_path)
     assert payload["imported_run_manifest_evidence"][0]["path_id"] == "source-checkout-first-proof"
     assert payload["imported_run_manifest_evidence"][0]["evidence_status"] == "validated"
     assert payload["imported_run_manifest_evidence"][0]["duration_seconds"] == 5.0
     assert payload["imported_run_manifest_evidence"][0]["target_seconds"] == 600.0
     assert "proof_steps=pass" in payload["imported_run_manifest_evidence"][0]["validation_statuses"]
+    manifest_index_path = export_root / "manifest_index.json"
+    assert manifest_index_path.is_file()
+    manifest_index = json.loads(manifest_index_path.read_text(encoding="utf-8"))
+    assert manifest_index["schema"] == "agilab.manifest_index.v1"
+    release = manifest_index["releases"][str(candidate_root)]
+    assert release["release_id"] == "run_2026_04_17"
+    assert release["candidate_bundle_root"] == str(candidate_root)
+    assert release["baseline_bundle_root"] == str(baseline_root)
+    assert release["selected_run_manifest_path"] == str(imported_manifest_path)
+    assert release["import_summary"]["loaded_manifest_count"] == 1
+    assert release["manifests"][0]["source"] == str(imported_manifest_path)
+    assert release["manifests"][0]["evidence_status"] == "validated"
 
 
 def test_view_release_decision_blocks_candidate_with_missing_artifact(tmp_path, monkeypatch) -> None:
@@ -462,6 +480,46 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     assert import_rows[0]["duration_seconds"] == 601.0
     assert "target_seconds=pass" in import_rows[0]["validation_statuses"]
     assert module._select_run_manifest_gate_path(tmp_path / "missing.json", import_rows) == bad_manifest
+
+    manifest_index_path = tmp_path / "artifact_root" / "manifest_index.json"
+    empty_index, empty_summary = module._load_manifest_index(manifest_index_path)
+    assert empty_summary["loaded"] is False
+    assert empty_summary["error"] == "missing"
+    release = module._build_manifest_index_release(
+        artifact_root=manifest_index_path.parent,
+        baseline_path=tmp_path / "artifact_root" / "run_a" / "metrics.json",
+        candidate_path=tmp_path / "artifact_root" / "run_b" / "metrics.json",
+        run_manifest_path=bad_manifest,
+        run_manifest_summary=bad_summary,
+        imported_manifest_rows=import_rows,
+        imported_manifest_summary=import_summary,
+    )
+    merged_index = module._merge_manifest_index(
+        empty_index,
+        artifact_root=manifest_index_path.parent,
+        release=release,
+    )
+    merged_summary = module._manifest_index_summary(
+        merged_index,
+        path=manifest_index_path,
+        loaded=empty_summary["loaded"],
+        error=empty_summary["error"],
+    )
+    assert merged_summary["release_count"] == 1
+    assert merged_summary["manifest_count"] == 1
+    assert merged_summary["loaded"] is True
+    assert merged_summary["existing_index_loaded"] is False
+    assert merged_summary["validated_manifest_count"] == 1
+    index_rows = module._manifest_index_rows(merged_index)
+    assert index_rows[0]["release"] == "run_b"
+    assert index_rows[0]["source"] == str(bad_manifest)
+    written_index = module._write_manifest_index(manifest_index_path, merged_index)
+    assert written_index == manifest_index_path
+    loaded_index, loaded_summary = module._load_manifest_index(manifest_index_path)
+    assert loaded_summary["loaded"] is True
+    assert loaded_summary["release_count"] == 1
+    loaded_release = loaded_index["releases"][str(tmp_path / "artifact_root" / "run_b")]
+    assert loaded_release["manifests"][0]["source"] == str(bad_manifest)
 
     missing_paths, missing_dirs, missing_errors = module._parse_manifest_import_args("--manifest-dir")
     assert missing_paths == []

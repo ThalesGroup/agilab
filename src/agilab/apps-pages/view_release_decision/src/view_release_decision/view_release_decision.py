@@ -39,6 +39,8 @@ from agi_node.reduction import ReduceArtifact
 LOWER_IS_BETTER_KEYWORDS = ("mae", "rmse", "mape", "loss", "error", "latency", "duration")
 HIGHER_IS_BETTER_KEYWORDS = ("accuracy", "f1", "precision", "recall", "throughput", "score", "auc", "r2")
 REDUCE_ARTIFACT_GLOB = "**/reduce_summary_worker_*.json"
+MANIFEST_INDEX_FILENAME = "manifest_index.json"
+MANIFEST_INDEX_SCHEMA = "agilab.manifest_index.v1"
 FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 REQUIRED_FIRST_PROOF_VALIDATIONS = ("proof_steps", "target_seconds", "recommended_project")
 APP_DEFAULT_METRICS_GLOBS = {
@@ -272,6 +274,180 @@ def _select_run_manifest_gate_path(default_path: Path, imported_rows: list[dict[
     if selected:
         return Path(str(selected[0]["source"])).expanduser()
     return default_path
+
+
+def _manifest_index_path(artifact_root: Path) -> Path:
+    return artifact_root.expanduser() / MANIFEST_INDEX_FILENAME
+
+
+def _load_manifest_index(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    path = path.expanduser()
+    empty_index = {
+        "schema": MANIFEST_INDEX_SCHEMA,
+        "generated_at": None,
+        "artifact_root": str(path.parent),
+        "releases": {},
+    }
+    if not path.exists():
+        return empty_index, {
+            "path": str(path),
+            "loaded": False,
+            "error": "missing",
+            "release_count": 0,
+            "manifest_count": 0,
+        }
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("manifest index must be a JSON object")
+        if payload.get("schema") != MANIFEST_INDEX_SCHEMA:
+            raise ValueError(f"unsupported manifest index schema: {payload.get('schema')!r}")
+        releases = payload.get("releases", {})
+        if not isinstance(releases, dict):
+            raise ValueError("manifest index releases must be an object")
+        payload["releases"] = releases
+        manifest_count = sum(
+            len(release.get("manifests", []))
+            for release in releases.values()
+            if isinstance(release, dict)
+        )
+        return payload, {
+            "path": str(path),
+            "loaded": True,
+            "error": None,
+            "release_count": len(releases),
+            "manifest_count": manifest_count,
+        }
+    except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        return empty_index, {
+            "path": str(path),
+            "loaded": False,
+            "error": str(exc),
+            "release_count": 0,
+            "manifest_count": 0,
+        }
+
+
+def _build_manifest_index_record(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source": row.get("source", ""),
+        "provenance": row.get("provenance", ""),
+        "path_id": row.get("path_id", ""),
+        "run_id": row.get("run_id", ""),
+        "manifest_status": row.get("manifest_status", ""),
+        "evidence_status": row.get("evidence_status", ""),
+        "duration_seconds": row.get("duration_seconds"),
+        "target_seconds": row.get("target_seconds"),
+        "validation_statuses": row.get("validation_statuses", ""),
+        "loaded": bool(row.get("loaded")),
+        "detail": row.get("detail", ""),
+    }
+
+
+def _build_manifest_index_release(
+    *,
+    artifact_root: Path,
+    baseline_path: Path,
+    candidate_path: Path,
+    run_manifest_path: Path,
+    run_manifest_summary: dict[str, Any],
+    imported_manifest_rows: list[dict[str, Any]],
+    imported_manifest_summary: dict[str, Any],
+) -> dict[str, Any]:
+    candidate_bundle = candidate_path.parent
+    baseline_bundle = baseline_path.parent
+    return {
+        "release_id": candidate_bundle.name,
+        "artifact_root": str(artifact_root),
+        "candidate_bundle_root": str(candidate_bundle),
+        "baseline_bundle_root": str(baseline_bundle),
+        "candidate_metrics_file": str(candidate_path),
+        "baseline_metrics_file": str(baseline_path),
+        "selected_run_manifest_path": str(run_manifest_path),
+        "selected_run_manifest_summary": run_manifest_summary,
+        "import_summary": imported_manifest_summary,
+        "manifests": [
+            _build_manifest_index_record(row)
+            for row in imported_manifest_rows
+        ],
+    }
+
+
+def _merge_manifest_index(
+    existing_index: dict[str, Any],
+    *,
+    artifact_root: Path,
+    release: dict[str, Any],
+) -> dict[str, Any]:
+    releases = dict(existing_index.get("releases", {}))
+    releases[str(release["candidate_bundle_root"])] = release
+    return {
+        "schema": MANIFEST_INDEX_SCHEMA,
+        "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "artifact_root": str(artifact_root),
+        "releases": releases,
+    }
+
+
+def _manifest_index_summary(index: dict[str, Any], *, path: Path, loaded: bool, error: str | None) -> dict[str, Any]:
+    releases = index.get("releases", {})
+    manifest_rows = [
+        manifest
+        for release in releases.values()
+        if isinstance(release, dict)
+        for manifest in release.get("manifests", [])
+        if isinstance(manifest, dict)
+    ]
+    return {
+        "path": str(path),
+        "loaded": True,
+        "error": None,
+        "existing_index_loaded": loaded,
+        "existing_index_error": error,
+        "release_count": len(releases),
+        "manifest_count": len(manifest_rows),
+        "validated_manifest_count": sum(
+            1 for row in manifest_rows if row.get("evidence_status") == "validated"
+        ),
+        "failed_manifest_count": sum(
+            1 for row in manifest_rows if row.get("evidence_status") == "failed"
+        ),
+        "invalid_manifest_count": sum(
+            1 for row in manifest_rows if row.get("evidence_status") == "invalid"
+        ),
+    }
+
+
+def _manifest_index_rows(index: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    releases = index.get("releases", {})
+    for release_key, release in sorted(releases.items()):
+        if not isinstance(release, dict):
+            continue
+        for manifest in release.get("manifests", []):
+            if not isinstance(manifest, dict):
+                continue
+            rows.append(
+                {
+                    "release": release.get("release_id", Path(str(release_key)).name),
+                    "candidate_bundle": release.get("candidate_bundle_root", release_key),
+                    "source": manifest.get("source", ""),
+                    "provenance": manifest.get("provenance", ""),
+                    "path_id": manifest.get("path_id", ""),
+                    "run_id": manifest.get("run_id", ""),
+                    "manifest_status": manifest.get("manifest_status", ""),
+                    "evidence_status": manifest.get("evidence_status", ""),
+                    "duration_seconds": manifest.get("duration_seconds"),
+                    "target_seconds": manifest.get("target_seconds"),
+                }
+            )
+    return rows
+
+
+def _write_manifest_index(path: Path, payload: dict[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path
 
 
 def _discover_files(base: Path, pattern: str) -> list[Path]:
@@ -647,6 +823,8 @@ def _decision_payload(
     run_manifest_summary: dict[str, Any],
     imported_manifest_rows: list[dict[str, Any]],
     imported_manifest_summary: dict[str, Any],
+    manifest_index_path: Path,
+    manifest_index_summary: dict[str, Any],
     status: str,
     summary: str,
     tolerance_pct: float,
@@ -671,6 +849,8 @@ def _decision_payload(
         "run_manifest_gates": run_manifest_rows,
         "run_manifest_import_summary": imported_manifest_summary,
         "imported_run_manifest_evidence": imported_manifest_rows,
+        "manifest_index_path": str(manifest_index_path),
+        "manifest_index_summary": manifest_index_summary,
         "artifact_gates": artifact_rows,
         "metric_gates": metric_rows,
         "reduce_artifacts": reduce_artifact_rows,
@@ -810,6 +990,28 @@ candidate_metrics = _flatten_numeric_metrics(candidate_payload)
 metric_rows = _build_metric_rows(baseline_metrics, candidate_metrics, tolerance_pct=tolerance_pct)
 artifact_rows = _build_artifact_rows(baseline_path.parent, candidate_path.parent, required_patterns)
 run_manifest_rows, run_manifest_summary = _build_run_manifest_gate_rows(run_manifest_path)
+manifest_index_path = _manifest_index_path(artifact_root)
+existing_manifest_index, existing_manifest_index_summary = _load_manifest_index(manifest_index_path)
+current_manifest_index_release = _build_manifest_index_release(
+    artifact_root=artifact_root,
+    baseline_path=baseline_path,
+    candidate_path=candidate_path,
+    run_manifest_path=run_manifest_path,
+    run_manifest_summary=run_manifest_summary,
+    imported_manifest_rows=imported_manifest_rows,
+    imported_manifest_summary=imported_manifest_summary,
+)
+manifest_index_payload = _merge_manifest_index(
+    existing_manifest_index,
+    artifact_root=artifact_root,
+    release=current_manifest_index_release,
+)
+manifest_index_summary = _manifest_index_summary(
+    manifest_index_payload,
+    path=manifest_index_path,
+    loaded=bool(existing_manifest_index_summary.get("loaded")),
+    error=existing_manifest_index_summary.get("error"),
+)
 decision_status, decision_summary = _decision_status(
     baseline_path=baseline_path,
     candidate_path=candidate_path,
@@ -832,6 +1034,8 @@ payload = _decision_payload(
     run_manifest_summary=run_manifest_summary,
     imported_manifest_rows=imported_manifest_rows,
     imported_manifest_summary=imported_manifest_summary,
+    manifest_index_path=manifest_index_path,
+    manifest_index_summary=manifest_index_summary,
     status=decision_status,
     summary=decision_summary,
     tolerance_pct=tolerance_pct,
@@ -871,6 +1075,14 @@ if imported_manifest_rows:
     )
     st.dataframe(imported_manifest_df, width="stretch", hide_index=True)
 
+manifest_index_rows = _manifest_index_rows(manifest_index_payload)
+st.subheader("Per-release manifest index")
+st.caption(str(manifest_index_path))
+if manifest_index_rows:
+    st.dataframe(pd.DataFrame(manifest_index_rows), width="stretch", hide_index=True)
+else:
+    st.info("No imported run manifests are indexed for this artifact root yet.")
+
 metric_df = pd.DataFrame(metric_rows)
 if metric_df.empty:
     st.info("No shared numeric metrics were available for an automatic KPI gate.")
@@ -881,7 +1093,8 @@ else:
 decision_path = candidate_path.parent / "promotion_decision.json"
 if st.button("Export promotion decision", type="primary", use_container_width=True):
     written = _write_decision(decision_path, payload)
-    st.success(f"Promotion decision exported to {written}")
+    written_index = _write_manifest_index(manifest_index_path, manifest_index_payload)
+    st.success(f"Promotion decision exported to {written}; manifest index exported to {written_index}")
 
 st.download_button(
     "Download decision JSON",
