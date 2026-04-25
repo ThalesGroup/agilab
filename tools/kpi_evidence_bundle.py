@@ -410,6 +410,56 @@ def _check_public_certification_profile_report(repo_root: Path) -> dict[str, Any
     )
 
 
+def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        supply_chain_attestation_report = _load_tool_module(
+            repo_root,
+            "supply_chain_attestation_report",
+        )
+        report = supply_chain_attestation_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.supply_chain_attestation.v1"
+            and summary.get("execution_mode") == "supply_chain_static_attestation"
+            and summary.get("package_name") == "agilab"
+            and summary.get("lockfile_present") is True
+            and summary.get("license_present") is True
+            and summary.get("core_component_count") == 4
+            and summary.get("aligned_core_versions") is True
+            and summary.get("builtin_app_pyproject_count") == 7
+            and summary.get("command_execution_count") == 0
+            and summary.get("network_probe_count") == 0
+            and summary.get("formal_supply_chain_attestation") is False
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "supply_chain_attestation_report_contract",
+        "Supply-chain attestation report contract",
+        ok,
+        (
+            "supply-chain attestation report fingerprints package metadata, "
+            "lockfile, core versions, and app manifests without formal claims"
+            if ok
+            else "supply-chain attestation report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/supply_chain_attestation_report.py",
+            "src/agilab/supply_chain_attestation.py",
+            "pyproject.toml",
+            "uv.lock",
+        ],
+        details=details,
+    )
+
+
 def _check_run_diff_evidence_report(repo_root: Path) -> dict[str, Any]:
     try:
         run_diff_evidence_report = _load_tool_module(
@@ -2163,6 +2213,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/reduce_contract_benchmark.py --json",
             "tools/revision_traceability_report.py --compact",
             "tools/public_certification_profile_report.py --compact",
+            "tools/supply_chain_attestation_report.py --compact",
             "tools/run_diff_evidence_report.py --compact",
             "tools/ci_artifact_harvest_report.py --compact",
             "tools/github_actions_artifact_index.py --archive",
@@ -2204,6 +2255,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/production_readiness_report.py",
             "tools/revision_traceability_report.py",
             "tools/public_certification_profile_report.py",
+            "tools/supply_chain_attestation_report.py",
             "tools/run_diff_evidence_report.py",
             "tools/ci_artifact_harvest_report.py",
             "tools/github_actions_artifact_index.py",
@@ -2280,6 +2332,7 @@ def build_bundle(
         _check_run_manifest_contract(repo_root),
         _check_revision_traceability_report(repo_root),
         _check_public_certification_profile_report(repo_root),
+        _check_supply_chain_attestation_report(repo_root),
         _check_run_diff_evidence_report(repo_root),
         _check_ci_artifact_harvest_report(repo_root),
         _check_github_actions_artifact_index(repo_root),

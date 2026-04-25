@@ -202,6 +202,10 @@ Current shipped baseline:
   `agilab.public_certification_profile.v1` and turns the compatibility matrix
   into a `bounded_public_evidence` certification profile without production or
   third-party certification claims
+- `tools/supply_chain_attestation_report.py --compact` validates
+  `agilab.supply_chain_attestation.v1` and fingerprints package metadata,
+  lockfile, license, bundled AGI core versions, and built-in app manifests
+  without formal supply-chain attestation claims
 - `tools/ci_artifact_harvest_report.py --compact` now defines the
   no-network external-machine attachment contract for run manifests, KPI
   bundles, compatibility reports, and promotion decisions
