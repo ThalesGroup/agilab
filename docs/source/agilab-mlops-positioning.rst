@@ -88,6 +88,9 @@ interactive exploration into a replayable, inspectable workflow:
 - the data connector live UI report wires connector state and
   connector-derived provenance into the Release Decision Streamlit page without
   running connector probes
+- the data connector app catalogs report validates app-local connector catalogs
+  for ``flight_project`` and ``meteo_forecast_project`` while preserving
+  legacy path fallbacks
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
@@ -148,6 +151,8 @@ history:
 - Release Decision connector live UI integration makes the same connector
   provenance visible in an operator-facing page while keeping health probes
   opt-in
+- app-local connector catalogs let mature built-in apps move connector
+  definitions next to their ``app_settings.toml`` files
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
 - the in-product first-proof wizard now guides one validated ``flight_project``
@@ -271,6 +276,8 @@ between research experiments and engineering validation:
   static review artifact
 - a data connector live UI report that proves Release Decision renders that
   connector provenance through reusable Streamlit components
+- a data connector app catalogs report that proves connector definitions can
+  live with built-in apps instead of only in global samples
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

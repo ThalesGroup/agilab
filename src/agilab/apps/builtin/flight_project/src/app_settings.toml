@@ -24,6 +24,25 @@ allow_idle = false
 max_unhealthy = 0
 max_restart_rate = 0.25
 
+[connector_catalog]
+path = "connectors/data_connectors.toml"
+
+[connector_refs]
+track_source = "flight_tracks_sql"
+operator_events = "flight_ops_opensearch"
+artifact_store = "flight_artifact_store"
+
+[page_connector_refs.view_maps]
+trajectory_store = "flight_artifact_store"
+
+[page_connector_refs.view_maps_network]
+network_evidence = "flight_ops_opensearch"
+trajectory_store = "flight_artifact_store"
+
+[legacy_paths]
+data_in = "flight/dataset"
+data_out = "flight/dataframe"
+
 [view_maps]
 datadir = "/home/agi/export/flight"
 file_ext_choice = "all"

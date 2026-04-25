@@ -24,6 +24,22 @@ allow_idle = false
 max_unhealthy = 0
 max_restart_rate = 0.25
 
+[connector_catalog]
+path = "connectors/data_connectors.toml"
+
+[connector_refs]
+training_sql = "meteo_training_sql"
+operator_events = "meteo_ops_opensearch"
+artifact_store = "meteo_artifact_store"
+
+[page_connector_refs.release_decision]
+evidence_index = "meteo_ops_opensearch"
+artifact_store = "meteo_artifact_store"
+
+[legacy_paths]
+data_in = "meteo_forecast/dataset"
+data_out = "meteo_forecast/results"
+
 [pages]
 view_module = [
     "view_forecast_analysis",
