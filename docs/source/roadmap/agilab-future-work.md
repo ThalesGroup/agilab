@@ -12,42 +12,38 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **Compatibility matrix automation**
-   - ingest local and external `run_manifest.json` files into release/path
-     status
-   - replace the current manual compatibility page with workflow-backed status
-2. **First-proof wizard follow-ups**
+1. **First-proof wizard follow-ups**
    - the shipped wizard now guides one validated `flight_project` path,
      consumes compatibility-report status, and detects `run_manifest.json`
    - future work is external run evidence ingestion and richer remediation, not
      the baseline in-product route
-3. **Run manifest external ingestion follow-ups**
-   - generalize manifest import beyond the local first-proof default consumed
-     by the release-decision page
-   - index external fresh-machine and CI manifests for compatibility and
-     release decisions
-4. **Connector registry hardening**
+2. **Run manifest external ingestion follow-ups**
+   - build on the shipped compatibility-report `--manifest` and
+     `--manifest-dir` inputs
+   - add UI import, signed/provenance-tagged attachments, and per-release
+     manifest indexes for compatibility and release decisions
+3. **Connector registry hardening**
    - stabilize path portability and artefact resolution across apps/pages
    - this reduces glue before deeper cross-app automation
-5. **Multi-app DAG orchestration**
+4. **Multi-app DAG orchestration**
    - extend orchestration from one app flow to DAGs that span multiple apps
    - this is the contract needed before the pipeline can become a true
      cross-app orchestrated graph
-6. **Global orchestrated pipeline DAG**
+5. **Global orchestrated pipeline DAG**
    - let `PIPELINE` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
    - this depends on clearer multi-app orchestration contracts
-7. **Bidirectional notebook interop**
+6. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
    - add notebook-to-pipeline import maturity and optional single-kernel
      union-environment notebooks when step environments are compatible
-8. **Data connector facility**
+7. **Data connector facility**
    - make SQL, ELK, object storage, and other external data sources first-class
      connector targets
    - this turns connector work into a practical data-access layer, not just path
      cleanup
-9. **Reduce contract adoption**
+8. **Reduce contract adoption**
    - AGILab already has distributed work-plan execution and an initial shared
      reducer contract
    - the public reducer benchmark now validates 8 partials / 80,000 synthetic
@@ -69,14 +65,14 @@ use this order:
      has no concrete merge output yet
    - future apps/templates must opt in when they produce durable worker
      summaries
-10. **Intent-first operator mode**
+9. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
 
 Why this order:
 
-- feed external manifest evidence into compatibility status before broader
-  onboarding automation
+- turn manifest evidence ingestion into guided remediation and release indexes
+  before broader onboarding automation
 - start with validated proof before broader onboarding automation
 - stabilize cross-app orchestration before claiming a global orchestrated DAG
 - keep notebook interop after the orchestration contract is clearer
@@ -709,7 +705,6 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Compatibility matrix automation
 - First-proof wizard follow-ups
 - Run manifest external ingestion follow-ups
 - Connector registry hardening

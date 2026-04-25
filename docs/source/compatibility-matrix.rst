@@ -18,12 +18,13 @@ The machine-readable source for this page is:
 
 - :download:`compatibility_matrix.toml <data/compatibility_matrix.toml>`
 
-Maintainers can validate the matrix schema, required public statuses, and proof
-commands with:
+Maintainers can validate the matrix schema, required public statuses,
+run-manifest evidence ingestion, and proof commands with:
 
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --manifest ~/log/execute/flight/run_manifest.json --compact
 
 Current public matrix
 ---------------------
@@ -99,11 +100,15 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --analysis-view view_maps --json
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
 
-The compact compatibility report checks the required public statuses and the
-proof commands behind validated entries. The compact KPI bundle consumes that
-report and includes the ``reduce_contract_adoption_guardrail`` check, which
-verifies that every non-template built-in app exposes a reducer contract and
-records ``mycode_project`` as the explicit template-only exemption.
+The compact compatibility report checks the required public statuses, the proof
+commands behind validated entries, and optional ``run_manifest.json`` evidence.
+It scans default local log roots and also accepts explicit external evidence
+with ``--manifest`` or ``--manifest-dir``. When a manifest is present, the report
+derives that path's effective status from the manifest result; without a
+manifest, it falls back to the checked-in matrix status. The compact KPI bundle
+consumes that report and includes the ``reduce_contract_adoption_guardrail``
+check, which verifies that every non-template built-in app exposes a reducer
+contract and records ``mycode_project`` as the explicit template-only exemption.
 
 For the source-checkout first proof, ``tools/newcomer_first_proof.py --json``
 also writes ``~/log/execute/flight/run_manifest.json``. That stable manifest is
@@ -123,7 +128,7 @@ What remains roadmap work
 This first matrix closes the small, manual version of the compatibility item.
 The larger roadmap work is still open:
 
-- automatic ingestion from external CI workflow artifacts
+- automatic harvesting from external CI workflow artifacts
 - per-release compatibility status
 - broader app/core revision traceability beyond the first-proof manifest
 - explicit certification for more than the public newcomer/operator slices

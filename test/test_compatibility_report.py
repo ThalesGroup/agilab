@@ -18,10 +18,65 @@ def _load_module():
     return module
 
 
+def _write_manifest(
+    path: Path,
+    *,
+    status: str = "pass",
+    path_id: str = "source-checkout-first-proof",
+    validation_status: str = "pass",
+) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "agilab.run_manifest",
+                "run_id": "compatibility-test",
+                "path_id": path_id,
+                "label": "Source checkout first proof",
+                "status": status,
+                "command": {
+                    "label": "newcomer first proof",
+                    "argv": ["tools/newcomer_first_proof.py", "--json"],
+                    "cwd": str(path.parent),
+                    "env_overrides": {},
+                },
+                "environment": {
+                    "python_version": "3.13.0",
+                    "python_executable": sys.executable,
+                    "platform": "test",
+                    "repo_root": str(path.parent),
+                    "active_app": str(path.parent / "flight_project"),
+                    "app_name": "flight_project",
+                },
+                "timing": {
+                    "started_at": "2026-04-25T00:00:00Z",
+                    "finished_at": "2026-04-25T00:00:05Z",
+                    "duration_seconds": 5.0,
+                    "target_seconds": 600.0,
+                },
+                "artifacts": [],
+                "validations": [
+                    {
+                        "label": label,
+                        "status": validation_status,
+                        "summary": f"{label} {validation_status}",
+                        "details": {},
+                    }
+                    for label in ("proof_steps", "target_seconds", "recommended_project")
+                ],
+                "created_at": "2026-04-25T00:00:05Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def test_build_report_passes_public_compatibility_contracts() -> None:
     module = _load_module()
 
-    report = module.build_report()
+    report = module.build_report(include_default_manifests=False)
 
     assert report["report"] == "Compatibility report"
     assert report["status"] == "pass"
@@ -30,9 +85,16 @@ def test_build_report_passes_public_compatibility_contracts() -> None:
         "validated": 4,
     }
     assert report["summary"]["workflow_backed_validated_paths"] == 4
+    assert report["summary"]["manifest_evidence"] == {
+        "loaded": 0,
+        "path_ids": [],
+        "failed_path_ids": [],
+        "load_failures": 0,
+    }
     check_ids = {check["id"] for check in report["checks"]}
     assert check_ids == {
         "compatibility_matrix_schema",
+        "run_manifest_evidence_ingestion",
         "required_public_statuses",
         "workflow_evidence_commands",
         "documented_route_boundaries",
@@ -43,7 +105,7 @@ def test_build_report_passes_public_compatibility_contracts() -> None:
 def test_required_public_statuses_include_hf_demo_and_documented_routes() -> None:
     module = _load_module()
 
-    check = module._check_required_public_statuses(Path.cwd())
+    check = module._check_required_public_statuses(Path.cwd(), {"path_statuses": {}})
 
     assert check["status"] == "pass"
     statuses = check["details"]["actual_statuses"]
@@ -67,10 +129,77 @@ def test_workflow_evidence_commands_resolve_public_proof_tools() -> None:
     )
 
 
+def test_run_manifest_evidence_derives_compatibility_status(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest_path = _write_manifest(tmp_path / "external" / "run_manifest.json")
+
+    report = module.build_report(
+        manifest_paths=[manifest_path],
+        include_default_manifests=False,
+    )
+
+    assert report["status"] == "pass"
+    assert report["summary"]["manifest_evidence"]["loaded"] == 1
+    assert report["summary"]["manifest_evidence"]["path_ids"] == ["source-checkout-first-proof"]
+    manifest_check = next(
+        check
+        for check in report["checks"]
+        if check["id"] == "run_manifest_evidence_ingestion"
+    )
+    assert manifest_check["status"] == "pass"
+    assert manifest_check["details"]["path_statuses"] == {
+        "source-checkout-first-proof": "validated",
+    }
+    status_check = next(
+        check
+        for check in report["checks"]
+        if check["id"] == "required_public_statuses"
+    )
+    assert status_check["details"]["actual_statuses"]["source-checkout-first-proof"] == "validated"
+    assert status_check["details"]["manifest_evidence_statuses"] == {
+        "source-checkout-first-proof": "validated",
+    }
+
+
+def test_failing_run_manifest_blocks_evidence_backed_status(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest_path = _write_manifest(
+        tmp_path / "external" / "run_manifest.json",
+        status="fail",
+        validation_status="fail",
+    )
+
+    report = module.build_report(
+        manifest_paths=[manifest_path],
+        include_default_manifests=False,
+    )
+
+    assert report["status"] == "fail"
+    assert report["summary"]["manifest_evidence"]["failed_path_ids"] == [
+        "source-checkout-first-proof",
+    ]
+    manifest_check = next(
+        check
+        for check in report["checks"]
+        if check["id"] == "run_manifest_evidence_ingestion"
+    )
+    assert manifest_check["status"] == "fail"
+    status_check = next(
+        check
+        for check in report["checks"]
+        if check["id"] == "required_public_statuses"
+    )
+    assert status_check["details"]["actual_statuses"]["source-checkout-first-proof"] == "failed"
+    assert status_check["details"]["mismatched"]["source-checkout-first-proof"] == {
+        "expected": "validated",
+        "actual": "failed",
+    }
+
+
 def test_main_emits_json_and_returns_success(capsys) -> None:
     module = _load_module()
 
-    exit_code = module.main(["--compact"])
+    exit_code = module.main(["--compact", "--no-default-manifests"])
 
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
