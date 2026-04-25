@@ -180,12 +180,19 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/global_pipeline_runner_state_report.py --compact``; it records
   retry and partial-rerun metadata plus operator-facing readiness messages
   without claiming live app execution
+- the global DAG dispatch state report writes and reads back a
+  persisted run-state JSON proof with
+  ``tools/global_pipeline_dispatch_state_report.py --compact``; it records
+  ``queue_baseline completed``, publishes ``queue_metrics``, marks
+  ``relay_followup runnable``, and preserves timestamps, retry counters,
+  partial-rerun flags, operator messages, and provenance without claiming
+  real app execution
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
 app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear, and real global DAG dispatch plus live operator UI are
-still roadmap work.
+merge outputs appear, and real app execution across the global DAG plus live
+operator UI are still roadmap work.
 
 Production-readiness controls
 -----------------------------
