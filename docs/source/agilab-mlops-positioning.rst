@@ -169,6 +169,9 @@ history:
 - the run-diff evidence report compares static baseline/candidate KPI checks,
   run manifests, and artifact rows, then emits counterfactual prompts without
   executing commands or network probes
+- the CI artifact harvest report maps external-machine evidence attachments to
+  a release status with SHA-256 and provenance checks without querying live CI
+  providers
 - the multi-app DAG contract validates a first cross-app handoff from
   ``uav_queue_project`` to ``uav_relay_queue_project`` through
   ``tools/multi_app_dag_report.py --compact`` and the checked-in
@@ -238,6 +241,9 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
   cross-run evidence bundle comparison, and gate details
 - the standalone run-diff/counterfactual report gives those comparison claims a
   no-execution JSON contract suitable for public evidence review
+- the CI artifact harvest report gives external-machine replication a
+  contract-only attachment model for manifest, KPI, compatibility, and
+  promotion-decision evidence
 - ``SECURITY.md`` documents supported versions, disclosure expectations, and a
   deployment hardening checklist
 
@@ -302,6 +308,8 @@ between research experiments and engineering validation:
   live with built-in apps instead of only in global samples
 - a run-diff/counterfactual evidence report that turns baseline/candidate
   check, manifest, and artifact deltas into reviewable prompts
+- a CI artifact harvest report that turns external-machine evidence attachments
+  into validated release-status inputs
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

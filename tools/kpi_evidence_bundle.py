@@ -353,6 +353,59 @@ def _check_run_diff_evidence_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_ci_artifact_harvest_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        ci_artifact_harvest_report = _load_tool_module(
+            repo_root,
+            "ci_artifact_harvest_report",
+        )
+        report = ci_artifact_harvest_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.ci_artifact_harvest.v1"
+            and summary.get("run_status") == "harvest_ready"
+            and summary.get("execution_mode") == "ci_artifact_contract_only"
+            and summary.get("release_status") == "validated"
+            and summary.get("artifact_count") == 4
+            and summary.get("required_artifact_count") == 4
+            and summary.get("loaded_artifact_count") == 4
+            and summary.get("missing_required_count") == 0
+            and summary.get("checksum_verified_count") == 4
+            and summary.get("checksum_mismatch_count") == 0
+            and summary.get("provenance_tagged_count") == 4
+            and summary.get("external_machine_evidence_count") == 4
+            and summary.get("live_ci_query_count") == 0
+            and summary.get("network_probe_count") == 0
+            and summary.get("command_execution_count") == 0
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "ci_artifact_harvest_report_contract",
+        "CI artifact harvest report contract",
+        ok,
+        (
+            "CI artifact harvest report validates external-machine evidence "
+            "attachments with checksums and provenance without live CI queries"
+            if ok
+            else "CI artifact harvest report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/ci_artifact_harvest_report.py",
+            "src/agilab/ci_artifact_harvest.py",
+        ],
+        details=details,
+    )
+
+
 def _check_reduce_contract_benchmark(repo_root: Path) -> dict[str, Any]:
     try:
         reduce_contract_benchmark = _load_tool_module(repo_root, "reduce_contract_benchmark")
@@ -1741,6 +1794,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "run_manifest.json",
             "tools/reduce_contract_benchmark.py --json",
             "tools/run_diff_evidence_report.py --compact",
+            "tools/ci_artifact_harvest_report.py --compact",
             "tools/multi_app_dag_report.py --compact",
             "tools/global_pipeline_dag_report.py --compact",
             "tools/global_pipeline_execution_plan_report.py --compact",
@@ -1775,6 +1829,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/agilab_web_robot.py",
             "tools/production_readiness_report.py",
             "tools/run_diff_evidence_report.py",
+            "tools/ci_artifact_harvest_report.py",
             "tools/multi_app_dag_report.py",
             "tools/global_pipeline_dag_report.py",
             "tools/global_pipeline_execution_plan_report.py",
@@ -1845,6 +1900,7 @@ def build_bundle(
         _check_newcomer_first_proof_contract(repo_root),
         _check_run_manifest_contract(repo_root),
         _check_run_diff_evidence_report(repo_root),
+        _check_ci_artifact_harvest_report(repo_root),
         _check_multi_app_dag_report(repo_root),
         _check_global_pipeline_dag_report(repo_root),
         _check_global_pipeline_execution_plan_report(repo_root),

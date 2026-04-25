@@ -219,6 +219,12 @@ single notebook but less ceremony than a production MLOps platform:
   ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,
   run-manifest deltas, and artifact rows, then emits counterfactual prompts for
   material changes without executing commands or network probes
+- the CI artifact harvest report validates
+  ``tools/ci_artifact_harvest_report.py --compact`` in
+  ``ci_artifact_contract_only`` mode; it maps external-machine
+  ``run_manifest.json``, KPI bundle, compatibility report, and promotion
+  decision attachments to a release status with SHA-256 and provenance checks
+  without querying live CI providers
 - the multi-app DAG contract now validates app-to-app dependencies and
   artifact handoffs with ``tools/multi_app_dag_report.py --compact`` against
   ``docs/source/data/multi_app_dag_sample.json``; the first sample links
@@ -315,6 +321,9 @@ production platform:
   gate details
 - ``tools/run_diff_evidence_report.py --compact`` gives that comparison work a
   machine-checkable, no-execution run-diff/counterfactual evidence contract
+- ``tools/ci_artifact_harvest_report.py --compact`` adds the matching
+  external-machine attachment contract for CI-produced evidence bundles without
+  live CI or network access
 - the same evidence view surfaces reducer artifacts from benchmark distributed
   runs, meteo forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed
