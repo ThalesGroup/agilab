@@ -87,12 +87,12 @@ interactive exploration into a replayable, inspectable workflow:
 - the public reducer benchmark validates 8 partials / 80,000 synthetic items in
   ``0.003s`` against a ``5.0s`` target
 
-That supports a ``Research experimentation`` score of ``4.0 / 5``. It is not
-scored higher yet because a fuller run manifest and broader fresh-machine
-reproducibility matrix are still roadmap work. The compact KPI evidence bundle
-does report the reducer adoption guardrail; the remaining reducer rule is
-maintenance discipline: future apps/templates must opt in when they produce
-concrete merge outputs.
+That supports a ``Research experimentation`` score of ``4.0 / 5``. The compact
+KPI evidence bundle now reports both the reducer adoption guardrail and the
+first-proof ``run_manifest.json`` contract; broader fresh-machine
+reproducibility remains roadmap work. The remaining reducer rule is maintenance
+discipline: future apps/templates must opt in when they produce concrete merge
+outputs.
 
 Engineering prototyping evidence
 --------------------------------
@@ -151,8 +151,8 @@ between research experiments and engineering validation:
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because fuller run manifests, future app/template reducer adoption
-discipline, and broader fresh-install validation are still roadmap work.
+higher yet because future app/template reducer adoption discipline, external
+manifest ingestion, and broader fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------

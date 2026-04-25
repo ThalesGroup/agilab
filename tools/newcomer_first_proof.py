@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import shlex
@@ -19,6 +20,7 @@ from typing import Callable, Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ACTIVE_APP = REPO_ROOT / "src/agilab/apps/builtin/flight_project"
 DEFAULT_MAX_SECONDS = 10 * 60
+RUN_MANIFEST_RELATIVE_PATH = Path("src/agilab/run_manifest.py")
 UV_RUN_PYTHON = (
     "uv",
     "--preview-features",
@@ -48,6 +50,17 @@ class ProofStepResult:
     duration_seconds: float
     stdout: str
     env: dict[str, str]
+
+
+def _load_run_manifest_module():
+    module_path = REPO_ROOT / RUN_MANIFEST_RELATIVE_PATH
+    spec = importlib.util.spec_from_file_location("agilab_run_manifest_for_newcomer_proof", module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"unable to load run manifest module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -89,6 +102,19 @@ def _build_parser() -> argparse.ArgumentParser:
             f"(default: {DEFAULT_MAX_SECONDS})."
         ),
     )
+    parser.add_argument(
+        "--manifest-out",
+        default=None,
+        help=(
+            "Path for the stable run manifest. Defaults to "
+            "~/log/execute/<app>/run_manifest.json."
+        ),
+    )
+    parser.add_argument(
+        "--no-manifest",
+        action="store_true",
+        help="Do not write run_manifest.json when executing the proof.",
+    )
     return parser
 
 
@@ -102,6 +128,23 @@ def resolve_active_app(path_value: str) -> Path:
     if not pyproject.exists():
         raise FileNotFoundError(f"Missing pyproject.toml in app directory: {pyproject}")
     return active_app
+
+
+def default_output_dir(active_app: Path) -> Path:
+    log_root = Path(os.environ.get("AGILAB_LOG_ABS", str(Path.home() / "log"))).expanduser()
+    app_slug = active_app.name.replace("_project", "")
+    return log_root / "execute" / app_slug
+
+
+def default_manifest_path(active_app: Path) -> Path:
+    run_manifest = _load_run_manifest_module()
+    return run_manifest.run_manifest_path(default_output_dir(active_app))
+
+
+def resolve_manifest_path(active_app: Path, manifest_out: str | None) -> Path:
+    if manifest_out:
+        return Path(manifest_out).expanduser()
+    return default_manifest_path(active_app)
 
 
 def _preinit_smoke_command() -> ProofCommand:
@@ -297,6 +340,121 @@ def summarize_kpi(
     }
 
 
+def _collect_existing_artifacts(output_dir: Path, manifest_path: Path) -> list[object]:
+    run_manifest = _load_run_manifest_module()
+    artifacts = [
+        run_manifest.RunManifestArtifact(
+            name="run_manifest",
+            path=str(manifest_path.expanduser()),
+            kind="manifest",
+            exists=True,
+        )
+    ]
+    if not output_dir.exists():
+        return artifacts
+
+    for child in sorted(output_dir.iterdir(), key=lambda item: item.name):
+        if child.name.startswith(".") or child == manifest_path:
+            continue
+        if child.is_file() and child.suffix == ".py" and child.name.startswith("AGI_"):
+            continue
+        artifacts.append(run_manifest.RunManifestArtifact.from_path(child))
+    return artifacts
+
+
+def build_run_manifest(
+    *,
+    active_app: Path,
+    with_install: bool,
+    commands: Sequence[ProofCommand],
+    results: Sequence[ProofStepResult],
+    summary: dict[str, object],
+    max_seconds: float,
+    manifest_path: Path,
+) -> object:
+    run_manifest = _load_run_manifest_module()
+    executed_argv = ("tools/newcomer_first_proof.py", "--json")
+    if active_app.resolve() != DEFAULT_ACTIVE_APP.resolve():
+        executed_argv = (*executed_argv, "--active-app", str(active_app))
+    if with_install:
+        executed_argv = (*executed_argv, "--with-install")
+    if max_seconds != float(DEFAULT_MAX_SECONDS):
+        executed_argv = (*executed_argv, "--max-seconds", str(max_seconds))
+    if manifest_path.expanduser() != default_manifest_path(active_app).expanduser():
+        executed_argv = (*executed_argv, "--manifest-out", str(manifest_path.expanduser()))
+
+    output_dir = manifest_path.expanduser().parent
+    failed_step = summary.get("failed_step")
+    validations = [
+        run_manifest.RunManifestValidation(
+            label="proof_steps",
+            status="pass" if bool(summary.get("success")) else "fail",
+            summary=(
+                "all proof steps passed"
+                if bool(summary.get("success"))
+                else f"proof stopped at {failed_step or 'an incomplete step'}"
+            ),
+            details={
+                "passed_steps": summary.get("passed_steps"),
+                "expected_steps": summary.get("expected_steps"),
+                "command_labels": [command.label for command in commands],
+                "result_labels": [result.label for result in results],
+            },
+        ),
+        run_manifest.RunManifestValidation(
+            label="target_seconds",
+            status="pass" if bool(summary.get("within_target")) else "fail",
+            summary=(
+                f"proof completed within {max_seconds:.2f}s target"
+                if bool(summary.get("within_target"))
+                else f"proof exceeded or did not complete within {max_seconds:.2f}s target"
+            ),
+            details={
+                "total_duration_seconds": summary.get("total_duration_seconds"),
+                "target_seconds": max_seconds,
+            },
+        ),
+        run_manifest.RunManifestValidation(
+            label="recommended_project",
+            status="pass" if active_app.name == "flight_project" else "fail",
+            summary="active app is the recommended public flight_project",
+            details={"active_app": str(active_app), "app_name": active_app.name},
+        ),
+    ]
+    status = "pass" if all(validation.status == "pass" for validation in validations) else "fail"
+    return run_manifest.build_run_manifest(
+        path_id="source-checkout-first-proof",
+        label="Source checkout first proof",
+        status=status,
+        command=run_manifest.RunManifestCommand(
+            label="newcomer first proof",
+            argv=executed_argv,
+            cwd=str(REPO_ROOT),
+            env_overrides={
+                "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+                "OPENAI_API_KEY": "sk-test-newcomer-proof-000000000000",
+            },
+        ),
+        environment=run_manifest.RunManifestEnvironment.from_paths(
+            repo_root=REPO_ROOT,
+            active_app=active_app,
+        ),
+        timing=run_manifest.RunManifestTiming(
+            started_at=run_manifest.utc_now(),
+            finished_at=run_manifest.utc_now(),
+            duration_seconds=float(summary.get("total_duration_seconds", 0.0)),
+            target_seconds=max_seconds,
+        ),
+        artifacts=_collect_existing_artifacts(output_dir, manifest_path),
+        validations=validations,
+    )
+
+
+def write_run_manifest(manifest: object, manifest_path: Path) -> Path:
+    run_manifest = _load_run_manifest_module()
+    return run_manifest.write_run_manifest(manifest, manifest_path)
+
+
 def render_human(
     *,
     active_app: Path,
@@ -357,6 +515,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     active_app = resolve_active_app(args.active_app)
     commands = build_proof_commands(active_app, with_install=args.with_install)
+    manifest_path = resolve_manifest_path(active_app, args.manifest_out)
 
     if args.print_only:
         if args.json:
@@ -366,6 +525,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "active_app": str(active_app),
                         "with_install": args.with_install,
                         "kpi_target_seconds": args.max_seconds,
+                        "run_manifest_path": str(manifest_path),
+                        "run_manifest_filename": _load_run_manifest_module().RUN_MANIFEST_FILENAME,
                         "commands": [
                             {
                                 "label": command.label,
@@ -394,18 +555,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     results = run_proof(commands)
     summary = summarize_kpi(command_count=len(commands), results=results, max_seconds=args.max_seconds)
     success = bool(summary["success"])
-    if args.json:
-        print(
-            json.dumps(
-                {
-                    "active_app": str(active_app),
-                    "with_install": args.with_install,
-                    **summary,
-                    "results": [asdict(result) for result in results],
-                },
-                indent=2,
-            )
+    manifest = None
+    if not args.no_manifest:
+        manifest = build_run_manifest(
+            active_app=active_app,
+            with_install=args.with_install,
+            commands=commands,
+            results=results,
+            summary=summary,
+            max_seconds=args.max_seconds,
+            manifest_path=manifest_path,
         )
+        write_run_manifest(manifest, manifest_path)
+    if args.json:
+        payload = {
+            "active_app": str(active_app),
+            "with_install": args.with_install,
+            **summary,
+            "results": [asdict(result) for result in results],
+        }
+        if manifest is not None:
+            payload["run_manifest_path"] = str(manifest_path)
+            payload["run_manifest"] = manifest.as_dict()
+        print(json.dumps(payload, indent=2))
     else:
         print(
             render_human(
@@ -416,6 +588,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 max_seconds=args.max_seconds,
             )
         )
+        if manifest is not None:
+            print(f"\nrun manifest: {manifest_path}")
         for result in results:
             if result.stdout.strip():
                 print(f"\n[{result.label} output]\n{result.stdout.rstrip()}\n")

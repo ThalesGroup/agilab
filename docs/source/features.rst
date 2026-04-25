@@ -153,6 +153,9 @@ single notebook but less ceremony than a production MLOps platform:
 - the landing page first-proof wizard now routes newcomers through one
   validated ``flight_project`` source-checkout proof and shows its
   compatibility-report status
+- ``tools/newcomer_first_proof.py --json`` writes
+  ``~/log/execute/flight/run_manifest.json`` so the first proof has one stable
+  command/environment/timing/artifact/validation record
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future

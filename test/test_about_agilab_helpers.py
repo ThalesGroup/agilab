@@ -151,6 +151,8 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     assert content["compatibility_status"] == "validated"
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
+    assert content["run_manifest_filename"] == "run_manifest.json"
+    assert any("run_manifest.json" in item for item in content["success_criteria"])
     assert any("newcomer-guide" in url for _, url in content["links"])
     assert any("compatibility-matrix" in url for _, url in content["links"])
 
@@ -184,6 +186,9 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     assert state["compatibility_status"] == "validated"
     assert state["recommended_path_id"] == "source-checkout-first-proof"
     assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
+    assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight" / "run_manifest.json"
+    assert state["run_manifest_loaded"] is False
+    assert state["run_manifest_status"] == "missing"
     assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
 
 
@@ -230,4 +235,5 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
     assert "ORCHESTRATE" in body
     assert "ANALYSIS" in body
     assert "flight_project" in body
+    assert "run_manifest.json" in body
     assert "You are done when" in body

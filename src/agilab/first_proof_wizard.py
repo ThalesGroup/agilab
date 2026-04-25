@@ -57,6 +57,7 @@ class FirstProofContent:
     proof_command_labels: tuple[str, ...]
     target_seconds: float
     cli_command: str
+    run_manifest_filename: str
     steps: tuple[tuple[str, str], ...]
     success_criteria: tuple[str, ...]
     links: tuple[tuple[str, str], ...]
@@ -74,6 +75,7 @@ class FirstProofContent:
             "proof_command_labels": list(self.proof_command_labels),
             "target_seconds": self.target_seconds,
             "cli_command": self.cli_command,
+            "run_manifest_filename": self.run_manifest_filename,
             "steps": list(self.steps),
             "success_criteria": list(self.success_criteria),
             "links": list(self.links),
@@ -98,6 +100,12 @@ class FirstProofWizardState:
     active_app_name: str
     current_app_matches: bool
     output_dir: Path
+    run_manifest_path: Path
+    run_manifest_loaded: bool
+    run_manifest_status: str
+    run_manifest_passed: bool
+    run_manifest_summary: dict[str, Any]
+    run_manifest_error: str | None
     helper_scripts_present: bool
     visible_outputs: tuple[Path, ...]
     run_output_detected: bool
@@ -122,6 +130,12 @@ class FirstProofWizardState:
             "active_app_name": self.active_app_name,
             "current_app_matches": self.current_app_matches,
             "output_dir": self.output_dir,
+            "run_manifest_path": self.run_manifest_path,
+            "run_manifest_loaded": self.run_manifest_loaded,
+            "run_manifest_status": self.run_manifest_status,
+            "run_manifest_passed": self.run_manifest_passed,
+            "run_manifest_summary": self.run_manifest_summary,
+            "run_manifest_error": self.run_manifest_error,
             "helper_scripts_present": self.helper_scripts_present,
             "visible_outputs": list(self.visible_outputs),
             "run_output_detected": self.run_output_detected,
@@ -135,6 +149,17 @@ def _load_tool_module(repo_root: Path, name: str) -> Any:
     spec = importlib.util.spec_from_file_location(f"{name}_for_first_proof_wizard", module_path)
     if not spec or not spec.loader:
         raise RuntimeError(f"unable to load tool module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_run_manifest_module() -> Any:
+    module_path = Path(__file__).resolve().parent / "run_manifest.py"
+    spec = importlib.util.spec_from_file_location("agilab_run_manifest_for_first_proof_wizard", module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"unable to load run manifest module: {module_path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -215,6 +240,7 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         proof_command_labels=tool_contract.command_labels,
         target_seconds=tool_contract.target_seconds,
         cli_command=tool_contract.cli_command,
+        run_manifest_filename=_load_run_manifest_module().RUN_MANIFEST_FILENAME,
         steps=(
             ("PROJECT", "Go to `PROJECT`. Choose `flight_project`."),
             ("ORCHESTRATE", "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."),
@@ -222,6 +248,7 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         ),
         success_criteria=(
             "`flight_project` runs without error.",
+            "`run_manifest.json` records the command, environment, timing, artifacts, and validation status.",
             "Generated files are created under `~/log/execute/flight/`.",
             "A visible `ANALYSIS` result opens for `flight_project`.",
         ),
@@ -271,12 +298,25 @@ def first_proof_output_dir(env: Any) -> Path:
     return log_root / "execute" / "flight"
 
 
+def first_proof_run_manifest_path(output_dir: Path) -> Path:
+    run_manifest = _load_run_manifest_module()
+    return run_manifest.run_manifest_path(output_dir)
+
+
+def load_first_proof_run_manifest(output_dir: Path) -> tuple[Any | None, str | None]:
+    run_manifest = _load_run_manifest_module()
+    return run_manifest.try_load_run_manifest(first_proof_run_manifest_path(output_dir))
+
+
 def list_first_proof_outputs(output_dir: Path) -> tuple[Path, ...]:
     if not output_dir.exists():
         return ()
+    run_manifest = _load_run_manifest_module()
     outputs: list[Path] = []
     for child in sorted(output_dir.iterdir(), key=lambda item: item.name):
         if child.name.startswith("."):
+            continue
+        if child.name == run_manifest.RUN_MANIFEST_FILENAME:
             continue
         if child.is_file() and child.suffix == ".py" and child.name.startswith(FIRST_PROOF_HELPER_SCRIPT_PREFIXES):
             continue
@@ -296,6 +336,17 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
     project_path = newcomer_first_proof_project_path(env, repo_root)
     active_app_name = _active_app_name(env)
     output_dir = first_proof_output_dir(env)
+    run_manifest_path = first_proof_run_manifest_path(output_dir)
+    run_manifest_module = _load_run_manifest_module()
+    run_manifest, run_manifest_error = load_first_proof_run_manifest(output_dir)
+    run_manifest_loaded = run_manifest is not None
+    run_manifest_passed = bool(run_manifest and run_manifest_module.manifest_passed(run_manifest))
+    run_manifest_status = str(getattr(run_manifest, "status", "missing" if run_manifest_error == "missing" else "invalid"))
+    run_manifest_summary = (
+        run_manifest_module.manifest_summary(run_manifest)
+        if run_manifest is not None
+        else {}
+    )
     visible_outputs = list_first_proof_outputs(output_dir)
     helper_scripts_present = all(
         (output_dir / script_name).exists()
@@ -310,8 +361,10 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
         next_step = "Fix the app list first. `flight_project` is missing."
     elif not current_app_matches:
         next_step = "Go to `PROJECT`. Choose `flight_project`."
-    elif not visible_outputs:
+    elif not run_manifest_passed and not visible_outputs:
         next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
+    elif run_manifest_loaded and not run_manifest_passed:
+        next_step = "Run manifest found but not passing. Inspect the manifest validation details."
     else:
         next_step = "First proof done. Now you can try another demo."
 
@@ -332,13 +385,20 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
         active_app_name=active_app_name,
         current_app_matches=current_app_matches,
         output_dir=output_dir,
+        run_manifest_path=run_manifest_path,
+        run_manifest_loaded=run_manifest_loaded,
+        run_manifest_status=run_manifest_status,
+        run_manifest_passed=run_manifest_passed,
+        run_manifest_summary=run_manifest_summary,
+        run_manifest_error=None if run_manifest_error == "missing" else run_manifest_error,
         helper_scripts_present=helper_scripts_present,
         visible_outputs=visible_outputs,
-        run_output_detected=bool(visible_outputs),
+        run_output_detected=run_manifest_passed or bool(visible_outputs),
         next_step=next_step,
         diagnostics={
             "tool_command_count": len(content["proof_command_labels"]),
             "recommended_project": FIRST_PROOF_PROJECT,
+            "run_manifest_filename": content["run_manifest_filename"],
         },
     )
     return state.as_dict()
