@@ -99,6 +99,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
    uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --analysis-view view_maps --json
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/run_diff_evidence_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/multi_app_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_execution_plan_report.py --compact
@@ -128,7 +129,8 @@ It scans default local log roots and also accepts explicit external evidence
 with ``--manifest`` or ``--manifest-dir``. When a manifest is present, the report
 derives that path's effective status from the manifest result; without a
 manifest, it falls back to the checked-in matrix status. The compact KPI bundle
-consumes that report and includes the ``multi_app_dag_report_contract``,
+consumes that report and includes the ``run_diff_evidence_report_contract``,
+``multi_app_dag_report_contract``,
 ``global_pipeline_dag_report_contract``,
 ``global_pipeline_execution_plan_report_contract``,
 ``global_pipeline_runner_state_report_contract``,
@@ -151,6 +153,8 @@ consumes that report and includes the ``multi_app_dag_report_contract``,
 ``data_connector_live_ui_report_contract``,
 ``data_connector_app_catalogs_report_contract``, and
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
+static run-diff evidence report for baseline/candidate KPI, manifest, artifact,
+and counterfactual deltas without executing commands or network probes,
 checked-in cross-app DAG handoff sample plus supplemental portfolio sample,
 assemble the read-only product-level
 graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
@@ -211,7 +215,10 @@ current candidate against prior indexed evidence to flag better, stale, missing,
 failed, and newly validated manifests, including attachment hash matches. The
 same export includes a cross-run evidence bundle comparison across selected
 manifest, KPI, required artifact, and reduce-artifact evidence for the baseline
-and prior indexed releases.
+and prior indexed releases. ``tools/run_diff_evidence_report.py --compact``
+backs that direction with a standalone ``run_diff_evidence_only`` contract that
+records check, artifact, manifest, and counterfactual deltas without live
+execution.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and

@@ -301,6 +301,58 @@ def _check_run_manifest_contract(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_run_diff_evidence_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        run_diff_evidence_report = _load_tool_module(
+            repo_root,
+            "run_diff_evidence_report",
+        )
+        report = run_diff_evidence_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.run_diff_evidence.v1"
+            and summary.get("run_status") == "diff_ready"
+            and summary.get("execution_mode") == "run_diff_evidence_only"
+            and summary.get("check_added_count") == 1
+            and summary.get("check_removed_count") == 0
+            and summary.get("check_status_changed_count") == 0
+            and summary.get("check_summary_changed_count") == 1
+            and summary.get("artifact_added_count") == 2
+            and summary.get("artifact_removed_count") == 0
+            and summary.get("manifest_artifact_delta") == 1
+            and summary.get("counterfactual_count") == 2
+            and summary.get("network_probe_count") == 0
+            and summary.get("live_execution_count") == 0
+            and summary.get("command_execution_count") == 0
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "run_diff_evidence_report_contract",
+        "Run-diff evidence report contract",
+        ok,
+        (
+            "run-diff evidence report compares static baseline/candidate "
+            "evidence and emits counterfactual prompts without execution"
+            if ok
+            else "run-diff evidence report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/run_diff_evidence_report.py",
+            "src/agilab/run_diff_evidence.py",
+        ],
+        details=details,
+    )
+
+
 def _check_reduce_contract_benchmark(repo_root: Path) -> dict[str, Any]:
     try:
         reduce_contract_benchmark = _load_tool_module(repo_root, "reduce_contract_benchmark")
@@ -1688,6 +1740,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/newcomer_first_proof.py --json",
             "run_manifest.json",
             "tools/reduce_contract_benchmark.py --json",
+            "tools/run_diff_evidence_report.py --compact",
             "tools/multi_app_dag_report.py --compact",
             "tools/global_pipeline_dag_report.py --compact",
             "tools/global_pipeline_execution_plan_report.py --compact",
@@ -1721,6 +1774,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/hf_space_smoke.py --json",
             "tools/agilab_web_robot.py",
             "tools/production_readiness_report.py",
+            "tools/run_diff_evidence_report.py",
             "tools/multi_app_dag_report.py",
             "tools/global_pipeline_dag_report.py",
             "tools/global_pipeline_execution_plan_report.py",
@@ -1790,6 +1844,7 @@ def build_bundle(
         _check_workflow_compatibility_report(repo_root),
         _check_newcomer_first_proof_contract(repo_root),
         _check_run_manifest_contract(repo_root),
+        _check_run_diff_evidence_report(repo_root),
         _check_multi_app_dag_report(repo_root),
         _check_global_pipeline_dag_report(repo_root),
         _check_global_pipeline_execution_plan_report(repo_root),
