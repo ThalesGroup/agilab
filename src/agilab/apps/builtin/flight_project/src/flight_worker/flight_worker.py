@@ -20,6 +20,7 @@ from agi_node import MutableNamespace
 from agi_node.polars_worker import PolarsWorker
 from agi_node.agi_dispatcher import BaseWorker
 from agi_env.agi_logger import AgiLogger
+from flight.reduction import write_reduce_artifact
 
 logger = AgiLogger.get_logger(__name__)
 warnings.filterwarnings("ignore")
@@ -190,7 +191,7 @@ class FlightWorker(PolarsWorker):
 
         # Calculate speed using the existing calculate_speed function.
         df = self.calculate_speed("speed", df)
-        return df
+        return df.with_columns(pl.lit(Path(file).name).alias("source_file"))
 
     def work_done(self, worker_df):
         """Concatenate dataframe if any and save the results.
@@ -204,6 +205,7 @@ class FlightWorker(PolarsWorker):
 
         logger.info(f"mkdir {self.data_out}")
         os.makedirs(self.data_out, exist_ok=True)
+        output_files = []
 
         # Process each plane separately
         for plane in worker_df.select(pl.col("aircraft")).unique().to_series():
@@ -218,16 +220,26 @@ class FlightWorker(PolarsWorker):
                         ".parquet"
                     )
                     plane_df.write_parquet(str(filename))
+                    output_files.append(filename)
                 elif self.args.output_format == "csv":
                     timestamp = dt.now().strftime("%Y-%m-%d_%H-%M-%S")
                     filename = f"{self.data_out}/{str(plane)+'_'+timestamp}.csv"
                     plane_df.write_csv(str(filename))
+                    output_files.append(filename)
                     logging.info(
                         f"Saved dataframe for plane {plane} with shape {plane_df.shape} in {filename}"
                     )
             except Exception as e:
                 logging.info(traceback.format_exc())
                 logging.info(f"Error saving dataframe for plane {plane}: {e}")
+
+        write_reduce_artifact(
+            worker_df,
+            self.data_out,
+            worker_id=getattr(self, "_worker_id", 0),
+            output_files=output_files,
+            output_format=getattr(self.args, "output_format", ""),
+        )
 
     def stop(self):
         try:

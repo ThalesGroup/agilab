@@ -30,6 +30,11 @@ specialized workflow.
 Each run produces a structured flight dataframe dataset that can then be reused by
 analysis pages and downstream pipeline steps.
 
+Workers also emit a `reduce_summary_worker_<id>.json` `ReduceArtifact` beside
+the dataframe outputs. That summary records the reducer name, row count,
+aircraft/source-file counts, written output files, and trajectory speed/time-span
+fields so Release Decision can surface the flight run as first-class evidence.
+
 ## Typical flow
 
 1. Select `flight_project` in `PROJECT`.

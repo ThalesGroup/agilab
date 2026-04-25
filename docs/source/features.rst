@@ -59,18 +59,19 @@ agi-core
     schema.
   - ``execution_pandas_project`` and ``execution_polars_project`` emit named
     benchmark reduce artefacts through that shared contract; the user-facing
+    ``flight_project`` emits trajectory-summary reduce artefacts;
     ``meteo_forecast_project`` emits forecast-metrics reduce artefacts; and
     ``uav_queue_project`` plus ``uav_relay_queue_project`` emit the same
     ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics.
   - The Release Decision evidence view discovers those artefacts, validates
     their schema, and displays reducer name, partial count, artifact path,
-    benchmark row/source/execution fields, meteo forecast MAE/RMSE/MAPE fields,
-    and UAV queue-family packet/PDR fields when present.
+    benchmark row/source/execution fields, flight row/aircraft/speed fields,
+    meteo forecast MAE/RMSE/MAPE fields, and UAV queue-family packet/PDR fields
+    when present.
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
   - Other existing apps still own their final merge semantics, so broader app
-    migration beyond the benchmark pair and first three user-facing apps remains
-    roadmap work.
+    migration beyond the migrated public apps remains roadmap work.
 
 - **Optimized Run-Mode Selection:**
 
@@ -149,8 +150,8 @@ single notebook but less ceremony than a production MLOps platform:
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
-broader reduce-contract app migration beyond the benchmark pair and first three
-user-facing apps remain roadmap work.
+broader reduce-contract app migration beyond the migrated public apps remain
+roadmap work.
 
 Production-readiness controls
 -----------------------------

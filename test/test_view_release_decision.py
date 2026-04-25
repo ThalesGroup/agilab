@@ -142,6 +142,39 @@ def _write_forecast_reduce_artifact(path: Path) -> None:
     )
 
 
+def _write_flight_reduce_artifact(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "name": "flight_reduce_summary",
+                "reducer": "flight.trajectory-metrics.v1",
+                "partial_count": 1,
+                "partial_ids": ["flight_worker_0"],
+                "payload": {
+                    "flight_run_count": 1,
+                    "row_count": 3,
+                    "source_file_count": 1,
+                    "source_files": ["01_track.csv"],
+                    "aircraft_count": 1,
+                    "aircraft": ["A1"],
+                    "output_file_count": 1,
+                    "output_files": ["A1.parquet"],
+                    "output_formats": ["parquet"],
+                    "speed_count": 3,
+                    "mean_speed_m": 42.5,
+                    "max_speed_m": 90.0,
+                    "time_start": "2021-01-01T00:00:00",
+                    "time_end": "2021-01-01T00:02:00",
+                },
+                "metadata": {"app": "flight_project"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def _run_release_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTest:
     argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
     with patch.object(sys, "argv", argv):
@@ -276,6 +309,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     uav_path = artifact_root / "run_uav" / "reduce_summary_worker_0.json"
     relay_path = artifact_root / "run_uav_relay" / "reduce_summary_worker_0.json"
     forecast_path = artifact_root / "run_forecast" / "reduce_summary_worker_0.json"
+    flight_path = artifact_root / "run_flight" / "reduce_summary_worker_0.json"
     invalid_path = artifact_root / "run_b" / "reduce_summary_worker_1.json"
     _write_reduce_artifact(valid_path, engine="polars")
     _write_uav_reduce_artifact(uav_path)
@@ -287,6 +321,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
         scenario="uav_relay_queue_hotspot",
     )
     _write_forecast_reduce_artifact(forecast_path)
+    _write_flight_reduce_artifact(flight_path)
     invalid_path.parent.mkdir(parents=True, exist_ok=True)
     invalid_path.write_text("{broken", encoding="utf-8")
 
@@ -296,6 +331,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     uav = next(row for row in rows if row["reducer"] == "uav_queue.queue-metrics.v1")
     relay = next(row for row in rows if row["reducer"] == "uav_relay_queue.queue-metrics.v1")
     forecast = next(row for row in rows if row["reducer"] == "meteo_forecast.forecast-metrics.v1")
+    flight = next(row for row in rows if row["reducer"] == "flight.trajectory-metrics.v1")
     invalid = next(row for row in rows if row["status"] == "invalid")
     assert valid["artifact"] == "run_a/reduce_summary_worker_0.json"
     assert valid["reducer"] == "execution_polars.weighted-score.v1"
@@ -336,6 +372,20 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     assert forecast["horizon_days"] == "7"
     assert forecast["validation_days"] == "21"
     assert forecast["lags"] == "7"
+    assert flight["artifact"] == "run_flight/reduce_summary_worker_0.json"
+    assert flight["flight_run_count"] == 1
+    assert flight["row_count"] == 3
+    assert flight["source_file_count"] == 1
+    assert flight["aircraft_count"] == 1
+    assert flight["aircraft"] == "A1"
+    assert flight["output_file_count"] == 1
+    assert flight["output_files"] == "A1.parquet"
+    assert flight["output_formats"] == "parquet"
+    assert flight["speed_count"] == 3
+    assert flight["mean_speed_m"] == 42.5
+    assert flight["max_speed_m"] == 90.0
+    assert flight["time_start"] == "2021-01-01T00:00:00"
+    assert flight["time_end"] == "2021-01-01T00:02:00"
     assert invalid["artifact"] == "run_b/reduce_summary_worker_1.json"
     assert "Expecting property name" in invalid["detail"]
 

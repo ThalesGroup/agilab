@@ -12,4 +12,4 @@ from .flight_args import (  # noqa: F401
     load_args_from_toml,
     merge_args,
 )
-
+from .reduction import FLIGHT_REDUCE_CONTRACT  # noqa: F401
