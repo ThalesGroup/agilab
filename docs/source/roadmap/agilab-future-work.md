@@ -50,8 +50,9 @@ use this order:
 10. **Reduce contract adoption**
    - AGILab already has distributed work-plan execution and an initial shared
      reducer contract
-   - the remaining work is public-app adoption, named reduce artefacts, and a
-     public benchmark
+   - the public reducer benchmark now validates 8 partials / 80,000 synthetic
+     items in `0.003s` against a `5.0s` target
+   - the remaining work is public-app adoption and named reduce artefacts
 11. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
@@ -467,15 +468,16 @@ Current state:
 - workers execute partitioned plans locally or on Dask-backed clusters
 - `agi_node.reduction` defines a shared reducer contract with partial inputs,
   merge semantics, validation hooks, and a standard reduce artefact schema
+- `tools/reduce_contract_benchmark.py --json` validates 8 partials / 80,000
+  synthetic items in `0.003s` against a `5.0s` target
 - aggregation is still mostly app-specific
 
 Current gap:
 
 - docs can overstate the capability as a full generic map/reduce mechanism
 - most apps have not migrated their merge logic to the shared reducer contract
-- there is no public benchmark/demo that proves the end-to-end reducer path yet
 
-### 1. Reduce contract adoption and public benchmark
+### 1. Reduce contract adoption
 
 Purpose:
 
@@ -485,7 +487,6 @@ Purpose:
 Focus areas:
 
 - reducer adoption in public apps
-- public benchmark/demo coverage
 - user-visible reduce artefacts in analysis views
 - user-visible evidence that a distributed run was merged successfully
 
@@ -502,7 +503,6 @@ Concrete change request:
 - migrate one public app to the shared reducer contract
 - expose the reducer result as a named run artefact instead of leaving it
   implicit in app-specific outputs
-- ship one public benchmark/demo app that proves the end-to-end model
 
 Compatibility rule:
 
@@ -661,7 +661,7 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - Global orchestrated pipeline DAG
 - Bidirectional notebook interop
 - Data connector facility
-- Reduce contract adoption and public benchmark
+- Reduce contract adoption
 - Intent-first operator mode
 
 If the `roadmap` label is not visible yet in GitHub, the issue form still
