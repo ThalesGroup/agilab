@@ -12,25 +12,22 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **Multi-app DAG orchestration**
-   - extend orchestration from one app flow to DAGs that span multiple apps
-   - this is the contract needed before the pipeline can become a true
-     cross-app orchestrated graph
-2. **Global orchestrated pipeline DAG**
+1. **Global orchestrated pipeline DAG**
    - let `PIPELINE` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
-   - this depends on clearer multi-app orchestration contracts
-3. **Bidirectional notebook interop**
+   - build on the shipped multi-app DAG contract/report baseline and add
+     runner integration plus operator-facing state
+2. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
    - add notebook-to-pipeline import maturity and optional single-kernel
      union-environment notebooks when step environments are compatible
-6. **Data connector facility**
+3. **Data connector facility**
    - make SQL, ELK, object storage, and other external data sources first-class
      connector targets
    - this turns connector work into a practical data-access layer, not just path
      cleanup
-7. **Reduce contract adoption**
+4. **Reduce contract adoption**
    - AGILab already has distributed work-plan execution and an initial shared
      reducer contract
    - the public reducer benchmark now validates 8 partials / 80,000 synthetic
@@ -52,7 +49,7 @@ use this order:
      has no concrete merge output yet
    - future apps/templates must opt in when they produce durable worker
      summaries
-8. **Intent-first operator mode**
+5. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
 
@@ -60,8 +57,9 @@ Why this order:
 
 - turn the shipped manifest remediation baseline into external evidence import
   and release indexes before broader onboarding automation
-- stabilize cross-app orchestration before claiming a global orchestrated DAG
-- keep notebook interop after the orchestration contract is clearer
+- build global orchestration on the shipped cross-app contract instead of
+  claiming runner behavior before it exists
+- keep notebook interop after the orchestration state model is clearer
 - stabilize contracts before standardizing distributed reduction
 - keep operator refinements downstream of the proof/evidence layer
 
@@ -181,19 +179,28 @@ Purpose:
 - extend orchestration from one app flow to DAGs that span multiple apps
 - make inter-app dependencies explicit instead of hiding them in manual glue
 
-Suggested scope:
+Current shipped baseline:
 
-- app-to-app step dependencies
-- explicit cross-app artefact handoff
-- orchestration contracts for retries, partial reruns, and provenance
+- `agilab.multi_app_dag.v1` defines the first portable cross-app DAG contract
+- `docs/source/data/multi_app_dag_sample.json` links `uav_queue_project` to
+  `uav_relay_queue_project` through the explicit `queue_metrics` handoff
+- `tools/multi_app_dag_report.py --compact` validates schema, checked-in app
+  nodes, acyclic dependencies, docs references, and artifact handoffs
+- the KPI evidence bundle includes this as `multi_app_dag_report_contract`
+
+Remaining scope:
+
+- runner integration for executing the contract across apps
+- global `PIPELINE` graph visualization and orchestration-state visibility
+- orchestration policies for retries, partial reruns, and provenance
 - one run record that still captures the whole multi-app execution
 
 Why it matters:
 
-- this is the missing bridge between app-local execution and a real product-wide
-  orchestrated workflow
-- it turns AGILab orchestration from “one app at a time” into a reusable
-  workflow fabric
+- the contract closes the first bridge between app-local execution and a
+  product-wide orchestrated workflow
+- runner and UI work remain before AGILab can claim a full reusable workflow
+  fabric
 
 ### 7. Global orchestrated pipeline DAG
 
@@ -606,8 +613,8 @@ Use this rule of thumb:
   denser live analysis, faster interaction, and higher-volume visual playback
 - choose **Run Diff / Counterfactual Analysis** if the next need is faster
   debugging, clearer run review, and defensible explanation of KPI changes
-- choose **Multi-app DAG orchestration** if the next need is one orchestrated
-  workflow that spans several apps with explicit dependencies
+- choose **Multi-app DAG orchestration** if the next need is runner integration
+  for the shipped cross-app dependency contract
 - choose **Global orchestrated pipeline DAG** if the next need is to expose that
   orchestration as a single product-visible graph in `PIPELINE`
 - choose **Bidirectional notebook interop** if the next need is a stronger bridge
@@ -648,7 +655,6 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Multi-app DAG orchestration
 - Global orchestrated pipeline DAG
 - Bidirectional notebook interop
 - Data connector facility

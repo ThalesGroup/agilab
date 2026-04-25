@@ -110,6 +110,10 @@ history:
 - the in-product first-proof wizard now guides one validated ``flight_project``
   source-checkout path, reads ``run_manifest.json``, and shows
   manifest-driven remediation with exact evidence commands
+- the multi-app DAG contract validates a first cross-app handoff from
+  ``uav_queue_project`` to ``uav_relay_queue_project`` through
+  ``tools/multi_app_dag_report.py --compact`` and the checked-in
+  ``multi_app_dag_sample.json``
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -154,12 +158,14 @@ between research experiments and engineering validation:
 - a public demo path and a guided, measurable local first-proof path
 - a handoff model for stabilized assets into MLflow, Kubeflow, or internal
   deployment stacks
+- a first multi-app DAG contract/report baseline that makes cross-app artifact
+  handoffs explicit before runner integration
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because future app/template reducer adoption discipline, multi-app
-DAG orchestration, and broader fresh-install validation are still roadmap work.
+higher yet because future app/template reducer adoption discipline, global DAG
+execution/UI work, and broader fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------
