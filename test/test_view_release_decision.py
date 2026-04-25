@@ -234,7 +234,13 @@ def _write_flight_reduce_artifact(path: Path) -> None:
     )
 
 
-def _run_release_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTest:
+def _run_release_page(
+    tmp_path: Path,
+    monkeypatch,
+    project_dir: Path,
+    *,
+    manifest_import_args: str = "",
+) -> AppTest:
     argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
     with patch.object(sys, "argv", argv):
         monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
@@ -244,6 +250,8 @@ def _run_release_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTest
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)
+        if manifest_import_args:
+            at.session_state["release_decision_manifest_import_args"] = manifest_import_args
         at.run()
     return at
 
@@ -291,6 +299,45 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
         "run_manifest_validations": "pass",
         "run_manifest_target_seconds": "pass",
     }
+
+
+def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monkeypatch) -> None:
+    project_dir = _create_forecast_project(tmp_path)
+    export_root = tmp_path / "export" / "meteo_forecast"
+    baseline_root = export_root / "run_2026_04_16"
+    candidate_root = export_root / "run_2026_04_17"
+    _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
+    _write_bundle(candidate_root, mae=0.81, rmse=0.97, mape=5.42)
+    imported_manifest_path = _write_first_proof_manifest(tmp_path / "external_machine")
+
+    at = _run_release_page(
+        tmp_path,
+        monkeypatch,
+        project_dir,
+        manifest_import_args=(
+            "uv --preview-features extra-build-dependencies run python "
+            f"tools/compatibility_report.py --manifest {imported_manifest_path} --compact"
+        ),
+    )
+
+    assert not at.exception
+    assert any("Promotable" in message.value for message in at.success)
+    assert any(header.value == "Imported run manifest evidence" for header in at.subheader)
+
+    export_button = next(button for button in at.button if button.label == "Export promotion decision")
+    export_button.click().run()
+
+    decision_path = candidate_root / "promotion_decision.json"
+    payload = json.loads(decision_path.read_text(encoding="utf-8"))
+    assert payload["run_manifest_path"] == str(imported_manifest_path)
+    assert payload["run_manifest_import_summary"]["loaded_manifest_count"] == 1
+    assert payload["run_manifest_import_summary"]["validated_manifest_count"] == 1
+    assert payload["imported_run_manifest_evidence"][0]["source"] == str(imported_manifest_path)
+    assert payload["imported_run_manifest_evidence"][0]["path_id"] == "source-checkout-first-proof"
+    assert payload["imported_run_manifest_evidence"][0]["evidence_status"] == "validated"
+    assert payload["imported_run_manifest_evidence"][0]["duration_seconds"] == 5.0
+    assert payload["imported_run_manifest_evidence"][0]["target_seconds"] == 600.0
+    assert "proof_steps=pass" in payload["imported_run_manifest_evidence"][0]["validation_statuses"]
 
 
 def test_view_release_decision_blocks_candidate_with_missing_artifact(tmp_path, monkeypatch) -> None:
@@ -395,6 +442,31 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     )
     assert manifest_status == "blocked"
     assert "manifest gate" in manifest_summary
+
+    import_args = (
+        f"uv run python tools/compatibility_report.py --manifest {bad_manifest} "
+        f"--manifest-dir {bad_manifest.parent.parent.parent}"
+    )
+    manifest_paths, manifest_dirs, parse_errors = module._parse_manifest_import_args(import_args)
+    assert manifest_paths == [bad_manifest]
+    assert manifest_dirs == [bad_manifest.parent.parent.parent]
+    assert parse_errors == []
+
+    import_rows, import_summary = module._build_manifest_import_rows(import_args)
+    assert import_summary["discovered_manifest_count"] == 1
+    assert import_summary["loaded_manifest_count"] == 1
+    assert import_rows[0]["source"] == str(bad_manifest)
+    assert import_rows[0]["provenance"].startswith("--manifest")
+    assert import_rows[0]["path_id"] == "source-checkout-first-proof"
+    assert import_rows[0]["evidence_status"] == "validated"
+    assert import_rows[0]["duration_seconds"] == 601.0
+    assert "target_seconds=pass" in import_rows[0]["validation_statuses"]
+    assert module._select_run_manifest_gate_path(tmp_path / "missing.json", import_rows) == bad_manifest
+
+    missing_paths, missing_dirs, missing_errors = module._parse_manifest_import_args("--manifest-dir")
+    assert missing_paths == []
+    assert missing_dirs == []
+    assert missing_errors == [{"source": "--manifest-dir", "detail": "--manifest-dir requires a path value"}]
 
     errors: list[str] = []
 

@@ -6,6 +6,7 @@ Primary use:
 
 - compare two exported metric bundles
 - gate promotion on first-proof `run_manifest.json`
+- import external run-manifest evidence with `--manifest` / `--manifest-dir`
 - apply explicit artifact and KPI gates
 - export `promotion_decision.json`
 
@@ -24,5 +25,18 @@ The page also defaults to `~/log/execute/flight/run_manifest.json` for the
 first-proof gate. Promotion is blocked unless that manifest has `status: pass`,
 uses the `source-checkout-first-proof` path id, passes all recorded validations,
 and completes within its target seconds.
+
+Paste compatibility-report style import args into **Imported run manifest
+evidence** when the first-proof manifest comes from another machine or evidence
+directory, for example:
+
+```bash
+--manifest /path/to/run_manifest.json --manifest-dir /path/to/evidence
+```
+
+Imported manifests are shown with source path, provenance, path id, manifest
+status, timing, validation statuses, and evidence status. A passing imported
+`source-checkout-first-proof` manifest can satisfy the first-proof gate, and the
+same import summary is written to `promotion_decision.json`.
 
 This is the first app-layer MVP for AGILAB's promotion / release decision workflow.

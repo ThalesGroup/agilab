@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import shlex
 import sys
 from datetime import datetime, UTC
 from pathlib import Path
@@ -102,6 +103,175 @@ def _default_required_patterns(env: AgiEnv) -> list[str]:
 def _default_run_manifest_path(env: AgiEnv) -> Path:
     log_root = Path(getattr(env, "AGILAB_LOG_ABS", Path.home() / "log")).expanduser()
     return log_root / "execute" / "flight" / RUN_MANIFEST_FILENAME
+
+
+def _dedupe_paths(paths: list[tuple[Path, str]]) -> list[tuple[Path, str]]:
+    seen: set[str] = set()
+    deduped: list[tuple[Path, str]] = []
+    for path, provenance in paths:
+        expanded = path.expanduser()
+        key = str(expanded.resolve()) if expanded.exists() else str(expanded.absolute())
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append((expanded, provenance))
+    return deduped
+
+
+def _parse_manifest_import_args(raw_value: str) -> tuple[list[Path], list[Path], list[dict[str, str]]]:
+    if not raw_value.strip():
+        return [], [], []
+    try:
+        tokens = shlex.split(raw_value)
+    except ValueError as exc:
+        return [], [], [{"source": "import args", "detail": f"Unable to parse manifest import args: {exc}"}]
+
+    manifest_paths: list[Path] = []
+    manifest_dirs: list[Path] = []
+    errors: list[dict[str, str]] = []
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in {"--manifest", "--manifest-dir"}:
+            if index + 1 >= len(tokens) or tokens[index + 1].startswith("--"):
+                errors.append({"source": token, "detail": f"{token} requires a path value"})
+                index += 1
+                continue
+            target = Path(tokens[index + 1]).expanduser()
+            if token == "--manifest":
+                manifest_paths.append(target)
+            else:
+                manifest_dirs.append(target)
+            index += 2
+            continue
+        if token.startswith("--manifest="):
+            manifest_paths.append(Path(token.split("=", 1)[1]).expanduser())
+        elif token.startswith("--manifest-dir="):
+            manifest_dirs.append(Path(token.split("=", 1)[1]).expanduser())
+        index += 1
+
+    return manifest_paths, manifest_dirs, errors
+
+
+def _discover_imported_manifest_paths(
+    manifest_paths: list[Path],
+    manifest_dirs: list[Path],
+) -> tuple[list[tuple[Path, str]], list[dict[str, str]]]:
+    discovered: list[tuple[Path, str]] = [
+        (path, "--manifest")
+        for path in manifest_paths
+    ]
+    errors: list[dict[str, str]] = []
+    for directory in manifest_dirs:
+        directory = directory.expanduser()
+        if directory.is_file():
+            discovered.append((directory, f"--manifest-dir {directory}"))
+        elif directory.is_dir():
+            discovered.extend(
+                (path, f"--manifest-dir {directory}")
+                for path in sorted(directory.rglob(RUN_MANIFEST_FILENAME))
+            )
+        else:
+            errors.append(
+                {
+                    "source": str(directory),
+                    "detail": "manifest directory not found",
+                }
+            )
+    return _dedupe_paths(discovered), errors
+
+
+def _build_manifest_import_rows(raw_value: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    manifest_paths, manifest_dirs, parse_errors = _parse_manifest_import_args(raw_value)
+    discovered, discovery_errors = _discover_imported_manifest_paths(manifest_paths, manifest_dirs)
+    rows: list[dict[str, Any]] = [
+        {
+            "source": error["source"],
+            "provenance": "import-args",
+            "path_id": "",
+            "run_id": "",
+            "manifest_status": "invalid",
+            "evidence_status": "invalid",
+            "duration_seconds": None,
+            "target_seconds": None,
+            "validation_statuses": "",
+            "detail": error["detail"],
+            "loaded": False,
+        }
+        for error in [*parse_errors, *discovery_errors]
+    ]
+
+    for path, provenance in discovered:
+        base_row: dict[str, Any] = {
+            "source": str(path),
+            "provenance": provenance,
+            "path_id": "",
+            "run_id": "",
+            "manifest_status": "invalid",
+            "evidence_status": "invalid",
+            "duration_seconds": None,
+            "target_seconds": None,
+            "validation_statuses": "",
+            "detail": "",
+            "loaded": False,
+        }
+        try:
+            manifest = load_run_manifest(path)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            rows.append({**base_row, "detail": f"Unable to load run manifest: {exc}"})
+            continue
+
+        validation_statuses = {
+            validation.label: validation.status
+            for validation in manifest.validations
+        }
+        passed = bool(manifest_passed(manifest))
+        rows.append(
+            {
+                **base_row,
+                "path_id": manifest.path_id,
+                "run_id": manifest.run_id,
+                "manifest_status": manifest.status,
+                "evidence_status": "validated" if passed else "failed",
+                "duration_seconds": manifest.timing.duration_seconds,
+                "target_seconds": manifest.timing.target_seconds,
+                "validation_statuses": ", ".join(
+                    f"{label}={status}"
+                    for label, status in validation_statuses.items()
+                ),
+                "detail": "loaded",
+                "loaded": True,
+            }
+        )
+
+    summary = {
+        "args": raw_value,
+        "requested_manifest_count": len(manifest_paths),
+        "requested_manifest_dir_count": len(manifest_dirs),
+        "discovered_manifest_count": len(discovered),
+        "loaded_manifest_count": sum(1 for row in rows if row["loaded"]),
+        "validated_manifest_count": sum(1 for row in rows if row["evidence_status"] == "validated"),
+        "failed_manifest_count": sum(1 for row in rows if row["evidence_status"] == "failed"),
+        "invalid_manifest_count": sum(1 for row in rows if row["evidence_status"] == "invalid"),
+    }
+    return rows, summary
+
+
+def _select_run_manifest_gate_path(default_path: Path, imported_rows: list[dict[str, Any]]) -> Path:
+    loaded_first_proof_rows = [
+        row
+        for row in imported_rows
+        if row.get("loaded") and row.get("path_id") == FIRST_PROOF_PATH_ID and row.get("source")
+    ]
+    validated_rows = [
+        row
+        for row in loaded_first_proof_rows
+        if row.get("evidence_status") == "validated"
+    ]
+    selected = (validated_rows or loaded_first_proof_rows)[:1]
+    if selected:
+        return Path(str(selected[0]["source"])).expanduser()
+    return default_path
 
 
 def _discover_files(base: Path, pattern: str) -> list[Path]:
@@ -475,6 +645,8 @@ def _decision_payload(
     run_manifest_path: Path,
     run_manifest_rows: list[dict[str, Any]],
     run_manifest_summary: dict[str, Any],
+    imported_manifest_rows: list[dict[str, Any]],
+    imported_manifest_summary: dict[str, Any],
     status: str,
     summary: str,
     tolerance_pct: float,
@@ -497,6 +669,8 @@ def _decision_payload(
         "run_manifest_path": str(run_manifest_path),
         "run_manifest_summary": run_manifest_summary,
         "run_manifest_gates": run_manifest_rows,
+        "run_manifest_import_summary": imported_manifest_summary,
+        "imported_run_manifest_evidence": imported_manifest_rows,
         "artifact_gates": artifact_rows,
         "metric_gates": metric_rows,
         "reduce_artifacts": reduce_artifact_rows,
@@ -566,7 +740,26 @@ run_manifest_path_value = st.sidebar.text_input(
     ),
     key="release_decision_run_manifest_path",
 )
-run_manifest_path = Path(run_manifest_path_value).expanduser()
+default_run_manifest_path = Path(run_manifest_path_value).expanduser()
+manifest_import_args_value = st.sidebar.text_area(
+    "Imported run manifest evidence",
+    value=st.session_state.setdefault("release_decision_manifest_import_args", ""),
+    key="release_decision_manifest_import_args",
+    height=90,
+    help=(
+        "Paste compatibility-report style args such as "
+        "`--manifest /path/run_manifest.json --manifest-dir /path/to/evidence`."
+    ),
+)
+imported_manifest_rows, imported_manifest_summary = _build_manifest_import_rows(
+    manifest_import_args_value
+)
+run_manifest_path = _select_run_manifest_gate_path(
+    default_run_manifest_path,
+    imported_manifest_rows,
+)
+if run_manifest_path != default_run_manifest_path:
+    st.sidebar.caption(f"Using imported first-proof manifest: {run_manifest_path}")
 
 if not artifact_root.exists():
     st.warning(f"Artifact directory does not exist yet: {artifact_root}")
@@ -637,6 +830,8 @@ payload = _decision_payload(
     run_manifest_path=run_manifest_path,
     run_manifest_rows=run_manifest_rows,
     run_manifest_summary=run_manifest_summary,
+    imported_manifest_rows=imported_manifest_rows,
+    imported_manifest_summary=imported_manifest_summary,
     status=decision_status,
     summary=decision_summary,
     tolerance_pct=tolerance_pct,
@@ -667,6 +862,14 @@ manifest_df = pd.DataFrame(run_manifest_rows)
 st.subheader("First-proof run manifest gate")
 st.caption(str(run_manifest_path))
 st.dataframe(manifest_df, width="stretch", hide_index=True)
+
+if imported_manifest_rows:
+    imported_manifest_df = pd.DataFrame(imported_manifest_rows)
+    st.subheader("Imported run manifest evidence")
+    st.caption(
+        "External evidence imported with compatibility-report style `--manifest` and `--manifest-dir` inputs."
+    )
+    st.dataframe(imported_manifest_df, width="stretch", hide_index=True)
 
 metric_df = pd.DataFrame(metric_rows)
 if metric_df.empty:
