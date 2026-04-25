@@ -12,7 +12,6 @@ from pathlib import Path
 import re
 import sys
 from typing import Any, Sequence
-import tomllib
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -25,14 +24,6 @@ KPI_COMPONENT_SCORES = {
 }
 OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(len(KPI_COMPONENT_SCORES))
 SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
-REQUIRED_MATRIX_STATUSES = {
-    "source-checkout-first-proof": "validated",
-    "web-ui-local-first-proof": "validated",
-    "agilab-hf-demo": "validated",
-    "service-mode-operator-surface": "validated",
-    "notebook-quickstart": "documented",
-    "published-package-route": "documented",
-}
 TEMPLATE_ONLY_BUILTIN_APPS = {
     "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
 }
@@ -74,49 +65,42 @@ def _check_result(
     }
 
 
-def _load_matrix_entries(repo_root: Path) -> list[dict[str, Any]]:
-    matrix_path = repo_root / "docs" / "source" / "data" / "compatibility_matrix.toml"
-    with matrix_path.open("rb") as stream:
-        payload = tomllib.load(stream)
-    entries = payload.get("entries", [])
-    if not isinstance(entries, list):
-        raise TypeError("compatibility matrix entries must be a list")
-    return [entry for entry in entries if isinstance(entry, dict)]
-
-
-def _check_compatibility_matrix(repo_root: Path) -> dict[str, Any]:
+def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
     try:
-        entries = _load_matrix_entries(repo_root)
-        statuses = {str(entry.get("id")): str(entry.get("status")) for entry in entries}
-        missing = sorted(set(REQUIRED_MATRIX_STATUSES) - set(statuses))
-        mismatched = {
-            entry_id: {"expected": expected, "actual": statuses.get(entry_id)}
-            for entry_id, expected in REQUIRED_MATRIX_STATUSES.items()
-            if statuses.get(entry_id) != expected
-        }
-        ok = not missing and not mismatched
+        compatibility_report = _load_tool_module(repo_root, "compatibility_report")
+        report = compatibility_report.build_report(repo_root=repo_root)
+        check_ids = [check.get("id") for check in report.get("checks", [])]
+        status_check = next(
+            (
+                check
+                for check in report.get("checks", [])
+                if check.get("id") == "required_public_statuses"
+            ),
+            {},
+        )
+        ok = report.get("status") == "pass" and "workflow_evidence_commands" in check_ids
         details = {
-            "required_statuses": REQUIRED_MATRIX_STATUSES,
-            "actual_statuses": {
-                entry_id: statuses.get(entry_id)
-                for entry_id in sorted(REQUIRED_MATRIX_STATUSES)
-            },
-            "missing": missing,
-            "mismatched": mismatched,
+            "status": report.get("status"),
+            "summary": report.get("summary"),
+            "check_ids": check_ids,
+            "required_public_statuses": status_check.get("details", {}),
         }
     except Exception as exc:
         ok = False
         details = {"error": str(exc)}
     return _check_result(
-        "compatibility_matrix_public_paths",
-        "Compatibility matrix public paths",
+        "workflow_compatibility_report",
+        "Workflow-backed compatibility report",
         ok,
         (
-            "compatibility matrix distinguishes validated public paths from documented alternatives"
+            "compatibility report validates public path statuses and proof commands"
             if ok
-            else "compatibility matrix no longer matches the public evidence contract"
+            else "compatibility report is failing or disconnected from the KPI bundle"
         ),
-        evidence=["docs/source/data/compatibility_matrix.toml"],
+        evidence=[
+            "tools/compatibility_report.py",
+            "docs/source/data/compatibility_matrix.toml",
+        ],
         details=details,
     )
 
@@ -453,6 +437,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
         "docs/source/compatibility-matrix.rst": [
             "AGILAB Hugging Face demo",
             "validated",
+            "tools/compatibility_report.py",
             "tools/hf_space_smoke.py --json",
             "tools/agilab_web_robot.py",
             "tools/production_readiness_report.py",
@@ -479,9 +464,9 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
         "Public docs evidence links",
         ok,
         (
-            "README and public docs expose the machine-readable evidence commands"
+            "README and public docs expose the machine-readable evidence reports"
             if ok
-            else "README or public docs are missing evidence command references"
+            else "README or public docs are missing evidence report references"
         ),
         evidence=[str(path.relative_to(repo_root)) for path in paths],
         details=details,
@@ -500,7 +485,7 @@ def build_bundle(
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     checks = [
-        _check_compatibility_matrix(repo_root),
+        _check_workflow_compatibility_report(repo_root),
         _check_newcomer_first_proof_contract(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),

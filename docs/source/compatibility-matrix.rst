@@ -2,7 +2,9 @@ Compatibility Matrix
 ====================
 
 This page is the first shipped version of an AGILAB compatibility and
-certification matrix.
+certification matrix. The matrix is promoted into a workflow-backed
+compatibility report so public status claims are checked by the same evidence
+tooling as the KPI bundle.
 
 It is intentionally narrow. The goal is to make the currently supported public
 paths explicit now, instead of waiting for a larger automation project.
@@ -15,6 +17,13 @@ place yet.
 The machine-readable source for this page is:
 
 - :download:`compatibility_matrix.toml <data/compatibility_matrix.toml>`
+
+Maintainers can validate the matrix schema, required public statuses, and proof
+commands with:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --compact
 
 Current public matrix
 ---------------------
@@ -84,14 +93,17 @@ smokes with:
 
 .. code-block:: bash
 
+   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bundle.py --compact
    uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
    uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --analysis-view view_maps --json
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
 
-The compact KPI bundle includes the ``reduce_contract_adoption_guardrail`` check,
-which verifies that every non-template built-in app exposes a reducer contract
-and records ``mycode_project`` as the explicit template-only exemption.
+The compact compatibility report checks the required public statuses and the
+proof commands behind validated entries. The compact KPI bundle consumes that
+report and includes the ``reduce_contract_adoption_guardrail`` check, which
+verifies that every non-template built-in app exposes a reducer contract and
+records ``mycode_project`` as the explicit template-only exemption.
 
 What remains roadmap work
 -------------------------
@@ -99,8 +111,7 @@ What remains roadmap work
 This first matrix closes the small, manual version of the compatibility item.
 The larger roadmap work is still open:
 
-- automatic generation from workflow evidence
-- broader promotion from this matrix to a workflow-backed compatibility report
+- automatic ingestion from external CI workflow artifacts
 - integration with the first-proof wizard so newcomers land on one validated
   path instead of choosing routes too early
 - per-release compatibility status

@@ -38,7 +38,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     assert bundle["summary"]["score_formula"] == "(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625"
     check_ids = {check["id"] for check in bundle["checks"]}
     assert check_ids == {
-        "compatibility_matrix_public_paths",
+        "workflow_compatibility_report",
         "newcomer_first_proof_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
@@ -50,13 +50,15 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     }
 
 
-def test_compatibility_matrix_requires_hf_demo_validated() -> None:
+def test_workflow_compatibility_report_requires_hf_demo_validated() -> None:
     module = _load_module()
 
-    check = module._check_compatibility_matrix(Path.cwd())
+    check = module._check_workflow_compatibility_report(Path.cwd())
 
     assert check["status"] == "pass"
-    assert check["details"]["actual_statuses"]["agilab-hf-demo"] == "validated"
+    statuses = check["details"]["required_public_statuses"]["actual_statuses"]
+    assert statuses["agilab-hf-demo"] == "validated"
+    assert "workflow_evidence_commands" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:
