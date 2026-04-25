@@ -1141,6 +1141,61 @@ def _check_data_connector_facility_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_data_connector_resolution_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        data_connector_report = _load_tool_module(
+            repo_root, "data_connector_resolution_report"
+        )
+        report = data_connector_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.data_connector_resolution.v1"
+            and summary.get("run_status") == "resolved"
+            and summary.get("execution_mode") == "contract_resolution_only"
+            and summary.get("connector_ref_count") == 5
+            and summary.get("top_level_ref_count") == 3
+            and summary.get("page_connector_ref_count") == 2
+            and summary.get("legacy_path_count") == 2
+            and summary.get("missing_ref_count") == 0
+            and summary.get("network_probe_count") == 0
+            and summary.get("catalog_run_status") == "validated"
+            and summary.get("legacy_fallback_preserved") is True
+            and summary.get("resolved_kinds") == [
+                "object_storage",
+                "opensearch",
+                "sql",
+            ]
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "data_connector_resolution_report_contract",
+        "Data connector resolution report contract",
+        ok,
+        (
+            "data connector resolution report validates connector-aware "
+            "app/page resolution and legacy path fallback"
+            if ok
+            else "data connector resolution report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/data_connector_resolution_report.py",
+            "src/agilab/data_connector_resolution.py",
+            "docs/source/data/data_connector_app_settings_sample.toml",
+            "docs/source/data/data_connectors_sample.toml",
+        ],
+        details=details,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -1317,6 +1372,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/notebook_roundtrip_report.py --compact",
             "tools/notebook_union_environment_report.py --compact",
             "tools/data_connector_facility_report.py --compact",
+            "tools/data_connector_resolution_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -1343,6 +1399,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/notebook_roundtrip_report.py",
             "tools/notebook_union_environment_report.py",
             "tools/data_connector_facility_report.py",
+            "tools/data_connector_resolution_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -1405,6 +1462,7 @@ def build_bundle(
         _check_notebook_roundtrip_report(repo_root),
         _check_notebook_union_environment_report(repo_root),
         _check_data_connector_facility_report(repo_root),
+        _check_data_connector_resolution_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

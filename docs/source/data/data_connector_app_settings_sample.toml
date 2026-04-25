@@ -1,0 +1,15 @@
+[connector_catalog]
+path = "docs/source/data/data_connectors_sample.toml"
+
+[connector_refs]
+training_sql = "warehouse_sql"
+operator_events = "ops_opensearch"
+artifact_store = "artifact_object_store"
+
+[page_connector_refs.release_decision]
+evidence_index = "ops_opensearch"
+artifact_store = "artifact_object_store"
+
+[legacy_paths]
+artifact_root = "~/export/agilab/artifacts"
+telemetry_csv = "~/export/agilab/telemetry/events.csv"

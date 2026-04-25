@@ -29,7 +29,8 @@ use this order:
    - make SQL, ELK, object storage, and other external data sources first-class
      connector targets
    - build on the shipped data connector facility report for SQL, OpenSearch,
-     and object-storage definitions
+     and object-storage definitions plus the data connector resolution report
+     for connector-aware app/page resolution
    - this turns connector work into a practical data-access layer, not just path
      cleanup
 4. **Reduce contract adoption**
@@ -466,6 +467,15 @@ Proposed direction:
 - let `app_settings.toml` reference those connector files instead of embedding
   all path details inline
 
+Completed baseline:
+
+- `tools/data_connector_facility_report.py --compact` validates first-class
+  SQL, OpenSearch, and object-storage connector definitions without network
+  probes
+- `tools/data_connector_resolution_report.py --compact` resolves connector IDs
+  from an app-settings-style sample, validates connector-aware app/page
+  resolution, and preserves `legacy_path_fallback` rows for migration
+
 First connector model:
 
 - `id`
@@ -500,6 +510,11 @@ Compatibility rule:
 Expected impact:
 
 - `view_maps_network` is the primary beneficiary
+
+Remaining scope:
+
+- add live connector health/status probes with explicit opt-in boundaries
+- surface connector provenance and fallback state in the relevant UI pages
 
 ## Distributed execution and reduction
 
@@ -643,10 +658,14 @@ Current shipped baseline:
   definitions with kind-specific required fields
 - remote credentials are represented as `env:` references and the report runs
   in `contract_validation_only` mode without live network probes
+- `tools/data_connector_resolution_report.py --compact` validates
+  `agilab.data_connector_resolution.v1` against
+  `docs/source/data/data_connector_app_settings_sample.toml`
+- connector-aware app/page resolution now resolves catalog IDs from app
+  settings while preserving `legacy_path_fallback` rows for raw-path migration
 
 Remaining scope:
 
-- connector-aware app/page resolution beyond the current catalog contract
 - health/status probes that can be explicitly enabled in operator contexts
 - UI previews for connector state and connector-derived provenance
 

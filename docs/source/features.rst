@@ -168,6 +168,11 @@ single notebook but less ceremony than a production MLOps platform:
   TOML catalog; it runs in ``contract_validation_only`` mode, checks
   kind-specific fields, and requires environment references instead of embedded
   remote credentials
+- the data connector resolution report validates
+  ``tools/data_connector_resolution_report.py --compact`` for
+  connector-aware app/page resolution; it resolves app-settings connector IDs,
+  proves page-specific references, preserves ``legacy_path_fallback`` rows,
+  and runs in ``contract_resolution_only`` mode without network probes
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a
