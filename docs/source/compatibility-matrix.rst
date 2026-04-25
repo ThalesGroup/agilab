@@ -236,6 +236,8 @@ workflow-run artifacts when operator credentials are available.
 ``tools/compatibility_report.py --artifact-index artifact_index.json`` can then
 derive per-release compatibility status from those downloaded attachments or
 from ``ci_artifact_harvest.json`` summaries.
+The ``pypi-publish`` release workflow runs the same live GitHub Actions
+artifact API path in its ``release-evidence`` job before publish jobs proceed.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and
@@ -253,8 +255,6 @@ define both the no-network attachment contract and the first provider download
 adapter.
 The larger roadmap work is still open:
 
-- running the GitHub Actions download path inside release CI instead of only as
-  an operator-triggered adapter
 - broader provider coverage beyond GitHub Actions
 - broader app/core revision traceability beyond the first-proof manifest
 - explicit certification for more than the public newcomer/operator slices

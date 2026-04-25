@@ -388,5 +388,22 @@ def write_sample_github_actions_archive(path: Path) -> Path:
     return path
 
 
+def write_sample_github_actions_directory(path: Path) -> Path:
+    """Write deterministic evidence files in the layout uploaded by Actions."""
+
+    payload_by_kind = {
+        str(artifact["kind"]): artifact["payload"] for artifact in sample_ci_artifacts()
+    }
+    path = path.expanduser()
+    for kind, member in SAMPLE_ARCHIVE_MEMBERS.items():
+        target = path / member
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(payload_by_kind[kind], indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    return path
+
+
 def token_from_env(name: str = "GITHUB_TOKEN") -> str | None:
     return os.getenv(name) or None
