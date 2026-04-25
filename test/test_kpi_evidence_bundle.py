@@ -42,6 +42,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "newcomer_first_proof_contract",
         "run_manifest_contract",
         "multi_app_dag_report_contract",
+        "global_pipeline_dag_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -114,6 +115,21 @@ def test_multi_app_dag_report_contract_reports_cross_app_handoff() -> None:
     ]
     assert check["details"]["summary"]["cross_app_edge_count"] == 1
     assert "multi_app_dag_artifact_handoffs" in check["details"]["check_ids"]
+
+
+def test_global_pipeline_dag_report_contract_reports_read_only_graph() -> None:
+    module = _load_module()
+
+    check = module._check_global_pipeline_dag_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["dag_path"] == "docs/source/data/multi_app_dag_sample.json"
+    assert check["details"]["summary"]["runner_status"] == "not_executed"
+    assert check["details"]["summary"]["app_node_count"] == 2
+    assert check["details"]["summary"]["app_step_node_count"] == 8
+    assert check["details"]["summary"]["local_pipeline_edge_count"] == 6
+    assert check["details"]["summary"]["cross_app_edge_count"] == 1
+    assert "global_pipeline_dag_graph_shape" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

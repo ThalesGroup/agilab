@@ -12,11 +12,11 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **Global orchestrated pipeline DAG**
+1. **Global DAG runner/UI integration**
    - let `PIPELINE` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
-   - build on the shipped multi-app DAG contract/report baseline and add
-     runner integration plus operator-facing state
+   - build on the shipped multi-app DAG contract and read-only global pipeline
+     DAG report, then add runner integration plus operator-facing state
 2. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
@@ -57,8 +57,8 @@ Why this order:
 
 - turn the shipped manifest remediation baseline into external evidence import
   and release indexes before broader onboarding automation
-- build global orchestration on the shipped cross-app contract instead of
-  claiming runner behavior before it exists
+- build global orchestration on the shipped cross-app contract and read-only
+  product graph instead of claiming runner behavior before it exists
 - keep notebook interop after the orchestration state model is clearer
 - stabilize contracts before standardizing distributed reduction
 - keep operator refinements downstream of the proof/evidence layer
@@ -209,16 +209,30 @@ Purpose:
 - make `PIPELINE` the view of one global orchestrated DAG rather than a mainly
   app-local execution trace
 
-Suggested scope:
+Current shipped baseline:
 
-- one graph that spans preparation, training, simulation, analysis, and export
+- `tools/global_pipeline_dag_report.py --compact` assembles one read-only
+  product-level graph from `docs/source/data/multi_app_dag_sample.json`
+- the graph expands `uav_queue_project` and `uav_relay_queue_project` through
+  their checked-in `pipeline_view.dot` files
+- the graph preserves the cross-app `queue_metrics` artifact edge and reports
+  app nodes, app-local step nodes, app-local edges, and execution order
+- the compact KPI bundle includes this as
+  `global_pipeline_dag_report_contract`
+
+Remaining scope:
+
 - explicit upstream/downstream dependency visualization across apps
 - orchestration-state visibility for the full DAG
+- runner integration for executing the global graph and recording retries,
+  partial reruns, provenance, and operator-visible state
 
 Why it matters:
 
-- this gives AGILab a clearer product story than isolated per-app pipelines
-- it makes the orchestration layer visible to operators and reviewers
+- the report gives AGILab a clearer product story than isolated per-app
+  pipelines without overclaiming execution
+- runner/UI work is still needed before the orchestration layer is fully
+  visible to operators and reviewers
 
 ### 8. Bidirectional notebook interop
 
@@ -615,8 +629,8 @@ Use this rule of thumb:
   debugging, clearer run review, and defensible explanation of KPI changes
 - choose **Multi-app DAG orchestration** if the next need is runner integration
   for the shipped cross-app dependency contract
-- choose **Global orchestrated pipeline DAG** if the next need is to expose that
-  orchestration as a single product-visible graph in `PIPELINE`
+- choose **Global DAG runner/UI integration** if the next need is to execute the
+  shipped product-visible graph in `PIPELINE`
 - choose **Bidirectional notebook interop** if the next need is a stronger bridge
   between exploratory notebooks and AGILab-managed workflows
 - choose **Elastic/OpenSearch + Grafana** if the next need is operations and
@@ -655,7 +669,7 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Global orchestrated pipeline DAG
+- Global DAG runner/UI integration
 - Bidirectional notebook interop
 - Data connector facility
 - Reduce contract adoption

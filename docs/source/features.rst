@@ -164,11 +164,17 @@ single notebook but less ceremony than a production MLOps platform:
   ``docs/source/data/multi_app_dag_sample.json``; the first sample links
   ``uav_queue_project`` to ``uav_relay_queue_project`` through an explicit
   ``queue_metrics`` handoff
+- the global pipeline DAG report now assembles that cross-app contract with the
+  app-local ``pipeline_view.dot`` files using
+  ``tools/global_pipeline_dag_report.py --compact``; it emits a read-only graph
+  with app nodes, app-local pipeline steps, and the ``queue_metrics`` edge
+  without claiming runner execution or operator UI state
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
 app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear.
+merge outputs appear, and full global DAG runner/UI orchestration is still
+roadmap work.
 
 Production-readiness controls
 -----------------------------
