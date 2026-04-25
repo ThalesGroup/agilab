@@ -198,6 +198,10 @@ Current shipped baseline:
   `agilab.revision_traceability.v1` and fingerprints repository HEAD, AGI core
   package versions, and built-in app manifests without invoking git commands or
   querying networks
+- `tools/public_certification_profile_report.py --compact` validates
+  `agilab.public_certification_profile.v1` and turns the compatibility matrix
+  into a `bounded_public_evidence` certification profile without production or
+  third-party certification claims
 - `tools/ci_artifact_harvest_report.py --compact` now defines the
   no-network external-machine attachment contract for run manifests, KPI
   bundles, compatibility reports, and promotion decisions

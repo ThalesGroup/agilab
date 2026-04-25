@@ -360,6 +360,54 @@ def _check_revision_traceability_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_public_certification_profile_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        public_certification_profile_report = _load_tool_module(
+            repo_root,
+            "public_certification_profile_report",
+        )
+        report = public_certification_profile_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.public_certification_profile.v1"
+            and summary.get("certification_profile") == "bounded_public_evidence"
+            and summary.get("path_count") == 6
+            and summary.get("certified_public_evidence_count") == 4
+            and summary.get("documented_not_certified_count") == 2
+            and summary.get("certified_beyond_newcomer_operator_count") == 2
+            and summary.get("production_certification_claimed") is False
+            and summary.get("formal_third_party_certification") is False
+            and summary.get("command_execution_count") == 0
+            and summary.get("network_probe_count") == 0
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "public_certification_profile_report_contract",
+        "Public certification profile report contract",
+        ok,
+        (
+            "public certification profile covers validated and documented "
+            "public routes without production-certification claims"
+            if ok
+            else "public certification profile report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/public_certification_profile_report.py",
+            "src/agilab/public_certification.py",
+            "docs/source/data/compatibility_matrix.toml",
+        ],
+        details=details,
+    )
+
+
 def _check_run_diff_evidence_report(repo_root: Path) -> dict[str, Any]:
     try:
         run_diff_evidence_report = _load_tool_module(
@@ -2051,6 +2099,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "run_manifest.json",
             "tools/reduce_contract_benchmark.py --json",
             "tools/revision_traceability_report.py --compact",
+            "tools/public_certification_profile_report.py --compact",
             "tools/run_diff_evidence_report.py --compact",
             "tools/ci_artifact_harvest_report.py --compact",
             "tools/github_actions_artifact_index.py --archive",
@@ -2090,6 +2139,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/agilab_web_robot.py",
             "tools/production_readiness_report.py",
             "tools/revision_traceability_report.py",
+            "tools/public_certification_profile_report.py",
             "tools/run_diff_evidence_report.py",
             "tools/ci_artifact_harvest_report.py",
             "tools/github_actions_artifact_index.py",
@@ -2165,6 +2215,7 @@ def build_bundle(
         _check_newcomer_first_proof_contract(repo_root),
         _check_run_manifest_contract(repo_root),
         _check_revision_traceability_report(repo_root),
+        _check_public_certification_profile_report(repo_root),
         _check_run_diff_evidence_report(repo_root),
         _check_ci_artifact_harvest_report(repo_root),
         _check_github_actions_artifact_index(repo_root),

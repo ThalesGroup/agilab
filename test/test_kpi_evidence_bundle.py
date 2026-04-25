@@ -42,6 +42,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "newcomer_first_proof_contract",
         "run_manifest_contract",
         "revision_traceability_report_contract",
+        "public_certification_profile_report_contract",
         "run_diff_evidence_report_contract",
         "ci_artifact_harvest_report_contract",
         "github_actions_artifact_index_contract",
@@ -146,6 +147,27 @@ def test_revision_traceability_report_contract_fingerprints_repo() -> None:
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert "revision_traceability_builtin_apps" in check["details"]["check_ids"]
+
+
+def test_public_certification_profile_report_contract_bounds_scope() -> None:
+    module = _load_module()
+
+    check = module._check_public_certification_profile_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == (
+        "agilab.public_certification_profile.v1"
+    )
+    assert check["details"]["summary"]["certification_profile"] == "bounded_public_evidence"
+    assert check["details"]["summary"]["path_count"] == 6
+    assert check["details"]["summary"]["certified_public_evidence_count"] == 4
+    assert check["details"]["summary"]["documented_not_certified_count"] == 2
+    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 2
+    assert check["details"]["summary"]["production_certification_claimed"] is False
+    assert check["details"]["summary"]["formal_third_party_certification"] is False
+    assert check["details"]["summary"]["command_execution_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert "public_certification_profile_boundaries" in check["details"]["check_ids"]
 
 
 def test_run_diff_evidence_report_contract_reports_counterfactuals() -> None:
