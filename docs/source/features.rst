@@ -157,6 +157,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`` so
   saved step description, prompt, model, code, runtime, import hints, and
   artifact references survive the non-executing round trip
+- the notebook union-environment report validates
+  ``tools/notebook_union_environment_report.py --compact``; it renders a
+  ``single-kernel union notebook`` only for compatible ``runpy``/current-kernel
+  steps and marks mixed runtimes or environments as
+  ``supervisor_notebook_required``
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a

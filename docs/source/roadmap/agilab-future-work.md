@@ -308,6 +308,10 @@ Current shipped baseline:
   `lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`
   preservation for saved step description, prompt, model, code, runtime,
   import hints, and artifact references
+- `tools/notebook_union_environment_report.py --compact` validates a
+  `single-kernel union notebook` candidate only for compatible `runpy` /
+  current-kernel steps and records `supervisor_notebook_required` for mixed
+  runtime or mixed-environment pipelines
 - this is intentionally not the same thing as flattening a multi-venv pipeline
   into one notebook kernel
 
@@ -315,10 +319,8 @@ Suggested scope:
 
 - harden notebook-to-pipeline import beyond the initial report and upload path,
   including broader edge cases for exported supervisor notebooks
-- keep the supervisor-notebook export as the default for mixed-runtime or
-  multi-venv pipelines
-- generate an optional union notebook environment only when the pipeline step
-  environments are actually compatible
+- keep expanding notebook-native analysis surfaces or Voilà-style packaging
+  without duplicating the current apps-pages logic blindly
 - make notebook-native analysis surfaces or Voilà-style packaging possible
   without duplicating the current apps-pages logic blindly
 - preserve enough provenance so the notebook remains explainable
