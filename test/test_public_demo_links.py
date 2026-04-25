@@ -107,6 +107,7 @@ def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     assert "Notebook quickstart" not in readme
     assert "notebook-quickstart.html" not in readme
     for maintainer_command in (
+        "tools/compatibility_report.py",
         "tools/hf_space_smoke.py --json",
         "tools/agilab_web_robot.py",
         "tools/production_readiness_report.py",
@@ -321,10 +322,14 @@ def test_features_docs_capture_production_readiness_controls() -> None:
 def test_compatibility_matrix_marks_public_hf_demo_validated() -> None:
     matrix = COMPATIBILITY_MATRIX.read_text(encoding="utf-8")
     doc = COMPATIBILITY_DOC.read_text(encoding="utf-8")
+    normalized_doc = " ".join(doc.split())
 
     assert 'id = "agilab-hf-demo"' in matrix
     assert 'status = "validated"' in matrix
     assert "tools/hf_space_smoke.py --json" in matrix
     assert "AGILAB Hugging Face demo" in doc
+    assert "workflow-backed compatibility report" in normalized_doc
+    assert "tools/compatibility_report.py --compact" in normalized_doc
+    assert "required public statuses" in normalized_doc
     assert "tools/hf_space_smoke.py --json" in doc
     assert "tools/kpi_evidence_bundle.py" in doc

@@ -1,9 +1,9 @@
 [metadata]
 version = 1
-updated = "2026-04-24"
+updated = "2026-04-25"
 owner = "manual-public-docs"
 purpose = "Public compatibility and demo-tour slice for AGILAB"
-notes = "Manual matrix. Workflow-backed automation and broader certification remain roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
+notes = "Matrix promoted into tools/compatibility_report.py for public status and proof-command validation. External CI ingestion and broader certification remain roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
 
 [[entries]]
 id = "source-checkout-first-proof"
@@ -43,7 +43,7 @@ id = "service-mode-operator-surface"
 label = "Service-mode operator surface"
 status = "validated"
 surface = "ORCHESTRATE service controls"
-primary_proof = "Local service panel regressions and agi-gui parity checks"
+primary_proof = "tools/service_health_check.py plus local service panel regressions and agi-gui parity checks"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
 scope = "start/status/health/stop actions, health gate thresholds, operator summary"
