@@ -12,18 +12,15 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **Connector registry hardening**
-   - stabilize path portability and artefact resolution across apps/pages
-   - this reduces glue before deeper cross-app automation
-2. **Multi-app DAG orchestration**
+1. **Multi-app DAG orchestration**
    - extend orchestration from one app flow to DAGs that span multiple apps
    - this is the contract needed before the pipeline can become a true
      cross-app orchestrated graph
-3. **Global orchestrated pipeline DAG**
+2. **Global orchestrated pipeline DAG**
    - let `PIPELINE` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
    - this depends on clearer multi-app orchestration contracts
-4. **Bidirectional notebook interop**
+3. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
    - add notebook-to-pipeline import maturity and optional single-kernel
@@ -73,29 +70,6 @@ Why this order:
 The most promising Streamlit-style view patterns for AGILab are not generic
 gallery clones. They are focused application views that reinforce AGILab's core
 value: orchestration, evidence, and domain-specific interaction.
-
-### 0. Connector registry hardening
-
-Purpose:
-
-- make app/page artefact references portable across local machines, exported
-  bundles, and launcher contexts
-- reduce path glue before deeper cross-app orchestration and release views depend
-  on shared connector-derived paths
-
-Suggested contents:
-
-- normalize connector path ids and user-facing display paths
-- centralize artifact-root, log-root, and export-root resolution
-- expose connector state beside app settings and release evidence
-
-Why it matters:
-
-- release evidence now carries provenance-tagged manifest attachments, so the
-  next bottleneck is making referenced artifacts resolve consistently across
-  apps, pages, and external-machine exports
-- hardening the connector registry reduces one-off path handling before AGILab
-  expands to multi-app DAGs
 
 ### 1. Experiment Cockpit
 
@@ -674,7 +648,6 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Connector registry hardening
 - Multi-app DAG orchestration
 - Global orchestrated pipeline DAG
 - Bidirectional notebook interop

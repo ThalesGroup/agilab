@@ -282,6 +282,7 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     assert not at.exception
     assert any(title.value == "Release decision" for title in at.title)
     assert any("Promotable" in message.value for message in at.success)
+    assert any(header.value == "Connector path registry" for header in at.subheader)
 
     export_button = next(button for button in at.button if button.label == "Export promotion decision")
     export_button.click().run()
@@ -292,6 +293,11 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     payload = json.loads(decision_path.read_text(encoding="utf-8"))
     assert payload["status"] == "promotable"
     assert payload["candidate_bundle_root"] == str(candidate_root)
+    assert payload["connector_registry_summary"]["paths"]["artifact_root"] == str(export_root)
+    assert {
+        row["connector_id"]
+        for row in payload["connector_registry_paths"]
+    } >= {"export_root", "log_root", "artifact_root", "first_proof_manifest"}
     assert payload["run_manifest_path"] == str(manifest_path)
     assert payload["run_manifest_summary"]["path_id"] == "source-checkout-first-proof"
     assert payload["run_manifest_summary"]["status"] == "pass"

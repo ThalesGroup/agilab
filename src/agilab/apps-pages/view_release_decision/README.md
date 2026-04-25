@@ -5,6 +5,7 @@ Reusable Streamlit analysis page for baseline-vs-candidate promotion decisions.
 Primary use:
 
 - compare two exported metric bundles
+- resolve artifact, log, export, and first-proof paths through the shared connector path registry
 - gate promotion on first-proof `run_manifest.json`
 - import external run-manifest evidence with `--manifest` / `--manifest-dir`
 - attach SHA-256, size, mtime, provenance tag, and optional sidecar signature metadata to imported manifests
@@ -17,6 +18,14 @@ Primary use:
 Default search root:
 
 - `~/export/<app_target>`
+
+The page resolves that root through the shared AGILAB connector path registry.
+The same registry also records the export root, log root, app artifact root,
+app execute-log root, first-proof log root, first-proof manifest, and page-bundle
+root when available. Those connector rows are shown in the page and exported in
+`promotion_decision.json` as `connector_registry_paths` plus
+`connector_registry_summary`, so downstream tools can reason about portable
+artifact and log paths instead of reconstructing local path glue.
 
 For `meteo_forecast_project`, the page defaults to:
 
