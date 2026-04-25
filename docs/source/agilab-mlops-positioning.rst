@@ -140,6 +140,9 @@ history:
   cross-app upstream/downstream adjacency, the ``queue_baseline ->
   relay_followup`` ``queue_metrics`` edge, and artifact-flow rows without
   claiming live UI rendering
+- the global DAG live state updates report turns the dependency view into
+  ordered graph, unit, artifact, dependency, and action refresh payloads without
+  claiming a runtime streaming service
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -196,6 +199,8 @@ between research experiments and engineering validation:
   retry/partial-rerun actions before UI components are added
 - a dependency-view report that makes the cross-app upstream/downstream
   relationship explicit before live UI rendering is added
+- a live-update payload report that defines the operator refresh stream before
+  UI components or runtime transport are added
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

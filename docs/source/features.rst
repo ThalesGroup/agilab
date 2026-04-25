@@ -206,6 +206,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``queue_baseline -> relay_followup``, including the ``queue_metrics`` edge,
   producer/consumer apps, adjacency lists, artifact flow, and linkage back to
   persisted operator state without claiming a live UI component
+- the global DAG live state updates report reads that dependency view with
+  ``tools/global_pipeline_live_state_updates_report.py --compact``; it emits a
+  ``deterministic update stream`` for ``live orchestration-state updates``
+  across graph-ready, unit-state, artifact-state, dependency-state, and
+  operator-action refresh payloads without claiming a streaming service or UI
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
