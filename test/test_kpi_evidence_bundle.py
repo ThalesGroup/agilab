@@ -47,6 +47,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "global_pipeline_runner_state_report_contract",
         "global_pipeline_dispatch_state_report_contract",
         "global_pipeline_app_dispatch_smoke_report_contract",
+        "global_pipeline_operator_state_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -215,6 +216,27 @@ def test_global_pipeline_app_dispatch_smoke_report_contract_executes_real_dag() 
     assert "relay_metrics" in check["details"]["summary"]["available_artifact_ids"]
     assert "global_pipeline_app_dispatch_smoke_real_queue" in check["details"]["check_ids"]
     assert "global_pipeline_app_dispatch_smoke_real_relay" in check["details"]["check_ids"]
+
+
+def test_global_pipeline_operator_state_report_contract_exposes_actions() -> None:
+    module = _load_module()
+
+    check = module._check_global_pipeline_operator_state_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["executed"] is True
+    assert check["details"]["summary"]["run_status"] == "ready_for_operator_review"
+    assert check["details"]["summary"]["persistence_format"] == "json"
+    assert check["details"]["summary"]["round_trip_ok"] is True
+    assert check["details"]["summary"]["visible_unit_count"] == 2
+    assert check["details"]["summary"]["completed_unit_ids"] == ["queue_baseline", "relay_followup"]
+    assert check["details"]["summary"]["source_real_execution_scope"] == "full_dag_smoke"
+    assert check["details"]["summary"]["handoff_count"] == 1
+    assert check["details"]["summary"]["retry_action_count"] == 2
+    assert check["details"]["summary"]["partial_rerun_action_count"] == 2
+    assert "queue_metrics" in check["details"]["summary"]["available_artifact_ids"]
+    assert "relay_metrics" in check["details"]["summary"]["available_artifact_ids"]
+    assert "global_pipeline_operator_state_actions" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

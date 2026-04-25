@@ -133,6 +133,9 @@ history:
   ``uav_relay_queue_project``, persists ``queue_metrics``, ``relay_metrics``,
   and reducer artifacts into dispatch-state JSON, and stops short of claiming
   live operator UI
+- the global DAG operator state report projects that persisted full-DAG state
+  into operator-visible completed unit state, available artifact handoffs, and
+  retry/partial-rerun action rows while still avoiding live UI claims
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -185,12 +188,14 @@ between research experiments and engineering validation:
   real dispatch is introduced
 - a two-unit app dispatch smoke that executes ``queue_baseline`` and
   ``relay_followup`` for real while keeping live UI orchestration separate
+- an operator-state report that exposes completed units, handoffs, and
+  retry/partial-rerun actions before UI components are added
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
 higher yet because future app/template reducer adoption discipline, live UI
-work, and broader fresh-install validation are still roadmap work.
+components, and broader fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------

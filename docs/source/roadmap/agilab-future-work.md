@@ -240,19 +240,23 @@ Current shipped baseline:
   `uav_queue_project` and `uav_relay_queue_project` manager/worker entries,
   writes the actual `queue_metrics`, `relay_metrics`, and reducer artifacts,
   and persists them in dispatch-state JSON
+- `tools/global_pipeline_operator_state_report.py --compact` reads that
+  persisted full-DAG dispatch state and exposes completed unit state,
+  queue-to-relay handoffs, available artifacts, and retry/partial-rerun action
+  rows for future operator flows
 - the compact KPI bundle includes this as
   `global_pipeline_dag_report_contract`,
   `global_pipeline_execution_plan_report_contract`,
   `global_pipeline_runner_state_report_contract`, and
   `global_pipeline_dispatch_state_report_contract`, plus
-  `global_pipeline_app_dispatch_smoke_report_contract`
+  `global_pipeline_app_dispatch_smoke_report_contract` and
+  `global_pipeline_operator_state_report_contract`
 
 Remaining scope:
 
 - explicit upstream/downstream dependency visualization across apps
 - live orchestration-state updates for the full DAG
-- persisted retries, partial reruns, provenance, and operator-visible state
-  changes from real app runs
+- execution of retry and partial-rerun actions from operator requests
 - UI components that render the persisted state and support operator actions
 
 Why it matters:
