@@ -460,6 +460,59 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_repository_knowledge_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        knowledge_report = _load_tool_module(repo_root, "repository_knowledge_report")
+        report = knowledge_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.repository_knowledge_index.v1"
+            and summary.get("run_status") == "indexed"
+            and summary.get("execution_mode") == "repository_knowledge_static_index"
+            and int(summary.get("indexed_file_count", 0) or 0) > 50
+            and int(summary.get("python_file_count", 0) or 0) > 20
+            and int(summary.get("tool_file_count", 0) or 0) > 10
+            and int(summary.get("docs_file_count", 0) or 0) > 10
+            and int(summary.get("pyproject_count", 0) or 0) >= 8
+            and int(summary.get("runbook_count", 0) or 0) >= 3
+            and summary.get("knowledge_map_count") == 4
+            and int(summary.get("query_seed_count", 0) or 0) >= 4
+            and summary.get("excluded_path_hit_count") == 0
+            and summary.get("generated_wiki_source_of_truth") is False
+            and summary.get("official_docs_source_of_truth") is True
+            and summary.get("private_repository_indexed") is False
+            and summary.get("network_probe_count") == 0
+            and summary.get("command_execution_count") == 0
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "repository_knowledge_report_contract",
+        "Repository knowledge index report contract",
+        ok,
+        (
+            "repository knowledge report indexes code, docs, runbooks, and "
+            "manifests while preserving source-of-truth boundaries"
+            if ok
+            else "repository knowledge report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/repository_knowledge_report.py",
+            "src/agilab/repository_knowledge.py",
+            "docs/source/roadmap/agilab-future-work.md",
+        ],
+        details=details,
+    )
+
+
 def _check_run_diff_evidence_report(repo_root: Path) -> dict[str, Any]:
     try:
         run_diff_evidence_report = _load_tool_module(
@@ -2270,6 +2323,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/revision_traceability_report.py --compact",
             "tools/public_certification_profile_report.py --compact",
             "tools/supply_chain_attestation_report.py --compact",
+            "tools/repository_knowledge_report.py --compact",
             "tools/run_diff_evidence_report.py --compact",
             "tools/ci_artifact_harvest_report.py --compact",
             "tools/github_actions_artifact_index.py --archive",
@@ -2313,6 +2367,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/revision_traceability_report.py",
             "tools/public_certification_profile_report.py",
             "tools/supply_chain_attestation_report.py",
+            "tools/repository_knowledge_report.py",
             "tools/run_diff_evidence_report.py",
             "tools/ci_artifact_harvest_report.py",
             "tools/github_actions_artifact_index.py",
@@ -2391,6 +2446,7 @@ def build_bundle(
         _check_revision_traceability_report(repo_root),
         _check_public_certification_profile_report(repo_root),
         _check_supply_chain_attestation_report(repo_root),
+        _check_repository_knowledge_report(repo_root),
         _check_run_diff_evidence_report(repo_root),
         _check_ci_artifact_harvest_report(repo_root),
         _check_github_actions_artifact_index(repo_root),

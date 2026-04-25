@@ -244,6 +244,13 @@ single notebook but less ceremony than a production MLOps platform:
   ``agilab.supply_chain_attestation.v1``; it fingerprints package metadata,
   lockfile, license, bundled AGI core versions, and built-in app manifests
   without formal supply-chain attestation claims
+- the repository knowledge index report validates
+  ``tools/repository_knowledge_report.py --compact`` in
+  ``repository_knowledge_static_index`` mode against
+  ``agilab.repository_knowledge_index.v1``; it indexes code, tools, official
+  docs, root runbooks, and package manifests while excluding generated
+  artifacts and keeping the generated wiki as an exploration aid rather than
+  the source of truth
 - the run-diff evidence report validates
   ``tools/run_diff_evidence_report.py --compact`` in
   ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,

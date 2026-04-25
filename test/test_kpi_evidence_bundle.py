@@ -44,6 +44,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "revision_traceability_report_contract",
         "public_certification_profile_report_contract",
         "supply_chain_attestation_report_contract",
+        "repository_knowledge_report_contract",
         "run_diff_evidence_report_contract",
         "ci_artifact_harvest_report_contract",
         "github_actions_artifact_index_contract",
@@ -192,6 +193,35 @@ def test_supply_chain_attestation_report_contract_fingerprints_package() -> None
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["formal_supply_chain_attestation"] is False
     assert "supply_chain_attestation_core_alignment" in check["details"]["check_ids"]
+
+
+def test_repository_knowledge_report_contract_indexes_repo_context() -> None:
+    module = _load_module()
+
+    check = module._check_repository_knowledge_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == (
+        "agilab.repository_knowledge_index.v1"
+    )
+    assert check["details"]["summary"]["run_status"] == "indexed"
+    assert check["details"]["summary"]["execution_mode"] == (
+        "repository_knowledge_static_index"
+    )
+    assert check["details"]["summary"]["indexed_file_count"] > 50
+    assert check["details"]["summary"]["python_file_count"] > 20
+    assert check["details"]["summary"]["docs_file_count"] > 10
+    assert check["details"]["summary"]["pyproject_count"] >= 8
+    assert check["details"]["summary"]["runbook_count"] >= 3
+    assert check["details"]["summary"]["knowledge_map_count"] == 4
+    assert check["details"]["summary"]["query_seed_count"] >= 4
+    assert check["details"]["summary"]["excluded_path_hit_count"] == 0
+    assert check["details"]["summary"]["generated_wiki_source_of_truth"] is False
+    assert check["details"]["summary"]["official_docs_source_of_truth"] is True
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["command_execution_count"] == 0
+    assert "repository_knowledge_exclusion_guardrails" in check["details"]["check_ids"]
+    assert "repository_knowledge_source_of_truth_boundary" in check["details"]["check_ids"]
 
 
 def test_run_diff_evidence_report_contract_reports_counterfactuals() -> None:

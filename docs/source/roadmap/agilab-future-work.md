@@ -852,6 +852,27 @@ Guardrail:
 - treat the generated wiki as an exploration aid, not as the source of truth
 - keep official product and operator documentation in versioned docs and runbooks
 
+Current shipped baseline:
+
+- `tools/repository_knowledge_report.py --compact` validates
+  `agilab.repository_knowledge_index.v1` in
+  `repository_knowledge_static_index` mode
+- the report indexes local code, tools, official docs, root runbooks, and
+  package/app manifests with SHA-256 fingerprints and lightweight outlines
+- generated artifacts, virtualenvs, build outputs, and distributions are
+  excluded by contract
+- the report emits stable onboarding query seeds while explicitly keeping the
+  generated index as an exploration aid and versioned docs as the source of
+  truth
+- the KPI evidence bundle includes this as
+  `repository_knowledge_report_contract`
+
+Remaining scope:
+
+- connect this static index to an internal generated wiki or Q&A service
+- extend indexing to private app repositories under the same source-of-truth
+  guardrail
+
 Why it matters:
 
 - reduces time spent rediscovering cross-cutting implementation details
