@@ -45,3 +45,28 @@ def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
     run_block = _agi_gui_run_block()
 
     assert "test/test_about_agilab_helpers.py" in run_block
+
+
+def test_agi_gui_coverage_includes_pipeline_run_controls() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_pipeline_run_controls.py" in run_block
+
+
+def test_agi_gui_coverage_includes_report_helper_regressions() -> None:
+    run_block = _agi_gui_run_block()
+
+    expected_targets = {
+        "test/test_compatibility_report.py",
+        "test/test_connector_registry.py",
+        "test/test_data_connector*_report.py",
+        "test/test_global_pipeline*_report.py",
+        "test/test_multi_app_dag_report.py",
+        "test/test_notebook*_report.py",
+        "test/test_production_readiness_report.py",
+        "test/test_run_manifest.py",
+    }
+
+    missing = sorted(target for target in expected_targets if target not in run_block)
+
+    assert not missing, f"agi-gui coverage is missing report/helper targets: {missing}"
