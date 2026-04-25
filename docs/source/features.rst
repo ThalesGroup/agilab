@@ -191,7 +191,7 @@ single notebook but less ceremony than a production MLOps platform:
 - the data connector app catalogs report validates
   ``tools/data_connector_app_catalogs_report.py --compact`` in
   ``app_catalog_validation_only`` mode; it proves app-local connector catalogs
-  for ``flight_project`` and ``meteo_forecast_project`` without network probes
+  for every non-template built-in app without network probes
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a

@@ -1361,13 +1361,21 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             and summary.get("schema") == "agilab.data_connector_app_catalogs.v1"
             and summary.get("run_status") == "validated"
             and summary.get("execution_mode") == "app_catalog_validation_only"
-            and summary.get("app_catalog_count") == 2
-            and summary.get("connector_count") == 6
-            and summary.get("page_connector_ref_count") == 5
-            and summary.get("legacy_path_count") == 4
+            and summary.get("app_catalog_count") == 6
+            and summary.get("connector_count") == 18
+            and summary.get("page_connector_ref_count") == 11
+            and summary.get("legacy_path_count") == 12
             and summary.get("missing_ref_count") == 0
             and summary.get("network_probe_count") == 0
-            and summary.get("apps") == ["flight_project", "meteo_forecast_project"]
+            and summary.get("apps")
+            == [
+                "execution_pandas_project",
+                "execution_polars_project",
+                "flight_project",
+                "meteo_forecast_project",
+                "uav_queue_project",
+                "uav_relay_queue_project",
+            ]
             and summary.get("round_trip_ok") is True
         )
         details = {
@@ -1393,6 +1401,8 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             "src/agilab/data_connector_app_catalogs.py",
             "src/agilab/apps/builtin/flight_project/src/app_settings.toml",
             "src/agilab/apps/builtin/meteo_forecast_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/uav_queue_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/uav_relay_queue_project/src/app_settings.toml",
         ],
         details=details,
     )

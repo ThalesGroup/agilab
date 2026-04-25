@@ -1,0 +1,27 @@
+[[connectors]]
+id = "execution_polars_sql"
+kind = "sql"
+label = "Execution Polars SQL"
+description = "Read-only benchmark input table for polars execution experiments."
+uri = "postgresql://execution.example.invalid/polars"
+driver = "postgresql"
+query_mode = "read_only"
+
+[[connectors]]
+id = "execution_polars_ops_opensearch"
+kind = "opensearch"
+label = "Execution Polars Operations OpenSearch"
+description = "Execution benchmark run evidence index."
+url = "https://opensearch.example.invalid"
+index = "agilab-execution-polars-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "execution_polars_artifact_store"
+kind = "object_storage"
+label = "Execution Polars Artifact Store"
+description = "Object-storage prefix for polars benchmark artifacts."
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "execution_polars/"
+auth_ref = "env:AWS_PROFILE"

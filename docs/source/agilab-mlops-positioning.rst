@@ -89,8 +89,7 @@ interactive exploration into a replayable, inspectable workflow:
   connector-derived provenance into the Release Decision Streamlit page without
   running connector probes
 - the data connector app catalogs report validates app-local connector catalogs
-  for ``flight_project`` and ``meteo_forecast_project`` while preserving
-  legacy path fallbacks
+  for every non-template built-in app while preserving legacy path fallbacks
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
