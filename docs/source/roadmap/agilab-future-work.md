@@ -216,6 +216,8 @@ Current shipped baseline:
 - `tools/ci_provider_artifact_index.py --provider gitlab_ci --archive` converts
   downloaded GitLab CI or generic provider artifact ZIPs into the same
   harvest-compatible `artifact_index.json` without querying live provider APIs
+- the same tool supports opt-in `--live-gitlab` for credentialed GitLab CI
+  pipeline artifact queries/downloads
 - `tools/compatibility_report.py --artifact-index` can derive per-release
   compatibility status from those downloaded artifact indexes or from
   `ci_artifact_harvest.json` summaries
@@ -229,7 +231,7 @@ Remaining scope:
 
 - add richer domain-specific explanations for allocation, topology, and
   decision deltas
-- add live provider API download adapters beyond GitHub Actions
+- run non-GitHub live provider API harvests in credentialed operator CI
 
 Why it matters:
 

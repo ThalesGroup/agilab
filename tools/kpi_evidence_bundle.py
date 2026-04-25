@@ -7,6 +7,7 @@ import argparse
 from dataclasses import asdict
 from decimal import Decimal, ROUND_HALF_UP
 import importlib.util
+import io
 import json
 from pathlib import Path
 import re
@@ -14,6 +15,7 @@ import sys
 import tempfile
 from types import SimpleNamespace
 from typing import Any, Sequence
+from zipfile import ZipFile
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -623,7 +625,62 @@ def _check_ci_provider_artifact_index(repo_root: Path) -> dict[str, Any]:
                 output_path=tmp_path / "ci_artifact_harvest.json",
                 artifact_index_path=artifact_index_path,
             )
+            live_archive_bytes = io.BytesIO()
+            with ZipFile(live_archive_bytes, "w") as archive:
+                archive.writestr(
+                    "ci/source-checkout-first-proof/run_manifest.json",
+                    json.dumps(
+                        artifact_index["artifacts"][0]["payload"],
+                        sort_keys=True,
+                    ),
+                )
+            live_archive_payload = live_archive_bytes.getvalue()
+
+            class _Response:
+                def __init__(self, payload: bytes) -> None:
+                    self.payload = payload
+
+                def __enter__(self) -> "_Response":
+                    return self
+
+                def __exit__(self, *_args: object) -> None:
+                    return None
+
+                def read(self) -> bytes:
+                    return self.payload
+
+            def _fake_gitlab_urlopen(req: object) -> _Response:
+                url = str(getattr(req, "full_url"))
+                if url.endswith(
+                    "/pipelines/987654321/jobs?scope[]=success&per_page=100&page=1"
+                ):
+                    return _Response(
+                        json.dumps(
+                            [
+                                {
+                                    "id": 42,
+                                    "name": "public-evidence",
+                                    "artifacts_file": {
+                                        "filename": "public-evidence.zip",
+                                        "size": len(live_archive_payload),
+                                    },
+                                }
+                            ]
+                        ).encode("utf-8")
+                    )
+                return _Response(live_archive_payload)
+
+            live_gitlab_index = ci_provider_artifact_index.build_gitlab_ci_artifact_index(
+                project="thales/agilab",
+                pipeline_id="987654321",
+                download_dir=tmp_path / "gitlab-downloads",
+                token="token",
+                workflow="release-evidence",
+                run_attempt="1",
+                urlopen=_fake_gitlab_urlopen,
+            )
         summary = artifact_index.get("summary", {})
+        live_gitlab_summary = live_gitlab_index.get("summary", {})
         harvest_summary = harvest_report.get("summary", {})
         ok = (
             artifact_index.get("schema") == "agilab.ci_provider_artifact_index.v1"
@@ -635,6 +692,11 @@ def _check_ci_provider_artifact_index(repo_root: Path) -> dict[str, Any]:
             and summary.get("provider_query_count") == 0
             and summary.get("download_count") == 0
             and summary.get("network_probe_count") == 0
+            and live_gitlab_index.get("provider") == "gitlab_ci"
+            and live_gitlab_summary.get("provider_query_count") == 1
+            and live_gitlab_summary.get("download_count") == 1
+            and live_gitlab_summary.get("network_probe_count") == 2
+            and live_gitlab_summary.get("missing_required_count") == 3
             and harvest_report.get("status") == "pass"
             and harvest_summary.get("release_status") == "validated"
         )
@@ -642,6 +704,7 @@ def _check_ci_provider_artifact_index(repo_root: Path) -> dict[str, Any]:
             "status": "pass" if ok else "fail",
             "provider": artifact_index.get("provider"),
             "summary": summary,
+            "live_gitlab_summary": live_gitlab_summary,
             "harvest_summary": harvest_summary,
         }
     except Exception as exc:
@@ -652,8 +715,8 @@ def _check_ci_provider_artifact_index(repo_root: Path) -> dict[str, Any]:
         "Generic CI provider artifact index contract",
         ok,
         (
-            "downloaded GitLab CI artifact archives can be converted into the "
-            "CI artifact harvest index without live provider access"
+            "downloaded GitLab CI artifact archives and the opt-in GitLab API "
+            "path can be converted into CI artifact indexes"
             if ok
             else "generic CI provider artifact index contract is failing or disconnected"
         ),
@@ -2104,6 +2167,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/ci_artifact_harvest_report.py --compact",
             "tools/github_actions_artifact_index.py --archive",
             "tools/ci_provider_artifact_index.py --provider gitlab_ci --archive",
+            "tools/ci_provider_artifact_index.py --live-gitlab",
             "tools/multi_app_dag_report.py --compact",
             "tools/global_pipeline_dag_report.py --compact",
             "tools/global_pipeline_execution_plan_report.py --compact",

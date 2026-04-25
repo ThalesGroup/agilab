@@ -249,6 +249,10 @@ def test_ci_provider_artifact_index_contract_feeds_gitlab_harvest() -> None:
     assert check["details"]["summary"]["provider_query_count"] == 0
     assert check["details"]["summary"]["download_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["live_gitlab_summary"]["provider_query_count"] == 1
+    assert check["details"]["live_gitlab_summary"]["download_count"] == 1
+    assert check["details"]["live_gitlab_summary"]["network_probe_count"] == 2
+    assert check["details"]["live_gitlab_summary"]["missing_required_count"] == 3
     assert check["details"]["harvest_summary"]["release_status"] == "validated"
 
 

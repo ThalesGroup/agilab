@@ -21,6 +21,7 @@ from agilab.ci_artifact_harvest import (
 )
 from agilab.ci_provider_artifacts import (
     build_artifact_index_from_archives,
+    build_gitlab_ci_artifact_index,
     build_github_actions_artifact_index,
     write_sample_ci_provider_archive,
     write_sample_github_actions_archive,
@@ -297,6 +298,72 @@ def test_live_github_artifact_index_uses_api_downloads(tmp_path: Path) -> None:
         "https://api.github.com/repos/ThalesGroup/agilab/actions/runs/123456789/artifacts?per_page=100&page=1",
         "https://example.invalid/artifacts/17.zip",
     ]
+    assert index["summary"]["provider_query_count"] == 1
+    assert index["summary"]["download_count"] == 1
+    assert index["summary"]["network_probe_count"] == 2
+    assert index["provenance"]["queries_ci_provider"] is True
+    assert index["provenance"]["downloads_provider_archives"] is True
+    assert index["summary"]["missing_required_count"] == 3
+
+
+def test_live_gitlab_ci_artifact_index_uses_api_downloads(tmp_path: Path) -> None:
+    archive_bytes = io.BytesIO()
+    with ZipFile(archive_bytes, "w") as archive:
+        archive.writestr(
+            "ci/source-checkout-first-proof/run_manifest.json",
+            json.dumps(_sample_payload("run_manifest"), sort_keys=True),
+        )
+    archive_payload = archive_bytes.getvalue()
+    requested_urls: list[str] = []
+
+    class _Response:
+        def __init__(self, payload: bytes) -> None:
+            self.payload = payload
+
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return self.payload
+
+    def fake_urlopen(req: object) -> _Response:
+        url = str(getattr(req, "full_url"))
+        requested_urls.append(url)
+        if url.endswith("/pipelines/987654321/jobs?scope[]=success&per_page=100&page=1"):
+            return _Response(
+                json.dumps(
+                    [
+                        {
+                            "id": 42,
+                            "name": "public-evidence",
+                            "artifacts_file": {
+                                "filename": "public-evidence.zip",
+                                "size": len(archive_payload),
+                            },
+                        }
+                    ]
+                ).encode("utf-8")
+            )
+        return _Response(archive_payload)
+
+    index = build_gitlab_ci_artifact_index(
+        project="thales/agilab",
+        pipeline_id="987654321",
+        download_dir=tmp_path / "downloads",
+        token="token",
+        workflow="release-evidence",
+        run_attempt="1",
+        urlopen=fake_urlopen,
+    )
+
+    assert requested_urls == [
+        "https://gitlab.com/api/v4/projects/thales%2Fagilab/pipelines/987654321/jobs?scope[]=success&per_page=100&page=1",
+        "https://gitlab.com/api/v4/projects/thales%2Fagilab/jobs/42/artifacts",
+    ]
+    assert index["provider"] == "gitlab_ci"
     assert index["summary"]["provider_query_count"] == 1
     assert index["summary"]["download_count"] == 1
     assert index["summary"]["network_probe_count"] == 2
