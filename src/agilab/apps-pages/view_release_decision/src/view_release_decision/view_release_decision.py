@@ -34,6 +34,7 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
+from agi_env.connector_registry import ConnectorPathRegistry, build_connector_path_registry
 from agi_env.pagelib import render_logo
 from agi_node.reduction import ReduceArtifact
 
@@ -89,8 +90,17 @@ def _resolve_active_app() -> Path:
     return active_app_path
 
 
+def _connector_path_registry(env: AgiEnv) -> ConnectorPathRegistry:
+    return build_connector_path_registry(
+        env,
+        target=str(env.target),
+        first_proof_target="flight",
+        run_manifest_filename=RUN_MANIFEST_FILENAME,
+    )
+
+
 def _default_artifact_root(env: AgiEnv) -> Path:
-    return Path(env.AGILAB_EXPORT_ABS) / env.target
+    return _connector_path_registry(env).path("artifact_root")
 
 
 def _default_metrics_glob(env: AgiEnv) -> str:
@@ -105,8 +115,7 @@ def _default_required_patterns(env: AgiEnv) -> list[str]:
 
 
 def _default_run_manifest_path(env: AgiEnv) -> Path:
-    log_root = Path(getattr(env, "AGILAB_LOG_ABS", Path.home() / "log")).expanduser()
-    return log_root / "execute" / "flight" / RUN_MANIFEST_FILENAME
+    return _connector_path_registry(env).path("first_proof_manifest")
 
 
 def _dedupe_paths(paths: list[tuple[Path, str]]) -> list[tuple[Path, str]]:
@@ -1466,6 +1475,8 @@ def _decision_payload(
     manifest_index_comparison_summary: dict[str, Any],
     evidence_bundle_comparison_rows: list[dict[str, Any]],
     evidence_bundle_comparison_summary: dict[str, Any],
+    connector_registry_rows: list[dict[str, Any]],
+    connector_registry_summary: dict[str, Any],
     status: str,
     summary: str,
     tolerance_pct: float,
@@ -1476,6 +1487,8 @@ def _decision_payload(
         "app": str(env.app),
         "target": str(env.target),
         "artifact_root": str(artifact_root),
+        "connector_registry_summary": connector_registry_summary,
+        "connector_registry_paths": connector_registry_rows,
         "baseline_metrics_file": str(baseline_path),
         "candidate_metrics_file": str(candidate_path),
         "baseline_bundle_root": str(baseline_path.parent),
@@ -1524,7 +1537,10 @@ st.caption(
     "Compare a candidate bundle against a baseline, apply explicit evidence gates, and export a promotion decision."
 )
 
-default_root = _default_artifact_root(env)
+connector_registry = _connector_path_registry(env)
+connector_registry_rows = connector_registry.as_rows()
+connector_registry_summary = connector_registry.summary()
+default_root = connector_registry.path("artifact_root")
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
     value=st.session_state.setdefault("release_decision_datadir", str(default_root)),
@@ -1710,6 +1726,8 @@ payload = _decision_payload(
     manifest_index_comparison_summary=manifest_index_comparison_summary,
     evidence_bundle_comparison_rows=evidence_bundle_comparison_rows,
     evidence_bundle_comparison_summary=evidence_bundle_comparison_summary,
+    connector_registry_rows=connector_registry_rows,
+    connector_registry_summary=connector_registry_summary,
     status=decision_status,
     summary=decision_summary,
     tolerance_pct=tolerance_pct,
@@ -1721,6 +1739,10 @@ elif decision_status == "blocked":
     st.error(f"Blocked: {decision_summary}")
 else:
     st.warning(f"Needs review: {decision_summary}")
+
+st.subheader("Connector path registry")
+st.caption("Shared connector roots used for portable artifact, log, and release-evidence paths.")
+st.dataframe(pd.DataFrame(connector_registry_rows), width="stretch", hide_index=True)
 
 meta_left, meta_right = st.columns(2)
 with meta_left:

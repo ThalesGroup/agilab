@@ -268,6 +268,8 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
                 "manifest_index.json",
                 "attachment_sha256",
                 "signature_status",
+                "connector_registry_paths",
+                "build_connector_path_registry",
                 "artifact_gates",
                 "metric_gates",
             ],
@@ -276,6 +278,7 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
                 "gate promotion on first-proof `run_manifest.json`",
                 "import external run-manifest evidence",
                 "provenance-tagged with SHA-256",
+                "connector path registry",
                 "manifest_index.json",
                 "cross-release manifest comparison",
                 "cross-run evidence bundle comparison",
@@ -290,6 +293,7 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
                 "manifest_index_summary",
                 "manifest_index_comparison_summary",
                 "evidence_bundle_comparison_summary",
+                "connector_registry_summary",
                 "attachment_status",
                 "attachment_sha256",
                 "promotion_decision.json",
@@ -312,7 +316,7 @@ def _check_release_decision_contract(repo_root: Path) -> dict[str, Any]:
         details = {"error": str(exc)}
     summary = (
         "release-decision page exports promotion_decision.json and manifest_index.json "
-        "with provenance-tagged cross-run manifest/artifact/KPI/reduce gates"
+        "with connector-registry and provenance-tagged cross-run gates"
         if ok
         else "release-decision page export contract is incomplete"
     )

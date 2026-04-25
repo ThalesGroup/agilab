@@ -119,7 +119,10 @@ first promotion gate. The same page can now import external manifest evidence
 with ``--manifest`` / ``--manifest-dir`` style inputs, display source path,
 provenance, path id, timing, validation status, evidence status, SHA-256, byte
 size, UTC modified time, and optional sidecar signature metadata, and export
-that import summary in ``promotion_decision.json``. Export also updates
+that import summary in ``promotion_decision.json``. Release Decision also
+exports ``connector_registry_paths`` and ``connector_registry_summary`` so
+artifact, log, export, and first-proof paths are portable across page launches
+instead of reconstructed from local path glue. Export also updates
 ``manifest_index.json`` under the artifact root so imported manifests are grouped
 by candidate bundle for later release decisions, and the page compares the
 current candidate against prior indexed evidence to flag better, stale, missing,

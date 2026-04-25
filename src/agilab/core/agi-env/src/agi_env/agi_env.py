@@ -66,6 +66,7 @@ from agi_env.app_settings_support import (
     find_source_app_settings_file as find_versioned_app_settings_file,
     resolve_user_app_settings_file as resolve_workspace_app_settings_file,
 )
+from agi_env.connector_registry import resolve_connector_root
 from agi_env.env_config_support import (
     clean_envar_value as _clean_envar_value,
     load_dotenv_values as _load_dotenv_values,
@@ -1103,20 +1104,34 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             envars["CLUSTER_CREDENTIALS"] = self.CLUSTER_CREDENTIALS
         self.OPENAI_API_KEY = envars.get("OPENAI_API_KEY", None)
         self.OPENAI_MODEL = envars.get("OPENAI_MODEL") or get_default_openai_model()
-        AGILAB_LOG_OVERRIDE = _clean_envar_value(envars, "AGI_LOG_DIR", fallback_to_process=True)
-        AGILAB_LOG_ABS = Path(AGILAB_LOG_OVERRIDE or (self.home_abs / "log")).expanduser()
-        if not AGILAB_LOG_ABS.is_absolute():
-            AGILAB_LOG_ABS = (self.home_abs / AGILAB_LOG_ABS).resolve()
-        self.AGILAB_LOG_ABS = _ensure_dir(AGILAB_LOG_ABS)
+        log_connector = resolve_connector_root(
+            self,
+            connector_id="log_root",
+            label="Log root",
+            attr_name="AGILAB_LOG_ABS",
+            env_key="AGI_LOG_DIR",
+            default_child="log",
+            ensure=True,
+            prefer_attr=False,
+            description="Root for execution logs and run manifests.",
+        )
+        self.AGILAB_LOG_ABS = log_connector.path
         runenv_base = self.AGILAB_LOG_ABS / "execute"
         _ensure_dir(runenv_base)
         self.runenv = runenv_base / self.target
         _ensure_dir(self.runenv)
-        AGILAB_EXPORT_OVERRIDE = _clean_envar_value(envars, "AGI_EXPORT_DIR", fallback_to_process=True)
-        AGILAB_EXPORT_ABS = Path(AGILAB_EXPORT_OVERRIDE or (self.home_abs / "export")).expanduser()
-        if not AGILAB_EXPORT_ABS.is_absolute():
-            AGILAB_EXPORT_ABS = (self.home_abs / AGILAB_EXPORT_ABS).resolve()
-        self.AGILAB_EXPORT_ABS = _ensure_dir(AGILAB_EXPORT_ABS)
+        export_connector = resolve_connector_root(
+            self,
+            connector_id="export_root",
+            label="Export root",
+            attr_name="AGILAB_EXPORT_ABS",
+            env_key="AGI_EXPORT_DIR",
+            default_child="export",
+            ensure=True,
+            prefer_attr=False,
+            description="Root for app and page output artifacts.",
+        )
+        self.AGILAB_EXPORT_ABS = export_connector.path
         self.export_apps = self.AGILAB_EXPORT_ABS / "apps-zip"
         _ensure_dir(self.export_apps)
         mlflow_tracking_override = _clean_envar_value(envars, "MLFLOW_TRACKING_DIR")
