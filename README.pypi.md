@@ -70,7 +70,7 @@ CODEX 5.5 working scores, not production MLOps claims:
 
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
-| Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, and robot UI smoke: `5.86s` vs `600s`. | Needs fresh external-machine replication. |
+| Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Single external-machine smoke; broader OS/network replication remains open. |
 | Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages. | First-class reduce contract is still roadmap. |
 | Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates. | First-proof wizard and external replication remain open. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
