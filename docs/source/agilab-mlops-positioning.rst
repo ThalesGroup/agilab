@@ -114,6 +114,9 @@ history:
   ``uav_queue_project`` to ``uav_relay_queue_project`` through
   ``tools/multi_app_dag_report.py --compact`` and the checked-in
   ``multi_app_dag_sample.json``
+- the global pipeline DAG report combines that handoff with each app-local
+  ``pipeline_view.dot`` so reviewers can inspect one read-only product graph
+  before runner and UI orchestration are claimed
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -160,12 +163,14 @@ between research experiments and engineering validation:
   deployment stacks
 - a first multi-app DAG contract/report baseline that makes cross-app artifact
   handoffs explicit before runner integration
+- a read-only global pipeline DAG report that ties app-local pipeline views to
+  the cross-app handoff contract
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
 higher yet because future app/template reducer adoption discipline, global DAG
-execution/UI work, and broader fresh-install validation are still roadmap work.
+runner/UI work, and broader fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------
