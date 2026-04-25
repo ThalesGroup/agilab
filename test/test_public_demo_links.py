@@ -8,6 +8,7 @@ PYPI_README = Path("README.pypi.md")
 AGI_CORE_README = Path("src/agilab/core/agi-core/README.md")
 CHANGELOG = Path("CHANGELOG.md")
 PUBLIC_DOC_PAGES = (
+    Path("docs/source/agilab-demo.rst"),
     Path("docs/source/demos.rst"),
     Path("docs/source/quick-start.rst"),
 )
@@ -95,6 +96,22 @@ def test_public_docs_link_to_hf_space_page_not_runtime_host() -> None:
         text = path.read_text(encoding="utf-8")
         assert PUBLIC_HF_SPACE_URL in text
         assert HF_RUNTIME_URL not in text
+
+
+def test_docs_sidebar_exposes_both_public_demo_lanes() -> None:
+    index = Path("docs/source/index.rst").read_text(encoding="utf-8")
+    demos = Path("docs/source/demos.rst").read_text(encoding="utf-8")
+    agilab_demo = Path("docs/source/agilab-demo.rst").read_text(encoding="utf-8")
+    use_sidebar_block = index.split(":caption: Use", 1)[1].split(":caption: Build", 1)[0]
+
+    assert "AGILAB Demo <agilab-demo>" in index
+    assert "notebook-quickstart" in index
+    assert "AGILAB Demo <agilab-demo>" in use_sidebar_block
+    assert "notebook-quickstart" in use_sidebar_block
+    assert use_sidebar_block.index("AGILAB Demo <agilab-demo>") < use_sidebar_block.index("notebook-quickstart")
+    assert ":doc:`agilab-demo`" in demos
+    assert ":doc:`notebook-quickstart`" in demos
+    assert "sidebar-visible counterpart" in agilab_demo
 
 
 def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:

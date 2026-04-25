@@ -134,6 +134,7 @@ Use these only after the local ``flight_project`` proof works once.
    :alt: AGILAB demo
 
 Self-serve public AGILAB demo hosted on Hugging Face Spaces.
+The sidebar-visible docs page for this route is :doc:`agilab-demo`.
 
 **Published package route** (fastest install, less representative of the full product path)::
 
