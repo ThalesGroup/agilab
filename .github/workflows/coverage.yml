@@ -294,13 +294,8 @@ jobs:
             test/test_app_args.py \
             test/test_streamlit_args.py \
             test/test_pagelib.py \
-            test/test_compatibility_report.py \
+            test/test_*_report.py \
             test/test_connector_registry.py \
-            test/test_data_connector*_report.py \
-            test/test_global_pipeline*_report.py \
-            test/test_multi_app_dag_report.py \
-            test/test_notebook*_report.py \
-            test/test_production_readiness_report.py \
             test/test_run_manifest.py
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
