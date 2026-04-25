@@ -46,6 +46,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "global_pipeline_execution_plan_report_contract",
         "global_pipeline_runner_state_report_contract",
         "global_pipeline_dispatch_state_report_contract",
+        "global_pipeline_app_dispatch_smoke_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -188,6 +189,28 @@ def test_global_pipeline_dispatch_state_report_contract_reports_persistence() ->
     assert check["details"]["summary"]["retry_counter_count"] == 2
     assert check["details"]["summary"]["partial_rerun_flag_count"] == 2
     assert "global_pipeline_dispatch_state_round_trip" in check["details"]["check_ids"]
+
+
+def test_global_pipeline_app_dispatch_smoke_report_contract_executes_real_queue() -> None:
+    module = _load_module()
+
+    check = module._check_global_pipeline_app_dispatch_smoke_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["executed"] is True
+    assert check["details"]["dag_path"] == "docs/source/data/multi_app_dag_sample.json"
+    assert check["details"]["summary"]["run_status"] == "in_progress"
+    assert check["details"]["summary"]["persistence_format"] == "json"
+    assert check["details"]["summary"]["round_trip_ok"] is True
+    assert check["details"]["summary"]["unit_count"] == 2
+    assert check["details"]["summary"]["completed_unit_ids"] == ["queue_baseline"]
+    assert check["details"]["summary"]["runnable_unit_ids"] == ["relay_followup"]
+    assert check["details"]["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
+    assert check["details"]["summary"]["readiness_only_unit_ids"] == ["relay_followup"]
+    assert check["details"]["summary"]["real_execution_scope"] == "first_unit_only"
+    assert check["details"]["summary"]["packets_generated"] > 0
+    assert "queue_metrics" in check["details"]["summary"]["available_artifact_ids"]
+    assert "global_pipeline_app_dispatch_smoke_real_queue" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

@@ -161,7 +161,22 @@ The report writes and reads back a persisted run-state JSON proof. It records
 `queue_baseline completed`, publishes `queue_metrics`, moves
 `relay_followup runnable`, and keeps timestamps, retry counters,
 partial-rerun flags, operator messages, and provenance. This is durable state
-transition evidence, not real app execution yet.
+transition evidence; the follow-on smoke below covers the first real app-entry
+dispatch slice.
+
+## Global DAG App Dispatch Smoke
+
+AGILAB now executes the first global-DAG unit through a checked-in app entry:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/global_pipeline_app_dispatch_smoke_report.py --compact
+```
+
+The report runs real `queue_baseline` execution through `uav_queue_project`,
+writes the produced `queue_metrics` and reducer artifacts into a temp
+workspace, persists the dispatch-state JSON, and marks `relay_followup`
+readiness-only/runnable. This is a first-unit smoke, not full relay execution
+or live operator UI.
 
 ## Evaluation Snapshot
 
@@ -170,8 +185,8 @@ CODEX 5.5 working scores, not production MLOps claims:
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
 | Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Validated locally, on one external macOS machine, on AI Lightning, on Hugging Face, on one bare-metal cluster, and on one VM-based cluster. Remaining validation gap: Azure, AWS, and GCP cloud deployments. |
-| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, flight, meteo forecast, and UAV queue-family reduce artifacts, a non-template built-in app guardrail, public reduce benchmark: `0.003s` vs `5.0s`, multi-app DAG report, global pipeline DAG report, global execution-plan report, global runner-state report, and global dispatch-state persistence report. | Future apps/templates must opt in when they produce concrete merge outputs. |
-| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, a guided in-product first-proof wizard, stable `run_manifest.json` evidence consumed by the KPI bundle, the multi-app DAG contract, a read-only global pipeline graph, pending execution-plan units, read-only runnable/blocked operator state, and persisted queue-to-relay dispatch-state transition proof. | Additional external replication beyond the current public first-proof paths is not claimed; real app execution across the global DAG and live operator UI remain roadmap work. |
+| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, flight, meteo forecast, and UAV queue-family reduce artifacts, a non-template built-in app guardrail, public reduce benchmark: `0.003s` vs `5.0s`, multi-app DAG report, global pipeline DAG report, global execution-plan report, global runner-state report, global dispatch-state persistence report, and global app-dispatch smoke report. | Future apps/templates must opt in when they produce concrete merge outputs. |
+| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, a guided in-product first-proof wizard, stable `run_manifest.json` evidence consumed by the KPI bundle, the multi-app DAG contract, a read-only global pipeline graph, pending execution-plan units, read-only runnable/blocked operator state, persisted queue-to-relay dispatch-state transition proof, and real first-unit `queue_baseline` app dispatch smoke. | Additional external replication beyond the current public first-proof paths is not claimed; full relay execution across the global DAG and live operator UI remain roadmap work. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, connector-registry release paths, provenance-tagged manifest-indexing, cross-release, and cross-run release-decision page export, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
 | Overall public evaluation | `3.6 / 5` | Mean of the four scored public KPIs: `(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625`. Cross-KPI evidence bundle and workflow-backed compatibility report documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |
 

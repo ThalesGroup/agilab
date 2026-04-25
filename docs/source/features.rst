@@ -187,11 +187,17 @@ single notebook but less ceremony than a production MLOps platform:
   ``relay_followup runnable``, and preserves timestamps, retry counters,
   partial-rerun flags, operator messages, and provenance without claiming
   real app execution
+- the global DAG app dispatch smoke report performs real queue_baseline execution
+  with ``tools/global_pipeline_app_dispatch_smoke_report.py --compact``; it
+  runs the checked-in ``uav_queue_project`` manager/worker entry, persists the
+  produced ``queue_metrics`` and reducer artifacts into dispatch-state JSON,
+  and marks ``relay_followup readiness-only``/runnable without claiming full
+  relay execution
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
 app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear, and real app execution across the global DAG plus live
+merge outputs appear, and full relay execution across the global DAG plus live
 operator UI are still roadmap work.
 
 Production-readiness controls

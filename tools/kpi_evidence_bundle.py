@@ -651,6 +651,54 @@ def _check_global_pipeline_dispatch_state_report(repo_root: Path) -> dict[str, A
     )
 
 
+def _check_global_pipeline_app_dispatch_smoke_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        app_dispatch_smoke_report = _load_tool_module(repo_root, "global_pipeline_app_dispatch_smoke_report")
+        report = app_dispatch_smoke_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("run_status") == "in_progress"
+            and summary.get("persistence_format") == "json"
+            and summary.get("round_trip_ok") is True
+            and summary.get("unit_count") == 2
+            and summary.get("completed_unit_ids") == ["queue_baseline"]
+            and summary.get("runnable_unit_ids") == ["relay_followup"]
+            and summary.get("real_executed_unit_ids") == ["queue_baseline"]
+            and summary.get("readiness_only_unit_ids") == ["relay_followup"]
+            and summary.get("real_execution_scope") == "first_unit_only"
+            and "queue_metrics" in summary.get("available_artifact_ids", [])
+            and int(summary.get("packets_generated", 0) or 0) > 0
+        )
+        details = {
+            "status": report.get("status"),
+            "dag_path": report.get("dag_path"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "global_pipeline_app_dispatch_smoke_report_contract",
+        "Global pipeline app dispatch smoke report contract",
+        ok,
+        (
+            "global pipeline app dispatch smoke executes queue_baseline through the real app entry"
+            if ok
+            else "global pipeline app dispatch smoke report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/global_pipeline_app_dispatch_smoke_report.py",
+            "src/agilab/global_pipeline_app_dispatch_smoke.py",
+            "src/agilab/apps/builtin/uav_queue_project/src/uav_queue/uav_queue.py",
+            "src/agilab/apps/builtin/uav_queue_project/src/uav_queue_worker/uav_queue_worker.py",
+        ],
+        details=details,
+        executed=True,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -817,6 +865,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_execution_plan_report.py --compact",
             "tools/global_pipeline_runner_state_report.py --compact",
             "tools/global_pipeline_dispatch_state_report.py --compact",
+            "tools/global_pipeline_app_dispatch_smoke_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -833,6 +882,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_execution_plan_report.py",
             "tools/global_pipeline_runner_state_report.py",
             "tools/global_pipeline_dispatch_state_report.py",
+            "tools/global_pipeline_app_dispatch_smoke_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -885,6 +935,7 @@ def build_bundle(
         _check_global_pipeline_execution_plan_report(repo_root),
         _check_global_pipeline_runner_state_report(repo_root),
         _check_global_pipeline_dispatch_state_report(repo_root),
+        _check_global_pipeline_app_dispatch_smoke_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),
