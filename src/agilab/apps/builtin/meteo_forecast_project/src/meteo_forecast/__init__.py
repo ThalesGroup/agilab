@@ -11,10 +11,12 @@ from .app_args import (
     merge_args,
 )
 from .meteo_forecast import MeteoForecast, MeteoForecastApp
+from .reduction import METEO_FORECAST_REDUCE_CONTRACT
 
 __all__ = [
     "ArgsModel",
     "ArgsOverrides",
+    "METEO_FORECAST_REDUCE_CONTRACT",
     "MeteoForecastArgs",
     "MeteoForecastArgsTD",
     "MeteoForecast",
