@@ -15,9 +15,10 @@ use this order:
 1. **Run manifest external ingestion hardening**
    - build on the shipped first-proof wizard remediation, compatibility-report
      `--manifest` / `--manifest-dir` inputs, and Release Decision manifest
-     import UI plus per-release `manifest_index.json`
-   - add signed/provenance-tagged attachments and cross-release index review
-     for compatibility and release decisions
+     import UI plus per-release `manifest_index.json` and cross-release
+     comparison
+   - add signed/provenance-tagged attachments and cross-run evidence bundle
+     comparison for compatibility and release decisions
 2. **Connector registry hardening**
    - stabilize path portability and artefact resolution across apps/pages
    - this reduces glue before deeper cross-app automation
@@ -87,12 +88,12 @@ Purpose:
 - extend the shipped first-proof `run_manifest.json` contract beyond local
   source-checkout proof runs
 - harden external fresh-machine and CI manifests for compatibility and release
-  decisions after the first Release Decision import UI and manifest index
+  decisions after the first Release Decision import UI, manifest index, and
+  cross-release comparison
 
 Suggested contents:
 
 - signed or provenance-tagged external manifest attachments
-- cross-release manifest index comparison
 - cross-run evidence bundle comparison
 
 Why it matters:
@@ -101,9 +102,9 @@ Why it matters:
   failing local manifests with exact recovery commands
 - Release Decision now accepts compatibility-style `--manifest` /
   `--manifest-dir` imports, exports the imported evidence summary, and updates
-  per-release `manifest_index.json`
-- signed attachments and cross-release comparisons are the next step for
-  compatibility automation and release decisions
+  per-release `manifest_index.json` with cross-release comparison
+- signed attachments and cross-run evidence bundle comparison are the next step
+  for compatibility automation and release decisions
 
 ### 1. Experiment Cockpit
 

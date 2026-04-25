@@ -52,6 +52,7 @@ def _write_bundle(root: Path, *, mae: float, rmse: float, mape: float, with_pred
 def _write_first_proof_manifest(
     runtime_root: Path,
     *,
+    run_id: str = "first-proof-test",
     status: str = "pass",
     path_id: str = "source-checkout-first-proof",
     duration_seconds: float = 5.0,
@@ -74,7 +75,7 @@ def _write_first_proof_manifest(
             {
                 "schema_version": 1,
                 "kind": "agilab.run_manifest",
-                "run_id": "first-proof-test",
+                "run_id": run_id,
                 "path_id": path_id,
                 "label": "Source checkout first proof",
                 "status": status,
@@ -323,6 +324,7 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert not at.exception
     assert any("Promotable" in message.value for message in at.success)
     assert any(header.value == "Imported run manifest evidence" for header in at.subheader)
+    assert any(header.value == "Cross-release manifest comparison" for header in at.subheader)
 
     export_button = next(button for button in at.button if button.label == "Export promotion decision")
     export_button.click().run()
@@ -338,6 +340,10 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert payload["manifest_index_summary"]["existing_index_error"] == "missing"
     assert payload["manifest_index_summary"]["release_count"] == 1
     assert payload["manifest_index_summary"]["manifest_count"] == 1
+    assert payload["manifest_index_comparison_summary"]["previous_release_count"] == 0
+    assert payload["manifest_index_comparison_summary"]["compared_path_count"] == 1
+    assert payload["manifest_index_comparison_summary"]["status_counts"] == {"newly_validated": 1}
+    assert payload["manifest_index_comparison"][0]["comparison_status"] == "newly_validated"
     assert payload["imported_run_manifest_evidence"][0]["source"] == str(imported_manifest_path)
     assert payload["imported_run_manifest_evidence"][0]["path_id"] == "source-checkout-first-proof"
     assert payload["imported_run_manifest_evidence"][0]["evidence_status"] == "validated"
@@ -356,6 +362,113 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert release["import_summary"]["loaded_manifest_count"] == 1
     assert release["manifests"][0]["source"] == str(imported_manifest_path)
     assert release["manifests"][0]["evidence_status"] == "validated"
+
+
+def test_view_release_decision_compares_manifest_index_history(tmp_path, monkeypatch) -> None:
+    project_dir = _create_forecast_project(tmp_path)
+    export_root = tmp_path / "export" / "meteo_forecast"
+    baseline_root = export_root / "run_2026_04_16"
+    candidate_root = export_root / "run_2026_04_17"
+    prior_root = export_root / "run_2026_04_15"
+    _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
+    _write_bundle(candidate_root, mae=0.81, rmse=0.97, mape=5.42)
+    current_manifest_path = _write_first_proof_manifest(
+        tmp_path / "current_external_machine",
+        run_id="current-first-proof",
+        duration_seconds=5.0,
+    )
+    failed_manifest_path = _write_first_proof_manifest(
+        tmp_path / "current_ci_machine",
+        run_id="current-ci-proof",
+        status="fail",
+        path_id="ci-fresh-proof",
+        duration_seconds=700.0,
+        validation_status="fail",
+    )
+    (export_root / "manifest_index.json").write_text(
+        json.dumps(
+            {
+                "schema": "agilab.manifest_index.v1",
+                "generated_at": "2026-04-24T00:00:00Z",
+                "artifact_root": str(export_root),
+                "releases": {
+                    str(prior_root): {
+                        "release_id": "run_2026_04_15",
+                        "artifact_root": str(export_root),
+                        "candidate_bundle_root": str(prior_root),
+                        "baseline_bundle_root": str(baseline_root),
+                        "candidate_metrics_file": str(prior_root / "forecast_metrics.json"),
+                        "baseline_metrics_file": str(baseline_root / "forecast_metrics.json"),
+                        "selected_run_manifest_path": "/external/prior/run_manifest.json",
+                        "selected_run_manifest_summary": {"loaded": True, "status": "pass"},
+                        "import_summary": {"loaded_manifest_count": 2},
+                        "manifests": [
+                            {
+                                "source": "/external/prior/run_manifest.json",
+                                "provenance": "--manifest",
+                                "path_id": "source-checkout-first-proof",
+                                "run_id": "prior-first-proof",
+                                "manifest_status": "pass",
+                                "evidence_status": "validated",
+                                "duration_seconds": 8.0,
+                                "target_seconds": 600.0,
+                                "validation_statuses": "proof_steps=pass",
+                                "loaded": True,
+                                "detail": "loaded",
+                            },
+                            {
+                                "source": "/external/prior/legacy_manifest.json",
+                                "provenance": "--manifest",
+                                "path_id": "legacy-only-proof",
+                                "run_id": "prior-legacy-proof",
+                                "manifest_status": "pass",
+                                "evidence_status": "validated",
+                                "duration_seconds": 9.0,
+                                "target_seconds": 600.0,
+                                "validation_statuses": "proof_steps=pass",
+                                "loaded": True,
+                                "detail": "loaded",
+                            },
+                        ],
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    at = _run_release_page(
+        tmp_path,
+        monkeypatch,
+        project_dir,
+        manifest_import_args=f"--manifest {current_manifest_path} --manifest {failed_manifest_path}",
+    )
+
+    assert not at.exception
+    assert any(header.value == "Cross-release manifest comparison" for header in at.subheader)
+
+    export_button = next(button for button in at.button if button.label == "Export promotion decision")
+    export_button.click().run()
+
+    decision_path = candidate_root / "promotion_decision.json"
+    payload = json.loads(decision_path.read_text(encoding="utf-8"))
+    comparison_by_key = {
+        row["comparison_key"]: row
+        for row in payload["manifest_index_comparison"]
+    }
+    assert payload["manifest_index_summary"]["release_count"] == 2
+    assert payload["manifest_index_comparison_summary"]["previous_release_count"] == 1
+    assert payload["manifest_index_comparison_summary"]["status_counts"] == {
+        "better": 1,
+        "failed": 1,
+        "missing_current_evidence": 1,
+    }
+    assert payload["manifest_index_comparison_summary"]["blocking_count"] == 2
+    assert comparison_by_key["source-checkout-first-proof"]["comparison_status"] == "better"
+    assert comparison_by_key["source-checkout-first-proof"]["prior_duration_seconds"] == 8.0
+    assert comparison_by_key["source-checkout-first-proof"]["current_duration_seconds"] == 5.0
+    assert comparison_by_key["ci-fresh-proof"]["comparison_status"] == "failed"
+    assert comparison_by_key["legacy-only-proof"]["comparison_status"] == "missing_current_evidence"
 
 
 def test_view_release_decision_blocks_candidate_with_missing_artifact(tmp_path, monkeypatch) -> None:
@@ -520,6 +633,24 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     assert loaded_summary["release_count"] == 1
     loaded_release = loaded_index["releases"][str(tmp_path / "artifact_root" / "run_b")]
     assert loaded_release["manifests"][0]["source"] == str(bad_manifest)
+    stale_release = module._build_manifest_index_release(
+        artifact_root=manifest_index_path.parent,
+        baseline_path=tmp_path / "artifact_root" / "run_b" / "metrics.json",
+        candidate_path=tmp_path / "artifact_root" / "run_c" / "metrics.json",
+        run_manifest_path=bad_manifest,
+        run_manifest_summary=bad_summary,
+        imported_manifest_rows=import_rows,
+        imported_manifest_summary=import_summary,
+    )
+    comparison_rows = module._build_manifest_index_comparison_rows(loaded_index, stale_release)
+    assert comparison_rows[0]["comparison_status"] == "stale"
+    comparison_summary = module._manifest_index_comparison_summary(
+        comparison_rows,
+        loaded_index,
+        stale_release,
+    )
+    assert comparison_summary["previous_release_count"] == 1
+    assert comparison_summary["stale_count"] == 1
 
     missing_paths, missing_dirs, missing_errors = module._parse_manifest_import_args("--manifest-dir")
     assert missing_paths == []

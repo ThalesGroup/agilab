@@ -120,7 +120,9 @@ with ``--manifest`` / ``--manifest-dir`` style inputs, display source path,
 provenance, path id, timing, validation status, and evidence status, and export
 that import summary in ``promotion_decision.json``. Export also updates
 ``manifest_index.json`` under the artifact root so imported manifests are grouped
-by candidate bundle for later release decisions.
+by candidate bundle for later release decisions, and the page compares the
+current candidate against prior indexed evidence to flag better, stale, missing,
+failed, and newly validated manifests.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and

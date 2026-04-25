@@ -10,6 +10,7 @@ Primary use:
 - apply explicit artifact and KPI gates
 - export `promotion_decision.json`
 - maintain a per-artifact-root `manifest_index.json`
+- compare current evidence against prior indexed releases
 
 Default search root:
 
@@ -43,5 +44,8 @@ same import summary is written to `promotion_decision.json`.
 Export also updates `<artifact_root>/manifest_index.json`. The index groups
 imported run manifests by candidate bundle, so later release decisions can keep
 durable evidence history instead of relying only on pasted import arguments.
+The page also shows a cross-release manifest comparison that flags better,
+stale, missing-current, failed, and newly validated evidence relative to prior
+indexed candidate bundles.
 
 This is the first app-layer MVP for AGILAB's promotion / release decision workflow.
