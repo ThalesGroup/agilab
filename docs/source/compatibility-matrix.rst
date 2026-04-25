@@ -122,6 +122,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/data_connector_health_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_health_actions_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_runtime_adapters_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_live_endpoint_smoke_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_ui_preview_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_live_ui_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_app_catalogs_report.py --compact
@@ -153,6 +154,7 @@ consumes that report and includes the ``run_diff_evidence_report_contract``,
 ``data_connector_health_report_contract``,
 ``data_connector_health_actions_report_contract``,
 ``data_connector_runtime_adapters_report_contract``,
+``data_connector_live_endpoint_smoke_report_contract``,
 ``data_connector_ui_preview_report_contract``,
 ``data_connector_live_ui_report_contract``,
 ``data_connector_app_catalogs_report_contract``, and
@@ -194,6 +196,9 @@ expose operator-triggered health probe action rows without executing network
 checks in public evidence,
 bind credentialed connector adapters to runtime operations and health actions
 while deferring credential values and executing no network probes,
+validate opt-in live endpoint smoke plans, execute local SQLite smoke evidence
+without external credentials, and keep real endpoint execution behind operator
+allow-lists,
 render connector state and connector-derived provenance as static JSON+HTML
 preview evidence,
 wire connector state and connector-derived provenance into the Release Decision

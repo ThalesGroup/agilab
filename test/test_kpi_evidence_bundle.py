@@ -63,6 +63,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "data_connector_health_report_contract",
         "data_connector_health_actions_report_contract",
         "data_connector_runtime_adapters_report_contract",
+        "data_connector_live_endpoint_smoke_report_contract",
         "data_connector_ui_preview_report_contract",
         "data_connector_live_ui_report_contract",
         "data_connector_app_catalogs_report_contract",
@@ -593,6 +594,27 @@ def test_data_connector_runtime_adapters_report_contract_exposes_bindings() -> N
     ]
     assert "data_connector_runtime_adapters_rows" in check["details"]["check_ids"]
     assert "data_connector_runtime_adapters_no_network" in check["details"]["check_ids"]
+
+
+def test_data_connector_live_endpoint_smoke_report_contract_reports_opt_in() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_live_endpoint_smoke_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == (
+        "agilab.data_connector_live_endpoint_smoke.v1"
+    )
+    assert check["details"]["summary"]["execution_mode"] == "live_endpoint_smoke_plan_only"
+    assert check["details"]["summary"]["connector_count"] == 3
+    assert check["details"]["summary"]["planned_endpoint_count"] == 3
+    assert check["details"]["summary"]["executed_endpoint_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["sqlite_smoke_healthy_count"] == 1
+    assert (
+        "data_connector_live_endpoint_smoke_sqlite_execution"
+        in check["details"]["check_ids"]
+    )
 
 
 def test_data_connector_ui_preview_report_contract_renders_connector_state() -> None:

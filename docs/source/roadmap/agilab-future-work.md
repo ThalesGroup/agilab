@@ -541,6 +541,9 @@ Completed baseline:
 - `tools/data_connector_runtime_adapters_report.py --compact` binds SQL,
   OpenSearch, and object-storage connectors to runtime adapter operations while
   deferring credential values to the operator runtime
+- `tools/data_connector_live_endpoint_smoke_report.py --compact` adds the
+  operator-gated live endpoint smoke contract and validates the execution path
+  with a local SQLite endpoint
 - `tools/data_connector_ui_preview_report.py --compact` renders connector
   state, page bindings, legacy fallbacks, and health-boundary provenance as
   static JSON+HTML evidence
@@ -587,7 +590,7 @@ Expected impact:
 
 Remaining scope:
 
-- add live endpoint smoke evidence for credentialed operator environments
+- run the opt-in smoke against real credentialed operator endpoints
 
 ## Distributed execution and reduction
 
@@ -745,6 +748,10 @@ Current shipped baseline:
 - `tools/data_connector_runtime_adapters_report.py --compact` validates
   `agilab.data_connector_runtime_adapters.v1` and binds credentialed connector
   adapters to runtime operations while deferring credential values
+- `tools/data_connector_live_endpoint_smoke_report.py --compact` validates
+  `agilab.data_connector_live_endpoint_smoke.v1`, keeps default public evidence
+  in `live_endpoint_smoke_plan_only` mode, and proves the opt-in execution path
+  with a local SQLite endpoint without opening external networks
 - `tools/data_connector_ui_preview_report.py --compact` validates
   `agilab.data_connector_ui_preview.v1` and renders static connector state plus
   connector-derived provenance as JSON+HTML preview evidence
@@ -758,7 +765,8 @@ Current shipped baseline:
 
 Remaining scope:
 
-- live endpoint smoke evidence for credentialed operator environments
+- run the opt-in smoke against real credentialed SQL/OpenSearch/object-storage
+  endpoints in operator environments
 
 ### 3. Connector-aware views
 

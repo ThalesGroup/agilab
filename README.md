@@ -143,6 +143,7 @@ tools/data_connector_resolution_report.py --compact
 tools/data_connector_health_report.py --compact
 tools/data_connector_health_actions_report.py --compact
 tools/data_connector_runtime_adapters_report.py --compact
+tools/data_connector_live_endpoint_smoke_report.py --compact
 tools/data_connector_ui_preview_report.py --compact
 tools/data_connector_live_ui_report.py --compact
 tools/data_connector_app_catalogs_report.py --compact

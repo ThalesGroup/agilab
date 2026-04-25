@@ -187,6 +187,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``runtime_adapter_contract_only`` mode; it binds credentialed connector adapters
   to runtime operations and health actions while deferring credential values and
   keeping public network execution at zero
+- the data connector live endpoint smoke report validates
+  ``tools/data_connector_live_endpoint_smoke_report.py --compact`` in
+  ``live_endpoint_smoke_plan_only`` mode; opt-in
+  ``live_endpoint_smoke_opt_in`` execution is operator-gated, never logs
+  credential values, and is publicly exercised with a local SQLite endpoint
 - the data connector UI preview report validates
   ``tools/data_connector_ui_preview_report.py --compact`` in
   ``static_ui_preview_only`` mode; it renders connector state and
