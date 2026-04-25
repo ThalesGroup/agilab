@@ -113,6 +113,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/notebook_pipeline_import_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/notebook_roundtrip_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/notebook_union_environment_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_facility_report.py --compact
 
 The compact compatibility report checks the required public statuses, the proof
 commands behind validated entries, and optional ``run_manifest.json`` evidence.
@@ -133,7 +134,8 @@ consumes that report and includes the ``multi_app_dag_report_contract``,
 ``global_pipeline_operator_ui_report_contract``,
 ``notebook_pipeline_import_report_contract``,
 ``notebook_roundtrip_report_contract``,
-``notebook_union_environment_report_contract``, and
+``notebook_union_environment_report_contract``,
+``data_connector_facility_report_contract``, and
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
 checked-in cross-app DAG handoff sample, assemble the read-only product-level
 graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
@@ -154,8 +156,9 @@ notebook-to-pipeline import from a checked-in ``.ipynb``, write a richer
 executing cells, validate ``lab_steps.toml -> supervisor notebook -> import ->
 lab_steps preview`` round-trip preservation, gate ``single-kernel union notebook``
 generation on compatible runtimes while requiring
-``supervisor_notebook_required`` for mixed cases, and verify that every
-non-template built-in app exposes a reducer contract while recording
+``supervisor_notebook_required`` for mixed cases, validate first-class SQL,
+OpenSearch, and object-storage connector definitions without network probes,
+and verify that every non-template built-in app exposes a reducer contract while recording
 ``mycode_project`` as the explicit template-only exemption.
 
 For the source-checkout first proof, ``tools/newcomer_first_proof.py --json``

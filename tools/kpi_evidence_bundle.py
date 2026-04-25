@@ -1092,6 +1092,55 @@ def _check_notebook_union_environment_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_data_connector_facility_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        data_connector_report = _load_tool_module(
+            repo_root, "data_connector_facility_report"
+        )
+        report = data_connector_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.data_connector_facility.v1"
+            and summary.get("run_status") == "validated"
+            and summary.get("execution_mode") == "contract_validation_only"
+            and summary.get("connector_count") == 3
+            and summary.get("supported_kinds") == [
+                "object_storage",
+                "opensearch",
+                "sql",
+            ]
+            and summary.get("raw_secret_count") == 0
+            and summary.get("network_probe_count") == 0
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "data_connector_facility_report_contract",
+        "Data connector facility report contract",
+        ok,
+        (
+            "data connector facility report validates SQL, OpenSearch, and "
+            "object-storage connector definitions"
+            if ok
+            else "data connector facility report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/data_connector_facility_report.py",
+            "src/agilab/data_connector_facility.py",
+            "docs/source/data/data_connectors_sample.toml",
+        ],
+        details=details,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -1267,6 +1316,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/notebook_pipeline_import_report.py --compact",
             "tools/notebook_roundtrip_report.py --compact",
             "tools/notebook_union_environment_report.py --compact",
+            "tools/data_connector_facility_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -1292,6 +1342,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/notebook_pipeline_import_report.py",
             "tools/notebook_roundtrip_report.py",
             "tools/notebook_union_environment_report.py",
+            "tools/data_connector_facility_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -1353,6 +1404,7 @@ def build_bundle(
         _check_notebook_pipeline_import_report(repo_root),
         _check_notebook_roundtrip_report(repo_root),
         _check_notebook_union_environment_report(repo_root),
+        _check_data_connector_facility_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

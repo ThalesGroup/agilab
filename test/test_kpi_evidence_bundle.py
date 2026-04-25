@@ -55,6 +55,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "notebook_pipeline_import_report_contract",
         "notebook_roundtrip_report_contract",
         "notebook_union_environment_report_contract",
+        "data_connector_facility_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -384,6 +385,27 @@ def test_notebook_union_environment_report_contract_guards_mixed_runtimes() -> N
     assert check["details"]["summary"]["code_cell_count"] == 2
     assert check["details"]["summary"]["incompatible_issue_count"] >= 2
     assert "notebook_union_environment_mixed_runtime_guard" in check["details"]["check_ids"]
+
+
+def test_data_connector_facility_report_contract_validates_connector_targets() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_facility_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.data_connector_facility.v1"
+    assert check["details"]["summary"]["run_status"] == "validated"
+    assert check["details"]["summary"]["execution_mode"] == "contract_validation_only"
+    assert check["details"]["summary"]["connector_count"] == 3
+    assert check["details"]["summary"]["supported_kinds"] == [
+        "object_storage",
+        "opensearch",
+        "sql",
+    ]
+    assert check["details"]["summary"]["raw_secret_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["round_trip_ok"] is True
+    assert "data_connector_facility_secret_boundary" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

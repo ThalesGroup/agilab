@@ -76,6 +76,9 @@ interactive exploration into a replayable, inspectable workflow:
 - the notebook union-environment report allows a ``single-kernel union
   notebook`` only for compatible steps and keeps mixed-runtime pipelines on the
   supervisor notebook path
+- the data connector facility report validates first-class SQL, OpenSearch,
+  and object-storage connector definitions without opening live network
+  connections
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
@@ -124,6 +127,9 @@ history:
   step values
 - the notebook union-environment report makes the single-kernel shortcut
   explicit and prevents mixed environments from being flattened accidentally
+- the data connector facility report gives prototypes a plain-text connector
+  catalog for external data systems while keeping credentials in environment
+  references
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
 - the in-product first-proof wizard now guides one validated ``flight_project``
@@ -237,6 +243,8 @@ between research experiments and engineering validation:
   ``lab_steps.toml`` and supervisor-notebook preservation path
 - a notebook union-environment report that makes compatible single-kernel
   notebooks possible without weakening the supervisor fallback boundary
+- a data connector facility report that starts the practical external-data
+  access layer with SQL, OpenSearch, and object-storage targets
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
