@@ -19,7 +19,7 @@ use this order:
      report, pending execution-plan report, read-only runner state, and
      persisted dispatch-state proof plus the two-unit app dispatch smoke,
      operator-state report, dependency-view report, live-update payload report,
-     and operator-action execution report, then add UI components
+     operator-action execution report, and operator-UI report
 2. **Bidirectional notebook interop**
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
@@ -258,6 +258,9 @@ Current shipped baseline:
   live-update payloads, accepts `queue_baseline:retry` and
   `relay_followup:partial_rerun`, replays the corresponding queue and relay app
   entries, and persists action outcomes plus output artifacts
+- `tools/global_pipeline_operator_ui_report.py --compact` reads the action
+  outcomes and renders status, unit-card, dependency-graph, update-timeline,
+  action-control, and artifact-table components into a static HTML proof
 - the compact KPI bundle includes this as
   `global_pipeline_dag_report_contract`,
   `global_pipeline_execution_plan_report_contract`,
@@ -267,11 +270,14 @@ Current shipped baseline:
   `global_pipeline_operator_state_report_contract` and
   `global_pipeline_dependency_view_report_contract` and
   `global_pipeline_live_state_updates_report_contract` and
-  `global_pipeline_operator_actions_report_contract`
+  `global_pipeline_operator_actions_report_contract` and
+  `global_pipeline_operator_ui_report_contract`
 
-Remaining scope:
+Remaining scope for this item:
 
-- UI components that render the persisted state and support operator actions
+- no open report-driven contract gap remains for the global DAG runner/UI
+  baseline; future work is product hardening, placement, and broader external
+  validation
 
 Why it matters:
 
