@@ -219,6 +219,12 @@ single notebook but less ceremony than a production MLOps platform:
   ``~/log/execute/flight/run_manifest.json`` so the first proof has one stable
   command/environment/timing/artifact/validation record that the release
   decision view can consume as promotion evidence
+- the revision traceability report validates
+  ``tools/revision_traceability_report.py --compact`` in
+  ``revision_traceability_static`` mode against
+  ``agilab.revision_traceability.v1``; it fingerprints the repository HEAD,
+  bundled AGI core package versions, and built-in app manifests without
+  invoking git commands or querying networks
 - the run-diff evidence report validates
   ``tools/run_diff_evidence_report.py --compact`` in
   ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,

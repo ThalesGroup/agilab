@@ -316,6 +316,50 @@ def _check_run_manifest_contract(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_revision_traceability_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        revision_traceability_report = _load_tool_module(
+            repo_root,
+            "revision_traceability_report",
+        )
+        report = revision_traceability_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.revision_traceability.v1"
+            and summary.get("execution_mode") == "revision_traceability_static"
+            and summary.get("core_component_count") == 5
+            and summary.get("builtin_app_count") == 7
+            and summary.get("app_fingerprint_count") == 7
+            and summary.get("command_execution_count") == 0
+            and summary.get("network_probe_count") == 0
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "revision_traceability_report_contract",
+        "Revision traceability report contract",
+        ok,
+        (
+            "revision traceability report fingerprints repository, core, and "
+            "built-in app revisions without commands or network probes"
+            if ok
+            else "revision traceability report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/revision_traceability_report.py",
+            "src/agilab/revision_traceability.py",
+        ],
+        details=details,
+    )
+
+
 def _check_run_diff_evidence_report(repo_root: Path) -> dict[str, Any]:
     try:
         run_diff_evidence_report = _load_tool_module(
@@ -2006,6 +2050,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/newcomer_first_proof.py --json",
             "run_manifest.json",
             "tools/reduce_contract_benchmark.py --json",
+            "tools/revision_traceability_report.py --compact",
             "tools/run_diff_evidence_report.py --compact",
             "tools/ci_artifact_harvest_report.py --compact",
             "tools/github_actions_artifact_index.py --archive",
@@ -2044,6 +2089,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/hf_space_smoke.py --json",
             "tools/agilab_web_robot.py",
             "tools/production_readiness_report.py",
+            "tools/revision_traceability_report.py",
             "tools/run_diff_evidence_report.py",
             "tools/ci_artifact_harvest_report.py",
             "tools/github_actions_artifact_index.py",
@@ -2118,6 +2164,7 @@ def build_bundle(
         _check_workflow_compatibility_report(repo_root),
         _check_newcomer_first_proof_contract(repo_root),
         _check_run_manifest_contract(repo_root),
+        _check_revision_traceability_report(repo_root),
         _check_run_diff_evidence_report(repo_root),
         _check_ci_artifact_harvest_report(repo_root),
         _check_github_actions_artifact_index(repo_root),
