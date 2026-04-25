@@ -9,6 +9,7 @@ import time
 import polars as pl
 
 from agi_node.polars_worker import PolarsWorker
+from execution_polars.reduction import write_reduce_artifact
 
 _runtime: dict[str, object] = {}
 
@@ -143,3 +144,8 @@ class ExecutionPolarsWorker(PolarsWorker):
             df.write_parquet(output_path.with_suffix(".parquet"))
         else:
             df.write_csv(output_path.with_suffix(".csv"))
+        write_reduce_artifact(
+            df,
+            self.data_out,
+            worker_id=getattr(self, "_worker_id", 0),
+        )

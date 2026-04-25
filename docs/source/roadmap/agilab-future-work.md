@@ -52,10 +52,10 @@ use this order:
      reducer contract
    - the public reducer benchmark now validates 8 partials / 80,000 synthetic
      items in `0.003s` against a `5.0s` target
-   - `execution_pandas_project` now emits named
+   - `execution_pandas_project` and `execution_polars_project` now emit named
      `reduce_summary_worker_<id>.json` reduce artefacts through that contract
-   - the remaining work is broader public-app adoption and analysis-view
-     surfacing
+   - the remaining work is broader non-benchmark public-app adoption and
+     analysis-view surfacing
 11. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
@@ -473,15 +473,16 @@ Current state:
   merge semantics, validation hooks, and a standard reduce artefact schema
 - `tools/reduce_contract_benchmark.py --json` validates 8 partials / 80,000
   synthetic items in `0.003s` against a `5.0s` target
-- `execution_pandas_project` writes worker-scoped
-  `reduce_summary_worker_<id>.json` artefacts through the shared contract
-- aggregation outside the first migrated app is still mostly app-specific
+- `execution_pandas_project` and `execution_polars_project` write
+  worker-scoped `reduce_summary_worker_<id>.json` artefacts through the shared
+  contract
+- aggregation outside the migrated benchmark apps is still mostly app-specific
 
 Current gap:
 
 - docs can overstate the capability as a full generic map/reduce mechanism
-- most apps beyond `execution_pandas_project` have not migrated their merge
-  logic to the shared reducer contract
+- most apps beyond `execution_pandas_project` and `execution_polars_project`
+  have not migrated their merge logic to the shared reducer contract
 - analysis views do not yet surface the reduce artefacts as first-class run
   evidence
 
@@ -506,15 +507,15 @@ Why it matters:
 - gives AGILab a clearer story than “Dask-backed execution exists somewhere in
   the stack”
 
-Completed first slice:
+Completed benchmark-app slices:
 
-- `execution_pandas_project` now emits named
+- `execution_pandas_project` and `execution_polars_project` now emit named
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files from worker results
 
 Next concrete change request:
 
-- migrate the next public app, likely `execution_polars_project`, to the shared
-  reducer contract
+- migrate the next public app beyond the benchmark pair to the shared reducer
+  contract
 - expose reducer artefacts in analysis views instead of leaving them only as
   files beside app-specific outputs
 
