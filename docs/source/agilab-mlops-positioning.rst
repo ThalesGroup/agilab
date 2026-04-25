@@ -170,6 +170,9 @@ history:
   ``uav_queue_project`` to ``uav_relay_queue_project`` through
   ``tools/multi_app_dag_report.py --compact`` and the checked-in
   ``multi_app_dag_sample.json``
+- the supplemental ``multi_app_dag_portfolio_sample.json`` expands the contract
+  sample suite across flight, meteo forecast, pandas execution, and polars
+  execution apps without changing the executable UAV smoke baseline
 - the global pipeline DAG report combines that handoff with each app-local
   ``pipeline_view.dot`` so reviewers can inspect one read-only product graph
   before runner and UI orchestration are claimed
@@ -251,6 +254,8 @@ between research experiments and engineering validation:
   deployment stacks
 - a first multi-app DAG contract/report baseline that makes cross-app artifact
   handoffs explicit before runner integration
+- a supplemental multi-app DAG portfolio sample that validates broader app
+  coverage before live runner hardening
 - a read-only global pipeline DAG report that ties app-local pipeline views to
   the cross-app handoff contract
 - a runner-facing execution-plan report that defines dependency state before

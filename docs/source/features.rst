@@ -218,7 +218,10 @@ single notebook but less ceremony than a production MLOps platform:
   artifact handoffs with ``tools/multi_app_dag_report.py --compact`` against
   ``docs/source/data/multi_app_dag_sample.json``; the first sample links
   ``uav_queue_project`` to ``uav_relay_queue_project`` through an explicit
-  ``queue_metrics`` handoff
+  ``queue_metrics`` handoff, and the supplemental
+  ``docs/source/data/multi_app_dag_portfolio_sample.json`` broadens contract
+  coverage across ``flight_project``, ``meteo_forecast_project``,
+  ``execution_pandas_project``, and ``execution_polars_project``
 - the global pipeline DAG report now assembles that cross-app contract with the
   app-local ``pipeline_view.dot`` files using
   ``tools/global_pipeline_dag_report.py --compact``; it emits a read-only graph

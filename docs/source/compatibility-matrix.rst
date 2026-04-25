@@ -151,7 +151,8 @@ consumes that report and includes the ``multi_app_dag_report_contract``,
 ``data_connector_live_ui_report_contract``,
 ``data_connector_app_catalogs_report_contract``, and
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
-checked-in cross-app DAG handoff sample, assemble the read-only product-level
+checked-in cross-app DAG handoff sample plus supplemental portfolio sample,
+assemble the read-only product-level
 graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
 runnable units with artifact dependencies and provenance, project runnable and
 blocked runner state with retry/partial-rerun metadata and operator messages,
@@ -174,6 +175,8 @@ generation on compatible runtimes while requiring
 OpenSearch, and object-storage connector definitions without network probes,
 validate connector-aware app/page resolution with ``legacy_path_fallback``
 preserved for migration,
+validate a supplemental multi-app DAG portfolio sample across flight, meteo
+forecast, pandas execution, and polars execution apps,
 plan connector health/status probes behind operator opt-in without executing
 network checks,
 expose operator-triggered health probe action rows without executing network

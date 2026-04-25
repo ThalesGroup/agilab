@@ -445,6 +445,12 @@ def _check_multi_app_dag_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("app_count") == 2
             and summary.get("cross_app_edge_count") == 1
             and summary.get("execution_order") == ["queue_baseline", "relay_followup"]
+            and summary.get("sample_count") == 2
+            and summary.get("supplemental_sample_count") == 1
+            and summary.get("suite_node_count") == 6
+            and summary.get("suite_edge_count") == 4
+            and summary.get("suite_app_count") == 6
+            and summary.get("suite_cross_app_edge_count") == 4
         )
         details = {
             "status": report.get("status"),
@@ -468,6 +474,7 @@ def _check_multi_app_dag_report(repo_root: Path) -> dict[str, Any]:
             "tools/multi_app_dag_report.py",
             "src/agilab/multi_app_dag.py",
             "docs/source/data/multi_app_dag_sample.json",
+            "docs/source/data/multi_app_dag_portfolio_sample.json",
         ],
         details=details,
     )
