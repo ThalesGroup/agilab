@@ -516,6 +516,49 @@ def _check_global_pipeline_dag_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_global_pipeline_execution_plan_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        execution_plan_report = _load_tool_module(repo_root, "global_pipeline_execution_plan_report")
+        report = execution_plan_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("runner_status") == "not_executed"
+            and summary.get("unit_count") == 2
+            and summary.get("pending_count") == 2
+            and summary.get("not_executed_count") == 2
+            and summary.get("ready_unit_ids") == ["queue_baseline"]
+            and summary.get("blocked_unit_ids") == ["relay_followup"]
+            and summary.get("artifact_dependency_count") == 1
+        )
+        details = {
+            "status": report.get("status"),
+            "dag_path": report.get("dag_path"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "global_pipeline_execution_plan_report_contract",
+        "Global pipeline execution plan report contract",
+        ok,
+        (
+            "global pipeline execution plan report defines pending units and dependencies"
+            if ok
+            else "global pipeline execution plan report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/global_pipeline_execution_plan_report.py",
+            "src/agilab/global_pipeline_execution_plan.py",
+            "tools/global_pipeline_dag_report.py",
+            "docs/source/data/multi_app_dag_sample.json",
+        ],
+        details=details,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -679,6 +722,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/reduce_contract_benchmark.py --json",
             "tools/multi_app_dag_report.py --compact",
             "tools/global_pipeline_dag_report.py --compact",
+            "tools/global_pipeline_execution_plan_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -692,6 +736,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/production_readiness_report.py",
             "tools/multi_app_dag_report.py",
             "tools/global_pipeline_dag_report.py",
+            "tools/global_pipeline_execution_plan_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -741,6 +786,7 @@ def build_bundle(
         _check_run_manifest_contract(repo_root),
         _check_multi_app_dag_report(repo_root),
         _check_global_pipeline_dag_report(repo_root),
+        _check_global_pipeline_execution_plan_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

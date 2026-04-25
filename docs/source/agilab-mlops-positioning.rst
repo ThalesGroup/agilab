@@ -117,6 +117,9 @@ history:
 - the global pipeline DAG report combines that handoff with each app-local
   ``pipeline_view.dot`` so reviewers can inspect one read-only product graph
   before runner and UI orchestration are claimed
+- the global DAG execution plan report turns that product graph into ordered
+  ``pending/not_executed`` runnable units with artifact dependencies and
+  provenance, while still avoiding any app dispatch
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -165,6 +168,8 @@ between research experiments and engineering validation:
   handoffs explicit before runner integration
 - a read-only global pipeline DAG report that ties app-local pipeline views to
   the cross-app handoff contract
+- a runner-facing execution-plan report that defines dependency state before
+  real dispatch is introduced
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
