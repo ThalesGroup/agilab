@@ -206,20 +206,24 @@ Current shipped baseline:
 - `tools/multi_app_dag_report.py --compact` validates schema, checked-in app
   nodes, acyclic dependencies, docs references, and artifact handoffs
 - the KPI evidence bundle includes this as `multi_app_dag_report_contract`
+- the global DAG report family now covers execution planning, persisted
+  dispatch state, real two-app app-entry smoke execution, operator state,
+  dependency views, live-update payloads, operator actions, and static operator
+  UI proof for the checked-in `queue_baseline -> relay_followup` contract
 
 Remaining scope:
 
-- runner integration for executing the contract across apps
-- global `PIPELINE` graph visualization and orchestration-state visibility
-- orchestration policies for retries, partial reruns, and provenance
-- one run record that still captures the whole multi-app execution
+- no open report-driven contract gap remains for the shipped two-app DAG
+  baseline
+- future work is broader app coverage, placement in the live product surface,
+  external validation, and production hardening
 
 Why it matters:
 
 - the contract closes the first bridge between app-local execution and a
   product-wide orchestrated workflow
-- runner and UI work remain before AGILab can claim a full reusable workflow
-  fabric
+- the remaining work is scale and hardening rather than missing public evidence
+  for the shipped two-app baseline
 
 ### 7. Global DAG runner dispatch and UI state
 
@@ -775,8 +779,8 @@ Use this rule of thumb:
   denser live analysis, faster interaction, and higher-volume visual playback
 - choose **Run Diff / Counterfactual Analysis** if the next need is faster
   debugging, clearer run review, and defensible explanation of KPI changes
-- choose **Multi-app DAG orchestration** if the next need is runner integration
-  for the shipped cross-app dependency contract
+- choose **Multi-app DAG orchestration** if the next need is broader app
+  coverage beyond the shipped two-app dependency contract
 - choose **Global DAG runner dispatch and UI state** if the next need is to
   execute the shipped product-visible graph in `PIPELINE`
 - choose **Bidirectional notebook interop** if the next need is a stronger bridge
