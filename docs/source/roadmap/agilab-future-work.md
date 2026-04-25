@@ -31,6 +31,8 @@ use this order:
    - build on the shipped data connector facility report for SQL, OpenSearch,
      and object-storage definitions plus the data connector resolution report
      for connector-aware app/page resolution
+   - add the shipped data connector health report for operator-gated probe
+     planning without live public network checks
    - this turns connector work into a practical data-access layer, not just path
      cleanup
 4. **Reduce contract adoption**
@@ -475,6 +477,9 @@ Completed baseline:
 - `tools/data_connector_resolution_report.py --compact` resolves connector IDs
   from an app-settings-style sample, validates connector-aware app/page
   resolution, and preserves `legacy_path_fallback` rows for migration
+- `tools/data_connector_health_report.py --compact` plans SQL, OpenSearch, and
+  object-storage health/status probes behind operator opt-in while keeping
+  public evidence in `health_probe_plan_only` mode
 
 First connector model:
 
@@ -513,7 +518,6 @@ Expected impact:
 
 Remaining scope:
 
-- add live connector health/status probes with explicit opt-in boundaries
 - surface connector provenance and fallback state in the relevant UI pages
 
 ## Distributed execution and reduction
@@ -663,10 +667,12 @@ Current shipped baseline:
   `docs/source/data/data_connector_app_settings_sample.toml`
 - connector-aware app/page resolution now resolves catalog IDs from app
   settings while preserving `legacy_path_fallback` rows for raw-path migration
+- `tools/data_connector_health_report.py --compact` validates
+  `agilab.data_connector_health.v1` and plans connector health/status probes
+  behind operator opt-in without executing network checks
 
 Remaining scope:
 
-- health/status probes that can be explicitly enabled in operator contexts
 - UI previews for connector state and connector-derived provenance
 
 ### 3. Connector-aware views

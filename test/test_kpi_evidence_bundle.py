@@ -57,6 +57,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "notebook_union_environment_report_contract",
         "data_connector_facility_report_contract",
         "data_connector_resolution_report_contract",
+        "data_connector_health_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -433,6 +434,26 @@ def test_data_connector_resolution_report_contract_resolves_app_page_refs() -> N
     ]
     assert "data_connector_resolution_page_refs" in check["details"]["check_ids"]
     assert "data_connector_resolution_no_network" in check["details"]["check_ids"]
+
+
+def test_data_connector_health_report_contract_plans_opt_in_probes() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_health_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.data_connector_health.v1"
+    assert check["details"]["summary"]["run_status"] == "planned"
+    assert check["details"]["summary"]["execution_mode"] == "health_probe_plan_only"
+    assert check["details"]["summary"]["connector_count"] == 3
+    assert check["details"]["summary"]["planned_probe_count"] == 3
+    assert check["details"]["summary"]["executed_probe_count"] == 0
+    assert check["details"]["summary"]["opt_in_required_count"] == 3
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["status_values"] == ["unknown_not_probed"]
+    assert check["details"]["summary"]["unhealthy_count"] == 0
+    assert "data_connector_health_opt_in_boundary" in check["details"]["check_ids"]
+    assert "data_connector_health_no_network" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

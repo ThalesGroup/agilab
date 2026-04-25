@@ -173,6 +173,11 @@ single notebook but less ceremony than a production MLOps platform:
   connector-aware app/page resolution; it resolves app-settings connector IDs,
   proves page-specific references, preserves ``legacy_path_fallback`` rows,
   and runs in ``contract_resolution_only`` mode without network probes
+- the data connector health report validates
+  ``tools/data_connector_health_report.py --compact`` in
+  ``health_probe_plan_only`` mode; it plans SQL, OpenSearch, and
+  object-storage health/status probes behind operator opt-in and records
+  ``unknown_not_probed`` public evidence without network checks
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a
