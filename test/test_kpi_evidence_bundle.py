@@ -41,6 +41,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "workflow_compatibility_report",
         "newcomer_first_proof_contract",
         "run_manifest_contract",
+        "run_diff_evidence_report_contract",
         "multi_app_dag_report_contract",
         "global_pipeline_dag_report_contract",
         "global_pipeline_execution_plan_report_contract",
@@ -120,6 +121,30 @@ def test_run_manifest_contract_reports_stable_schema() -> None:
         "target_seconds",
         "recommended_project",
     ]
+
+
+def test_run_diff_evidence_report_contract_reports_counterfactuals() -> None:
+    module = _load_module()
+
+    check = module._check_run_diff_evidence_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.run_diff_evidence.v1"
+    assert check["details"]["summary"]["run_status"] == "diff_ready"
+    assert check["details"]["summary"]["execution_mode"] == "run_diff_evidence_only"
+    assert check["details"]["summary"]["check_added_count"] == 1
+    assert check["details"]["summary"]["check_removed_count"] == 0
+    assert check["details"]["summary"]["check_status_changed_count"] == 0
+    assert check["details"]["summary"]["check_summary_changed_count"] == 1
+    assert check["details"]["summary"]["artifact_added_count"] == 2
+    assert check["details"]["summary"]["artifact_removed_count"] == 0
+    assert check["details"]["summary"]["manifest_artifact_delta"] == 1
+    assert check["details"]["summary"]["counterfactual_count"] == 2
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["live_execution_count"] == 0
+    assert check["details"]["summary"]["command_execution_count"] == 0
+    assert "run_diff_evidence_counterfactuals" in check["details"]["check_ids"]
+    assert "run_diff_evidence_no_execution" in check["details"]["check_ids"]
 
 
 def test_multi_app_dag_report_contract_reports_cross_app_handoff() -> None:

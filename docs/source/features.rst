@@ -214,6 +214,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``~/log/execute/flight/run_manifest.json`` so the first proof has one stable
   command/environment/timing/artifact/validation record that the release
   decision view can consume as promotion evidence
+- the run-diff evidence report validates
+  ``tools/run_diff_evidence_report.py --compact`` in
+  ``run_diff_evidence_only`` mode; it compares baseline/candidate KPI checks,
+  run-manifest deltas, and artifact rows, then emits counterfactual prompts for
+  material changes without executing commands or network probes
 - the multi-app DAG contract now validates app-to-app dependencies and
   artifact handoffs with ``tools/multi_app_dag_report.py --compact`` against
   ``docs/source/data/multi_app_dag_sample.json``; the first sample links
@@ -308,6 +313,8 @@ production platform:
   metadata, per-release ``manifest_index.json`` evidence history,
   cross-release manifest comparison, cross-run evidence bundle comparison, and
   gate details
+- ``tools/run_diff_evidence_report.py --compact`` gives that comparison work a
+  machine-checkable, no-execution run-diff/counterfactual evidence contract
 - the same evidence view surfaces reducer artifacts from benchmark distributed
   runs, meteo forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed

@@ -166,6 +166,9 @@ history:
 - the in-product first-proof wizard now guides one validated ``flight_project``
   source-checkout path, reads ``run_manifest.json``, and shows
   manifest-driven remediation with exact evidence commands
+- the run-diff evidence report compares static baseline/candidate KPI checks,
+  run manifests, and artifact rows, then emits counterfactual prompts without
+  executing commands or network probes
 - the multi-app DAG contract validates a first cross-app handoff from
   ``uav_queue_project`` to ``uav_relay_queue_project`` through
   ``tools/multi_app_dag_report.py --compact`` and the checked-in
@@ -233,6 +236,8 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
   registry paths, manifest summary, import summary, provenance-tagged attachment
   metadata, per-release evidence history, cross-release manifest comparison,
   cross-run evidence bundle comparison, and gate details
+- the standalone run-diff/counterfactual report gives those comparison claims a
+  no-execution JSON contract suitable for public evidence review
 - ``SECURITY.md`` documents supported versions, disclosure expectations, and a
   deployment hardening checklist
 
@@ -295,6 +300,8 @@ between research experiments and engineering validation:
   connector provenance through reusable Streamlit components
 - a data connector app catalogs report that proves connector definitions can
   live with built-in apps instead of only in global samples
+- a run-diff/counterfactual evidence report that turns baseline/candidate
+  check, manifest, and artifact deltas into reviewable prompts
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

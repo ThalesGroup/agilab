@@ -121,6 +121,7 @@ source of truth for explanations.
 tools/newcomer_first_proof.py --json
 run_manifest.json
 tools/reduce_contract_benchmark.py --json
+tools/run_diff_evidence_report.py --compact
 tools/multi_app_dag_report.py --compact
 tools/global_pipeline_dag_report.py --compact
 tools/global_pipeline_execution_plan_report.py --compact

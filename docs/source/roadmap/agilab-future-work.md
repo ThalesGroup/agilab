@@ -184,6 +184,25 @@ Suggested scope:
 - KPI delta summary
 - candidate-vs-baseline narrative focused on the most material changes
 
+Current shipped baseline:
+
+- `agilab.run_diff_evidence.v1` defines a first no-execution run-diff evidence
+  contract for public review
+- `tools/run_diff_evidence_report.py --compact` compares static
+  baseline/candidate KPI checks, run manifests, and artifact rows, then emits
+  counterfactual prompts for material deltas
+- the KPI evidence bundle includes this as `run_diff_evidence_report_contract`
+  and verifies zero command, live-execution, and network-probe counts
+
+Remaining scope:
+
+- connect the report to the live Release Decision surface instead of keeping it
+  as a standalone evidence command
+- add richer domain-specific explanations for allocation, topology, and
+  decision deltas
+- compare real external-machine evidence archives once CI artifact harvesting is
+  available
+
 Why it matters:
 
 - high value for debugging, review, and evidence-driven engineering
