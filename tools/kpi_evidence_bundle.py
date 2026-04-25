@@ -1007,6 +1007,50 @@ def _check_notebook_pipeline_import_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_notebook_roundtrip_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        notebook_roundtrip_report = _load_tool_module(
+            repo_root, "notebook_roundtrip_report"
+        )
+        report = notebook_roundtrip_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("execution_mode") == "not_executed_import"
+            and summary.get("import_mode") == "agilab_supervisor_metadata"
+            and summary.get("supervisor_step_count") == 2
+            and summary.get("pipeline_step_count") == 2
+            and summary.get("lab_steps_round_trip_ok") is True
+            and int(summary.get("env_hint_count", 0) or 0) >= 3
+            and int(summary.get("artifact_reference_count", 0) or 0) >= 3
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "notebook_roundtrip_report_contract",
+        "Notebook round-trip report contract",
+        ok,
+        (
+            "notebook round-trip report preserves lab_steps fields through "
+            "supervisor export and non-executing import"
+            if ok
+            else "notebook round-trip report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/notebook_roundtrip_report.py",
+            "src/agilab/notebook_export_support.py",
+            "src/agilab/notebook_pipeline_import.py",
+        ],
+        details=details,
+    )
+
+
 def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
     try:
         hf_space_smoke = _load_tool_module(repo_root, "hf_space_smoke")
@@ -1180,6 +1224,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_operator_actions_report.py --compact",
             "tools/global_pipeline_operator_ui_report.py --compact",
             "tools/notebook_pipeline_import_report.py --compact",
+            "tools/notebook_roundtrip_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
         ],
@@ -1203,6 +1248,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/global_pipeline_operator_actions_report.py",
             "tools/global_pipeline_operator_ui_report.py",
             "tools/notebook_pipeline_import_report.py",
+            "tools/notebook_roundtrip_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
         "docs/source/demos.rst": ["https://huggingface.co/spaces/jpmorard/agilab"],
@@ -1262,6 +1308,7 @@ def build_bundle(
         _check_global_pipeline_operator_actions_report(repo_root),
         _check_global_pipeline_operator_ui_report(repo_root),
         _check_notebook_pipeline_import_report(repo_root),
+        _check_notebook_roundtrip_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),

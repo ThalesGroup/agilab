@@ -108,6 +108,7 @@ AGILAB now exposes a notebook-to-pipeline import report:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/notebook_pipeline_import_report.py --compact
+uv --preview-features extra-build-dependencies run python tools/notebook_roundtrip_report.py --compact
 ```
 
 The report reads a checked-in `.ipynb`, projects markdown cells, code cells,
@@ -117,6 +118,11 @@ pipeline-step metadata, and writes a round-tripped JSON proof plus a richer
 the same importer. This is a `not_executed_import` contract: it proves
 notebook-to-pipeline import shape without executing notebook cells or claiming
 a single-kernel union environment.
+
+The notebook round-trip report validates
+`lab_steps.toml -> supervisor notebook -> import -> lab_steps preview` and
+checks that saved step description, prompt, model, code, runtime, import hints,
+and artifact references survive the round trip.
 
 ## Reduce Contract
 
