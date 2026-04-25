@@ -169,11 +169,17 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/global_pipeline_dag_report.py --compact``; it emits a read-only graph
   with app nodes, app-local pipeline steps, and the ``queue_metrics`` edge
   without claiming runner execution or operator UI state
+- the global DAG execution plan report converts that graph into ordered
+  runnable units with ``tools/global_pipeline_execution_plan_report.py --compact``;
+  the first plan keeps ``queue_baseline`` and ``relay_followup``
+  in ``pending/not_executed`` state, records the ``queue_metrics`` dependency,
+  and preserves DAG plus ``pipeline_view.dot`` provenance without dispatching
+  any app
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
 app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear, and full global DAG runner/UI orchestration is still
+merge outputs appear, and real global DAG runner/UI orchestration is still
 roadmap work.
 
 Production-readiness controls

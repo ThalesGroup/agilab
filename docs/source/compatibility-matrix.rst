@@ -101,6 +101,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/multi_app_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_dag_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_execution_plan_report.py --compact
 
 The compact compatibility report checks the required public statuses, the proof
 commands behind validated entries, and optional ``run_manifest.json`` evidence.
@@ -109,10 +110,12 @@ with ``--manifest`` or ``--manifest-dir``. When a manifest is present, the repor
 derives that path's effective status from the manifest result; without a
 manifest, it falls back to the checked-in matrix status. The compact KPI bundle
 consumes that report and includes the ``multi_app_dag_report_contract``,
-``global_pipeline_dag_report_contract``, and
+``global_pipeline_dag_report_contract``,
+``global_pipeline_execution_plan_report_contract``, and
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
 checked-in cross-app DAG handoff sample, assemble the read-only product-level
-graph from app-local ``pipeline_view.dot`` files, and verify that every
+graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
+runnable units with artifact dependencies and provenance, and verify that every
 non-template built-in app exposes a reducer contract while recording
 ``mycode_project`` as the explicit template-only exemption.
 
