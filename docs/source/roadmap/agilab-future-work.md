@@ -35,6 +35,8 @@ use this order:
      planning without live public network checks
    - add the shipped data connector UI preview report for static connector
      state and provenance review
+   - add the shipped data connector live UI report for Release Decision
+     Streamlit integration without connector network probes
    - this turns connector work into a practical data-access layer, not just path
      cleanup
 4. **Reduce contract adoption**
@@ -485,6 +487,9 @@ Completed baseline:
 - `tools/data_connector_ui_preview_report.py --compact` renders connector
   state, page bindings, legacy fallbacks, and health-boundary provenance as
   static JSON+HTML evidence
+- `tools/data_connector_live_ui_report.py --compact` wires connector state and
+  connector-derived provenance into the Release Decision Streamlit page in
+  `streamlit_render_contract_only` mode
 
 First connector model:
 
@@ -523,7 +528,8 @@ Expected impact:
 
 Remaining scope:
 
-- wire the static connector preview components into the relevant Streamlit pages
+- add operator-triggered live health probes and page-specific connector
+  catalogs beyond the checked-in sample evidence
 
 ## Distributed execution and reduction
 
@@ -678,11 +684,14 @@ Current shipped baseline:
 - `tools/data_connector_ui_preview_report.py --compact` validates
   `agilab.data_connector_ui_preview.v1` and renders static connector state plus
   connector-derived provenance as JSON+HTML preview evidence
+- `tools/data_connector_live_ui_report.py --compact` validates
+  `agilab.data_connector_live_ui.v1` and wires connector state plus
+  connector-derived provenance into the Release Decision Streamlit page without
+  opening connector networks
 
 Remaining scope:
 
-- live Streamlit integration for connector state and connector-derived
-  provenance components
+- operator-triggered live health probes and app-specific connector catalogs
 
 ### 3. Connector-aware views
 

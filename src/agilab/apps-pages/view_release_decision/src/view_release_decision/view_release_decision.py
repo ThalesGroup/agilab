@@ -28,6 +28,14 @@ def _ensure_repo_on_path() -> None:
             for entry in (str(src_root), str(repo_root)):
                 if entry not in sys.path:
                     sys.path.insert(0, entry)
+            package = sys.modules.get("agilab")
+            package_path = str(src_root / "agilab")
+            package_paths = getattr(package, "__path__", None)
+            if package_paths is not None and package_path not in list(package_paths):
+                try:
+                    package_paths.append(package_path)
+                except AttributeError:
+                    package.__path__ = [*package_paths, package_path]
             break
 
 
@@ -36,6 +44,16 @@ _ensure_repo_on_path()
 from agi_env import AgiEnv
 from agi_env.connector_registry import ConnectorPathRegistry, build_connector_path_registry
 from agi_env.pagelib import render_logo
+from agilab.data_connector_facility import (
+    DEFAULT_CONNECTORS_RELATIVE_PATH,
+    load_connector_catalog,
+)
+from agilab.data_connector_live_ui import render_connector_live_ui
+from agilab.data_connector_resolution import (
+    DEFAULT_SETTINGS_RELATIVE_PATH,
+    load_app_settings,
+)
+from agilab.data_connector_ui_preview import build_data_connector_ui_preview
 from agi_node.reduction import ReduceArtifact
 
 LOWER_IS_BETTER_KEYWORDS = ("mae", "rmse", "mape", "loss", "error", "latency", "duration")
@@ -1521,6 +1539,59 @@ def _write_decision(path: Path, payload: dict[str, Any]) -> Path:
     return path
 
 
+def _release_decision_repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / DEFAULT_CONNECTORS_RELATIVE_PATH).is_file():
+            return parent
+    return Path.cwd()
+
+
+def _build_release_decision_connector_preview_state(
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    repo_root = (repo_root or _release_decision_repo_root()).resolve()
+    settings_path = repo_root / DEFAULT_SETTINGS_RELATIVE_PATH
+    catalog_path = repo_root / DEFAULT_CONNECTORS_RELATIVE_PATH
+    settings = load_app_settings(settings_path)
+    catalog = load_connector_catalog(catalog_path)
+    return build_data_connector_ui_preview(
+        settings=settings,
+        catalog=catalog,
+        settings_path=settings_path,
+        catalog_path=catalog_path,
+    )
+
+
+def _render_release_decision_connector_live_ui(
+    st_api: Any,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    try:
+        preview_state = _build_release_decision_connector_preview_state(repo_root)
+    except Exception as exc:
+        st_api.caption(f"Connector state preview unavailable: {exc}")
+        return {
+            "schema": "agilab.data_connector_live_ui.v1",
+            "component_id": "release_decision_connector_preview",
+            "run_status": "unavailable",
+            "execution_mode": "streamlit_render_contract_only",
+            "summary": {"network_probe_count": 0},
+            "issues": [
+                {
+                    "level": "warning",
+                    "location": "release_decision_connector_preview",
+                    "message": str(exc),
+                }
+            ],
+        }
+    return render_connector_live_ui(
+        st_api,
+        preview_state,
+        component_id="release_decision_connector_preview",
+    )
+
+
 st.set_page_config(layout="wide")
 
 if "env" not in st.session_state:
@@ -1601,6 +1672,10 @@ run_manifest_path = _select_run_manifest_gate_path(
 )
 if run_manifest_path != default_run_manifest_path:
     st.sidebar.caption(f"Using imported first-proof manifest: {run_manifest_path}")
+
+st.session_state["release_decision_connector_live_ui"] = (
+    _render_release_decision_connector_live_ui(st)
+)
 
 if not artifact_root.exists():
     st.warning(f"Artifact directory does not exist yet: {artifact_root}")

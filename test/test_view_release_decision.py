@@ -283,6 +283,11 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     assert any(title.value == "Release decision" for title in at.title)
     assert any("Promotable" in message.value for message in at.success)
     assert any(header.value == "Connector path registry" for header in at.subheader)
+    connector_live_ui = at.session_state["release_decision_connector_live_ui"]
+    assert connector_live_ui["run_status"] == "ready_for_live_ui"
+    assert connector_live_ui["summary"]["connector_card_count"] == 3
+    assert connector_live_ui["summary"]["page_binding_count"] == 2
+    assert connector_live_ui["summary"]["network_probe_count"] == 0
 
     export_button = next(button for button in at.button if button.label == "Export promotion decision")
     export_button.click().run()
@@ -649,6 +654,13 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     assert import_summary["provenance_tagged_attachment_count"] == 1
     assert "target_seconds=pass" in import_rows[0]["validation_statuses"]
     assert module._select_run_manifest_gate_path(tmp_path / "missing.json", import_rows) == bad_manifest
+    connector_preview = module._build_release_decision_connector_preview_state()
+    connector_live_ui = module._render_release_decision_connector_live_ui(
+        module.render_connector_live_ui.__globals__["StreamlitCallRecorder"]()
+    )
+    assert connector_preview["run_status"] == "ready_for_ui_preview"
+    assert connector_live_ui["run_status"] == "ready_for_live_ui"
+    assert connector_live_ui["summary"]["network_probe_count"] == 0
 
     manifest_index_path = tmp_path / "artifact_root" / "manifest_index.json"
     empty_index, empty_summary = module._load_manifest_index(manifest_index_path)
