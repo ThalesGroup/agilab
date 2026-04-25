@@ -100,6 +100,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --analysis-view view_maps --json
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/run_diff_evidence_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/ci_artifact_harvest_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/multi_app_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_dag_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/global_pipeline_execution_plan_report.py --compact
@@ -130,6 +131,7 @@ with ``--manifest`` or ``--manifest-dir``. When a manifest is present, the repor
 derives that path's effective status from the manifest result; without a
 manifest, it falls back to the checked-in matrix status. The compact KPI bundle
 consumes that report and includes the ``run_diff_evidence_report_contract``,
+``ci_artifact_harvest_report_contract``,
 ``multi_app_dag_report_contract``,
 ``global_pipeline_dag_report_contract``,
 ``global_pipeline_execution_plan_report_contract``,
@@ -155,6 +157,9 @@ consumes that report and includes the ``run_diff_evidence_report_contract``,
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
 static run-diff evidence report for baseline/candidate KPI, manifest, artifact,
 and counterfactual deltas without executing commands or network probes,
+the CI artifact harvest report for external-machine manifest, KPI,
+compatibility, and promotion-decision attachments with SHA-256 and provenance
+checks but no live CI provider queries,
 checked-in cross-app DAG handoff sample plus supplemental portfolio sample,
 assemble the read-only product-level
 graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
@@ -218,7 +223,9 @@ manifest, KPI, required artifact, and reduce-artifact evidence for the baseline
 and prior indexed releases. ``tools/run_diff_evidence_report.py --compact``
 backs that direction with a standalone ``run_diff_evidence_only`` contract that
 records check, artifact, manifest, and counterfactual deltas without live
-execution.
+execution. ``tools/ci_artifact_harvest_report.py --compact`` adds the
+corresponding ``ci_artifact_contract_only`` evidence-harvest contract for
+external-machine attachments before live provider harvesting is introduced.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and
@@ -230,10 +237,11 @@ checklist with the exact first-proof and compatibility-report commands.
 What remains roadmap work
 -------------------------
 
-This first matrix closes the small, manual version of the compatibility item.
+This first matrix closes the small, manual version of the compatibility item,
+and the CI artifact harvest report defines the no-network attachment contract.
 The larger roadmap work is still open:
 
-- automatic harvesting from external CI workflow artifacts
-- per-release compatibility status driven by harvested attachments
+- automatic download/harvesting from external CI workflow artifact APIs
+- per-release compatibility status driven by live harvested attachments
 - broader app/core revision traceability beyond the first-proof manifest
 - explicit certification for more than the public newcomer/operator slices

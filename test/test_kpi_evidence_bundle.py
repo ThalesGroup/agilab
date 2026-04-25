@@ -42,6 +42,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "newcomer_first_proof_contract",
         "run_manifest_contract",
         "run_diff_evidence_report_contract",
+        "ci_artifact_harvest_report_contract",
         "multi_app_dag_report_contract",
         "global_pipeline_dag_report_contract",
         "global_pipeline_execution_plan_report_contract",
@@ -145,6 +146,31 @@ def test_run_diff_evidence_report_contract_reports_counterfactuals() -> None:
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert "run_diff_evidence_counterfactuals" in check["details"]["check_ids"]
     assert "run_diff_evidence_no_execution" in check["details"]["check_ids"]
+
+
+def test_ci_artifact_harvest_report_contract_reports_external_artifacts() -> None:
+    module = _load_module()
+
+    check = module._check_ci_artifact_harvest_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.ci_artifact_harvest.v1"
+    assert check["details"]["summary"]["run_status"] == "harvest_ready"
+    assert check["details"]["summary"]["execution_mode"] == "ci_artifact_contract_only"
+    assert check["details"]["summary"]["release_status"] == "validated"
+    assert check["details"]["summary"]["artifact_count"] == 4
+    assert check["details"]["summary"]["required_artifact_count"] == 4
+    assert check["details"]["summary"]["loaded_artifact_count"] == 4
+    assert check["details"]["summary"]["missing_required_count"] == 0
+    assert check["details"]["summary"]["checksum_verified_count"] == 4
+    assert check["details"]["summary"]["checksum_mismatch_count"] == 0
+    assert check["details"]["summary"]["provenance_tagged_count"] == 4
+    assert check["details"]["summary"]["external_machine_evidence_count"] == 4
+    assert check["details"]["summary"]["live_ci_query_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["command_execution_count"] == 0
+    assert "ci_artifact_harvest_release_status" in check["details"]["check_ids"]
+    assert "ci_artifact_harvest_no_live_ci" in check["details"]["check_ids"]
 
 
 def test_multi_app_dag_report_contract_reports_cross_app_handoff() -> None:

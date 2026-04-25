@@ -73,8 +73,9 @@ use this order:
 
 Why this order:
 
-- turn the shipped manifest remediation baseline into external evidence import
-  and release indexes before broader onboarding automation
+- turn the shipped manifest remediation baseline and CI artifact harvest
+  contract into external evidence import and release indexes before broader
+  onboarding automation
 - build global orchestration on the shipped cross-app contract and read-only
   product graph plus pending execution plan instead of claiming runner behavior
   before it exists
@@ -193,6 +194,9 @@ Current shipped baseline:
   counterfactual prompts for material deltas
 - the KPI evidence bundle includes this as `run_diff_evidence_report_contract`
   and verifies zero command, live-execution, and network-probe counts
+- `tools/ci_artifact_harvest_report.py --compact` now defines the
+  no-network external-machine attachment contract for run manifests, KPI
+  bundles, compatibility reports, and promotion decisions
 
 Remaining scope:
 
@@ -200,8 +204,8 @@ Remaining scope:
   as a standalone evidence command
 - add richer domain-specific explanations for allocation, topology, and
   decision deltas
-- compare real external-machine evidence archives once CI artifact harvesting is
-  available
+- compare real external-machine evidence archives from live CI provider APIs
+  once provider-side artifact download is available
 
 Why it matters:
 
