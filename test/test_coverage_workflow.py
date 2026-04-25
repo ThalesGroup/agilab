@@ -56,17 +56,28 @@ def test_agi_gui_coverage_includes_pipeline_run_controls() -> None:
 def test_agi_gui_coverage_includes_report_helper_regressions() -> None:
     run_block = _agi_gui_run_block()
 
-    expected_targets = {
-        "test/test_compatibility_report.py",
-        "test/test_connector_registry.py",
-        "test/test_data_connector*_report.py",
-        "test/test_global_pipeline*_report.py",
-        "test/test_multi_app_dag_report.py",
-        "test/test_notebook*_report.py",
-        "test/test_production_readiness_report.py",
-        "test/test_run_manifest.py",
-    }
+    assert "test/test_*_report.py" in run_block
 
-    missing = sorted(target for target in expected_targets if target not in run_block)
 
-    assert not missing, f"agi-gui coverage is missing report/helper targets: {missing}"
+def test_agi_gui_report_wildcard_covers_all_report_tests() -> None:
+    run_block = _agi_gui_run_block()
+    assert "test/test_*_report.py" in run_block
+
+    listed_tests: set[str] = set()
+    for token in re.findall(r"test/test_[^\s\\]+_report\.py", run_block):
+        if "*" in token:
+            listed_tests.update(path.as_posix() for path in Path().glob(token))
+        else:
+            listed_tests.add(token)
+
+    report_tests = {path.as_posix() for path in Path("test").glob("test_*_report.py")}
+    assert "test/test_run_diff_evidence_report.py" in report_tests
+    assert "test/test_ci_artifact_harvest_report.py" in report_tests
+
+    missing = sorted(report_tests - listed_tests)
+    extra = sorted(listed_tests - report_tests)
+
+    assert not missing and not extra, (
+        f"coverage.yml agi-gui report wildcard is out of sync; "
+        f"missing={missing}, extra={extra}"
+    )
