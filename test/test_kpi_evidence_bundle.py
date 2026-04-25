@@ -25,17 +25,17 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     bundle = module.build_bundle(run_hf_smoke=False)
 
     assert bundle["kpi"] == "Overall public evaluation"
-    assert bundle["supported_score"] == "3.6 / 5"
+    assert bundle["supported_score"] == "3.8 / 5"
     assert bundle["baseline_review_score"] == "3.2 / 5"
     assert bundle["status"] == "pass"
     assert bundle["summary"]["hf_smoke_executed"] is False
     assert bundle["summary"]["score_components"] == {
-        "Ease of adoption": "3.5 / 5",
+        "Ease of adoption": "4.0 / 5",
         "Research experimentation": "4.0 / 5",
         "Engineering prototyping": "4.0 / 5",
         "Production readiness": "3.0 / 5",
     }
-    assert bundle["summary"]["score_formula"] == "(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625"
+    assert bundle["summary"]["score_formula"] == "(4.0 + 4.0 + 4.0 + 3.0) / 4 = 3.75"
     check_ids = {check["id"] for check in bundle["checks"]}
     assert check_ids == {
         "workflow_compatibility_report",
@@ -59,6 +59,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "data_connector_resolution_report_contract",
         "data_connector_health_report_contract",
         "data_connector_health_actions_report_contract",
+        "data_connector_runtime_adapters_report_contract",
         "data_connector_ui_preview_report_contract",
         "data_connector_live_ui_report_contract",
         "data_connector_app_catalogs_report_contract",
@@ -483,6 +484,36 @@ def test_data_connector_health_actions_report_contract_exposes_operator_triggers
     assert check["details"]["summary"]["result_status_values"] == ["unknown_not_probed"]
     assert "data_connector_health_actions_operator_trigger" in check["details"]["check_ids"]
     assert "data_connector_health_actions_no_network" in check["details"]["check_ids"]
+
+
+def test_data_connector_runtime_adapters_report_contract_exposes_bindings() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_runtime_adapters_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == (
+        "agilab.data_connector_runtime_adapters.v1"
+    )
+    assert check["details"]["summary"]["run_status"] == "ready_for_runtime_binding"
+    assert check["details"]["summary"]["execution_mode"] == "runtime_adapter_contract_only"
+    assert check["details"]["summary"]["connector_count"] == 3
+    assert check["details"]["summary"]["adapter_count"] == 3
+    assert check["details"]["summary"]["runtime_ready_count"] == 3
+    assert check["details"]["summary"]["credential_deferred_count"] == 2
+    assert check["details"]["summary"]["no_credential_required_count"] == 1
+    assert check["details"]["summary"]["operator_opt_in_required_count"] == 3
+    assert check["details"]["summary"]["health_action_binding_count"] == 3
+    assert check["details"]["summary"]["executed_adapter_count"] == 0
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["credential_value_materialized_count"] == 0
+    assert check["details"]["summary"]["operations"] == [
+        "object_storage_prefix_list",
+        "opensearch_index_head",
+        "read_only_connectivity_check",
+    ]
+    assert "data_connector_runtime_adapters_rows" in check["details"]["check_ids"]
+    assert "data_connector_runtime_adapters_no_network" in check["details"]["check_ids"]
 
 
 def test_data_connector_ui_preview_report_contract_renders_connector_state() -> None:

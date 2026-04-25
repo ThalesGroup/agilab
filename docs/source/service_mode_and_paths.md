@@ -28,22 +28,27 @@ bootstrapper, etc.) now assume.
   open-source apps. |
 | `~/agi-space/.venv` | The virtual environment that executes the web interface in
   service mode. |
-| `~/agi-space/apps` | Populated with symlinks to the selected app templates. |
+| `~/agi-space/apps` | Populated with links to selected built-in and repository app projects. |
 
 ## How App Symlinks Are Resolved
 
-1. When `AgiEnv` initialises with `install_type == 0`, it first looks for
-   `APPS_REPOSITORY/src/agilab/apps`.
-2. Every `*_project` folder inside that repository directory is symlinked into
-   the active end-user workspace (e.g. `~/agi-space/apps`). Existing links are
-   recreated only when the target changed.
-3. If the apps repository directory is missing or unset, `AgiEnv` falls back to the location
-   stored in `~/.local/share/agilab/.agilab-path` and copies the public apps
-   instead of linking them.
+1. The installer discovers `apps` and `apps-pages` under `APPS_REPOSITORY`.
+   Direct children are preferred; nested `src/agilab/apps` and
+   `src/agilab/apps-pages` layouts are also accepted.
+2. Every valid `*_project` folder inside the repository apps directory is linked
+   into the active end-user workspace (for example `~/agi-space/apps`). Existing
+   links are recreated on rerun.
+3. If a selected repository app/page already exists locally as a real directory,
+   the installer moves it to `<name>.previous.<timestamp>` and links the
+   repository copy in its place. This makes app updates from the repository the
+   source of truth while keeping the old local directory recoverable.
+4. If the apps repository directory is missing or unset, `AgiEnv` falls back to
+   the location stored in `~/.local/share/agilab/.agilab-path` and copies the
+   public apps instead of linking them.
 
 Because the apps repository (when configured) is the primary source of truth,
 make sure the installer writes the up-to-date path to `APPS_REPOSITORY` and that
-the repository exposes the expected sub-tree:
+the repository exposes an installable apps tree:
 
 ```
 ${APPS_REPOSITORY}/
@@ -54,17 +59,17 @@ ${APPS_REPOSITORY}/
       ...
 ```
 
-## Cleaning Up Broken Links
+## Updating App Links
 
-During startup `AgiEnv.get_projects()` automatically removes any dangling
-symlinks under the end-user `apps` directory.  If you move or rename projects in
-the apps repository, the next launch will drop stale links and recreate them
-using the up-to-date path.
+During startup `AgiEnv.get_projects()` automatically removes dangling symlinks
+under the end-user `apps` directory. If you move, rename, or update projects in
+the apps repository, rerun the installer so repository links are refreshed and
+any stale real directories are moved aside before the new links are created.
 
 ## Practical Checklist
 
 1. Point `APPS_REPOSITORY` at the root of the apps repository (when used).
 2. Run the installer (or rerun `install_apps.sh`) so `~/.local/share/agilab/.env`
-   is refreshed.
+   is refreshed and app/page links are updated.
 3. Restart the end-user web interface app.  The sidebar project selector should now
-  only list apps that resolve inside `APPS_REPOSITORY`.
+   only list apps that resolve inside `APPS_REPOSITORY`.

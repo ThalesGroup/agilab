@@ -182,6 +182,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/data_connector_health_actions_report.py --compact`` in
   ``operator_trigger_contract_only`` mode; it exposes operator-triggered health
   probes as explicit action rows while keeping public network execution at zero
+- the data connector runtime adapters report validates
+  ``tools/data_connector_runtime_adapters_report.py --compact`` in
+  ``runtime_adapter_contract_only`` mode; it binds credentialed connector adapters
+  to runtime operations and health actions while deferring credential values and
+  keeping public network execution at zero
 - the data connector UI preview report validates
   ``tools/data_connector_ui_preview_report.py --compact`` in
   ``static_ui_preview_only`` mode; it renders connector state and

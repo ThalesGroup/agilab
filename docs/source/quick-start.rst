@@ -168,6 +168,11 @@ your machine::
       --test-apps \
       --test-core
 
+Rerunning the installer refreshes repository app/page links. If a selected
+repository app or page already exists locally as a real directory, the installer
+moves it to ``<name>.previous.<timestamp>`` and links the repository copy so app
+updates are picked up.
+
 ``--test-root`` runs the installer-managed AGILAB package tests. For the full
 repository pytest suite from a source checkout, run it separately::
 

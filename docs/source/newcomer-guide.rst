@@ -59,11 +59,12 @@ The JSON proof writes ``~/log/execute/flight/run_manifest.json``. That manifest
 is the portable first-proof run record: command, Python/platform context, active
 app, timing, artifact references, and validation status.
 
-That supports an ``Ease of adoption`` score of ``3.5 / 5``: the public demo
+That supports an ``Ease of adoption`` score of ``4.0 / 5``: the public demo
 works, the first routes are explicit, PyCharm is optional, installer tests are
-opt-in, and the source-checkout proof now has one fresh external-machine
-replication. It is not scored higher yet because broader OS and network
-replication remains open.
+opt-in, and the source-checkout proof now has local, fresh external macOS,
+AI Lightning, Hugging Face, bare-metal cluster, and VM-based cluster validation.
+It is not scored higher yet because Azure, AWS, and GCP deployment validation
+remains open.
 
 What to ignore on day 1
 -----------------------
