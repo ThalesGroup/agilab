@@ -325,6 +325,7 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert any("Promotable" in message.value for message in at.success)
     assert any(header.value == "Imported run manifest evidence" for header in at.subheader)
     assert any(header.value == "Cross-release manifest comparison" for header in at.subheader)
+    assert any(header.value == "Cross-run evidence bundle comparison" for header in at.subheader)
 
     export_button = next(button for button in at.button if button.label == "Export promotion decision")
     export_button.click().run()
@@ -344,6 +345,14 @@ def test_view_release_decision_imports_external_manifest_for_gate(tmp_path, monk
     assert payload["manifest_index_comparison_summary"]["compared_path_count"] == 1
     assert payload["manifest_index_comparison_summary"]["status_counts"] == {"newly_validated": 1}
     assert payload["manifest_index_comparison"][0]["comparison_status"] == "newly_validated"
+    assert payload["evidence_bundle_comparison_summary"]["target_count"] == 1
+    assert payload["evidence_bundle_comparison_summary"]["evidence_counts"] == {
+        "artifact": 2,
+        "kpi": 3,
+        "manifest": 1,
+        "reduce_artifact": 1,
+    }
+    assert payload["evidence_bundle_comparison_summary"]["blocking_count"] == 0
     assert payload["imported_run_manifest_evidence"][0]["source"] == str(imported_manifest_path)
     assert payload["imported_run_manifest_evidence"][0]["path_id"] == "source-checkout-first-proof"
     assert payload["imported_run_manifest_evidence"][0]["evidence_status"] == "validated"
@@ -370,8 +379,11 @@ def test_view_release_decision_compares_manifest_index_history(tmp_path, monkeyp
     baseline_root = export_root / "run_2026_04_16"
     candidate_root = export_root / "run_2026_04_17"
     prior_root = export_root / "run_2026_04_15"
+    _write_bundle(prior_root, mae=0.86, rmse=0.99, mape=5.50)
     _write_bundle(baseline_root, mae=0.91, rmse=1.01, mape=5.80)
     _write_bundle(candidate_root, mae=0.81, rmse=0.97, mape=5.42)
+    _write_forecast_reduce_artifact(prior_root / "reduce_summary_worker_0.json")
+    _write_forecast_reduce_artifact(candidate_root / "reduce_summary_worker_0.json")
     current_manifest_path = _write_first_proof_manifest(
         tmp_path / "current_external_machine",
         run_id="current-first-proof",
@@ -446,6 +458,7 @@ def test_view_release_decision_compares_manifest_index_history(tmp_path, monkeyp
 
     assert not at.exception
     assert any(header.value == "Cross-release manifest comparison" for header in at.subheader)
+    assert any(header.value == "Cross-run evidence bundle comparison" for header in at.subheader)
 
     export_button = next(button for button in at.button if button.label == "Export promotion decision")
     export_button.click().run()
@@ -469,6 +482,27 @@ def test_view_release_decision_compares_manifest_index_history(tmp_path, monkeyp
     assert comparison_by_key["source-checkout-first-proof"]["current_duration_seconds"] == 5.0
     assert comparison_by_key["ci-fresh-proof"]["comparison_status"] == "failed"
     assert comparison_by_key["legacy-only-proof"]["comparison_status"] == "missing_current_evidence"
+    bundle_rows = payload["evidence_bundle_comparison"]
+    prior_reduce = next(
+        row
+        for row in bundle_rows
+        if row["target_kind"] == "prior_indexed" and row["evidence"] == "reduce_artifact"
+    )
+    baseline_reduce = next(
+        row
+        for row in bundle_rows
+        if row["target_kind"] == "baseline" and row["evidence"] == "reduce_artifact"
+    )
+    assert payload["evidence_bundle_comparison_summary"]["target_count"] == 2
+    assert payload["evidence_bundle_comparison_summary"]["evidence_counts"] == {
+        "artifact": 4,
+        "kpi": 6,
+        "manifest": 2,
+        "reduce_artifact": 2,
+    }
+    assert payload["evidence_bundle_comparison_summary"]["blocking_count"] == 0
+    assert prior_reduce["status"] == "stable"
+    assert baseline_reduce["status"] == "expanded"
 
 
 def test_view_release_decision_blocks_candidate_with_missing_artifact(tmp_path, monkeypatch) -> None:

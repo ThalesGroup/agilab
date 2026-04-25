@@ -132,7 +132,7 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
   imports external manifest evidence, applies artifact and KPI gates, and
   exports ``promotion_decision.json`` plus ``manifest_index.json`` with manifest
   summary, import summary, per-release evidence history, cross-release manifest
-  comparison, and gate details
+  comparison, cross-run evidence bundle comparison, and gate details
 - ``SECURITY.md`` documents supported versions, disclosure expectations, and a
   deployment hardening checklist
 
