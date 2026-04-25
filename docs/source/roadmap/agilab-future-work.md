@@ -35,6 +35,8 @@ use this order:
      planning without live public network checks
    - add the shipped data connector health actions report for explicit
      operator-triggered health probe rows
+   - add the shipped data connector runtime adapters report for credentialed
+     runtime bindings without materializing secrets in public evidence
    - add the shipped data connector UI preview report for static connector
      state and provenance review
    - add the shipped data connector live UI report for Release Decision
@@ -491,6 +493,9 @@ Completed baseline:
 - `tools/data_connector_health_actions_report.py --compact` exposes those
   probes as operator-triggered action rows in `operator_trigger_contract_only`
   mode
+- `tools/data_connector_runtime_adapters_report.py --compact` binds SQL,
+  OpenSearch, and object-storage connectors to runtime adapter operations while
+  deferring credential values to the operator runtime
 - `tools/data_connector_ui_preview_report.py --compact` renders connector
   state, page bindings, legacy fallbacks, and health-boundary provenance as
   static JSON+HTML evidence
@@ -537,7 +542,7 @@ Expected impact:
 
 Remaining scope:
 
-- add real credentialed connector adapters for runtime environments
+- add live endpoint smoke evidence for credentialed operator environments
 
 ## Distributed execution and reduction
 
@@ -692,6 +697,9 @@ Current shipped baseline:
 - `tools/data_connector_health_actions_report.py --compact` validates
   `agilab.data_connector_health_actions.v1` and exposes operator-triggered
   health probe action rows without executing network checks
+- `tools/data_connector_runtime_adapters_report.py --compact` validates
+  `agilab.data_connector_runtime_adapters.v1` and binds credentialed connector
+  adapters to runtime operations while deferring credential values
 - `tools/data_connector_ui_preview_report.py --compact` validates
   `agilab.data_connector_ui_preview.v1` and renders static connector state plus
   connector-derived provenance as JSON+HTML preview evidence
@@ -705,7 +713,7 @@ Current shipped baseline:
 
 Remaining scope:
 
-- real credentialed connector adapters for runtime environments
+- live endpoint smoke evidence for credentialed operator environments
 
 ### 3. Connector-aware views
 
