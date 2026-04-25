@@ -195,12 +195,17 @@ single notebook but less ceremony than a production MLOps platform:
   reducer artifacts into dispatch-state JSON, and records
   ``real queue_baseline and relay_followup execution`` without claiming live
   operator UI
+- the global DAG operator state report reads that persisted full-DAG dispatch
+  state with ``tools/global_pipeline_operator_state_report.py --compact``; it
+  projects ``operator-visible state`` for the completed units, the
+  queue-to-relay artifact handoff, available artifacts, and
+  ``retry/partial-rerun actions`` without claiming a live UI
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
 app/template reducer adoption remain maintenance discipline when new concrete
-merge outputs appear, and live operator UI plus persisted retry/partial-rerun
-actions from real app runs are still roadmap work.
+merge outputs appear, and live operator UI plus execution of retry/partial-rerun
+actions remain roadmap work.
 
 Production-readiness controls
 -----------------------------
