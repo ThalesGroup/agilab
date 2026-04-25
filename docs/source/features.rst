@@ -178,6 +178,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``health_probe_plan_only`` mode; it plans SQL, OpenSearch, and
   object-storage health/status probes behind operator opt-in and records
   ``unknown_not_probed`` public evidence without network checks
+- the data connector UI preview report validates
+  ``tools/data_connector_ui_preview_report.py --compact`` in
+  ``static_ui_preview_only`` mode; it renders connector state and
+  connector-derived provenance as static JSON+HTML cards, page bindings,
+  legacy fallbacks, and health opt-in boundary evidence
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a

@@ -58,6 +58,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         "data_connector_facility_report_contract",
         "data_connector_resolution_report_contract",
         "data_connector_health_report_contract",
+        "data_connector_ui_preview_report_contract",
         "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
@@ -454,6 +455,28 @@ def test_data_connector_health_report_contract_plans_opt_in_probes() -> None:
     assert check["details"]["summary"]["unhealthy_count"] == 0
     assert "data_connector_health_opt_in_boundary" in check["details"]["check_ids"]
     assert "data_connector_health_no_network" in check["details"]["check_ids"]
+
+
+def test_data_connector_ui_preview_report_contract_renders_connector_state() -> None:
+    module = _load_module()
+
+    check = module._check_data_connector_ui_preview_report(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["summary"]["schema"] == "agilab.data_connector_ui_preview.v1"
+    assert check["details"]["summary"]["run_status"] == "ready_for_ui_preview"
+    assert check["details"]["summary"]["execution_mode"] == "static_ui_preview_only"
+    assert check["details"]["summary"]["persistence_format"] == "json+html"
+    assert check["details"]["summary"]["connector_card_count"] == 3
+    assert check["details"]["summary"]["page_binding_count"] == 2
+    assert check["details"]["summary"]["legacy_fallback_count"] == 2
+    assert check["details"]["summary"]["health_probe_status_count"] == 3
+    assert check["details"]["summary"]["component_count"] == 8
+    assert check["details"]["summary"]["network_probe_count"] == 0
+    assert check["details"]["summary"]["html_rendered"] is True
+    assert check["details"]["summary"]["html_written"] is True
+    assert "data_connector_ui_preview_html_render" in check["details"]["check_ids"]
+    assert "data_connector_ui_preview_health_boundary" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:
