@@ -136,9 +136,9 @@ CODEX 5.5 working scores, not production MLOps claims:
 
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
-| Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Validated locally and on one external macOS machine; broader OS/network certification is not claimed. |
+| Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Validated locally, on one external macOS machine, and on two cluster setups: one bare-metal cluster and one VM-based cluster. Exhaustive OS/network certification is not claimed. |
 | Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, flight, meteo forecast, and UAV queue-family reduce artifacts, a non-template built-in app guardrail, and public reduce benchmark: `0.003s` vs `5.0s`. | Future apps/templates must opt in when they produce concrete merge outputs. |
-| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, and tested in-product first-proof onboarding. | Additional external replication and full guided-wizard polish are not claimed. |
+| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, and a guided in-product first-proof wizard backed by the compatibility report. | Additional external replication beyond the current public first-proof paths is not claimed. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
 | Overall public evaluation | `3.6 / 5` | Mean of the four scored public KPIs: `(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625`. Cross-KPI evidence bundle and workflow-backed compatibility report documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |
 

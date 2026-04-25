@@ -32,6 +32,8 @@ Choose one route
 The first proof is deliberately narrow:
 use a source checkout, run the built-in ``flight_project`` locally from the
 web UI, and confirm a visible result under ``~/log/execute/flight/``.
+The landing page first-proof wizard now enforces that same single actionable
+route and shows the compatibility-report status before you branch out.
 
 That is enough for day 1. Do not widen the problem to notebooks, package mode,
 private apps, or cluster setup until this path works once.

@@ -150,11 +150,14 @@ single notebook but less ceremony than a production MLOps platform:
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a
   shareable dashboard without becoming a full product
+- the landing page first-proof wizard now routes newcomers through one
+  validated ``flight_project`` source-checkout proof and shows its
+  compatibility-report status
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
-scored higher yet because the first-proof wizard still needs full guided polish,
-and future app/template reducer adoption remains maintenance discipline when
-new concrete merge outputs appear.
+scored higher yet because additional external replication and future
+app/template reducer adoption remain maintenance discipline when new concrete
+merge outputs appear.
 
 Production-readiness controls
 -----------------------------

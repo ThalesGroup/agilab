@@ -82,13 +82,10 @@ apps, plus the user-facing `meteo_forecast_project`, `uav_queue_project`, and
 uv --preview-features extra-build-dependencies run python tools/reduce_contract_benchmark.py --json
 ```
 
-The Release Decision evidence view discovers those reduce artifacts, validates
-their schema, and shows reducer name, partial count, artifact path, benchmark
-row/source/execution fields, meteo forecast MAE/RMSE/MAPE fields, and UAV
-queue-family packet/PDR fields when present. The remaining scope is wider
-adoption beyond the benchmark pair and first three user-facing apps, not the
-shared reducer interface, migrated artifacts, artifact surfacing, or the public
-benchmark.
+The compact public KPI evidence bundle reports this as
+`reduce_contract_adoption_guardrail`. The
+remaining scope is future adoption discipline, not the shared reducer interface,
+migrated artifacts, artifact surfacing, or the public benchmark.
 
 ## Evaluation Snapshot
 
@@ -96,11 +93,11 @@ CODEX 5.5 working scores, not production MLOps claims:
 
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
-| Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Validated locally and on one external macOS machine; broader OS/network certification is not claimed. |
-| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, meteo forecast, and UAV queue-family reduce artifacts, and public reduce benchmark: `0.003s` vs `5.0s`. | Broader app migrations beyond the benchmark pair and first three user-facing apps are not complete. |
-| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, and tested in-product first-proof onboarding. | Additional external replication and full guided-wizard polish are not claimed. |
+| Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Validated locally, on one external macOS machine, and on two cluster setups: one bare-metal cluster and one VM-based cluster. Exhaustive OS/network certification is not claimed. |
+| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, surfaced pandas/polars benchmark, flight, meteo forecast, and UAV queue-family reduce artifacts, a non-template built-in app guardrail, and public reduce benchmark: `0.003s` vs `5.0s`. | Future apps/templates must opt in when they produce concrete merge outputs. |
+| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, and a guided in-product first-proof wizard backed by the compatibility report. | Additional external replication beyond the current public first-proof paths is not claimed. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
-| Overall public evaluation | `3.6 / 5` | Mean of the four scored public KPIs: `(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625`. Cross-KPI evidence bundle documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |
+| Overall public evaluation | `3.6 / 5` | Mean of the four scored public KPIs: `(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625`. Cross-KPI evidence bundle and workflow-backed compatibility report documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |
 
 ## Read Next
 

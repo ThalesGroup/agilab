@@ -106,11 +106,13 @@ history:
   sequence
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
+- the in-product first-proof wizard now guides one validated ``flight_project``
+  source-checkout path and shows its compatibility-report status
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
-scored higher yet because the first-proof wizard still needs full guided polish,
-and future app/template reducer adoption remains maintenance discipline when
-new concrete merge outputs appear.
+scored higher yet because additional external replication and future
+app/template reducer adoption remain maintenance discipline when new concrete
+merge outputs appear.
 
 Production readiness evidence
 -----------------------------
@@ -142,7 +144,7 @@ between research experiments and engineering validation:
 
 - a clear TRL‑3 experimentation focus instead of an overclaimed production MLOps
   scope
-- a public demo path and a measurable local first-proof path
+- a public demo path and a guided, measurable local first-proof path
 - a handoff model for stabilized assets into MLflow, Kubeflow, or internal
   deployment stacks
 - a roadmap ordered around run evidence, promotion decisions, compatibility

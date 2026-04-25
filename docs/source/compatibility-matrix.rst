@@ -105,6 +105,11 @@ report and includes the ``reduce_contract_adoption_guardrail`` check, which
 verifies that every non-template built-in app exposes a reducer contract and
 records ``mycode_project`` as the explicit template-only exemption.
 
+The in-product first-proof wizard consumes the same support boundary: it routes
+newcomers to the single actionable source-checkout ``flight_project`` proof and
+keeps notebook and packaged-install routes documented, not recommended, until
+that local proof has passed once.
+
 What remains roadmap work
 -------------------------
 
@@ -112,8 +117,6 @@ This first matrix closes the small, manual version of the compatibility item.
 The larger roadmap work is still open:
 
 - automatic ingestion from external CI workflow artifacts
-- integration with the first-proof wizard so newcomers land on one validated
-  path instead of choosing routes too early
 - per-release compatibility status
 - stronger app/core revision traceability
 - explicit certification for more than the public newcomer/operator slices

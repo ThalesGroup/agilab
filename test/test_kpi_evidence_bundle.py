@@ -61,6 +61,22 @@ def test_workflow_compatibility_report_requires_hf_demo_validated() -> None:
     assert "workflow_evidence_commands" in check["details"]["check_ids"]
 
 
+def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
+    module = _load_module()
+
+    check = module._check_newcomer_first_proof_contract(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["labels"] == ["preinit smoke", "source ui smoke"]
+    wizard = check["details"]["wizard"]
+    assert wizard["recommended_path_id"] == "source-checkout-first-proof"
+    assert wizard["actionable_route_ids"] == ["source-checkout-first-proof"]
+    assert wizard["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert wizard["compatibility_status"] == "validated"
+    assert wizard["compatibility_report_status"] == "pass"
+    assert wizard["steps"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+
+
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:
     module = _load_module()
 

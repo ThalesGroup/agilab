@@ -108,19 +108,54 @@ def _check_workflow_compatibility_report(repo_root: Path) -> dict[str, Any]:
 def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
     try:
         newcomer_first_proof = _load_tool_module(repo_root, "newcomer_first_proof")
+        wizard_path = repo_root / "src" / "agilab" / "first_proof_wizard.py"
+        wizard_spec = importlib.util.spec_from_file_location(
+            "first_proof_wizard_for_kpi_bundle",
+            wizard_path,
+        )
+        if not wizard_spec or not wizard_spec.loader:
+            raise RuntimeError(f"unable to load first-proof wizard module: {wizard_path}")
+        first_proof_wizard = importlib.util.module_from_spec(wizard_spec)
+        sys.modules[wizard_spec.name] = first_proof_wizard
+        wizard_spec.loader.exec_module(first_proof_wizard)
+
         active_app = newcomer_first_proof.DEFAULT_ACTIVE_APP
         commands = newcomer_first_proof.build_proof_commands(active_app, with_install=False)
         labels = [command.label for command in commands]
+        wizard_content = first_proof_wizard.newcomer_first_proof_content(repo_root)
         ok = (
             labels == ["preinit smoke", "source ui smoke"]
             and float(newcomer_first_proof.DEFAULT_MAX_SECONDS) == 600.0
             and active_app.name == "flight_project"
+            and wizard_content["recommended_path_id"] == "source-checkout-first-proof"
+            and wizard_content["actionable_route_ids"] == ["source-checkout-first-proof"]
+            and wizard_content["documented_route_ids"] == [
+                "notebook-quickstart",
+                "published-package-route",
+            ]
+            and wizard_content["compatibility_status"] == "validated"
+            and wizard_content["compatibility_report_status"] == "pass"
+            and wizard_content["proof_command_labels"] == labels
+            and [label for label, _ in wizard_content["steps"]] == [
+                "PROJECT",
+                "ORCHESTRATE",
+                "ANALYSIS",
+            ]
         )
         details = {
             "active_app": str(active_app),
             "labels": labels,
             "target_seconds": newcomer_first_proof.DEFAULT_MAX_SECONDS,
             "command_count": len(commands),
+            "wizard": {
+                "recommended_path_id": wizard_content.get("recommended_path_id"),
+                "recommended_path_label": wizard_content.get("recommended_path_label"),
+                "actionable_route_ids": wizard_content.get("actionable_route_ids"),
+                "documented_route_ids": wizard_content.get("documented_route_ids"),
+                "compatibility_status": wizard_content.get("compatibility_status"),
+                "compatibility_report_status": wizard_content.get("compatibility_report_status"),
+                "steps": [label for label, _ in wizard_content.get("steps", [])],
+            },
         }
     except Exception as exc:
         ok = False
@@ -134,7 +169,12 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             if ok
             else "source-checkout newcomer proof contract is incomplete"
         ),
-        evidence=["tools/newcomer_first_proof.py", "README.md"],
+        evidence=[
+            "tools/newcomer_first_proof.py",
+            "src/agilab/first_proof_wizard.py",
+            "src/agilab/About_agilab.py",
+            "README.md",
+        ],
         details=details,
     )
 
