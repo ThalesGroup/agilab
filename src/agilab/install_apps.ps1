@@ -74,7 +74,7 @@ function New-DirLink {
     if (Is-Link $LinkPath) {
         Remove-Link -Path $LinkPath
     } elseif (Test-Path -LiteralPath $LinkPath) {
-        # Existing non-link directory should be left untouched (matches Bash behavior)
+        # Replacement callers move existing non-link paths aside before linking.
         return
     }
     try {
@@ -203,6 +203,40 @@ function Remove-Link {
         try {
             Remove-Item -LiteralPath $Path -Force -Confirm:$false
         } catch { }
+    }
+}
+
+function Move-ExistingPathAside {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    $stamp = Get-Date -Format "yyyyMMddHHmmss"
+    $backup = "{0}.previous.{1}" -f $Path, $stamp
+    $suffix = 0
+    while ((Test-Path -LiteralPath $backup) -or (Is-Link $backup)) {
+        $suffix += 1
+        $backup = "{0}.previous.{1}.{2}" -f $Path, $stamp, $suffix
+    }
+    Move-Item -LiteralPath $Path -Destination $backup -Force
+    return $backup
+}
+
+function Refresh-RepositoryDirLink {
+    param(
+        [Parameter(Mandatory=$true)][string]$Kind,
+        [Parameter(Mandatory=$true)][string]$DestPath,
+        [Parameter(Mandatory=$true)][string]$TargetPath
+    )
+
+    if (Is-Link $DestPath) {
+        Write-Color BLUE ("{0} '{1}' is a link. Recreating -> '{2}'..." -f $Kind, $DestPath, $TargetPath)
+        Remove-Link -Path $DestPath
+        New-DirLink -LinkPath $DestPath -TargetPath $TargetPath
+    } elseif (-not (Test-Path -LiteralPath $DestPath)) {
+        Write-Color BLUE ("{0} '{1}' does not exist. Creating link -> '{2}'..." -f $Kind, $DestPath, $TargetPath)
+        New-DirLink -LinkPath $DestPath -TargetPath $TargetPath
+    } else {
+        $backup = Move-ExistingPathAside -Path $DestPath
+        Write-Color YELLOW ("{0} '{1}' exists and is not a link. Moved to '{2}' and linking -> '{3}'." -f $Kind, $DestPath, $backup, $TargetPath)
+        New-DirLink -LinkPath $DestPath -TargetPath $TargetPath
     }
 }
 
@@ -393,8 +427,6 @@ if (-not $SkipRepositoryPages -and (Test-Path -LiteralPath $PAGES_TARGET_BASE)) 
 
 $DefaultAppsOrder = @(
     'flight_project',
-    'flight_clone_project',
-    'flight_legacy_project',
     'flight_trajectory_project',
     'flowsynth_project',
     'ilp_project',
@@ -678,16 +710,7 @@ if (-not $SkipRepositoryPages) {
             continue
         }
 
-        if (Is-Link $pageDest) {
-            Write-Color BLUE ("Page '{0}' is a link. Recreating -> '{1}'..." -f $pageDest, $pageTarget)
-            Remove-Link -Path $pageDest
-            New-DirLink -LinkPath $pageDest -TargetPath $pageTarget
-        } elseif (-not (Test-Path -LiteralPath $pageDest)) {
-            Write-Color BLUE ("Page '{0}' does not exist. Creating link -> '{1}'..." -f $pageDest, $pageTarget)
-            New-DirLink -LinkPath $pageDest -TargetPath $pageTarget
-        } else {
-            Write-Color GREEN ("Page '{0}' exists and is not a link. Leaving untouched." -f $pageDest)
-        }
+        Refresh-RepositoryDirLink -Kind "Page" -DestPath $pageDest -TargetPath $pageTarget
     }
 }
 
@@ -701,16 +724,7 @@ if (-not $SkipRepositoryApps) {
             continue
         }
 
-        if (Is-Link $appDest) {
-            Write-Color BLUE ("App '{0}' is a link. Recreating -> '{1}'..." -f $appDest, $appTarget)
-            Remove-Link -Path $appDest
-            New-DirLink -LinkPath $appDest -TargetPath $appTarget
-        } elseif (-not (Test-Path -LiteralPath $appDest)) {
-            Write-Color BLUE ("App '{0}' does not exist. Creating link -> '{1}'..." -f $appDest, $appTarget)
-            New-DirLink -LinkPath $appDest -TargetPath $appTarget
-        } else {
-            Write-Color GREEN ("App '{0}' exists and is not a link. Leaving untouched." -f $appDest)
-        }
+        Refresh-RepositoryDirLink -Kind "App" -DestPath $appDest -TargetPath $appTarget
     }
 }
 
