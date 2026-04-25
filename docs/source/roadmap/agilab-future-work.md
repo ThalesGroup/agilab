@@ -12,11 +12,12 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **Run manifest external ingestion follow-ups**
-   - build on the shipped first-proof wizard remediation plus the
-     compatibility-report `--manifest` and `--manifest-dir` inputs
-   - add UI import, signed/provenance-tagged attachments, and per-release
-     manifest indexes for compatibility and release decisions
+1. **Run manifest external ingestion hardening**
+   - build on the shipped first-proof wizard remediation, compatibility-report
+     `--manifest` / `--manifest-dir` inputs, and Release Decision manifest
+     import UI
+   - add signed/provenance-tagged attachments and per-release manifest indexes
+     for compatibility and release decisions
 2. **Connector registry hardening**
    - stabilize path portability and artefact resolution across apps/pages
    - this reduces glue before deeper cross-app automation
@@ -79,18 +80,17 @@ The most promising Streamlit-style view patterns for AGILab are not generic
 gallery clones. They are focused application views that reinforce AGILab's core
 value: orchestration, evidence, and domain-specific interaction.
 
-### 0. Run manifest external ingestion follow-ups
+### 0. Run manifest external ingestion hardening
 
 Purpose:
 
 - extend the shipped first-proof `run_manifest.json` contract beyond local
   source-checkout proof runs
-- import external fresh-machine and CI manifests into compatibility and release
-  decisions
+- harden external fresh-machine and CI manifests for compatibility and release
+  decisions after the first Release Decision import UI
 
 Suggested contents:
 
-- manifest import and validation UI
 - signed or provenance-tagged external manifest attachments
 - per-release manifest index
 - cross-run evidence bundle comparison
@@ -99,8 +99,10 @@ Why it matters:
 
 - the first-proof wizard already handles missing, invalid, incomplete, and
   failing local manifests with exact recovery commands
-- external ingestion is the next step for compatibility automation and release
-  decisions
+- Release Decision now accepts compatibility-style `--manifest` /
+  `--manifest-dir` imports and exports the imported evidence summary
+- signed attachments and release indexes are the next step for compatibility
+  automation and release decisions
 
 ### 1. Experiment Cockpit
 
@@ -679,7 +681,7 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Run manifest external ingestion follow-ups
+- Run manifest external ingestion hardening
 - Connector registry hardening
 - Multi-app DAG orchestration
 - Global orchestrated pipeline DAG

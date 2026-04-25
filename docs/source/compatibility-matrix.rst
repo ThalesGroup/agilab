@@ -115,7 +115,10 @@ also writes ``~/log/execute/flight/run_manifest.json``. That stable manifest is
 the shared run record for command, environment, timing, artifact references, and
 validation status; the compact KPI bundle checks this as
 ``run_manifest_contract``, and the release-decision page consumes it as the
-first promotion gate.
+first promotion gate. The same page can now import external manifest evidence
+with ``--manifest`` / ``--manifest-dir`` style inputs, display source path,
+provenance, path id, timing, validation status, and evidence status, and export
+that import summary in ``promotion_decision.json``.
 
 The in-product first-proof wizard consumes the same support boundary: it routes
 newcomers to the single actionable source-checkout ``flight_project`` proof and
