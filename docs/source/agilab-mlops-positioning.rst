@@ -88,10 +88,11 @@ interactive exploration into a replayable, inspectable workflow:
   ``0.003s`` against a ``5.0s`` target
 
 That supports a ``Research experimentation`` score of ``4.0 / 5``. It is not
-scored higher yet because a generic evidence bundle and broader fresh-machine
-reproducibility matrix are still roadmap work. For reducer adoption, the
-remaining rule is maintenance discipline: future apps/templates must opt in when
-they produce concrete merge outputs.
+scored higher yet because a fuller run manifest and broader fresh-machine
+reproducibility matrix are still roadmap work. The compact KPI evidence bundle
+does report the reducer adoption guardrail; the remaining reducer rule is
+maintenance discipline: future apps/templates must opt in when they produce
+concrete merge outputs.
 
 Engineering prototyping evidence
 --------------------------------
@@ -107,9 +108,9 @@ history:
 - analysis-page templates turn produced artifacts into a reusable operator view
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
-scored higher yet because the first-proof wizard, generic evidence bundle, and
-future app/template reducer adoption when concrete merge outputs appear remain
-roadmap items.
+scored higher yet because the first-proof wizard still needs full guided polish,
+and future app/template reducer adoption remains maintenance discipline when
+new concrete merge outputs appear.
 
 Production readiness evidence
 -----------------------------
@@ -148,8 +149,8 @@ between research experiments and engineering validation:
   automation, and cross-app orchestration
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because the generic evidence bundle, future app/template reducer
-adoption discipline, and broader fresh-install validation are still roadmap work.
+higher yet because fuller run manifests, future app/template reducer adoption
+discipline, and broader fresh-install validation are still roadmap work.
 
 Where AGILab helps
 ------------------

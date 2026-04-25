@@ -152,9 +152,9 @@ single notebook but less ceremony than a production MLOps platform:
   shareable dashboard without becoming a full product
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
-scored higher yet because the first-proof wizard, generic evidence bundle, and
-future app/template reducer adoption when concrete merge outputs appear remain
-roadmap work.
+scored higher yet because the first-proof wizard still needs full guided polish,
+and future app/template reducer adoption remains maintenance discipline when
+new concrete merge outputs appear.
 
 Production-readiness controls
 -----------------------------

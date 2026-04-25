@@ -9,6 +9,7 @@ from decimal import Decimal, ROUND_HALF_UP
 import importlib.util
 import json
 from pathlib import Path
+import re
 import sys
 from typing import Any, Sequence
 import tomllib
@@ -31,6 +32,9 @@ REQUIRED_MATRIX_STATUSES = {
     "service-mode-operator-surface": "validated",
     "notebook-quickstart": "documented",
     "published-package-route": "documented",
+}
+TEMPLATE_ONLY_BUILTIN_APPS = {
+    "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
 }
 
 
@@ -180,6 +184,106 @@ def _check_reduce_contract_benchmark(repo_root: Path) -> dict[str, Any]:
         evidence=["tools/reduce_contract_benchmark.py", "README.md"],
         details=details,
         executed=True,
+    )
+
+
+def _builtin_project_dirs(repo_root: Path) -> list[Path]:
+    builtin_root = repo_root / "src" / "agilab" / "apps" / "builtin"
+    return sorted(
+        path
+        for path in builtin_root.glob("*_project")
+        if (path / "pyproject.toml").is_file()
+    )
+
+
+def _manager_package_dir(project_dir: Path) -> Path:
+    packages = sorted(
+        child
+        for child in (project_dir / "src").iterdir()
+        if child.is_dir()
+        and (child / "__init__.py").is_file()
+        and not child.name.endswith("_worker")
+    )
+    if len(packages) != 1:
+        raise ValueError(f"{project_dir.name} should expose one manager package")
+    return packages[0]
+
+
+def _reduce_contract_adoption_details(repo_root: Path) -> dict[str, Any]:
+    checked_apps: list[str] = []
+    failures: list[str] = []
+
+    for project_dir in _builtin_project_dirs(repo_root):
+        if project_dir.name in TEMPLATE_ONLY_BUILTIN_APPS:
+            continue
+
+        checked_apps.append(project_dir.name)
+        try:
+            package_dir = _manager_package_dir(project_dir)
+            init_path = package_dir / "__init__.py"
+            reduction_path = package_dir / "reduction.py"
+            if not reduction_path.is_file():
+                failures.append(f"{project_dir.name}: missing {reduction_path.relative_to(repo_root)}")
+                continue
+
+            init_text = init_path.read_text(encoding="utf-8")
+            reduction_text = reduction_path.read_text(encoding="utf-8")
+            if "from .reduction import" not in init_text:
+                failures.append(f"{project_dir.name}: manager package does not export reduction contract")
+            if not re.search(r"\b[A-Z0-9_]+_REDUCE_CONTRACT\b", init_text):
+                failures.append(f"{project_dir.name}: no exported *_REDUCE_CONTRACT symbol")
+            if "REDUCE_ARTIFACT_FILENAME_TEMPLATE" not in reduction_text:
+                failures.append(f"{project_dir.name}: reducer does not declare artifact filename template")
+            if "reduce_summary_worker_{worker_id}.json" not in reduction_text:
+                failures.append(f"{project_dir.name}: reducer does not use worker-scoped reduce summary name")
+            if "write_reduce_artifact" not in reduction_text:
+                failures.append(f"{project_dir.name}: reducer does not expose write_reduce_artifact")
+        except Exception as exc:
+            failures.append(f"{project_dir.name}: {exc}")
+
+    mycode_docs = repo_root / "docs" / "source" / "mycode-project.rst"
+    try:
+        mycode_text = mycode_docs.read_text(encoding="utf-8")
+        normalized_docs = re.sub(r"\s+", " ", mycode_text.lower())
+        if "template-only" not in normalized_docs:
+            failures.append("mycode_project docs do not mark the project as template-only")
+        if "no concrete merge output" not in normalized_docs:
+            failures.append("mycode_project docs do not explain the reducer exemption")
+        if "reduce_summary_worker_<id>.json" not in mycode_text:
+            failures.append("mycode_project docs do not name the reducer artifact contract")
+    except Exception as exc:
+        failures.append(f"mycode_project docs: {exc}")
+
+    return {
+        "checked_apps": checked_apps,
+        "checked_app_count": len(checked_apps),
+        "template_only_exemptions": TEMPLATE_ONLY_BUILTIN_APPS,
+        "failures": failures,
+    }
+
+
+def _check_reduce_contract_adoption_guardrail(repo_root: Path) -> dict[str, Any]:
+    try:
+        details = _reduce_contract_adoption_details(repo_root)
+        ok = not details["failures"] and details["checked_app_count"] > 0
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "reduce_contract_adoption_guardrail",
+        "Reduce contract adoption guardrail",
+        ok,
+        (
+            "every non-template built-in app exposes a worker-scoped reducer contract"
+            if ok
+            else "one or more non-template built-in apps lack reducer contract adoption"
+        ),
+        evidence=[
+            "src/agilab/apps/builtin",
+            "test/test_reduce_contract_adoption.py",
+            "docs/source/mycode-project.rst",
+        ],
+        details=details,
     )
 
 
@@ -398,6 +502,7 @@ def build_bundle(
     checks = [
         _check_compatibility_matrix(repo_root),
         _check_newcomer_first_proof_contract(repo_root),
+        _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),
         _check_hf_space_smoke_contract(repo_root),
         _check_web_robot_contract(repo_root),

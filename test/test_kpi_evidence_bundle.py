@@ -40,6 +40,7 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     assert check_ids == {
         "compatibility_matrix_public_paths",
         "newcomer_first_proof_contract",
+        "reduce_contract_adoption_guardrail",
         "reduce_contract_benchmark",
         "hf_space_smoke_contract",
         "web_ui_robot_contract",
@@ -56,6 +57,19 @@ def test_compatibility_matrix_requires_hf_demo_validated() -> None:
 
     assert check["status"] == "pass"
     assert check["details"]["actual_statuses"]["agilab-hf-demo"] == "validated"
+
+
+def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:
+    module = _load_module()
+
+    check = module._check_reduce_contract_adoption_guardrail(Path.cwd())
+
+    assert check["status"] == "pass"
+    assert check["details"]["checked_app_count"] == 6
+    assert check["details"]["template_only_exemptions"] == {
+        "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
+    }
+    assert check["details"]["failures"] == []
 
 
 def test_optional_hf_smoke_run_is_explicit(monkeypatch) -> None:

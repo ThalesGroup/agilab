@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import importlib.util
 import re
+import sys
 from pathlib import Path
 
 
@@ -11,6 +13,16 @@ TEMPLATE_ONLY_BUILTIN_APPS = {
 }
 
 
+def _load_kpi_bundle_module():
+    module_path = REPO_ROOT / "tools" / "kpi_evidence_bundle.py"
+    spec = importlib.util.spec_from_file_location("kpi_evidence_bundle_guardrail_test", module_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def _builtin_projects() -> list[Path]:
     return sorted(
         path
@@ -19,46 +31,22 @@ def _builtin_projects() -> list[Path]:
     )
 
 
-def _manager_package_dir(project_dir: Path) -> Path:
-    packages = sorted(
-        child
-        for child in (project_dir / "src").iterdir()
-        if child.is_dir()
-        and (child / "__init__.py").is_file()
-        and not child.name.endswith("_worker")
-    )
-    assert len(packages) == 1, f"{project_dir.name} should expose one manager package"
-    return packages[0]
-
-
 def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
-    failures: list[str] = []
+    module = _load_kpi_bundle_module()
 
-    for project_dir in _builtin_projects():
-        if project_dir.name in TEMPLATE_ONLY_BUILTIN_APPS:
-            continue
+    check = module._check_reduce_contract_adoption_guardrail(REPO_ROOT)
 
-        package_dir = _manager_package_dir(project_dir)
-        init_path = package_dir / "__init__.py"
-        reduction_path = package_dir / "reduction.py"
-        if not reduction_path.is_file():
-            failures.append(f"{project_dir.name}: missing {reduction_path.relative_to(REPO_ROOT)}")
-            continue
-
-        init_text = init_path.read_text(encoding="utf-8")
-        reduction_text = reduction_path.read_text(encoding="utf-8")
-        if "from .reduction import" not in init_text:
-            failures.append(f"{project_dir.name}: manager package does not export reduction contract")
-        if not re.search(r"\b[A-Z0-9_]+_REDUCE_CONTRACT\b", init_text):
-            failures.append(f"{project_dir.name}: no exported *_REDUCE_CONTRACT symbol")
-        if "REDUCE_ARTIFACT_FILENAME_TEMPLATE" not in reduction_text:
-            failures.append(f"{project_dir.name}: reducer does not declare artifact filename template")
-        if "reduce_summary_worker_{worker_id}.json" not in reduction_text:
-            failures.append(f"{project_dir.name}: reducer does not use worker-scoped reduce summary name")
-        if "write_reduce_artifact" not in reduction_text:
-            failures.append(f"{project_dir.name}: reducer does not expose write_reduce_artifact")
-
-    assert not failures, "\n".join(failures)
+    assert check["status"] == "pass", "\n".join(check["details"].get("failures", []))
+    assert check["id"] == "reduce_contract_adoption_guardrail"
+    assert check["details"]["checked_apps"] == [
+        "execution_pandas_project",
+        "execution_polars_project",
+        "flight_project",
+        "meteo_forecast_project",
+        "uav_queue_project",
+        "uav_relay_queue_project",
+    ]
+    assert check["details"]["template_only_exemptions"] == TEMPLATE_ONLY_BUILTIN_APPS
 
 
 def test_template_only_builtin_apps_are_explicitly_exempted() -> None:

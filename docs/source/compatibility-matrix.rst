@@ -89,6 +89,10 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --analysis-view view_maps --json
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
 
+The compact KPI bundle includes the ``reduce_contract_adoption_guardrail`` check,
+which verifies that every non-template built-in app exposes a reducer contract
+and records ``mycode_project`` as the explicit template-only exemption.
+
 What remains roadmap work
 -------------------------
 

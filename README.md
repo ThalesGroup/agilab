@@ -124,7 +124,9 @@ when present.
 A repository guardrail now requires every non-template built-in app to expose a
 reducer contract. `mycode_project` is the only template-only exemption because
 it has placeholder worker hooks and no concrete merge output; future apps or
-templates must opt in when they start producing durable worker summaries. The
+templates must opt in when they start producing durable worker summaries.
+The compact public KPI evidence bundle reports this as
+`reduce_contract_adoption_guardrail`. The
 remaining scope is future adoption discipline, not the shared reducer interface,
 migrated artifacts, artifact surfacing, or the public benchmark.
 
