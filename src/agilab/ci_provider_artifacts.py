@@ -25,6 +25,8 @@ from agilab.ci_artifact_harvest import (
 
 SCHEMA = "agilab.ci_provider_artifact_index.v1"
 PROVIDER = "github_actions"
+GENERIC_PROVIDER = "generic_download"
+GITLAB_CI_PROVIDER = "gitlab_ci"
 DEFAULT_SOURCE_MACHINE = "github-actions"
 DEFAULT_USER_AGENT = "agilab-ci-provider-artifacts/1"
 REQUIRED_PAYLOAD_PATHS = {
@@ -95,19 +97,29 @@ def _payloads_from_archive(path: Path) -> dict[str, tuple[str, dict[str, Any]]]:
     return payloads
 
 
+def _provider_scheme(provider: str) -> str:
+    if provider == PROVIDER:
+        return "github-actions"
+    if provider == GITLAB_CI_PROVIDER:
+        return "gitlab-ci"
+    return _safe_id(provider).replace("_", "-") or "ci-provider"
+
+
 def _artifact_uri(
     *,
+    provider: str,
     repository: str,
     run_id: str,
     archive_name: str,
     member: str,
 ) -> str:
+    scheme = _provider_scheme(provider)
     if repository and run_id:
         return (
-            f"github-actions://{repository}/runs/{run_id}/artifacts/"
+            f"{scheme}://{repository}/runs/{run_id}/artifacts/"
             f"{archive_name}/{member}"
         )
-    return f"github-actions-archive://{archive_name}/{member}"
+    return f"{scheme}-archive://{archive_name}/{member}"
 
 
 def build_artifact_index_from_archives(
@@ -119,11 +131,14 @@ def build_artifact_index_from_archives(
     run_attempt: str = "",
     source_machine: str = DEFAULT_SOURCE_MACHINE,
     release_id: str = DEFAULT_RELEASE_ID,
+    provider: str = PROVIDER,
     provider_query_count: int = 0,
     download_count: int = 0,
     provider_artifacts: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
-    """Build a harvest-compatible artifact index from GitHub artifact ZIP files."""
+    """Build a harvest-compatible artifact index from provider artifact ZIP files."""
+
+    provider = provider or GENERIC_PROVIDER
 
     archive_paths = [Path(path).expanduser() for path in archives]
     rows: list[dict[str, Any]] = []
@@ -155,6 +170,7 @@ def build_artifact_index_from_archives(
                     "id": f"{_safe_id(archive_path.stem)}_{kind}",
                     "kind": kind,
                     "path": _artifact_uri(
+                        provider=provider,
                         repository=repository,
                         run_id=run_id,
                         archive_name=archive_name,
@@ -166,7 +182,7 @@ def build_artifact_index_from_archives(
                     "run_id": run_id,
                     "run_attempt": str(run_attempt),
                     "release_id": release_id,
-                    "provider": PROVIDER,
+                    "provider": provider,
                     "provider_archive": archive_name,
                     "provider_member": member,
                 }
@@ -190,7 +206,7 @@ def build_artifact_index_from_archives(
     provider_artifact_rows = [dict(row) for row in provider_artifacts]
     return {
         "schema": SCHEMA,
-        "provider": PROVIDER,
+        "provider": provider,
         "release_id": release_id,
         "repository": repository,
         "run_id": run_id,
@@ -340,6 +356,7 @@ def build_github_actions_artifact_index(
                 run_attempt=run_attempt,
                 source_machine=source_machine,
                 release_id=release_id,
+                provider=PROVIDER,
                 provider_query_count=provider_query_count,
                 download_count=download_count,
                 provider_artifacts=provider_artifacts,
@@ -358,6 +375,7 @@ def build_github_actions_artifact_index(
         run_attempt=run_attempt,
         source_machine=source_machine,
         release_id=release_id,
+        provider=PROVIDER,
         provider_query_count=provider_query_count,
         download_count=download_count,
         provider_artifacts=provider_artifacts,
@@ -371,8 +389,8 @@ def write_artifact_index(path: Path, index: Mapping[str, Any]) -> Path:
     return path
 
 
-def write_sample_github_actions_archive(path: Path) -> Path:
-    """Write a deterministic GitHub Actions-style ZIP for public evidence tests."""
+def write_sample_ci_provider_archive(path: Path) -> Path:
+    """Write a deterministic provider artifact ZIP for public evidence tests."""
 
     payload_by_kind = {
         str(artifact["kind"]): artifact["payload"] for artifact in sample_ci_artifacts()
@@ -388,8 +406,14 @@ def write_sample_github_actions_archive(path: Path) -> Path:
     return path
 
 
-def write_sample_github_actions_directory(path: Path) -> Path:
-    """Write deterministic evidence files in the layout uploaded by Actions."""
+def write_sample_github_actions_archive(path: Path) -> Path:
+    """Write a deterministic GitHub Actions-style ZIP for public evidence tests."""
+
+    return write_sample_ci_provider_archive(path)
+
+
+def write_sample_ci_provider_directory(path: Path) -> Path:
+    """Write deterministic evidence files in a provider artifact upload layout."""
 
     payload_by_kind = {
         str(artifact["kind"]): artifact["payload"] for artifact in sample_ci_artifacts()
@@ -403,6 +427,12 @@ def write_sample_github_actions_directory(path: Path) -> Path:
             encoding="utf-8",
         )
     return path
+
+
+def write_sample_github_actions_directory(path: Path) -> Path:
+    """Write deterministic evidence files in the layout uploaded by Actions."""
+
+    return write_sample_ci_provider_directory(path)
 
 
 def token_from_env(name: str = "GITHUB_TOKEN") -> str | None:

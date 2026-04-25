@@ -234,6 +234,10 @@ single notebook but less ceremony than a production MLOps platform:
   artifact ZIPs with ``tools/github_actions_artifact_index.py --archive`` into
   the same harvest input, while opt-in ``--live-github`` mode can query and
   download a workflow run when operator credentials are available
+- the generic CI provider artifact-index adapter converts downloaded GitLab CI
+  or generic provider ZIPs with
+  ``tools/ci_provider_artifact_index.py --provider gitlab_ci --archive`` into
+  the same harvest input without querying live provider APIs
 - the multi-app DAG contract now validates app-to-app dependencies and
   artifact handoffs with ``tools/multi_app_dag_report.py --compact`` against
   ``docs/source/data/multi_app_dag_sample.json``; the first sample links
@@ -340,6 +344,9 @@ production platform:
   artifacts into that contract by expanding GitHub Actions ZIP archives into a
   harvest-compatible ``artifact_index.json``; ``--live-github`` is opt-in for
   credentialed provider queries and downloads
+- ``tools/ci_provider_artifact_index.py --provider gitlab_ci --archive``
+  covers downloaded GitLab CI and generic provider ZIP archives without live
+  provider API access
 - the same evidence view surfaces reducer artifacts from benchmark distributed
   runs, meteo forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed

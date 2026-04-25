@@ -22,18 +22,23 @@ from agilab.ci_artifact_harvest import (
 from agilab.ci_provider_artifacts import (
     build_artifact_index_from_archives,
     build_github_actions_artifact_index,
+    write_sample_ci_provider_archive,
     write_sample_github_actions_archive,
     write_sample_github_actions_directory,
 )
 
 
 TOOL_PATH = Path("tools/github_actions_artifact_index.py").resolve()
+GENERIC_TOOL_PATH = Path("tools/ci_provider_artifact_index.py").resolve()
 
 
-def _load_tool_module():
+def _load_tool_module(
+    path: Path = TOOL_PATH,
+    name: str = "github_actions_artifact_index_test_module",
+):
     spec = importlib.util.spec_from_file_location(
-        "github_actions_artifact_index_test_module",
-        TOOL_PATH,
+        name,
+        path,
     )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -74,6 +79,47 @@ def test_github_actions_archive_index_feeds_harvest_contract(tmp_path: Path) -> 
     assert all(
         artifact["path"].startswith(
             "github-actions://ThalesGroup/agilab/runs/123456789/artifacts/"
+        )
+        for artifact in index["artifacts"]
+    )
+
+    harvest = build_ci_artifact_harvest(
+        index["artifacts"],
+        release_id=index["release_id"],
+        run_id=index["run_id"],
+    )
+
+    assert harvest["run_status"] == "harvest_ready"
+    assert harvest["summary"]["artifact_count"] == 4
+    assert harvest["summary"]["missing_required_count"] == 0
+    assert harvest["release"]["public_status"] == "validated"
+
+
+def test_gitlab_ci_archive_index_feeds_harvest_contract(tmp_path: Path) -> None:
+    archive_path = write_sample_ci_provider_archive(tmp_path / "public-evidence.zip")
+
+    index = build_artifact_index_from_archives(
+        [archive_path],
+        provider="gitlab_ci",
+        repository="thales/agilab",
+        run_id="987654321",
+        workflow="release-evidence",
+        run_attempt="1",
+        source_machine="gitlab-ci:shared-runner",
+    )
+
+    assert index["schema"] == "agilab.ci_provider_artifact_index.v1"
+    assert index["provider"] == "gitlab_ci"
+    assert index["summary"]["archive_count"] == 1
+    assert index["summary"]["artifact_count"] == 4
+    assert index["summary"]["missing_required_count"] == 0
+    assert index["summary"]["provider_query_count"] == 0
+    assert index["summary"]["download_count"] == 0
+    assert index["summary"]["network_probe_count"] == 0
+    assert index["provenance"]["safe_for_public_evidence"] is True
+    assert all(
+        artifact["path"].startswith(
+            "gitlab-ci://thales/agilab/runs/987654321/artifacts/"
         )
         for artifact in index["artifacts"]
     )
@@ -143,6 +189,46 @@ def test_github_actions_artifact_index_cli_writes_harvest_input(
     assert payload["summary"]["artifact_count"] == 4
     assert payload["summary"]["missing_required_count"] == 0
     assert payload["artifacts"][0]["workflow"] == "public-evidence.yml"
+
+
+def test_generic_ci_provider_artifact_index_cli_writes_gitlab_input(
+    tmp_path: Path,
+) -> None:
+    module = _load_tool_module(
+        GENERIC_TOOL_PATH,
+        "ci_provider_artifact_index_test_module",
+    )
+    archive_path = write_sample_ci_provider_archive(tmp_path / "public-evidence.zip")
+    output_path = tmp_path / "artifact_index.json"
+
+    exit_code = module.main(
+        [
+            "--provider",
+            "gitlab_ci",
+            "--archive",
+            str(archive_path),
+            "--repo",
+            "thales/agilab",
+            "--run-id",
+            "987654321",
+            "--workflow",
+            "release-evidence",
+            "--source-machine",
+            "gitlab-ci:shared-runner",
+            "--output",
+            str(output_path),
+            "--compact",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == "agilab.ci_provider_artifact_index.v1"
+    assert payload["provider"] == "gitlab_ci"
+    assert payload["summary"]["artifact_count"] == 4
+    assert payload["summary"]["missing_required_count"] == 0
+    assert payload["summary"]["network_probe_count"] == 0
+    assert payload["artifacts"][0]["provider"] == "gitlab_ci"
 
 
 def test_github_actions_sample_directory_matches_archive_layout(tmp_path: Path) -> None:
