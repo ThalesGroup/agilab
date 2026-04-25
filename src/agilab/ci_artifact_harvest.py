@@ -297,7 +297,7 @@ def _sample_kpi_bundle() -> dict[str, Any]:
         "kpi": "Overall public evaluation",
         "status": "pass",
         "supported_score": "3.8 / 5",
-        "summary": {"passed": 40, "failed": 0, "total": 40},
+        "summary": {"passed": 41, "failed": 0, "total": 41},
         "checks": [
             {"id": "workflow_compatibility_report", "status": "pass"},
             {"id": "run_manifest_contract", "status": "pass"},
@@ -312,6 +312,7 @@ def _sample_kpi_bundle() -> dict[str, Any]:
                 "id": "data_connector_live_endpoint_smoke_report_contract",
                 "status": "pass",
             },
+            {"id": "data_connector_view_surface_report_contract", "status": "pass"},
             {"id": "public_docs_evidence_links", "status": "pass"},
         ],
     }

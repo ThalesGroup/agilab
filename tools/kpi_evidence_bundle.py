@@ -1990,6 +1990,62 @@ def _check_data_connector_live_ui_report(repo_root: Path) -> dict[str, Any]:
     )
 
 
+def _check_data_connector_view_surface_report(repo_root: Path) -> dict[str, Any]:
+    try:
+        data_connector_report = _load_tool_module(
+            repo_root,
+            "data_connector_view_surface_report",
+        )
+        report = data_connector_report.build_report(repo_root=repo_root)
+        summary = report.get("summary", {})
+        ok = (
+            report.get("status") == "pass"
+            and summary.get("schema") == "agilab.data_connector_view_surface.v1"
+            and summary.get("run_status") == "validated"
+            and summary.get("execution_mode") == "connector_view_surface_contract_only"
+            and summary.get("view_surface_count") == 4
+            and summary.get("ready_view_surface_count") == 4
+            and summary.get("missing_view_surface_count") == 0
+            and summary.get("release_decision_surface_count") == 4
+            and summary.get("page_source_loaded") is True
+            and summary.get("live_ui_run_status") == "ready_for_live_ui"
+            and summary.get("connector_card_count") == 3
+            and summary.get("page_binding_count") == 2
+            and summary.get("health_probe_status_count") == 3
+            and summary.get("external_artifact_traceability_ready") is True
+            and summary.get("import_export_provenance_ready") is True
+            and summary.get("network_probe_count") == 0
+            and summary.get("command_execution_count") == 0
+            and summary.get("round_trip_ok") is True
+        )
+        details = {
+            "status": report.get("status"),
+            "summary": summary,
+            "check_ids": [check.get("id") for check in report.get("checks", [])],
+        }
+    except Exception as exc:
+        ok = False
+        details = {"error": str(exc)}
+    return _check_result(
+        "data_connector_view_surface_report_contract",
+        "Data connector view surface report contract",
+        ok,
+        (
+            "data connector view surface report verifies Release Decision "
+            "connector-aware panels without executing network probes"
+            if ok
+            else "data connector view surface report is failing or disconnected"
+        ),
+        evidence=[
+            "tools/data_connector_view_surface_report.py",
+            "src/agilab/data_connector_view_surface.py",
+            "src/agilab/apps-pages/view_release_decision/src/"
+            "view_release_decision/view_release_decision.py",
+        ],
+        details=details,
+    )
+
+
 def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]:
     try:
         data_connector_report = _load_tool_module(
@@ -2241,6 +2297,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_live_endpoint_smoke_report.py --compact",
             "tools/data_connector_ui_preview_report.py --compact",
             "tools/data_connector_live_ui_report.py --compact",
+            "tools/data_connector_view_surface_report.py --compact",
             "tools/data_connector_app_catalogs_report.py --compact",
             "Overall public evaluation",
             "compatibility matrix",
@@ -2282,6 +2339,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
             "tools/data_connector_live_endpoint_smoke_report.py",
             "tools/data_connector_ui_preview_report.py",
             "tools/data_connector_live_ui_report.py",
+            "tools/data_connector_view_surface_report.py",
             "tools/data_connector_app_catalogs_report.py",
             "tools/kpi_evidence_bundle.py",
         ],
@@ -2359,6 +2417,7 @@ def build_bundle(
         _check_data_connector_live_endpoint_smoke_report(repo_root),
         _check_data_connector_ui_preview_report(repo_root),
         _check_data_connector_live_ui_report(repo_root),
+        _check_data_connector_view_surface_report(repo_root),
         _check_data_connector_app_catalogs_report(repo_root),
         _check_reduce_contract_adoption_guardrail(repo_root),
         _check_reduce_contract_benchmark(repo_root),

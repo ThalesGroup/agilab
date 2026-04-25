@@ -130,6 +130,7 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/data_connector_live_endpoint_smoke_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_ui_preview_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_live_ui_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_view_surface_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/data_connector_app_catalogs_report.py --compact
 
 The compact compatibility report checks the required public statuses, the proof
@@ -166,6 +167,7 @@ consumes that report and includes the ``run_diff_evidence_report_contract``,
 ``data_connector_live_endpoint_smoke_report_contract``,
 ``data_connector_ui_preview_report_contract``,
 ``data_connector_live_ui_report_contract``,
+``data_connector_view_surface_report_contract``,
 ``data_connector_app_catalogs_report_contract``, and
 ``reduce_contract_adoption_guardrail`` checks, which respectively validate the
 static run-diff evidence report for baseline/candidate KPI, manifest, artifact,
@@ -220,6 +222,9 @@ render connector state and connector-derived provenance as static JSON+HTML
 preview evidence,
 wire connector state and connector-derived provenance into the Release Decision
 Streamlit page in ``streamlit_render_contract_only`` mode,
+verify the connector-aware Release Decision panels for state/provenance,
+health boundary, import/export provenance, and external artifact traceability
+in ``connector_view_surface_contract_only`` mode,
 validate app-local connector catalogs referenced from built-in
 ``app_settings.toml`` files,
 and verify that every non-template built-in app exposes a reducer contract while recording

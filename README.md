@@ -151,6 +151,7 @@ tools/data_connector_runtime_adapters_report.py --compact
 tools/data_connector_live_endpoint_smoke_report.py --compact
 tools/data_connector_ui_preview_report.py --compact
 tools/data_connector_live_ui_report.py --compact
+tools/data_connector_view_surface_report.py --compact
 tools/data_connector_app_catalogs_report.py --compact
 -->
 
