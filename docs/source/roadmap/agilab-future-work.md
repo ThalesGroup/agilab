@@ -54,12 +54,14 @@ use this order:
      items in `0.003s` against a `5.0s` target
    - `execution_pandas_project` and `execution_polars_project` now emit named
      benchmark reduce artefacts through that contract
+   - `flight_project` now emits trajectory-summary reduce artefacts through
+     that contract
    - `uav_queue_project` now emits the same `reduce_summary_worker_<id>.json`
      artifact shape for queue metrics
    - `uav_relay_queue_project` now emits that shared queue-metrics reduce
      artifact shape too
    - `meteo_forecast_project` now emits forecast-metrics reduce artefacts
-   - Release Decision now surfaces benchmark, meteo forecast, and UAV
+   - Release Decision now surfaces benchmark, flight, meteo forecast, and UAV
      queue-family reduce artefacts as evidence
    - the remaining work is broader public-app adoption beyond those migrated
      slices
@@ -480,26 +482,27 @@ Current state:
   merge semantics, validation hooks, and a standard reduce artefact schema
 - `tools/reduce_contract_benchmark.py --json` validates 8 partials / 80,000
   synthetic items in `0.003s` against a `5.0s` target
-- `execution_pandas_project`, `execution_polars_project`,
+- `execution_pandas_project`, `execution_polars_project`, `flight_project`,
   `meteo_forecast_project`, `uav_queue_project`, and
   `uav_relay_queue_project` write worker-scoped
   `reduce_summary_worker_<id>.json` artefacts through the shared contract
 - Release Decision surfaces those reduce artefacts with schema validation,
   reducer name, partial count, artifact path, benchmark row/source/execution
-  fields, meteo forecast MAE/RMSE/MAPE fields, and UAV queue-family packet/PDR
-  fields when present
-- aggregation outside the migrated benchmark, meteo, and UAV queue-family apps
-  is still mostly app-specific
+  fields, flight row/aircraft/speed fields, meteo forecast MAE/RMSE/MAPE
+  fields, and UAV queue-family packet/PDR fields when present
+- aggregation outside the migrated benchmark, flight, meteo, and UAV
+  queue-family apps is still mostly app-specific
 
 Current gap:
 
 - docs can overstate the capability as a full generic map/reduce mechanism
 - most apps beyond `execution_pandas_project`, `execution_polars_project`,
-  `meteo_forecast_project`, `uav_queue_project`, and
+  `flight_project`, `meteo_forecast_project`, `uav_queue_project`, and
   `uav_relay_queue_project` have not migrated their merge logic to the shared
   reducer contract
 - non-benchmark app reduce artefacts are only standardized for
-  `meteo_forecast_project` and the UAV queue-family apps so far
+  `flight_project`, `meteo_forecast_project`, and the UAV queue-family apps so
+  far
 
 ### 1. Reduce contract adoption
 
@@ -526,6 +529,9 @@ Completed slices:
 
 - `execution_pandas_project` and `execution_polars_project` now emit named
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files from worker results
+- `flight_project` now emits worker-scoped
+  `reduce_summary_worker_<id>.json` `ReduceArtifact` files for trajectory
+  summary metrics
 - `uav_queue_project` now emits worker-scoped
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files for queue summary
   metrics
@@ -540,8 +546,8 @@ Completed slices:
 
 Next concrete change request:
 
-- migrate the next public app beyond the benchmark pair, meteo forecast, and
-  UAV queue-family apps to the shared reducer contract
+- keep the template and future public apps aligned with the shared reducer
+  contract as they gain concrete merge semantics
 - extend the surfaced reducer evidence as more non-benchmark apps adopt the
   same artifact contract
 
