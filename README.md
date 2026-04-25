@@ -104,18 +104,18 @@ declares merge semantics and validation hooks, and `ReduceArtifact` serializes
 the named reducer result with a stable schema.
 
 Existing apps can keep their app-owned aggregation while they migrate. The
-`execution_pandas_project` built-in app now emits a named
-`reduce_summary_worker_<id>.json` `ReduceArtifact`, and the public reducer
-benchmark validates 8 partials / 80,000 synthetic items in `0.003s` against a
-`5.0s` target:
+`execution_pandas_project` and `execution_polars_project` built-in benchmark
+apps now emit named `reduce_summary_worker_<id>.json` `ReduceArtifact` files,
+and the public reducer benchmark validates 8 partials / 80,000 synthetic items
+in `0.003s` against a `5.0s` target:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/reduce_contract_benchmark.py --json
 ```
 
-The remaining scope is wider adoption across built-in apps and analysis-view
-surfacing, not the shared reducer interface, the first app migration, or the
-public benchmark.
+The remaining scope is wider adoption beyond benchmark apps and analysis-view
+surfacing, not the shared reducer interface, the benchmark app migrations, or
+the public benchmark.
 
 ## Evaluation Snapshot
 
@@ -124,7 +124,7 @@ CODEX 5.5 working scores, not production MLOps claims:
 | KPI | Score | Evidence | Limit |
 |---|---|---:|---|
 | Ease of adoption | `3.5 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, and fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`. | Validated locally and on one external macOS machine; broader OS/network certification is not claimed. |
-| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, `execution_pandas_project` reduce artifact, and public reduce benchmark: `0.003s` vs `5.0s`. | Broader built-in app migrations and analysis-view surfacing are not complete. |
+| Research experimentation | `4.0 / 5` | Templates, isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, shared `agi_node` reduce contract, pandas/polars benchmark reduce artifacts, and public reduce benchmark: `0.003s` vs `5.0s`. | Broader non-benchmark app migrations and analysis-view surfacing are not complete. |
 | Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, and tested in-product first-proof onboarding. | Additional external replication and full guided-wizard polish are not claimed. |
 | Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, release-decision page, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
 | Overall public evaluation | `3.6 / 5` | Mean of the four scored public KPIs: `(3.5 + 4.0 + 4.0 + 3.0) / 4 = 3.625`. Cross-KPI evidence bundle documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |

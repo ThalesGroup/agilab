@@ -71,14 +71,15 @@ interactive exploration into a replayable, inspectable workflow:
   AGILab projects with stable artifacts and analysis views
 - the initial first-class reduce contract in ``agi_node`` defines partial
   inputs, reducer merge semantics, and a standard reduce artefact schema
-- ``execution_pandas_project`` emits named ``reduce_summary_worker_<id>.json``
-  reduce artefacts through that shared contract
+- ``execution_pandas_project`` and ``execution_polars_project`` emit named
+  ``reduce_summary_worker_<id>.json`` reduce artefacts through that shared
+  contract
 - the public reducer benchmark validates 8 partials / 80,000 synthetic items in
   ``0.003s`` against a ``5.0s`` target
 
 That supports a ``Research experimentation`` score of ``4.0 / 5``. It is not
-scored higher yet because a generic evidence bundle, broader reduce-contract
-app migration, analysis-view surfacing, and broader fresh-machine
+scored higher yet because a generic evidence bundle, broader non-benchmark
+reduce-contract app migration, analysis-view surfacing, and broader fresh-machine
 reproducibility matrix are still roadmap work.
 
 Engineering prototyping evidence
@@ -96,7 +97,7 @@ history:
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle, and
-broader reduce-contract adoption across public apps remain roadmap items.
+broader non-benchmark reduce-contract adoption remain roadmap items.
 
 Production readiness evidence
 -----------------------------
@@ -136,7 +137,7 @@ between research experiments and engineering validation:
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
 higher yet because the generic evidence bundle, reduce-contract migration
-across more public apps, analysis-view surfacing, and broader fresh-install
+across non-benchmark public apps, analysis-view surfacing, and broader fresh-install
 validation are still roadmap work.
 
 Where AGILab helps

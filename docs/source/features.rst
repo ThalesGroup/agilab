@@ -57,13 +57,14 @@ agi-core
   - AGILab now exposes a shared ``agi_node`` reduce contract with explicit
     partial inputs, reducer merge semantics, and a standard reduce artefact
     schema.
-  - ``execution_pandas_project`` emits named
+  - ``execution_pandas_project`` and ``execution_polars_project`` emit named
     ``reduce_summary_worker_<id>.json`` reduce artefacts through that shared
     contract.
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
-  - Most other existing apps still own their final merge semantics, so broader
-    app migration and analysis-view surfacing remain roadmap work.
+  - Other existing apps still own their final merge semantics, so broader
+    non-benchmark app migration and analysis-view surfacing remain roadmap
+    work.
 
 - **Optimized Run-Mode Selection:**
 
@@ -142,8 +143,8 @@ single notebook but less ceremony than a production MLOps platform:
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because the first-proof wizard, generic evidence bundle,
-broader reduce-contract app migration, and analysis-view surfacing remain
-roadmap work.
+broader non-benchmark reduce-contract app migration, and analysis-view
+surfacing remain roadmap work.
 
 Production-readiness controls
 -----------------------------
