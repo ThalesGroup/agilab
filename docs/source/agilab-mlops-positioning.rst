@@ -68,8 +68,8 @@ interactive exploration into a replayable, inspectable workflow:
 - supervisor notebook export keeps the saved pipeline runnable outside the UI
 - the notebook-to-pipeline import report reads a checked-in ``.ipynb`` and
   preserves markdown context, code cells, import hints, execution-count
-  metadata, and artifact references as ``not_executed_import`` pipeline-step
-  evidence
+  metadata, artifact references, and richer ``lab_steps.toml`` preview output
+  as ``not_executed_import`` pipeline-step evidence
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
@@ -111,7 +111,8 @@ history:
   sequence
 - the notebook-to-pipeline import contract proves the reverse direction by
   turning code cells into pipeline-step metadata and markdown cells into linked
-  context blocks without running the notebook
+  context blocks, then feeds the existing ``PIPELINE`` upload path without
+  running the notebook
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
 - the in-product first-proof wizard now guides one validated ``flight_project``
@@ -218,8 +219,9 @@ between research experiments and engineering validation:
   requests can replay the real app entries before UI controls are added
 - an operator-UI report that makes the persisted state and supported actions
   renderable as reusable components
-- a notebook-to-pipeline import report that closes the first reverse-notebook
-  bridge while preserving the non-execution boundary
+- a notebook-to-pipeline import report and ``PIPELINE`` upload integration that
+  close the first reverse-notebook bridge while preserving the non-execution
+  boundary
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 

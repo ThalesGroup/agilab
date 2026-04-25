@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import tomllib
 from typing import Any, Sequence
 
 
@@ -37,7 +38,9 @@ from agilab.notebook_pipeline_import import (
     DEFAULT_RUN_ID,
     PERSISTENCE_FORMAT,
     SCHEMA,
+    build_lab_steps_preview,
     persist_notebook_pipeline_import,
+    write_lab_steps_preview,
 )
 
 
@@ -124,19 +127,25 @@ def build_report(
     repo_root: Path = REPO_ROOT,
     notebook_path: Path | None = None,
     output_path: Path | None = None,
+    lab_steps_output_path: Path | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     if output_path is None:
         with tempfile.TemporaryDirectory(prefix="agilab-notebook-import-") as tmp_dir:
+            root = Path(tmp_dir)
             return _build_report_with_paths(
                 repo_root=repo_root,
                 notebook_path=notebook_path,
-                output_path=Path(tmp_dir) / "notebook_pipeline_import.json",
+                output_path=root / "notebook_pipeline_import.json",
+                lab_steps_output_path=lab_steps_output_path
+                or (root / "lab_steps_preview.toml"),
             )
     return _build_report_with_paths(
         repo_root=repo_root,
         notebook_path=notebook_path,
         output_path=output_path,
+        lab_steps_output_path=lab_steps_output_path
+        or output_path.with_suffix(".lab_steps.toml"),
     )
 
 
@@ -145,6 +154,7 @@ def _build_report_with_paths(
     repo_root: Path,
     notebook_path: Path | None,
     output_path: Path,
+    lab_steps_output_path: Path,
 ) -> dict[str, Any]:
     try:
         proof = persist_notebook_pipeline_import(
@@ -164,6 +174,19 @@ def _build_report_with_paths(
     context_blocks = state.get("context_blocks", [])
     artifact_references = state.get("artifact_references", [])
     env_hints = state.get("env_hints", [])
+    lab_steps_preview = build_lab_steps_preview(
+        state,
+        module_name="notebook_import_project",
+    )
+    lab_steps_path = write_lab_steps_preview(lab_steps_output_path, lab_steps_preview)
+    reloaded_lab_steps = tomllib.loads(lab_steps_path.read_text(encoding="utf-8"))
+    preview_steps = reloaded_lab_steps.get("notebook_import_project", [])
+    iterable_preview_steps = preview_steps if isinstance(preview_steps, list) else []
+    preview_code_cells = [step.get("C") for step in iterable_preview_steps]
+    source_code_cells = [
+        "".join(step.get("source_lines", []))
+        for step in iterable_steps
+    ]
 
     checks = [
         _check_result(
@@ -260,6 +283,25 @@ def _build_report_with_paths(
             details={"provenance": provenance, "summary": summary},
         ),
         _check_result(
+            "notebook_pipeline_import_lab_steps_preview",
+            "Notebook pipeline import lab_steps preview",
+            Path(lab_steps_path).is_file()
+            and lab_steps_preview == reloaded_lab_steps
+            and len(iterable_preview_steps) == 2
+            and preview_code_cells == source_code_cells
+            and [step.get("NB_CELL_ID") for step in iterable_preview_steps]
+            == ["cell-2", "cell-4"]
+            and iterable_preview_steps[0].get("NB_CONTEXT_IDS") == ["markdown-1"]
+            and iterable_preview_steps[1].get("NB_ARTIFACT_REFERENCES")
+            == ["artifacts/summary.json", "artifacts/trajectory.png"],
+            "notebook import writes a richer lab_steps.toml preview",
+            evidence=[str(lab_steps_path)],
+            details={
+                "lab_steps_path": str(lab_steps_path),
+                "lab_steps_preview": reloaded_lab_steps,
+            },
+        ),
+        _check_result(
             "notebook_pipeline_import_persistence",
             "Notebook pipeline import JSON round trip",
             proof.round_trip_ok and Path(proof.path).is_file(),
@@ -305,6 +347,8 @@ def _build_report_with_paths(
             "env_hint_count": summary.get("env_hint_count"),
             "artifact_reference_count": summary.get("artifact_reference_count"),
             "execution_count_present_count": summary.get("execution_count_present_count"),
+            "lab_steps_preview_path": str(lab_steps_path),
+            "lab_steps_preview_step_count": len(iterable_preview_steps),
             "step_ids": summary.get("step_ids"),
             "context_ids": summary.get("context_ids"),
             "issues": [issue.as_dict() for issue in proof.issues],
@@ -335,6 +379,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional JSON evidence output path.",
     )
     parser.add_argument(
+        "--lab-steps-output",
+        type=Path,
+        default=None,
+        help="Optional lab_steps.toml preview output path.",
+    )
+    parser.add_argument(
         "--compact",
         action="store_true",
         help="Emit compact JSON without indentation.",
@@ -344,7 +394,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
-    report = build_report(notebook_path=args.notebook, output_path=args.output)
+    report = build_report(
+        notebook_path=args.notebook,
+        output_path=args.output,
+        lab_steps_output_path=args.lab_steps_output,
+    )
     if args.compact:
         print(json.dumps(report, sort_keys=True, separators=(",", ":")))
     else:

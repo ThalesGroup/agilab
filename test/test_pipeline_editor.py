@@ -316,6 +316,10 @@ def test_notebook_to_toml_imports_code_cells(monkeypatch, tmp_path):
     assert count == 2
     assert stored["flight_project"][0]["C"] == "print('a')\n"
     assert stored["flight_project"][1]["C"] == "print('b')\n"
+    assert stored["flight_project"][0]["D"] == "ignore"
+    assert stored["flight_project"][0]["NB_CELL_ID"] == "cell-2"
+    assert stored["flight_project"][0]["NB_CONTEXT_IDS"] == ["markdown-1"]
+    assert stored["flight_project"][1]["NB_CELL_ID"] == "cell-3"
 
 
 def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
@@ -2297,7 +2301,13 @@ def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_p
 
     stored = tomllib.loads((tmp_path / "demo_project" / "lab_steps.toml").read_text(encoding="utf-8"))
     assert count == 1
-    assert stored["demo_project"] == [{"D": "", "Q": "", "C": "print(3)\n", "M": ""}]
+    assert stored["demo_project"][0]["D"] == "ignore"
+    assert stored["demo_project"][0]["Q"] == "Imported notebook cell cell-3"
+    assert stored["demo_project"][0]["C"] == "print(3)\n"
+    assert stored["demo_project"][0]["M"] == ""
+    assert stored["demo_project"][0]["NB_CELL_ID"] == "cell-3"
+    assert stored["demo_project"][0]["NB_CONTEXT_IDS"] == ["markdown-1"]
+    assert stored["demo_project"][0]["NB_EXECUTION_MODE"] == "not_executed_import"
 
 
 def test_notebook_to_toml_uses_lab_steps_key_when_module_dir_has_no_name(monkeypatch, tmp_path):
@@ -2317,7 +2327,9 @@ def test_notebook_to_toml_uses_lab_steps_key_when_module_dir_has_no_name(monkeyp
 
     stored = tomllib.loads((tmp_path / "lab_steps.toml").read_text(encoding="utf-8"))
     assert count == 1
-    assert stored["lab_steps"] == [{"D": "", "Q": "", "C": "print(9)\n", "M": ""}]
+    assert stored["lab_steps"][0]["C"] == "print(9)\n"
+    assert stored["lab_steps"][0]["NB_CELL_ID"] == "cell-1"
+    assert stored["lab_steps"][0]["NB_EXECUTION_MODE"] == "not_executed_import"
 
 
 def test_restore_pipeline_snapshot_rebuilds_engine_from_map_when_selection_missing(monkeypatch, tmp_path):

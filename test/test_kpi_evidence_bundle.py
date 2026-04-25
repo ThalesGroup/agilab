@@ -347,9 +347,11 @@ def test_notebook_pipeline_import_report_contract_preserves_notebook_metadata() 
     assert check["details"]["summary"]["markdown_cell_count"] == 2
     assert check["details"]["summary"]["pipeline_step_count"] == 2
     assert check["details"]["summary"]["context_block_count"] == 2
+    assert check["details"]["summary"]["lab_steps_preview_step_count"] == 2
     assert check["details"]["summary"]["env_hint_count"] == 3
     assert check["details"]["summary"]["artifact_reference_count"] == 3
     assert "notebook_pipeline_import_context_links" in check["details"]["check_ids"]
+    assert "notebook_pipeline_import_lab_steps_preview" in check["details"]["check_ids"]
 
 
 def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None:

@@ -149,8 +149,9 @@ single notebook but less ceremony than a production MLOps platform:
 - the notebook-to-pipeline import report validates that bridge with
   ``tools/notebook_pipeline_import_report.py --compact``; it reads a checked-in
   ``.ipynb``, preserves markdown context and code cells, extracts import hints
-  plus artifact references, and emits ``not_executed_import`` metadata without
-  running notebook cells
+  plus artifact references, writes a richer ``lab_steps.toml`` preview used by
+  the existing ``PIPELINE`` upload path, and emits ``not_executed_import``
+  metadata without running notebook cells
 - optional ``pipeline_view.dot`` / ``pipeline_view.json`` files give prototypes
   a conceptual architecture view alongside generated execution snippets
 - the Analysis page can generate minimal page bundles so a prototype can gain a
