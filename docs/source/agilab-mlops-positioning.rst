@@ -143,6 +143,9 @@ history:
 - the global DAG live state updates report turns the dependency view into
   ordered graph, unit, artifact, dependency, and action refresh payloads without
   claiming a runtime streaming service
+- the global DAG operator actions report executes retry and partial-rerun
+  operator requests through real queue and relay app-entry replays, then
+  persists action outcomes and output artifacts without claiming UI controls
 
 That supports an ``Engineering prototyping`` score of ``4.0 / 5``. It is not
 scored higher yet because additional external replication and future
@@ -201,6 +204,8 @@ between research experiments and engineering validation:
   relationship explicit before live UI rendering is added
 - a live-update payload report that defines the operator refresh stream before
   UI components or runtime transport are added
+- an operator-action execution report that proves retry and partial-rerun
+  requests can replay the real app entries before UI controls are added
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
