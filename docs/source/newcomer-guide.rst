@@ -85,6 +85,29 @@ example, the scheduler might use ``/Users/agi/clustershare/agilab-two-node``
 while the worker sees the same storage at
 ``/Users/jpm/clustershare/agilab-two-node``.
 
+If the share is not mounted yet, print a starting-point SSHFS script instead of
+running Flight:
+
+.. code-block:: bash
+
+   agilab doctor --cluster \
+     --scheduler 192.168.3.103 \
+     --workers jpm@192.168.3.35 \
+     --cluster-share /Users/agi/clustershare/agilab-two-node \
+     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node \
+     --print-share-setup sshfs
+
+Once the mount is in place, validate only the shared filesystem contract:
+
+.. code-block:: bash
+
+   agilab doctor --cluster \
+     --scheduler 192.168.3.103 \
+     --workers jpm@192.168.3.35 \
+     --cluster-share /Users/agi/clustershare/agilab-two-node \
+     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node \
+     --share-check-only
+
 From a source checkout:
 
 .. code-block:: bash
