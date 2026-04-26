@@ -4,7 +4,7 @@ version = "2026.4.27.post1"
 description = "Built-in AGILab example app (flight telemetry preprocessing)"
 requires-python = ">=3.11"
 dependencies = [
-  "polars",
+  "polars[rtcompat]",
   "pydantic",
   "py7zr",
   "geopy",
@@ -13,4 +13,3 @@ dependencies = [
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
-
