@@ -6,7 +6,7 @@ from unittest import mock
 
 import pytest
 
-from agi_cluster.agi_distributor import deployment_prepare_support, uv_source_support
+from agi_cluster.agi_distributor import deployment_prepare_support, deployment_remote_support, uv_source_support
 
 
 def _truthy(envars: dict, key: str) -> bool:
@@ -360,6 +360,52 @@ async def test_prepare_cluster_env_happy_path_sends_files(tmp_path):
     assert any("self update" in cmd for _, cmd in remote_cmds)
     assert any(item[2] == "wenv" for item in sent)
     assert any(any(file["name"] == "cli.py" for file in items) for _, items, _ in sent)
+
+
+@pytest.mark.asyncio
+async def test_prepare_cluster_env_legacy_intel_macos_selects_python_311(tmp_path):
+    env = _build_cluster_env(tmp_path)
+    env.python_version = "3.13"
+    env.uv_worker = "PYTHON_GIL=0 uv"
+    agi_cls = _build_agi(env)
+    sent = []
+    remote_cmds = []
+
+    async def _fake_detect(_ip):
+        return 'export PATH="$HOME/.local/bin:$PATH"; '
+
+    async def _fake_exec(ip, cmd):
+        remote_cmds.append((ip, cmd))
+        if cmd == deployment_remote_support._remote_platform_probe_command():
+            return "Darwin\nx86_64\n10.15.8"
+        if "--version" in cmd:
+            return "uv 0.6.0"
+        return "ok"
+
+    async def _noop(*_args, **_kwargs):
+        return None
+
+    await deployment_prepare_support.prepare_cluster_env(
+        agi_cls,
+        "127.0.0.1",
+        envar_truthy_fn=_truthy,
+        detect_export_cmd_fn=_fake_detect,
+        ensure_optional_extras_fn=lambda *_a, **_k: None,
+        stage_uv_sources_fn=lambda **_kwargs: [],
+        run_exec_ssh_fn=_fake_exec,
+        send_files_fn=_recording_send(sent),
+        kill_fn=_noop,
+        clean_dirs_fn=_noop,
+        set_env_var_fn=lambda key, value=None: env.envars.__setitem__(key, value),
+        log=mock.Mock(),
+    )
+
+    assert env.pyvers_worker == "3.11"
+    assert env.python_version == "3.11"
+    assert env.uv_worker == "uv"
+    assert any("python install 3.11" in cmd for _, cmd in remote_cmds)
+    assert not any("python install 3.13" in cmd for _, cmd in remote_cmds)
+    assert any(item[2] == "wenv" for item in sent)
 
 
 @pytest.mark.asyncio

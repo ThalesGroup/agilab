@@ -1,6 +1,7 @@
 import logging
 import uuid
 from pathlib import Path, PurePosixPath
+from shlex import quote
 from tempfile import gettempdir
 from typing import Any, Callable, Union
 
@@ -10,6 +11,74 @@ from agi_env import AgiEnv
 logger = logging.getLogger(__name__)
 
 _REMOTE_RAPIDS_CHECK_EXCEPTIONS = (ConnectionError, OSError, RuntimeError)
+_REMOTE_PLATFORM_PROBE_EXCEPTIONS = (OSError, RuntimeError, ValueError)
+_LEGACY_INTEL_MACOS_DEPENDENCY_SPECS = ("numba==0.62.1", "pyarrow==17.0.0")
+
+
+def _parse_version_prefix(version: str) -> tuple[int, ...]:
+    parts: list[int] = []
+    for raw_part in version.strip().split("."):
+        digits = ""
+        for char in raw_part:
+            if not char.isdigit():
+                break
+            digits += char
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts)
+
+
+def _is_legacy_intel_macos(system: str, machine: str, product_version: str) -> bool:
+    if system.strip().lower() != "darwin":
+        return False
+    if machine.strip().lower() not in {"x86_64", "amd64"}:
+        return False
+
+    version_parts = _parse_version_prefix(product_version)
+    if len(version_parts) < 2:
+        return False
+
+    major, minor = version_parts[:2]
+    return major == 10 and minor <= 15
+
+
+def _remote_platform_probe_command() -> str:
+    return (
+        "printf '%s\\n' "
+        '"$(uname -s 2>/dev/null || true)" '
+        '"$(uname -m 2>/dev/null || true)" '
+        '"$(sw_vers -productVersion 2>/dev/null || true)"'
+    )
+
+
+def _parse_remote_platform_probe(output: str) -> tuple[str, str, str]:
+    lines = [line.strip() for line in output.splitlines()]
+    padded = (lines + ["", "", ""])[:3]
+    return padded[0], padded[1], padded[2]
+
+
+async def _legacy_intel_macos_dependency_specs(agi_cls: Any, ip: str, *, log: Any = logger) -> tuple[str, ...]:
+    try:
+        probe = await agi_cls.exec_ssh(ip, _remote_platform_probe_command())
+    except ConnectionError:
+        raise
+    except _REMOTE_PLATFORM_PROBE_EXCEPTIONS as exc:
+        log.warning("Could not probe remote worker platform on %s; skipping legacy macOS pins: %s", ip, exc)
+        return ()
+
+    system, machine, product_version = _parse_remote_platform_probe(probe)
+    if not _is_legacy_intel_macos(system, machine, product_version):
+        return ()
+
+    log.warning(
+        "Detected legacy Intel macOS worker %s (%s %s); pre-pinning worker dependencies: %s",
+        ip,
+        machine,
+        product_version,
+        ", ".join(_LEGACY_INTEL_MACOS_DEPENDENCY_SPECS),
+    )
+    return _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS
 
 
 def _latest_artifact_match(root: Path, pattern: str) -> Path | None:
@@ -103,6 +172,12 @@ async def deploy_remote_worker(
 
     cmd = f"{uv} --project {wenv_rel.as_posix()} run -p {pyvers} python -m ensurepip"
     await agi_cls.exec_ssh(ip, cmd)
+
+    compatibility_specs = await _legacy_intel_macos_dependency_specs(agi_cls, ip, log=log)
+    if compatibility_specs:
+        quoted_specs = " ".join(quote(spec) for spec in compatibility_specs)
+        cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} {quoted_specs}"
+        await agi_cls.exec_ssh(ip, cmd)
 
     if env.is_source_env:
         if env_whl is None or node_whl is None:

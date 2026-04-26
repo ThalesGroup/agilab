@@ -10,7 +10,7 @@ from typing import Any, Callable, Optional, Set, cast
 
 from asyncssh.process import ProcessError
 
-from agi_cluster.agi_distributor import cli as distributor_cli
+from agi_cluster.agi_distributor import cli as distributor_cli, deployment_remote_support
 from agi_env import AgiEnv
 
 
@@ -166,12 +166,44 @@ async def prepare_cluster_env(
                 raise ValueError(f"Invalid IP address: {ip}") from exc
 
     agi_cls.list_ip = list_ip
+    legacy_intel_macos_ips: set[str] = set()
     for ip in list_ip:
         if env.is_local(ip):
             continue
 
         cmd_prefix = await detect_export_cmd_fn(ip)
         set_env_var_fn(f"{ip}_CMD_PREFIX", cmd_prefix)
+
+        try:
+            platform_probe = await run_exec_ssh_fn(ip, deployment_remote_support._remote_platform_probe_command())
+        except ConnectionError:
+            raise
+        except remote_command_failures as exc:
+            log.warning("Could not probe remote worker platform on %s; skipping legacy macOS runtime selection: %s", ip, exc)
+        else:
+            system, machine, product_version = deployment_remote_support._parse_remote_platform_probe(platform_probe)
+            if deployment_remote_support._is_legacy_intel_macos(system, machine, product_version):
+                legacy_intel_macos_ips.add(ip)
+
+    if legacy_intel_macos_ips and pyvers_worker != "3.11":
+        log.warning(
+            "Detected legacy Intel macOS worker(s) %s; selecting Python 3.11 for all worker environments instead of %s",
+            ", ".join(sorted(legacy_intel_macos_ips)),
+            pyvers_worker,
+        )
+        pyvers_worker = "3.11"
+        env.pyvers_worker = "3.11"
+        env.python_version = "3.11"
+        env.uv_worker = env.uv
+
+    for ip in list_ip:
+        if env.is_local(ip):
+            continue
+
+        cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX")
+        if cmd_prefix is None:
+            cmd_prefix = await detect_export_cmd_fn(ip)
+            set_env_var_fn(f"{ip}_CMD_PREFIX", cmd_prefix)
         uv_is_installed = True
 
         agi_internet_on = 1 if envar_truthy_fn(env.envars, "AGI_INTERNET_ON") else 0
