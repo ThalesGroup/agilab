@@ -206,10 +206,17 @@ class Flight(BaseWorker):
             data_in = Path(self.args.data_in)
             home_dir = Path.home()
 
+            discovered_files = sorted(
+                (
+                    f
+                    for f in data_in.rglob(self.args.files)
+                    if f.is_file() and not f.name.startswith("._")
+                ),
+                key=lambda f: str(f.relative_to(home_dir)),
+            )
             self.logs_ivq = {
                 str(f.relative_to(home_dir)): os.path.getsize(f) // 1000
-                for f in data_in.rglob(self.args.files)
-                if f.is_file() and not f.name.startswith("._")
+                for f in discovered_files
             }
 
             if not self.logs_ivq:
@@ -218,7 +225,13 @@ class Flight(BaseWorker):
                     f" Path('{data_in}').rglob('{self.args.files}')"
                 )
 
-            df = pl.DataFrame(list(self.logs_ivq.items()), schema=["files", "size"])
+            df = pl.DataFrame(
+                {
+                    "files": list(self.logs_ivq.keys()),
+                    "size": list(self.logs_ivq.values()),
+                },
+                schema={"files": pl.String, "size": pl.Int64},
+            )
 
         elif self.args.data_source == "hawk":
             # implement your HAWK logic

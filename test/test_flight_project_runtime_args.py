@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,6 +18,22 @@ def _import_flight_modules(monkeypatch):
     from flight_worker.flight_worker import FlightWorker
 
     return Flight, FlightWorker
+
+
+def test_flight_project_declares_polars_runtime_compat():
+    repo_root = Path(__file__).resolve().parents[1]
+    pyproject = (
+        repo_root
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "flight_project"
+        / "pyproject.toml"
+    )
+    project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
+
+    assert "polars[rtcompat]" in project["dependencies"]
 
 
 class _FakeEnv:
@@ -56,6 +73,37 @@ def test_flight_manager_ignores_agi_step_list_args(monkeypatch, tmp_path):
     assert flight.args.data_source == "file"
     assert flight.args.data_in == tmp_path / "share" / "network_sim" / "pipeline"
     assert flight.args.data_out == tmp_path / "share" / "uav_graph_routing" / "pipeline"
+
+
+def test_flight_manager_builds_typed_file_inventory(monkeypatch, tmp_path):
+    Flight, _ = _import_flight_modules(monkeypatch)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    share_root = tmp_path / "localshare"
+    source_root = share_root / "flight_cluster_validation" / "dataset" / "csv"
+    source_root.mkdir(parents=True)
+    first = source_root / "61_6101.csv"
+    second = source_root / "60_5984.csv"
+    first.write_text("a" * 2222, encoding="utf-8")
+    second.write_text("b" * 3333, encoding="utf-8")
+
+    flight = Flight(
+        _FakeEnv(share_root),
+        data_in="flight_cluster_validation/dataset/csv",
+        data_out="flight_cluster_validation/dataframe",
+        files="*.csv",
+        reset_target=True,
+    )
+
+    df = flight.get_data_from_files()
+
+    assert df.schema == {"files": pl.String, "size": pl.Int64}
+    assert df.to_dict(as_series=False) == {
+        "files": [
+            "localshare/flight_cluster_validation/dataset/csv/60_5984.csv",
+            "localshare/flight_cluster_validation/dataset/csv/61_6101.csv",
+        ],
+        "size": [3, 2],
+    }
 
 
 def test_flight_worker_defaults_missing_data_source(monkeypatch, tmp_path):
