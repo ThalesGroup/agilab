@@ -45,6 +45,12 @@ Use this runbook whenever you:
   before edits or push. Use its output to decide whether the change is app-local vs shared-core,
   which targeted tests are required, whether install repros are mandatory, and whether generated
   artifacts such as badges, skill indexes, or run-config wrappers must be refreshed.
+- **Local pre-push guardrails**: Keep the repo hook enabled with
+  `git config core.hooksPath .githooks`. The pre-push hook runs
+  `tools/coverage_badge_guard.py --changed-only --require-fresh-xml` so stale
+  coverage badge SVGs are blocked locally before GitHub Actions. Bypass only
+  with `AGILAB_SKIP_LOCAL_GUARDS=1` when the skipped guard is intentional and
+  documented.
 - **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
   the CLI wrappers with `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py` and commit
   the results (`tools/run_configs/`).

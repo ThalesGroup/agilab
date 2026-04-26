@@ -266,8 +266,16 @@ def _component_hints(paths: list[str]) -> list[str]:
             hints.append("agi-node")
         if path.startswith("src/agilab/core/agi-cluster/") or "coverage-agi-cluster" in path:
             hints.append("agi-cluster")
-        if _is_gui_file(path) or "coverage-agi-gui" in path or path == "tools/generate_component_coverage_badges.py":
+        if (
+            _is_gui_file(path)
+            or path.startswith("src/agilab/test/")
+            or path.startswith("test/")
+            or "coverage-agi-gui" in path
+            or path == "tools/generate_component_coverage_badges.py"
+        ):
             hints.append("agi-gui")
+        if path == "tools/generate_component_coverage_badges.py" or path == ".github/workflows/coverage.yml":
+            hints.extend(["agi-env", "agi-node", "agi-cluster"])
         for hint in hints:
             if hint not in seen:
                 components.append(hint)
@@ -445,6 +453,16 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
         )
 
     components = _component_hints(paths)
+    if components:
+        artifacts.append(
+            Action(
+                key="coverage-badge-guard",
+                summary="Run the local coverage badge guard before push so badge drift is caught before GitHub Actions.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/coverage_badge_guard.py --changed-only --require-fresh-xml"
+                ],
+            )
+        )
     if any(
         _matches_prefix(path, BADGE_PATH_PREFIXES)
         or "coverage-" in Path(path).name
@@ -463,6 +481,11 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
             commands.append(
                 "uv --preview-features extra-build-dependencies run python tools/generate_component_coverage_badges.py"
             )
+        commands.append(
+            "uv --preview-features extra-build-dependencies run python tools/coverage_badge_guard.py --components "
+            + " ".join(components or ["agi-env", "agi-node", "agi-cluster", "agi-gui"])
+            + " --changed-only --require-fresh-xml"
+        )
         artifacts.append(
             Action(
                 key="badge-refresh",

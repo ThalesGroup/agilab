@@ -492,6 +492,10 @@ def _badges_profile(components: Sequence[str] | None) -> list[CommandSpec]:
                 "tools/generate_skill_badges.py",
             ],
         ),
+        CommandSpec(
+            label="badge drift guard",
+            argv=["git", "diff", "--exit-code", "--", "badges/"],
+        ),
     ]
 
 

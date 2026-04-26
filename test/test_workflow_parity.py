@@ -30,6 +30,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_cluster = profiles["agi-cluster"][0]
     agi_gui = profiles["agi-gui"][0]
     docs = profiles["docs"][0]
+    badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
 
     assert agi_env.timeout_seconds == 20 * 60
@@ -78,6 +79,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_view*.py" not in agi_gui.argv
     assert "test/test_view_maps.py" in agi_gui.argv
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
+    assert badges[-1].label == "badge drift guard"
+    assert badges[-1].argv == ["git", "diff", "--exit-code", "--", "badges/"]
     assert strict_typing.argv[-1] == "tools/shared_core_strict_typing.py"
 
 
