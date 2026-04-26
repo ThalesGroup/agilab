@@ -231,6 +231,37 @@ Each command should print the remote ``hostname`` without asking for a password.
 prompts, re-run ``ssh-copy-id`` and make sure ``~/.ssh/authorized_keys`` on the target contains the
 public key content.
 
+Reverse SSH for SSHFS-backed cluster shares
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When the cluster share is mounted with SSHFS, the worker initiates a second SSH
+connection back to the scheduler/manager path. Manager-to-worker SSH is not
+enough. Validate the reverse direction before running ``agilab doctor
+--setup-share sshfs --apply``:
+
+.. code-block:: bash
+
+   worker$ ssh -o BatchMode=yes <manager account>@<manager_ip> hostname
+
+If this fails with a host-key error, refresh the manager key on the worker:
+
+.. code-block:: bash
+
+   worker$ ssh-keygen -R <manager_ip> -f ~/.ssh/known_hosts
+   worker$ ssh-keyscan -H -t ed25519,rsa,ecdsa <manager_ip> >> ~/.ssh/known_hosts
+
+If this fails with ``Permission denied``, add the worker public key to the
+manager account:
+
+.. code-block:: bash
+
+   worker$ ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+   worker$ cat ~/.ssh/id_ed25519.pub
+
+Append that public key to ``~/.ssh/authorized_keys`` for ``<manager account>``
+on the manager, then rerun the reverse SSH command. Keep ``~/.ssh`` at
+``0700`` and ``authorized_keys`` at ``0600``.
+
 Node reinstalled or host key changed
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

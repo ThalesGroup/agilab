@@ -104,6 +104,23 @@ the scheduler path on the worker when not already mounted, and runs the sentinel
 share check. To inspect the commands without applying changes, print the setup
 script:
 
+On macOS workers, make the SSHFS prerequisite explicit before running
+``--setup-share``:
+
+- install a FUSE-backed SSHFS implementation such as FUSE-T SSHFS or
+  macFUSE plus SSHFS
+- ensure ``sshfs`` is visible to non-interactive SSH commands, for example
+  ``ssh <worker> 'command -v sshfs'``
+- ensure the worker can SSH back to the scheduler user referenced by
+  ``--scheduler``, because the worker-side mount command reads
+  ``<scheduler-user>@<scheduler>:/...``
+
+On older macOS hosts, Homebrew may exist at ``/usr/local/Homebrew/bin/brew``
+without being on the SSH ``PATH``. If ``command -v brew`` is empty, check that
+location before assuming no package manager exists. If ``sshfs`` lands under
+``/usr/local/bin``, add that directory to the remote user's non-interactive shell
+startup, then re-check with ``ssh <worker> 'command -v sshfs'``.
+
 .. code-block:: bash
 
    agilab doctor --cluster \
@@ -147,7 +164,9 @@ From an installed package, use the same doctor through the public CLI:
 
 This is a post-day-1 proof. It assumes SSH key access already works and that
 the remote user can create ``~/localshare`` and access the mounted cluster-share
-path.
+path. The narrow release gate after any share repair is the standalone
+``--share-check-only`` command above; rerun the full Flight cluster validation
+only when you need fresh install, compute, and output-visibility evidence.
 
 What to ignore on day 1
 -----------------------
