@@ -62,9 +62,53 @@ app, timing, artifact references, and validation status.
 That supports an ``Ease of adoption`` score of ``4.0 / 5``: the public demo
 works, the first routes are explicit, PyCharm is optional, installer tests are
 opt-in, and the source-checkout proof now has local, fresh external macOS,
-AI Lightning, Hugging Face, bare-metal cluster, and VM-based cluster validation.
+repeatable Flight cluster doctor, AI Lightning, Hugging Face, bare-metal
+cluster, and VM-based cluster validation.
 It is not scored higher yet because Azure, AWS, and GCP deployment validation
 remains open.
+
+Repeatable cluster proof
+------------------------
+
+After the local first proof works, use the Flight cluster doctor for a small
+two-node validation. It creates tiny synthetic Flight CSVs, mirrors them to the
+remote worker under the same ``$HOME/localshare/...`` path, then validates the
+cluster-share contract before running compute: the scheduler writes a sentinel
+under ``--cluster-share`` and each remote worker must read it through
+``--remote-cluster-share``. After ``AGI.install`` plus ``AGI.run`` in Dask mode,
+the scheduler must also see the worker outputs through the local cluster-share
+path. A remote-only output directory is reported as a failure because it does not
+prove a shared cluster filesystem.
+
+First mount or otherwise expose the same backing directory on every node. For
+example, the scheduler might use ``/Users/agi/clustershare/agilab-two-node``
+while the worker sees the same storage at
+``/Users/jpm/clustershare/agilab-two-node``.
+
+From a source checkout:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/cluster_flight_validation.py \
+     --cluster \
+     --scheduler 192.168.3.103 \
+     --workers jpm@192.168.3.35 \
+     --cluster-share /Users/agi/clustershare/agilab-two-node \
+     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node
+
+From an installed package, use the same doctor through the public CLI:
+
+.. code-block:: bash
+
+   agilab doctor --cluster \
+     --scheduler 192.168.3.103 \
+     --workers jpm@192.168.3.35 \
+     --cluster-share /Users/agi/clustershare/agilab-two-node \
+     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node
+
+This is a post-day-1 proof. It assumes SSH key access already works and that
+the remote user can create ``~/localshare`` and access the mounted cluster-share
+path.
 
 What to ignore on day 1
 -----------------------

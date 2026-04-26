@@ -53,3 +53,24 @@ def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
         "--server.headless",
         "true",
     ]]
+
+
+def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_doctor(argv: list[str]) -> int:
+        captured.append(argv)
+        return 23
+
+    monkeypatch.setattr(lab_run, "_run_doctor", fake_doctor)
+    monkeypatch.setattr(
+        lab_run.stcli,
+        "main",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["doctor", "--cluster", "--scheduler", "127.0.0.1"])
+
+    assert rc == 23
+    assert captured == [["--cluster", "--scheduler", "127.0.0.1"]]
