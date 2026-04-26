@@ -166,6 +166,10 @@ def changed_coverage_components(paths: Sequence[str]) -> dict[str, list[str]]:
     return {component: _normalize_paths(files) for component, files in by_component.items() if files}
 
 
+def _is_coverage_badge_output(path: str) -> bool:
+    return path.startswith("badges/coverage-") and path.endswith(".svg")
+
+
 def expand_with_aggregates(components: Iterable[str]) -> list[str]:
     selected = set(components)
     if selected & CORE_COMPONENTS:
@@ -215,6 +219,9 @@ def stale_xml_messages(
     messages: list[str] = []
     now = time.time()
     for component, paths in sorted(changed_by_component.items()):
+        freshness_paths = [path for path in paths if not _is_coverage_badge_output(path)]
+        if not freshness_paths:
+            continue
         xml_path = repo_root / COMPONENT_XML[component]
         if not xml_path.exists():
             messages.append(f"{component}: missing {xml_path.relative_to(repo_root)}")
@@ -222,7 +229,7 @@ def stale_xml_messages(
         xml_mtime = xml_path.stat().st_mtime
         newest_path: str | None = None
         newest_mtime = 0.0
-        for path in paths:
+        for path in freshness_paths:
             candidate = repo_root / path
             if not candidate.exists():
                 continue
