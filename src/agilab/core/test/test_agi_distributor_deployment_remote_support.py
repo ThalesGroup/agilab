@@ -8,6 +8,21 @@ import pytest
 from agi_cluster.agi_distributor import deployment_remote_support, uv_source_support
 
 
+@pytest.mark.parametrize(
+    ("system", "machine", "product_version", "expected"),
+    [
+        ("Darwin", "x86_64", "10.15.8", True),
+        ("Darwin", "x86_64", "10.14.6", True),
+        ("Darwin", "x86_64", "11.7.10", False),
+        ("Darwin", "arm64", "10.15.8", False),
+        ("Linux", "x86_64", "10.15.8", False),
+        ("Darwin", "x86_64", "", False),
+    ],
+)
+def test_is_legacy_intel_macos_scope(system, machine, product_version, expected):
+    assert deployment_remote_support._is_legacy_intel_macos(system, machine, product_version) is expected
+
+
 async def _call_deploy_remote_worker(
     agi_cls,
     ip: str,
@@ -86,7 +101,72 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
 
     assert any("demo_worker-0.0.1.egg" in names for _, names, _ in send_calls)
     assert any("ensurepip" in cmd for cmd in ssh_calls)
+    assert not any("numba==0.62.1" in cmd for cmd in ssh_calls)
     assert any("python -m demo.post_install" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(tmp_path):
+    dist_abs = tmp_path / "dist"
+    dist_abs.mkdir(parents=True, exist_ok=True)
+    (dist_abs / "demo_worker-0.0.1.egg").write_text("x", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "worker_env",
+        wenv_rel=Path("worker_env"),
+        dist_rel=Path("worker_env/dist"),
+        dist_abs=dist_abs,
+        pyvers_worker="3.11",
+        envars={},
+        uv_worker="uv",
+        is_source_env=False,
+        app="demo_app",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        verbose=0,
+    )
+    ssh_calls = []
+    send_calls = []
+
+    async def _fake_exec_ssh(_ip, cmd):
+        ssh_calls.append(cmd)
+        if cmd == deployment_remote_support._remote_platform_probe_command():
+            return "Darwin\nx86_64\n10.15.8"
+        return "ok"
+
+    async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
+        del user, password
+        send_calls.append((ip, [Path(f).name for f in files], str(remote_path)))
+
+    async def _fake_send_file(_env, ip, local_path, remote_path, user=None, password=None):
+        del user, password
+        send_calls.append((ip, [Path(local_path).name], str(remote_path.parent)))
+
+    agi_cls = SimpleNamespace(
+        _rapids_enabled=False,
+        _workers_data_path=None,
+        exec_ssh=_fake_exec_ssh,
+        send_files=_fake_send,
+        send_file=_fake_send_file,
+    )
+
+    await _call_deploy_remote_worker(
+        agi_cls,
+        "10.0.0.2",
+        env,
+        Path("worker_env"),
+        "",
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=deployment_remote_support.logger,
+    )
+
+    pin_index = next(i for i, cmd in enumerate(ssh_calls) if "numba==0.62.1" in cmd)
+    env_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env" in cmd)
+    node_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-node" in cmd)
+
+    assert "pyarrow==17.0.0" in ssh_calls[pin_index]
+    assert "add -p 3.11" in ssh_calls[pin_index]
+    assert pin_index < env_index < node_index
 
 
 @pytest.mark.asyncio
