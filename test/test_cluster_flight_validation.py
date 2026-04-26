@@ -99,6 +99,46 @@ def test_parse_args_requires_cluster_and_positive_rows():
             ]
         )
 
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
+                "--setup-share",
+                "sshfs",
+            ]
+        )
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
+                "--apply",
+            ]
+        )
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
+                "--setup-share",
+                "sshfs",
+                "--apply",
+                "--share-check-only",
+            ]
+        )
+
 
 def test_build_validation_plan_makes_flight_paths_home_relative(tmp_path: Path):
     plan = cfv.build_validation_plan(
@@ -397,6 +437,53 @@ def test_share_setup_script_lines_print_sshfs_commands(tmp_path: Path):
     assert "--remote-cluster-share /Users/jpm/clustershare/agilab-two-node" in script
 
 
+def test_apply_share_setup_runs_idempotent_remote_commands(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    plan = cfv.build_validation_plan(
+        _args(
+            scheduler="192.168.3.103",
+            workers="jpm@192.168.3.35",
+            cluster_share="clustershare/agilab-two-node",
+            remote_cluster_share="/Users/jpm/clustershare/agilab-two-node",
+        ),
+        home=tmp_path,
+        environ={"USER": "agi"},
+    )
+    commands: list[list[str]] = []
+    responses = iter(
+        [
+            subprocess.CompletedProcess([], 0, stdout="/usr/local/bin/sshfs\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="/Users/jpm/.agilab/.env\n", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="", stderr=""),
+            subprocess.CompletedProcess([], 0, stdout="mounted\n", stderr=""),
+        ]
+    )
+
+    def fake_run(argv, *, timeout=None):
+        commands.append(list(argv))
+        assert timeout == 17
+        return next(responses)
+
+    monkeypatch.setattr(cfv, "_run_command", fake_run)
+
+    summaries = cfv.apply_share_setup(plan, "sshfs", timeout=17, local_user="agi")
+
+    assert (tmp_path / "clustershare/agilab-two-node").is_dir()
+    assert [summary.action for summary in summaries] == [
+        "mkdir",
+        "check-sshfs",
+        "write-env",
+        "mkdir",
+        "mount",
+    ]
+    assert summaries[2].path == "/Users/jpm/.agilab/.env"
+    assert commands[0][:4] == ["ssh", "-o", "BatchMode=yes", "jpm@192.168.3.35"]
+    assert "command -v sshfs" in commands[0][-1]
+    assert "AGI_CLUSTER_SHARE" in commands[1][-1]
+    assert "mkdir -p \"$REMOTE_CLUSTER_SHARE\"" in commands[2][-1]
+    assert "sshfs agi@192.168.3.103:" in commands[3][-1]
+
+
 def test_validation_success_requires_local_visibility_for_remote_runs():
     local_ok = cfv.OutputSummary(
         location="local",
@@ -655,6 +742,63 @@ def test_main_print_share_setup_skips_dataset(tmp_path: Path, monkeypatch, capsy
     assert "AGILAB cluster-share setup using SSHFS" in output
     assert "sshfs" in output
     assert "--share-check-only" in output
+
+
+def test_main_setup_share_apply_runs_setup_and_share_check(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    summary_path = tmp_path / "setup.json"
+
+    def fail_dataset(*args, **kwargs):
+        raise AssertionError("share setup should not synthesize Flight data")
+
+    monkeypatch.setattr(cfv, "write_synthetic_flight_dataset", fail_dataset)
+    monkeypatch.setattr(
+        cfv,
+        "apply_share_setup",
+        lambda plan, backend, *, timeout: (
+            cfv.ShareSetupSummary(location="local", action="mkdir", path="/shared"),
+            cfv.ShareSetupSummary(location="jpm@192.168.3.35", action="mount", path="mounted"),
+        ),
+    )
+    monkeypatch.setattr(
+        cfv,
+        "validate_shared_cluster_share",
+        lambda plan, *, timeout: (
+            cfv.ShareProbeSummary(location="local", path="/shared/sentinel.json"),
+            cfv.ShareProbeSummary(location="jpm@192.168.3.35", path="/remote/sentinel.json"),
+        ),
+    )
+
+    rc = cfv.main(
+        [
+            "--cluster",
+            "--scheduler",
+            "192.168.3.103",
+            "--workers",
+            "jpm@192.168.3.35",
+            "--cluster-share",
+            "shared",
+            "--setup-share",
+            "sshfs",
+            "--apply",
+            "--summary-json",
+            str(summary_path),
+        ]
+    )
+
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    output = capsys.readouterr().out
+    assert rc == 0
+    assert payload["setup_applied"] is True
+    assert payload["setup_backend"] == "sshfs"
+    assert payload["share_setup"][1]["action"] == "mount"
+    assert len(payload["shared_cluster_share"]) == 2
+    assert "AGILAB cluster-share setup" in output
+    assert "AGILAB cluster-share preflight" in output
 
 
 def test_main_returns_failure_on_validation_error(capsys):

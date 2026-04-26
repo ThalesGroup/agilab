@@ -85,6 +85,13 @@ class ShareProbeSummary:
     path: str
 
 
+@dataclass(frozen=True)
+class ShareSetupSummary:
+    location: str
+    action: str
+    path: str
+
+
 def _default_apps_path() -> Path:
     return Path(__file__).resolve().parent / "apps" / "builtin"
 
@@ -192,6 +199,17 @@ def _build_parser() -> argparse.ArgumentParser:
         default="",
         help="Print cluster-share setup commands for the selected mount backend and exit.",
     )
+    parser.add_argument(
+        "--setup-share",
+        choices=("sshfs",),
+        default="",
+        help="Set up the shared cluster path using the selected backend.",
+    )
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="Execute --setup-share changes. Without this flag setup commands are not applied.",
+    )
     return parser
 
 
@@ -206,6 +224,16 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         parser.error("--share-check-only cannot be combined with --dry-run")
     if args.share_check_only and args.print_share_setup:
         parser.error("--share-check-only cannot be combined with --print-share-setup")
+    if args.apply and not args.setup_share:
+        parser.error("--apply requires --setup-share")
+    if args.setup_share and not args.apply:
+        parser.error("--setup-share requires --apply; use --print-share-setup to preview")
+    if args.setup_share and args.dry_run:
+        parser.error("--setup-share cannot be combined with --dry-run")
+    if args.setup_share and args.share_check_only:
+        parser.error("--setup-share already runs the share check")
+    if args.setup_share and args.print_share_setup:
+        parser.error("--setup-share cannot be combined with --print-share-setup")
     return args
 
 
@@ -584,6 +612,56 @@ def _share_check_command(plan: ValidationPlan) -> str:
     return " ".join(shlex.quote(part) for part in parts)
 
 
+def _remote_env_update_script(plan: ValidationPlan) -> str:
+    return "\n".join(
+        [
+            "from pathlib import Path",
+            "key = 'AGI_CLUSTER_SHARE'",
+            f"value = {json.dumps(plan.remote_cluster_share_setting)}",
+            "env_path = Path.home() / '.agilab' / '.env'",
+            "env_path.parent.mkdir(parents=True, exist_ok=True)",
+            "lines = []",
+            "if env_path.exists():",
+            "    for raw_line in env_path.read_text(encoding='utf-8').splitlines():",
+            "        if not raw_line.strip().startswith(key + '='):",
+            "            lines.append(raw_line)",
+            "lines.append(f'{key}={value!r}')",
+            "env_path.write_text('\\n'.join(lines) + '\\n', encoding='utf-8')",
+            "print(str(env_path))",
+        ]
+    )
+
+
+def _remote_env_update_command(plan: ValidationPlan) -> str:
+    return "python3 - <<'PY'\n" + _remote_env_update_script(plan) + "\nPY"
+
+
+def _remote_share_setup_commands(
+    plan: ValidationPlan,
+    *,
+    local_user: str | None = None,
+) -> tuple[str, str, str]:
+    local_root = local_cluster_share_root(plan)
+    scheduler_target = _scheduler_ssh_target(plan, local_user=local_user)
+    source = f"{scheduler_target}:{local_root.as_posix()}"
+    remote_assignment = _remote_share_assignment(plan.remote_cluster_share_setting)
+    sshfs_check_command = 'mkdir -p "$HOME"/.agilab && command -v sshfs >/dev/null'
+    mkdir_command = (
+        "REMOTE_CLUSTER_SHARE="
+        + remote_assignment
+        + '; mkdir -p "$REMOTE_CLUSTER_SHARE"'
+    )
+    mount_command = (
+        "REMOTE_CLUSTER_SHARE="
+        + remote_assignment
+        + '; if mount | grep -F -- "$REMOTE_CLUSTER_SHARE" >/dev/null; then '
+        + 'echo "already mounted: $REMOTE_CLUSTER_SHARE"; else '
+        + f"sshfs {shlex.quote(source)} "
+        + '"$REMOTE_CLUSTER_SHARE"; fi'
+    )
+    return sshfs_check_command, mkdir_command, mount_command
+
+
 def share_setup_script_lines(
     plan: ValidationPlan,
     backend: str,
@@ -594,8 +672,6 @@ def share_setup_script_lines(
         raise ValueError(f"unsupported share setup backend: {backend}")
 
     local_root = local_cluster_share_root(plan)
-    scheduler_target = _scheduler_ssh_target(plan, local_user=local_user)
-    source = f"{scheduler_target}:{local_root.as_posix()}"
     lines = [
         "# AGILAB cluster-share setup using SSHFS",
         "# Run these from the scheduler/manager host, then run the share check.",
@@ -605,25 +681,15 @@ def share_setup_script_lines(
     ]
     for spec in remote_worker_specs(plan):
         target = _ssh_target(spec, plan)
-        remote_assignment = _remote_share_assignment(plan.remote_cluster_share_setting)
-        sshfs_check_command = 'mkdir -p "$HOME"/.agilab && command -v sshfs >/dev/null'
-        mkdir_command = (
-            "REMOTE_CLUSTER_SHARE="
-            + remote_assignment
-            + '; mkdir -p "$REMOTE_CLUSTER_SHARE"'
-        )
-        mount_command = (
-            "REMOTE_CLUSTER_SHARE="
-            + remote_assignment
-            + '; if mount | grep -F -- "$REMOTE_CLUSTER_SHARE" >/dev/null; then '
-            + 'echo "already mounted: $REMOTE_CLUSTER_SHARE"; else '
-            + f"sshfs {shlex.quote(source)} "
-            + '"$REMOTE_CLUSTER_SHARE"; fi'
+        sshfs_check_command, mkdir_command, mount_command = _remote_share_setup_commands(
+            plan,
+            local_user=local_user,
         )
         lines.extend(
             [
                 f"# Worker {target}",
                 f"ssh {shlex.quote(target)} {shlex.quote(sshfs_check_command)}",
+                f"ssh {shlex.quote(target)} {shlex.quote(_remote_env_update_command(plan))}",
                 f"ssh {shlex.quote(target)} {shlex.quote(mkdir_command)}",
                 f"ssh {shlex.quote(target)} {shlex.quote(mount_command)}",
             ]
@@ -635,6 +701,47 @@ def share_setup_script_lines(
         ]
     )
     return tuple(lines)
+
+
+def apply_share_setup(
+    plan: ValidationPlan,
+    backend: str,
+    *,
+    timeout: int,
+    local_user: str | None = None,
+) -> tuple[ShareSetupSummary, ...]:
+    if backend != "sshfs":
+        raise ValueError(f"unsupported share setup backend: {backend}")
+
+    _validate_distinct_cluster_share(plan)
+    local_root = local_cluster_share_root(plan)
+    local_root.mkdir(parents=True, exist_ok=True)
+    summaries = [
+        ShareSetupSummary(location="local", action="mkdir", path=str(local_root)),
+    ]
+    for spec in remote_worker_specs(plan):
+        target = _ssh_target(spec, plan)
+        sshfs_check_command, mkdir_command, mount_command = _remote_share_setup_commands(
+            plan,
+            local_user=local_user,
+        )
+        _run_command(_ssh_argv(target, sshfs_check_command), timeout=timeout)
+        summaries.append(ShareSetupSummary(location=target, action="check-sshfs", path="sshfs"))
+        completed = _run_command(_ssh_argv(target, _remote_env_update_command(plan)), timeout=timeout)
+        env_path = (completed.stdout.strip().splitlines() or [""])[-1]
+        summaries.append(ShareSetupSummary(location=target, action="write-env", path=env_path))
+        _run_command(_ssh_argv(target, mkdir_command), timeout=timeout)
+        summaries.append(
+            ShareSetupSummary(
+                location=target,
+                action="mkdir",
+                path=plan.remote_cluster_share_setting,
+            )
+        )
+        completed = _run_command(_ssh_argv(target, mount_command), timeout=timeout)
+        mount_output = (completed.stdout.strip().splitlines() or [plan.remote_cluster_share_setting])[-1]
+        summaries.append(ShareSetupSummary(location=target, action="mount", path=mount_output))
+    return tuple(summaries)
 
 
 def sync_remote_inputs(
@@ -976,6 +1083,12 @@ def _print_share_probes(probes: Sequence[ShareProbeSummary]) -> None:
         print(f"  ok: {probe.location} {probe.path}")
 
 
+def _print_share_setup_summaries(summaries: Sequence[ShareSetupSummary]) -> None:
+    print("AGILAB cluster-share setup")
+    for summary in summaries:
+        print(f"  ok: {summary.location} {summary.action} {summary.path}")
+
+
 def _write_summary(path: str, payload: Mapping[str, Any]) -> None:
     if not path:
         return
@@ -1002,6 +1115,29 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "success": True,
                     "setup_backend": args.print_share_setup,
                     "plan": plan.to_dict(),
+                },
+            )
+            return 0
+
+        if args.setup_share:
+            _print_plan(plan, ())
+            setup_summaries = apply_share_setup(
+                plan,
+                args.setup_share,
+                timeout=args.timeout,
+            )
+            _print_share_setup_summaries(setup_summaries)
+            probes = validate_shared_cluster_share(plan, timeout=args.timeout)
+            _print_share_probes(probes)
+            _write_summary(
+                args.summary_json,
+                {
+                    "success": True,
+                    "setup_backend": args.setup_share,
+                    "setup_applied": True,
+                    "plan": plan.to_dict(),
+                    "share_setup": [asdict(summary) for summary in setup_summaries],
+                    "shared_cluster_share": [asdict(probe) for probe in probes],
                 },
             )
             return 0
