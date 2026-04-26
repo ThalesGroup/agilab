@@ -92,8 +92,18 @@ def _detect_cli_version() -> str:
         return ""
 
 
+def _run_doctor(argv: list[str]) -> int:
+    from agilab import cluster_flight_validation
+
+    return cluster_flight_validation.main(argv)
+
+
 def main(argv: list[str] | None = None) -> int:
     _guard_against_uvx_in_source_tree()
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+
+    if raw_argv[:1] == ["doctor"]:
+        return _run_doctor(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."
@@ -109,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # Parse known arguments; extra arguments are captured in `unknown`
-    args, unknown = parser.parse_known_args(argv)
+    args, unknown = parser.parse_known_args(raw_argv)
 
     if args.version:
         version = _detect_cli_version()
