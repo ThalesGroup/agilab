@@ -150,6 +150,13 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     - `AGI_CLUSTER_SHARE=/home/agi/clustershare`
     - `AGI_LOCAL_SHARE=/home/agi/localshare`
     - `sshfs agi@192.168.20.111:/Users/agi/clustershare /home/agi/clustershare`
+- For macOS SSHFS workers:
+  - `command -v brew` can miss Intel Homebrew; check `/usr/local/Homebrew/bin/brew` before assuming Homebrew is absent.
+  - Prefer an interactive package install of FUSE-T SSHFS or macFUSE plus SSHFS; the package step may need an admin password.
+  - Confirm non-interactive SSH can find `sshfs`: `ssh <user>@<worker> 'command -v sshfs'`.
+  - If `sshfs` is under `/usr/local/bin` but not found over SSH, add `/usr/local/bin` in the remote user’s `~/.zshenv`.
+  - Validate reverse SSH too: `ssh <user>@<worker> 'ssh -o BatchMode=yes <manager_user>@<manager_ip> hostname'`.
+  - Fix worker-side `known_hosts` first, then add the worker public key to the manager account if reverse auth fails.
 - After a reinstall, validate both directions explicitly before rerunning installs:
   - `ssh agi@<ip> 'echo ok'`
   - `ssh agi@<ip> 'ssh -o BatchMode=yes agi@<scheduler_ip> hostname'`

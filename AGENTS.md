@@ -335,6 +335,52 @@ or lost its `~/.ssh` state.
    ```
 9. Only after these SSH and share checks pass, rerun `AGI.install(...)` / cluster pipelines.
 
+### 4b. macOS SSHFS cluster-share recovery
+
+Use this when `agilab doctor --setup-share sshfs --apply` fails before the
+sentinel check on a macOS worker.
+
+1. Check the real remote state from a non-interactive SSH command:
+   ```bash
+   ssh <user>@<worker_ip> 'printf "path=%s\n" "$PATH"; command -v sshfs || true; /usr/local/Homebrew/bin/brew --version 2>/dev/null | head -1 || true'
+   ```
+2. On older Intel macOS hosts, Homebrew may exist at `/usr/local/Homebrew/bin/brew`
+   even when `command -v brew` is empty. Use that explicit path before assuming
+   no package manager exists.
+3. Prefer a normal interactive install of FUSE-T SSHFS or macFUSE plus SSHFS:
+   ```bash
+   ssh -t <user>@<worker_ip> 'HOMEBREW_NO_AUTO_UPDATE=1 /usr/local/Homebrew/bin/brew install macos-fuse-t/homebrew-cask/fuse-t-sshfs'
+   ```
+   This can require an admin password because it installs a package.
+4. Ensure `sshfs` is visible to non-interactive zsh. If it is installed under
+   `/usr/local/bin` but remote SSH still cannot find it, add a minimal
+   `~/.zshenv` PATH entry for that user:
+   ```bash
+   case ":$PATH:" in
+     *:/usr/local/bin:*) ;;
+     *) export PATH="/usr/local/bin:$PATH" ;;
+   esac
+   ```
+5. Validate reverse SSH from worker to scheduler/manager. SSHFS mounts are
+   created on the worker, so the worker must authenticate back to the scheduler
+   account used in the mount source:
+   ```bash
+   ssh <user>@<worker_ip> 'ssh -o BatchMode=yes <manager_user>@<manager_ip> hostname'
+   ```
+6. If reverse SSH fails with a host-key error, refresh the manager key on the
+   worker. If it fails with `Permission denied`, add the worker public key to
+   the manager account’s `~/.ssh/authorized_keys`.
+7. Rerun the narrow gate before any full cluster validation:
+   ```bash
+   uv --preview-features extra-build-dependencies run agilab doctor \
+     --cluster \
+     --scheduler <manager_ip> \
+     --workers <user>@<worker_ip> \
+     --cluster-share <local_shared_path> \
+     --remote-cluster-share <remote_mount_path> \
+     --share-check-only
+   ```
+
 <details>
 <summary><strong>Launch matrix (auto-sorted from .idea/runConfigurations)</strong></summary>
 
