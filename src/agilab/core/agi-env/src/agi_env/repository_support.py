@@ -96,6 +96,8 @@ def collect_pythonpath_entries(
             init_file = path / "__init__.py"
         except TypeError:
             return path
+        if path.name == "src":
+            return path
         if init_file.exists():
             return path.parent
         return path
