@@ -4,6 +4,16 @@ All notable public AGILAB changes are summarized here. GitHub Releases remain
 the publication surface for tagged release artifacts; this file gives reviewers
 and adopters a versioned, repository-local upgrade trail.
 
+## [2026.4.27.post2] - 2026-04-26
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26-2
+
+### Changed
+
+- Published AGILAB `2026.4.27.post2` to PyPI for `agi-env`, `agi-node`, `agi-cluster`, `agi-core`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.4.27.post1] - 2026-04-26
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26
@@ -81,3 +91,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.4.27]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.24
 [2026.04.25]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.4.27.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26
+[2026.4.27.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26-2
