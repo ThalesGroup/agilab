@@ -47,24 +47,12 @@ jobs:
             exit 1
           fi
 
-      - name: Sync and install editable core projects
+      - name: Run release preflight tests
         run: |
           set -eux
-          pushd "src/agilab/core/agi-cluster"
-          UV="uv --preview-features extra-build-dependencies"
-          $UV sync --dev
-          $UV pip install -e .
-          $UV pip install -e ../agi-env
-          $UV pip install -e ../agi-node
-          $UV pip install -e ../agi-core
-          popd
-
-      - name: Run tests
-        run: |
-          set -eux
-          pushd "src/agilab/core"
-          uv run --dev --project agi-cluster python -m pytest --maxfail=5 --disable-warnings -v
-          popd
+          uv --preview-features extra-build-dependencies run python tools/workflow_parity.py \
+            --profile agi-env \
+            --profile agi-core-combined
 
 
   release-evidence:

@@ -19,3 +19,12 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
     assert "--artifact-index \"$RUNNER_TEMP/artifact_index.json\"" in text
     assert "public-evidence-sample" in text
     assert "publish-core-packages:\n    needs:\n      - test\n      - release-evidence" in text
+
+
+def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "tools/workflow_parity.py" in text
+    assert "--profile agi-env" in text
+    assert "--profile agi-core-combined" in text
+    assert "uv run --dev --project agi-cluster python -m pytest" not in text
