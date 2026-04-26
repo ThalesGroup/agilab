@@ -50,10 +50,11 @@ def test_fix_windows_drive_returns_non_string_inputs_unchanged(monkeypatch):
 def test_normalize_path_windows_resolve_fallback(monkeypatch):
     original_os_name = os.name
     original_resolve = Path.resolve
+    posix_path_cls = type(Path("/tmp"))
     monkeypatch.setattr(process_support.os, "name", "nt", raising=False)
 
     def _patched_resolve(self, *args, **kwargs):
-        if self == Path("demo"):
+        if self == posix_path_cls("demo"):
             raise OSError("boom")
         return original_resolve(self, *args, **kwargs)
 

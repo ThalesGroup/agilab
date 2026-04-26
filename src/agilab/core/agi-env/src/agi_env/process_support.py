@@ -34,21 +34,20 @@ INLINE_PATH_EXPORT = re.compile(
 PATH_RESOLVE_EXCEPTIONS = (OSError, UnsupportedOperation)
 REGEX_OPERATION_EXCEPTIONS = (re.error, TypeError, ValueError)
 INLINE_EXPORT_EXCEPTIONS = (OSError, TypeError, ValueError)
+_HOST_PATH_CLS = type(Path("."))
 
 
 def normalize_path(path):
     """Return ``path`` coerced to a normalised string representation."""
 
-    if str(path) == "":
-        candidate = Path(".")
-    else:
-        candidate = Path(path)
+    raw_path = "." if str(path) == "" else str(path)
     if os.name == "nt":
         try:
-            candidate = candidate.expanduser().resolve(strict=False)
+            candidate = _HOST_PATH_CLS(raw_path).expanduser().resolve(strict=False)
         except PATH_RESOLVE_EXCEPTIONS:
-            candidate = candidate.expanduser()
+            candidate = _HOST_PATH_CLS(raw_path).expanduser()
         return str(PureWindowsPath(candidate))
+    candidate = Path(raw_path)
     return str(PurePosixPath(candidate))
 
 

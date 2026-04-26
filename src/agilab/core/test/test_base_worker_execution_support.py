@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import itertools
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -721,7 +722,7 @@ def test_baseworker_get_worker_info_creates_temp_share_dir(monkeypatch, tmp_path
         lambda: SimpleNamespace(current=3200),
     )
     monkeypatch.setattr(base_worker_mod.time, "sleep", lambda *_args, **_kwargs: None)
-    time_values = iter([1.0, 2.0])
+    time_values = itertools.count(1.0)
     monkeypatch.setattr(base_worker_mod.time, "time", lambda: next(time_values))
     monkeypatch.setattr(
         base_worker_mod.os,

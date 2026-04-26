@@ -2759,11 +2759,12 @@ def test_build_force_remove_tree_windows_skips_recursive_chmod(tmp_path, monkeyp
     target.mkdir(parents=True, exist_ok=True)
     removed = []
     run_calls = []
+    posix_path_cls = type(Path("/tmp"))
 
     monkeypatch.setattr(build_mod.os, "name", "nt", raising=False)
     monkeypatch.setattr(build_mod.os, "chmod", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(build_mod.subprocess, "run", lambda *args, **kwargs: run_calls.append((args, kwargs)))
-    monkeypatch.setattr(build_mod.shutil, "rmtree", lambda path: removed.append(Path(path)))
+    monkeypatch.setattr(build_mod.shutil, "rmtree", lambda path: removed.append(posix_path_cls(path)))
 
     build_mod._force_remove_tree(target)
 
