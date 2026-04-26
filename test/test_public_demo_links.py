@@ -27,7 +27,7 @@ AGI_CORE_NOTEBOOK_BADGE = "https://img.shields.io/badge/agi--core-notebook-1D4ED
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
-LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.24"
+LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.26"
 
 
 def test_readme_advertises_public_huggingface_space_page() -> None:
