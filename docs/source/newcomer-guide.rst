@@ -85,6 +85,33 @@ example, the scheduler might use ``/Users/agi/clustershare/agilab-two-node``
 while the worker sees the same storage at
 ``/Users/jpm/clustershare/agilab-two-node``.
 
+If you do not know which LAN machines are ready to use, run discovery first:
+
+.. code-block:: bash
+
+   agilab doctor --discover-lan --remote-user jpm
+
+The discovery pass combines passive sources such as ``known_hosts``, SSH config,
+the ARP table, and the local AGILAB LAN cache with a bounded SSH-port scan of
+local private ``/24`` networks. It does not guess passwords. Each reachable node
+is classified by SSH BatchMode auth, operating system, ``python3``, ``uv``,
+``sshfs``, and reverse SSH back to the scheduler when ``--scheduler`` is
+provided. Use ``--json`` or ``--summary-json`` when automation needs the
+machine-readable report:
+
+.. code-block:: bash
+
+   agilab doctor --discover-lan \
+     --remote-user jpm \
+     --scheduler 192.168.3.103 \
+     --cidr 192.168.3.0/24 \
+     --json
+
+Use the reported ``ready`` nodes as explicit ``--workers`` values. If discovery
+reports ``ssh-auth-needed``, ``python-missing``, ``uv-missing``,
+``sshfs-missing``, or ``reverse-ssh-needed``, fix that prerequisite before
+running the cluster-share setup.
+
 If the share is not mounted yet, let the doctor apply the SSHFS setup and then
 validate the shared filesystem contract:
 

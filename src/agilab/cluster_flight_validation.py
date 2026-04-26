@@ -16,6 +16,14 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from agilab.cluster_lan_discovery import (
+    DiscoveryOptions,
+    default_cache_path,
+    discover_lan_nodes,
+    parse_cidr_values,
+    print_discovery_report,
+)
+
 
 DEFAULT_APP = "flight_project"
 DEFAULT_DATASET_REL = Path("localshare/flight_cluster_validation/dataset/csv")
@@ -108,10 +116,10 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run the cluster validation. Required for the doctor subcommand.",
     )
-    parser.add_argument("--scheduler", required=True, help="Scheduler host or IP.")
+    parser.add_argument("--scheduler", default="", help="Scheduler host or IP.")
     parser.add_argument(
         "--workers",
-        required=True,
+        default="",
         help=(
             "Comma-separated workers. Forms: host, host:count, user@host, "
             "or user@host:count."
@@ -210,16 +218,86 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Execute --setup-share changes. Without this flag setup commands are not applied.",
     )
+    parser.add_argument(
+        "--discover-lan",
+        action="store_true",
+        help="Discover candidate LAN cluster nodes and exit.",
+    )
+    parser.add_argument(
+        "--cidr",
+        default="",
+        help="Comma-separated CIDRs to scan during --discover-lan. Defaults to local private /24 networks.",
+    )
+    parser.add_argument(
+        "--passive-only",
+        action="store_true",
+        help="For --discover-lan, skip bounded TCP scanning and use passive sources only.",
+    )
+    parser.add_argument(
+        "--discovery-timeout",
+        type=float,
+        default=0.35,
+        help="TCP timeout in seconds for LAN discovery probes. Default: 0.35.",
+    )
+    parser.add_argument(
+        "--ssh-probe-timeout",
+        type=int,
+        default=5,
+        help="SSH BatchMode probe timeout in seconds for LAN discovery. Default: 5.",
+    )
+    parser.add_argument(
+        "--discovery-limit",
+        type=int,
+        default=256,
+        help="Maximum active LAN hosts to probe. Default: 256.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Print machine-readable JSON for --discover-lan.",
+    )
+    parser.add_argument(
+        "--no-discovery-cache",
+        action="store_true",
+        help="Do not read or write ~/.agilab/lan_nodes.json during --discover-lan.",
+    )
     return parser
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    if not args.cluster:
+    if not args.cluster and not args.discover_lan:
         parser.error("--cluster is required; this doctor currently validates cluster mode only")
+    if args.cluster and not args.discover_lan and not args.scheduler:
+        parser.error("--scheduler is required unless --discover-lan is used")
+    if args.cluster and not args.discover_lan and not args.workers:
+        parser.error("--workers is required unless --discover-lan is used")
     if args.rows_per_aircraft <= 0:
         parser.error("--rows-per-aircraft must be positive")
+    if args.discovery_limit <= 0:
+        parser.error("--discovery-limit must be positive")
+    if args.discovery_timeout <= 0:
+        parser.error("--discovery-timeout must be positive")
+    if args.ssh_probe_timeout <= 0:
+        parser.error("--ssh-probe-timeout must be positive")
+    if args.cidr:
+        try:
+            parse_cidr_values(args.cidr)
+        except ValueError as exc:
+            parser.error(f"--cidr must contain valid CIDR values: {exc}")
+    if not args.discover_lan and (
+        args.cidr or args.passive_only or args.json or args.no_discovery_cache
+    ):
+        parser.error("LAN discovery options require --discover-lan")
+    if args.discover_lan and (
+        args.cluster
+        or args.share_check_only
+        or args.setup_share
+        or args.print_share_setup
+        or args.dry_run
+    ):
+        parser.error("--discover-lan cannot be combined with cluster validation or share setup modes")
     if args.share_check_only and args.dry_run:
         parser.error("--share-check-only cannot be combined with --dry-run")
     if args.share_check_only and args.print_share_setup:
@@ -1100,9 +1178,35 @@ def _write_summary(path: str, payload: Mapping[str, Any]) -> None:
     )
 
 
+def _run_lan_discovery(args: argparse.Namespace) -> dict[str, Any]:
+    options = DiscoveryOptions(
+        cidrs=parse_cidr_values(args.cidr) if args.cidr else (),
+        remote_user=args.remote_user,
+        active=not args.passive_only,
+        tcp_timeout=args.discovery_timeout,
+        ssh_timeout=args.ssh_probe_timeout,
+        max_hosts=args.discovery_limit,
+        scheduler=args.scheduler,
+        use_cache=not args.no_discovery_cache,
+        cache_path=default_cache_path() if not args.no_discovery_cache else None,
+    )
+    report = discover_lan_nodes(options)
+    payload = {"success": True, "lan_discovery": report.to_dict()}
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print_discovery_report(report)
+    return payload
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = _parse_args(argv)
+        if args.discover_lan:
+            payload = _run_lan_discovery(args)
+            _write_summary(args.summary_json, payload)
+            return 0
+
         plan = build_validation_plan(args)
         _configure_process_env(plan)
 
