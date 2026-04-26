@@ -15,15 +15,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v7
         with:
           version: "0.10.7"
 
@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload agi-env coverage to Codecov
         if: always() && hashFiles('coverage-agi-env.xml') != ''
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-env.xml
           flags: agi-env,agi-core
@@ -72,7 +72,7 @@ jobs:
 
       - name: Archive agi-env coverage XML
         if: always() && hashFiles('coverage-agi-env.xml') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-agi-env-xml
           path: coverage-agi-env.xml
@@ -83,15 +83,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v7
         with:
           version: "0.10.7"
 
@@ -133,7 +133,7 @@ jobs:
 
       - name: Upload agi-node coverage to Codecov
         if: always() && hashFiles('coverage-agi-node.xml') != ''
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-node.xml
           flags: agi-node,agi-core
@@ -143,7 +143,7 @@ jobs:
 
       - name: Archive agi-node coverage XML
         if: always() && hashFiles('coverage-agi-node.xml') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-agi-node-xml
           path: coverage-agi-node.xml
@@ -154,15 +154,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v7
         with:
           version: "0.10.7"
 
@@ -204,7 +204,7 @@ jobs:
 
       - name: Upload agi-cluster coverage to Codecov
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-cluster.xml
           flags: agi-cluster,agi-core
@@ -214,7 +214,7 @@ jobs:
 
       - name: Archive agi-cluster coverage XML
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-agi-cluster-xml
           path: coverage-agi-cluster.xml
@@ -225,15 +225,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v7
         with:
           version: "0.10.7"
 
@@ -305,7 +305,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-gui-junit
           path: test-results/junit.xml
@@ -313,7 +313,7 @@ jobs:
 
       - name: Upload agi-gui coverage to Codecov
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-gui.xml
           flags: agi-gui
@@ -323,7 +323,7 @@ jobs:
 
       - name: Archive agi-gui coverage XML
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-agi-gui-xml
           path: coverage-agi-gui.xml
@@ -339,10 +339,10 @@ jobs:
       - agi-gui
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download coverage XML artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: coverage-*-xml
           path: merged-coverage
@@ -360,7 +360,7 @@ jobs:
         run: git diff --exit-code -- badges/
 
       - name: Upload repo-wide agilab coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           files: >-
             ./merged-coverage/coverage-agi-env.xml,
