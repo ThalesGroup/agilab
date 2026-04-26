@@ -75,3 +75,27 @@ def test_stale_xml_messages_flags_xml_older_than_changed_input(tmp_path: Path) -
     assert messages == [
         "agi-gui: coverage-agi-gui.xml is older than changed input src/agilab/orchestrate_execute.py"
     ]
+
+
+def test_stale_xml_messages_ignores_regenerated_badge_outputs(tmp_path: Path) -> None:
+    module = _load_module()
+    source = tmp_path / "src" / "agilab" / "orchestrate_execute.py"
+    badge = tmp_path / "badges" / "coverage-agi-gui.svg"
+    source.parent.mkdir(parents=True)
+    badge.parent.mkdir(parents=True)
+    source.write_text("print('changed')\n", encoding="utf-8")
+    badge.write_text("<svg />\n", encoding="utf-8")
+    xml = tmp_path / "coverage-agi-gui.xml"
+    xml.write_text('<coverage lines-covered="1" lines-valid="1" />\n', encoding="utf-8")
+
+    old = 1_700_000_000
+    os.utime(source, (old + 10, old + 10))
+    os.utime(xml, (old + 20, old + 20))
+    os.utime(badge, (old + 30, old + 30))
+
+    messages = module.stale_xml_messages(
+        {"agi-gui": ["badges/coverage-agi-gui.svg", "src/agilab/orchestrate_execute.py"]},
+        repo_root=tmp_path,
+    )
+
+    assert messages == []
