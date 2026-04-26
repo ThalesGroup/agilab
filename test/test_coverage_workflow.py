@@ -47,6 +47,13 @@ def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
     assert "test/test_about_agilab_helpers.py" in run_block
 
 
+def test_agi_gui_coverage_includes_cluster_doctor_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_cluster_flight_validation.py" in run_block
+    assert "test/test_cluster_lan_discovery.py" in run_block
+
+
 def test_agi_gui_coverage_includes_pipeline_run_controls() -> None:
     run_block = _agi_gui_run_block()
 

@@ -73,6 +73,20 @@ def test_parse_args_requires_cluster_and_positive_rows():
     with pytest.raises(SystemExit):
         cfv._parse_args(["--scheduler", "127.0.0.1", "--workers", "127.0.0.1"])
 
+    args = cfv._parse_args(["--discover-lan"])
+    assert args.discover_lan is True
+    assert args.scheduler == ""
+    assert args.workers == ""
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(["--cluster", "--scheduler", "127.0.0.1", "--workers", "127.0.0.1", "--json"])
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(["--discover-lan", "--share-check-only"])
+
+    with pytest.raises(SystemExit):
+        cfv._parse_args(["--discover-lan", "--cluster"])
+
     with pytest.raises(SystemExit):
         cfv._parse_args(
             [
