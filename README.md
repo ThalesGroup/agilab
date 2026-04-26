@@ -38,24 +38,48 @@
 
 # AGILAB
 
-AGILAB is an open-source platform for reproducible AI and ML workflows.
+AGILAB is an open-source AI experimentation workbench that turns scattered
+notebooks, scripts, environments, workers, and analysis pages into one
+replayable product path.
 
-The core idea is simple: keep one app on one control path from setup to run to visible analysis instead of splitting the workflow across ad hoc scripts, environments, and notebooks.
+It is built for research teams and engineering labs that need a visible path
+from project setup to execution evidence before hardened assets move to a
+deployment-focused MLOps stack.
 
-AGILAB is best evaluated as an AI/ML experimentation workbench, not as a replacement for mature orchestration or production MLOps platforms. Its value is keeping project setup, environment management, execution, and result analysis on one coherent path before hardened assets move to deployment-focused systems.
+<p align="center">
+  <a href="docs/source/diagrams/agilab_readme_tour.svg">
+    <img src="docs/source/diagrams/agilab_readme_tour.svg" alt="AGILAB tour from project selection to orchestration, pipeline replay, and analysis evidence" width="940" />
+  </a>
+</p>
 
-## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
+## Start Here
 
 <p>
   <a href="https://huggingface.co/spaces/jpmorard/agilab"><img src="https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge" alt="AGILAB Space" /></a>
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
 </p>
 
-The public AGILAB Space is the fastest browser preview. It opens the lightweight
-`flight_project` path by default; advanced scenarios such as
-`uav_relay_queue_project` are documented in the demo guide.
+| Goal | Path | Use this when |
+|---|---|---|
+| See the UI now | [Open the AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | You want a browser preview before installing anything. |
+| Prove it locally | [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html) | You want the real source-checkout `flight_project` proof. |
+| Try the smaller API | [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html) | You want the `AgiEnv` / `AGI.run(...)` surface first. |
 
-## First Run
+The hosted Space opens the lightweight `flight_project` path by default. The
+local quick start is the stronger proof because it validates your machine,
+source checkout, built-in app install, execution, and analysis path.
+
+## Why It Exists
+
+AGILAB is not trying to replace Airflow, MLflow, Dagster, Prefect, or a hardened
+production MLOps platform. It fills the earlier lab gap:
+
+- turn exploratory code into an app-shaped experiment path
+- keep setup, execution, artifacts, and analysis together
+- run locally first, then distribute work through isolated workers
+- preserve evidence for comparison, release decisions, and handoff
+
+## First Local Proof
 
 Run the installable product path with the built-in `flight_project`:
 
@@ -75,6 +99,16 @@ uv --preview-features extra-build-dependencies run python tools/newcomer_first_p
 
 The JSON proof writes `run_manifest.json` under `~/log/execute/flight/`. For
 installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
+
+### Legacy macOS note
+
+AGILAB targets current Python 3.11+ environments on macOS, Linux, and Windows
+WSL2. Full dependency validation on macOS 10.15 Catalina and older Intel CPUs
+requires extra constraints because modern `pyarrow` and `polars` wheels may
+expect newer macOS or CPU features. A Catalina-compatible validation used
+Python 3.11, `pyarrow==14.0.2`, `numpy<2`, and `polars-lts-cpu` instead of the
+default `polars` runtime. Treat that as a compatibility workaround, not the
+primary install path.
 
 ## Published Package
 

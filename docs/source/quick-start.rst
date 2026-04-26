@@ -20,6 +20,17 @@ Prerequisites
 - If you plan to explore remote workers later, keep SSH access for that later
   step; it is not needed for the first proof path.
 
+Legacy macOS note
+^^^^^^^^^^^^^^^^^
+
+AGILAB targets current Python 3.11+ environments on macOS, Linux, and Windows
+WSL2. Full dependency validation on macOS 10.15 Catalina and older Intel CPUs
+requires extra constraints because modern ``pyarrow`` and ``polars`` wheels may
+expect newer macOS or CPU features. A Catalina-compatible validation used
+Python 3.11, ``pyarrow==14.0.2``, ``numpy<2``, and ``polars-lts-cpu`` instead
+of the default ``polars`` runtime. Treat that as a compatibility workaround,
+not the primary install path.
+
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
