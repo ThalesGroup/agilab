@@ -86,6 +86,19 @@ def test_parse_args_requires_cluster_and_positive_rows():
             ]
         )
 
+    with pytest.raises(SystemExit):
+        cfv._parse_args(
+            [
+                "--cluster",
+                "--scheduler",
+                "127.0.0.1",
+                "--workers",
+                "127.0.0.1",
+                "--share-check-only",
+                "--dry-run",
+            ]
+        )
+
 
 def test_build_validation_plan_makes_flight_paths_home_relative(tmp_path: Path):
     plan = cfv.build_validation_plan(
@@ -363,6 +376,27 @@ def test_validate_shared_cluster_share_probes_remote_sentinel(tmp_path: Path, mo
     assert calls[0][:4] == ["ssh", "-o", "BatchMode=yes", "jpm@192.168.3.35"]
 
 
+def test_share_setup_script_lines_print_sshfs_commands(tmp_path: Path):
+    plan = cfv.build_validation_plan(
+        _args(
+            scheduler="192.168.3.103",
+            workers="jpm@192.168.3.35",
+            cluster_share="/Users/agi/clustershare/agilab-two-node",
+            remote_cluster_share="/Users/jpm/clustershare/agilab-two-node",
+        ),
+        home=tmp_path,
+        environ={"USER": "agi"},
+    )
+
+    script = "\n".join(cfv.share_setup_script_lines(plan, "sshfs", local_user="agi"))
+
+    assert "sshfs" in script
+    assert "agi@192.168.3.103:/Users/agi/clustershare/agilab-two-node" in script
+    assert "jpm@192.168.3.35" in script
+    assert "--share-check-only" in script
+    assert "--remote-cluster-share /Users/jpm/clustershare/agilab-two-node" in script
+
+
 def test_validation_success_requires_local_visibility_for_remote_runs():
     local_ok = cfv.OutputSummary(
         location="local",
@@ -545,6 +579,82 @@ def test_main_dry_run_writes_summary_and_prints_plan(tmp_path: Path, monkeypatch
     assert payload["dry_run"] is True
     assert payload["plan"]["workers"] == {"127.0.0.1": 1}
     assert "AGILAB Flight cluster validation plan" in capsys.readouterr().out
+
+
+def test_main_share_check_only_skips_dataset_and_writes_summary(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    summary_path = tmp_path / "share.json"
+
+    def fail_dataset(*args, **kwargs):
+        raise AssertionError("share check should not synthesize Flight data")
+
+    monkeypatch.setattr(cfv, "write_synthetic_flight_dataset", fail_dataset)
+    monkeypatch.setattr(
+        cfv,
+        "validate_shared_cluster_share",
+        lambda plan, *, timeout: (
+            cfv.ShareProbeSummary(location="local", path="/shared/sentinel.json"),
+            cfv.ShareProbeSummary(location="jpm@192.168.3.35", path="/remote/sentinel.json"),
+        ),
+    )
+
+    rc = cfv.main(
+        [
+            "--cluster",
+            "--scheduler",
+            "192.168.3.103",
+            "--workers",
+            "jpm@192.168.3.35",
+            "--cluster-share",
+            "shared",
+            "--summary-json",
+            str(summary_path),
+            "--share-check-only",
+        ]
+    )
+
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    output = capsys.readouterr().out
+    assert rc == 0
+    assert payload["share_check_only"] is True
+    assert len(payload["shared_cluster_share"]) == 2
+    assert "AGILAB cluster-share preflight" in output
+    assert "ok: jpm@192.168.3.35" in output
+
+
+def test_main_print_share_setup_skips_dataset(tmp_path: Path, monkeypatch, capsys):
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    def fail_dataset(*args, **kwargs):
+        raise AssertionError("share setup printing should not synthesize Flight data")
+
+    monkeypatch.setattr(cfv, "write_synthetic_flight_dataset", fail_dataset)
+
+    rc = cfv.main(
+        [
+            "--cluster",
+            "--scheduler",
+            "192.168.3.103",
+            "--workers",
+            "jpm@192.168.3.35",
+            "--cluster-share",
+            "/Users/agi/clustershare/agilab-two-node",
+            "--remote-cluster-share",
+            "/Users/jpm/clustershare/agilab-two-node",
+            "--print-share-setup",
+            "sshfs",
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert rc == 0
+    assert "AGILAB cluster-share setup using SSHFS" in output
+    assert "sshfs" in output
+    assert "--share-check-only" in output
 
 
 def test_main_returns_failure_on_validation_error(capsys):

@@ -181,6 +181,17 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Prepare inputs and print the resolved plan without SSH or AGI execution.",
     )
+    parser.add_argument(
+        "--share-check-only",
+        action="store_true",
+        help="Validate only the shared cluster-share sentinel; skip Flight install/run.",
+    )
+    parser.add_argument(
+        "--print-share-setup",
+        choices=("sshfs",),
+        default="",
+        help="Print cluster-share setup commands for the selected mount backend and exit.",
+    )
     return parser
 
 
@@ -191,6 +202,10 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         parser.error("--cluster is required; this doctor currently validates cluster mode only")
     if args.rows_per_aircraft <= 0:
         parser.error("--rows-per-aircraft must be positive")
+    if args.share_check_only and args.dry_run:
+        parser.error("--share-check-only cannot be combined with --dry-run")
+    if args.share_check_only and args.print_share_setup:
+        parser.error("--share-check-only cannot be combined with --print-share-setup")
     return args
 
 
@@ -520,6 +535,108 @@ def validate_shared_cluster_share(plan: ValidationPlan, *, timeout: int) -> tupl
     return tuple(probes)
 
 
+def _script_local_user(environ: Mapping[str, str] | None = None) -> str:
+    environ = environ or os.environ
+    return environ.get("USER") or environ.get("USERNAME") or "agi"
+
+
+def _scheduler_ssh_target(plan: ValidationPlan, *, local_user: str | None = None) -> str:
+    if "@" in plan.scheduler:
+        return plan.scheduler
+    return f"{local_user or _script_local_user()}@{plan.scheduler}"
+
+
+def _remote_share_assignment(setting: str) -> str:
+    cleaned = setting.strip() or "clustershare"
+    if cleaned.startswith("~/"):
+        return '"$HOME"/' + shlex.quote(cleaned[2:])
+    if cleaned == "~":
+        return '"$HOME"'
+    if Path(cleaned).expanduser().is_absolute():
+        return shlex.quote(str(Path(cleaned).expanduser()))
+    return '"$HOME"/' + shlex.quote(cleaned)
+
+
+def _workers_cli_value(plan: ValidationPlan) -> str:
+    values: list[str] = []
+    for spec in plan.worker_specs:
+        user = spec.user or plan.remote_user
+        host = f"{user}@{spec.host}" if user else spec.host
+        values.append(f"{host}:{spec.count}" if spec.count != 1 else host)
+    return ",".join(values)
+
+
+def _share_check_command(plan: ValidationPlan) -> str:
+    parts = [
+        "agilab",
+        "doctor",
+        "--cluster",
+        "--scheduler",
+        plan.scheduler,
+        "--workers",
+        _workers_cli_value(plan),
+        "--cluster-share",
+        plan.local_cluster_share_setting,
+        "--remote-cluster-share",
+        plan.remote_cluster_share_setting,
+        "--share-check-only",
+    ]
+    return " ".join(shlex.quote(part) for part in parts)
+
+
+def share_setup_script_lines(
+    plan: ValidationPlan,
+    backend: str,
+    *,
+    local_user: str | None = None,
+) -> tuple[str, ...]:
+    if backend != "sshfs":
+        raise ValueError(f"unsupported share setup backend: {backend}")
+
+    local_root = local_cluster_share_root(plan)
+    scheduler_target = _scheduler_ssh_target(plan, local_user=local_user)
+    source = f"{scheduler_target}:{local_root.as_posix()}"
+    lines = [
+        "# AGILAB cluster-share setup using SSHFS",
+        "# Run these from the scheduler/manager host, then run the share check.",
+        "# macOS workers need macFUSE + sshfs; Debian/Ubuntu workers need package sshfs.",
+        "set -euo pipefail",
+        f"mkdir -p {shlex.quote(str(local_root))}",
+    ]
+    for spec in remote_worker_specs(plan):
+        target = _ssh_target(spec, plan)
+        remote_assignment = _remote_share_assignment(plan.remote_cluster_share_setting)
+        sshfs_check_command = 'mkdir -p "$HOME"/.agilab && command -v sshfs >/dev/null'
+        mkdir_command = (
+            "REMOTE_CLUSTER_SHARE="
+            + remote_assignment
+            + '; mkdir -p "$REMOTE_CLUSTER_SHARE"'
+        )
+        mount_command = (
+            "REMOTE_CLUSTER_SHARE="
+            + remote_assignment
+            + '; if mount | grep -F -- "$REMOTE_CLUSTER_SHARE" >/dev/null; then '
+            + 'echo "already mounted: $REMOTE_CLUSTER_SHARE"; else '
+            + f"sshfs {shlex.quote(source)} "
+            + '"$REMOTE_CLUSTER_SHARE"; fi'
+        )
+        lines.extend(
+            [
+                f"# Worker {target}",
+                f"ssh {shlex.quote(target)} {shlex.quote(sshfs_check_command)}",
+                f"ssh {shlex.quote(target)} {shlex.quote(mkdir_command)}",
+                f"ssh {shlex.quote(target)} {shlex.quote(mount_command)}",
+            ]
+        )
+    lines.extend(
+        [
+            "# Validate without running Flight install/compute:",
+            _share_check_command(plan),
+        ]
+    )
+    return tuple(lines)
+
+
 def sync_remote_inputs(
     plan: ValidationPlan,
     files: Sequence[Path],
@@ -847,9 +964,16 @@ def _print_plan(plan: ValidationPlan, files: Sequence[Path]) -> None:
     print(f"  remote cluster share: {plan.remote_cluster_share_setting}")
     print(f"  output rel: {plan.output_rel.as_posix()}")
     print("  cluster share contract: remote workers must see the local sentinel and local must see outputs")
-    print("  synthetic inputs:")
-    for file_path in files:
-        print(f"    {file_path}")
+    if files:
+        print("  synthetic inputs:")
+        for file_path in files:
+            print(f"    {file_path}")
+
+
+def _print_share_probes(probes: Sequence[ShareProbeSummary]) -> None:
+    print("AGILAB cluster-share preflight")
+    for probe in probes:
+        print(f"  ok: {probe.location} {probe.path}")
 
 
 def _write_summary(path: str, payload: Mapping[str, Any]) -> None:
@@ -868,6 +992,35 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = _parse_args(argv)
         plan = build_validation_plan(args)
         _configure_process_env(plan)
+
+        if args.print_share_setup:
+            _print_plan(plan, ())
+            print("\n".join(share_setup_script_lines(plan, args.print_share_setup)))
+            _write_summary(
+                args.summary_json,
+                {
+                    "success": True,
+                    "setup_backend": args.print_share_setup,
+                    "plan": plan.to_dict(),
+                },
+            )
+            return 0
+
+        if args.share_check_only:
+            _print_plan(plan, ())
+            probes = validate_shared_cluster_share(plan, timeout=args.timeout)
+            _print_share_probes(probes)
+            _write_summary(
+                args.summary_json,
+                {
+                    "success": True,
+                    "share_check_only": True,
+                    "plan": plan.to_dict(),
+                    "shared_cluster_share": [asdict(probe) for probe in probes],
+                },
+            )
+            return 0
+
         files = write_synthetic_flight_dataset(
             plan.local_dataset_dir,
             aircraft=plan.aircraft,
