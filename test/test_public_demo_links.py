@@ -114,6 +114,24 @@ def test_docs_sidebar_exposes_both_public_demo_lanes() -> None:
     assert "sidebar-visible counterpart" in agilab_demo
 
 
+def test_public_demo_docs_define_single_flight_view_maps_route() -> None:
+    demos = Path("docs/source/demos.rst").read_text(encoding="utf-8")
+    agilab_demo = Path("docs/source/agilab-demo.rst").read_text(encoding="utf-8")
+    normalized_agilab_demo = " ".join(agilab_demo.split())
+
+    assert "``flight_project``" in demos
+    assert "``view_maps`` analysis" in demos
+    assert "``uav_relay_queue_project`` is the UAV Relay Queue RL demo" in demos
+
+    for phrase in (
+        "confirm ``flight_project`` is selected in ``PROJECT``",
+        "inspect the generated execution snippet in ``ORCHESTRATE``",
+        "open ``ANALYSIS`` and finish on the ``view_maps`` operator view",
+        "``ANALYSIS`` opens the ``view_maps`` route without a startup error",
+    ):
+        assert phrase in normalized_agilab_demo
+
+
 def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     readme = README.read_text(encoding="utf-8")
 
