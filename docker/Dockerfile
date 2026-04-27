@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     clang \
     locales \
+    openssh-server \
+    sshpass \
     && rm -rf /var/lib/apt/lists/*
 
 RUN locale-gen en_US.UTF-8
@@ -48,13 +50,19 @@ ENV OLLAMA_HOST="http://ollama:11434"
 RUN mkdir -p /root/.agilab \
     && mkdir -p /root/.local/share/agilab \
     && mkdir -p /root/log/install_logs \
-    && mkdir -p /root/clustershare
+    && mkdir -p /root/clustershare \
+    && mkdir -p /run/sshd \
+    && echo "PermitRootLogin yes"        >> /etc/ssh/sshd_config \
+    && echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config \
+    && echo "StrictModes no"             >> /etc/ssh/sshd_config \
+    && ssh-keygen -A
 
 RUN chmod +x ./install.sh && \
     ./install.sh --install-path /app --source local --install-apps
 
 EXPOSE 8501
 
-CMD ["bash", "-c", \
-    "uv --preview-features extra-build-dependencies run streamlit run \
-     /app/src/agilab/About_agilab.py -- --apps-path /app/src/agilab/apps"]
+COPY docker/scheduler-entrypoint.sh ./scheduler-entrypoint.sh
+RUN chmod +x ./scheduler-entrypoint.sh
+
+ENTRYPOINT ["./scheduler-entrypoint.sh"]
