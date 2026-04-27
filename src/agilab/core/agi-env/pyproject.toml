@@ -45,9 +45,14 @@ dependencies = [
     "psutil",
     "pathspec",
     "py7zr",
-    "numba>=0.61.0",
-    "streamlit>=1.55.0"
+    "numba>=0.61.0"
 ]
+
+[project.optional-dependencies]
+ui = [
+    "streamlit>=1.55.0",
+]
+
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-env"
@@ -157,8 +162,7 @@ dev = [
     "pytest-asyncio",
     "licensecheck",
     "pytest-cov",
-    "streamlit>=1.55.0",
-    "agi-env"
+    "agi-env[ui]"
 ]
 
 [build-system]
