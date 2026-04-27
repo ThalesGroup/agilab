@@ -177,6 +177,7 @@ from agi_gui.pagelib import (
 
 from agi_env import AgiEnv
 from agi_gui.ui_support import store_last_active_app
+from agi_gui.ux_widgets import compact_choice
 
 # ===========================
 # Session State Initialization
@@ -883,12 +884,13 @@ async def _render_run_panels(
     if execution_view_key not in st.session_state:
         st.session_state[execution_view_key] = "Run now"
 
-    execution_view = st.radio(
+    execution_view = compact_choice(
+        st,
         "Execution panel",
-        options=("Run now", "Serve"),
+        ("Run now", "Serve"),
         key=execution_view_key,
-        horizontal=True,
         help="Show either the run panel or the submit panel.",
+        fallback="radio",
     )
     show_run_panel = execution_view == "Run now"
     show_submit_panel = execution_view == "Serve"
