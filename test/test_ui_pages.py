@@ -1203,6 +1203,5 @@ def test_clone_page_exposes_environment_strategy(mock_ui_env):
     at.run()
     assert not at.exception
 
-    sidebar_radios = list(at.sidebar.radio)
-    radio_keys = [radio.key for radio in sidebar_radios]
-    assert "clone_env_strategy" in radio_keys
+    assert "clone_env_strategy" in at.session_state
+    assert at.session_state["clone_env_strategy"] in {"share_source_venv", "detach_venv"}

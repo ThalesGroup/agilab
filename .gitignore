@@ -1,6 +1,7 @@
 coverage.xml
 .coverage
 .coverage-*
+.coverage.*
 coverage-*.xml
 # macOS files (match anywhere)
 .DS_Store
@@ -31,6 +32,13 @@ EGG*
 # Specific src patterns (adjust if needed)
 src/*-info/
 src/*_worker_*/
+
+# Generated local source mirrors/duplicate roots
+Modules/
+src/agi_env/
+src/agi_node/
+src/agilab/apps/src/
+src/agilab/core/agi-node/src/agi_node/agi_dispatcher/src/
 
 # Pytest caches
 .pytest*

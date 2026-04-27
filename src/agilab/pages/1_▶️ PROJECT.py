@@ -46,6 +46,7 @@ from agi_gui.pagelib import (
     render_logo,
     activate_mlflow
 )
+from agi_gui.ux_widgets import compact_choice
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 from streamlit_modal import Modal
@@ -1559,16 +1560,19 @@ def handle_project_creation():
     env = st.session_state["env"]
 
     # choose a template (relative project name, e.g. "flight_project")
-    st.sidebar.selectbox(
+    compact_choice(
+        st.sidebar,
         "Clone source",
         [env.app] + st.session_state["templates"],
         key="clone_src",
         on_change=lambda: on_project_change(
             st.session_state["clone_src"], switch_to_edit=True
         ),
+        inline_limit=5,
     )
 
-    clone_env_strategy = st.sidebar.radio(
+    clone_env_strategy = compact_choice(
+        st.sidebar,
         "Environment strategy",
         list(CLONE_ENV_STRATEGY_LABELS),
         key="clone_env_strategy",
@@ -1577,6 +1581,7 @@ def handle_project_creation():
             "Choose whether the clone should keep sharing the source .venv or "
             "start without any .venv."
         ),
+        fallback="radio",
     )
     st.sidebar.caption(CLONE_ENV_STRATEGY_CAPTIONS[clone_env_strategy])
 
@@ -1771,11 +1776,13 @@ def handle_project_import():
     Handle the 'Import' tab in the sidebar for project loading.
     """
     env = st.session_state["env"]
-    selected_archive = st.sidebar.selectbox(
+    selected_archive = compact_choice(
+        st.sidebar,
         f"From {env.export_apps}",
         st.session_state["archives"],
         key="archive",
         help="Select one of the previously exported projects to load it.",
+        inline_limit=5,
     )
 
     if selected_archive == "-- Select a file --":
@@ -1920,11 +1927,13 @@ def page():
         st.session_state.setdefault(key, value)
 
     # Sidebar: Project selection, creation, loading
-    sidebar_selection = st.sidebar.radio(
+    sidebar_selection = compact_choice(
+        st.sidebar,
         "Project action",
         ["Edit", "Clone", "Rename", "Delete", "Import"],
         key="sidebar_selection",
         label_visibility="collapsed",
+        fallback="radio",
     )
 
     if sidebar_selection == "Edit":
