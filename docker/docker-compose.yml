@@ -4,6 +4,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: agilab
+    hostname: agilab
     ports:
       - "8501:8501"
     environment:
@@ -12,29 +13,80 @@ services:
       - AGI_PYTHON_VERSION=3.13.9
       - AGI_PYTHON_FREE_THREADED=0
       - OLLAMA_HOST=http://agilab-ollama:11434
+      - DOCKER_WORKERS=worker-1,worker-2
     volumes:
       - agilab-logs:/root/log
       - agilab-config:/root/.agilab
+      - cluster-share:/root/clustershare
     networks:
       - agilab-network
     restart: unless-stopped
+
+  worker-1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile-Worker
+    container_name: agilab-worker-1
+    hostname: worker-1
+    environment:
+      - CLUSTER_CREDENTIALS=${CLUSTER_CREDENTIALS:-root:password}
+      - AGI_PYTHON_VERSION=3.13.9
+    devices:
+      - /dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    networks:
+      - agilab-network
+    restart: unless-stopped
+    depends_on:
+      - agilab
+
+  worker-2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile-Worker
+    container_name: agilab-worker-2
+    hostname: worker-2
+    environment:
+      - CLUSTER_CREDENTIALS=${CLUSTER_CREDENTIALS:-root:password}
+      - AGI_PYTHON_VERSION=3.13.9
+    devices:
+      - /dev/fuse
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    networks:
+      - agilab-network
+    restart: unless-stopped
+    depends_on:
+      - agilab
 
   ollama:
     image: ollama/ollama
     container_name: agilab-ollama
     ports:
-      - "11434:11434"
+      - "11435:11434"
     volumes:
       - ollama-models:/root/.ollama
     networks:
       - agilab-network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     restart: unless-stopped
 
 networks:
   agilab-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
 
 volumes:
   agilab-logs:
   agilab-config:
+  cluster-share:
   ollama-models:
