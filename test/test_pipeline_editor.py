@@ -2185,6 +2185,8 @@ def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_pat
 
 
 def test_pycharm_notebook_sitecustomize_patches_debugpy_values_policy(tmp_path):
+    pytest.importorskip("debugpy")
+
     shim_dir = tmp_path / "notebook_dir"
     shim_dir.mkdir(parents=True, exist_ok=True)
     (shim_dir / "sitecustomize.py").write_text(
