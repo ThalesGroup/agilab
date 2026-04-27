@@ -31,7 +31,7 @@ The public AGILAB Space is the fastest browser preview. It opens the lightweight
 | If you want to... | Start here | Stop when... |
 |---|---|---|
 | Preview before installing | AGILAB Space | The hosted UI opens the `flight_project` path. |
-| Prove the local product flow | Source-checkout first run | `tools/newcomer_first_proof.py --json` returns `PASS`. |
+| Prove the local product flow | Source-checkout first run | `agilab first-proof --json` exits 0 and reports `"success": true`. |
 | Check the package entry point | Published package install | `agilab` starts from a clean package install. |
 | Update external apps | App repository installer path | Installed apps resolve to the repository copy. |
 | Contribute changes | `CONTRIBUTING.md` in the source repository | A focused local check passes before PR. |
@@ -54,7 +54,7 @@ Follow the in-app pages from `PROJECT` to `ANALYSIS`. To collect the same check
 as JSON:
 
 ```bash
-uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
+uv --preview-features extra-build-dependencies run agilab first-proof --json
 ```
 
 The JSON proof writes `run_manifest.json` under `~/log/execute/flight/`. For
@@ -64,13 +64,14 @@ installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
 
 ```bash
 pip install agilab
+agilab first-proof --json
 agilab
 ```
 
-This is the thinnest public entry point. Use it for a quick package-level check.
-For the most representative first proof, prefer the source-checkout
-`flight_project` path above because it exercises the same app installation,
-execution, and analysis flow documented in the web UI.
+This is the thinnest public entry point. Use `agilab first-proof --json` for a
+quick package-level check. For the most representative full product run, prefer
+the source-checkout `flight_project` path above because it exercises the same
+app installation, execution, and analysis flow documented in the web UI.
 
 ## App Repository Updates
 

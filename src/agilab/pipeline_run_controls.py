@@ -17,7 +17,8 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 
 from agi_env import AgiEnv
-from agi_env.pagelib import run_lab, save_csv
+from agi_env.snippet_contract import stale_snippet_cleanup_message
+from agi_gui.pagelib import run_lab, save_csv
 
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -451,6 +452,48 @@ def _release_pipeline_run_lock(
         logger.debug("Failed to release pipeline lock %s: %s", lock_path, exc)
 
 
+def _format_legacy_step_refs(stale_steps: List[Dict[str, Any]]) -> str:
+    refs: List[str] = []
+    for item in stale_steps[:5]:
+        step = item.get("step", "?")
+        line = item.get("line", "?")
+        summary = str(item.get("summary") or "").strip()
+        project = str(item.get("project") or "").strip()
+        label = f"step {step}, line {line}"
+        if project:
+            label += f", {project}"
+        if summary:
+            label += f": {summary}"
+        refs.append(label)
+    if len(stale_steps) > 5:
+        refs.append(f"{len(stale_steps) - 5} more")
+    return "; ".join(refs)
+
+
+def _abort_if_legacy_agi_run_steps(
+    index_page: str,
+    steps_file: Path,
+    steps: List[Dict[str, Any]],
+    sequence: List[int],
+    placeholder: Optional[Any],
+) -> bool:
+    """Block stale embedded AGI.run snippets before any pipeline work starts."""
+    stale_steps = _pipeline_steps.find_legacy_agi_run_steps(steps, sequence)
+    if not stale_steps:
+        return False
+
+    detail = _format_legacy_step_refs(stale_steps)
+    message = (
+        "Run pipeline aborted before execution: the selected lab steps contain old "
+        "AGI.run snippets that call the removed keyword API instead of RunRequest. "
+        f"{stale_snippet_cleanup_message([steps_file])} "
+        f"Affected step(s): {detail}."
+    )
+    st.error(message)
+    _push_run_log(index_page, message, placeholder)
+    return True
+
+
 def run_all_steps(
     lab_dir: Path,
     index_page_str: str,
@@ -492,6 +535,9 @@ def run_all_steps(
     sequence = [idx for idx in raw_sequence if 0 <= idx < len(steps)]
     if not sequence:
         sequence = list(range(len(steps)))
+
+    if _abort_if_legacy_agi_run_steps(index_page_str, steps_file, steps, sequence, log_placeholder):
+        return
 
     lock_handle = _acquire_pipeline_run_lock(
         env,

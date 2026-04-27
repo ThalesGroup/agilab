@@ -243,6 +243,7 @@ jobs:
             --junitxml=test-results/junit.xml \
             --ignore=src/agilab/test/test_model_returns_code.py \
             src/agilab/test \
+            src/agilab/lib/agi-gui/test \
             test/test_orchestrate_cluster.py \
             test/test_orchestrate_distribution.py \
             test/test_orchestrate_execute.py \

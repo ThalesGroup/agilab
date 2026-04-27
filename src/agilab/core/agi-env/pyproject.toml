@@ -1,5 +1,5 @@
 [project]
-version = "2026.4.27.post2"
+version = "2026.4.27.post6"
 name = "agi-env"
 description = "Environment bootstrap package for AGILAB with virtualenv, path, and runtime helpers"
 requires-python = ">=3.11"
@@ -29,7 +29,7 @@ keywords = [
     "orchestration",
     "virtual-environments",
     "dependency-management",
-    "streamlit",
+    "headless-runtime",
     "python",
     "python-automation",
     "pycharm"
@@ -46,11 +46,6 @@ dependencies = [
     "pathspec",
     "py7zr",
     "numba>=0.61.0"
-]
-
-[project.optional-dependencies]
-ui = [
-    "streamlit>=1.55.0",
 ]
 
 [project.urls]
@@ -155,6 +150,10 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 
 
+
+
+
+
 [dependency-groups]
 dev = [
     "black",
@@ -162,8 +161,12 @@ dev = [
     "pytest-asyncio",
     "licensecheck",
     "pytest-cov",
-    "agi-env[ui]"
+    "agi-gui"
 ]
+
+[tool.uv.sources.agi-gui]
+    path = "../../lib/agi-gui"
+    editable = true
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

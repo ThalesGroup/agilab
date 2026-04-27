@@ -1,5 +1,6 @@
 import os
 import builtins
+import json
 import runpy
 import shutil
 import subprocess
@@ -13,6 +14,7 @@ import py7zr
 import pytest
 
 from agi_node.agi_dispatcher import build as build_mod
+from agi_node.agi_dispatcher import cython_type_preprocess as type_preprocess_mod
 from agi_node.agi_dispatcher import post_install as post_mod
 from agi_node.agi_dispatcher import pre_install as pre_mod
 
@@ -120,6 +122,7 @@ def test_pre_install_prepare_for_cython_writes_pyx(tmp_path, monkeypatch):
     args = Namespace(
         worker_path=str(worker_py),
         cython_target_src_ext=".py",
+        type_preprocess=False,
         verbose=False,
     )
     pre_mod.prepare_for_cython(args)
@@ -127,6 +130,177 @@ def test_pre_install_prepare_for_cython_writes_pyx(tmp_path, monkeypatch):
     pyx_path = worker_py.with_suffix(".pyx")
     assert pyx_path.exists()
     assert "prepared = 1" in pyx_path.read_text(encoding="utf-8")
+
+
+def test_pre_install_prepare_for_cython_can_type_preprocess(tmp_path, monkeypatch):
+    worker_py = tmp_path / "demo_worker.py"
+    worker_py.write_text(
+        "def run(values):\n"
+        "    total = 0.0\n"
+        "    for i in range(len(values)):\n"
+        "        total += 1.0\n"
+        "    return total\n",
+        encoding="utf-8",
+    )
+    logs = []
+    monkeypatch.setattr(pre_mod.AgiEnv, "log_info", staticmethod(logs.append))
+
+    pre_mod.prepare_for_cython(
+        Namespace(
+            worker_path=str(worker_py),
+            cython_target_src_ext=".py",
+            type_preprocess=True,
+            verbose=False,
+        )
+    )
+
+    pyx_text = worker_py.with_suffix(".pyx").read_text(encoding="utf-8")
+    assert "cdef Py_ssize_t i" in pyx_text
+    assert "cdef double total" in pyx_text
+    assert any("Cython type preprocessing inserted 2" in line for line in logs)
+
+
+def test_cython_type_preprocess_skips_dynamic_reassignments():
+    preview = type_preprocess_mod.analyze_source(
+        "def run(values):\n"
+        "    total = 0.0\n"
+        "    total = values[0]\n"
+        "    ok = True\n"
+        "    return total, ok\n"
+    )
+
+    typed = {(item.name, item.cython_type) for item in preview.typed_variables}
+    skipped = {item.name for item in preview.skipped}
+    assert typed == {("ok", "bint")}
+    assert "total" in skipped
+
+
+def test_cython_type_preprocess_handles_complex_function_shapes():
+    source = (
+        "class Worker:\r\n"
+        "    async def compute(self, values, *extra, scale=1.0, **kw):\r\n"
+        "        \"\"\"Worker method.\"\"\"\r\n"
+        "        total = -1.0\r\n"
+        "        count = len(values)\r\n"
+        "        repeated = len(values) + len(values)\r\n"
+        "        ratio = float(count) + 1.0\r\n"
+        "        ok = count > 0\r\n"
+        "        flag = bool(values)\r\n"
+        "        label = 'demo'\r\n"
+        "        pair_a, pair_b = (1.0, 2.0)\r\n"
+        "        annotated: float = 0.0\r\n"
+        "        maybe: int\r\n"
+        "        total += 1.0\r\n"
+        "        for i in range(count):\r\n"
+        "            total += 1.0\r\n"
+        "        for item in values:\r\n"
+        "            label = item\r\n"
+        "        with context() as resource:\r\n"
+        "            ok = bool(resource)\r\n"
+        "        try:\r\n"
+        "            risky()\r\n"
+        "        except Exception as exc:\r\n"
+        "            label = str(exc)\r\n"
+        "        if (walrus := len(values)):\r\n"
+        "            ok = True\r\n"
+        "        async for record in stream():\r\n"
+        "            label = record\r\n"
+        "        async with manager() as cm:\r\n"
+        "            label = cm\r\n"
+        "        def inner():\r\n"
+        "            nested = 1.0\r\n"
+        "        class Local:\r\n"
+        "            pass\r\n"
+        "        return total\r\n"
+    )
+
+    preview = type_preprocess_mod.analyze_source(source, filename="worker.py")
+    pyx_source = type_preprocess_mod.render_pyx(source, preview)
+    report = preview.to_report(input_path="worker.py", output_path="worker.pyx")
+    typed = {(item.function, item.name, item.cython_type) for item in preview.typed_variables}
+    skipped = {item.name: item.reason for item in preview.skipped}
+
+    assert ("Worker.compute", "count", "Py_ssize_t") in typed
+    assert ("Worker.compute", "flag", "bint") in typed
+    assert ("Worker.compute", "i", "Py_ssize_t") in typed
+    assert ("Worker.compute", "ratio", "double") in typed
+    assert ("Worker.compute", "repeated", "Py_ssize_t") in typed
+    assert "label" in skipped
+    assert "pair_a" in skipped
+    assert "resource" in skipped
+    assert "record" in skipped
+    assert "cm" in skipped
+    assert report["input"] == "worker.py"
+    assert report["output"] == "worker.pyx"
+    assert "\r\n        cdef Py_ssize_t count\r\n" in pyx_source
+
+
+def test_cython_type_preprocess_respects_global_and_nonlocal_targets():
+    source = """
+def use_global():
+    global shared
+    shared = 1.0
+    local = 1.0
+    return local
+
+def outer():
+    value = 0.0
+    def inner():
+        nonlocal value
+        value = 1.0
+        return value
+    return inner()
+"""
+
+    preview = type_preprocess_mod.analyze_source(source)
+    typed = {(item.function, item.name) for item in preview.typed_variables}
+
+    assert ("use_global", "local") in typed
+    assert ("use_global", "shared") not in typed
+    assert ("outer", "value") in typed
+    assert ("outer.inner", "value") not in typed
+
+
+def test_cython_type_preprocess_cli_writes_reports_and_handles_empty_inputs(
+    tmp_path,
+    capsys,
+):
+    input_path = tmp_path / "worker.py"
+    output_path = tmp_path / "worker.pyx"
+    report_path = tmp_path / "report.json"
+    input_path.write_text(
+        "def run(values):\n"
+        "    total = 0.0\n"
+        "    for i in range(len(values)):\n"
+        "        total += 1.0\n"
+        "    return total\n",
+        encoding="utf-8",
+    )
+
+    exit_code = type_preprocess_mod.main(
+        [
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--report-json",
+            str(report_path),
+            "--json",
+            "--fail-on-empty",
+        ]
+    )
+
+    printed_report = json.loads(capsys.readouterr().out)
+    stored_report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert printed_report["input"] == str(input_path)
+    assert stored_report["output"] == str(output_path)
+    assert "cdef double total" in output_path.read_text(encoding="utf-8")
+
+    empty_path = tmp_path / "empty.py"
+    empty_path.write_text("def run():\n    return object()\n", encoding="utf-8")
+
+    assert type_preprocess_mod.main([str(empty_path), "--fail-on-empty"]) == 2
+    assert "def run():" in capsys.readouterr().out
 
 
 def test_pre_install_main_dispatches_prepare_for_cython(monkeypatch, tmp_path):
@@ -1665,6 +1839,10 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
     egg_path = dist_dir / "demo_worker-0.1.0.egg"
     with ZipFile(egg_path, "w") as zf:
         zf.writestr("demo_worker/__init__.py", "")
+        zf.writestr("demo_worker/app_args_form.py", "package_file = True\n")
+        zf.writestr("app_args_form.py", "import streamlit\n")
+        zf.writestr("demo_args_form.py", "import streamlit\n")
+        zf.writestr("__pycache__/app_args_form.cpython-313.pyc", b"")
 
     env = SimpleNamespace(worker_path="workers/demo_worker.py")
     links_created = [tmp_path / "src" / "demo_worker" / "module_link"]
@@ -1694,6 +1872,10 @@ def test_unpack_worker_eggs_uses_default_zipfile_and_logger(tmp_path):
     egg_path = dist_dir / "demo_worker-0.1.0.egg"
     with ZipFile(egg_path, "w") as zf:
         zf.writestr("demo_worker/__init__.py", "")
+        zf.writestr("demo_worker/app_args_form.py", "package_file = True\n")
+        zf.writestr("app_args_form.py", "import streamlit\n")
+        zf.writestr("demo_args_form.py", "import streamlit\n")
+        zf.writestr("__pycache__/app_args_form.cpython-313.pyc", b"")
 
     log_lines: list[str] = []
     build_mod.AgiEnv.logger = SimpleNamespace(
@@ -1706,8 +1888,43 @@ def test_unpack_worker_eggs_uses_default_zipfile_and_logger(tmp_path):
     )
 
     assert (dest_src / "demo_worker" / "__init__.py").exists()
+    assert (dest_src / "demo_worker" / "app_args_form.py").exists()
+    assert not (dest_src / "app_args_form.py").exists()
+    assert not (dest_src / "demo_args_form.py").exists()
+    assert not (dest_src / "__pycache__" / "app_args_form.cpython-313.pyc").exists()
     assert any("mkdir" in line for line in log_lines)
     assert any("Unpacking" in line for line in log_lines)
+    assert any("Removed UI-only worker artifact" in line for line in log_lines)
+
+
+def test_purge_top_level_ui_build_artifacts_removes_stale_build_cache(tmp_path):
+    app_root = tmp_path / "demo_project"
+    build_lib = app_root / "build" / "lib"
+    package_dir = build_lib / "demo_worker"
+    pycache_dir = build_lib / "__pycache__"
+    package_dir.mkdir(parents=True)
+    pycache_dir.mkdir()
+    (build_lib / "app_args_form.py").write_text("import streamlit\n", encoding="utf-8")
+    (build_lib / "demo_args_form.py").write_text("import streamlit\n", encoding="utf-8")
+    (pycache_dir / "app_args_form.cpython-313.pyc").write_bytes(b"")
+    (package_dir / "app_args_form.py").write_text("keep = True\n", encoding="utf-8")
+
+    log_lines = []
+    removed = build_mod._purge_top_level_ui_build_artifacts(
+        app_root,
+        log=SimpleNamespace(info=lambda message, *args: log_lines.append(str(message % args if args else message))),
+    )
+
+    assert {path.name for path in removed} == {
+        "app_args_form.py",
+        "demo_args_form.py",
+        "app_args_form.cpython-313.pyc",
+    }
+    assert not (build_lib / "app_args_form.py").exists()
+    assert not (build_lib / "demo_args_form.py").exists()
+    assert not (pycache_dir / "app_args_form.cpython-313.pyc").exists()
+    assert (package_dir / "app_args_form.py").exists()
+    assert any("Removed UI-only worker artifact" in line for line in log_lines)
 
 
 def test_resolve_worker_python_path_prefers_home_and_falls_back_to_cwd(tmp_path, monkeypatch):
@@ -1762,6 +1979,47 @@ def test_ensure_worker_cython_source_runs_pre_install_when_pyx_missing(tmp_path)
         )
     ]
     assert log_lines and "Ensuring Cython source via pre_install" in str(log_lines[0][0])
+
+
+def test_resolve_cython_type_preprocess_option_from_environment():
+    assert build_mod._resolve_cython_type_preprocess_option(environ={}) is False
+    assert build_mod._resolve_cython_type_preprocess_option(
+        environ={"AGILAB_CYTHON_TYPE_PREPROCESS": "1"}
+    ) is True
+    assert build_mod._resolve_cython_type_preprocess_option(
+        environ={"AGILAB_CYTHON_TYPE_PREPROCESS": "off"}
+    ) is False
+
+
+def test_ensure_worker_cython_source_passes_type_preprocess_when_enabled(tmp_path):
+    worker_py = tmp_path / "workers" / "demo_worker.py"
+    worker_py.parent.mkdir(parents=True, exist_ok=True)
+    worker_py.write_text("value = 1\n", encoding="utf-8")
+    pre_script = tmp_path / "pre_install.py"
+    pre_script.write_text("print('ok')\n", encoding="utf-8")
+    run_calls = []
+
+    build_mod._ensure_worker_cython_source(
+        SimpleNamespace(worker_path=str(worker_py), home_abs=str(tmp_path), verbose=0),
+        resolve_pre_install_script_fn=lambda _env: pre_script,
+        resolve_cython_type_preprocess_option_fn=lambda: True,
+        subprocess_run=lambda cmd, check=True: run_calls.append((cmd, check)),
+        log=SimpleNamespace(info=lambda *args: None),
+    )
+
+    assert run_calls == [
+        (
+            [
+                build_mod.sys.executable,
+                str(pre_script),
+                "remove_decorators",
+                "--worker_path",
+                str(worker_py),
+                "--type-preprocess",
+            ],
+            True,
+        )
+    ]
 
 
 def test_resolve_build_output_normalizes_filelike_path_and_relative_home(tmp_path):
@@ -1834,6 +2092,7 @@ def test_build_setup_kwargs_uses_find_packages_and_ext_modules():
         "version": "0.1.0",
         "package_dir": {"": "src"},
         "packages": ["demo_worker", "demo_worker.subpkg"],
+        "py_modules": [],
         "include_package_data": True,
         "package_data": {"": ["*.7z"]},
         "ext_modules": ["ext_mod"],

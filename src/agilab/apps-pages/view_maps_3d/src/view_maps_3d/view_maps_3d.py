@@ -58,7 +58,7 @@ def _default_app() -> Path | None:
 
 
 from agi_env import AgiEnv
-from agi_env.pagelib import find_files, load_df, render_dataframe_preview, render_logo, _dump_toml_payload
+from agi_gui.pagelib import find_files, load_df, render_dataframe_preview, render_logo, _dump_toml_payload
 import tomllib as _toml
 
 

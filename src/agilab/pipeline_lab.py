@@ -11,13 +11,19 @@ import tomllib
 from code_editor import code_editor
 
 from agi_env import AgiEnv
-from agi_env.pagelib import (
+from agi_gui.pagelib import (
     get_css_text,
     get_custom_buttons,
     get_info_bar,
     render_dataframe_preview,
     run_lab,
     save_csv,
+)
+from agi_env.snippet_contract import (
+    clean_stale_snippet_files,
+    is_generated_agi_snippet,
+    is_supported_snippet_api,
+    stale_snippet_cleanup_message,
 )
 
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
@@ -131,7 +137,20 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
     SAFE_SERVICE_START_TEMPLATE_FILENAME = deps.safe_service_template_filename
     SAFE_SERVICE_START_TEMPLATE_MARKER = deps.safe_service_template_marker
     discovered: List[Path] = []
+    stale_snippets: List[Path] = []
     seen: set[str] = set()
+
+    def _is_current_or_non_agi_snippet(path: Path) -> bool:
+        try:
+            code = path.read_text(encoding="utf-8")
+        except (AttributeError, OSError, RuntimeError, TypeError, UnicodeDecodeError, ValueError):
+            return True
+        if not is_generated_agi_snippet(code):
+            return True
+        if is_supported_snippet_api(code):
+            return True
+        stale_snippets.append(path)
+        return False
 
     def _add_path(candidate: Path) -> None:
         try:
@@ -147,6 +166,8 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
         if unique_key in seen:
             return
         seen.add(unique_key)
+        if not _is_current_or_non_agi_snippet(path):
+            return
         discovered.append(path)
 
     snippet_file = st.session_state.get("snippet_file")
@@ -188,6 +209,21 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
             pass
 
     discovered.sort(key=lambda p: (p.name.lower(), str(p).lower()))
+    if stale_snippets:
+        try:
+            st.warning(stale_snippet_cleanup_message(stale_snippets))
+            if st.button(
+                "Clean stale snippets",
+                key=f"clean_stale_snippets_{getattr(env, 'app', 'app')}",
+                help="Delete only old generated AGI_*.py snippets that no longer match this AGILAB core API.",
+            ):
+                deleted, failed = clean_stale_snippet_files(stale_snippets)
+                if deleted:
+                    st.success(f"Deleted {len(deleted)} stale generated snippet(s).")
+                if failed:
+                    st.warning(f"Could not delete {len(failed)} stale generated snippet(s).")
+        except AttributeError:
+            pass
 
     option_map: Dict[str, Path] = {}
     for path in discovered:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 import pytest
 
@@ -71,6 +72,47 @@ def test_dask_env_prefix_and_scale_cluster_trim_workers():
     AGI._dask_workers = ["10.0.0.1:1001", "10.0.0.1:1002", "10.0.0.2:1001"]
     runtime_distribution_support.scale_cluster(AGI)
     assert AGI._dask_workers == ["10.0.0.1:1001"]
+
+
+def test_sanitize_worker_upload_artifacts_removes_top_level_ui_modules(tmp_path):
+    wenv_abs = tmp_path / "worker_env"
+    src_dir = wenv_abs / "src"
+    dist_dir = wenv_abs / "dist"
+    pycache_dir = src_dir / "__pycache__"
+    package_dir = src_dir / "demo_worker"
+    pycache_dir.mkdir(parents=True)
+    package_dir.mkdir()
+    dist_dir.mkdir()
+    (src_dir / "app_args_form.py").write_text("import streamlit\n", encoding="utf-8")
+    (src_dir / "demo_args_form.py").write_text("import streamlit\n", encoding="utf-8")
+    (pycache_dir / "app_args_form.cpython-313.pyc").write_bytes(b"")
+    (package_dir / "app_args_form.py").write_text("keep = True\n", encoding="utf-8")
+    egg_file = dist_dir / "demo-0.1.0.egg"
+    with ZipFile(egg_file, "w") as zf:
+        zf.writestr("app_args_form.py", "import streamlit\n")
+        zf.writestr("demo_args_form.py", "import streamlit\n")
+        zf.writestr("__pycache__/app_args_form.cpython-313.pyc", b"")
+        zf.writestr("demo_worker/__init__.py", "")
+        zf.writestr("demo_worker/app_args_form.py", "keep = True\n")
+        zf.writestr("EGG-INFO/top_level.txt", "app_args_form\ndemo_args_form\ndemo_worker\n")
+
+    removed = runtime_distribution_support.sanitize_worker_upload_artifacts(wenv_abs)
+
+    assert "app_args_form.py" in removed
+    assert "demo_args_form.py" in removed
+    assert "__pycache__/app_args_form.cpython-313.pyc" in removed
+    assert not (src_dir / "app_args_form.py").exists()
+    assert not (src_dir / "demo_args_form.py").exists()
+    assert not (pycache_dir / "app_args_form.cpython-313.pyc").exists()
+    assert (package_dir / "app_args_form.py").exists()
+    with ZipFile(egg_file) as zf:
+        names = zf.namelist()
+        top_level = zf.read("EGG-INFO/top_level.txt").decode("utf-8")
+    assert "app_args_form.py" not in names
+    assert "demo_args_form.py" not in names
+    assert "__pycache__/app_args_form.cpython-313.pyc" not in names
+    assert "demo_worker/app_args_form.py" in names
+    assert top_level == "demo_worker\n"
 
 
 @pytest.mark.asyncio

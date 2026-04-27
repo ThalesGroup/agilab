@@ -32,6 +32,7 @@ BADGE_PATH_PREFIXES = ("badges/",)
 DOCS_PREFIXES = ("docs/source/",)
 GUI_PREFIXES = (
     "src/agilab/apps-pages/",
+    "src/agilab/lib/",
     "src/agilab/pages/",
 )
 GUI_TOP_LEVEL_PREFIXES = (
@@ -42,6 +43,7 @@ GUI_TOP_LEVEL_PREFIXES = (
 TEST_PREFIXES = (
     "test/",
     "src/agilab/test/",
+    "src/agilab/lib/agi-gui/test/",
     "src/agilab/core/test/",
     "src/agilab/core/agi-env/test/",
 )

@@ -472,6 +472,50 @@ def test_pipeline_run_controls_run_all_steps_handles_early_exits(tmp_path, monke
     assert fake_st.session_state["page__run_logs"].count("Run pipeline invoked.") == 3
 
 
+def test_pipeline_run_controls_blocks_legacy_agi_run_before_lock(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("print('snippet')", encoding="utf-8")
+    fake_st = _FakeStreamlit(
+        {
+            "page": [0, "", "", "", "", "", 0],
+            "page__run_sequence": [0],
+            "snippet_file": str(snippet_file),
+            "lab_selected_venv": "",
+            "lab_selected_engine": "",
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+
+    def fail_if_lock_acquired(*_args, **_kwargs):
+        raise AssertionError("stale snippets must abort before acquiring pipeline lock")
+
+    monkeypatch.setattr(module, "_acquire_pipeline_run_lock", fail_if_lock_acquired)
+
+    stale_code = (
+        "from agi_cluster.agi_distributor import AGI\n"
+        'APP = "flight_trajectory_project"\n'
+        "async def main(app_env):\n"
+        "    res = await AGI.run(app_env, mode=4, data_in='in', data_out='out')\n"
+        "    return res\n"
+    )
+    env = SimpleNamespace(app="demo", active_app="", copilot_file=tmp_path / "copilot.py")
+
+    module.run_all_steps(
+        tmp_path / "lab",
+        "page",
+        tmp_path / "lab_steps.toml",
+        tmp_path / "module.py",
+        env,
+        load_all_steps_fn=lambda *_args: [{"Q": "Generate flight trajectories", "C": stale_code, "R": "agi.run"}],
+        stream_run_command_fn=lambda *_args, **_kwargs: "should not execute",
+    )
+
+    assert any(kind == "error" and "aborted before execution" in message for kind, message in fake_st.messages)
+    assert any("RunRequest" in line and "step 1" in line for line in fake_st.session_state["page__run_logs"])
+    assert not any("Running step 1" in line for line in fake_st.session_state["page__run_logs"])
+
+
 def test_pipeline_run_controls_run_all_steps_without_mlflow_tracks_runpy_no_output(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"

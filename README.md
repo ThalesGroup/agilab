@@ -60,7 +60,7 @@ The public AGILAB Space is the fastest browser preview. It opens the lightweight
 | If you want to... | Start here | Stop when... |
 |---|---|---|
 | Preview before installing | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | The hosted UI opens the `flight_project` path. |
-| Prove the local product flow | [First Run](#first-run) | `tools/newcomer_first_proof.py --json` returns `PASS`. |
+| Prove the local product flow | [First Run](#first-run) | `agilab first-proof --json` exits 0 and reports `"success": true`. |
 | Check the package entry point | [Published Package](#published-package) | `agilab` starts from a clean package install. |
 | Update external apps | [App Repository Updates](#app-repository-updates) | Installed apps resolve to the repository copy. |
 | Contribute changes | [CONTRIBUTING.md](CONTRIBUTING.md) | A focused local check passes before PR. |
@@ -82,7 +82,7 @@ Follow the in-app pages from `PROJECT` to `ANALYSIS`. To collect the same check
 as JSON:
 
 ```bash
-uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
+uv --preview-features extra-build-dependencies run agilab first-proof --json
 ```
 
 The JSON proof writes `run_manifest.json` under `~/log/execute/flight/`. For
@@ -94,12 +94,14 @@ The PyPI package is the thinnest public entry point:
 
 ```bash
 pip install agilab
+agilab first-proof --json
 agilab
 ```
 
-Use it for a quick package-level check. For the most representative first proof,
-prefer the source-checkout `flight_project` path above because it exercises the
-same app installation, execution, and analysis flow documented in the web UI.
+Use `agilab first-proof --json` for a quick package-level check. For the most
+representative full product run, prefer the source-checkout `flight_project`
+path above because it exercises the same app installation, execution, and
+analysis flow documented in the web UI.
 
 ## App Repository Updates
 
@@ -131,6 +133,7 @@ status, and roadmap scope live in:
 <!-- Evidence anchors for local public-evidence checks; rendered docs remain the
 source of truth for explanations.
 tools/newcomer_first_proof.py --json
+agilab first-proof --json
 run_manifest.json
 tools/reduce_contract_benchmark.py --json
 tools/revision_traceability_report.py --compact

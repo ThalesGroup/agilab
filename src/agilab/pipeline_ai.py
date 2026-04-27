@@ -18,7 +18,7 @@ import streamlit as st
 
 from agi_env import AgiEnv, normalize_path
 from agi_env.defaults import get_default_openai_model
-from agi_env.pagelib import activate_gpt_oss
+from agi_gui.pagelib import activate_gpt_oss
 
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)

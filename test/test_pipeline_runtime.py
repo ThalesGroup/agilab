@@ -15,6 +15,8 @@ from unittest.mock import patch
 import pytest
 import types
 
+from agi_env.snippet_contract import CURRENT_SNIPPET_API
+
 
 def _import_agilab_module(module_name: str):
     src_root = Path(__file__).resolve().parents[1] / "src"
@@ -180,6 +182,9 @@ value = "kept"
     assert "SCHEDULER = None" in snippet
     assert "WORKERS = None" in snippet
     assert 'RUN_ARGS = json.loads(' in snippet
+    assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in snippet
+    assert "# app: demo" in snippet
+    assert "require_supported_snippet_api(AGILAB_SNIPPET_API)" in snippet
     # Verify the args round-trip correctly through the generated template
     assert "value" in snippet and "kept" in snippet
 
@@ -1495,6 +1500,56 @@ def test_run_locked_step_handles_missing_snippet_and_lock_refusal(tmp_path, monk
     )
 
     assert fake_streamlit.session_state["page__run_logs"] == []
+
+
+def test_run_locked_step_refuses_stale_generated_agi_snippet(tmp_path, monkeypatch):
+    logs: list[str] = []
+    released: list[str] = []
+    fake_streamlit = types.ModuleType("streamlit")
+    fake_streamlit.session_state = {"snippet_file": str(tmp_path / "snippet.py")}
+    fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+
+    env = SimpleNamespace(
+        app="demo",
+        active_app=tmp_path,
+        apps_path=tmp_path / "apps",
+        copilot_file=tmp_path / "copilot.py",
+    )
+    stale_code = """
+import asyncio
+from agi_cluster.agi_distributor import AGI
+from agi_env import AgiEnv
+
+async def main():
+    await AGI.run(AgiEnv(apps_path="/tmp/apps", app="demo"))
+"""
+
+    pipeline_runtime.run_locked_step(
+        env,
+        "page",
+        tmp_path / "lab_steps.toml",
+        0,
+        {"D": "demo", "Q": "Imported snippet: AGI_run_demo.py", "C": stale_code},
+        {},
+        {},
+        normalize_runtime_path=lambda value: str(value or ""),
+        prepare_run_log_file=lambda *_args, **_kwargs: (None, None),
+        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+        refresh_pipeline_run_lock=lambda *_args, **_kwargs: logs.append("REFRESH"),
+        acquire_pipeline_run_lock=lambda *_args, **_kwargs: "lock",
+        release_pipeline_run_lock=lambda lock, *_args, **_kwargs: released.append(lock),
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        is_valid_runtime_root=lambda *_args, **_kwargs: True,
+        python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
+        stream_run_command=lambda *_args, **_kwargs: logs.append("RUN") or "",
+        step_summary=lambda *_args, **_kwargs: "summary",
+    )
+
+    assert any("AGILAB core snippet API changed" in line for line in logs)
+    assert any("AGI_run_demo.py" in line for line in logs)
+    assert "RUN" not in logs
+    assert released == ["lock"]
 
 
 def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target(tmp_path, monkeypatch):

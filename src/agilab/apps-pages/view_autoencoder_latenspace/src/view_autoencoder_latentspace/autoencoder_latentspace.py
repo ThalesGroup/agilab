@@ -39,7 +39,7 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_env.pagelib import render_logo, find_files, load_df, sidebar_views, on_df_change, initialize_csv_files, _dump_toml_payload
+from agi_gui.pagelib import render_logo, find_files, load_df, sidebar_views, on_df_change, initialize_csv_files, _dump_toml_payload
 import tomllib as _toml
 
 var = ["discrete", "continuous", "lat", "long"]

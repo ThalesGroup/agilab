@@ -16,6 +16,12 @@ and application launch context).
 pip install agi-env
 ```
 
+For Streamlit pages and local UI sessions, install the separate UI package:
+
+```bash
+pip install agi-gui
+```
+
 ## Typical usage
 
 - Create or update environment context for AGILAB sessions.
@@ -25,5 +31,6 @@ pip install agi-env
 ## Repository
 
 - Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-env
+- UI package: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-gui
 - Docs: https://thalesgroup.github.io/agilab
 - Issues: https://github.com/ThalesGroup/agilab/issues

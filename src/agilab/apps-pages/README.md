@@ -3,6 +3,8 @@
 This folder contains Streamlit pages for visualising AGILab data and maps. Each page expects an
 active app and its exported datasets.
 
+Page projects depend on `agi-gui`, the shared UI package under `src/agilab/lib/agi-gui`.
+
 Quick start (dev checkout):
 
 - view_maps

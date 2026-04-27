@@ -47,14 +47,14 @@ import tomllib       # For reading TOML files (read as binary)
 import tomli_w       # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
-from agi_env.pagelib import (
+from agi_gui.pagelib import (
     get_about_content,
     render_logo,
     select_project,
     inject_theme,
 )
 from agi_env import AgiEnv
-from agi_env.ui_support import load_last_active_app, store_last_active_app
+from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
 

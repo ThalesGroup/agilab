@@ -6,12 +6,14 @@ both web-interface primitives (pages, widgets, orchestration helpers) and the
 worker-side orchestration logic. Start here when you need to automate project
 setup, build new nodes, or integrate with the AGILab distributor.
 
-Core packages
--------------
+Core and UI packages
+--------------------
 
 - ``agi_env`` maps the current project into an ``AgiEnv`` object and provides the
-  helper utilities relied upon by web pages (project discovery, dataset
-  export, templating helpers, etc.).
+  headless environment utilities used by apps, workers, and installers.
+- ``agi_gui`` is the UI/page helper package under ``src/agilab/lib/agi-gui``. It
+  depends on ``agi_env`` and adds the Streamlit-facing imports used by AGILAB
+  pages and apps-pages bundles.
 - ``agi_core`` keeps the shared framework contracts intentionally thin; for now,
   the architecture page is more useful than autodoc because the top-level Python
   package exports only a minimal public surface.
@@ -28,6 +30,7 @@ The detailed API reference for each package is available below.
    :maxdepth: 2
 
    agi-env
+   agi-gui
    agi-node
    agi-distributor
 
@@ -36,6 +39,8 @@ Working with the API
 
 - Use ``agi_env.AgiEnv`` inside web pages or utility scripts to access the
   active project structure and configuration.
+- Use ``agi_gui`` imports for Streamlit page helpers so UI dependencies stay
+  outside worker-only runtimes.
 - Derive from ``agi_node`` base classes to implement new DAG steps or worker
   behaviours that can be shipped with your app bundles.
 - Call into ``agi_cluster.agi_distributor.agi_distributor.AGI`` for programmatic

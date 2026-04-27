@@ -34,8 +34,8 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_module = _import_guard_module.import_agilab_module
 
-from agi_env.pagelib import get_about_content, render_logo, inject_theme
-from agi_env.pagelib import (
+from agi_gui.pagelib import get_about_content, render_logo, inject_theme
+from agi_gui.pagelib import (
     background_services_enabled,
     get_classes_name,
     get_fcts_and_attrs_name,
