@@ -226,6 +226,16 @@ def build_parser() -> argparse.ArgumentParser:
             "target tree. This does not require access to the canonical source tree."
         ),
     )
+    parser.add_argument(
+        "--skip-missing-source",
+        action="store_true",
+        help=(
+            "When the canonical source checkout is absent, skip source-to-target "
+            "drift checks instead of failing. This is intended for local hooks "
+            "and public CI jobs that should enforce the comparison only when "
+            "the sibling docs checkout is available."
+        ),
+    )
     return parser
 
 
@@ -245,6 +255,10 @@ def main(argv: list[str] | None = None) -> int:
 
     source = args.source.expanduser().resolve()
     if not source.exists():
+        if args.skip_missing_source and not args.apply:
+            if not args.quiet:
+                print(f"canonical docs source not found; skipped mirror drift check: {source}")
+            return 0
         parser.error(f"source directory not found: {source}")
     if not source.is_dir():
         parser.error(f"source path is not a directory: {source}")
