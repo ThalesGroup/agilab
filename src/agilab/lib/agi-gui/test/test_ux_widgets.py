@@ -116,6 +116,24 @@ def test_compact_choice_uses_native_segmented_control() -> None:
     assert calls[0][2]["key"] == "mode"
 
 
+def test_compact_choice_omits_native_default_when_keyed_state_exists() -> None:
+    calls = []
+
+    class NativeSegmented(_FakeStreamlit):
+        def segmented_control(self, label, options, **kwargs):
+            calls.append((label, list(options), kwargs))
+            return self.session_state["mode"]
+
+    fake = NativeSegmented()
+    fake.session_state["mode"] = "Edit"
+
+    result = ux_widgets.compact_choice(fake, "Mode", ["Run", "Edit"], key="mode", default="Run")
+
+    assert result == "Edit"
+    assert "default" not in calls[0][2]
+    assert calls[0][2]["key"] == "mode"
+
+
 def test_compact_choice_uses_pills_when_segmented_control_missing() -> None:
     calls = []
 
@@ -157,6 +175,53 @@ def test_compact_choice_falls_back_to_selectbox_for_long_option_lists() -> None:
     assert result == "c"
     assert calls[0][0] == "Step"
     assert calls[0][2]["index"] == 1
+
+
+def test_compact_choice_omits_fallback_index_when_keyed_state_exists() -> None:
+    calls = []
+
+    class RadioOnly(_FakeStreamlit):
+        def radio(self, label, options, **kwargs):
+            calls.append((label, list(options), kwargs))
+            return self.session_state["execution"]
+
+    fake = RadioOnly()
+    fake.session_state["execution"] = "Serve"
+
+    result = ux_widgets.compact_choice(
+        fake,
+        "Execution panel",
+        ["Run now", "Serve"],
+        key="execution",
+        fallback="radio",
+        inline_limit=0,
+    )
+
+    assert result == "Serve"
+    assert "index" not in calls[0][2]
+    assert calls[0][2]["key"] == "execution"
+
+
+def test_compact_choice_forwards_disabled_to_fallback_selectbox() -> None:
+    calls = []
+
+    class SelectboxOnly(_FakeStreamlit):
+        def selectbox(self, label, options, **kwargs):
+            calls.append((label, list(options), kwargs))
+            return options[0]
+
+    fake = SelectboxOnly()
+
+    result = ux_widgets.compact_choice(
+        fake,
+        "Runtime",
+        ["default", "custom"],
+        disabled=True,
+        inline_limit=0,
+    )
+
+    assert result == "default"
+    assert calls[0][2]["disabled"] is True
 
 
 def test_confirm_button_fallback_requires_second_confirm_click() -> None:
