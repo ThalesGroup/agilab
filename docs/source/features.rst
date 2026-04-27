@@ -272,6 +272,19 @@ single notebook but less ceremony than a production MLOps platform:
   the same harvest input without querying live provider APIs; opt-in
   ``--live-gitlab`` can query and download a GitLab CI pipeline when operator
   credentials are available
+
+The DAG evidence below has two synchronized projections: a reviewer-facing
+conceptual graph and a runner-facing execution state graph. Both stay anchored
+to the same contract, artifact names, stable node IDs, and provenance.
+
+.. figure:: diagrams/dag_dual_concept.svg
+   :alt: AGILab dual DAG concept showing one contract projected into conceptual and execution views.
+   :align: center
+   :width: 100%
+
+   One DAG contract drives both the readable workflow review view and the
+   executable runner-state view without duplicating the graph.
+
 - the multi-app DAG contract now validates app-to-app dependencies and
   artifact handoffs with ``tools/multi_app_dag_report.py --compact`` against
   ``docs/source/data/multi_app_dag_sample.json``; the first sample links
