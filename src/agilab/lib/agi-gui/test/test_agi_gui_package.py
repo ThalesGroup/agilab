@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.metadata
 import sys
 import tomllib
 from pathlib import Path
@@ -20,7 +21,7 @@ def test_agi_gui_package_metadata_points_to_pages_lib() -> None:
 def test_agi_gui_exposes_version() -> None:
     module = importlib.import_module("agi_gui")
 
-    assert module.__version__ == "2026.4.27.post6"
+    assert module.__version__ == importlib.metadata.version("agi-gui")
 
 
 def test_agi_gui_exports_file_picker_helpers() -> None:
