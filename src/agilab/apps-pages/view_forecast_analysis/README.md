@@ -2,7 +2,7 @@
 
 Reusable Streamlit analysis page for forecast-style artifacts.
 
-Expected files:
+## Expected Inputs
 
 - `forecast_metrics.json`
 - `forecast_predictions.csv`
@@ -13,3 +13,12 @@ Default search root:
 
 The page is intended to support notebook-to-AGILAB migration demos as well as
 small forecasting apps that export the same artifact contract.
+
+Run a compatible project such as `meteo_forecast_project` once from
+`ORCHESTRATE` before opening this page from `ANALYSIS`.
+
+## Development Run
+
+```bash
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py -- --active-app src/agilab/apps/builtin/meteo_forecast_project
+```

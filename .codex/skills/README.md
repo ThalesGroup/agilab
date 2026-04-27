@@ -1,7 +1,8 @@
-# Repo Skills (Claude)
+# Repo Skills (Codex Mirror)
 
-This repository includes a set of **Claude Code Agent Skills** under `.claude/skills/`.
-Each skill is a folder containing a `SKILL.md` entrypoint and any supporting assets.
+This repository includes a Codex-consumable mirror of the shared repo skills
+under `.codex/skills/`. Each skill is a folder containing a `SKILL.md`
+entrypoint and any supporting assets.
 
 These shared repo skills are authored under `.claude/skills/` and mirrored into
 `.codex/skills/` for Codex consumption. The `SKILL.md` format is shared, so one

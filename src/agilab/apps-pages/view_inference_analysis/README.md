@@ -12,12 +12,12 @@ What it does:
   bearer mix, and source-destination flow heatmaps
 - includes an optional advanced custom metric profile for ad hoc inspection
 
-Quick start:
+## Quick Start
 
 - Open it from `ANALYSIS` after selecting a project and AGILAB will pass
   `--active-app` automatically.
 - Standalone dev run:
 
 ```bash
-uv run streamlit run src/agilab/apps-pages/view_inference_analysis/src/view_inference_analysis/view_inference_analysis.py -- --active-app src/agilab/apps/builtin/flight_project
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_inference_analysis/src/view_inference_analysis/view_inference_analysis.py -- --active-app src/agilab/apps/builtin/flight_project
 ```
