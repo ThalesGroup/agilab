@@ -4,11 +4,8 @@
 # Co-author: Codex cli
 """Streamlit entry point for the AGILab interactive lab."""
 import os
-import sys
-import argparse
 import importlib.util
 from pathlib import Path
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
 
@@ -46,6 +43,12 @@ _about_onboarding = import_agilab_module(
     fallback_path=Path(__file__).resolve().parent / "about_page" / "onboarding.py",
     fallback_name="agilab_about_page_onboarding_fallback",
 )
+_about_bootstrap = import_agilab_module(
+    "agilab.about_page.bootstrap",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "about_page" / "bootstrap.py",
+    fallback_name="agilab_about_page_bootstrap_fallback",
+)
 
 _env_file_utils_module = import_agilab_module(
     "agilab.env_file_utils",
@@ -76,13 +79,9 @@ st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
-from agi_gui.pagelib import background_services_enabled, inject_theme, render_sidebar_version
-from agi_env.credential_store_support import (
-    CLUSTER_CREDENTIALS_KEY,
-    KEYRING_SENTINEL,
-    store_cluster_credentials,
-)
-from agi_gui.ui_support import detect_agilab_version, load_last_active_app, store_last_active_app
+from agi_gui.pagelib import inject_theme, render_sidebar_version
+from agi_env.credential_store_support import store_cluster_credentials
+from agi_gui.ui_support import detect_agilab_version, store_last_active_app
 
 FIRST_PROOF_PROJECT = _about_onboarding.FIRST_PROOF_PROJECT
 FIRST_PROOF_COMPATIBILITY_SLICE = _about_onboarding.FIRST_PROOF_COMPATIBILITY_SLICE
@@ -207,84 +206,22 @@ TEMPLATE_ENV_PATH = _about_env_editor.TEMPLATE_ENV_PATH
 
 def _normalize_active_app_input(env, raw_value: Optional[str]) -> Path | None:
     """Return a Path to the requested active app if the input is valid."""
-    if not raw_value:
-        return None
-
-    candidates: list[Path] = []
-    try:
-        provided = Path(raw_value).expanduser()
-    except (TypeError, RuntimeError, ValueError):
-        return None
-
-    # If the user passed a direct path, trust it first.
-    if provided.is_absolute():
-        candidates.append(provided)
-    else:
-        candidates.append((Path.cwd() / provided).resolve())
-        candidates.append((env.apps_path / provided).resolve())
-        candidates.append((env.apps_path / provided.name).resolve())
-
-    # Shortcut when the value already matches a known project name.
-    if raw_value in env.projects:
-        candidates.insert(0, (env.apps_path / raw_value).resolve())
-    elif provided.name in env.projects:
-        candidates.insert(0, (env.apps_path / provided.name).resolve())
-
-    for candidate in candidates:
-        try:
-            candidate = candidate.resolve()
-        except OSError:
-            continue
-        if candidate.exists():
-            return candidate
-    return None
+    return _about_bootstrap.normalize_active_app_input(env, raw_value)
 
 
 def _apply_active_app_request(env, request_value: Optional[str]) -> bool:
     """Switch AgiEnv to the requested app name/path; returns True if a change occurred."""
-    target_path = _normalize_active_app_input(env, request_value)
-    if not target_path:
-        return False
-
-    target_name = target_path.name
-    if target_name == env.app:
-        return False
-    try:
-        env.change_app(target_path)
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        st.warning(f"Unable to switch to project '{target_name}': {exc}")
-        return False
-    return True
+    return _about_bootstrap.apply_active_app_request(env, request_value, streamlit=st)
 
 
 def _sync_active_app_from_query(env) -> None:
     """Honor ?active_app=… query parameter so all pages stay in sync."""
-    try:
-        requested = st.query_params.get("active_app")
-    except (AttributeError, RuntimeError, TypeError):
-        requested = None
-
-    if isinstance(requested, (list, tuple)):
-        requested_value = requested[0] if requested else None
-    else:
-        requested_value = requested
-
-    changed = False
-    if requested_value:
-        changed = _apply_active_app_request(env, str(requested_value))
-
-    if not requested_value or changed or requested_value != env.app:
-        try:
-            st.query_params["active_app"] = env.app
-        except (AttributeError, RuntimeError, TypeError):
-            pass
-
-    # Persist the latest active app for reuse on next launch only if it changed via request
-    try:
-        if changed:
-            store_last_active_app(Path(env.apps_path) / env.app)
-    except (OSError, RuntimeError, TypeError, ValueError):
-            pass
+    _about_bootstrap.sync_active_app_from_query(
+        env,
+        streamlit=st,
+        store_last_active_app=store_last_active_app,
+        apply_request=_apply_active_app_request,
+    )
 
 
 def _sync_env_editor_module() -> None:
@@ -367,6 +304,7 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
     _sync_env_editor_module()
     _about_env_editor._render_env_editor(env, help_file)
 
+
 def page(env: Any) -> None:
     """Render the main landing page controls and footer for the lab."""
     try:
@@ -419,6 +357,7 @@ def main() -> None:
         # Non-fatal: UI will still load without custom theme
         st.warning(f"Theme injection skipped: {e}")
     st.session_state.setdefault("first_run", True)
+    _pre_render_reset()
 
     # Always set background style
     st.markdown(
@@ -431,137 +370,20 @@ def main() -> None:
     # ---- Initialize if needed (on cold start, or if 'env' key lost) ----
     if st.session_state.get("first_run", True) or "env" not in st.session_state:
         with st.spinner("Initializing environment..."):
-            from agi_gui.pagelib import activate_mlflow
-            from agi_env import AgiEnv
-            parser = argparse.ArgumentParser(description="Run the AGI Streamlit App with optional parameters.")
-            parser.add_argument("--apps-path", type=str, help="Where you store your apps (default is ./)",
-                                default=None)
-            parser.add_argument(
-                "--active-app",
-                type=str,
-                help="App name or path to select on startup (mirrors ?active_app= query parameter).",
-                default=None,
+            result = _about_bootstrap.bootstrap_page_environment(
+                streamlit=st,
+                env_file_path=ENV_FILE_PATH,
+                load_env_file_map=_load_env_file_map,
+                logger=logger,
+                apply_active_app_request=_apply_active_app_request,
+                handle_data_root_failure=_handle_data_root_failure,
+                refresh_env_from_file=_refresh_env_from_file,
+                clean_openai_key=_clean_openai_key,
+                store_cluster_credentials=store_cluster_credentials,
             )
-
-            args, _ = parser.parse_known_args()
-            apps_arg = args.apps_path
-
-            if apps_arg is None:
-                # Prefer the user's .env APPS_PATH over the .agilab-path default
-                _env_apps = _load_env_file_map(ENV_FILE_PATH).get("APPS_PATH")
-                if _env_apps and _env_apps.strip() and not _env_apps.startswith("/path/to"):
-                    apps_arg = _env_apps.strip()
-
-            if apps_arg is None:
-                if os.name == "nt":
-                    agi_path_file = Path(os.getenv("LOCALAPPDATA", "")) / "agilab/.agilab-path"
-                else:
-                    agi_path_file = Path.home() / ".local/share/agilab/.agilab-path"
-
-                with open(agi_path_file, "r") as f:
-                    agilab_path = f.read().strip()
-                    if not agilab_path:
-                        raise FileNotFoundError(f"Empty .agilab-path at {agi_path_file}")
-                    before, sep, after = agilab_path.rpartition(".venv")
-                    if not sep:
-                        raise ValueError(
-                            f"Malformed .agilab-path (missing .venv marker): {agilab_path!r}"
-                        )
-                    candidate = Path(before).resolve(strict=False) / "apps"
-                    # Reject paths containing traversal components
-                    try:
-                        candidate = candidate.resolve(strict=False)
-                    except OSError as path_err:
-                        raise ValueError(
-                            f"Cannot resolve apps path from .agilab-path: {path_err}"
-                        ) from path_err
-                    apps_arg = candidate
-
-            if apps_arg is None:
-                st.error("Error: Missing mandatory parameter: --apps-path")
-                sys.exit(1)
-
-            apps_path = Path(apps_arg).expanduser() if apps_arg else None
-            if apps_path is None:
-                st.error("Error: Missing mandatory parameter: --apps-path")
-                sys.exit(1)
-
-            st.session_state["apps_path"] = str(apps_path)
-
-            try:
-                env = AgiEnv(apps_path=apps_path, verbose=1)
-            except RuntimeError as exc:
-                if _handle_data_root_failure(exc, agi_env_cls=AgiEnv):
-                    return
-                raise
-            # Determine requested app: CLI flag first, then last-remembered app.
-            requested_app = args.active_app
-            if not requested_app:
-                last_app = load_last_active_app()
-                if last_app:
-                    requested_app = str(last_app)
-            # Honor the requested app, falling back to env default when invalid.
-            _apply_active_app_request(env, requested_app)
-            env.init_done = True
-            st.session_state['env'] = env
-            st.session_state["IS_SOURCE_ENV"] = env.is_source_env
-            st.session_state["IS_WORKER_ENV"] = env.is_worker_env
-
-            if background_services_enabled() and not st.session_state.get("server_started"):
-                activate_mlflow(env)
-
-            try:
-                store_last_active_app(Path(env.apps_path) / env.app)
-            except (OSError, RuntimeError, TypeError, ValueError):
-                pass
-
-            try:
-                _refresh_env_from_file(env)
-            except (OSError, RuntimeError, TypeError, ValueError):
-                pass
-
-            openai_api_key = _clean_openai_key(env.OPENAI_API_KEY)
-            if not openai_api_key:
-                st.warning("OPENAI_API_KEY not set. OpenAI-powered features will be disabled.")
-
-            cluster_credentials = env.CLUSTER_CREDENTIALS or ""
-
-            # Only persist defaults for keys NOT already saved in the user's
-            # .env file so that values edited via the UI survive page reloads.
-            # Explicit CLI arguments always take priority.
-            _saved = _load_env_file_map(ENV_FILE_PATH)
-
-            def _init_env_var(key: str, value: str, *, force: bool = False) -> None:
-                """Set env var in memory; persist to .env only if missing."""
-                os.environ[key] = value
-                if hasattr(env, "envars") and isinstance(env.envars, dict):
-                    env.envars[key] = value
-                if force or key not in _saved:
-                    AgiEnv.set_env_var(key, value)
-
-            if openai_api_key:
-                _init_env_var("OPENAI_API_KEY", openai_api_key)
-            if cluster_credentials:
-                os.environ[CLUSTER_CREDENTIALS_KEY] = cluster_credentials
-                if hasattr(env, "envars") and isinstance(env.envars, dict):
-                    env.envars[CLUSTER_CREDENTIALS_KEY] = cluster_credentials
-                if CLUSTER_CREDENTIALS_KEY not in _saved:
-                    if store_cluster_credentials(cluster_credentials, environ=os.environ, logger=logger):
-                        AgiEnv.set_env_var(CLUSTER_CREDENTIALS_KEY, KEYRING_SENTINEL)
-                    else:
-                        AgiEnv.set_env_var(CLUSTER_CREDENTIALS_KEY, cluster_credentials)
-            else:
-                _init_env_var(CLUSTER_CREDENTIALS_KEY, "")
-            _init_env_var("IS_SOURCE_ENV", str(int(bool(env.is_source_env))))
-            _init_env_var("IS_WORKER_ENV", str(int(bool(env.is_worker_env))))
-            _init_env_var("APPS_PATH", str(apps_path), force=bool(args.apps_path))
-
-            st.session_state["first_run"] = False
-            try:
-                st.query_params["active_app"] = env.app
-            except (AttributeError, RuntimeError, TypeError):
-                pass
-            if background_services_enabled():
+            if result.handled_recovery:
+                return
+            if result.should_rerun:
                 st.rerun()
                 return
 
