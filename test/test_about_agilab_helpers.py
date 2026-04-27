@@ -172,6 +172,26 @@ def test_page_bootstrap_load_about_page_module_returns_imported_module(monkeypat
     assert page_bootstrap.load_about_page_module(__file__) is imported
 
 
+def test_page_bootstrap_load_about_page_module_falls_back_when_import_lacks_main(
+    tmp_path,
+    monkeypatch,
+):
+    current_file = tmp_path / "agilab" / "pages" / "page.py"
+    about_file = tmp_path / "agilab" / "About_agilab.py"
+    current_file.parent.mkdir(parents=True)
+    about_file.write_text("def main():\n    return 'fallback'\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        page_bootstrap.importlib,
+        "import_module",
+        lambda _name: SimpleNamespace(),
+    )
+
+    result = page_bootstrap.load_about_page_module(current_file)
+
+    assert result.main() == "fallback"
+
+
 def test_page_bootstrap_load_about_page_module_reports_missing_fallback_spec(tmp_path, monkeypatch):
     current_file = tmp_path / "agilab" / "pages" / "page.py"
     current_file.parent.mkdir(parents=True)
@@ -339,6 +359,24 @@ def test_bootstrap_resolve_apps_path_from_agilab_path_file(tmp_path):
     )
 
 
+def test_bootstrap_apps_path_from_agilab_path_file_reports_resolve_error(tmp_path, monkeypatch):
+    bootstrap = about_agilab._about_bootstrap
+    marker = tmp_path / ".agilab-path"
+    marker.write_text(str(tmp_path / "agi-space" / ".venv" / "bin" / "python"), encoding="utf-8")
+
+    class BrokenPath:
+        def __init__(self, value):
+            self.value = value
+
+        def resolve(self, *, strict=False):
+            raise OSError(f"cannot resolve {self.value}")
+
+    monkeypatch.setattr(bootstrap, "Path", BrokenPath)
+
+    with pytest.raises(ValueError, match="Cannot resolve apps path"):
+        bootstrap.apps_path_from_agilab_path_file(marker)
+
+
 def test_bootstrap_default_agilab_path_file_uses_platform_locations(tmp_path):
     bootstrap = about_agilab._about_bootstrap
 
@@ -376,6 +414,25 @@ def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
     assert bootstrap.apply_active_app_request(env, "flight_project", streamlit=fake_st) is True
     assert env.app == "flight_project"
     assert warnings == []
+
+
+def test_bootstrap_normalize_active_app_input_skips_unresolvable_candidate(
+    tmp_path,
+    monkeypatch,
+):
+    bootstrap = about_agilab._about_bootstrap
+    broken_path = tmp_path / "broken_project"
+    original_resolve = bootstrap.Path.resolve
+
+    def fake_resolve(self, *args, **kwargs):
+        if self == broken_path:
+            raise OSError("cannot resolve candidate")
+        return original_resolve(self, *args, **kwargs)
+
+    env = SimpleNamespace(apps_path=tmp_path / "apps", projects=set())
+    monkeypatch.setattr(bootstrap.Path, "resolve", fake_resolve)
+
+    assert bootstrap.normalize_active_app_input(env, str(broken_path)) is None
 
 
 def test_bootstrap_persist_env_preserves_saved_and_writes_missing(tmp_path):
@@ -425,6 +482,40 @@ def test_bootstrap_persist_env_preserves_saved_and_writes_missing(tmp_path):
     assert ("APPS_PATH", str(apps_path)) in calls
 
 
+def test_bootstrap_persist_env_keeps_saved_cluster_credentials(tmp_path):
+    calls: list[tuple[str, str]] = []
+    stored_credentials: list[str] = []
+    bootstrap = about_agilab._about_bootstrap
+
+    class FakeAgiEnv:
+        @staticmethod
+        def set_env_var(key: str, value: str) -> None:
+            calls.append((key, value))
+
+    env = SimpleNamespace(
+        OPENAI_API_KEY="",
+        CLUSTER_CREDENTIALS="cluster:user",
+        is_source_env=False,
+        is_worker_env=True,
+        envars={},
+    )
+
+    openai_missing = bootstrap.persist_bootstrap_env(
+        env,
+        apps_path=tmp_path / "apps",
+        explicit_apps_path=False,
+        saved_env={bootstrap.CLUSTER_CREDENTIALS_KEY: bootstrap.KEYRING_SENTINEL},
+        agi_env_cls=FakeAgiEnv,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda value, **_kwargs: stored_credentials.append(value) or True,
+        environ={},
+    )
+
+    assert openai_missing is True
+    assert stored_credentials == []
+    assert (bootstrap.CLUSTER_CREDENTIALS_KEY, bootstrap.KEYRING_SENTINEL) not in calls
+
+
 def test_bootstrap_stop_startup_with_error_renders_and_stops():
     bootstrap = about_agilab._about_bootstrap
     events: list[tuple[str, str]] = []
@@ -437,6 +528,16 @@ def test_bootstrap_stop_startup_with_error_renders_and_stops():
     bootstrap.stop_startup_with_error(fake_st, "bad startup")
 
     assert events == [("error", "bad startup"), ("stop", "")]
+
+
+def test_bootstrap_stop_startup_with_error_allows_missing_stop():
+    bootstrap = about_agilab._about_bootstrap
+    events: list[str] = []
+    fake_st = SimpleNamespace(error=events.append)
+
+    bootstrap.stop_startup_with_error(fake_st, "bad startup")
+
+    assert events == ["bad startup"]
 
 
 def test_bootstrap_sync_active_app_from_query_updates_query_and_store(tmp_path):
@@ -462,6 +563,23 @@ def test_bootstrap_sync_active_app_from_query_updates_query_and_store(tmp_path):
 
     assert fake_st.query_params["active_app"] == "target"
     assert stored_paths == [apps_path / "target"]
+
+
+def test_bootstrap_sync_active_app_from_query_keeps_matching_query(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    env = SimpleNamespace(apps_path=tmp_path / "apps", app="target")
+    fake_st = SimpleNamespace(query_params={"active_app": "target"})
+    stored_paths: list[Path] = []
+
+    bootstrap.sync_active_app_from_query(
+        env,
+        streamlit=fake_st,
+        store_last_active_app=stored_paths.append,
+        apply_request=lambda _env, _request_value: False,
+    )
+
+    assert fake_st.query_params == {"active_app": "target"}
+    assert stored_paths == []
 
 
 def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
