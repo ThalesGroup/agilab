@@ -128,8 +128,8 @@ def _profile_descriptions() -> dict[str, str]:
     return {
         "agi-env": "Run the local equivalent of the agi-env coverage workflow job.",
         "agi-core-combined": "Run the shared core test suite once and emit both agi-node and agi-cluster coverage XML files.",
-        "agi-node": "Run the local equivalent of the agi-node coverage workflow job.",
-        "agi-cluster": "Run the local equivalent of the agi-cluster coverage workflow job.",
+        "agi-node": "Run the legacy standalone agi-node coverage slice.",
+        "agi-cluster": "Run the legacy standalone agi-cluster coverage slice.",
         "agi-gui": "Run the local equivalent of the agi-gui coverage workflow job.",
         "docs": "Run the local equivalent of the docs-publish Sphinx build.",
         "badges": "Refresh component coverage badges from local coverage XML files.",
@@ -345,6 +345,7 @@ def _agi_core_combined_profile() -> list[CommandSpec]:
                 *base_argv,
                 "run",
                 "--data-file=.coverage.agi-core-combined",
+                "--source=agi_node,agi_cluster",
                 "-m",
                 "pytest",
                 "-q",
@@ -585,7 +586,8 @@ def _shared_core_typing_profile() -> list[CommandSpec]:
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
-    return [name for name in _profile_descriptions() if name != "agi-core-combined"]
+    legacy_standalone_core = {"agi-node", "agi-cluster"}
+    return [name for name in _profile_descriptions() if name not in legacy_standalone_core]
 
 
 def _prepare_command(spec: CommandSpec) -> None:
