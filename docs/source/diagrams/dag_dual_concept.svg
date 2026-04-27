@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">AGILab dual DAG concept</title>
+  <desc id="desc">Diagram showing one AGILab DAG contract projected into a conceptual review view and an execution runner view, linked by stable node IDs, artifact names, status records, and provenance.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f7f6f2; }
+      .title { font: 700 34px Arial, Helvetica, sans-serif; fill: #1c2b32; }
+      .subtitle { font: 500 18px Arial, Helvetica, sans-serif; fill: #4f626b; }
+      .source { fill: #fffdf8; stroke: #60727a; stroke-width: 2.2; }
+      .concept-lane { fill: #e8f3fb; stroke: #2f719f; stroke-width: 2.6; }
+      .execution-lane { fill: #f4efe3; stroke: #98712c; stroke-width: 2.6; }
+      .bridge { fill: #edf3ef; stroke: #5f756e; stroke-width: 2; }
+      .concept-node { fill: #fbfdff; stroke: #2f719f; stroke-width: 2; }
+      .execution-node { fill: #fffdf8; stroke: #98712c; stroke-width: 2; }
+      .source-node { fill: #f8fbfb; stroke: #60727a; stroke-width: 1.8; }
+      .lane-title { font: 700 24px Arial, Helvetica, sans-serif; fill: #20313a; }
+      .lane-note { font: 500 15.5px Arial, Helvetica, sans-serif; fill: #536770; }
+      .box-title { font: 700 17px Arial, Helvetica, sans-serif; fill: #1f2e35; }
+      .body { font: 15.2px Arial, Helvetica, sans-serif; fill: #263942; }
+      .small { font: 13.5px Arial, Helvetica, sans-serif; fill: #56666d; }
+      .label-pill { fill: #fffdf8; stroke: #bac6c7; stroke-width: 1.2; }
+      .label-text { font: 700 12.5px Arial, Helvetica, sans-serif; fill: #51666e; }
+      .chip { fill: #ffffff; stroke: #bac6c7; stroke-width: 1.3; }
+      .chip-text { font: 700 14px Arial, Helvetica, sans-serif; fill: #2f454d; }
+      .concept-arrow { stroke: #2d6f9f; stroke-width: 3.4; fill: none; marker-end: url(#arrowConcept); }
+      .execution-arrow { stroke: #8b6724; stroke-width: 3.4; fill: none; marker-end: url(#arrowExecution); }
+      .source-arrow { stroke: #60727a; stroke-width: 3; fill: none; marker-end: url(#arrowSource); }
+      .trace { stroke: #738987; stroke-width: 2.1; stroke-dasharray: 8 8; fill: none; }
+      .divider { stroke: #c7d1d2; stroke-width: 1.4; stroke-dasharray: 5 7; }
+    </style>
+    <marker id="arrowConcept" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#2d6f9f"/>
+    </marker>
+    <marker id="arrowExecution" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#8b6724"/>
+    </marker>
+    <marker id="arrowSource" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#60727a"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1400" height="900"/>
+
+  <text class="title" x="700" y="56" text-anchor="middle">Dual DAG concept</text>
+  <text class="subtitle" x="700" y="88" text-anchor="middle">One workflow contract, two synchronized projections: readable intent above, executable state below.</text>
+
+  <g id="source-contract">
+    <rect class="source" x="40" y="292" width="220" height="296" rx="24" ry="24"/>
+    <text class="lane-title" x="150" y="330" text-anchor="middle">DAG contract</text>
+    <text class="lane-note" x="150" y="356" text-anchor="middle">single source of truth</text>
+
+    <rect class="source-node" x="70" y="390" width="160" height="44" rx="14" ry="14"/>
+    <text class="chip-text" x="150" y="418" text-anchor="middle">multi_app_dag.json</text>
+
+    <rect class="source-node" x="70" y="454" width="160" height="44" rx="14" ry="14"/>
+    <text class="chip-text" x="150" y="482" text-anchor="middle">pipeline_view.dot</text>
+
+    <rect class="source-node" x="70" y="518" width="160" height="44" rx="14" ry="14"/>
+    <text class="chip-text" x="150" y="546" text-anchor="middle">artifact edges</text>
+  </g>
+
+  <g id="conceptual-view">
+    <rect class="concept-lane" x="330" y="120" width="1020" height="276" rx="28" ry="28"/>
+    <text class="lane-title" x="366" y="160">Conceptual DAG view</text>
+    <text class="lane-note" x="366" y="188">Reviewer-facing: what the workflow means, where artifacts move, and why dependencies exist.</text>
+
+    <rect class="concept-node" x="362" y="228" width="200" height="116" rx="16" ry="16"/>
+    <text class="box-title" x="462" y="260" text-anchor="middle">Domain nodes</text>
+    <text class="body" x="386" y="288">
+      <tspan x="386" dy="0">Apps and named</tspan>
+      <tspan x="386" dy="21">workflow steps.</tspan>
+    </text>
+    <text class="small" x="386" y="326">Example: queue baseline</text>
+
+    <rect class="concept-node" x="615" y="228" width="200" height="116" rx="16" ry="16"/>
+    <text class="box-title" x="715" y="260" text-anchor="middle">Local pipeline</text>
+    <text class="body" x="639" y="288">
+      <tspan x="639" dy="0">App-level steps from</tspan>
+      <tspan x="639" dy="21">pipeline_view files.</tspan>
+    </text>
+    <text class="small" x="639" y="326">Readable expansion</text>
+
+    <rect class="concept-node" x="868" y="228" width="200" height="116" rx="16" ry="16"/>
+    <text class="box-title" x="968" y="260" text-anchor="middle">Artifact handoff</text>
+    <text class="body" x="892" y="288">
+      <tspan x="892" dy="0">Explicit cross-app</tspan>
+      <tspan x="892" dy="21">data dependency.</tspan>
+    </text>
+    <text class="small" x="892" y="326">Example: queue_metrics</text>
+
+    <rect class="concept-node" x="1121" y="228" width="200" height="116" rx="16" ry="16"/>
+    <text class="box-title" x="1221" y="260" text-anchor="middle">Review map</text>
+    <text class="body" x="1145" y="288">
+      <tspan x="1145" dy="0">Clear graph for design,</tspan>
+      <tspan x="1145" dy="21">QA, and documentation.</tspan>
+    </text>
+    <text class="small" x="1145" y="326">No runner side effects</text>
+
+    <path class="concept-arrow" d="M 562 286 L 600 286"/>
+    <path class="concept-arrow" d="M 815 286 L 853 286"/>
+    <path class="concept-arrow" d="M 1068 286 L 1106 286"/>
+  </g>
+
+  <g id="projection-bridge">
+    <rect class="bridge" x="454" y="418" width="780" height="66" rx="22" ry="22"/>
+    <text class="box-title" x="844" y="446" text-anchor="middle">Shared identity keeps both views aligned</text>
+    <text class="body" x="844" y="470" text-anchor="middle">stable node IDs, artifact names, status records, and provenance paths</text>
+
+    <path class="trace" d="M 462 344 L 462 418"/>
+    <path class="trace" d="M 715 344 L 715 418"/>
+    <path class="trace" d="M 968 344 L 968 418"/>
+    <path class="trace" d="M 1221 344 L 1221 418"/>
+    <path class="trace" d="M 462 484 L 462 600"/>
+    <path class="trace" d="M 715 484 L 715 600"/>
+    <path class="trace" d="M 968 484 L 968 600"/>
+    <path class="trace" d="M 1221 484 L 1221 600"/>
+  </g>
+
+  <g id="execution-view">
+    <rect class="execution-lane" x="330" y="500" width="1020" height="276" rx="28" ry="28"/>
+    <text class="lane-title" x="366" y="540">Execution DAG view</text>
+    <text class="lane-note" x="366" y="568">Runner-facing: which units can run, which artifacts are available, and what the operator can do next.</text>
+
+    <rect class="execution-node" x="362" y="608" width="200" height="116" rx="16" ry="16"/>
+    <text class="box-title" x="462" y="640" text-anchor="middle">Plan units</text>
+    <text class="body" x="386" y="668">
+      <tspan x="386" dy="0">Topological order and</tspan>
+      <tspan x="386" dy="21">runnable work items.</tspan>
+    </text>
+    <text class="small" x="386" y="706">pending to runnable</text>
+
+    <rect class="execution-node" x="615" y="608" width="200" height="116" rx="16" ry="16"/>
+    <text class="box-title" x="715" y="640" text-anchor="middle">Readiness gates</text>
+    <text class="body" x="639" y="668">
+      <tspan x="639" dy="0">Blocked until upstream</tspan>
+      <tspan x="639" dy="21">artifacts are present.</tspan>
+    </text>
+    <text class="small" x="639" y="706">runnable or blocked</text>
+
+    <rect class="execution-node" x="868" y="608" width="200" height="116" rx="16" ry="16"/>
+    <text class="box-title" x="968" y="640" text-anchor="middle">Dispatch state</text>
+    <text class="body" x="892" y="668">
+      <tspan x="892" dy="0">Persisted outputs, retry</tspan>
+      <tspan x="892" dy="21">counters, and timing.</tspan>
+    </text>
+    <text class="small" x="892" y="706">auditable state</text>
+
+    <rect class="execution-node" x="1121" y="608" width="200" height="116" rx="16" ry="16"/>
+    <text class="box-title" x="1221" y="640" text-anchor="middle">Operator UI</text>
+    <text class="body" x="1145" y="668">
+      <tspan x="1145" dy="0">Status, dependency view,</tspan>
+      <tspan x="1145" dy="21">retry, and partial rerun.</tspan>
+    </text>
+    <text class="small" x="1145" y="706">actionable controls</text>
+
+    <path class="execution-arrow" d="M 562 666 L 600 666"/>
+    <path class="execution-arrow" d="M 815 666 L 853 666"/>
+    <path class="execution-arrow" d="M 1068 666 L 1106 666"/>
+  </g>
+
+  <g id="source-projections">
+    <path class="source-arrow" d="M 260 392 C 302 392 294 286 348 286"/>
+    <rect class="label-pill" x="268" y="318" width="86" height="28" rx="12" ry="12"/>
+    <text class="label-text" x="311" y="336" text-anchor="middle">review view</text>
+
+    <path class="source-arrow" d="M 260 504 C 302 504 294 666 348 666"/>
+    <rect class="label-pill" x="268" y="574" width="86" height="28" rx="12" ry="12"/>
+    <text class="label-text" x="311" y="592" text-anchor="middle">runner view</text>
+  </g>
+
+  <g id="footer">
+    <line class="divider" x1="56" y1="806" x2="1344" y2="806"/>
+    <rect class="chip" x="182" y="828" width="262" height="42" rx="16" ry="16"/>
+    <text class="chip-text" x="313" y="854" text-anchor="middle">one contract, no duplicate graph</text>
+
+    <rect class="chip" x="486" y="828" width="248" height="42" rx="16" ry="16"/>
+    <text class="chip-text" x="610" y="854" text-anchor="middle">conceptual view explains intent</text>
+
+    <rect class="chip" x="776" y="828" width="238" height="42" rx="16" ry="16"/>
+    <text class="chip-text" x="895" y="854" text-anchor="middle">execution view drives state</text>
+
+    <rect class="chip" x="1056" y="828" width="260" height="42" rx="16" ry="16"/>
+    <text class="chip-text" x="1186" y="854" text-anchor="middle">provenance links them together</text>
+  </g>
+</svg>
