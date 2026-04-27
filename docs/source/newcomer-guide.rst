@@ -26,7 +26,7 @@ Use this order when you need the quickest route to confidence:
      - Exercises the real source-checkout install, run, and analysis path.
    * - Evidence record
      - Keep ``~/log/execute/flight/run_manifest.json`` from
-       ``tools/newcomer_first_proof.py --json``.
+       ``agilab first-proof --json``.
      - Gives support, contributors, and future runs the same baseline.
    * - Expansion
      - Move to notebooks, package mode, private apps, or cluster work.
@@ -76,11 +76,12 @@ Adoption evidence
 
 On April 24, 2026, the source-checkout first-proof smoke passed locally in
 ``5.86s`` against the ``600s`` target. On April 25, 2026, the same
-source-checkout proof passed on a fresh external machine in ``26.87s``:
+source-checkout proof passed on a fresh external machine in ``26.87s``.
+On April 27, 2026, the packaged first-proof CLI passed locally in ``7.04s``:
 
 .. code-block:: bash
 
-   uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
+   uv --preview-features extra-build-dependencies run agilab first-proof --json
 
 The JSON proof writes ``~/log/execute/flight/run_manifest.json``. That manifest
 is the portable first-proof run record: command, Python/platform context, active

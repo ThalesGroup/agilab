@@ -23,7 +23,7 @@ Fast adoption path:
      - Run the source-checkout commands below and stay on the built-in demo.
      - ``PROJECT`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` works locally.
    * - 3. Record evidence
-     - Run ``tools/newcomer_first_proof.py --json``.
+     - Run ``uv --preview-features extra-build-dependencies run agilab first-proof --json``.
      - ``~/log/execute/flight/run_manifest.json`` reports ``status: pass``.
    * - 4. Expand
      - Choose notebook, package, private app, or cluster routes only after the
@@ -66,14 +66,14 @@ machine-readable proof record.
 
    Supported values are ``mistral``, ``qwen``, ``deepseek``, and ``gpt-oss``.
 
-2. **Optional preflight check**::
+2. **Run the first-proof CLI**::
 
-       uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
+       uv --preview-features extra-build-dependencies run agilab first-proof --json
 
-   Use this before launching the UI when you want an explicit source-checkout
-   readiness check. The JSON run writes ``~/log/execute/flight/run_manifest.json``
-   with command, environment, timing, artifact references, and validation
-   status.
+   This is the public first-proof entry point. It checks that AGILAB imports,
+   boots the About and ORCHESTRATE pages against the built-in ``flight_project``,
+   and writes ``~/log/execute/flight/run_manifest.json`` with command,
+   environment, timing, artifact references, and validation status.
 
 3. **Launch the web interface**::
 
@@ -128,7 +128,7 @@ first-proof and compatibility-report commands to rerun.
 If you want the preflight to also check the built-in installer and seeded helper
 scripts::
 
-    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --with-install
+    uv --preview-features extra-build-dependencies run agilab first-proof --with-install
 
 The troubleshooting page covers the common first-run failures:
 
@@ -166,6 +166,7 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
     uv venv
     source .venv/bin/activate
     uv pip install agilab
+    agilab first-proof --json
     uv run agilab
 
 **agi-core demo**:
