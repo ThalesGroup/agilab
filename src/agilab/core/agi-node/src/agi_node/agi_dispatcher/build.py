@@ -314,6 +314,7 @@ def _build_worker_extension(
 
 _CYTHON_CACHE_DISABLED_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
 _CYTHON_CACHE_ENABLED_VALUES = {"1", "true", "yes", "on", "enable", "enabled"}
+_CYTHON_TYPE_PREPROCESS_ENV = "AGILAB_CYTHON_TYPE_PREPROCESS"
 _TOP_LEVEL_UI_MODULE_PATTERNS = ("app_args_form.py", "*_args_form.py")
 _TOP_LEVEL_UI_BYTECODE_PATTERNS = ("app_args_form.*.pyc", "*_args_form.*.pyc")
 
@@ -334,6 +335,22 @@ def _resolve_cython_cache_option(
     if raw_value.lower() in _CYTHON_CACHE_DISABLED_VALUES:
         return False
     return str(path_cls(raw_value).expanduser())
+
+
+def _resolve_cython_type_preprocess_option(
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> bool:
+    """Return whether generated .pyx files should receive conservative cdefs."""
+    if environ is None:
+        environ = os.environ
+
+    raw_value = environ.get(_CYTHON_TYPE_PREPROCESS_ENV, "").strip().lower()
+    if raw_value in _CYTHON_CACHE_ENABLED_VALUES:
+        return True
+    if raw_value in _CYTHON_CACHE_DISABLED_VALUES:
+        return False
+    return False
 
 
 def _cythonize_worker_extension(
@@ -481,6 +498,7 @@ def _build_pre_install_command(
     pre_install_script: Path,
     worker_py: Path,
     verbose: int | bool,
+    type_preprocess: bool = False,
 ) -> list[str]:
     cmd = [
         sys.executable,
@@ -489,6 +507,8 @@ def _build_pre_install_command(
         "--worker_path",
         str(worker_py),
     ]
+    if type_preprocess:
+        cmd.append("--type-preprocess")
     if verbose:
         cmd.append("--verbose")
     return cmd
@@ -498,11 +518,14 @@ def _ensure_worker_cython_source(
     env,
     *,
     resolve_pre_install_script_fn=None,
+    resolve_cython_type_preprocess_option_fn=None,
     subprocess_run=None,
     log=None,
 ) -> None:
     if resolve_pre_install_script_fn is None:
         resolve_pre_install_script_fn = _resolve_pre_install_script
+    if resolve_cython_type_preprocess_option_fn is None:
+        resolve_cython_type_preprocess_option_fn = _resolve_cython_type_preprocess_option
     if subprocess_run is None:
         subprocess_run = subprocess.run
     if log is None:
@@ -518,6 +541,7 @@ def _ensure_worker_cython_source(
         pre_install_script=pre_install_script,
         worker_py=worker_py,
         verbose=env.verbose,
+        type_preprocess=resolve_cython_type_preprocess_option_fn(),
     )
     log.info("Ensuring Cython source via pre_install: %s", " ".join(pre_cmd))
     subprocess_run(pre_cmd, check=True)

@@ -13,6 +13,7 @@ import py7zr
 import pytest
 
 from agi_node.agi_dispatcher import build as build_mod
+from agi_node.agi_dispatcher import cython_type_preprocess as type_preprocess_mod
 from agi_node.agi_dispatcher import post_install as post_mod
 from agi_node.agi_dispatcher import pre_install as pre_mod
 
@@ -120,6 +121,7 @@ def test_pre_install_prepare_for_cython_writes_pyx(tmp_path, monkeypatch):
     args = Namespace(
         worker_path=str(worker_py),
         cython_target_src_ext=".py",
+        type_preprocess=False,
         verbose=False,
     )
     pre_mod.prepare_for_cython(args)
@@ -127,6 +129,49 @@ def test_pre_install_prepare_for_cython_writes_pyx(tmp_path, monkeypatch):
     pyx_path = worker_py.with_suffix(".pyx")
     assert pyx_path.exists()
     assert "prepared = 1" in pyx_path.read_text(encoding="utf-8")
+
+
+def test_pre_install_prepare_for_cython_can_type_preprocess(tmp_path, monkeypatch):
+    worker_py = tmp_path / "demo_worker.py"
+    worker_py.write_text(
+        "def run(values):\n"
+        "    total = 0.0\n"
+        "    for i in range(len(values)):\n"
+        "        total += 1.0\n"
+        "    return total\n",
+        encoding="utf-8",
+    )
+    logs = []
+    monkeypatch.setattr(pre_mod.AgiEnv, "log_info", staticmethod(logs.append))
+
+    pre_mod.prepare_for_cython(
+        Namespace(
+            worker_path=str(worker_py),
+            cython_target_src_ext=".py",
+            type_preprocess=True,
+            verbose=False,
+        )
+    )
+
+    pyx_text = worker_py.with_suffix(".pyx").read_text(encoding="utf-8")
+    assert "cdef Py_ssize_t i" in pyx_text
+    assert "cdef double total" in pyx_text
+    assert any("Cython type preprocessing inserted 2" in line for line in logs)
+
+
+def test_cython_type_preprocess_skips_dynamic_reassignments():
+    preview = type_preprocess_mod.analyze_source(
+        "def run(values):\n"
+        "    total = 0.0\n"
+        "    total = values[0]\n"
+        "    ok = True\n"
+        "    return total, ok\n"
+    )
+
+    typed = {(item.name, item.cython_type) for item in preview.typed_variables}
+    skipped = {item.name for item in preview.skipped}
+    assert typed == {("ok", "bint")}
+    assert "total" in skipped
 
 
 def test_pre_install_main_dispatches_prepare_for_cython(monkeypatch, tmp_path):
@@ -1805,6 +1850,47 @@ def test_ensure_worker_cython_source_runs_pre_install_when_pyx_missing(tmp_path)
         )
     ]
     assert log_lines and "Ensuring Cython source via pre_install" in str(log_lines[0][0])
+
+
+def test_resolve_cython_type_preprocess_option_from_environment():
+    assert build_mod._resolve_cython_type_preprocess_option(environ={}) is False
+    assert build_mod._resolve_cython_type_preprocess_option(
+        environ={"AGILAB_CYTHON_TYPE_PREPROCESS": "1"}
+    ) is True
+    assert build_mod._resolve_cython_type_preprocess_option(
+        environ={"AGILAB_CYTHON_TYPE_PREPROCESS": "off"}
+    ) is False
+
+
+def test_ensure_worker_cython_source_passes_type_preprocess_when_enabled(tmp_path):
+    worker_py = tmp_path / "workers" / "demo_worker.py"
+    worker_py.parent.mkdir(parents=True, exist_ok=True)
+    worker_py.write_text("value = 1\n", encoding="utf-8")
+    pre_script = tmp_path / "pre_install.py"
+    pre_script.write_text("print('ok')\n", encoding="utf-8")
+    run_calls = []
+
+    build_mod._ensure_worker_cython_source(
+        SimpleNamespace(worker_path=str(worker_py), home_abs=str(tmp_path), verbose=0),
+        resolve_pre_install_script_fn=lambda _env: pre_script,
+        resolve_cython_type_preprocess_option_fn=lambda: True,
+        subprocess_run=lambda cmd, check=True: run_calls.append((cmd, check)),
+        log=SimpleNamespace(info=lambda *args: None),
+    )
+
+    assert run_calls == [
+        (
+            [
+                build_mod.sys.executable,
+                str(pre_script),
+                "remove_decorators",
+                "--worker_path",
+                str(worker_py),
+                "--type-preprocess",
+            ],
+            True,
+        )
+    ]
 
 
 def test_resolve_build_output_normalizes_filelike_path_and_relative_home(tmp_path):
