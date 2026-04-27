@@ -3,14 +3,13 @@ name = "view-maps"
 version = "2025.12.12"
 requires-python = ">=3.13"
 dependencies = [
-    "streamlit>=1.56.0",
-    "watchdog>=6.0.0",
-    "agi-env",
+    "agi-gui",
     "agi-node",
     "plotly>=6.3.0",
     "sqlalchemy>=2.0.43",
 ]
 
 [tool.uv.sources]
+agi-gui = { path = "../../lib/agi-gui", editable = true }
 agi-env = { path = "../../core/agi-env", editable = true }
 agi-node = { path = "../../core/agi-node", editable = true }

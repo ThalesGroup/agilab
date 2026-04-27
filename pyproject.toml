@@ -1,5 +1,5 @@
 [project]
-version = "2026.4.27.post2"
+version = "2026.4.27.post6"
 name = "agilab"
 description = "AGILAB is an end-to-end experimentation platform linking interactive development with scalable, reproducible execution orchestration."
 requires-python = ">=3.11"
@@ -36,7 +36,7 @@ keywords = [
     "jupyter",
     "ci-cd"
 ]
-dependencies = ["astor", "asyncssh", "fastparquet", "geojson", "geopy", "humanize", "jupyter-ai", "keras", "matplotlib", "mlflow", "networkx", "noise", "numba>=0.61.0", "numpy>=1.14.1", "openai", "pathspec", "plotly", "polars", "pulp", "py7zr", "scipy==1.16.1", "seaborn", "simpy>=4.1,<5", "skforecast>=0.19,<0.20", "streamlit>=1.56.0", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "tomli", "tomli_w", "watchdog", "sgp4", "agi-core==2026.4.27.post2", "agi-env[ui]==2026.4.27.post2", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
+dependencies = ["astor", "asyncssh", "fastparquet", "geojson", "geopy", "humanize", "jupyter-ai", "keras", "matplotlib", "mlflow", "networkx", "noise", "numba>=0.61.0", "numpy>=1.14.1", "openai", "pathspec", "plotly", "polars", "pulp", "py7zr", "scipy==1.16.1", "seaborn", "simpy>=4.1,<5", "skforecast>=0.19,<0.20", "tomli", "tomli_w", "sgp4", "agi-core==2026.4.27.post6", "agi-gui==2026.4.27.post6", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -51,6 +51,14 @@ agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
 offline = ["gpt-oss>=0.0.8; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "accelerate>=0.34.2; python_version >= '3.12'"]
+
+
+
+
+
+
+
+
 
 
 
@@ -177,6 +185,10 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/core/agi-env"
     editable = true
 
+[tool.uv.sources.agi-gui]
+    path = "./src/agilab/lib/agi-gui"
+    editable = true
+
 [tool.uv.sources.agi-node]
     path = "./src/agilab/core/agi-node"
     editable = true
@@ -214,6 +226,7 @@ agilab = [
     "resources/*.*",
     "resources/help/*",
     "pages/*.py",
+    "apps/install.py",
     "apps/builtin/*/pyproject.toml",
     "apps/builtin/*/README.md",
     "apps/builtin/*/lab_steps.toml",
@@ -267,12 +280,14 @@ testpaths = [
   "test",
   "src/agilab/core/test",
   "src/agilab/core/agi-env/test",
+  "src/agilab/lib/agi-gui/test",
 ]
 
 # Make the core packages importable when running pytest from the repo root
 pythonpath = [
   "src",
   "src/agilab/core/agi-env/src",
+  "src/agilab/lib/agi-gui/src",
   "src/agilab/core/agi-node/src",
   "src/agilab/core/agi-cluster/src",
 ]
@@ -294,13 +309,13 @@ filterwarnings = [
 ]
 
 addopts = [
-  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_cluster", "--cov=agi_node", "--cov=src/agilab/apps-pages",
+  "--cov=agilab", "--cov=agi_core", "--cov=agi_env", "--cov=agi_gui", "--cov=agi_cluster", "--cov=agi_node", "--cov=src/agilab/apps-pages",
   "--cov-report=term-missing:skip-covered"
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["agilab", "agi_core", "agi_env", "agi_cluster", "agi_node", "src/agilab/apps-pages"]
+source = ["agilab", "agi_core", "agi_env", "agi_gui", "agi_cluster", "agi_node", "src/agilab/apps-pages"]
 disable_warnings = ["module-not-imported"]
 
 [tool.coverage.report]

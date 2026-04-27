@@ -7,7 +7,7 @@ import pytest
 from packaging.requirements import Requirement
 from packaging.version import Version
 
-PKGS = ["agilab", "agi-core", "agi-env", "agi-cluster", "agi-node"]
+PKGS = ["agilab", "agi-core", "agi-env", "agi-gui", "agi-cluster", "agi-node"]
 
 
 def _fetch_json(url: str) -> dict:

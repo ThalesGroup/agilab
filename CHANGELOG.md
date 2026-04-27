@@ -29,8 +29,51 @@ and adopters a versioned, repository-local upgrade trail.
   coverage XML files.
 - Reordered the landing-page first-proof wizard around the immediate next
   action and progress summary before diagnostics.
-- Split `agi-env` runtime dependencies so headless core installs no longer pull
-  Streamlit unless consumers request the `agi-env[ui]` extra.
+- Split `agi-env` runtime dependencies so headless worker installs no longer pull
+  Streamlit; UI consumers now depend on the separate `agi-gui` package under
+  `src/agilab/lib/agi-gui`.
+- Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
+  ask users to clean up and regenerate after core API changes.
+
+## [2026.4.27.post6] - 2026-04-27
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-4
+
+### Changed
+
+- Published AGILAB `2026.4.27.post6` to PyPI for `agi-env`, `agi-gui`, `agi-node`, `agi-cluster`, `agi-core`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.4.27.post5] - 2026-04-27
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-3
+
+### Changed
+
+- Published AGILAB `2026.4.27.post5` to PyPI for `agi-env`, `agi-node`, `agi-cluster`, `agi-core`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.4.27.post4] - 2026-04-27
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-2
+
+### Changed
+
+- Published AGILAB `2026.4.27.post4` to PyPI for `agi-env`, `agi-node`, `agi-cluster`, `agi-core`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.4.27.post3] - 2026-04-27
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27
+
+### Changed
+
+- Published AGILAB `2026.4.27.post3` to PyPI for `agi-env`, `agi-node`, `agi-cluster`, `agi-core`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.4.27.post2] - 2026-04-26
 
@@ -120,3 +163,7 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.04.25]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.4.27.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26
 [2026.4.27.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26-2
+[2026.4.27.post3]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27
+[2026.4.27.post4]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-2
+[2026.4.27.post5]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-3
+[2026.4.27.post6]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-4

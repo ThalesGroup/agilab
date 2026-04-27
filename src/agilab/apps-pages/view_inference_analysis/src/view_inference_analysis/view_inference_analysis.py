@@ -37,7 +37,7 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_env.pagelib import render_logo
+from agi_gui.pagelib import render_logo
 
 
 PAGE_KEY = "view_inference_analysis"

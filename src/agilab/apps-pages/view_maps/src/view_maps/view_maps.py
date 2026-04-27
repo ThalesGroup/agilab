@@ -76,7 +76,7 @@ def _default_app() -> Path | None:
 
 
 from agi_env import AgiEnv
-from agi_env.pagelib import find_files, load_df, update_datadir, initialize_csv_files
+from agi_gui.pagelib import find_files, load_df, update_datadir, initialize_csv_files
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]

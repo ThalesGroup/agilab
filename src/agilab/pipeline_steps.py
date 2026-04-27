@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ast
 import logging
 import os
 import re
+import shutil
 import textwrap
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
@@ -15,6 +17,17 @@ from agi_env import AgiEnv
 
 ORCHESTRATE_LOCKED_STEP_KEY = "_orchestrate_locked_step"
 ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
+LEGACY_AGI_RUN_KEYWORDS = frozenset(
+    {
+        "args",
+        "data_in",
+        "data_out",
+        "mode",
+        "reset_target",
+        "scheduler",
+        "workers",
+    }
+)
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +286,239 @@ def module_keys(module: Union[str, Path], env: Optional[AgiEnv] = None) -> List[
     return ordered or [str(raw_path)]
 
 
+def _append_unique(values: List[str], raw: Any) -> None:
+    text = str(raw or "").strip()
+    if not text:
+        return
+    if text not in values:
+        values.append(text)
+
+
+def _append_lab_name(values: List[str], raw: Any) -> None:
+    text = str(raw or "").strip()
+    if not text:
+        return
+    try:
+        name = Path(text).expanduser().name
+    except (OSError, RuntimeError, TypeError, ValueError):
+        name = text.replace("\\", "/").rstrip("/").split("/")[-1]
+    _append_unique(values, name or text)
+
+
+def _lab_step_key_candidates(module: Union[str, Path], env: Optional[AgiEnv] = None) -> List[str]:
+    names: List[str] = []
+    for key in module_keys(module, env=env):
+        _append_unique(names, key)
+        _append_lab_name(names, key)
+    if env is not None:
+        for attr in ("target", "app", "active_app", "app_src"):
+            _append_lab_name(names, getattr(env, attr, None))
+
+    expanded: List[str] = []
+    for name in names:
+        _append_unique(expanded, name)
+        if name.endswith("_project"):
+            _append_unique(expanded, name.removesuffix("_project"))
+        else:
+            _append_unique(expanded, f"{name}_project")
+    return expanded
+
+
+def _dedupe_paths(paths: List[Path]) -> List[Path]:
+    deduped: List[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        try:
+            key = str(path.expanduser().resolve())
+        except (OSError, RuntimeError, TypeError, ValueError):
+            key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(path)
+    return deduped
+
+
+def _coerce_app_dir(raw: Any) -> Optional[Path]:
+    if raw in (None, ""):
+        return None
+    try:
+        path = Path(raw).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    return path.parent if path.name == "src" else path
+
+
+def _candidate_lab_step_dirs(module: Union[str, Path], env: Optional[AgiEnv] = None) -> List[Path]:
+    names = _lab_step_key_candidates(module, env=env)
+    candidates: List[Path] = []
+
+    if env is not None:
+        for attr in ("active_app", "app_src"):
+            app_dir = _coerce_app_dir(getattr(env, attr, None))
+            if app_dir is not None:
+                candidates.append(app_dir)
+
+    roots: List[Path] = []
+    if env is not None:
+        for attr in ("apps_path", "builtin_apps_path", "apps_repository_root"):
+            root = _coerce_app_dir(getattr(env, attr, None))
+            if root is not None:
+                roots.append(root)
+
+    package_apps = Path(__file__).resolve().parent / "apps"
+    repo_root = Path(__file__).resolve().parents[2]
+    roots.extend(
+        [
+            package_apps,
+            package_apps / "builtin",
+            repo_root / "apps",
+            repo_root / "src" / "agilab" / "apps",
+        ]
+    )
+
+    for root in _dedupe_paths(roots):
+        for name in names:
+            candidates.extend(
+                [
+                    root / name,
+                    root / "builtin" / name,
+                    root / "apps" / name,
+                    root / "apps" / "builtin" / name,
+                    root / "src" / "agilab" / "apps" / name,
+                    root / "src" / "agilab" / "apps" / "builtin" / name,
+                ]
+            )
+
+    return _dedupe_paths(candidates)
+
+
+def _iter_lab_steps_sources(
+    module: Union[str, Path],
+    steps_file: Path,
+    env: Optional[AgiEnv] = None,
+) -> Iterator[Path]:
+    for app_dir in _candidate_lab_step_dirs(module, env=env):
+        try:
+            if not app_dir.is_dir():
+                continue
+        except (OSError, RuntimeError):
+            continue
+        exact = app_dir / steps_file.name
+        if exact.is_file():
+            yield exact
+        try:
+            for source in sorted(app_dir.glob("lab_steps*.toml")):
+                if source != exact and source.is_file():
+                    yield source
+        except OSError:
+            continue
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    try:
+        return left.samefile(right)
+    except (FileNotFoundError, OSError):
+        try:
+            return left.expanduser().resolve() == right.expanduser().resolve()
+        except (OSError, RuntimeError):
+            return str(left) == str(right)
+
+
+def _select_lab_steps_payload(
+    source: Path,
+    key_candidates: List[str],
+) -> Optional[Tuple[Dict[str, Any], str, List[Dict[str, Any]]]]:
+    try:
+        with source.open("rb") as handle:
+            data = tomllib.load(handle)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+
+    def _usable(key: str, entries: Any) -> Optional[Tuple[Dict[str, Any], str, List[Dict[str, Any]]]]:
+        if not isinstance(entries, list):
+            return None
+        typed_entries = [entry for entry in entries if isinstance(entry, dict)]
+        if not prune_invalid_entries(typed_entries):
+            return None
+        return data, key, typed_entries
+
+    for key in key_candidates:
+        selected = _usable(key, data.get(key))
+        if selected is not None:
+            return selected
+
+    fallback: List[Tuple[Dict[str, Any], str, List[Dict[str, Any]]]] = []
+    for key, entries in data.items():
+        if key == "__meta__":
+            continue
+        selected = _usable(str(key), entries)
+        if selected is not None:
+            fallback.append(selected)
+    return fallback[0] if len(fallback) == 1 else None
+
+
+def restore_missing_export_steps(
+    module: Union[str, Path],
+    steps_file: Path,
+    env: Optional[AgiEnv] = None,
+) -> Optional[Path]:
+    """Restore a missing/empty exported lab_steps.toml from the app source tree.
+
+    The export copy is user-editable state, so this function deliberately refuses
+    to overwrite any non-empty file.
+    """
+    target = Path(steps_file)
+    try:
+        if target.exists() and target.stat().st_size > 0:
+            return None
+    except OSError:
+        return None
+
+    env_obj = env or st.session_state.get("env")
+    primary_key = module_keys(module, env=env_obj)[0]
+    key_candidates = _lab_step_key_candidates(module, env=env_obj)
+    if primary_key not in key_candidates:
+        key_candidates.insert(0, primary_key)
+
+    for source in _iter_lab_steps_sources(module, target, env=env_obj):
+        if _same_path(source, target):
+            continue
+        selected = _select_lab_steps_payload(source, key_candidates)
+        if selected is None:
+            continue
+
+        data, source_key, entries = selected
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if source_key == primary_key:
+                shutil.copy2(source, target)
+            else:
+                normalized = dict(data)
+                normalized[primary_key] = entries
+                for key in key_candidates:
+                    if key != primary_key:
+                        normalized.pop(key, None)
+                meta = normalized.get("__meta__")
+                if isinstance(meta, dict):
+                    primary_meta_key = sequence_meta_key(primary_key)
+                    for key in key_candidates:
+                        old_meta_key = sequence_meta_key(key)
+                        if old_meta_key in meta and primary_meta_key not in meta:
+                            meta[primary_meta_key] = meta[old_meta_key]
+                    for key in key_candidates:
+                        old_meta_key = sequence_meta_key(key)
+                        if old_meta_key != primary_meta_key:
+                            meta.pop(old_meta_key, None)
+                with target.open("wb") as handle:
+                    tomli_w.dump(_convert_paths_to_strings(normalized), handle)
+            logger.info("Restored missing Pipeline steps file %s from %s", target, source)
+            return source
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning("Failed to restore Pipeline steps file %s from %s: %s", target, source, exc)
+    return None
+
+
 def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> None:
     """Ensure steps are stored under the primary module key."""
     if not steps_file.exists():
@@ -403,6 +649,65 @@ def is_runnable_step(entry: Dict[str, Any]) -> bool:
         return False
     code = entry.get("C", "")
     return isinstance(code, str) and bool(code.strip())
+
+
+def legacy_agi_run_call_lines(code: Any) -> List[int]:
+    """Return line numbers for direct legacy ``AGI.run(..., mode=...)`` calls."""
+    if not isinstance(code, str) or "AGI.run" not in code:
+        return []
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+
+    lines: List[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (
+            isinstance(func, ast.Attribute)
+            and func.attr == "run"
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "AGI"
+        ):
+            continue
+        keyword_names = {kw.arg for kw in node.keywords if kw.arg is not None}
+        has_request_keyword = "request" in keyword_names
+        has_kwargs_expansion = any(kw.arg is None for kw in node.keywords)
+        has_legacy_keyword = bool(keyword_names & LEGACY_AGI_RUN_KEYWORDS)
+        if not has_request_keyword and (has_legacy_keyword or has_kwargs_expansion):
+            lines.append(int(getattr(node, "lineno", 0) or 0))
+    return sorted(set(lines))
+
+
+def find_legacy_agi_run_steps(
+    steps: List[Dict[str, Any]],
+    sequence: Optional[List[int]] = None,
+) -> List[Dict[str, Any]]:
+    """Return selected pipeline steps that still use the pre-RunRequest AGI.run API."""
+    selected = sequence if sequence is not None else list(range(len(steps)))
+    stale_steps: List[Dict[str, Any]] = []
+    for idx in selected:
+        if idx < 0 or idx >= len(steps):
+            continue
+        entry = steps[idx]
+        if not isinstance(entry, dict) or not is_runnable_step(entry):
+            continue
+        lines = legacy_agi_run_call_lines(entry.get("C", ""))
+        if not lines:
+            continue
+        stale_steps.append(
+            {
+                "index": idx,
+                "step": idx + 1,
+                "line": lines[0],
+                "lines": lines,
+                "summary": step_summary(entry, width=80),
+                "project": step_project_name(entry),
+            }
+        )
+    return stale_steps
 
 
 def looks_like_step(value: Any) -> bool:

@@ -83,6 +83,12 @@ def test_agi_gui_coverage_includes_notebook_colab_support_helper() -> None:
     assert "test/test_notebook_colab_support.py" in run_block
 
 
+def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "src/agilab/lib/agi-gui/test" in run_block
+
+
 def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
     run_block = _agi_gui_run_block()
 

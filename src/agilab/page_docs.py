@@ -4,7 +4,7 @@ import webbrowser
 from pathlib import Path
 
 import streamlit as st
-from agi_env.ui_support import open_docs_url, open_local_docs, with_anchor
+from agi_gui.ui_support import open_docs_url, open_local_docs, with_anchor
 
 DOCS_BASE_URL = "https://thalesgroup.github.io/agilab"
 _DOCS_LOCAL_ALIASES: dict[str, tuple[str, ...]] = {

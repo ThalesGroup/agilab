@@ -57,6 +57,11 @@ def _ensure_agi_env() -> None:
 _ensure_agi_env()
 from agi_env import AgiEnv
 
+try:
+    from .cython_type_preprocess import preprocess_source
+except ImportError:  # pragma: no cover - script execution fallback
+    from cython_type_preprocess import preprocess_source
+
 
 def get_decorator_name(decorator_node):
     """
@@ -136,6 +141,16 @@ def prepare_for_cython(args):
     with open(cython_src, 'r') as file:
         source = file.read()
     modified_source = remove_decorators(source, verbose=args.verbose)
+    if getattr(args, "type_preprocess", False):
+        modified_source, preview = preprocess_source(
+            modified_source,
+            filename=str(cython_src),
+        )
+        AgiEnv.log_info(
+            "Cython type preprocessing inserted "
+            f"{len(preview.typed_variables)} local declarations "
+            f"and skipped {len(preview.skipped)} variables."
+        )
     cython_out = worker_path.with_suffix('.pyx')
     with open(cython_out, 'w') as file:
         file.write(modified_source)
@@ -153,6 +168,8 @@ def main():
         'Path to the worker source file.')
     remove_parser.add_argument('--cython_target_src_ext', default='.py',
         help='Target source file extension (default: .py).')
+    remove_parser.add_argument('--type-preprocess', action='store_true',
+        help='Insert conservative Cython local-variable declarations.')
     remove_parser.add_argument('--verbose', action='store_true', help=
         'Enable verbose output.')
     remove_parser.set_defaults(func=prepare_for_cython)
