@@ -4,6 +4,27 @@ All notable public AGILAB changes are summarized here. GitHub Releases remain
 the publication surface for tagged release artifacts; this file gives reviewers
 and adopters a versioned, repository-local upgrade trail.
 
+## Unreleased
+
+### Added
+
+- Added `ADOPTION.md` as a single-page route map for evaluators, newcomers,
+  external app users, and contributors.
+- Expanded app template READMEs so new projects have concrete copy, rename,
+  first-run, and validation guidance instead of placeholder titles.
+
+### Changed
+
+- Added route-selection tables to the GitHub and PyPI READMEs so adopters can
+  choose between hosted preview, source-checkout proof, package install,
+  external app updates, and contribution paths.
+- Reworked `CONTRIBUTING.md` around a contributor first-run baseline,
+  focused validation commands, and repository hygiene.
+- Fixed Docker README badges and stop command formatting, clarified the Codex
+  skills README mirror, and tightened app/page README routing guidance.
+- Normalized standalone analysis-page README commands to the repository `uv`
+  invocation used by the rest of the onboarding docs.
+
 ## [2026.4.27.post2] - 2026-04-26
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26-2

@@ -55,6 +55,18 @@ The public AGILAB Space is the fastest browser preview. It opens the lightweight
 `flight_project` path by default; advanced scenarios such as
 `uav_relay_queue_project` are documented in the demo guide.
 
+## Choose Your Path
+
+| If you want to... | Start here | Stop when... |
+|---|---|---|
+| Preview before installing | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | The hosted UI opens the `flight_project` path. |
+| Prove the local product flow | [First Run](#first-run) | `tools/newcomer_first_proof.py --json` returns `PASS`. |
+| Check the package entry point | [Published Package](#published-package) | `agilab` starts from a clean package install. |
+| Update external apps | [App Repository Updates](#app-repository-updates) | Installed apps resolve to the repository copy. |
+| Contribute changes | [CONTRIBUTING.md](CONTRIBUTING.md) | A focused local check passes before PR. |
+
+For a single-page adoption checklist, use [ADOPTION.md](ADOPTION.md).
+
 ## First Run
 
 Run the installable product path with the built-in `flight_project`:
@@ -175,6 +187,7 @@ bundle, not production MLOps claims:
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
+- [Adoption guide](ADOPTION.md)
 - [Releases](https://github.com/ThalesGroup/agilab/releases)
 - [Changelog](CHANGELOG.md)
 - [Developer runbook](AGENTS.md)

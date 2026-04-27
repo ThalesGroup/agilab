@@ -1,12 +1,13 @@
-[![PyPI version](https://img.shields.io/badge/PyPI-2025.12.12-informational?logo=pypi)](https://pypi.org/project/agilab)
+[![PyPI version](https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300)](https://pypi.org/project/agilab)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![pypi_dl](https://img.shields.io/pypi/dm/agilab)]()
+[![PyPI downloads](https://img.shields.io/pypi/dm/agilab)](https://pypi.org/project/agilab/)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml) [![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab) [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab) [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls) [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues) [![PyPI - Format](https://img.shields.io/pypi/format/agilab)](https://pypi.org/project/agilab/) [![Repo size](https://img.shields.io/github/repo-size/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab)
 
 # AGILAB Docker Deployment
 
-This repository contains Docker configurations for running AGILAB with offline LLM capabilities using a multi-container architecture.
+This directory contains the optional Docker setup for running AGILAB with
+offline LLM capabilities through a multi-container architecture.
 
 ## Architecture
 
@@ -41,9 +42,9 @@ The setup consists of two containers:
    - AGILAB GUI: http://localhost:8501
    - Ollama API: http://localhost:11434
 
-4**Stop services**:
+4. **Stop services**:
    ```bash
-   docker compose down
+   docker compose -f docker/docker-compose.yml down
    ```
 
 ### Manual Build and Run

@@ -1,56 +1,67 @@
-## Team organization
-- Jean-Pierre MORARD author
-- Jules AMADEI contributor
-- Martin VALLS contributor
-- Romain LOUVET contributor
-- Théo PLANTEFOL contributor
-- Julien BESTARD contributor
-- Remy CHEN contributor
-- Guillaume Demets
+## Contributor Quick Start
 
-### Roles
-Content developper
-Core developper
+Use the same local-first path as adopters before changing code:
 
-## How to become a contributor
-Open a GitHub issue containing [CONTRIBUTOR] in its title
+```bash
+git clone https://github.com/ThalesGroup/agilab.git
+cd agilab
+git config core.hooksPath .githooks
+uv --preview-features extra-build-dependencies sync --group dev
+uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
+```
 
-### Contributor License Agreements
-All contributions must adhere to the BSD-3 license.
+If the newcomer proof fails, fix that baseline first or document why your
+change is unrelated. The adoption checklist in `ADOPTION.md` explains the
+supported first routes.
 
-### Contributing Code
-Please declare in an `IP.md` file any intellectual property used in your code before pushing it to the project's Git repository.
+## How To Contribute
+
+- Open a GitHub issue containing `[CONTRIBUTOR]` in its title if you are a new contributor.
+- Keep pull requests focused on one app, feature, bug class, or documentation path.
+- Prefer app-local changes before shared-core changes. Shared core includes `src/agilab/core/*`, installer/build/deploy tooling, and generic helpers reused across apps.
+- Declare any third-party intellectual property used by your change in an `IP.md` file before pushing.
+- Open management/process issues with `[MANAGEMENT]` in the title.
 
 ## Pull Request Checklist
-Include a license check report using [checklicense](https://pypi.org/project/licensecheck/).
 
-### License
-Only non-contaminating licenses (i.e., licenses that do not impose additional restrictions on the project) are allowed.
+- Explain the use case or failure that the pull request addresses.
+- Include the narrowest local validation command that proves the change.
+- Add or update tests when behavior changes and an adjacent test pattern exists.
+- Include a license check report using [checklicense](https://pypi.org/project/licensecheck/) when new dependencies, vendored code, or generated artifacts are introduced.
+- Keep generated and local-only artifacts out of the diff.
 
-### Coding Style
-We recommend following the Google Python Style Guide and using [Black](https://pypi.org/project/black/) for code formatting.
+## Validation Guide
 
-### Testing
-Please include a minimal test suite using [pytest](https://docs.pytest.org/).
+Start with the smallest useful check:
 
-#### Running Sanity Check
-Include a description of a use case that demonstrates the functionality of your contribution.
+| Change type | Preferred local check |
+|---|---|
+| README or root docs only | `git diff --check` |
+| Newcomer or install flow | `uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py` |
+| App-local behavior | Targeted `pytest` for that app or page |
+| Workflow parity | `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>` |
+| Shared-core typing slice | `uv --preview-features extra-build-dependencies run --with mypy python tools/shared_core_strict_typing.py` |
 
-#### Running Unit Tests
-Ensure that all unit tests are run as part of the regression testing process.
+Run broader test suites only when the change needs them. Do not trigger GitHub
+Actions when the same failure can be reproduced locally.
 
-### Issues Management
-For issue management, please open a GitHub issue and include “[MANAGEMENT]” in the title.
+## Coding Style
+
+- Follow existing project style and keep changes minimal.
+- Use [Black](https://pypi.org/project/black/) formatting for Python code.
+- Prefer deterministic filesystem ordering in runtime code and tests.
+- Do not introduce automatic API fallbacks; fail with a clear actionable error when a capability is missing.
 
 ## Repository Hygiene
-- Do not commit virtual environments or build artifacts:
-  - Ignored: `.venv/`, `dist/`, `build/`, `docs/html/`, `docs/build/`, `*.pyc`, `.pytest_cache/`.
-  - Recreate envs locally with `uv venv && uv sync` (or `python -m venv .venv && pip install -e .`).
-- Documentation
-  - Docs are built and published by CI to GitHub Pages from `docs/` (or from `src/agilab/resources/help/` fallback).
-  - Do not commit `docs/html/`; edit sources under `docs/` instead.
-- Large files and datasets
-  - Do not commit datasets, generated binaries, archives, or SQLite databases.
-  - Store data externally (artifact storage, buckets) or use Git LFS with explicit patterns.
-- History rewrites
-  - This repo may periodically rewrite history to remove large artifacts. Rebase or re-clone if you see non-fast-forward updates.
+
+- Do not commit virtual environments or build artifacts: `.venv/`, `dist/`, `build/`, `docs/html/`, `docs/build/`, `*.pyc`, `.pytest_cache/`.
+- Recreate environments with `uv --preview-features extra-build-dependencies sync --group dev`.
+- Do not commit datasets, generated binaries, archives, SQLite databases, or local IDE state.
+- Store large data externally or use explicit Git LFS patterns.
+- This repo may periodically rewrite history to remove large artifacts; rebase or re-clone if you see non-fast-forward updates.
+
+## Documentation Hygiene
+
+- Do not commit `docs/html/**`; it is generated output.
+- Treat root files such as `README.md`, `README.pypi.md`, `ADOPTION.md`, `CHANGELOG.md`, and `CONTRIBUTING.md` as direct repository entry points.
+- Sphinx documentation under `docs/source` is a managed public mirror. Maintainers refresh it from the canonical docs source before publication.

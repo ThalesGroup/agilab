@@ -26,6 +26,19 @@ The public AGILAB Space is the fastest browser preview. It opens the lightweight
 `flight_project` path by default; advanced scenarios such as
 `uav_relay_queue_project` are documented in the demo guide.
 
+## Choose Your Path
+
+| If you want to... | Start here | Stop when... |
+|---|---|---|
+| Preview before installing | AGILAB Space | The hosted UI opens the `flight_project` path. |
+| Prove the local product flow | Source-checkout first run | `tools/newcomer_first_proof.py --json` returns `PASS`. |
+| Check the package entry point | Published package install | `agilab` starts from a clean package install. |
+| Update external apps | App repository installer path | Installed apps resolve to the repository copy. |
+| Contribute changes | `CONTRIBUTING.md` in the source repository | A focused local check passes before PR. |
+
+For the complete adoption checklist, see:
+https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md
+
 ## First Run
 
 Run the installable product path with the built-in `flight_project`:
@@ -99,6 +112,7 @@ remain validation gaps.
 
 - Demo chooser: https://thalesgroup.github.io/agilab/demos.html
 - Quick start: https://thalesgroup.github.io/agilab/quick-start.html
+- Adoption guide: https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md
 - Notebook quickstart: https://thalesgroup.github.io/agilab/notebook-quickstart.html
 - Documentation: https://thalesgroup.github.io/agilab
 - Flight project guide: https://thalesgroup.github.io/agilab/flight-project.html
