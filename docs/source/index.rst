@@ -33,7 +33,6 @@ references, and example projects.
 
    introduction
    features
-   AGILAB Demo <agilab-demo>
    notebook-quickstart
    notebook-advanced
    agilab
