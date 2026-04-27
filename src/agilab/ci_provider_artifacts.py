@@ -254,6 +254,16 @@ def _github_headers(token: str | None) -> dict[str, str]:
     return headers
 
 
+def _github_artifact_download_request(url: str, token: str | None) -> request.Request:
+    """Build a GitHub artifact ZIP request without leaking auth across redirects."""
+
+    headers = _github_headers(None)
+    req = request.Request(url, headers=headers)
+    if token:
+        req.add_unredirected_header("Authorization", f"Bearer {token}")
+    return req
+
+
 def _gitlab_headers(token: str | None) -> dict[str, str]:
     headers = {"User-Agent": DEFAULT_USER_AGENT}
     if token:
@@ -363,7 +373,7 @@ def download_github_actions_artifacts(
         name = _safe_id(str(artifact.get("name", "") or "artifact"))
         artifact_id = str(artifact.get("id", "") or len(paths) + 1)
         target = destination / f"{name}-{artifact_id}.zip"
-        req = request.Request(archive_url, headers=_github_headers(token))
+        req = _github_artifact_download_request(archive_url, token)
         with urlopen(req) as response:
             target.write_bytes(response.read())
         paths.append(target)
