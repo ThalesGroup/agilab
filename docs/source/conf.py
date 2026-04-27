@@ -32,9 +32,15 @@ def _add_core_paths(core_root: Path) -> None:
         _add_path(core_root / rel)
 
 
+def _add_agilab_lib_paths(agilab_package_root: Path) -> None:
+    _add_path(agilab_package_root / "lib/agi-gui/src")
+
+
 # Prefer the pinned public framework submodule when present.
 if (repo_root / ".external/agilab/src").exists():
     _add_path(repo_root / ".external/agilab/src")
+if (repo_root / ".external/agilab/src/agilab").exists():
+    _add_agilab_lib_paths(repo_root / ".external/agilab/src/agilab")
 if (repo_root / ".external/agilab/src/agilab/core").exists():
     _add_core_paths(repo_root / ".external/agilab/src/agilab/core")
 
@@ -48,9 +54,11 @@ if agi_path is not None:
     # `import agilab` works, while still supporting a repo-root path.
     if agi_path.name == "agilab" and (agi_path / "__init__.py").exists():
         _add_path(agi_path.parent)
+        _add_agilab_lib_paths(agi_path)
 
     _add_path(agi_path / "src")
     if (agi_path / "src/agilab/core").exists():
+        _add_agilab_lib_paths(agi_path / "src/agilab")
         _add_core_paths(agi_path / "src/agilab/core")
     elif (agi_path / "core").exists():
         _add_core_paths(agi_path / "core")
