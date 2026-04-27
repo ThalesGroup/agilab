@@ -19,6 +19,7 @@ from agi_gui.pagelib import (
     run_lab,
     save_csv,
 )
+from agi_gui.ux_widgets import confirm_button, status_container, toast
 from agi_env.snippet_contract import (
     clean_stale_snippet_files,
     is_generated_agi_snippet,
@@ -211,17 +212,23 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
     discovered.sort(key=lambda p: (p.name.lower(), str(p).lower()))
     if stale_snippets:
         try:
-            st.warning(stale_snippet_cleanup_message(stale_snippets))
-            if st.button(
+            cleanup_message = stale_snippet_cleanup_message(stale_snippets)
+            st.warning(cleanup_message)
+            if confirm_button(
+                st,
                 "Clean stale snippets",
                 key=f"clean_stale_snippets_{getattr(env, 'app', 'app')}",
+                message=cleanup_message,
+                confirm_label="Delete stale snippets",
                 help="Delete only old generated AGI_*.py snippets that no longer match this AGILAB core API.",
             ):
                 deleted, failed = clean_stale_snippet_files(stale_snippets)
                 if deleted:
                     st.success(f"Deleted {len(deleted)} stale generated snippet(s).")
+                    toast(st, f"Deleted {len(deleted)} stale snippet(s).", state="success")
                 if failed:
                     st.warning(f"Could not delete {len(failed)} stale generated snippet(s).")
+                    toast(st, f"Could not delete {len(failed)} stale snippet(s).", state="warning")
         except AttributeError:
             pass
 
@@ -1505,15 +1512,24 @@ def display_lab_tab(
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
-            run_all_steps(
-                lab_dir,
-                index_page_str,
-                steps_file,
-                module_path,
-                env,
-                log_placeholder=run_placeholder,
-                force_lock_clear=force_run_clicked,
-            )
+            with status_container(st, "Running pipeline…", state="running", expanded=True) as run_status:
+                try:
+                    run_all_steps(
+                        lab_dir,
+                        index_page_str,
+                        steps_file,
+                        module_path,
+                        env,
+                        log_placeholder=run_placeholder,
+                        force_lock_clear=force_run_clicked,
+                    )
+                except Exception:
+                    run_status.update(label="Pipeline run failed. Inspect Run logs.", state="error", expanded=True)
+                    toast(st, "Pipeline run failed. Inspect Run logs.", state="error")
+                    raise
+                else:
+                    run_status.update(label="Pipeline run finished. Inspect Run logs.", state="complete", expanded=False)
+                    toast(st, "Pipeline run finished. Inspect Run logs.", state="success")
         finally:
             st.session_state.pop(f"{index_page_str}__run_log_file", None)
         st.rerun()
@@ -1569,6 +1585,7 @@ def display_lab_tab(
         )
         if clear_logs:
             st.session_state[run_logs_key] = []
+            toast(st, "Page run logs cleared; saved log files are untouched.", state="info")
         log_placeholder = st.empty()
         st.session_state[run_placeholder_key] = log_placeholder
         logs = st.session_state.get(run_logs_key, [])

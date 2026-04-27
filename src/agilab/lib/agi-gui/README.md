@@ -15,6 +15,24 @@ pip install agi-gui
 
 Use `agi-env` for worker/headless runtimes. Use `agi-gui` for Streamlit pages and local AGILAB UI sessions.
 
+## File Picker
+
+`agi_gui.file_picker` provides a reusable Streamlit popover picker for AGILAB pages that need server-side path selection without exposing arbitrary filesystem access.
+
+```python
+from agi_gui.file_picker import agi_file_picker
+
+selected_path = agi_file_picker(
+    "Browse dataframe",
+    roots={"Project": active_app_export_dir},
+    key=f"{project_name}:dataframe_picker",
+    patterns=["*.csv", "*.parquet", "*.json"],
+    container=st.sidebar,
+)
+```
+
+The picker validates manual paths and dataframe selections against the configured roots, keeps widget keys namespaced, and can optionally save uploaded files when the caller provides an explicit `upload_dir`.
+
 ## Repository
 
 - Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-gui

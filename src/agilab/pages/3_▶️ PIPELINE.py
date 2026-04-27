@@ -41,6 +41,7 @@ from agi_gui.pagelib import (
     render_logo,
     inject_theme,
 )
+from agi_gui.file_picker import agi_file_picker
 from agi_env import AgiEnv, normalize_path
 import_agilab_symbols(
     globals(),
@@ -680,12 +681,43 @@ def sidebar_controls() -> None:
     key_df = index_page_str + "df"
     index = next((i for i, f in enumerate(df_files_rel) if f.name == DEFAULT_DF), 0)
     df_file_default = st.session_state.get("df_file")
+    current_df_selection = st.session_state.get(key_df)
+    if current_df_selection is not None and current_df_selection not in df_files_rel:
+        st.session_state.pop(key_df, None)
+
+    picker_default: Path | None = None
+    if df_file_default:
+        picker_default = Path(df_file_default)
+    elif df_files_rel:
+        picker_default = Agi_export_abs / df_files_rel[index]
+    picked_df = agi_file_picker(
+        "Browse dataframe",
+        roots={lab_root: lab_dir},
+        key=f"{index_page_str}:dataframe_picker",
+        patterns="*",
+        default=picker_default,
+        selection_mode="single",
+        allow_files=True,
+        allow_dirs=False,
+        recursive=True,
+        container=st.sidebar,
+        help="Browse files under the active lab export directory.",
+    )
+    if picked_df:
+        try:
+            picked_df_rel = Path(picked_df).resolve(strict=False).relative_to(Agi_export_abs)
+        except ValueError:
+            st.sidebar.warning("Selected dataframe is outside the export directory.")
+        else:
+            if picked_df_rel in df_files_rel:
+                st.session_state[key_df] = picked_df_rel
+    selectbox_index = None if key_df in st.session_state or not df_files_rel else index
 
     st.sidebar.selectbox(
         "Dataframe",
         df_files_rel,
         key=key_df,
-        index=index,
+        index=selectbox_index,
         on_change=on_df_change,
         args=(module_path, df_file_default, index_page_str, steps_file),
     )

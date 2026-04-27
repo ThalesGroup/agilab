@@ -349,7 +349,10 @@ def test_get_existing_snippets_cleanup_button_deletes_stale_generated_snippets(m
     os.utime(app_settings, (settings_time, settings_time))
     os.utime(stale_snippet, (new_time, new_time))
 
-    fake_st = _FakeStreamlit(buttons={"clean_stale_snippets_flight": True})
+    fake_st = _FakeStreamlit(
+        {"clean_stale_snippets_flight__armed": True},
+        buttons={"clean_stale_snippets_flight__confirm": True},
+    )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight")
     deps = SimpleNamespace(
