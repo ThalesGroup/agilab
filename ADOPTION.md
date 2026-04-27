@@ -4,15 +4,6 @@ Use this guide when you want the shortest path from "what is AGILAB?" to one
 verified result. Keep the first pass narrow, then branch into notebooks,
 external apps, or cluster work after the local proof succeeds once.
 
-## Fast Adoption Path
-
-| Stage | Action | Stop when |
-|---|---|---|
-| Preview | Open the public [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab). | The hosted UI opens the lightweight `flight_project` path. |
-| Prove locally | Clone the source checkout and run the built-in `flight_project`. | `PROJECT` -> `ORCHESTRATE` -> `ANALYSIS` works locally. |
-| Record evidence | Run `tools/newcomer_first_proof.py --json`. | `~/log/execute/flight/run_manifest.json` reports `status: pass`. |
-| Expand | Move to notebooks, PyPI package checks, external apps, or cluster work. | You have one known-good baseline to compare against. |
-
 ## Choose Your First Path
 
 | Goal | Route | Time box | Success signal |
