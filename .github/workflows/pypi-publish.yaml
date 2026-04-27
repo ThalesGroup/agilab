@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.13"]
+        python-version: ["3.13", "3.14"]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -50,7 +50,7 @@ jobs:
       - name: Run release preflight tests
         run: |
           set -eux
-          uv --preview-features extra-build-dependencies run --no-project python tools/workflow_parity.py \
+          uv --preview-features extra-build-dependencies run python tools/workflow_parity.py \
             --profile agi-env \
             --profile agi-core-combined
 
