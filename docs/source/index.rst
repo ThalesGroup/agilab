@@ -94,6 +94,7 @@ references, and example projects.
    :caption: Reference
 
    agilab-github
+   package-publishing-policy
 
 .. toctree::
    :maxdepth: 2
