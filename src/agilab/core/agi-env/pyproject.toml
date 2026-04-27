@@ -36,16 +36,13 @@ keywords = [
 ]
 
 dependencies = [
-    "humanize",
+    "astor",
+    "pathspec",
+    "psutil",
+    "py7zr",
     "pydantic",
     "python-dotenv",
-    "setuptools",
     "tomlkit",
-    "astor",
-    "psutil",
-    "pathspec",
-    "py7zr",
-    "numba>=0.61.0"
 ]
 
 [project.urls]

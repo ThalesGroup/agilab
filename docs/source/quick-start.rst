@@ -74,6 +74,8 @@ machine-readable proof record.
    boots the About and ORCHESTRATE pages against the built-in ``flight_project``,
    and writes ``~/log/execute/flight/run_manifest.json`` with command,
    environment, timing, artifact references, and validation status.
+   The source-checkout developer evidence command is the same contract through
+   ``tools/newcomer_first_proof.py --json``.
 
 3. **Launch the web interface**::
 

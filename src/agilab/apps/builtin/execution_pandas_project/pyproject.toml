@@ -4,29 +4,16 @@ version = "2026.4.27.post6"
 description = "Built-in AGILab execution playground using PandasWorker"
 requires-python = ">=3.11"
 dependencies = [
-  "pydantic",
+  "agi-env",
+  "agi-node",
   "pandas",
+  "pydantic",
   "streamlit>=1.56.0",
-  "humanize",
-  "python-dotenv",
-  "setuptools",
-  "tomlkit",
-  "astor",
-  "psutil",
-  "pathspec",
-  "py7zr",
-  "numba>=0.61.0",
-  "scikit-learn",
-  "parso",
-  "cython",
-  "msgpack",
-  "tomli",
-  "dask[distributed]",
-  "wheel",
-  "scipy==1.16.1",
-  "typing-inspection>=0.4.1",
-  "polars",
 ]
+
+[tool.uv.sources]
+agi-env = { path = "../../../core/agi-env", editable = true }
+agi-node = { path = "../../../core/agi-node", editable = true }
 
 [build-system]
 requires = ["setuptools"]

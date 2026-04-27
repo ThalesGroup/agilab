@@ -9,13 +9,10 @@ authors = [
 ]
 
 dependencies = [
- "setuptools",
-    "cython",
-    "parso",
+    "polars",
+    "pydantic",
     "py7zr",
-    "python-dotenv",
-    "ipython",
-    "psutil",
+    "streamlit>=1.56.0",
 ]
 
 [dependency-groups]
