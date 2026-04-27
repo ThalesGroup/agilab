@@ -12,9 +12,21 @@ def _workflow_text() -> str:
 
 
 def _agi_gui_run_block() -> str:
+    return _run_block("Run agi-gui coverage", "Upload JUnit results")
+
+
+def _agi_env_run_block() -> str:
+    return _run_block("Run agi-env coverage", "Upload agi-env coverage")
+
+
+def _agi_core_run_block() -> str:
+    return _run_block("Run agi-node + agi-cluster coverage", "Upload agi-node coverage")
+
+
+def _run_block(start_name: str, end_name: str) -> str:
     workflow_text = _workflow_text()
-    start_marker = "      - name: Run agi-gui coverage"
-    end_marker = "      - name: Upload JUnit results"
+    start_marker = f"      - name: {start_name}"
+    end_marker = f"      - name: {end_name}"
     start = workflow_text.index(start_marker)
     end = workflow_text.index(end_marker, start)
     return workflow_text[start:end]
@@ -32,6 +44,18 @@ def test_core_coverage_runs_shared_core_suite_once_for_node_and_cluster() -> Non
     assert "      - agi-core" in workflow_text
     assert "      - agi-node" not in workflow_text
     assert "      - agi-cluster" not in workflow_text
+
+
+def test_agi_env_coverage_installs_streamlit_ui_dependency() -> None:
+    run_block = _agi_env_run_block()
+
+    assert "--with streamlit" in run_block
+
+
+def test_agi_core_coverage_installs_parquet_engine() -> None:
+    run_block = _agi_core_run_block()
+
+    assert run_block.count("--with fastparquet") == 3
 
 
 def test_agi_gui_coverage_lists_all_root_view_tests() -> None:

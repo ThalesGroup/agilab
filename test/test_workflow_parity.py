@@ -10,6 +10,13 @@ from types import SimpleNamespace
 MODULE_PATH = Path("tools/workflow_parity.py").resolve()
 
 
+def _has_with_dependency(argv: list[str], dependency: str) -> bool:
+    return any(
+        arg == "--with" and index + 1 < len(argv) and argv[index + 1] == dependency
+        for index, arg in enumerate(argv)
+    )
+
+
 def _load_module():
     spec = importlib.util.spec_from_file_location("workflow_parity_test_module", MODULE_PATH)
     assert spec and spec.loader
@@ -37,6 +44,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
     assert "--cov=agi_env" in agi_env.argv
     assert "coverage-agi-env.xml" in " ".join(agi_env.argv)
+    assert _has_with_dependency(agi_env.argv, "streamlit")
     assert agi_env.argv[-1] == "src/agilab/core/agi-env/test"
 
     assert len(agi_core_combined) == 3
@@ -47,6 +55,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert combined_run.argv[-1] == "src/agilab/core/test"
     assert "--data-file=.coverage.agi-core-combined" in combined_run.argv
     assert "--source=agi_node,agi_cluster" in combined_run.argv
+    assert _has_with_dependency(combined_run.argv, "fastparquet")
+    assert _has_with_dependency(combined_node_xml.argv, "fastparquet")
+    assert _has_with_dependency(combined_cluster_xml.argv, "fastparquet")
     assert "pytest" in combined_run.argv
     assert combined_node_xml.timeout_seconds == 5 * 60
     assert "--data-file=.coverage.agi-core-combined" in combined_node_xml.argv
@@ -63,12 +74,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_node.env["COVERAGE_FILE"] == ".coverage.agi-node"
     assert "--cov=agi_node" in agi_node.argv
     assert "coverage-agi-node.xml" in " ".join(agi_node.argv)
+    assert _has_with_dependency(agi_node.argv, "fastparquet")
     assert agi_node.argv[-1] == "src/agilab/core/test"
 
     assert agi_cluster.timeout_seconds == 20 * 60
     assert agi_cluster.env["COVERAGE_FILE"] == ".coverage.agi-cluster"
     assert "--cov=agi_cluster" in agi_cluster.argv
     assert "coverage-agi-cluster.xml" in " ".join(agi_cluster.argv)
+    assert _has_with_dependency(agi_cluster.argv, "fastparquet")
     assert agi_cluster.argv[-1] == "src/agilab/core/test"
 
     assert agi_gui.timeout_seconds == 12 * 60

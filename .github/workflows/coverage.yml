@@ -52,6 +52,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-env \
             --with-editable ./src/agilab/core/agi-node \
             --with sqlalchemy \
+            --with streamlit \
             --with pytest \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
@@ -122,6 +123,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-cluster \
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
+            --with fastparquet \
             --with pytest \
             --with pytest-asyncio \
             --with coverage \
@@ -135,6 +137,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-cluster \
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
+            --with fastparquet \
             --with pytest \
             --with pytest-asyncio \
             --with coverage \
@@ -146,6 +149,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-cluster \
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
+            --with fastparquet \
             --with pytest \
             --with pytest-asyncio \
             --with coverage \
