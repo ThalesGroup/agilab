@@ -20,7 +20,6 @@ import pandas as pd
 import os
 import sqlite3
 import subprocess
-import streamlit as st
 import time
 import random
 import socket
@@ -28,6 +27,7 @@ import runpy
 from typing import Dict, Optional
 import sys
 import logging
+from ._optional_ui import require_streamlit
 from . import mlflow_store
 from .pagelib_execution_support import (
     run_agi as _run_agi_impl,
@@ -116,6 +116,7 @@ from .pagelib_session_support import (
     reset_project_sections,
 )
 logger = logging.getLogger(__name__)
+st = require_streamlit()
 
 DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
 DEFAULT_DF_PREVIEW_MAX_COLS = 40

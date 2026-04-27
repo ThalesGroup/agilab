@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 from typing import Any, Callable, Literal, get_args, get_origin
 
-import streamlit as st
 from pydantic import BaseModel, ValidationError
 from annotated_types import Ge, Le, MultipleOf
 
+from agi_env._optional_ui import require_streamlit
 from agi_env.app_args import prefer_persisted_value
+
+st = require_streamlit()
 
 
 def load_args_state(
@@ -220,6 +223,3 @@ def persist_args(
         env = st.session_state.get("env")
         if env is not None and hasattr(env, "app"):
             st.session_state["args_project"] = env.app
-
-
-import tomllib

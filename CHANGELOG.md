@@ -29,6 +29,8 @@ and adopters a versioned, repository-local upgrade trail.
   coverage XML files.
 - Reordered the landing-page first-proof wizard around the immediate next
   action and progress summary before diagnostics.
+- Split `agi-env` runtime dependencies so headless core installs no longer pull
+  Streamlit unless consumers request the `agi-env[ui]` extra.
 
 ## [2026.4.27.post2] - 2026-04-26
 
