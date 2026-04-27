@@ -7,6 +7,32 @@ run of the built-in ``flight_project`` from the web UI.
 This page gives the mental model only. :doc:`quick-start` owns the exact
 commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
 
+Fast adoption ladder
+--------------------
+
+Use this order when you need the quickest route to confidence:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Stage
+     - What to do
+     - Why it matters
+   * - Browser preview
+     - Open :doc:`agilab-demo`.
+     - Confirms the public UI shape before you install anything.
+   * - Local first proof
+     - Follow :doc:`quick-start` with the built-in ``flight_project``.
+     - Exercises the real source-checkout install, run, and analysis path.
+   * - Evidence record
+     - Keep ``~/log/execute/flight/run_manifest.json`` from
+       ``tools/newcomer_first_proof.py --json``.
+     - Gives support, contributors, and future runs the same baseline.
+   * - Expansion
+     - Move to notebooks, package mode, private apps, or cluster work.
+     - Prevents day-1 failures from mixing product, app, and infrastructure
+       variables.
+
 Choose one route
 ----------------
 
@@ -37,7 +63,8 @@ route, reads ``run_manifest.json``, and shows a recovery checklist with exact
 evidence commands before you branch out.
 
 That is enough for day 1. Do not widen the problem to notebooks, package mode,
-private apps, or cluster setup until this path works once.
+private apps, or cluster setup until this path works once and the manifest gives
+you a passing baseline.
 
 This also means PyCharm is not part of the day-1 contract. AGILAB keeps
 PyCharm run configurations for developers who want IDE debugging, but the

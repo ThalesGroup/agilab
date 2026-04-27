@@ -9,6 +9,10 @@ If you are new to AGILab, choose one route first:
 - **Use the API/notebook**: follow :doc:`notebook-quickstart` for the smaller
   ``AgiEnv`` / ``AGI.run(...)`` surface.
 
+The fastest adoption ladder is browser preview, local first proof, evidence
+manifest, then expansion into notebooks, package mode, private apps, or cluster
+work.
+
 If the local first proof fails, use :doc:`newcomer-troubleshooting` before
 branching into cluster mode, private app repositories, or broader workflows.
 
