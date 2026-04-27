@@ -268,7 +268,7 @@ def _guard_commands(components: Sequence[str]) -> list[str]:
         commands.append("uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-env")
     if "agi-node" in components or "agi-cluster" in components:
         commands.append(
-            "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-node --profile agi-cluster"
+            "uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-core-combined"
         )
     if "agi-gui" in components:
         commands.append("uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-gui")

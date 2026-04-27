@@ -24,6 +24,11 @@ and adopters a versioned, repository-local upgrade trail.
   skills README mirror, and tightened app/page README routing guidance.
 - Normalized standalone analysis-page README commands to the repository `uv`
   invocation used by the rest of the onboarding docs.
+- Collapsed the coverage workflow's duplicate `agi-node` and `agi-cluster`
+  core test executions into one combined run that still emits both component
+  coverage XML files.
+- Reordered the landing-page first-proof wizard around the immediate next
+  action and progress summary before diagnostics.
 
 ## [2026.4.27.post2] - 2026-04-26
 

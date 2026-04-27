@@ -7,13 +7,31 @@ import re
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 
 
+def _workflow_text() -> str:
+    return WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
 def _agi_gui_run_block() -> str:
-    workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow_text = _workflow_text()
     start_marker = "      - name: Run agi-gui coverage"
     end_marker = "      - name: Upload JUnit results"
     start = workflow_text.index(start_marker)
     end = workflow_text.index(end_marker, start)
     return workflow_text[start:end]
+
+
+def test_core_coverage_runs_shared_core_suite_once_for_node_and_cluster() -> None:
+    workflow_text = _workflow_text()
+
+    assert "  agi-core:" in workflow_text
+    assert "Run agi-node + agi-cluster coverage" in workflow_text
+    assert "--source=agi_node,agi_cluster" in workflow_text
+    assert workflow_text.count("src/agilab/core/test") == 1
+    assert "coverage-agi-node.xml" in workflow_text
+    assert "coverage-agi-cluster.xml" in workflow_text
+    assert "      - agi-core" in workflow_text
+    assert "      - agi-node" not in workflow_text
+    assert "      - agi-cluster" not in workflow_text
 
 
 def test_agi_gui_coverage_lists_all_root_view_tests() -> None:

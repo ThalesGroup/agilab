@@ -154,6 +154,92 @@ def _render_newcomer_first_proof_static() -> None:
     )
 
 
+def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Return compact first-proof progress rows for the onboarding card."""
+    active_app = str(state.get("active_app_name") or "none")
+    manifest_path = str(state.get("run_manifest_path") or "")
+    output_dir = str(state.get("output_dir") or "")
+
+    if not state["project_available"]:
+        project_status = "Blocked"
+        project_detail = "`flight_project` is missing from the app list."
+    elif state["current_app_matches"]:
+        project_status = "Done"
+        project_detail = "Active app is `flight_project`."
+    else:
+        project_status = "Next"
+        project_detail = f"Active app is `{active_app}`; choose `flight_project`."
+
+    if state["run_manifest_loaded"] or state["run_output_detected"]:
+        run_status = "Done"
+        run_detail = f"Run evidence found under `{output_dir}`."
+    elif state["current_app_matches"]:
+        run_status = "Next"
+        run_detail = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
+    else:
+        run_status = "Waiting"
+        run_detail = "Select `flight_project` before running."
+
+    if state["run_manifest_passed"]:
+        manifest_status = "Done"
+        manifest_detail = f"`{manifest_path}` passes the first-proof checks."
+    elif state["run_manifest_loaded"]:
+        manifest_status = "Attention"
+        manifest_detail = (
+            f"`{manifest_path}` is {state['run_manifest_status']}; "
+            "use the checklist below."
+        )
+    else:
+        manifest_status = "Waiting"
+        manifest_detail = f"Expected at `{manifest_path}`."
+
+    return [
+        {"step": "Project selected", "status": project_status, "detail": project_detail},
+        {"step": "Run executed", "status": run_status, "detail": run_detail},
+        {"step": "Evidence manifest", "status": manifest_status, "detail": manifest_detail},
+    ]
+
+
+def _first_proof_progress_markdown(rows: List[Dict[str, str]]) -> str:
+    """Render progress rows as a small Markdown table."""
+    def _cell(value: str) -> str:
+        return value.replace("|", "\\|").replace("\n", " ")
+
+    table = ["| Step | Status | Detail |", "| --- | --- | --- |"]
+    table.extend(
+        (
+            f"| {_cell(row['step'])} | {_cell(row['status'])} | "
+            f"{_cell(row['detail'])} |"
+        )
+        for row in rows
+    )
+    return "\n".join(table)
+
+
+def _render_first_proof_next_action(env: Any, state: Dict[str, Any]) -> None:
+    """Render the primary next action before diagnostics."""
+    st.markdown("**Next action**")
+    if not state["project_available"]:
+        st.error(state["next_step"])
+    elif not state["current_app_matches"]:
+        st.warning(f"Next action: {state['next_step']}")
+        if st.button(
+            "Use `flight_project`",
+            key="first_proof:activate",
+            type="primary",
+            use_container_width=True,
+        ):
+            if _activate_newcomer_first_proof_project(env, state["project_path"]):
+                st.session_state["first_proof_feedback"] = "`flight_project` selected."
+                st.rerun()
+    elif state["run_manifest_passed"]:
+        st.success(f"Next action: {state['next_step']}")
+    elif state["run_manifest_loaded"] or state["run_output_detected"]:
+        st.warning(f"Next action: {state['next_step']}")
+    else:
+        st.info(f"Next action: {state['next_step']}")
+
+
 def render_newcomer_first_proof(env: Any | None = None) -> None:
     """Render the first-proof onboarding surface."""
     if env is None:
@@ -168,6 +254,30 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
 
     with st.expander(content["title"], expanded=True):
         st.write(content["intro"])
+        _render_first_proof_next_action(env, state)
+
+        st.markdown("**Progress**")
+        st.markdown(_first_proof_progress_markdown(_first_proof_progress_rows(state)))
+
+        st.markdown("**Do this now**")
+        step_lines = [
+            f"{index}. {detail}"
+            for index, (_, detail) in enumerate(content["steps"], start=1)
+        ]
+        st.markdown("\n".join(step_lines))
+
+        if state["visible_outputs"]:
+            preview = ", ".join(path.name for path in state["visible_outputs"][:3])
+            if len(state["visible_outputs"]) > 3:
+                preview += ", …"
+            st.caption(f"Generated files found: {preview}")
+
+        st.markdown("**You are done when**")
+        st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
+        st.caption("After that: try another demo. Keep cluster mode for later.")
+
+        st.divider()
+        st.markdown("**Troubleshooting and evidence**")
         st.caption(
             "Validated path: "
             f"{state['recommended_path_label']} "
@@ -214,41 +324,6 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
                 for label, url in state["remediation_links"]
             )
         )
-
-        st.markdown("**Do this now**")
-        step_lines = [
-            f"{index}. {detail}"
-            for index, (_, detail) in enumerate(content["steps"], start=1)
-        ]
-        st.markdown("\n".join(step_lines))
-
-        if not state["project_available"]:
-            st.error(state["next_step"])
-        elif not state["current_app_matches"]:
-            st.warning(f"Next action: {state['next_step']}")
-            if st.button(
-                "Use `flight_project`",
-                key="first_proof:activate",
-                type="primary",
-                use_container_width=True,
-            ):
-                if _activate_newcomer_first_proof_project(env, state["project_path"]):
-                    st.session_state["first_proof_feedback"] = "`flight_project` selected."
-                    st.rerun()
-        elif not state["run_output_detected"]:
-            st.info(f"Next action: {state['next_step']}")
-        else:
-            st.success(f"Next action: {state['next_step']}")
-
-        if state["visible_outputs"]:
-            preview = ", ".join(path.name for path in state["visible_outputs"][:3])
-            if len(state["visible_outputs"]) > 3:
-                preview += ", …"
-            st.caption(f"Generated files found: {preview}")
-
-        st.markdown("**You are done when**")
-        st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
-        st.caption("After that: try another demo. Keep cluster mode for later.")
 
         st.divider()
         display_landing_page(Path(env.st_resources))

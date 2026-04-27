@@ -18,6 +18,72 @@ class _BrokenTemplatePath:
         raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
 
 
+class _FakeExpander:
+    def __init__(self, streamlit, label: str):
+        self._streamlit = streamlit
+        self._label = label
+
+    def __enter__(self):
+        self._streamlit.events.append(("enter_expander", self._label))
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self._streamlit.events.append(("exit_expander", self._label))
+        return False
+
+
+class _FakeStreamlit:
+    def __init__(self):
+        self.events: list[tuple[str, str]] = []
+        self.session_state: dict[str, object] = {}
+
+    def expander(self, label: str, expanded: bool = False):
+        self.events.append(("expander", f"{label}:{expanded}"))
+        return _FakeExpander(self, label)
+
+    def write(self, body: object):
+        self.events.append(("write", str(body)))
+
+    def caption(self, body: object):
+        self.events.append(("caption", str(body)))
+
+    def info(self, body: object):
+        self.events.append(("info", str(body)))
+
+    def warning(self, body: object):
+        self.events.append(("warning", str(body)))
+
+    def success(self, body: object):
+        self.events.append(("success", str(body)))
+
+    def error(self, body: object):
+        self.events.append(("error", str(body)))
+
+    def markdown(self, body: object, **_kwargs):
+        self.events.append(("markdown", str(body)))
+
+    def code(self, body: object, **_kwargs):
+        self.events.append(("code", str(body)))
+
+    def divider(self):
+        self.events.append(("divider", ""))
+
+    def button(self, label: str, **_kwargs):
+        self.events.append(("button", label))
+        return False
+
+    def rerun(self):  # pragma: no cover - button is false in these tests
+        raise AssertionError("rerun should not be called")
+
+
+def _event_index(events: list[tuple[str, str]], kind: str, text: str) -> int:
+    return next(
+        index
+        for index, (event_kind, body) in enumerate(events)
+        if event_kind == kind and text in body
+    )
+
+
 def test_ensure_env_file_falls_back_to_touch_when_template_read_fails(tmp_path, monkeypatch):
     env_file = tmp_path / ".agilab" / ".env"
     monkeypatch.setattr(about_agilab, "TEMPLATE_ENV_PATH", _BrokenTemplatePath())
@@ -194,6 +260,28 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
 
 
+def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="mycode_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+    )
+
+    rows = about_agilab._first_proof_progress_rows(
+        about_agilab._newcomer_first_proof_state(env)
+    )
+    by_step = {row["step"]: row for row in rows}
+
+    assert by_step["Project selected"]["status"] == "Next"
+    assert "mycode_project" in by_step["Project selected"]["detail"]
+    assert by_step["Run executed"]["status"] == "Waiting"
+    assert by_step["Evidence manifest"]["status"] == "Waiting"
+
+
 def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     apps_path = tmp_path / "apps"
     flight_project = apps_path / "flight_project"
@@ -218,6 +306,63 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     assert [path.name for path in state["visible_outputs"]] == ["forecast_metrics.json"]
     assert state["remediation_status"] == "missing_manifest_with_outputs"
     assert state["next_step"] == "Generate `run_manifest.json` with the first-proof JSON command."
+
+
+def test_first_proof_progress_rows_show_incomplete_manifest_attention(tmp_path):
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "flight_project"
+    flight_project.mkdir(parents=True)
+    output_dir = tmp_path / "log" / "execute" / "flight"
+    output_dir.mkdir(parents=True)
+    (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
+
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="flight_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+    )
+
+    rows = about_agilab._first_proof_progress_rows(
+        about_agilab._newcomer_first_proof_state(env)
+    )
+    by_step = {row["step"]: row for row in rows}
+
+    assert by_step["Project selected"]["status"] == "Done"
+    assert by_step["Run executed"]["status"] == "Done"
+    assert by_step["Evidence manifest"]["status"] == "Waiting"
+    assert "run_manifest.json" in by_step["Evidence manifest"]["detail"]
+
+
+def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
+    tmp_path,
+    monkeypatch,
+):
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+    fake_st = _FakeStreamlit()
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="mycode_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+        st_resources=tmp_path / "resources",
+    )
+
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(about_agilab, "display_landing_page", lambda _path: None)
+
+    about_agilab.render_newcomer_first_proof(env)
+
+    next_action = _event_index(fake_st.events, "warning", "Next action:")
+    progress = _event_index(fake_st.events, "markdown", "**Progress**")
+    troubleshooting = _event_index(
+        fake_st.events,
+        "markdown",
+        "**Troubleshooting and evidence**",
+    )
+    validated_path = _event_index(fake_st.events, "caption", "Validated path:")
+
+    assert next_action < progress < troubleshooting < validated_path
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):

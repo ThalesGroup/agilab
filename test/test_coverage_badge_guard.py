@@ -54,6 +54,18 @@ def test_expand_with_aggregates_adds_core_and_global_badges() -> None:
     assert module.expand_with_aggregates(["agi-gui"]) == ["agi-gui", "agilab"]
 
 
+def test_guard_commands_use_combined_core_coverage_profile() -> None:
+    module = _load_module()
+
+    commands = module._guard_commands(["agi-node", "agi-cluster"])
+
+    assert commands[0] == (
+        "uv --preview-features extra-build-dependencies run python "
+        "tools/workflow_parity.py --profile agi-core-combined"
+    )
+    assert "--profile agi-node --profile agi-cluster" not in "\n".join(commands)
+
+
 def test_stale_xml_messages_flags_xml_older_than_changed_input(tmp_path: Path) -> None:
     module = _load_module()
     source = tmp_path / "src" / "agilab" / "orchestrate_execute.py"

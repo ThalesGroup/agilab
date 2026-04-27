@@ -78,7 +78,7 @@ jobs:
           path: coverage-agi-env.xml
           if-no-files-found: error
 
-  agi-node:
+  agi-core:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -108,15 +108,15 @@ jobs:
           }
           EOF
 
-      - name: Run agi-node coverage
+      - name: Run agi-node + agi-cluster coverage
         run: |
           set -e
           source "$RUNNER_TEMP/coverage-heartbeat.sh"
-          start_coverage_heartbeat "agi-node coverage" &
+          start_coverage_heartbeat "agi-node+agi-cluster coverage" &
           HEARTBEAT_PID=$!
           trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
-          rm -f .coverage.agi-node coverage-agi-node.xml
-          COVERAGE_FILE=.coverage.agi-node uv run --no-project \
+          rm -f .coverage.agi-core-combined coverage-agi-node.xml coverage-agi-cluster.xml
+          uv run --no-project \
             --with-editable ./src/agilab/core/agi-env \
             --with-editable ./src/agilab/core/agi-node \
             --with-editable ./src/agilab/core/agi-cluster \
@@ -124,10 +124,33 @@ jobs:
             --with sqlalchemy \
             --with pytest \
             --with pytest-asyncio \
-            --with pytest-cov \
-            python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
-            --cov=agi_node --cov-report=xml:coverage-agi-node.xml \
+            --with coverage \
+            python -m coverage run --data-file=.coverage.agi-core-combined \
+            --source=agi_node,agi_cluster \
+            -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             src/agilab/core/test
+          uv run --no-project \
+            --with-editable ./src/agilab/core/agi-env \
+            --with-editable ./src/agilab/core/agi-node \
+            --with-editable ./src/agilab/core/agi-cluster \
+            --with-editable ./src/agilab/core/agi-core \
+            --with sqlalchemy \
+            --with pytest \
+            --with pytest-asyncio \
+            --with coverage \
+            python -m coverage xml --data-file=.coverage.agi-core-combined \
+            -o coverage-agi-node.xml --include='*/agi_node/*'
+          uv run --no-project \
+            --with-editable ./src/agilab/core/agi-env \
+            --with-editable ./src/agilab/core/agi-node \
+            --with-editable ./src/agilab/core/agi-cluster \
+            --with-editable ./src/agilab/core/agi-core \
+            --with sqlalchemy \
+            --with pytest \
+            --with pytest-asyncio \
+            --with coverage \
+            python -m coverage xml --data-file=.coverage.agi-core-combined \
+            -o coverage-agi-cluster.xml --include='*/agi_cluster/*'
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
 
@@ -141,67 +164,6 @@ jobs:
           verbose: true
           fail_ci_if_error: true
 
-      - name: Archive agi-node coverage XML
-        if: always() && hashFiles('coverage-agi-node.xml') != ''
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-agi-node-xml
-          path: coverage-agi-node.xml
-          if-no-files-found: error
-
-  agi-cluster:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up Python 3.13
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          version: "0.10.7"
-
-      - name: Define heartbeat helper
-        shell: bash
-        run: |
-          cat > "$RUNNER_TEMP/coverage-heartbeat.sh" <<'EOF'
-          start_coverage_heartbeat() {
-            local label="$1"
-            while true; do
-              sleep 20
-              printf '[heartbeat] %s %s still running\n' "$(date -u +%H:%M:%S)" "$label"
-            done
-          }
-          EOF
-
-      - name: Run agi-cluster coverage
-        run: |
-          set -e
-          source "$RUNNER_TEMP/coverage-heartbeat.sh"
-          start_coverage_heartbeat "agi-cluster coverage" &
-          HEARTBEAT_PID=$!
-          trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
-          rm -f .coverage.agi-cluster coverage-agi-cluster.xml
-          COVERAGE_FILE=.coverage.agi-cluster uv run --no-project \
-            --with-editable ./src/agilab/core/agi-env \
-            --with-editable ./src/agilab/core/agi-node \
-            --with-editable ./src/agilab/core/agi-cluster \
-            --with-editable ./src/agilab/core/agi-core \
-            --with sqlalchemy \
-            --with pytest \
-            --with pytest-asyncio \
-            --with pytest-cov \
-            python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
-            --cov=agi_cluster --cov-report=xml:coverage-agi-cluster.xml \
-            src/agilab/core/test
-          kill "$HEARTBEAT_PID" 2>/dev/null || true
-          trap - EXIT
-
       - name: Upload agi-cluster coverage to Codecov
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
         uses: codecov/codecov-action@v6
@@ -211,6 +173,14 @@ jobs:
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
+
+      - name: Archive agi-node coverage XML
+        if: always() && hashFiles('coverage-agi-node.xml') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-agi-node-xml
+          path: coverage-agi-node.xml
+          if-no-files-found: error
 
       - name: Archive agi-cluster coverage XML
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
@@ -334,8 +304,7 @@ jobs:
     timeout-minutes: 10
     needs:
       - agi-env
-      - agi-node
-      - agi-cluster
+      - agi-core
       - agi-gui
     steps:
       - name: Checkout
