@@ -32,6 +32,16 @@ and adopters a versioned, repository-local upgrade trail.
 - Split `agi-env` runtime dependencies so headless core installs no longer pull
   Streamlit unless consumers request the `agi-env[ui]` extra.
 
+## [2026.4.27.post5] - 2026-04-27
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-3
+
+### Changed
+
+- Published AGILAB `2026.4.27.post5` to PyPI for `agi-env`, `agi-node`, `agi-cluster`, `agi-core`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.4.27.post4] - 2026-04-27
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-2
@@ -142,3 +152,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.4.27.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26-2
 [2026.4.27.post3]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27
 [2026.4.27.post4]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-2
+[2026.4.27.post5]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27-3
