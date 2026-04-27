@@ -25,6 +25,8 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "tools/workflow_parity.py" in text
+    assert 'python-version: ["3.13"]' in text
+    assert "uv --preview-features extra-build-dependencies run --no-project python tools/workflow_parity.py" in text
     assert "--profile agi-env" in text
     assert "--profile agi-core-combined" in text
     assert "uv run --dev --project agi-cluster python -m pytest" not in text

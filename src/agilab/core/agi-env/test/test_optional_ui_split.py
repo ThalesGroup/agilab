@@ -53,8 +53,9 @@ def test_agi_env_declares_streamlit_only_as_ui_extra() -> None:
 
 def test_agilab_declares_agi_env_ui_extra_for_full_ui_runtime() -> None:
     data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
+    version = data["project"]["version"]
 
-    assert "agi-env[ui]==2026.4.27.post2" in data["project"]["dependencies"]
+    assert f"agi-env[ui]=={version}" in data["project"]["dependencies"]
 
 
 def test_headless_import_does_not_require_streamlit() -> None:
