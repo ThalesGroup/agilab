@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version as _package_version
+
 from .file_picker import (
     FilePickerEntry,
     FilePickerRoot,
@@ -16,7 +18,10 @@ from .file_picker import (
 )
 from .ux_widgets import compact_choice, confirm_button, status_container, toast
 
-__version__ = "2026.4.27.post6"
+try:
+    __version__ = _package_version("agi-gui")
+except PackageNotFoundError:
+    __version__ = "0+unknown"
 
 __all__ = [
     "FilePickerEntry",
