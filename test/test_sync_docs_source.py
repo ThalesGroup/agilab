@@ -111,6 +111,26 @@ def test_main_check_and_apply_modes(tmp_path: Path, capsys) -> None:
     assert payload["managed_target"] == "docs/source"
 
 
+def test_main_can_skip_missing_canonical_source_for_local_guards(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    target = tmp_path / "target"
+    target.mkdir()
+
+    exit_code = module.main(
+        [
+            "--source",
+            str(tmp_path / "missing-source"),
+            "--target",
+            str(target),
+            "--check",
+            "--skip-missing-source",
+        ]
+    )
+
+    assert exit_code == 0
+    assert "skipped mirror drift check" in capsys.readouterr().out
+
+
 def test_verify_stamp_passes_after_apply(tmp_path: Path, capsys) -> None:
     module = _load_module()
     source = tmp_path / "source"

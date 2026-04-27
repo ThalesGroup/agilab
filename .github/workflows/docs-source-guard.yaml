@@ -44,6 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp --quiet
+          uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check --delete --quiet --skip-missing-source
 
       - name: Test docs/source sync tool
         run: |
