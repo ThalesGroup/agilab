@@ -47,16 +47,16 @@ class _FakeStreamlit:
     def caption(self, body: object):
         self.events.append(("caption", str(body)))
 
-    def info(self, body: object):
+    def info(self, body: object, **_kwargs):
         self.events.append(("info", str(body)))
 
-    def warning(self, body: object):
+    def warning(self, body: object, **_kwargs):
         self.events.append(("warning", str(body)))
 
-    def success(self, body: object):
+    def success(self, body: object, **_kwargs):
         self.events.append(("success", str(body)))
 
-    def error(self, body: object):
+    def error(self, body: object, **_kwargs):
         self.events.append(("error", str(body)))
 
     def markdown(self, body: object, **_kwargs):
@@ -232,6 +232,31 @@ def test_landing_page_sections_use_clear_product_language():
     ]
 
 
+def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
+    import agi_gui.pagelib as pagelib
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(
+        pagelib,
+        "get_base64_of_image",
+        lambda _path: (_ for _ in ()).throw(OSError("missing logo")),
+    )
+
+    about_agilab.quick_logo(tmp_path)
+    about_agilab.display_landing_page(tmp_path)
+    about_agilab._sync_layout_module()
+    about_agilab._about_layout.render_package_versions()
+    about_agilab._about_layout.render_system_information()
+    about_agilab._about_layout.render_footer()
+
+    assert about_agilab._clean_openai_key("sk-" + "a" * 16) == "sk-" + "a" * 16
+    assert any("Welcome to AGILAB" in body for kind, body in fake_st.events if kind == "info")
+    assert any("agilab:" in body for kind, body in fake_st.events if kind == "write")
+    assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
+    assert any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
+
+
 def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     apps_path = tmp_path / "apps"
     flight_project = apps_path / "builtin" / "flight_project"
@@ -331,6 +356,86 @@ def test_first_proof_progress_rows_show_incomplete_manifest_attention(tmp_path):
     assert by_step["Run executed"]["status"] == "Done"
     assert by_step["Evidence manifest"]["status"] == "Waiting"
     assert "run_manifest.json" in by_step["Evidence manifest"]["detail"]
+
+
+def test_first_proof_progress_rows_cover_missing_and_passed_states():
+    base_state = {
+        "active_app_name": "flight_project",
+        "output_dir": "/tmp/out",
+        "project_available": True,
+        "current_app_matches": True,
+        "run_manifest_loaded": False,
+        "run_output_detected": False,
+        "run_manifest_passed": False,
+        "run_manifest_status": "missing",
+        "run_manifest_path": "/tmp/out/run_manifest.json",
+    }
+
+    missing_rows = about_agilab._first_proof_progress_rows(
+        {**base_state, "project_available": False}
+    )
+    assert missing_rows[0]["status"] == "Blocked"
+
+    passed_rows = about_agilab._first_proof_progress_rows(
+        {
+            **base_state,
+            "run_manifest_loaded": True,
+            "run_manifest_passed": True,
+        }
+    )
+    by_step = {row["step"]: row for row in passed_rows}
+    assert by_step["Run executed"]["status"] == "Done"
+    assert by_step["Evidence manifest"]["status"] == "Done"
+
+
+def test_first_proof_next_action_branches(monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    base_state = {
+        "next_step": "next",
+        "project_available": True,
+        "current_app_matches": True,
+        "run_manifest_loaded": False,
+        "run_output_detected": False,
+        "run_manifest_passed": False,
+    }
+
+    about_agilab._render_first_proof_next_action(
+        SimpleNamespace(),
+        {**base_state, "project_available": False},
+    )
+    about_agilab._render_first_proof_next_action(
+        SimpleNamespace(),
+        {**base_state, "run_manifest_passed": True},
+    )
+    about_agilab._render_first_proof_next_action(
+        SimpleNamespace(),
+        {**base_state, "run_manifest_loaded": True},
+    )
+    about_agilab._render_first_proof_next_action(SimpleNamespace(), base_state)
+
+    assert any(kind == "error" for kind, _ in fake_st.events)
+    assert any(kind == "success" for kind, _ in fake_st.events)
+    assert any(kind == "warning" for kind, _ in fake_st.events)
+    assert any(kind == "info" for kind, _ in fake_st.events)
+
+
+def test_env_editor_refresh_share_dir_success_and_ignored_empty(tmp_path, monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    data_root = tmp_path / "share" / "flight"
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        share_target_name="flight",
+        ensure_data_root=lambda: data_root,
+    )
+
+    about_agilab._refresh_share_dir(env, "")
+    about_agilab._refresh_share_dir(env, "share")
+
+    assert env.agi_share_path == "share"
+    assert env.data_root == data_root
+    assert env.dataframe_path == tmp_path / "share" / "flight" / "dataframe"
 
 
 def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
