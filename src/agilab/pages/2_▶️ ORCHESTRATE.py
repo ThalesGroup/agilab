@@ -881,9 +881,6 @@ async def _render_run_panels(
     st.session_state.setdefault("run_log_cache", "")
 
     execution_view_key = f"orchestrate_execution_view__{env.app}"
-    if execution_view_key not in st.session_state:
-        st.session_state[execution_view_key] = "Run now"
-
     execution_view = compact_choice(
         st,
         "Execution panel",

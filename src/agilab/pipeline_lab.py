@@ -19,7 +19,7 @@ from agi_gui.pagelib import (
     run_lab,
     save_csv,
 )
-from agi_gui.ux_widgets import confirm_button, status_container, toast
+from agi_gui.ux_widgets import compact_choice, confirm_button, status_container, toast
 from agi_env.snippet_contract import (
     clean_stale_snippet_files,
     is_generated_agi_snippet,
@@ -367,11 +367,13 @@ def display_lab_tab(
         if new_q_key not in st.session_state:
             st.session_state[new_q_key] = ""
         with st.expander("New step", expanded=True):
-            step_source = st.selectbox(
+            step_source = compact_choice(
+                st,
                 "Step source",
                 source_options,
                 key=step_source_key,
                 help="Select `gen step` to use the code generator, or choose an existing snippet to import as read-only.",
+                inline_limit=5,
             )
 
             if step_source == "gen step":
@@ -382,11 +384,13 @@ def display_lab_tab(
                     label_visibility="collapsed",
                 )
                 venv_labels = ["Use AGILAB environment"] + available_venvs
-                selected_new_venv = st.selectbox(
+                selected_new_venv = compact_choice(
+                    st,
                     "venv",
                     venv_labels,
                     key=new_venv_key,
                     help="Choose which virtual environment should execute this step.",
+                    inline_limit=4,
                 )
                 selected_path = (
                     "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
@@ -593,12 +597,14 @@ def display_lab_tab(
                 default_label = initial_label or venv_labels[0]
                 if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
                     st.session_state[select_key] = default_label
-                selected_label = st.selectbox(
+                selected_label = compact_choice(
+                    st,
                     "venv",
                     venv_labels,
                     key=select_key,
                     help="Choose which virtual environment should execute this step.",
                     disabled=is_locked_step,
+                    inline_limit=4,
                 )
                 selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
                 if selected_path:
@@ -1178,11 +1184,13 @@ def display_lab_tab(
         st.session_state[new_q_key] = ""
     with st.expander("Add step", expanded=False):
         st.info(snippet_guidance)
-        step_source = st.selectbox(
+        step_source = compact_choice(
+            st,
             "Step source",
             source_options,
             key=step_source_key,
             help="Select `gen step` to use the code generator, or choose an existing snippet to import as read-only.",
+            inline_limit=5,
         )
         if step_source == "gen step":
             st.text_area(
@@ -1192,11 +1200,13 @@ def display_lab_tab(
                 label_visibility="collapsed",
             )
             venv_labels = ["Use AGILAB environment"] + available_venvs
-            selected_new_venv = st.selectbox(
+            selected_new_venv = compact_choice(
+                st,
                 "venv",
                 venv_labels,
                 key=new_venv_key,
                 help="Choose which virtual environment should execute this step.",
+                inline_limit=4,
             )
             selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
             run_new = st.button("Generate code", type="primary", width="stretch", key=f"{safe_prefix}_add_step_btn")

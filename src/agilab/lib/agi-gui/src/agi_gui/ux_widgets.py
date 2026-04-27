@@ -35,6 +35,13 @@ def _state_get(state: Any, key: str, default: Any = None) -> Any:
         return getattr(state, key, default)
 
 
+def _state_contains(state: Any, key: str) -> bool:
+    try:
+        return key in state
+    except TypeError:
+        return hasattr(state, key)
+
+
 def _state_set(state: Any, key: str, value: Any) -> None:
     try:
         state[key] = value
@@ -155,6 +162,7 @@ def compact_choice(
     kwargs: dict[str, Any] | None = None,
     label_visibility: str = "visible",
     width: str = "stretch",
+    disabled: bool = False,
     inline_limit: int | None = 8,
     fallback: str = "selectbox",
 ) -> Any:
@@ -164,6 +172,7 @@ def compact_choice(
         return None
 
     selected_default = default if default in option_list else option_list[_option_index(option_list, default, index)]
+    keyed_state_exists = key is not None and _state_contains(_session_state(streamlit), key)
     use_inline = inline_limit is None or len(option_list) <= inline_limit
     if use_inline:
         for method_name in ("segmented_control", "pills"):
@@ -171,29 +180,27 @@ def compact_choice(
             if not callable(method):
                 continue
             try:
-                result = method(
-                    label,
-                    option_list,
-                    default=selected_default,
-                    key=key,
-                    format_func=format_func,
-                    help=help,
-                    on_change=on_change,
-                    args=args,
-                    kwargs=kwargs,
-                    label_visibility=label_visibility,
-                    width=width,
-                )
+                widget_kwargs = {
+                    "key": key,
+                    "format_func": format_func,
+                    "help": help,
+                    "on_change": on_change,
+                    "args": args,
+                    "kwargs": kwargs,
+                    "label_visibility": label_visibility,
+                    "width": width,
+                    "disabled": disabled,
+                }
+                if not keyed_state_exists:
+                    widget_kwargs["default"] = selected_default
+                result = method(label, option_list, **widget_kwargs)
                 return selected_default if result is None else result
             except TypeError:
                 try:
-                    result = method(
-                        label,
-                        option_list,
-                        default=selected_default,
-                        key=key,
-                        format_func=format_func,
-                    )
+                    widget_kwargs = {"key": key, "format_func": format_func}
+                    if not keyed_state_exists:
+                        widget_kwargs["default"] = selected_default
+                    result = method(label, option_list, **widget_kwargs)
                     return selected_default if result is None else result
                 except TypeError:
                     continue
@@ -203,39 +210,47 @@ def compact_choice(
         radio = getattr(streamlit, "radio", None)
         if callable(radio):
             try:
-                return radio(
-                    label,
-                    option_list,
-                    index=selected_index,
-                    key=key,
-                    format_func=format_func,
-                    help=help,
-                    on_change=on_change,
-                    args=args,
-                    kwargs=kwargs,
-                    label_visibility=label_visibility,
-                    horizontal=True,
-                )
+                widget_kwargs = {
+                    "key": key,
+                    "format_func": format_func,
+                    "help": help,
+                    "on_change": on_change,
+                    "args": args,
+                    "kwargs": kwargs,
+                    "label_visibility": label_visibility,
+                    "horizontal": True,
+                    "disabled": disabled,
+                }
+                if not keyed_state_exists:
+                    widget_kwargs["index"] = selected_index
+                return radio(label, option_list, **widget_kwargs)
             except TypeError:
-                return radio(label, option_list, index=selected_index, key=key)
+                widget_kwargs = {"key": key}
+                if not keyed_state_exists:
+                    widget_kwargs["index"] = selected_index
+                return radio(label, option_list, **widget_kwargs)
 
     selectbox = getattr(streamlit, "selectbox", None)
     if callable(selectbox):
         try:
-            return selectbox(
-                label,
-                option_list,
-                index=selected_index,
-                key=key,
-                format_func=format_func,
-                help=help,
-                on_change=on_change,
-                args=args,
-                kwargs=kwargs,
-                label_visibility=label_visibility,
-            )
+            widget_kwargs = {
+                "key": key,
+                "format_func": format_func,
+                "help": help,
+                "on_change": on_change,
+                "args": args,
+                "kwargs": kwargs,
+                "label_visibility": label_visibility,
+                "disabled": disabled,
+            }
+            if not keyed_state_exists:
+                widget_kwargs["index"] = selected_index
+            return selectbox(label, option_list, **widget_kwargs)
         except TypeError:
-            return selectbox(label, option_list, index=selected_index, key=key)
+            widget_kwargs = {"key": key}
+            if not keyed_state_exists:
+                widget_kwargs["index"] = selected_index
+            return selectbox(label, option_list, **widget_kwargs)
 
     return selected_default
 
