@@ -1199,11 +1199,13 @@ async def page() -> None:
 
     st.session_state.setdefault("cluster_verbose", current_verbose)
 
-    selected_verbose = st.sidebar.selectbox(
+    selected_verbose = compact_choice(
+        st.sidebar,
         "Verbosity level",
-        options=verbosity_options,
+        verbosity_options,
         key="cluster_verbose",
         help="Controls AgiEnv verbosity for generated install/distribute/run snippets.",
+        inline_limit=4,
     )
 
     try:

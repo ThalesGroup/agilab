@@ -19,6 +19,14 @@ _TOAST_FALLBACKS = {
 
 def _session_state(streamlit: Any) -> Any:
     state = getattr(streamlit, "session_state", None)
+    streamlit_module = getattr(type(streamlit), "__module__", "")
+    if state is None and streamlit_module.startswith("streamlit."):
+        try:
+            import streamlit as native_streamlit
+
+            state = getattr(native_streamlit, "session_state", None)
+        except Exception:
+            state = None
     if state is None:
         state = {}
         try:

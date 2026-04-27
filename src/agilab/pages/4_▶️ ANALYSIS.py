@@ -53,6 +53,7 @@ from agi_gui.pagelib import (
     select_project,
     inject_theme,
 )
+from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv
 from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
@@ -1291,11 +1292,13 @@ async def main():
                 placeholder="my_analysis_view",
                 key=f"analysis_template_view_name__{project or 'default'}",
             )
-            clone_source = st.selectbox(
+            clone_source = compact_choice(
+                st,
                 "Clone from existing apps-page (optional)",
-                options=clone_source_paths,
+                clone_source_paths,
                 format_func=lambda value: clone_source_labels.get(value, value),
                 key=f"analysis_template_clone_source__{project or 'default'}",
+                inline_limit=5,
             )
             create_template_view = st.button(
                 "Create",
