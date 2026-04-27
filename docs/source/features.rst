@@ -13,7 +13,7 @@ AGILab currently exposes 2 main user interfaces:
  - ``agi-core``: an API interface callable directly from your Python program.
  - ``agilab``: a web interface that generates ``agi-core`` calls and can render generated snippets for execution.
 
-Shared components include ``agi-env`` (headless environment setup), ``agi-gui`` (Streamlit page dependencies), ``agi-node`` (runtime orchestration), and ``agi-cluster`` (multi-node execution support).
+Shared components include ``agi-env`` (environment setup), ``agi-node`` (runtime orchestration), and ``agi-cluster`` (multi-node execution support).
 
 agi-core
 --------
