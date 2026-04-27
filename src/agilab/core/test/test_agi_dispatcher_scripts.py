@@ -1,5 +1,6 @@
 import os
 import builtins
+import json
 import runpy
 import shutil
 import subprocess
@@ -172,6 +173,134 @@ def test_cython_type_preprocess_skips_dynamic_reassignments():
     skipped = {item.name for item in preview.skipped}
     assert typed == {("ok", "bint")}
     assert "total" in skipped
+
+
+def test_cython_type_preprocess_handles_complex_function_shapes():
+    source = (
+        "class Worker:\r\n"
+        "    async def compute(self, values, *extra, scale=1.0, **kw):\r\n"
+        "        \"\"\"Worker method.\"\"\"\r\n"
+        "        total = -1.0\r\n"
+        "        count = len(values)\r\n"
+        "        repeated = len(values) + len(values)\r\n"
+        "        ratio = float(count) + 1.0\r\n"
+        "        ok = count > 0\r\n"
+        "        flag = bool(values)\r\n"
+        "        label = 'demo'\r\n"
+        "        pair_a, pair_b = (1.0, 2.0)\r\n"
+        "        annotated: float = 0.0\r\n"
+        "        maybe: int\r\n"
+        "        total += 1.0\r\n"
+        "        for i in range(count):\r\n"
+        "            total += 1.0\r\n"
+        "        for item in values:\r\n"
+        "            label = item\r\n"
+        "        with context() as resource:\r\n"
+        "            ok = bool(resource)\r\n"
+        "        try:\r\n"
+        "            risky()\r\n"
+        "        except Exception as exc:\r\n"
+        "            label = str(exc)\r\n"
+        "        if (walrus := len(values)):\r\n"
+        "            ok = True\r\n"
+        "        async for record in stream():\r\n"
+        "            label = record\r\n"
+        "        async with manager() as cm:\r\n"
+        "            label = cm\r\n"
+        "        def inner():\r\n"
+        "            nested = 1.0\r\n"
+        "        class Local:\r\n"
+        "            pass\r\n"
+        "        return total\r\n"
+    )
+
+    preview = type_preprocess_mod.analyze_source(source, filename="worker.py")
+    pyx_source = type_preprocess_mod.render_pyx(source, preview)
+    report = preview.to_report(input_path="worker.py", output_path="worker.pyx")
+    typed = {(item.function, item.name, item.cython_type) for item in preview.typed_variables}
+    skipped = {item.name: item.reason for item in preview.skipped}
+
+    assert ("Worker.compute", "count", "Py_ssize_t") in typed
+    assert ("Worker.compute", "flag", "bint") in typed
+    assert ("Worker.compute", "i", "Py_ssize_t") in typed
+    assert ("Worker.compute", "ratio", "double") in typed
+    assert ("Worker.compute", "repeated", "Py_ssize_t") in typed
+    assert "label" in skipped
+    assert "pair_a" in skipped
+    assert "resource" in skipped
+    assert "record" in skipped
+    assert "cm" in skipped
+    assert report["input"] == "worker.py"
+    assert report["output"] == "worker.pyx"
+    assert "\r\n        cdef Py_ssize_t count\r\n" in pyx_source
+
+
+def test_cython_type_preprocess_respects_global_and_nonlocal_targets():
+    source = """
+def use_global():
+    global shared
+    shared = 1.0
+    local = 1.0
+    return local
+
+def outer():
+    value = 0.0
+    def inner():
+        nonlocal value
+        value = 1.0
+        return value
+    return inner()
+"""
+
+    preview = type_preprocess_mod.analyze_source(source)
+    typed = {(item.function, item.name) for item in preview.typed_variables}
+
+    assert ("use_global", "local") in typed
+    assert ("use_global", "shared") not in typed
+    assert ("outer", "value") in typed
+    assert ("outer.inner", "value") not in typed
+
+
+def test_cython_type_preprocess_cli_writes_reports_and_handles_empty_inputs(
+    tmp_path,
+    capsys,
+):
+    input_path = tmp_path / "worker.py"
+    output_path = tmp_path / "worker.pyx"
+    report_path = tmp_path / "report.json"
+    input_path.write_text(
+        "def run(values):\n"
+        "    total = 0.0\n"
+        "    for i in range(len(values)):\n"
+        "        total += 1.0\n"
+        "    return total\n",
+        encoding="utf-8",
+    )
+
+    exit_code = type_preprocess_mod.main(
+        [
+            str(input_path),
+            "--output",
+            str(output_path),
+            "--report-json",
+            str(report_path),
+            "--json",
+            "--fail-on-empty",
+        ]
+    )
+
+    printed_report = json.loads(capsys.readouterr().out)
+    stored_report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert printed_report["input"] == str(input_path)
+    assert stored_report["output"] == str(output_path)
+    assert "cdef double total" in output_path.read_text(encoding="utf-8")
+
+    empty_path = tmp_path / "empty.py"
+    empty_path.write_text("def run():\n    return object()\n", encoding="utf-8")
+
+    assert type_preprocess_mod.main([str(empty_path), "--fail-on-empty"]) == 2
+    assert "def run():" in capsys.readouterr().out
 
 
 def test_pre_install_main_dispatches_prepare_for_cython(monkeypatch, tmp_path):
