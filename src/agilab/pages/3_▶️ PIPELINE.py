@@ -349,6 +349,88 @@ def clean_query(index_page: str) -> None:
         venv_store.pop(current_step, None)
         st.session_state["lab_selected_venv"] = ""
 
+
+def _resolve_dataframe_selection(
+    selection: Any,
+    *,
+    df_files_rel: List[Path],
+    export_root: Path,
+) -> Tuple[Path, str] | None:
+    """Return a valid relative dataframe selection and absolute picker path."""
+    if selection in (None, ""):
+        return None
+
+    try:
+        raw_path = Path(selection)
+    except TypeError:
+        return None
+    export_root_resolved = export_root.resolve(strict=False)
+    if raw_path.is_absolute():
+        try:
+            relative_path = raw_path.resolve(strict=False).relative_to(export_root_resolved)
+        except ValueError:
+            return None
+    else:
+        relative_path = raw_path
+
+    if relative_path not in df_files_rel:
+        return None
+    return relative_path, str((export_root_resolved / relative_path).resolve(strict=False))
+
+
+def _sync_dataframe_picker_from_selectbox(
+    *,
+    picker_key: str,
+    selectbox_key: str,
+    df_files_rel: List[Path],
+    export_root: Path,
+) -> None:
+    """Keep the picker cache aligned when the legacy selectbox changes."""
+    selected = _resolve_dataframe_selection(
+        st.session_state.get(selectbox_key),
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+    if selected is None:
+        return
+
+    _, selected_abs = selected
+    picker_applied_key = f"{picker_key}:last_applied"
+    if st.session_state.get(picker_applied_key) == selected_abs:
+        return
+
+    st.session_state[f"{picker_key}:selected_paths"] = [selected_abs]
+    st.session_state[picker_applied_key] = selected_abs
+
+
+def _apply_dataframe_picker_selection(
+    picked_df: str | Path | None,
+    *,
+    picker_key: str,
+    selectbox_key: str,
+    df_files_rel: List[Path],
+    export_root: Path,
+) -> bool:
+    """Apply a picker selection only when the picker changed."""
+    selected = _resolve_dataframe_selection(
+        picked_df,
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+    if selected is None:
+        return False
+
+    picked_df_rel, picked_abs = selected
+    picker_applied_key = f"{picker_key}:last_applied"
+    if st.session_state.get(picker_applied_key) == picked_abs:
+        return False
+
+    st.session_state[selectbox_key] = picked_df_rel
+    st.session_state[f"{picker_key}:selected_paths"] = [picked_abs]
+    st.session_state[picker_applied_key] = picked_abs
+    return True
+
+
 @st.cache_data(show_spinner=False)
 def _read_steps(steps_file: Path, module_key: str, mtime_ns: int) -> List[Dict[str, Any]]:
     """Read steps for a specific module key from a TOML file.
@@ -690,10 +772,17 @@ def sidebar_controls() -> None:
         picker_default = Path(df_file_default)
     elif df_files_rel:
         picker_default = Agi_export_abs / df_files_rel[index]
+    picker_key = f"{index_page_str}:dataframe_picker"
+    _sync_dataframe_picker_from_selectbox(
+        picker_key=picker_key,
+        selectbox_key=key_df,
+        df_files_rel=df_files_rel,
+        export_root=Agi_export_abs,
+    )
     picked_df = agi_file_picker(
         "Browse dataframe",
         roots={lab_root: lab_dir},
-        key=f"{index_page_str}:dataframe_picker",
+        key=picker_key,
         patterns="*",
         default=picker_default,
         selection_mode="single",
@@ -709,8 +798,13 @@ def sidebar_controls() -> None:
         except ValueError:
             st.sidebar.warning("Selected dataframe is outside the export directory.")
         else:
-            if picked_df_rel in df_files_rel:
-                st.session_state[key_df] = picked_df_rel
+            _apply_dataframe_picker_selection(
+                picked_df_rel,
+                picker_key=picker_key,
+                selectbox_key=key_df,
+                df_files_rel=df_files_rel,
+                export_root=Agi_export_abs,
+            )
     selectbox_index = None if key_df in st.session_state or not df_files_rel else index
 
     st.sidebar.selectbox(
