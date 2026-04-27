@@ -206,6 +206,61 @@ def test_resolve_install_spec_falls_back_to_distribution_metadata_for_non_projec
     assert deployment_local_support._resolve_install_spec(project_path, "agi-env") == "agi-env==0.0.0"
 
 
+def test_build_worker_core_add_commands_marks_local_projects_editable(tmp_path):
+    env_project = tmp_path / "agi-env"
+    node_project = tmp_path / "agi-node"
+    wenv = tmp_path / "wenv"
+    for project in (env_project, node_project, wenv):
+        project.mkdir()
+    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
+    (node_project / "pyproject.toml").write_text("[project]\nname='agi-node'\n", encoding="utf-8")
+
+    commands = deployment_local_support._build_worker_core_add_commands(
+        "uv",
+        wenv,
+        [str(env_project), str(node_project)],
+        offline_flag="--offline ",
+        prefix="PIP_INDEX_URL=https://test.pypi.org/simple; ",
+    )
+
+    assert commands == [
+        (
+            "PIP_INDEX_URL=https://test.pypi.org/simple; "
+            f'uv --offline --project {wenv} add --editable "{env_project}" "{node_project}"'
+        )
+    ]
+
+
+def test_build_worker_core_add_commands_keeps_distribution_specs_non_editable(tmp_path):
+    env_project = tmp_path / "agi-env"
+    wenv = tmp_path / "wenv"
+    for project in (env_project, wenv):
+        project.mkdir()
+    (env_project / "pyproject.toml").write_text("[project]\nname='agi-env'\n", encoding="utf-8")
+
+    commands = deployment_local_support._build_worker_core_add_commands(
+        "uv",
+        wenv,
+        [str(env_project), "agi-node @ git+https://example.invalid/repo.git@main#subdirectory=agi-node"],
+    )
+
+    assert commands == [
+        f'uv --project {wenv} add --editable "{env_project}"',
+        'uv --project {} add "agi-node @ git+https://example.invalid/repo.git@main#subdirectory=agi-node"'.format(
+            wenv
+        ),
+    ]
+
+
+def test_is_local_project_install_spec_treats_unreadable_paths_as_non_local(monkeypatch):
+    def _raise_os_error(_path):
+        raise OSError("unreadable")
+
+    monkeypatch.setattr(deployment_local_support, "_is_python_project", _raise_os_error)
+
+    assert deployment_local_support._is_local_project_install_spec("/unreadable/path") is False
+
+
 def test_resolve_distribution_install_spec_returns_none_when_distribution_is_missing(monkeypatch):
     def _missing(_name):
         raise deployment_local_support.PackageNotFoundError
@@ -1109,7 +1164,7 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     ).read_text(encoding="utf-8") == "../../../../_uv_sources\n"
     assert agi_cls._install_done_local is True
     assert any(
-        f'add "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
     assert not any("add agi-env" in cmd and str(wenv_abs) in cmd for cmd, _ in commands)
@@ -1341,7 +1396,7 @@ async def test_deploy_local_worker_preserves_existing_dependency_ranges(tmp_path
     assert 'scipy>=1.15.2,<1.17' in manager_toml
     assert 'scipy==1.16.1' not in manager_toml
     assert any(
-        f'add "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
     assert any("sync --project" in cmd for cmd, _ in commands)
@@ -1475,7 +1530,7 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
     assert "pip>=1" not in manager_toml
     assert "scipy==1.16.1" not in manager_toml
     assert any(
-        f'add "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
 
@@ -1493,6 +1548,10 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
     agi_cluster = tmp_path / "agi_cluster"
     for project in (agi_env, agi_node, agi_cluster):
         project.mkdir(parents=True, exist_ok=True)
+        (project / "pyproject.toml").write_text(
+            f"[project]\nname='{project.name.replace('_', '-')}'\nversion='0.0.1'\n",
+            encoding="utf-8",
+        )
         (project / "dist").mkdir(parents=True, exist_ok=True)
     (agi_env / "dist" / "agi_env-0.0.1-py3-none-any.whl").write_text("whl", encoding="utf-8")
     old_node_whl = agi_node / "dist" / "agi_node-0.0.1-py3-none-any.whl"
@@ -1570,6 +1629,10 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
     assert any(f"uv --offline pip install -e '{agi_cluster}'" in cmd for cmd, _ in commands)
     assert any(f'uv --offline --project "{agi_env}" build --wheel' in cmd for cmd, _ in commands)
     assert any(f'uv --offline --project "{agi_node}" build --wheel' in cmd for cmd, _ in commands)
+    assert any(
+        f'uv --offline --project {wenv_abs} add --editable "{agi_env}" "{agi_node}"' in cmd
+        for cmd, _ in commands
+    )
     assert any(f'uv --offline pip install --project "{wenv_abs}" --no-deps -e "{agi_env}"' in cmd for cmd, _ in commands)
     assert any(f'uv --offline pip install --project "{wenv_abs}" --no-deps -e "{agi_node}"' in cmd for cmd, _ in commands)
     assert any(f'pip install --project "{wenv_abs}" --no-deps -e "{app_path}"' in cmd for cmd, _ in commands)
@@ -1890,7 +1953,7 @@ path = "../sat_trajectory_project"
         for cmd, _ in commands
     )
     assert any(
-        f'add "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
+        f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
 

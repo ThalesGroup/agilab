@@ -121,6 +121,43 @@ def _resolve_install_spec(project_path: Path | None, package_name: str) -> str |
     return _resolve_distribution_install_spec(package_name)
 
 
+def _is_local_project_install_spec(spec: str) -> bool:
+    try:
+        return _is_python_project(Path(spec).expanduser())
+    except (OSError, ValueError):
+        return False
+
+
+def _build_worker_core_add_commands(
+    uv_worker: str,
+    wenv_abs: Path,
+    specs: list[str],
+    *,
+    offline_flag: str = "",
+    prefix: str = "",
+) -> list[str]:
+    editable_specs = []
+    normal_specs = []
+    for spec in specs:
+        if _is_local_project_install_spec(spec):
+            editable_specs.append(spec)
+        else:
+            normal_specs.append(spec)
+    commands = []
+
+    if editable_specs:
+        quoted_specs = " ".join(f"\"{spec}\"" for spec in editable_specs)
+        commands.append(
+            f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add --editable {quoted_specs}"
+        )
+
+    if normal_specs:
+        quoted_specs = " ".join(f"\"{spec}\"" for spec in normal_specs)
+        commands.append(f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_specs}")
+
+    return commands
+
+
 def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
     if os_name == "nt":
         return project / ".venv" / "Scripts" / "python.exe"
@@ -726,9 +763,14 @@ async def deploy_local_worker(
         ]
 
     if worker_core_add_specs:
-        quoted_specs = " ".join(f"\"{spec}\"" for spec in worker_core_add_specs)
-        cmd_worker = f"{worker_extra_indexes}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_specs}"
-        await run_fn(cmd_worker, wenv_abs)
+        for cmd_worker in _build_worker_core_add_commands(
+            uv_worker,
+            wenv_abs,
+            worker_core_add_specs,
+            offline_flag=offline_flag,
+            prefix=worker_extra_indexes,
+        ):
+            await run_fn(cmd_worker, wenv_abs)
     else:
         cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
         await run_fn(cmd_worker, wenv_abs)
