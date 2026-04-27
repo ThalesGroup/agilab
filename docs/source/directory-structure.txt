@@ -238,6 +238,7 @@ core/
             __pycache__/ [excluded]
             agi_env/
                 __pycache__/ [excluded]
+                _optional_ui.py
                 resources/
                     .agilab/
                         .env
@@ -254,6 +255,7 @@ core/
                 app_args.py
                 app_settings_support.py
                 bootstrap_support.py
+                connector_registry.py
                 content_renamer_support.py
                 credential_store_support.py
                 data_archive_support.py
@@ -272,6 +274,7 @@ core/
                 pagelib_project_support.py
                 pagelib_resource_support.py
                 pagelib_runtime_support.py
+                pagelib_selection_support.py
                 pagelib_session_support.py
                 process_support.py
                 project_clone_support.py
@@ -280,12 +283,14 @@ core/
                 runtime_bootstrap_support.py
                 share_mount_support.py
                 share_runtime_support.py
+                snippet_contract.py
                 source_analysis_ast.py
                 source_analysis_support.py
                 streamlit_args.py
                 ui_docs_support.py
                 ui_state_support.py
                 ui_support.py
+                worker_runtime_support.py
                 worker_source_support.py
             __init__.py
             pyproject.toml
@@ -346,6 +351,7 @@ core/
                     agi_dispatcher.py
                     base_worker.py
                     build.py
+                    cython_type_preprocess.py
                     post_install.py
                     pre_install.py
                 dag_worker/
@@ -397,6 +403,31 @@ core/
     get_supported_python_versions.py
     install.ps1
     install.sh
+lib/
+    agi-gui/
+        src/
+            agi_gui/
+                __init__.py
+                _compat.py
+                pagelib.py
+                pagelib_data_support.py
+                pagelib_execution_support.py
+                pagelib_navigation_support.py
+                pagelib_preview_support.py
+                pagelib_project_support.py
+                pagelib_resource_support.py
+                pagelib_runtime_support.py
+                pagelib_selection_support.py
+                pagelib_session_support.py
+                streamlit_args.py
+                ui_docs_support.py
+                ui_state_support.py
+                ui_support.py
+        test/
+            test_agi_gui_package.py
+        LICENSE
+        pyproject.toml
+        README.md
 examples/
     flight/
         AGI_command_flight.py

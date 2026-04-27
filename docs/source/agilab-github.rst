@@ -11,6 +11,7 @@
   installs; see :doc:`package-publishing-policy`.
 
 - `agi-env on PyPI <https://pypi.org/project/agi-env/>`_
+- `agi-gui on PyPI <https://pypi.org/project/agi-gui/>`_
 - `agi-core on PyPI <https://pypi.org/project/agi-core/>`_
 - `agi-cluster on PyPI <https://pypi.org/project/agi-cluster/>`_
 - `agi-node on PyPI <https://pypi.org/project/agi-node/>`_
