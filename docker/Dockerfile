@@ -36,7 +36,7 @@ WORKDIR /app
 COPY src/ ./src/
 COPY pyproject.toml ./pyproject.toml
 COPY uv_config.toml ./uv_config.toml
-COPY docker/install.sh ./install.sh
+COPY install.sh ./install.sh
 
 ENV AGI_PYTHON_VERSION="3.13.9"
 ENV AGI_PYTHON_FREE_THREADED="0"
@@ -47,9 +47,12 @@ ENV OLLAMA_HOST="http://ollama:11434"
 
 RUN mkdir -p /root/.agilab \
     && mkdir -p /root/.local/share/agilab \
-    && mkdir -p /root/log/install_logs
+    && mkdir -p /root/log/install_logs \
+    && mkdir -p /root/clustershare
 
 RUN chmod +x ./install.sh && \
+    AGI_SHARE_DIR=/root/clustershare \
+    CLUSTER_CREDENTIALS="" \
     ./install.sh --install-path /app --source local --install-apps
 
 EXPOSE 8501

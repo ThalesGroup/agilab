@@ -1,35 +1,86 @@
-# AGILAB Docker (scratch)
+[![PyPI version](https://img.shields.io/badge/PyPI-2026.4.25-informational?logo=pypi)](https://pypi.org/project/agilab)
+[![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![GitHub](https://img.shields.io/badge/GitHub-ThalesGroup%2Fagilab-black?logo=github)](https://github.com/ThalesGroup/agilab)
 
-Experimental, leaner Docker setup for AGILAB. Compared to `docker/Dockerfile` this version:
+# AGILAB Docker Deployment
 
-- Uses `ghcr.io/astral-sh/uv:bookworm-slim` as base — uv is pre-installed, no install step needed
-- Drops `libreadline-dev` and `tk-dev` — not needed for headless Streamlit
-- Does not copy `test/`, `tools/`, `docs/` — runtime only
-- Adds `OLLAMA_HOST` env var
-- Uses the mandatory `--preview-features extra-build-dependencies` flag in the launch command
+Docker setup for running AGILAB with optional offline LLM support via Ollama.
 
-## Build
+## Architecture
 
-From the repo root:
+| Container | Image | Role |
+|---|---|---|
+| `agilab` | built from `docker/Dockerfile` | AGILAB Streamlit GUI (port 8501) |
+| `agilab-ollama` | `ollama/ollama` (official) | Offline LLM inference API (port 11434) |
+
+## Prerequisites
+
+- Docker Engine 24.0+
+- Docker Compose 2.22+ (for `watch` dev mode)
+- 8 GB RAM minimum (16 GB recommended when using LLM models)
+- 20 GB free disk space
+
+## Quick Start
+
+1. **Set environment variables** (optional):
+   ```bash
+   export OPENAI_API_KEY="your-api-key"
+   export CLUSTER_CREDENTIALS="user:password"
+   ```
+
+2. **Start all services**:
+   ```bash
+   docker compose -f docker/docker-compose.yml up -d
+   ```
+
+3. **Pull an LLM model** (first time only — persisted in the `ollama-models` volume):
+   ```bash
+   docker exec agilab-ollama ollama pull mistral:instruct
+   ```
+   Other models: `llama3`, `gemma3`, `phi4`, `qwen2.5-coder` — see [ollama.com/library](https://ollama.com/library).
+
+4. **Access the application**: http://localhost:8501
+
+5. **Stop services**:
+   ```bash
+   docker compose -f docker/docker-compose.yml down
+   ```
+
+## Development Workflow
+
+For fast iteration without rebuilding the image, use Docker Compose `watch`.
+It syncs `src/` into the running container on every save — Streamlit detects the change and hot-reloads automatically:
 
 ```bash
-docker buildx build -f docker-scratch/Dockerfile -t agilab:scratch .
+docker compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml watch
 ```
 
-## Run
+A full rebuild is only needed when dependencies or the install chain change:
 
-Standalone (no Ollama):
+```bash
+# Rebuild when pyproject.toml or docker/install.sh changes
+docker compose -f docker/docker-compose.yml build
+docker compose -f docker/docker-compose.yml up -d
+```
 
+## Manual Build and Run
+
+**Build the AGILAB image** (from repo root):
+```bash
+docker buildx build -f docker/Dockerfile -t agilab .
+```
+
+**Run standalone** (no Ollama):
 ```bash
 docker run -d \
   --name agilab \
   -p 8501:8501 \
   -e OPENAI_API_KEY="your-api-key" \
-  agilab:scratch
+  agilab
 ```
 
-With Ollama (offline LLM):
-
+**Run with Ollama**:
 ```bash
 docker network create agilab-network
 
@@ -40,7 +91,6 @@ docker run -d \
   -v ollama-models:/root/.ollama \
   ollama/ollama
 
-# Pull a model once (persisted in the volume)
 docker exec agilab-ollama ollama pull mistral:instruct
 
 docker run -d \
@@ -49,10 +99,8 @@ docker run -d \
   -p 8501:8501 \
   -e OPENAI_API_KEY="your-api-key" \
   -e OLLAMA_HOST="http://agilab-ollama:11434" \
-  agilab:scratch
+  agilab
 ```
-
-Access the GUI at http://localhost:8501.
 
 ## Environment Variables
 
@@ -62,17 +110,31 @@ Access the GUI at http://localhost:8501.
 | `CLUSTER_CREDENTIALS` | `root:password` | SSH credentials for cluster access |
 | `AGI_PYTHON_VERSION` | `3.13.9` | Python version managed by uv |
 | `AGI_PYTHON_FREE_THREADED` | `0` | Enable free-threaded Python build |
-| `OLLAMA_HOST` | `http://ollama:11434` | Ollama service endpoint |
+| `OLLAMA_HOST` | `http://agilab-ollama:11434` | Ollama service endpoint |
 | `APPS_REPOSITORY` | _(empty)_ | Optional external apps repository path |
 
-## Differences from `docker/Dockerfile`
+## Volumes
 
-| | `docker/Dockerfile` | `docker-scratch/Dockerfile` |
-|---|---|---|
-| Base image | `ubuntu:24.04` | `ghcr.io/astral-sh/uv:bookworm-slim` |
-| uv install | Manual curl + copy | Pre-installed in base image |
-| `libreadline-dev` | Yes | No |
-| `tk-dev` | Yes | No |
-| `test/` `tools/` `docs/` copied | Yes | No |
-| `OLLAMA_HOST` env | No | Yes |
-| `uv run` flag | Missing `--preview-features` | Correct |
+| Volume | Description |
+|---|---|
+| `agilab-logs` | Application logs |
+| `agilab-config` | AGILAB configuration |
+| `ollama-models` | Ollama model storage (persists across restarts) |
+
+## GPU Support (optional)
+
+To enable GPU acceleration for Ollama, add a `deploy` section to the `ollama` service in `docker-compose.yml`:
+
+```yaml
+ollama:
+  image: ollama/ollama
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+```
+
+Requires [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).
