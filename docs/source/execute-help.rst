@@ -17,11 +17,11 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/orchestrate-page.png
-   :alt: Screenshot of the ORCHESTRATE page showing system settings, install snippet, and execution controls.
+   :alt: Screenshot of the ORCHESTRATE page showing deployment toggles and the generated install snippet.
    :align: center
    :class: diagram-panel diagram-wide
 
-   ORCHESTRATE centralises deployment settings, generated snippets, install logs, and run controls in one operational page.
+   ORCHESTRATE centralises deployment settings and generated snippets before install, distribution, and run actions.
 
 Sidebar
 -------
