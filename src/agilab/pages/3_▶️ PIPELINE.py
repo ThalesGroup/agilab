@@ -42,6 +42,7 @@ from agi_gui.pagelib import (
     inject_theme,
 )
 from agi_gui.file_picker import agi_file_picker
+from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv, normalize_path
 import_agilab_symbols(
     globals(),
@@ -751,7 +752,16 @@ def sidebar_controls() -> None:
     index_page_str = str(index_page)
 
     if steps_file_rel:
-        st.sidebar.selectbox("Steps file", steps_file_rel, key="index_page", on_change=on_page_change)
+        compact_choice(
+            st.sidebar,
+            "Steps file",
+            steps_file_rel,
+            key="index_page",
+            default=index_page if index_page in steps_file_rel else steps_file_rel[0],
+            on_change=on_page_change,
+            help="Switch between exported pipeline step definitions.",
+            inline_limit=6,
+        )
 
     df_files = find_files(lab_dir)
     st.session_state.df_files = df_files

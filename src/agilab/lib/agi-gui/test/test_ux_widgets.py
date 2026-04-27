@@ -97,6 +97,68 @@ def test_status_container_falls_back_to_messages() -> None:
     assert fake.events == [("info", "Running"), ("success", "Done")]
 
 
+def test_compact_choice_uses_native_segmented_control() -> None:
+    calls = []
+
+    class NativeSegmented(_FakeStreamlit):
+        def segmented_control(self, label, options, **kwargs):
+            calls.append((label, list(options), kwargs))
+            return options[1]
+
+    fake = NativeSegmented()
+
+    result = ux_widgets.compact_choice(fake, "Mode", ["Run", "Edit"], key="mode", default="Run")
+
+    assert result == "Edit"
+    assert calls[0][0] == "Mode"
+    assert calls[0][1] == ["Run", "Edit"]
+    assert calls[0][2]["default"] == "Run"
+    assert calls[0][2]["key"] == "mode"
+
+
+def test_compact_choice_uses_pills_when_segmented_control_missing() -> None:
+    calls = []
+
+    class NativePills(_FakeStreamlit):
+        def pills(self, label, options, **kwargs):
+            calls.append((label, list(options), kwargs))
+            return None
+
+    fake = NativePills()
+
+    result = ux_widgets.compact_choice(fake, "Mode", ["Run", "Edit"], default="Edit")
+
+    assert result == "Edit"
+    assert calls[0][0] == "Mode"
+    assert calls[0][2]["default"] == "Edit"
+
+
+def test_compact_choice_falls_back_to_selectbox_for_long_option_lists() -> None:
+    calls = []
+
+    class SelectboxOnly(_FakeStreamlit):
+        def segmented_control(self, *_args, **_kwargs):
+            raise AssertionError("segmented control should be skipped for long lists")
+
+        def selectbox(self, label, options, **kwargs):
+            calls.append((label, list(options), kwargs))
+            return options[2]
+
+    fake = SelectboxOnly()
+
+    result = ux_widgets.compact_choice(
+        fake,
+        "Step",
+        ["a", "b", "c", "d"],
+        default="b",
+        inline_limit=3,
+    )
+
+    assert result == "c"
+    assert calls[0][0] == "Step"
+    assert calls[0][2]["index"] == 1
+
+
 def test_confirm_button_fallback_requires_second_confirm_click() -> None:
     fake = _FakeStreamlit(buttons={"clean": True})
 

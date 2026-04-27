@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable, Iterable
 
 
 _TOAST_FALLBACKS = {
@@ -129,6 +129,115 @@ def toast(
             native_toast(message)
             return
     _call_message(streamlit, state, message)
+
+
+def _option_index(options: list[Any], selected: Any, fallback: int) -> int:
+    try:
+        return options.index(selected)
+    except ValueError:
+        if 0 <= fallback < len(options):
+            return fallback
+        return 0
+
+
+def compact_choice(
+    streamlit: Any,
+    label: str,
+    options: Iterable[Any],
+    *,
+    key: str | None = None,
+    default: Any = None,
+    index: int = 0,
+    format_func: Callable[[Any], str] = str,
+    help: str | None = None,
+    on_change: Callable[..., Any] | None = None,
+    args: tuple[Any, ...] | None = None,
+    kwargs: dict[str, Any] | None = None,
+    label_visibility: str = "visible",
+    width: str = "stretch",
+    inline_limit: int | None = 8,
+    fallback: str = "selectbox",
+) -> Any:
+    """Render a compact single-choice control with backwards-compatible fallbacks."""
+    option_list = list(options)
+    if not option_list:
+        return None
+
+    selected_default = default if default in option_list else option_list[_option_index(option_list, default, index)]
+    use_inline = inline_limit is None or len(option_list) <= inline_limit
+    if use_inline:
+        for method_name in ("segmented_control", "pills"):
+            method = getattr(streamlit, method_name, None)
+            if not callable(method):
+                continue
+            try:
+                result = method(
+                    label,
+                    option_list,
+                    default=selected_default,
+                    key=key,
+                    format_func=format_func,
+                    help=help,
+                    on_change=on_change,
+                    args=args,
+                    kwargs=kwargs,
+                    label_visibility=label_visibility,
+                    width=width,
+                )
+                return selected_default if result is None else result
+            except TypeError:
+                try:
+                    result = method(
+                        label,
+                        option_list,
+                        default=selected_default,
+                        key=key,
+                        format_func=format_func,
+                    )
+                    return selected_default if result is None else result
+                except TypeError:
+                    continue
+
+    selected_index = _option_index(option_list, selected_default, index)
+    if fallback == "radio":
+        radio = getattr(streamlit, "radio", None)
+        if callable(radio):
+            try:
+                return radio(
+                    label,
+                    option_list,
+                    index=selected_index,
+                    key=key,
+                    format_func=format_func,
+                    help=help,
+                    on_change=on_change,
+                    args=args,
+                    kwargs=kwargs,
+                    label_visibility=label_visibility,
+                    horizontal=True,
+                )
+            except TypeError:
+                return radio(label, option_list, index=selected_index, key=key)
+
+    selectbox = getattr(streamlit, "selectbox", None)
+    if callable(selectbox):
+        try:
+            return selectbox(
+                label,
+                option_list,
+                index=selected_index,
+                key=key,
+                format_func=format_func,
+                help=help,
+                on_change=on_change,
+                args=args,
+                kwargs=kwargs,
+                label_visibility=label_visibility,
+            )
+        except TypeError:
+            return selectbox(label, option_list, index=selected_index, key=key)
+
+    return selected_default
 
 
 def confirm_button(
