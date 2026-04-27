@@ -20,7 +20,7 @@ those surfaces first.
 Internal runtime packages
 -------------------------
 
-The following packages are also published to PyPI:
+The following core runtime packages are also published to PyPI:
 
 - ``agi-env``
 - ``agi-node``
@@ -30,6 +30,15 @@ They are runtime building blocks used by ``agi-core``, ``agilab``, app worker
 environments, and CI validation. Their publication is intentional, but they are
 not promoted as independent user products.
 
+Published UI support package
+----------------------------
+
+``agi-gui`` is also published to PyPI from ``src/agilab/lib/agi-gui``. It is
+not part of the core runtime: it depends on the headless ``agi-env`` package and
+adds the Streamlit/UI dependencies used by AGILAB pages and apps-pages bundles.
+Worker environments should keep using ``agi-env`` unless they explicitly need
+to render UI.
+
 Why keep them published
 -----------------------
 
@@ -38,6 +47,8 @@ Publishing these runtime packages keeps the release process reproducible:
 - ``pip install agilab`` and ``uvx agilab`` can resolve the exact package graph.
 - ``agi-core`` can pin the matching ``agi-env``, ``agi-node``, and
   ``agi-cluster`` versions for a release.
+- ``agilab`` can pin the matching ``agi-gui`` version for the UI/page surface
+  without making worker-only installs depend on Streamlit.
 - App worker environments can install the same runtime components in isolation
   from the manager environment.
 - CI and release evidence can validate the same dependency graph that external
@@ -46,10 +57,11 @@ Publishing these runtime packages keeps the release process reproducible:
 Release rule
 ------------
 
-For each public release, publish the runtime packages with the same version as
-``agilab`` and ``agi-core`` unless a deliberate packaging migration removes that
-need. Do not skip ``agi-node`` or ``agi-cluster`` from the publish matrix while
-``agi-core`` depends on them as external packages.
+For each public release, publish the runtime packages and ``agi-gui`` with the
+same version as ``agilab`` and ``agi-core`` unless a deliberate packaging
+migration removes that need. Do not skip ``agi-node``, ``agi-cluster``, or
+``agi-gui`` from the publish matrix while ``agi-core`` and ``agilab`` depend on
+them as external packages.
 
 If AGILAB later embeds the ``agi_node`` and ``agi_cluster`` Python modules
 directly into a single wheel, that migration must update dependency metadata,

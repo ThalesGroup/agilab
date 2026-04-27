@@ -20,7 +20,8 @@ It has two main user interfaces:
 
 Shared components include:
 
-- ``agi-env`` for environment setup
+- ``agi-env`` for headless environment setup
+- ``agi-gui`` for the Streamlit UI dependency bundle and page helpers
 - ``agi-node`` for worker/runtime packaging
 - ``agi-cluster`` for local and distributed execution
 
