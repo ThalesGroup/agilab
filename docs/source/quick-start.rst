@@ -8,6 +8,28 @@ That first proof is the built-in ``flight_project`` run locally from the web
 UI. If it works once from end to end, then branch into notebooks, package mode,
 or cluster mode. If it fails, use :doc:`newcomer-troubleshooting`.
 
+Fast adoption path:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Step
+     - Action
+     - Stop when
+   * - 1. Preview
+     - Open :doc:`agilab-demo` for the hosted public UI.
+     - The Space opens the lightweight ``flight_project`` path.
+   * - 2. Prove locally
+     - Run the source-checkout commands below and stay on the built-in demo.
+     - ``PROJECT`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` works locally.
+   * - 3. Record evidence
+     - Run ``tools/newcomer_first_proof.py --json``.
+     - ``~/log/execute/flight/run_manifest.json`` reports ``status: pass``.
+   * - 4. Expand
+     - Choose notebook, package, private app, or cluster routes only after the
+       local proof passes once.
+     - You have one known-good baseline to compare against.
+
 Prerequisites
 -------------
 
@@ -23,7 +45,9 @@ Prerequisites
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use this path exactly once before trying anything broader.
+Use this path exactly once before trying anything broader. It is the shortest
+local path that exercises install, execution, visible analysis, and a
+machine-readable proof record.
 
 1. **Clone the repository and install the built-in apps**::
 
