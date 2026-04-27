@@ -314,6 +314,8 @@ def _build_worker_extension(
 
 _CYTHON_CACHE_DISABLED_VALUES = {"0", "false", "no", "off", "disable", "disabled"}
 _CYTHON_CACHE_ENABLED_VALUES = {"1", "true", "yes", "on", "enable", "enabled"}
+_TOP_LEVEL_UI_MODULE_PATTERNS = ("app_args_form.py", "*_args_form.py")
+_TOP_LEVEL_UI_BYTECODE_PATTERNS = ("app_args_form.*.pyc", "*_args_form.*.pyc")
 
 
 def _resolve_cython_cache_option(
@@ -372,6 +374,59 @@ def _unpack_worker_eggs(
         log.info(f"Unpacking {egg} -> {dest_src}")
         with zip_cls(egg, "r") as zf:
             zf.extractall(dest_src)
+    _remove_top_level_ui_modules(dest_src, log=log)
+
+
+def _remove_top_level_ui_modules(dest_src: Path, *, log=None) -> list[Path]:
+    """Remove stale UI-only top-level modules from headless worker sources."""
+    if log is None:
+        log = AgiEnv.logger or logger
+    removed: list[Path] = []
+
+    for pattern in _TOP_LEVEL_UI_MODULE_PATTERNS:
+        for candidate in dest_src.glob(pattern):
+            if candidate.is_file():
+                candidate.unlink()
+                removed.append(candidate)
+
+    pycache_dir = dest_src / "__pycache__"
+    if pycache_dir.exists():
+        for pattern in _TOP_LEVEL_UI_BYTECODE_PATTERNS:
+            for candidate in pycache_dir.glob(pattern):
+                if candidate.is_file():
+                    candidate.unlink()
+                    removed.append(candidate)
+        try:
+            pycache_dir.rmdir()
+        except OSError:
+            pass
+
+    for candidate in removed:
+        log.info(f"Removed UI-only worker artifact: {candidate}")
+    return removed
+
+
+def _purge_top_level_ui_build_artifacts(app_root: Path, *, log=None) -> list[Path]:
+    """Drop stale top-level UI modules from setuptools build caches."""
+    if log is None:
+        log = AgiEnv.logger or logger
+    build_root = app_root / "build"
+    if not build_root.exists():
+        return []
+
+    candidates = [build_root / "lib"]
+    candidates.extend(build_root.glob("bdist*/egg"))
+    candidates.extend(build_root.glob("bdist*/**/egg"))
+
+    removed: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        candidate = candidate.resolve(strict=False)
+        if candidate in seen or not candidate.exists():
+            continue
+        seen.add(candidate)
+        removed.extend(_remove_top_level_ui_modules(candidate, log=log))
+    return removed
 
 
 def _build_remove_decorators_command(worker_path: str) -> str:
@@ -529,6 +584,8 @@ def _build_setup_kwargs(
         "version": "0.1.0",
         "package_dir": {"": "src"},
         "packages": find_packages_fn(where="src"),
+        # Dask imports uploaded top-level py_modules; worker eggs must stay headless.
+        "py_modules": [],
         "include_package_data": True,
         "package_data": {"": ["*.7z"]},
         "ext_modules": ext_modules,
@@ -651,12 +708,15 @@ def _prepare_setup_artifacts(
     packages: list[str],
     worker_module: str,
     purge_worker_venv_artifacts_fn=None,
+    purge_top_level_ui_build_artifacts_fn=None,
     configure_build_ext_modules_fn=None,
     prepare_bdist_egg_sources_fn=None,
     log=None,
 ) -> tuple[list, list[Path]]:
     if purge_worker_venv_artifacts_fn is None:
         purge_worker_venv_artifacts_fn = _purge_worker_venv_artifacts
+    if purge_top_level_ui_build_artifacts_fn is None:
+        purge_top_level_ui_build_artifacts_fn = _purge_top_level_ui_build_artifacts
     if configure_build_ext_modules_fn is None:
         configure_build_ext_modules_fn = _configure_build_ext_modules
     if prepare_bdist_egg_sources_fn is None:
@@ -674,6 +734,13 @@ def _prepare_setup_artifacts(
                 "Purged nested worker virtualenv artifacts before %s: %s",
                 cmd,
                 ", ".join(str(path) for path in purged_venvs),
+            )
+        purged_ui_modules = purge_top_level_ui_build_artifacts_fn(env.active_app, log=log)
+        if purged_ui_modules:
+            log.info(
+                "Purged top-level UI modules before %s: %s",
+                cmd,
+                ", ".join(str(path) for path in purged_ui_modules),
             )
 
     if cmd == "build_ext":

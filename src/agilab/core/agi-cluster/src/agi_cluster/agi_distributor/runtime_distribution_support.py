@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import inspect
 import logging
 import os
@@ -6,6 +7,7 @@ import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
+from zipfile import BadZipFile, ZipFile
 
 
 logger = logging.getLogger(__name__)
@@ -14,10 +16,112 @@ _CMD_PREFIX_LOOKUP_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, Timeout
 _WORKER_START_EXCEPTIONS = (ConnectionError, FileNotFoundError, OSError, RuntimeError, TimeoutError)
 _SYNC_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
 _STOP_RETRY_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+_TOP_LEVEL_UI_MODULE_SUFFIX = "_args_form.py"
+_TOP_LEVEL_UI_BYTECODE_SUFFIX = "_args_form."
 
 
 def _sorted_glob_matches(root: Path, pattern: str) -> list[Path]:
     return sorted(root.glob(pattern), key=lambda candidate: candidate.name)
+
+
+def _is_top_level_ui_artifact(name: str) -> bool:
+    parts = Path(name).parts
+    if len(parts) == 1:
+        filename = parts[0]
+        return filename == "app_args_form.py" or filename.endswith(_TOP_LEVEL_UI_MODULE_SUFFIX)
+    if len(parts) == 2 and parts[0] == "__pycache__":
+        filename = parts[1]
+        return (
+            filename.endswith(".pyc")
+            and (
+                filename.startswith("app_args_form.")
+                or _TOP_LEVEL_UI_BYTECODE_SUFFIX in filename
+            )
+        )
+    return False
+
+
+def _clean_top_level_ui_source_artifacts(src_dir: Path, *, log: Any = logger) -> list[Path]:
+    if not src_dir.exists():
+        return []
+    removed: list[Path] = []
+    for pattern in ("app_args_form.py", "*_args_form.py"):
+        for candidate in src_dir.glob(pattern):
+            if candidate.is_file():
+                candidate.unlink()
+                removed.append(candidate)
+    pycache_dir = src_dir / "__pycache__"
+    if pycache_dir.exists():
+        for pattern in ("app_args_form.*.pyc", "*_args_form.*.pyc"):
+            for candidate in pycache_dir.glob(pattern):
+                if candidate.is_file():
+                    candidate.unlink()
+                    removed.append(candidate)
+        try:
+            pycache_dir.rmdir()
+        except OSError:
+            pass
+    for candidate in removed:
+        log.info("Removed UI-only worker source artifact: %s", candidate)
+    return removed
+
+
+def _sanitize_egg_top_level_metadata(name: str, data: bytes) -> bytes:
+    if name != "EGG-INFO/top_level.txt":
+        return data
+    lines = data.decode("utf-8", errors="ignore").splitlines()
+    kept = [
+        line
+        for line in lines
+        if line.strip() != "app_args_form" and not line.strip().endswith("_args_form")
+    ]
+    text = "\n".join(kept)
+    if text:
+        text += "\n"
+    return text.encode("utf-8")
+
+
+def _sanitize_worker_upload_egg(egg_file: Path, *, log: Any = logger) -> list[str]:
+    tmp_file = egg_file.with_name(f".{egg_file.name}.tmp")
+    removed: list[str] = []
+    changed = False
+    try:
+        with ZipFile(egg_file, "r") as source, ZipFile(tmp_file, "w") as dest:
+            for info in source.infolist():
+                name = info.filename
+                if _is_top_level_ui_artifact(name):
+                    removed.append(name)
+                    changed = True
+                    continue
+                data = source.read(name)
+                sanitized = _sanitize_egg_top_level_metadata(name, data)
+                if sanitized != data:
+                    changed = True
+                dest.writestr(info, sanitized)
+    except (BadZipFile, OSError) as exc:
+        with contextlib.suppress(OSError):
+            tmp_file.unlink()
+        log.warning("Could not sanitize worker egg %s: %s", egg_file, exc)
+        return []
+
+    if changed:
+        tmp_file.replace(egg_file)
+        for name in removed:
+            log.info("Removed UI-only worker egg artifact: %s!%s", egg_file, name)
+        return removed
+
+    with contextlib.suppress(OSError):
+        tmp_file.unlink()
+    return []
+
+
+def sanitize_worker_upload_artifacts(wenv_abs: Path, *, log: Any = logger) -> list[str | Path]:
+    """Ensure existing worker upload artifacts do not import Streamlit-only forms."""
+    removed: list[str | Path] = []
+    removed.extend(_clean_top_level_ui_source_artifacts(wenv_abs / "src", log=log))
+    for egg_file in _sorted_glob_matches(wenv_abs / "dist", "*.egg"):
+        removed.extend(_sanitize_worker_upload_egg(egg_file, log=log))
+    return removed
 
 
 def _manager_apps_path(env: Any) -> Path | None:
@@ -151,6 +255,7 @@ async def start(
     *,
     set_env_var_fn: Callable[..., Any],
     create_task_fn: Callable[..., Any] = asyncio.create_task,
+    sanitize_worker_upload_artifacts_fn: Callable[..., Any] = sanitize_worker_upload_artifacts,
     log: Any = logger,
 ) -> bool:
     env = agi_cls.env
@@ -205,6 +310,7 @@ async def start(
     if not agi_cls._mode_auto or (agi_cls._mode_auto and agi_cls._mode == 0):
         await agi_cls._build_lib_remote()
         if agi_cls._mode & agi_cls.DASK_MODE:
+            sanitize_worker_upload_artifacts_fn(agi_cls.env.wenv_abs, log=log)
             for egg_file in _sorted_glob_matches(agi_cls.env.wenv_abs / "dist", "*.egg"):
                 agi_cls._dask_client.upload_file(str(egg_file))
     return True
