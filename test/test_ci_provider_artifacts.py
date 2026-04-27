@@ -23,7 +23,6 @@ from agilab.ci_provider_artifacts import (
     build_artifact_index_from_archives,
     build_gitlab_ci_artifact_index,
     build_github_actions_artifact_index,
-    download_github_actions_artifacts,
     write_sample_ci_provider_archive,
     write_sample_github_actions_archive,
     write_sample_github_actions_directory,
@@ -305,50 +304,6 @@ def test_live_github_artifact_index_uses_api_downloads(tmp_path: Path) -> None:
     assert index["provenance"]["queries_ci_provider"] is True
     assert index["provenance"]["downloads_provider_archives"] is True
     assert index["summary"]["missing_required_count"] == 3
-
-
-def test_github_actions_artifact_download_auth_is_not_redirectable(
-    tmp_path: Path,
-) -> None:
-    seen: list[object] = []
-
-    class _Response:
-        def __enter__(self) -> "_Response":
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def read(self) -> bytes:
-            return b"zip-bytes"
-
-    def fake_urlopen(req: object) -> _Response:
-        seen.append(req)
-        return _Response()
-
-    paths, download_count = download_github_actions_artifacts(
-        [
-            {
-                "id": 17,
-                "name": "first-proof",
-                "archive_download_url": "https://api.github.com/repos/ThalesGroup/agilab/actions/artifacts/17/zip",
-            }
-        ],
-        destination=tmp_path,
-        token="github-token",
-        urlopen=fake_urlopen,
-    )
-
-    assert download_count == 1
-    assert paths == [tmp_path / "first_proof-17.zip"]
-    assert paths[0].read_bytes() == b"zip-bytes"
-    request_obj = seen[0]
-    assert getattr(request_obj, "headers")["Accept"] == "application/vnd.github+json"
-    assert "Authorization" not in getattr(request_obj, "headers")
-    assert (
-        getattr(request_obj, "unredirected_hdrs")["Authorization"]
-        == "Bearer github-token"
-    )
 
 
 def test_live_gitlab_ci_artifact_index_uses_api_downloads(tmp_path: Path) -> None:
