@@ -1,8 +1,10 @@
+:orphan:
+
 AGILAB Demo
 ===========
 
 Use this page when you want the public hosted AGILAB web UI first. This is the
-sidebar-visible counterpart to :doc:`notebook-quickstart`, which is the
+hosted web UI counterpart to :doc:`notebook-quickstart`, which is the
 notebook-first ``agi-core`` demo.
 
 Start here
