@@ -197,6 +197,86 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     assert errors == ["Failed to prepare notebook export: download failed"]
 
 
+def test_dataframe_picker_syncs_from_selectbox_when_selectbox_changed(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    session_state = {}
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
+
+    export_root = tmp_path / "export"
+    df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
+    picker_key = "demo/dataframe_picker"
+    selectbox_key = "demodf"
+    old_abs = str((export_root / df_files_rel[0]).resolve(strict=False))
+    new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
+    session_state[selectbox_key] = df_files_rel[1]
+    session_state[f"{picker_key}:selected_paths"] = [old_abs]
+    session_state[f"{picker_key}:last_applied"] = old_abs
+
+    module._sync_dataframe_picker_from_selectbox(
+        picker_key=picker_key,
+        selectbox_key=selectbox_key,
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+
+    assert session_state[selectbox_key] == df_files_rel[1]
+    assert session_state[f"{picker_key}:selected_paths"] == [new_abs]
+    assert session_state[f"{picker_key}:last_applied"] == new_abs
+
+
+def test_dataframe_picker_apply_ignores_stale_picker_after_selectbox_sync(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    session_state = {}
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
+
+    export_root = tmp_path / "export"
+    df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
+    picker_key = "demo/dataframe_picker"
+    selectbox_key = "demodf"
+    new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
+    session_state[selectbox_key] = df_files_rel[1]
+    session_state[f"{picker_key}:last_applied"] = new_abs
+
+    applied = module._apply_dataframe_picker_selection(
+        export_root / df_files_rel[1],
+        picker_key=picker_key,
+        selectbox_key=selectbox_key,
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+
+    assert applied is False
+    assert session_state[selectbox_key] == df_files_rel[1]
+
+
+def test_dataframe_picker_apply_updates_selectbox_when_picker_changed(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    session_state = {}
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
+
+    export_root = tmp_path / "export"
+    df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
+    picker_key = "demo/dataframe_picker"
+    selectbox_key = "demodf"
+    old_abs = str((export_root / df_files_rel[0]).resolve(strict=False))
+    new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
+    session_state[selectbox_key] = df_files_rel[0]
+    session_state[f"{picker_key}:last_applied"] = old_abs
+
+    applied = module._apply_dataframe_picker_selection(
+        export_root / df_files_rel[1],
+        picker_key=picker_key,
+        selectbox_key=selectbox_key,
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+
+    assert applied is True
+    assert session_state[selectbox_key] == df_files_rel[1]
+    assert session_state[f"{picker_key}:selected_paths"] == [new_abs]
+    assert session_state[f"{picker_key}:last_applied"] == new_abs
+
+
 def test_load_about_page_module_uses_imported_module(monkeypatch):
     module = _load_pipeline_module()
     imported = SimpleNamespace(main=lambda: None)
