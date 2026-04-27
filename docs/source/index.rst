@@ -17,7 +17,7 @@ If the local first proof fails, use :doc:`newcomer-troubleshooting` before
 branching into cluster mode, private app repositories, or broader workflows.
 
 For release-level evidence, inspect the `latest public GitHub release
-<https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.26-2>`__.
+<https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.27>`__.
 
 This documentation then expands into architecture, service mode, API
 references, and example projects.
