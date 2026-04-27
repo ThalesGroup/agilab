@@ -1665,6 +1665,10 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
     egg_path = dist_dir / "demo_worker-0.1.0.egg"
     with ZipFile(egg_path, "w") as zf:
         zf.writestr("demo_worker/__init__.py", "")
+        zf.writestr("demo_worker/app_args_form.py", "package_file = True\n")
+        zf.writestr("app_args_form.py", "import streamlit\n")
+        zf.writestr("demo_args_form.py", "import streamlit\n")
+        zf.writestr("__pycache__/app_args_form.cpython-313.pyc", b"")
 
     env = SimpleNamespace(worker_path="workers/demo_worker.py")
     links_created = [tmp_path / "src" / "demo_worker" / "module_link"]
@@ -1694,6 +1698,10 @@ def test_unpack_worker_eggs_uses_default_zipfile_and_logger(tmp_path):
     egg_path = dist_dir / "demo_worker-0.1.0.egg"
     with ZipFile(egg_path, "w") as zf:
         zf.writestr("demo_worker/__init__.py", "")
+        zf.writestr("demo_worker/app_args_form.py", "package_file = True\n")
+        zf.writestr("app_args_form.py", "import streamlit\n")
+        zf.writestr("demo_args_form.py", "import streamlit\n")
+        zf.writestr("__pycache__/app_args_form.cpython-313.pyc", b"")
 
     log_lines: list[str] = []
     build_mod.AgiEnv.logger = SimpleNamespace(
@@ -1706,8 +1714,43 @@ def test_unpack_worker_eggs_uses_default_zipfile_and_logger(tmp_path):
     )
 
     assert (dest_src / "demo_worker" / "__init__.py").exists()
+    assert (dest_src / "demo_worker" / "app_args_form.py").exists()
+    assert not (dest_src / "app_args_form.py").exists()
+    assert not (dest_src / "demo_args_form.py").exists()
+    assert not (dest_src / "__pycache__" / "app_args_form.cpython-313.pyc").exists()
     assert any("mkdir" in line for line in log_lines)
     assert any("Unpacking" in line for line in log_lines)
+    assert any("Removed UI-only worker artifact" in line for line in log_lines)
+
+
+def test_purge_top_level_ui_build_artifacts_removes_stale_build_cache(tmp_path):
+    app_root = tmp_path / "demo_project"
+    build_lib = app_root / "build" / "lib"
+    package_dir = build_lib / "demo_worker"
+    pycache_dir = build_lib / "__pycache__"
+    package_dir.mkdir(parents=True)
+    pycache_dir.mkdir()
+    (build_lib / "app_args_form.py").write_text("import streamlit\n", encoding="utf-8")
+    (build_lib / "demo_args_form.py").write_text("import streamlit\n", encoding="utf-8")
+    (pycache_dir / "app_args_form.cpython-313.pyc").write_bytes(b"")
+    (package_dir / "app_args_form.py").write_text("keep = True\n", encoding="utf-8")
+
+    log_lines = []
+    removed = build_mod._purge_top_level_ui_build_artifacts(
+        app_root,
+        log=SimpleNamespace(info=lambda message, *args: log_lines.append(str(message % args if args else message))),
+    )
+
+    assert {path.name for path in removed} == {
+        "app_args_form.py",
+        "demo_args_form.py",
+        "app_args_form.cpython-313.pyc",
+    }
+    assert not (build_lib / "app_args_form.py").exists()
+    assert not (build_lib / "demo_args_form.py").exists()
+    assert not (pycache_dir / "app_args_form.cpython-313.pyc").exists()
+    assert (package_dir / "app_args_form.py").exists()
+    assert any("Removed UI-only worker artifact" in line for line in log_lines)
 
 
 def test_resolve_worker_python_path_prefers_home_and_falls_back_to_cwd(tmp_path, monkeypatch):
@@ -1834,6 +1877,7 @@ def test_build_setup_kwargs_uses_find_packages_and_ext_modules():
         "version": "0.1.0",
         "package_dir": {"": "src"},
         "packages": ["demo_worker", "demo_worker.subpkg"],
+        "py_modules": [],
         "include_package_data": True,
         "package_data": {"": ["*.7z"]},
         "ext_modules": ["ext_mod"],
