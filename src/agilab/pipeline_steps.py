@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import logging
 import os
 import re
@@ -16,6 +17,17 @@ from agi_env import AgiEnv
 
 ORCHESTRATE_LOCKED_STEP_KEY = "_orchestrate_locked_step"
 ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
+LEGACY_AGI_RUN_KEYWORDS = frozenset(
+    {
+        "args",
+        "data_in",
+        "data_out",
+        "mode",
+        "reset_target",
+        "scheduler",
+        "workers",
+    }
+)
 
 logger = logging.getLogger(__name__)
 
@@ -637,6 +649,65 @@ def is_runnable_step(entry: Dict[str, Any]) -> bool:
         return False
     code = entry.get("C", "")
     return isinstance(code, str) and bool(code.strip())
+
+
+def legacy_agi_run_call_lines(code: Any) -> List[int]:
+    """Return line numbers for direct legacy ``AGI.run(..., mode=...)`` calls."""
+    if not isinstance(code, str) or "AGI.run" not in code:
+        return []
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+
+    lines: List[int] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if not (
+            isinstance(func, ast.Attribute)
+            and func.attr == "run"
+            and isinstance(func.value, ast.Name)
+            and func.value.id == "AGI"
+        ):
+            continue
+        keyword_names = {kw.arg for kw in node.keywords if kw.arg is not None}
+        has_request_keyword = "request" in keyword_names
+        has_kwargs_expansion = any(kw.arg is None for kw in node.keywords)
+        has_legacy_keyword = bool(keyword_names & LEGACY_AGI_RUN_KEYWORDS)
+        if not has_request_keyword and (has_legacy_keyword or has_kwargs_expansion):
+            lines.append(int(getattr(node, "lineno", 0) or 0))
+    return sorted(set(lines))
+
+
+def find_legacy_agi_run_steps(
+    steps: List[Dict[str, Any]],
+    sequence: Optional[List[int]] = None,
+) -> List[Dict[str, Any]]:
+    """Return selected pipeline steps that still use the pre-RunRequest AGI.run API."""
+    selected = sequence if sequence is not None else list(range(len(steps)))
+    stale_steps: List[Dict[str, Any]] = []
+    for idx in selected:
+        if idx < 0 or idx >= len(steps):
+            continue
+        entry = steps[idx]
+        if not isinstance(entry, dict) or not is_runnable_step(entry):
+            continue
+        lines = legacy_agi_run_call_lines(entry.get("C", ""))
+        if not lines:
+            continue
+        stale_steps.append(
+            {
+                "index": idx,
+                "step": idx + 1,
+                "line": lines[0],
+                "lines": lines,
+                "summary": step_summary(entry, width=80),
+                "project": step_project_name(entry),
+            }
+        )
+    return stale_steps
 
 
 def looks_like_step(value: Any) -> bool:
