@@ -306,6 +306,62 @@ def test_upgrade_legacy_helpers_are_noop():
     assert pipeline_steps.upgrade_legacy_step_entry({"C": code, "E": "legacy text", "R": "agi.run"}) is False
 
 
+def test_legacy_agi_run_detector_flags_removed_keyword_api_only():
+    legacy_code = (
+        "from agi_cluster.agi_distributor import AGI\n"
+        'APP = "flight_trajectory_project"\n'
+        "async def main(app_env):\n"
+        "    return await AGI.run(app_env, mode=4, data_in='in', data_out='out')\n"
+    )
+    wrapper_code = (
+        "from agi_cluster.agi_distributor import AGI, RunRequest\n"
+        "async def agi_run(app_env, **kwargs):\n"
+        "    request = RunRequest(params=kwargs)\n"
+        "    return await AGI.run(app_env, request=request)\n"
+        "res = await agi_run(app_env, mode=4, data_in='in')\n"
+    )
+    positional_request_code = (
+        "from agi_cluster.agi_distributor import AGI, RunRequest\n"
+        "request = RunRequest(mode=4)\n"
+        "res = await AGI.run(app_env, request)\n"
+    )
+    kwargs_code = "res = await AGI.run(app_env, **payload)\n"
+
+    legacy_lines = pipeline_steps.legacy_agi_run_call_lines(legacy_code)
+
+    assert legacy_lines == [4]
+    assert pipeline_steps.legacy_agi_run_call_lines(wrapper_code) == []
+    assert pipeline_steps.legacy_agi_run_call_lines(positional_request_code) == []
+    assert pipeline_steps.legacy_agi_run_call_lines(kwargs_code) == [1]
+
+
+def test_find_legacy_agi_run_steps_reports_selected_step_metadata():
+    steps = [
+        {"Q": "Install", "C": "print('ok')"},
+        {
+            "Q": "Generate flight trajectories",
+            "C": (
+                'APP = "flight_trajectory_project"\n'
+                "async def main(app_env):\n"
+                "    return await AGI.run(app_env, mode=4)\n"
+            ),
+        },
+    ]
+
+    stale = pipeline_steps.find_legacy_agi_run_steps(steps, [1])
+
+    assert stale == [
+        {
+            "index": 1,
+            "step": 2,
+            "line": 3,
+            "lines": [3],
+            "summary": "Generate flight trajectories",
+            "project": "flight_trajectory_project",
+        }
+    ]
+
+
 def test_normalize_imported_orchestrate_snippet_keeps_sb3_worker_snippet_unchanged():
     code = (
         "import os\n"
