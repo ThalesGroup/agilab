@@ -43,7 +43,7 @@ _ensure_repo_on_path()
 
 from agi_env import AgiEnv
 from agi_env.connector_registry import ConnectorPathRegistry, build_connector_path_registry
-from agi_env.pagelib import render_logo
+from agi_gui.pagelib import render_logo
 from agilab.data_connector_facility import (
     DEFAULT_CONNECTORS_RELATIVE_PATH,
     load_connector_catalog,

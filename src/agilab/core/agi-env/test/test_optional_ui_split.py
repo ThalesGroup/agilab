@@ -15,6 +15,7 @@ from agi_env._optional_ui import require_streamlit
 
 AGI_ENV_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = next(parent for parent in AGI_ENV_ROOT.parents if (parent / ".git").exists())
+AGI_GUI_ROOT = REPO_ROOT / "src/agilab/lib/agi-gui"
 
 
 def _requirement_name(requirement: str) -> str:
@@ -37,25 +38,39 @@ def _run_python(script: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_agi_env_declares_streamlit_only_as_ui_extra() -> None:
+def test_agi_env_declares_no_streamlit_or_ui_extra() -> None:
     data = tomllib.loads((AGI_ENV_ROOT / "pyproject.toml").read_text())
 
     base_dependencies = data["project"]["dependencies"]
-    optional_ui = data["project"]["optional-dependencies"]["ui"]
     dev_dependencies = data["dependency-groups"]["dev"]
 
     assert "streamlit" not in {_requirement_name(dependency) for dependency in base_dependencies}
+    assert "optional-dependencies" not in data["project"]
+    assert "agi-gui" in dev_dependencies
+
+
+def test_agi_gui_declares_streamlit_ui_runtime() -> None:
+    data = tomllib.loads((AGI_GUI_ROOT / "pyproject.toml").read_text())
+    root_data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
+    version = root_data["project"]["version"]
+
+    dependencies = data["project"]["dependencies"]
+
+    assert f"agi-env=={version}" in dependencies
     assert any(
-        _requirement_name(dependency) == "streamlit" and ">=1.55.0" in dependency for dependency in optional_ui
+        _requirement_name(dependency) == "streamlit" and ">=1.56.0" in dependency
+        for dependency in dependencies
     )
-    assert "agi-env[ui]" in dev_dependencies
+    assert "watchdog" in {_requirement_name(dependency) for dependency in dependencies}
 
 
-def test_agilab_declares_agi_env_ui_extra_for_full_ui_runtime() -> None:
+def test_agilab_declares_agi_gui_for_full_ui_runtime() -> None:
     data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
     version = data["project"]["version"]
 
-    assert f"agi-env[ui]=={version}" in data["project"]["dependencies"]
+    dependencies = data["project"]["dependencies"]
+    assert f"agi-gui=={version}" in dependencies
+    assert all("agi-env[ui]" not in dependency for dependency in dependencies)
 
 
 def test_headless_import_does_not_require_streamlit() -> None:
@@ -100,7 +115,7 @@ def test_ui_modules_explain_optional_extra_when_streamlit_is_missing(module_name
         try:
             importlib.import_module({module_name!r})
         except ModuleNotFoundError as exc:
-            if "agi-env[ui]" in str(exc):
+            if "agi-gui" in str(exc):
                 raise SystemExit(0)
             raise SystemExit(f"unexpected error: {{exc}}")
         raise SystemExit("expected Streamlit import failure")
@@ -114,7 +129,7 @@ def test_require_streamlit_reports_ui_extra_for_missing_streamlit() -> None:
     def missing_streamlit(name, *args, **kwargs):
         raise ModuleNotFoundError("No module named 'streamlit'", name="streamlit")
 
-    with pytest.raises(ModuleNotFoundError, match=r"agi-env\[ui\]"):
+    with pytest.raises(ModuleNotFoundError, match="agi-gui"):
         require_streamlit(missing_streamlit)
 
 

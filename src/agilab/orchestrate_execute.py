@@ -20,7 +20,7 @@ else:
     _MATPLOTLIB_IMPORT_ERROR = None
 
 from agi_env import AgiEnv
-from agi_env.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
+from agi_gui.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
 
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
 

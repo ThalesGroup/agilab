@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict, List, Optional, Pattern, Type
 
 from agi_env import AgiEnv
 from agi_env import mlflow_store
-from agi_env.pagelib import run_lab
+from agi_gui.pagelib import run_lab
 
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)

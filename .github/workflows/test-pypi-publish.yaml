@@ -50,10 +50,10 @@ jobs:
           fi
           echo "Found TestPyPI token."
 
-      # ---------------------- CORE: build & upload with uv ----------------------
+      # ---------------------- Libraries: build & upload with uv ----------------------
       # Per-package versioning (auto .postN when needed) + HTTP 400 fallback.
       # Also repairs any accidental `project.name = "pkg==X.Y.Z"` before building.
-      - name: Build & upload core packages (uv) with ONE unified version for all
+      - name: Build & upload library packages (uv) with ONE unified version for all
         env:
           BASE_VERSION: ${{ github.event.inputs.version || github.ref_name }}
         run: |
@@ -74,6 +74,7 @@ jobs:
 
           CORE = [
               ("agi-env",     REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",     REPO_ROOT / "src/agilab/core/agi-env"),
+              ("agi-gui",     REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml", REPO_ROOT / "src/agilab/lib/agi-gui"),
               ("agi-node",    REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-node"),
               ("agi-cluster", REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml", REPO_ROOT / "src/agilab/core/agi-cluster"),
               ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
@@ -225,7 +226,7 @@ jobs:
           # ---- Unified version selection ---------------------------------------
           package_names = [n for n,_,__ in CORE]
           UNIFIED = compute_unified_version(BASE, package_names)
-          print(f"[plan] Unified version for all core packages: {UNIFIED}")
+          print(f"[plan] Unified version for all library packages: {UNIFIED}")
 
           # ---- Sanitize names, set versions, pin internals, build & upload -----
           sanitize_project_names([p for _,p,_ in CORE])
@@ -246,7 +247,7 @@ jobs:
                   raise SystemExit(f"Upload failed for {name}")
 
           Path("versions.json").write_text(json.dumps(final, indent=2), encoding="utf-8")
-          print("Core packages uploaded. Final versions:", final)
+          print("Library packages uploaded. Final versions:", final)
           PY
 
       # ---------------- Umbrella project (agilab) using uv, separate step -------

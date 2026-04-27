@@ -3,13 +3,12 @@ name = "view-training-analysis"
 version = "2026.04.09"
 requires-python = ">=3.13"
 dependencies = [
-    "streamlit>=1.56.0",
-    "watchdog>=6.0.0",
-    "agi-env",
+    "agi-gui",
     "pandas>=2.3.0",
     "plotly>=6.3.0",
     "tensorboard",
 ]
 
 [tool.uv.sources]
+agi-gui = { path = "../../lib/agi-gui", editable = true }
 agi-env = { path = "../../core/agi-env", editable = true }

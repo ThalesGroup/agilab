@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
+from agi_env.snippet_contract import snippet_contract_block
+
 
 def _load_module(module_name: str, relative_path: str):
     module_path = Path(relative_path)
@@ -207,7 +209,10 @@ def test_get_existing_snippets_deduplicates_and_disambiguates_labels(monkeypatch
 
     app_settings = tmp_path / "app_settings.toml"
     app_settings.write_text("x=1\n", encoding="utf-8")
-    os.utime(runenv_snippet, None)
+    settings_time = datetime(2026, 4, 1, 11, 0, 0).timestamp()
+    new_time = datetime(2026, 4, 1, 12, 0, 0).timestamp()
+    os.utime(app_settings, (settings_time, settings_time))
+    os.utime(runenv_snippet, (new_time, new_time))
 
     fake_st = SimpleNamespace(session_state={"snippet_file": str(explicit_snippet)})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
@@ -274,6 +279,90 @@ def test_get_existing_snippets_filters_stale_and_wrong_app_runenv_snippets(monke
     option_map = pipeline_lab.get_existing_snippets(env, steps_file, deps)
 
     assert option_map == {"AGI_run_flight.py": fresh_run}
+
+
+def test_get_existing_snippets_warns_and_filters_stale_agi_api_snippets(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    runenv_dir = tmp_path / "runenv"
+    runenv_dir.mkdir()
+
+    stale_snippet = runenv_dir / "AGI_install_flight.py"
+    stale_snippet.write_text(
+        "from agi_cluster.agi_distributor import AGI\n"
+        "async def main():\n"
+        "    await AGI.install(None)\n",
+        encoding="utf-8",
+    )
+    current_snippet = runenv_dir / "AGI_run_flight.py"
+    current_snippet.write_text(
+        "from agi_cluster.agi_distributor import AGI\n"
+        "from agi_env import AgiEnv\n"
+        f"{snippet_contract_block(app='flight')}\n"
+        "async def main():\n"
+        "    await AGI.run(AgiEnv(apps_path='/tmp/apps', app='flight'))\n",
+        encoding="utf-8",
+    )
+
+    app_settings = tmp_path / "app_settings.toml"
+    app_settings.write_text("x=1\n", encoding="utf-8")
+    settings_time = datetime(2026, 4, 1, 11, 0, 0).timestamp()
+    new_time = datetime(2026, 4, 1, 12, 0, 0).timestamp()
+    os.utime(app_settings, (settings_time, settings_time))
+    os.utime(stale_snippet, (new_time, new_time))
+    os.utime(current_snippet, (new_time, new_time))
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight")
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: None,
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    option_map = pipeline_lab.get_existing_snippets(env, steps_file, deps)
+
+    assert option_map == {"AGI_run_flight.py": current_snippet}
+    warning_messages = [message for kind, message in fake_st.messages if kind == "warning"]
+    assert warning_messages
+    assert "AGILAB core snippet API changed" in warning_messages[0]
+    assert str(stale_snippet) in warning_messages[0]
+
+
+def test_get_existing_snippets_cleanup_button_deletes_stale_generated_snippets(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("", encoding="utf-8")
+    runenv_dir = tmp_path / "runenv"
+    runenv_dir.mkdir()
+    stale_snippet = runenv_dir / "AGI_run_flight.py"
+    stale_snippet.write_text(
+        "from agi_cluster.agi_distributor import AGI\n"
+        "async def main():\n"
+        "    await AGI.run(None)\n",
+        encoding="utf-8",
+    )
+    app_settings = tmp_path / "app_settings.toml"
+    app_settings.write_text("x=1\n", encoding="utf-8")
+    settings_time = datetime(2026, 4, 1, 11, 0, 0).timestamp()
+    new_time = datetime(2026, 4, 1, 12, 0, 0).timestamp()
+    os.utime(app_settings, (settings_time, settings_time))
+    os.utime(stale_snippet, (new_time, new_time))
+
+    fake_st = _FakeStreamlit(buttons={"clean_stale_snippets_flight": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight")
+    deps = SimpleNamespace(
+        ensure_safe_service_template=lambda *_args, **_kwargs: None,
+        safe_service_template_filename="unused.py",
+        safe_service_template_marker="marker",
+    )
+
+    option_map = pipeline_lab.get_existing_snippets(env, steps_file, deps)
+
+    assert option_map == {}
+    assert not stale_snippet.exists()
+    assert any(kind == "success" and "Deleted 1 stale" in message for kind, message in fake_st.messages)
 
 
 def test_get_existing_snippets_handles_candidate_path_edge_cases(monkeypatch, tmp_path):

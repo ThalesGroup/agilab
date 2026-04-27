@@ -147,6 +147,19 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             },
         ),
         _check_result(
+            "supply_chain_attestation_page_lib_alignment",
+            "Supply-chain attestation page library alignment",
+            summary.get("page_lib_component_count") == 1
+            and summary.get("aligned_page_lib_versions") is True
+            and summary.get("pinned_page_lib_dependency_count", 0) >= 1,
+            "published AGILAB page libraries align with the root package",
+            evidence=[row.get("path", "") for row in state.get("page_lib_components", [])],
+            details={
+                "page_lib_versions": summary.get("page_lib_versions", {}),
+                "pinned_page_lib_dependencies": summary.get("pinned_page_lib_dependencies", []),
+            },
+        ),
+        _check_result(
             "supply_chain_attestation_app_manifests",
             "Supply-chain attestation app manifests",
             summary.get("builtin_app_pyproject_count") == 7,
@@ -198,6 +211,8 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "license_present": summary.get("license_present"),
             "core_component_count": summary.get("core_component_count"),
             "aligned_core_versions": summary.get("aligned_core_versions"),
+            "page_lib_component_count": summary.get("page_lib_component_count"),
+            "aligned_page_lib_versions": summary.get("aligned_page_lib_versions"),
             "builtin_app_pyproject_count": summary.get("builtin_app_pyproject_count"),
             "command_execution_count": summary.get("command_execution_count"),
             "network_probe_count": summary.get("network_probe_count"),

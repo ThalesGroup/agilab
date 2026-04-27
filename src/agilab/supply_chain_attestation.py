@@ -21,6 +21,9 @@ CORE_PYPROJECTS = {
     "agi-cluster": Path("src/agilab/core/agi-cluster/pyproject.toml"),
     "agi-node": Path("src/agilab/core/agi-node/pyproject.toml"),
 }
+PAGE_LIB_PYPROJECTS = {
+    "agi-gui": Path("src/agilab/lib/agi-gui/pyproject.toml"),
+}
 ATTESTED_ROOT_FILES = (
     Path("pyproject.toml"),
     Path("uv.lock"),
@@ -94,6 +97,27 @@ def _core_rows(repo_root: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _page_lib_rows(repo_root: Path) -> list[dict[str, Any]]:
+    rows = []
+    for name, relative_path in PAGE_LIB_PYPROJECTS.items():
+        path = repo_root / relative_path
+        metadata = _project_metadata(path) if path.is_file() else {}
+        rows.append(
+            {
+                "name": name,
+                "path": relative_path.as_posix(),
+                "exists": path.is_file(),
+                "version": metadata.get("version", ""),
+                "sha256": _file_sha256(path) if path.is_file() else "",
+            }
+        )
+    return rows
+
+
+def _dependency_name(dependency: str) -> str:
+    return dependency.split(";", 1)[0].split("[", 1)[0].split("=", 1)[0].strip()
+
+
 def _app_pyproject_rows(repo_root: Path) -> list[dict[str, Any]]:
     apps_root = repo_root / "src/agilab/apps/builtin"
     rows = []
@@ -116,16 +140,26 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
     root_metadata = _project_metadata(root_pyproject)
     root_files = _root_file_rows(repo_root)
     core_components = _core_rows(repo_root)
+    page_lib_components = _page_lib_rows(repo_root)
     app_pyprojects = _app_pyproject_rows(repo_root)
     root_version = root_metadata.get("version", "")
     core_versions = {row["name"]: row["version"] for row in core_components}
     aligned_core_versions = all(
         version == root_version for version in core_versions.values()
     )
+    page_lib_versions = {row["name"]: row["version"] for row in page_lib_components}
+    aligned_page_lib_versions = all(
+        version == root_version for version in page_lib_versions.values()
+    )
     pinned_core_dependencies = [
         dependency
         for dependency in root_metadata.get("dependencies", [])
-        if dependency.startswith("agi-") and "==" in dependency
+        if _dependency_name(dependency) in CORE_PYPROJECTS and "==" in dependency
+    ]
+    pinned_page_lib_dependencies = [
+        dependency
+        for dependency in root_metadata.get("dependencies", [])
+        if _dependency_name(dependency) in PAGE_LIB_PYPROJECTS and "==" in dependency
     ]
     missing_files = [row["path"] for row in root_files if not row["exists"]]
     issues = [
@@ -160,6 +194,8 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
             "dependency_count": root_metadata.get("dependency_count", 0),
             "pinned_core_dependency_count": len(pinned_core_dependencies),
             "pinned_core_dependencies": pinned_core_dependencies,
+            "pinned_page_lib_dependency_count": len(pinned_page_lib_dependencies),
+            "pinned_page_lib_dependencies": pinned_page_lib_dependencies,
             "root_file_count": len(root_files),
             "missing_root_file_count": len(missing_files),
             "lockfile_present": (repo_root / "uv.lock").is_file(),
@@ -167,6 +203,9 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
             "core_component_count": len(core_components),
             "core_versions": core_versions,
             "aligned_core_versions": aligned_core_versions,
+            "page_lib_component_count": len(page_lib_components),
+            "page_lib_versions": page_lib_versions,
+            "aligned_page_lib_versions": aligned_page_lib_versions,
             "builtin_app_pyproject_count": len(app_pyprojects),
             "command_execution_count": 0,
             "network_probe_count": 0,
@@ -174,6 +213,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
         },
         "root_files": root_files,
         "core_components": core_components,
+        "page_lib_components": page_lib_components,
         "builtin_app_pyprojects": app_pyprojects,
         "issues": issues,
         "provenance": {

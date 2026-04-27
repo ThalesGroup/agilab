@@ -35,6 +35,8 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
     assert report["summary"]["license_present"] is True
     assert report["summary"]["core_component_count"] == 4
     assert report["summary"]["aligned_core_versions"] is True
+    assert report["summary"]["page_lib_component_count"] == 1
+    assert report["summary"]["aligned_page_lib_versions"] is True
     assert report["summary"]["builtin_app_pyproject_count"] == 7
     assert report["summary"]["command_execution_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
@@ -43,6 +45,7 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
         "supply_chain_attestation_schema",
         "supply_chain_attestation_package_metadata",
         "supply_chain_attestation_core_alignment",
+        "supply_chain_attestation_page_lib_alignment",
         "supply_chain_attestation_app_manifests",
         "supply_chain_attestation_no_execution",
         "supply_chain_attestation_persistence",
@@ -58,12 +61,17 @@ def test_supply_chain_attestation_records_core_and_app_manifests() -> None:
     assert state["run_status"] == "validated"
     assert state["summary"]["package_name"] == "agilab"
     assert state["summary"]["aligned_core_versions"] is True
+    assert state["summary"]["aligned_page_lib_versions"] is True
     assert state["summary"]["pinned_core_dependency_count"] >= 1
+    assert state["summary"]["pinned_page_lib_dependency_count"] >= 1
     assert {row["name"] for row in state["core_components"]} == {
         "agi-core",
         "agi-env",
         "agi-cluster",
         "agi-node",
+    }
+    assert {row["name"] for row in state["page_lib_components"]} == {
+        "agi-gui",
     }
     assert len(state["builtin_app_pyprojects"]) == 7
     assert all(row["sha256"] for row in state["root_files"])

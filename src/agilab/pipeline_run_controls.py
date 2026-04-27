@@ -17,7 +17,7 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 
 from agi_env import AgiEnv
-from agi_env.pagelib import run_lab, save_csv
+from agi_gui.pagelib import run_lab, save_csv
 
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)

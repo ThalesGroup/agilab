@@ -75,14 +75,14 @@ st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
-from agi_env.pagelib import background_services_enabled, inject_theme, render_sidebar_version
+from agi_gui.pagelib import background_services_enabled, inject_theme, render_sidebar_version
 from agi_env.credential_store_support import (
     CLUSTER_CREDENTIALS_KEY,
     KEYRING_SENTINEL,
     read_cluster_credentials,
     store_cluster_credentials,
 )
-from agi_env.ui_support import detect_agilab_version, load_last_active_app, store_last_active_app
+from agi_gui.ui_support import detect_agilab_version, load_last_active_app, store_last_active_app
 
 FIRST_PROOF_PROJECT = "flight_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
@@ -332,7 +332,7 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
 def quick_logo(resources_path: Path) -> None:
     """Render a lightweight banner with the AGILab logo."""
     try:
-        from agi_env.pagelib import get_base64_of_image
+        from agi_gui.pagelib import get_base64_of_image
         img_data = get_base64_of_image(resources_path / "agilab_logo.png")
         img_src = f"data:image/png;base64,{img_data}"
         st.markdown(
@@ -1046,7 +1046,7 @@ def page(env: Any) -> None:
 
 def main() -> None:
     """Initialise the Streamlit app, bootstrap the environment and display the UI."""
-    from agi_env.pagelib import get_about_content
+    from agi_gui.pagelib import get_about_content
     st.set_page_config(
         page_title="AGILab",
         menu_items=get_about_content(),
@@ -1072,7 +1072,7 @@ def main() -> None:
     # ---- Initialize if needed (on cold start, or if 'env' key lost) ----
     if st.session_state.get("first_run", True) or "env" not in st.session_state:
         with st.spinner("Initializing environment..."):
-            from agi_env.pagelib import activate_mlflow
+            from agi_gui.pagelib import activate_mlflow
             from agi_env import AgiEnv
             parser = argparse.ArgumentParser(description="Run the AGI Streamlit App with optional parameters.")
             parser.add_argument("--apps-path", type=str, help="Where you store your apps (default is ./)",

@@ -53,7 +53,7 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_env.pagelib import sidebar_views, find_files, load_df, on_project_change, select_project, JumpToMain, update_datadir, \
+from agi_gui.pagelib import sidebar_views, find_files, load_df, on_project_change, select_project, JumpToMain, update_datadir, \
     initialize_csv_files, update_var, _dump_toml_payload
 import tomllib as _toml
 

@@ -7,8 +7,8 @@ from typing import Callable
 
 
 UI_EXTRA_INSTALL_HINT = (
-    "agi-env UI helpers require Streamlit. Install the optional UI extra with "
-    "`pip install 'agi-env[ui]'`."
+    "agi-env UI helpers require Streamlit. Install the UI package with "
+    "`pip install agi-gui`."
 )
 
 

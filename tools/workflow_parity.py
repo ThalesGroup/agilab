@@ -158,6 +158,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
     test_targets = _expand_repo_globs(
         [
             "src/agilab/test",
+            "src/agilab/lib/agi-gui/test",
             "test/test_orchestrate_cluster.py",
             "test/test_orchestrate_distribution.py",
             "test/test_orchestrate_execute.py",

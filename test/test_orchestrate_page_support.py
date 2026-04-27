@@ -40,6 +40,8 @@ def _import_agilab_module(module_name: str):
 
 orchestrate_page_support = _import_agilab_module("agilab.orchestrate_page_support")
 
+from agi_env.snippet_contract import CURRENT_SNIPPET_API
+
 
 def test_build_install_and_run_snippets_embed_expected_values():
     env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
@@ -66,11 +68,15 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert 'APP = "demo_project"' in install_snippet
     assert "modes_enabled=7" in install_snippet
     assert 'workers_data_path="/tmp/share"' in install_snippet
+    assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in install_snippet
+    assert "# app: demo_project" in install_snippet
+    assert "require_supported_snippet_api(AGILAB_SNIPPET_API)" in install_snippet
     assert "RunRequest(" in run_snippet
     assert "mode=15" in run_snippet
     assert 'workers_data_path="/tmp/share"' in run_snippet
     assert "rapids_enabled=True" in run_snippet
     assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
+    assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in run_snippet
 
 
 def test_build_agi_snippets_do_not_inject_source_core_paths_for_source_env():
@@ -133,6 +139,7 @@ def test_build_distribution_snippet_omits_blank_args_payload():
 
     assert "get_distrib" in snippet
     assert "workers=None" in snippet
+    assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in snippet
     assert ",\n        \n" not in snippet
 
 
