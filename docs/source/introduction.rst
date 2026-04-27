@@ -21,6 +21,7 @@ It has two main user interfaces:
 Shared components include:
 
 - ``agi-env`` for environment setup
+- ``agi-gui`` for Streamlit UI/page dependencies
 - ``agi-node`` for worker/runtime packaging
 - ``agi-cluster`` for local and distributed execution
 

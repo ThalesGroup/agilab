@@ -5,6 +5,7 @@ from pathlib import Path
 
 FIRST_PARTY_STREAMLIT_MANIFESTS = [
     Path("pyproject.toml"),
+    Path("src/agilab/lib/agi-gui/pyproject.toml"),
     *sorted(Path("src/agilab/apps-pages").glob("*/pyproject.toml")),
     *sorted(Path("src/agilab/apps/builtin").glob("*/pyproject.toml")),
 ]

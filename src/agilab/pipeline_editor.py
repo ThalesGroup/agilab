@@ -12,7 +12,7 @@ import tomli_w
 import tomllib
 from code_editor import code_editor
 
-from agi_env.pagelib import export_df, get_css_text, get_custom_buttons, get_info_bar
+from agi_gui.pagelib import export_df, get_css_text, get_custom_buttons, get_info_bar
 
 import importlib.util
 

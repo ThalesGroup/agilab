@@ -85,6 +85,7 @@ AGILAB_REPO="$(cat "$HOME/.local/share/agilab/.agilab-path")"
 APPS_REPOSITORY="${APPS_REPOSITORY:-}"
 CORE_EDITABLE_PACKAGES=(
   --with-editable "$AGILAB_REPO/core/agi-env"
+  --with-editable "$AGILAB_REPO/lib/agi-gui"
   --with-editable "$AGILAB_REPO/core/agi-node"
   --with-editable "$AGILAB_REPO/core/agi-cluster"
   --with-editable "$AGILAB_REPO/core/agi-core"

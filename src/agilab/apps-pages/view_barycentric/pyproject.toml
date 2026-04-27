@@ -3,9 +3,7 @@ name = "view-barycentric-graph"
 version = "2025.12.12"
 requires-python = ">=3.13"
 dependencies = [
-    "streamlit>=1.56.0",
-    "watchdog>=6.0.0",
-    "agi-env",
+    "agi-gui",
     "plotly>=6.3.0",
     "barviz>=1.2.2",
     "scikit-learn>=1.7.2",
@@ -14,4 +12,5 @@ dependencies = [
 ]
 
 [tool.uv.sources]
+agi-gui = { path = "../../lib/agi-gui", editable = true }
 agi-env = { path = "../../core/agi-env", editable = true }

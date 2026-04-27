@@ -87,6 +87,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_gui.timeout_seconds == 12 * 60
     assert agi_gui.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
     assert "coverage-agi-gui.xml" in " ".join(agi_gui.argv)
+    assert "src/agilab/lib/agi-gui/test" in agi_gui.argv
     assert "test/test_about_agilab_helpers.py" in agi_gui.argv
     assert "test/test_cluster_flight_validation.py" in agi_gui.argv
     assert "test/test_cluster_lan_discovery.py" in agi_gui.argv

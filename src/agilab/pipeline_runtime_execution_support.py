@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Pattern, Type
 
 from agi_env import AgiEnv
+from agi_env.snippet_contract import (
+    is_supported_snippet_api,
+    is_generated_agi_snippet,
+    snippet_contract_block,
+    stale_snippet_cleanup_message,
+)
 
 
 def to_bool_flag(value: Any, default: bool = False) -> bool:
@@ -76,6 +82,7 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
 import asyncio{json_import}
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
+{snippet_contract_block(app=str(env.app), generator="agilab.pipeline")}
 
 APPS_PATH = {apps_path_lit}
 APP = {app_lit}
@@ -390,6 +397,13 @@ def run_locked_step(
                 engine = "agi.run"
 
         code_to_run = str(entry.get("C", ""))
+        if is_generated_agi_snippet(code_to_run) and not is_supported_snippet_api(code_to_run):
+            source = entry.get("_orchestrate_snippet_source") or entry.get("Q") or ""
+            paths = [source] if source else None
+            message = stale_snippet_cleanup_message(paths)
+            st.error(message)
+            push_run_log(index_page_str, message, stored_placeholder)
+            return
         engine_map[step] = engine
         st.session_state["lab_selected_engine"] = engine
 

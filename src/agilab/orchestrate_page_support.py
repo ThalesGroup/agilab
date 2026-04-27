@@ -7,6 +7,8 @@ from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from agi_env.snippet_contract import snippet_contract_block
+
 
 RUN_MODE_LABELS: tuple[str, ...] = (
     "0: python",
@@ -291,6 +293,7 @@ def build_run_snippet(
         "",
         "from agi_cluster.agi_distributor import AGI, RunRequest, StepRequest",
         "from agi_env import AgiEnv",
+        snippet_contract_block(app=str(env.app), generator="agilab.orchestrate"),
         "",
         f"APPS_PATH = {_python_string(env.apps_path)}",
         f"APP = {_python_string(env.app)}",
@@ -544,6 +547,7 @@ def _build_agi_snippet(
             "",
             "from agi_cluster.agi_distributor import AGI",
             "from agi_env import AgiEnv",
+            snippet_contract_block(app=str(env.app), generator="agilab.orchestrate"),
             "",
             f"APPS_PATH = {_python_string(env.apps_path)}",
             f"APP = {_python_string(env.app)}",

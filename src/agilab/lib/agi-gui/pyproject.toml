@@ -1,0 +1,75 @@
+[project]
+version = "2026.4.27.post5"
+name = "agi-gui"
+description = "AGILAB Streamlit UI dependency bundle and compatibility imports"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
+maintainers = [{ name = "Jean-Pierre Morard" }]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "agilab",
+    "streamlit",
+    "ui",
+    "pages",
+    "python",
+]
+
+dependencies = [
+    "agi-env==2026.4.27.post5",
+    "streamlit>=1.56.0",
+    "streamlit-modal",
+    "streamlit_code_editor",
+    "streamlit_extras",
+    "watchdog",
+]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-gui"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+]
+
+[tool.uv.sources.agi-env]
+    path = "../../core/agi-env"
+    editable = true
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+asyncio_mode = "auto"

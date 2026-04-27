@@ -26,7 +26,7 @@ _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
 load_local_module = _import_guard_module.load_local_module
 
-from agi_env.pagelib import (
+from agi_gui.pagelib import (
     activate_mlflow,
     background_services_enabled,
     find_files,
@@ -73,6 +73,7 @@ import_agilab_symbols(
         "persist_sequence_preferences": "_persist_sequence_preferences",
         "pipeline_export_root": "_pipeline_export_root",
         "prune_invalid_entries": "_prune_invalid_entries",
+        "restore_missing_export_steps": "_restore_missing_export_steps",
         "snippet_source_guidance": "_snippet_source_guidance",
         "step_button_label": "_step_button_label",
         "step_label_for_multiselect": "_step_label_for_multiselect",
@@ -629,6 +630,11 @@ def sidebar_controls() -> None:
     st.session_state.df_dir = lab_dir
     steps_file = (lab_dir / steps_file_name).resolve()
     st.session_state["steps_file"] = steps_file
+    module_path = lab_dir.relative_to(Agi_export_abs)
+    st.session_state["module_path"] = module_path
+    restored_source = _restore_missing_export_steps(module_path, steps_file, env=env)
+    if restored_source:
+        st.session_state["_pipeline_steps_restored_from"] = str(restored_source)
 
     steps_files = find_files(lab_dir, ".toml")
     st.session_state.steps_files = steps_files
@@ -674,9 +680,6 @@ def sidebar_controls() -> None:
     key_df = index_page_str + "df"
     index = next((i for i, f in enumerate(df_files_rel) if f.name == DEFAULT_DF), 0)
     df_file_default = st.session_state.get("df_file")
-
-    module_path = lab_dir.relative_to(Agi_export_abs)
-    st.session_state["module_path"] = module_path
 
     st.sidebar.selectbox(
         "Dataframe",
@@ -816,6 +819,9 @@ def page() -> None:
     index_page_str = str(index_page)
     steps_file = st.session_state["steps_file"]
     steps_file.parent.mkdir(parents=True, exist_ok=True)
+    restored_source = st.session_state.pop("_pipeline_steps_restored_from", "")
+    if restored_source:
+        st.info(f"Restored missing Pipeline steps from `{restored_source}`.")
 
     nsteps = len(get_steps_list(lab_dir, steps_file))
     st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", "", nsteps])

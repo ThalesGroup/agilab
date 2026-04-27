@@ -29,8 +29,11 @@ and adopters a versioned, repository-local upgrade trail.
   coverage XML files.
 - Reordered the landing-page first-proof wizard around the immediate next
   action and progress summary before diagnostics.
-- Split `agi-env` runtime dependencies so headless core installs no longer pull
-  Streamlit unless consumers request the `agi-env[ui]` extra.
+- Split `agi-env` runtime dependencies so headless worker installs no longer pull
+  Streamlit; UI consumers now depend on the separate `agi-gui` package under
+  `src/agilab/lib/agi-gui`.
+- Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
+  ask users to clean up and regenerate after core API changes.
 
 ## [2026.4.27.post5] - 2026-04-27
 

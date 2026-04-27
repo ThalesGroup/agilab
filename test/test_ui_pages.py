@@ -729,6 +729,31 @@ def test_experiment_page_load(mock_ui_env):
     assert not at.exception
     _assert_docs_actions_absent(at)
 
+
+def test_pipeline_page_restores_missing_export_steps_from_project_source(mock_ui_env):
+    source_steps = mock_ui_env["project_dir"] / "lab_steps.toml"
+    source_steps.write_text(
+        'flight_project = [{ Q = "Recover pipeline", C = "print(1)" }]\n',
+        encoding="utf-8",
+    )
+    target_steps = mock_ui_env["export_dir"] / "flight" / "lab_steps.toml"
+    assert not target_steps.exists()
+
+    at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.get_projects = MagicMock(return_value=["flight_project"])
+    at.session_state["env"] = env
+
+    at.run()
+
+    assert not at.exception
+    data = tomllib.loads(target_steps.read_text(encoding="utf-8"))
+    assert data["flight"][0]["Q"] == "Recover pipeline"
+    assert "flight_project" not in data
+
+
 def test_edit_page_load(mock_ui_env):
     """Test that the EDIT page loads without exceptions."""
     at = _app_test("src/agilab/pages/1_▶️ PROJECT.py")

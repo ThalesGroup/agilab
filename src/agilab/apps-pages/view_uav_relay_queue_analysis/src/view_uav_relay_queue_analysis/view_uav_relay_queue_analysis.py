@@ -30,7 +30,7 @@ def _ensure_repo_on_path() -> None:
 _ensure_repo_on_path()
 
 from agi_env import AgiEnv
-from agi_env.pagelib import render_logo
+from agi_gui.pagelib import render_logo
 
 RUN_SELECTION_KEY = "uav_relay_queue_selected_runs"
 DETAIL_RUN_KEY = "uav_relay_queue_detail_run"

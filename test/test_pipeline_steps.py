@@ -73,6 +73,97 @@ def test_module_key_normalization_and_sequence_roundtrip(monkeypatch, tmp_path):
     assert pipeline_steps.load_sequence_preferences(module_dir, steps_file, env=env) == [2, 0, 1]
 
 
+def test_restore_missing_export_steps_from_project_source(monkeypatch, tmp_path):
+    apps_root = tmp_path / "apps"
+    source_app = apps_root / "sb3_trainer_project"
+    source_app.mkdir(parents=True)
+    source_steps = source_app / "lab_steps.toml"
+    source_steps.write_text(
+        'sb3_trainer_project = [{ Q = "Train policy", C = "print(1)" }]\n',
+        encoding="utf-8",
+    )
+    export_root = tmp_path / "export"
+    target_steps = export_root / "sb3_trainer" / "lab_steps.toml"
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        AGILAB_EXPORT_ABS=export_root,
+        envars={},
+        apps_path=apps_root,
+        active_app=source_app,
+        target="sb3_trainer_project",
+        app="sb3_trainer_project",
+    )
+
+    restored = pipeline_steps.restore_missing_export_steps(Path("sb3_trainer"), target_steps, env=env)
+
+    assert restored == source_steps
+    data = tomllib.loads(target_steps.read_text(encoding="utf-8"))
+    assert data["sb3_trainer"][0]["Q"] == "Train policy"
+    assert "sb3_trainer_project" not in data
+
+
+def test_restore_missing_export_steps_handles_empty_file(monkeypatch, tmp_path):
+    apps_root = tmp_path / "apps"
+    source_app = apps_root / "flight_project"
+    source_app.mkdir(parents=True)
+    source_steps = source_app / "lab_steps.toml"
+    source_steps.write_text('flight = [{ Q = "Run", C = "print(1)" }]\n', encoding="utf-8")
+    export_root = tmp_path / "export"
+    target_steps = export_root / "flight" / "lab_steps.toml"
+    target_steps.parent.mkdir(parents=True)
+    target_steps.write_text("", encoding="utf-8")
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        AGILAB_EXPORT_ABS=export_root,
+        envars={},
+        apps_path=apps_root,
+        active_app=source_app,
+        target="flight_project",
+        app="flight_project",
+    )
+
+    restored = pipeline_steps.restore_missing_export_steps(Path("flight"), target_steps, env=env)
+
+    assert restored == source_steps
+    data = tomllib.loads(target_steps.read_text(encoding="utf-8"))
+    assert data["flight"][0]["Q"] == "Run"
+
+
+def test_restore_missing_export_steps_does_not_overwrite_existing_export(monkeypatch, tmp_path):
+    apps_root = tmp_path / "apps"
+    source_app = apps_root / "flight_project"
+    source_app.mkdir(parents=True)
+    (source_app / "lab_steps.toml").write_text(
+        'flight = [{ Q = "Source", C = "print(1)" }]\n',
+        encoding="utf-8",
+    )
+    export_root = tmp_path / "export"
+    target_steps = export_root / "flight" / "lab_steps.toml"
+    target_steps.parent.mkdir(parents=True)
+    target_steps.write_text('flight = [{ Q = "User edit", C = "print(2)" }]\n', encoding="utf-8")
+    original = target_steps.read_text(encoding="utf-8")
+    fake_st = SimpleNamespace(session_state={})
+    monkeypatch.setattr(pipeline_steps, "st", fake_st)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        AGILAB_EXPORT_ABS=export_root,
+        envars={},
+        apps_path=apps_root,
+        active_app=source_app,
+        target="flight_project",
+        app="flight_project",
+    )
+
+    restored = pipeline_steps.restore_missing_export_steps(Path("flight"), target_steps, env=env)
+
+    assert restored is None
+    assert target_steps.read_text(encoding="utf-8") == original
+
+
 def test_get_available_virtualenvs_discovers_direct_and_nested_envs(monkeypatch, tmp_path):
     active_app = tmp_path / "apps" / "flight_project"
     apps_path = tmp_path / "apps"

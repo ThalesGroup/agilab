@@ -6,7 +6,7 @@ agilab local publisher for TestPyPI / PyPI using ~/.pypirc.
 
 Highlights
 - Builds with uv (wheels and/or sdists). No pep517 shim.
-- Unified version for all core packages + umbrella. If busy, auto-bumps .postN.
+- Unified version for published AGI libraries + umbrella. If busy, auto-bumps .postN.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - Twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
@@ -201,8 +201,30 @@ CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [
     ("agi-cluster", REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml", REPO_ROOT / "src/agilab/core/agi-cluster"),
     ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
 ]
+def page_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
+    agi_gui = (
+        "agi-gui",
+        REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml",
+        REPO_ROOT / "src/agilab/lib/agi-gui",
+    )
+    return [agi_gui] if agi_gui[1].exists() else []
+
+
+def publishable_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
+    libs: List[Tuple[str, pathlib.Path, pathlib.Path]] = []
+    inserted_page_libs = False
+    for entry in CORE:
+        libs.append(entry)
+        if entry[0] == "agi-env":
+            libs.extend(page_libs())
+            inserted_page_libs = True
+    if not inserted_page_libs:
+        libs.extend(page_libs())
+    return libs
+
+
 UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
-ALL_PACKAGE_NAMES = [name for name, *_ in CORE] + [UMBRELLA[0]]
+ALL_PACKAGE_NAMES = [name for name, *_ in publishable_libs()] + [UMBRELLA[0]]
 
 APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
@@ -1521,7 +1543,7 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
 
 def git_paths_to_commit(include_docs: bool = False) -> list[str]:
     paths: list[str] = []
-    for _, toml_path, project_dir in CORE:
+    for _, toml_path, project_dir in publishable_libs():
         if toml_path.exists():
             paths.append(str(toml_path.relative_to(REPO_ROOT)))
         readme = project_dir / "README.md"
@@ -1534,7 +1556,7 @@ def git_paths_to_commit(include_docs: bool = False) -> list[str]:
     umbrella_readme = UMBRELLA[2] / "README.md"
     if umbrella_readme.exists():
         paths.append(str(umbrella_readme.relative_to(REPO_ROOT)))
-    for package_name in [name for name, *_ in CORE] + [UMBRELLA[0]]:
+    for package_name in [name for name, *_ in publishable_libs()] + [UMBRELLA[0]]:
         badge_path = static_badge_path(package_name)
         if badge_path.exists():
             paths.append(str(badge_path.relative_to(REPO_ROOT)))
@@ -1635,7 +1657,7 @@ def main():
     if unknown:
         raise SystemExit(f"ERROR: Unknown package(s): {', '.join(sorted(unknown))}")
 
-    selected_core_entries = [entry for entry in CORE if entry[0] in selected_packages]
+    selected_core_entries = [entry for entry in publishable_libs() if entry[0] in selected_packages]
     build_umbrella = UMBRELLA[0] in selected_packages
     sync_builtin_versions = bool(build_umbrella)
     if not selected_core_entries and not build_umbrella:
@@ -1698,7 +1720,7 @@ def main():
 
         # Apply version + pin internal deps, then build
         release_snapshot = capture_release_file_state(git_paths_to_commit(include_docs=cfg.gen_docs))
-        current_versions = {name: get_version_from_pyproject(toml) for name, toml, _ in CORE}
+        current_versions = {name: get_version_from_pyproject(toml) for name, toml, _ in publishable_libs()}
         pins = current_versions.copy()
         for name in selected_core_names:
             pins[name] = chosen
