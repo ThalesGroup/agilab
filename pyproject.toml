@@ -1,5 +1,5 @@
 [project]
-version = "2026.4.27.post6"
+version = "2026.4.27.post7"
 name = "agilab"
 description = "AGILAB is an end-to-end experimentation platform linking interactive development with scalable, reproducible execution orchestration."
 requires-python = ">=3.11"
@@ -36,24 +36,7 @@ keywords = [
     "jupyter",
     "ci-cd"
 ]
-dependencies = [
-    "agi-core==2026.4.27.post6",
-    "agi-gui==2026.4.27.post6",
-    "astor",
-    "legacy-cgi; python_version >= '3.13'",
-    "matplotlib",
-    "mlflow",
-    "networkx",
-    "numpy>=1.14.1",
-    "openai",
-    "pandas>=2.3.0",
-    "pathspec",
-    "plotly",
-    "pydantic",
-    "standard-imghdr; python_version >= '3.13'",
-    "streamlit>=1.56.0",
-    "tomli_w",
-]
+dependencies = ["agi-core==2026.4.27.post7", "agi-gui==2026.4.27.post7", "astor", "legacy-cgi; python_version >= '3.13'", "matplotlib", "mlflow", "networkx", "numpy>=1.14.1", "openai", "pandas>=2.3.0", "pathspec", "plotly", "pydantic", "standard-imghdr; python_version >= '3.13'", "streamlit>=1.56.0", "tomli_w"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -67,14 +50,9 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
-offline = [
-    "accelerate>=0.34.2; python_version >= '3.12'",
-    "gpt-oss>=0.0.8; python_version >= '3.12'",
-    "requests>=2.32.0; python_version >= '3.12'",
-    "torch>=2.8.0; python_version >= '3.12'",
-    "transformers>=4.57.0; python_version >= '3.12'",
-    "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'",
-]
+offline = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
+
+
 
 
 
