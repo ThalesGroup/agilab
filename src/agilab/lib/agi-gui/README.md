@@ -33,6 +33,29 @@ selected_path = agi_file_picker(
 
 The picker validates manual paths and dataframe selections against the configured roots, keeps widget keys namespaced, and can optionally save uploaded files when the caller provides an explicit `upload_dir`.
 
+## UX Widgets
+
+`agi_gui.ux_widgets` provides small compatibility wrappers for newer Streamlit primitives. Pages can adopt modern controls while still running on older UI runtimes.
+
+```python
+from agi_gui.ux_widgets import compact_choice, status_container, toast
+
+selected = compact_choice(
+    st.sidebar,
+    "Steps file",
+    available_steps_files,
+    key="index_page",
+    default=available_steps_files[0],
+)
+
+with status_container(st, "Running pipeline...", state="running") as status:
+    run_pipeline()
+    status.update(label="Pipeline completed", state="complete")
+    toast(st, "Pipeline completed", state="success")
+```
+
+`compact_choice` uses `st.segmented_control` or `st.pills` when available and falls back to `selectbox` for long lists or older Streamlit versions.
+
 ## Repository
 
 - Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-gui

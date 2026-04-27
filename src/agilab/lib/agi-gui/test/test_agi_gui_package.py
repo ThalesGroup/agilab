@@ -26,3 +26,7 @@ def test_agi_gui_exports_file_picker_helpers() -> None:
 
     assert callable(module.agi_file_picker)
     assert callable(module.list_file_picker_entries)
+    assert callable(module.compact_choice)
+    assert callable(module.confirm_button)
+    assert callable(module.status_container)
+    assert callable(module.toast)
