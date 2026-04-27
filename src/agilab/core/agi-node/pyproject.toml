@@ -36,22 +36,16 @@ keywords = [
     "ai-operations",
 ]
 dependencies = [
-    "scikit-learn",
-    "parso",
+    "agi-env==2026.4.27.post6",
     "cython",
-    "setuptools",
-    "msgpack",
-    "numba>=0.61.0",
-    "py7zr",
-    "python-dotenv",
-    "tomli",
-    "dask[distributed]",
-    "wheel",
-    "scipy==1.16.1",
-    "psutil",
-    "typing-inspection>=0.4.1",
-    "polars",
+    "humanize",
+    "numpy",
     "pandas",
+    "parso",
+    "polars",
+    "psutil",
+    "py7zr",
+    "setuptools",
 ]
 
 [project.urls]
@@ -178,9 +172,12 @@ dev = [
     "pytest-cov",
     "pytest-asyncio",
     "fastparquet",
-    "pytest-cov",
     "agi-node",
 ]
+
+[tool.uv.sources.agi-env]
+path = "../agi-env"
+editable = true
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]

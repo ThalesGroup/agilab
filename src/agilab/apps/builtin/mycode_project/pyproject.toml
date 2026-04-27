@@ -4,30 +4,16 @@ version = "2026.4.27.post6"
 description = "Built-in AGILab example app template (minimal manager + worker)"
 requires-python = ">=3.11"
 dependencies = [
-  "pydantic",
-  "humanize",
-  "python-dotenv",
-  "setuptools",
-  "tomlkit",
-  "astor",
-  "psutil",
-  "pathspec",
-  "py7zr",
-  "numba>=0.61.0",
-  "streamlit",
-  "scikit-learn",
-  "parso",
-  "cython",
-  "msgpack",
-  "tomli",
-  "dask[distributed]",
-  "wheel",
-  "scipy==1.16.1",
-  "typing-inspection>=0.4.1",
+  "agi-env",
+  "agi-node",
   "polars",
-  "pandas",
+  "pydantic",
   "streamlit>=1.56.0",
 ]
+
+[tool.uv.sources]
+agi-env = { path = "../../../core/agi-env", editable = true }
+agi-node = { path = "../../../core/agi-node", editable = true }
 
 [build-system]
 requires = ["setuptools"]
