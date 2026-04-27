@@ -10,7 +10,7 @@ external apps, or cluster work after the local proof succeeds once.
 |---|---|---|
 | Preview | Open the public [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab). | The hosted UI opens the lightweight `flight_project` path. |
 | Prove locally | Clone the source checkout and run the built-in `flight_project`. | `PROJECT` -> `ORCHESTRATE` -> `ANALYSIS` works locally. |
-| Record evidence | Run `tools/newcomer_first_proof.py --json`. | `~/log/execute/flight/run_manifest.json` reports `status: pass`. |
+| Record evidence | Run `agilab first-proof --json`. | `~/log/execute/flight/run_manifest.json` reports `status: pass`. |
 | Expand | Move to notebooks, PyPI package checks, external apps, or cluster work. | You have one known-good baseline to compare against. |
 
 ## Choose Your First Path
@@ -18,7 +18,7 @@ external apps, or cluster work after the local proof succeeds once.
 | Goal | Route | Time box | Success signal |
 |---|---|---:|---|
 | Preview the UI | Open the public [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | 2 minutes | The Space opens with the lightweight `flight_project` path. |
-| Prove the product path locally | Follow the source-checkout first run in `README.md` | 10 minutes | `tools/newcomer_first_proof.py --json` returns `PASS` and writes `~/log/execute/flight/run_manifest.json`. |
+| Prove the product path locally | Follow the source-checkout first run in `README.md` | 10 minutes | `agilab first-proof --json` exits 0, reports `"success": true`, and writes `~/log/execute/flight/run_manifest.json`. |
 | Check the package entry point | Install from PyPI with `pip install agilab` | 5 minutes | `agilab` starts from a clean environment. |
 | Try the smaller runtime API | Use the notebook quickstart | 10 minutes | A notebook run reaches `AGI.run(...)` without launching the web UI. |
 | Update external apps | Rerun the installer with `APPS_REPOSITORY` or `--apps-repository` | 10 minutes | The installed app path is a symlink to the apps repository copy. |
@@ -46,11 +46,11 @@ In the web UI, stay on the built-in `flight_project`:
 For a machine-readable proof:
 
 ```bash
-uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json
+uv --preview-features extra-build-dependencies run agilab first-proof --json
 ```
 
-You are past the newcomer hurdle when the proof returns `PASS`, fresh output
-exists under `~/log/execute/flight/`, and `run_manifest.json` is present.
+You are past the newcomer hurdle when the proof exits 0, fresh output exists
+under `~/log/execute/flight/`, and `run_manifest.json` is present.
 
 ## Avoid On Day 1
 
@@ -65,7 +65,7 @@ exists under `~/log/execute/flight/`, and `run_manifest.json` is present.
 Keep the scope narrow and rerun the proof command before changing routes:
 
 ```bash
-uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
+uv --preview-features extra-build-dependencies run agilab first-proof
 ```
 
 Use the public troubleshooting page for first-run failures:
@@ -88,7 +88,7 @@ git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 git config core.hooksPath .githooks
 uv --preview-features extra-build-dependencies sync --group dev
-uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
+uv --preview-features extra-build-dependencies run agilab first-proof
 ```
 
 Before opening a pull request, run the narrowest check that proves your change.

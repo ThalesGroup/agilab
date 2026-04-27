@@ -74,3 +74,24 @@ def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
 
     assert rc == 23
     assert captured == [["--cluster", "--scheduler", "127.0.0.1"]]
+
+
+def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_first_proof(argv: list[str]) -> int:
+        captured.append(argv)
+        return 31
+
+    monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
+    monkeypatch.setattr(
+        lab_run.stcli,
+        "main",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["first-proof", "--json", "--with-install"])
+
+    assert rc == 31
+    assert captured == [["--json", "--with-install"]]

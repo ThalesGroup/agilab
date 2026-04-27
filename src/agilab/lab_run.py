@@ -98,12 +98,20 @@ def _run_doctor(argv: list[str]) -> int:
     return cluster_flight_validation.main(argv)
 
 
+def _run_first_proof(argv: list[str]) -> int:
+    from agilab import first_proof_cli
+
+    return first_proof_cli.main(argv)
+
+
 def main(argv: list[str] | None = None) -> int:
     _guard_against_uvx_in_source_tree()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
 
     if raw_argv[:1] == ["doctor"]:
         return _run_doctor(raw_argv[1:])
+    if raw_argv[:1] in (["first-proof"], ["first_proof"]):
+        return _run_first_proof(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."

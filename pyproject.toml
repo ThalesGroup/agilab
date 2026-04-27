@@ -224,6 +224,7 @@ agilab = [
     "resources/*.*",
     "resources/help/*",
     "pages/*.py",
+    "apps/install.py",
     "apps/builtin/*/pyproject.toml",
     "apps/builtin/*/README.md",
     "apps/builtin/*/lab_steps.toml",
