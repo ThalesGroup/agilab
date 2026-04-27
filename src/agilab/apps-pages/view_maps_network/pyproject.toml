@@ -9,7 +9,6 @@ dependencies = [
     "plotly",
     "matplotlib",
     "sqlalchemy>=2.0.43",
-    "scipy==1.16.1",
 ]
 
 [tool.uv.sources]

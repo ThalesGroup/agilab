@@ -20,7 +20,6 @@ import zipfile
 from pathlib import Path
 import ast
 import re
-import importlib
 import importlib.util
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
@@ -60,6 +59,14 @@ _code_editor_support_module = import_agilab_module(
     fallback_name="agilab_code_editor_support_fallback",
 )
 normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+
+_page_bootstrap_module = import_agilab_module(
+    "agilab.page_bootstrap",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
+    fallback_name="agilab_page_bootstrap_fallback",
+)
+ensure_page_env = _page_bootstrap_module.ensure_page_env
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -1848,15 +1855,10 @@ def page():
     """
     global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props
 
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        # Redirect back to the landing page and rerun immediately
-        page_module = importlib.import_module("agilab.About_agilab")
-        page_module.main()
-        st.rerun()
-
-    else:
-        env = st.session_state['env']
-        st.session_state['_env'] = env
+    env = ensure_page_env(st, __file__)
+    if env is None:
+        return
+    st.session_state['_env'] = env
 
     env = st.session_state['_env']
     inject_theme(env.st_resources)

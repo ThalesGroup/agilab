@@ -8,11 +8,11 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/pipeline-page.png
-   :alt: Screenshot of the PIPELINE page with assistant controls, lab directory selectors, and MLflow status.
+   :alt: Screenshot of the PIPELINE page with assistant controls, lab directory selectors, and dataframe selection.
    :align: center
    :class: diagram-panel diagram-wide
 
-   PIPELINE combines lab-step editing, execution context, and MLflow tracking status in the same workspace.
+   PIPELINE combines lab-step editing, execution context, dataframe selection, and notebook export in the same workspace.
 
 Sidebar
 -------

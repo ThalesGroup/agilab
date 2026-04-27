@@ -57,6 +57,17 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.page_bootstrap",
+    {
+        "ensure_page_env": "_ensure_page_env",
+        "load_about_page_module": "_load_about_page_module_impl",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
+    fallback_name="agilab_page_bootstrap_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_steps",
     {
         "ORCHESTRATE_LOCKED_SOURCE_KEY": "ORCHESTRATE_LOCKED_SOURCE_KEY",
@@ -918,28 +929,22 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
 
 def _load_about_page_module():
     """Load the About page module using import fallback for source and packaged layouts."""
-    about_path = Path(__file__).resolve().parents[1] / "About_agilab.py"
-    page_module = load_local_module(
-        "agilab.About_agilab",
-        current_file=__file__,
-        fallback_path=about_path,
-        fallback_name="agilab_about_fallback",
-    )
-    if not hasattr(page_module, "main"):
-        raise ModuleNotFoundError("Unable to import About_agilab page module.")
-    return page_module
+    return _load_about_page_module_impl(__file__, load_module=load_local_module)
 
 
 def page() -> None:
     """Main page logic handler."""
     global df_file
 
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", False):
-        page_module = importlib.import_module("agilab.About_agilab")
-        page_module.main()
-        st.rerun()
+    env = _ensure_page_env(
+        st,
+        __file__,
+        init_done_default=False,
+        load_module=load_local_module,
+    )
+    if env is None:
+        return
 
-    env: AgiEnv = st.session_state["env"]
     if "openai_api_key" not in st.session_state:
         seed_key = env.envars.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
         if seed_key:
@@ -1040,10 +1045,9 @@ def load_df_cached(path: Path, nrows: int = 50, with_index: bool = True) -> Opti
 
 
 def main() -> None:
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        page_module = _load_about_page_module()
-        page_module.main()
-        st.rerun()
+    env = _ensure_page_env(st, __file__, load_module=load_local_module)
+    if env is None:
+        return
 
     env: AgiEnv = st.session_state['env']
 

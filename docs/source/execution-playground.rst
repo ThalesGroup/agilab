@@ -34,12 +34,12 @@ from the fact that the same UI flow can drive two different worker families
 without changing the orchestration path.
 
 .. figure:: _static/page-shots/orchestrate-page.png
-   :alt: ORCHESTRATE page showing install, execute, and benchmark controls
+   :alt: ORCHESTRATE page showing deployment toggles and generated execution setup
    :align: center
    :class: page-shot
 
-   The benchmark appears in the normal PROJECT -> ORCHESTRATE flow rather than
-   in a separate one-off demo script.
+   The benchmark setup uses the normal PROJECT -> ORCHESTRATE flow rather than
+   a separate one-off demo script.
 
 Why this example matters
 ------------------------

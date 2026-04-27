@@ -1,12 +1,20 @@
 /* Shared “primary” styling applied across all Streamlit pages */
 
+:root {
+  --agilab-primary: #4A90E2;
+  --agilab-primary-soft: rgba(74, 144, 226, 0.15);
+  --agilab-primary-focus: rgba(74, 144, 226, 0.2);
+  --agilab-on-primary: #FFFFFF;
+  --agilab-neutral-border: rgba(0, 0, 0, 0.25);
+}
+
 [data-testid="stButton"] button,
 [data-testid="stDownloadButton"] button,
 [data-testid="stFormSubmitButton"] button {
   font-weight: 600;
-  color: #4A90E2 !important;
+  color: var(--agilab-primary) !important;
   background: transparent !important;
-  border: 1px solid #4A90E2 !important;
+  border: 1px solid var(--agilab-primary) !important;
   white-space: nowrap;
   border-radius: 6px;
   transition: background-color 0.15s ease, border-color 0.15s ease;
@@ -15,69 +23,110 @@
 [data-testid="stButton"] button:hover,
 [data-testid="stDownloadButton"] button:hover,
 [data-testid="stFormSubmitButton"] button:hover {
-  background: #4A90E2 !important;
-  color: #FFFFFF !important;
+  background: var(--agilab-primary) !important;
+  color: var(--agilab-on-primary) !important;
 }
 
 [data-testid="stTabs"] button {
-  color: #4A90E2 !important;
+  color: var(--agilab-primary) !important;
   font-weight: 600;
 }
 
+[data-testid="stButtonGroup"] button,
+[data-testid="stButtonGroup"] [role="radio"],
+[data-testid="stButtonGroup"] [role="checkbox"],
+[data-testid="stSegmentedControl"] [role="radio"],
+[data-testid="stPills"] [role="radio"] {
+  color: var(--agilab-primary) !important;
+  background: transparent !important;
+  border-color: var(--agilab-primary) !important;
+  box-shadow: none !important;
+}
 
+[data-testid="stButtonGroup"] button:hover,
+[data-testid="stButtonGroup"] [role="radio"]:hover,
+[data-testid="stButtonGroup"] [role="checkbox"]:hover,
+[data-testid="stSegmentedControl"] [role="radio"]:hover,
+[data-testid="stPills"] [role="radio"]:hover {
+  color: var(--agilab-primary) !important;
+  background: var(--agilab-primary-soft) !important;
+  border-color: var(--agilab-primary) !important;
+}
+
+[data-testid="stButtonGroup"] button[aria-checked="true"],
+[data-testid="stButtonGroup"] [role="radio"][aria-checked="true"],
+[data-testid="stButtonGroup"] [role="checkbox"][aria-checked="true"],
+[data-testid="stSegmentedControl"] [role="radio"][aria-checked="true"],
+[data-testid="stPills"] [role="radio"][aria-checked="true"],
+[data-testid="stButtonGroup"] label:has(input:checked),
+[data-testid="stSegmentedControl"] label:has(input:checked),
+[data-testid="stPills"] label:has(input:checked) {
+  color: var(--agilab-on-primary) !important;
+  background: var(--agilab-primary) !important;
+  border-color: var(--agilab-primary) !important;
+}
+
+[data-testid="stButtonGroup"] button *,
+[data-testid="stButtonGroup"] [role="radio"] *,
+[data-testid="stButtonGroup"] [role="checkbox"] *,
+[data-testid="stSegmentedControl"] [role="radio"] *,
+[data-testid="stPills"] [role="radio"] * {
+  color: inherit !important;
+  fill: currentColor !important;
+}
 
 [data-testid="stToggle"] label {
-  color: #4A90E2 !important;
+  color: var(--agilab-primary) !important;
 }
 
 [data-testid="stToggle"] div[role="switch"] {
-  background-color: rgba(74, 144, 226, 0.15) !important;
-  border: 1px solid #4A90E2 !important;
+  background-color: var(--agilab-primary-soft) !important;
+  border: 1px solid var(--agilab-primary) !important;
 }
 
 [data-testid="stToggle"] div[role="switch"][aria-checked="true"] {
-  background-color: #4A90E2 !important;
+  background-color: var(--agilab-primary) !important;
 }
 
 [data-testid="stToggle"] div[role="switch"] span {
-  background-color: #FFFFFF !important;
+  background-color: var(--agilab-on-primary) !important;
 }
 
 [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
   border-radius: 20px;
-  border: 1px solid #4A90E2 !important;
+  border: 1px solid var(--agilab-primary) !important;
   box-shadow: none !important;
 }
 
 [data-testid="stSelectbox"] div[data-baseweb="select"] > div:hover {
-  border-color: #4A90E2 !important;
+  border-color: var(--agilab-primary) !important;
 }
 
 [data-testid="stSelectbox"] div[data-baseweb="select"] span {
-  color: #4A90E2 !important;
+  color: var(--agilab-primary) !important;
 }
 
 /* Multiselect: align borders and focus ring with primary color */
 [data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
   border-radius: 20px !important;
-  border: 1px solid #4A90E2 !important;
+  border: 1px solid var(--agilab-primary) !important;
   box-shadow: none !important;
 }
 
 [data-testid="stMultiSelect"] div[data-baseweb="select"] > div:focus-within {
-  border-color: #4A90E2 !important;
-  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2) !important;
+  border-color: var(--agilab-primary) !important;
+  box-shadow: 0 0 0 3px var(--agilab-primary-focus) !important;
 }
 
 [data-testid="stMultiSelect"] div[data-baseweb="select"] > div[aria-invalid="true" i] {
   /* Neutralize BaseWeb invalid (red) border to our primary */
-  border-color: #4A90E2 !important;
+  border-color: var(--agilab-primary) !important;
   box-shadow: none !important;
 }
 
 [data-baseweb="tag"] {
   background-color: transparent !important;
-  border: 1px solid rgba(0, 0, 0, 0.25) !important;
+  border: 1px solid var(--agilab-neutral-border) !important;
   color: inherit !important;
   box-shadow: none !important;
 }
@@ -93,32 +142,32 @@
 
 /* Toggle accents */
 label[data-baseweb="checkbox"] {
-  color: #4A90E2 !important;
+  color: var(--agilab-primary) !important;
 }
 
 label[data-baseweb="checkbox"] > div:first-child {
-  background-color: rgba(74, 144, 226, 0.15) !important;
-  border: 1px solid #4A90E2 !important;
+  background-color: var(--agilab-primary-soft) !important;
+  border: 1px solid var(--agilab-primary) !important;
   border-radius: 999px !important;
   box-shadow: none !important;
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 label[data-baseweb="checkbox"] > div:first-child > div {
-  background-color: #FFFFFF !important;
+  background-color: var(--agilab-on-primary) !important;
   border-radius: 999px !important;
   box-shadow: none !important;
 }
 
 label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child,
 label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child {
-  background-color: #4A90E2 !important;
-  border: 1px solid #4A90E2 !important;
+  background-color: var(--agilab-primary) !important;
+  border: 1px solid var(--agilab-primary) !important;
 }
 
 label[data-baseweb="checkbox"]:has(input[checked]) > div:first-child > div,
 label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-child > div {
-  background-color: #FFFFFF !important;
+  background-color: var(--agilab-on-primary) !important;
 }
 
 /* Streamlit radio buttons */
@@ -135,7 +184,7 @@ label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-chi
 [data-testid="stRadio"] label[data-baseweb="radio"] input[type="radio"] {
   appearance: auto !important;
   -webkit-appearance: auto !important;
-  accent-color: #4A90E2 !important;
+  accent-color: var(--agilab-primary) !important;
   width: 1rem !important;
   height: 1rem !important;
   margin: 0 !important;
@@ -149,32 +198,32 @@ label[data-baseweb="checkbox"]:has(input[aria-checked="true" i]) > div:first-chi
 }
 
 [data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child {
-  border: 2px solid #4A90E2 !important;
-  background-color: #FFFFFF !important;
+  border: 2px solid var(--agilab-primary) !important;
+  background-color: var(--agilab-on-primary) !important;
   box-shadow: none !important;
 }
 
 [data-testid="stRadio"] label[data-baseweb="radio"] > div:first-child > div {
-  background-color: #FFFFFF !important;
+  background-color: var(--agilab-on-primary) !important;
   box-shadow: none !important;
 }
 
 [data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child,
 [data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child {
-  border-color: #4A90E2 !important;
-  background-color: #FFFFFF !important;
+  border-color: var(--agilab-primary) !important;
+  background-color: var(--agilab-on-primary) !important;
 }
 
 [data-testid="stRadio"] label[data-baseweb="radio"]:has(input[aria-checked="true" i]) > div:first-child {
-  border-color: #4A90E2 !important;
-  background-color: #FFFFFF !important;
+  border-color: var(--agilab-primary) !important;
+  background-color: var(--agilab-on-primary) !important;
 }
 
 [data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child > div,
 [data-testid="stRadio"] label[data-baseweb="radio"]:has(input[checked]) > div:first-child > div {
-  background-color: #4A90E2 !important;
+  background-color: var(--agilab-primary) !important;
 }
 
 [data-testid="stRadio"] label[data-baseweb="radio"]:has(input[aria-checked="true" i]) > div:first-child > div {
-  background-color: #4A90E2 !important;
+  background-color: var(--agilab-primary) !important;
 }

@@ -74,11 +74,11 @@ multiple operators. Generated snippets remain under the local ``AGI_LOG_DIR``
 workspace.
 
 .. figure:: _static/page-shots/orchestrate-page.png
-   :alt: Screenshot of the ORCHESTRATE page showing system settings, install, distribute, and run areas.
+   :alt: Screenshot of the ORCHESTRATE page showing deployment toggles and generated setup code.
    :align: center
    :class: diagram-panel diagram-wide
 
-   ORCHESTRATE is where you define distributed worker settings, run INSTALL, inspect distribution, and generate the final run snippet.
+   ORCHESTRATE is where you define worker settings and generate the snippets used for install, distribution, and run.
 
 Step 2: Let ORCHESTRATE Generate the Snippet
 --------------------------------------------

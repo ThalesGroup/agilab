@@ -67,6 +67,16 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.page_bootstrap",
+    {
+        "ensure_page_env": "_ensure_page_env",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
+    fallback_name="agilab_page_bootstrap_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.orchestrate_page_helpers",
     {
         "app_install_status": "_orchestrate_app_install_status",
@@ -1050,13 +1060,10 @@ async def _render_run_panels(
 # Main Application UI
 # ===========================
 async def page() -> None:
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        page_module = importlib.import_module("agilab.About_agilab")
-        page_module.main()
-        st.rerun()
+    env = _ensure_page_env(st, __file__)
+    if env is None:
         return
 
-    env = st.session_state["env"]
     current_app, changed_from_query = resolve_active_app(env)
     if changed_from_query:
         st.session_state["project_changed"] = True

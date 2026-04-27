@@ -26,7 +26,7 @@ What each route is for
 - **AGILAB demo**: use :doc:`agilab-demo` for the self-serve public Hugging Face
   Spaces route for the AGILAB web UI. It opens the lightweight built-in
   ``flight_project`` path by default, so use it as the public first proof for
-  project selection, execution, and analysis.
+  project selection, execution, and ``view_maps`` analysis.
 - **agi-core demo**: notebook-first runtime path. Use this if you want the
   smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the web UI.
 - **Quick start**: the safest truthful first proof of the full product path.
