@@ -238,6 +238,37 @@ def test_import_project_action_overwrites_existing_project(tmp_path: Path):
     assert (target_dir / "new.txt").read_text(encoding="utf-8") == "new"
 
 
+def test_import_project_action_reports_unremovable_existing_project(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    def _raise_unremovable(path: Path) -> None:
+        assert path == target_dir
+        raise OSError("locked")
+
+    monkeypatch.setattr(module.shutil, "rmtree", _raise_unremovable)
+
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Project 'demo_project' is not removable."
+    assert result.detail == "locked"
+    assert "filesystem permissions" in str(result.next_action)
+    assert result.data["target_dir"] == target_dir
+
+
 def test_create_project_clone_action_creates_project_and_reports_strategy(tmp_path: Path):
     module = _load_project_module()
     clone_calls: list[tuple[Path, Path]] = []
