@@ -189,6 +189,31 @@ def _make_lab_deps(**overrides):
     return SimpleNamespace(**defaults)
 
 
+def test_valid_runtime_path_rejects_non_runtime_roots(monkeypatch):
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw).strip() if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: str(raw) == "/valid/runtime")
+
+    assert pipeline_lab._valid_runtime_path(" /valid/runtime ") == "/valid/runtime"
+    assert pipeline_lab._valid_runtime_path("/tmp/exported_notebooks/demo.ipynb") == ""
+    assert pipeline_lab._valid_runtime_path("") == ""
+
+
+def test_valid_runtime_choices_filters_invalid_and_deduplicates(monkeypatch):
+    valid_paths = {"/valid/runtime_a", "/valid/runtime_b"}
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw).strip() if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: str(raw) in valid_paths)
+
+    assert pipeline_lab._valid_runtime_choices(
+        [
+            "/valid/runtime_a",
+            "/tmp/exported_notebooks/demo.ipynb",
+            "/valid/runtime_a",
+            None,
+            " /valid/runtime_b ",
+        ]
+    ) == ["/valid/runtime_a", "/valid/runtime_b"]
+
+
 def test_get_existing_snippets_deduplicates_and_disambiguates_labels(monkeypatch, tmp_path):
     steps_file = tmp_path / "lab_steps.toml"
     steps_file.write_text("", encoding="utf-8")
@@ -723,6 +748,78 @@ def test_display_lab_tab_empty_pipeline_warns_when_first_snippet_cannot_be_read(
     )
 
 
+def test_display_lab_tab_empty_pipeline_hides_stale_hf_snippet_runtime(monkeypatch, tmp_path):
+    stale_runtime = "/app/src/agilab/apps/builtin/flight_project"
+    snippet_path = tmp_path / "AGI_run_demo.py"
+    snippet_path.write_text("print('snippet')\n", encoding="utf-8")
+
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo_new_step_source": snippet_path.name,
+        },
+        selectboxes={"demo_new_step_source": snippet_path.name},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [stale_runtime])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(
+        pipeline_lab,
+        "_is_valid_runtime_root",
+        lambda raw: bool(raw) and not str(raw).startswith("/app/"),
+    )
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {snippet_path.name: snippet_path})
+
+    env = SimpleNamespace(active_app=stale_runtime, envars={}, app="flight_project")
+    deps = _make_lab_deps()
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert fake_st.session_state["demo_first_snippet_venv_ro"] == "Use AGILAB environment"
+
+
+def test_display_lab_tab_existing_step_prunes_invalid_runtime_selection(monkeypatch, tmp_path):
+    valid_runtime = tmp_path / "flight_project"
+    valid_runtime.mkdir()
+    invalid_runtime = tmp_path / "exported_notebooks" / "lab_steps.ipynb"
+    invalid_runtime.parent.mkdir()
+    invalid_runtime.write_text("{}", encoding="utf-8")
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "demo__venv_map": {0: str(invalid_runtime)},
+            "demo_venv_0": str(invalid_runtime),
+            "demo_step_init_0": True,
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [valid_runtime, invalid_runtime])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: str(raw) == str(valid_runtime))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+
+    env = SimpleNamespace(active_app=valid_runtime, envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [
+            {"D": "", "Q": "q", "M": "m", "C": "print('seed')", "E": str(invalid_runtime)}
+        ],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", valid_runtime, env, deps)
+
+    assert fake_st.session_state["demo__venv_map"] == {}
+    assert fake_st.session_state["demo_venv_0"] == "Use AGILAB environment"
+
+
 def test_display_lab_tab_empty_pipeline_warns_when_first_snippet_is_empty(monkeypatch, tmp_path):
     snippet_path = tmp_path / "AGI_run_demo.py"
     snippet_path.write_text("", encoding="utf-8")
@@ -768,7 +865,7 @@ def test_display_lab_tab_empty_pipeline_warns_when_prompt_missing(monkeypatch, t
 
 def test_display_lab_tab_empty_pipeline_generates_first_step_with_runtime(monkeypatch, tmp_path):
     runtime_root = tmp_path / "runtime_a"
-    runtime_root.mkdir()
+    (runtime_root / ".venv").mkdir(parents=True)
     saved: dict[str, object] = {}
 
     fake_st = _FakeStreamlit(
@@ -782,6 +879,7 @@ def test_display_lab_tab_empty_pipeline_generates_first_step_with_runtime(monkey
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [runtime_root])
     monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: str(raw) == str(runtime_root))
 
     env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={"OPENAI_MODEL": "demo"}, app="flight_project")
     deps = _make_lab_deps(
@@ -906,7 +1004,7 @@ def test_display_lab_tab_existing_steps_updates_sequence_and_runtime_selection(m
     persisted_sequences = []
     render_calls = []
     runtime_root = tmp_path / "runtime_a"
-    runtime_root.mkdir()
+    (runtime_root / ".venv").mkdir(parents=True)
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
@@ -950,6 +1048,47 @@ def test_display_lab_tab_existing_steps_updates_sequence_and_runtime_selection(m
     assert persisted_sequences[0] == [0, 1]
     assert persisted_sequences[-1] == [1]
     assert render_calls
+
+
+def test_display_lab_tab_existing_steps_drops_stale_hf_runtime_selection(monkeypatch, tmp_path):
+    stale_runtime = "/app/src/agilab/apps/builtin/flight_project"
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "demo__venv_map": {0: stale_runtime},
+            "demo_venv_0": stale_runtime,
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [stale_runtime])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(
+        pipeline_lab,
+        "_is_valid_runtime_root",
+        lambda raw: bool(raw) and not str(raw).startswith("/app/"),
+    )
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+
+    env = SimpleNamespace(active_app=stale_runtime, envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [
+            {"D": "", "Q": "alpha", "M": "m", "C": "print('a')", "E": stale_runtime, "R": "agi.run"},
+        ],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert fake_st.session_state["demo__venv_map"] == {}
+    assert fake_st.session_state["demo_venv_0"] == "Use AGILAB environment"
 
 
 def test_display_lab_tab_renders_from_page_state_visible_steps(monkeypatch, tmp_path):
@@ -1287,7 +1426,7 @@ def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monk
 def test_display_lab_tab_existing_steps_generates_new_step(monkeypatch, tmp_path):
     saved = []
     runtime_root = tmp_path / "runtime_b"
-    runtime_root.mkdir()
+    (runtime_root / ".venv").mkdir(parents=True)
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
@@ -1378,7 +1517,7 @@ def test_display_lab_tab_overlay_save_persists_editor_payload(monkeypatch, tmp_p
 
 def test_display_lab_tab_overlay_run_streams_step_and_logs_artifacts(monkeypatch, tmp_path):
     runtime_root = tmp_path / "runtime"
-    runtime_root.mkdir()
+    (runtime_root / ".venv").mkdir(parents=True)
     pushed_logs = []
     stream_calls = []
     artifact_calls = []
@@ -1551,7 +1690,7 @@ def test_display_lab_tab_existing_steps_imports_additional_snippet(monkeypatch, 
 
 def test_display_lab_tab_overlay_run_covers_fallback_runtime_and_missing_snippet(monkeypatch, tmp_path):
     runtime_root = tmp_path / "runtime"
-    runtime_root.mkdir()
+    (runtime_root / ".venv").mkdir(parents=True)
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
@@ -2125,7 +2264,7 @@ def test_display_lab_tab_overlay_run_logs_missing_file_hint(monkeypatch, tmp_pat
     monkeypatch.setattr(pipeline_lab, "log_mlflow_artifacts", lambda *args, **kwargs: None)
 
     runtime_root = tmp_path / "runtime"
-    runtime_root.mkdir()
+    (runtime_root / ".venv").mkdir(parents=True)
     entry = {"D": "desc", "Q": "question", "M": "model", "C": "print('old')", "E": str(runtime_root), "R": ""}
     deps = _make_lab_deps(
         load_all_steps=lambda *_args, **_kwargs: [entry],
@@ -2531,7 +2670,7 @@ def test_display_lab_tab_overlay_paths_cover_same_sig_none_text_and_entry_runtim
     assert save_calls[-1][0][1][3] == "print('fallback')"
 
     runtime_root = tmp_path / "runtime"
-    runtime_root.mkdir()
+    (runtime_root / ".venv").mkdir(parents=True)
     run_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
@@ -2694,7 +2833,7 @@ def test_display_lab_tab_overlay_blank_editor_keeps_existing_code(monkeypatch, t
 
 def test_display_lab_tab_overlay_run_uses_entry_runtime_and_default_engine(monkeypatch, tmp_path):
     runtime_root = tmp_path / "runtime"
-    runtime_root.mkdir()
+    (runtime_root / ".venv").mkdir(parents=True)
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
@@ -2734,7 +2873,7 @@ def test_display_lab_tab_overlay_run_uses_entry_runtime_and_default_engine(monke
 
 def test_display_lab_tab_overlay_run_uses_active_app_for_agi_engine(monkeypatch, tmp_path):
     active_runtime = tmp_path / "active_runtime"
-    active_runtime.mkdir()
+    (active_runtime / ".venv").mkdir(parents=True)
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
