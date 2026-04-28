@@ -42,6 +42,7 @@ import_agilab_symbols(
         "build_run_snippet": "build_run_snippet",
         "available_benchmark_modes": "available_benchmark_modes",
         "benchmark_mode_label": "benchmark_mode_label",
+        "benchmark_rows_with_delta_percent": "benchmark_rows_with_delta_percent",
         "benchmark_workers_data_path_issue": "benchmark_workers_data_path_issue",
         "compute_run_mode": "compute_run_mode",
         "describe_run_mode": "describe_run_mode",
@@ -1001,6 +1002,7 @@ async def _render_run_panels(
                             raw = json.load(f) or {}
 
                         date_value = str(raw.pop("date", "") or "").strip()
+                        raw = benchmark_rows_with_delta_percent(raw)
                         benchmark_df = pd.DataFrame.from_dict(raw, orient="index")
 
                         df_nonempty = benchmark_df.dropna(how="all")

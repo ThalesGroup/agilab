@@ -372,6 +372,44 @@ def benchmark_mode_label(mode: int) -> str:
     return RUN_MODE_LABELS[mode]
 
 
+def _benchmark_seconds(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def benchmark_rows_with_delta_percent(raw: Mapping[str, Any]) -> dict[str, Any]:
+    """Return benchmark rows augmented with a display-only percent delta."""
+    rows: dict[str, Any] = {}
+    numeric_seconds: list[float] = []
+    for key, value in raw.items():
+        if not isinstance(value, Mapping):
+            rows[str(key)] = value
+            continue
+        row = dict(value)
+        seconds = _benchmark_seconds(row.get("seconds"))
+        if seconds is not None:
+            numeric_seconds.append(seconds)
+        rows[str(key)] = row
+
+    if not numeric_seconds:
+        return rows
+
+    best_seconds = min(numeric_seconds)
+    for row in rows.values():
+        if not isinstance(row, dict):
+            continue
+        seconds = _benchmark_seconds(row.get("seconds"))
+        if seconds is None:
+            continue
+        if best_seconds > 0:
+            row["delta (%)"] = round(((seconds - best_seconds) / best_seconds) * 100.0, 2)
+        else:
+            row["delta (%)"] = 0.0 if seconds == best_seconds else None
+    return rows
+
+
 def sanitize_benchmark_modes(
     selected_modes: Any,
     available_modes: Sequence[int],
