@@ -1211,6 +1211,7 @@ choose_python_version
 backup_existing_project
 copy_project_files
 update_environment
+write_env_values
 install_core
 maybe_run_core_tests
 
@@ -1226,7 +1227,6 @@ popd > /dev/null
 
 maybe_run_root_tests
 
-write_env_values
 configure_streamlit
 
 FINAL_STATUS=""

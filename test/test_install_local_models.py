@@ -83,6 +83,19 @@ def test_installers_normalize_empty_local_model_list_under_nounset() -> None:
         assert normalized == ""
 
 
+def test_root_installer_propagates_env_before_core_and_app_installs() -> None:
+    script_text = INSTALL_SH.read_text(encoding="utf-8")
+    main_text = script_text[script_text.index("check_internet\n") :]
+
+    update_pos = main_text.index("update_environment\n")
+    write_pos = main_text.index("write_env_values\n")
+    install_core_pos = main_text.index("install_core\n")
+    core_tests_pos = main_text.index("maybe_run_core_tests\n")
+    app_install_pos = main_text.index("if (( INSTALL_APPS_FLAG )); then")
+
+    assert update_pos < write_pos < install_core_pos < core_tests_pos < app_install_pos
+
+
 def test_root_installer_default_share_dir_is_user_scoped() -> None:
     script_text = INSTALL_SH.read_text(encoding="utf-8")
     function_body = "\n".join(
