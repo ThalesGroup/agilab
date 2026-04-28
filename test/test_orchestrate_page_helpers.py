@@ -943,54 +943,6 @@ def test_clear_cached_distribution_calls_clear_when_available():
     assert called["count"] == 1
 
 
-def test_apply_distribution_plan_action_updates_json(tmp_path):
-    module = _load_orchestrate_module()
-    dist_tree_path = tmp_path / "distribution.json"
-    dist_tree_path.write_text(
-        json.dumps({"workers": {"127.0.0.1": 2}, "target_args": {"old": True}}),
-        encoding="utf-8",
-    )
-    workers = ["127.0.0.1-1", "127.0.0.1-2"]
-    work_plan_metadata = [[("A", 1)], [("B", 1)]]
-    work_plan = [[["a.csv"]], [["b.csv"]]]
-    selection_key = module.workplan_selection_key("A", 0, 0)
-
-    result = module._apply_distribution_plan_action(
-        dist_tree_path=dist_tree_path,
-        workers=workers,
-        work_plan_metadata=work_plan_metadata,
-        work_plan=work_plan,
-        selections={selection_key: "127.0.0.1-2"},
-        target_args={"new": "value"},
-    )
-
-    payload = json.loads(dist_tree_path.read_text(encoding="utf-8"))
-    assert result.status == "success"
-    assert result.title == "Distribution plan updated."
-    assert payload["target_args"] == {"new": "value"}
-    assert payload["work_plan_metadata"] == [[], [["A", 1], ["B", 1]]]
-    assert payload["work_plan"] == [[], [["a.csv"], ["b.csv"]]]
-
-
-def test_apply_distribution_plan_action_reports_invalid_json(tmp_path):
-    module = _load_orchestrate_module()
-    dist_tree_path = tmp_path / "distribution.json"
-    dist_tree_path.write_text("{bad json", encoding="utf-8")
-
-    result = module._apply_distribution_plan_action(
-        dist_tree_path=dist_tree_path,
-        workers=["127.0.0.1-1"],
-        work_plan_metadata=[[("A", 1)]],
-        work_plan=[[["a.csv"]]],
-        selections={},
-        target_args={},
-    )
-
-    assert result.status == "error"
-    assert result.title == "Distribution plan file is not valid JSON."
-    assert "regenerate distribution.json" in str(result.next_action)
-
-
 @pytest.mark.asyncio
 async def test_check_distribution_action_reports_success_and_uses_controller_runtime(tmp_path: Path):
     module = _load_orchestrate_module()

@@ -430,7 +430,7 @@ def _apply_distribution_plan_action(
     work_plan: list[Any],
     selections: Any,
     target_args: dict[str, Any],
-) -> Any:
+) -> ActionResult:
     try:
         new_work_plan_metadata, new_work_plan = reassign_distribution_plan(
             workers=workers,
