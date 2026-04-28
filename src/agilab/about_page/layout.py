@@ -360,6 +360,8 @@ def _mac_hardware_profile() -> dict[str, str]:
 def _cpu_summary(system: str) -> str:
     hardware = _mac_hardware_profile() if system == "Darwin" else {}
     cpu_name = hardware.get("Chip") or platform.processor() or platform.machine()
+    if not cpu_name:
+        return ""
     core_label = _cpu_core_label(system, hardware)
     return f"{cpu_name}; {core_label}" if core_label else cpu_name
 
