@@ -155,6 +155,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 
 
+
 [dependency-groups]
 dev = [
     "black",
