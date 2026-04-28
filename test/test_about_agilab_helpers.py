@@ -41,12 +41,24 @@ class _FakeExpander:
         return False
 
 
+class _FakeSidebar:
+    def __init__(self, streamlit):
+        self._streamlit = streamlit
+
+    def caption(self, body: object):
+        self._streamlit.events.append(("sidebar.caption", str(body)))
+
+    def markdown(self, body: object, **_kwargs):
+        self._streamlit.events.append(("sidebar.markdown", str(body)))
+
+
 class _FakeStreamlit:
     def __init__(self):
         self.events: list[tuple[str, str]] = []
         self.session_state: dict[str, object] = {}
         self.query_params: dict[str, object] = {}
         self.stopped = False
+        self.sidebar = _FakeSidebar(self)
 
     def expander(self, label: str, expanded: bool = False):
         self.events.append(("expander", f"{label}:{expanded}"))
@@ -1210,6 +1222,7 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     about_agilab._sync_layout_module()
     about_agilab._about_layout.render_package_versions()
     about_agilab._about_layout.render_system_information()
+    about_agilab._about_layout.render_sidebar_system_information()
     about_agilab._about_layout.render_footer()
 
     assert about_agilab._clean_openai_key("sk-" + "a" * 16) == "sk-" + "a" * 16
@@ -1218,7 +1231,59 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert any("agilab:" in body for kind, body in fake_st.events if kind == "write")
     assert any("agi-gui:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
+    assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
+
+
+def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(
+        about_agilab,
+        "read_theme_css",
+        lambda _base_path, *, module_file: "body { color: #123456; }",
+    )
+
+    about_agilab.inject_theme(tmp_path)
+    about_agilab.render_sidebar_version("v2026.4.28")
+    about_menu = about_agilab.get_about_content()
+
+    markdown = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
+    assert "body { color: #123456; }" in markdown
+    assert "AGILAB v2026.4.28" in markdown
+    assert about_agilab._sidebar_version_label("2026.4.28") == "AGILAB v2026.4.28"
+    assert about_agilab._sidebar_version_label("") == ""
+    assert "open a GitHub issue" in about_menu["About"]
+
+
+def test_about_page_moves_system_information_to_sidebar(monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(about_agilab, "render_sidebar_version", lambda _version: None)
+    monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
+    monkeypatch.setattr(about_agilab, "_render_env_editor", lambda _env: None)
+    monkeypatch.setattr(about_agilab, "render_page_docs_access", lambda *_args, **_kwargs: None)
+
+    env = SimpleNamespace(
+        app="flight_project",
+        apps_path=Path("/tmp/agilab/apps"),
+        agi_share_path_abs=Path("/tmp/agilab/localshare"),
+        AGILAB_LOG_ABS=Path("/tmp/agilab/log"),
+        TABLE_MAX_ROWS=100,
+        GUI_SAMPLING=10,
+    )
+
+    about_agilab.page(env)
+
+    env_expander = _event_index(fake_st.events, "expander", "Environment Variables")
+    expanders = [body for kind, body in fake_st.events if kind == "expander"]
+    assert any("Environment Variables" in label for label in expanders)
+    assert "Installed package versions:False" in expanders
+    assert "System information:False" not in expanders
+    assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert env_expander >= 0
 
 
 def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
@@ -1234,6 +1299,8 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert "agilab-hero" in body
     assert "Reproducible AI engineering, from project to proof" in body
     assert "Control path" in body
+    assert "Data intake" in body
+    assert "Decision evidence" in body
 
 
 def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
