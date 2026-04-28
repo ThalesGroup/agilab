@@ -216,6 +216,36 @@ def test_benchmark_mode_helpers_expose_only_enabled_capabilities():
     assert orchestrate_page_support.benchmark_mode_label(13) == "13: rapids and dask and pool"
 
 
+def test_benchmark_rows_with_delta_percent_adds_relative_gap():
+    rows = orchestrate_page_support.benchmark_rows_with_delta_percent(
+        {
+            "0": {"mode": "python", "seconds": 10.0},
+            "1": {"mode": "pool", "seconds": 12.5},
+            "2": {"mode": "cython", "seconds": "5"},
+        }
+    )
+
+    assert rows["2"]["delta (%)"] == 0.0
+    assert rows["0"]["delta (%)"] == 100.0
+    assert rows["1"]["delta (%)"] == 150.0
+
+
+def test_benchmark_rows_with_delta_percent_handles_zero_and_invalid_seconds():
+    rows = orchestrate_page_support.benchmark_rows_with_delta_percent(
+        {
+            "0": {"mode": "best", "seconds": 0.0},
+            "1": {"mode": "slower", "seconds": 2.0},
+            "2": {"mode": "unknown", "seconds": "n/a"},
+            "meta": "kept",
+        }
+    )
+
+    assert rows["0"]["delta (%)"] == 0.0
+    assert rows["1"]["delta (%)"] is None
+    assert "delta (%)" not in rows["2"]
+    assert rows["meta"] == "kept"
+
+
 def test_benchmark_workers_data_path_requires_shared_path_for_remote_dask(tmp_path):
     local_share = tmp_path / "localshare"
     local_share.mkdir()
