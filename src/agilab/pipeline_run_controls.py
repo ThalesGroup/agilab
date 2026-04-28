@@ -557,15 +557,14 @@ def run_all_steps(
             sequence,
         )
         pipeline_log_artifact = st.session_state.get(f"{index_page_str}__run_log_file")
-        with _pipeline_runtime.start_mlflow_run(
+        with _pipeline_runtime.start_tracker_run(
             env,
             run_name=parent_run_name,
             tags=parent_tags,
             params=parent_params,
-        ) as pipeline_tracking:
-            if pipeline_tracking:
-                _pipeline_runtime.log_mlflow_artifacts(
-                    pipeline_tracking,
+        ) as pipeline_tracker:
+            if pipeline_tracker:
+                pipeline_tracker.log_artifacts(
                     text_artifacts=parent_text_artifacts,
                     file_artifacts=[steps_file],
                 )
@@ -633,20 +632,19 @@ def run_all_steps(
                     target_base.mkdir(parents=True, exist_ok=True)
                     script_artifact: Optional[Path] = None
                     export_target = st.session_state.get("df_file_out", "")
-                    with _pipeline_runtime.start_mlflow_run(
+                    with _pipeline_runtime.start_tracker_run(
                         env,
                         run_name=step_run_name,
                         tags=step_tags,
                         params=step_params,
-                        nested=bool(pipeline_tracking),
-                    ) as step_tracking:
+                        nested=bool(pipeline_tracker),
+                    ) as step_tracker:
                         step_env = _pipeline_runtime.build_mlflow_process_env(
                             env,
-                            run_id=step_tracking["run"].info.run_id if step_tracking else None,
+                            run_id=step_tracker.run_id if step_tracker else None,
                         )
-                        if step_tracking:
-                            _pipeline_runtime.log_mlflow_artifacts(
-                                step_tracking,
+                        if step_tracker:
+                            step_tracker.log_artifacts(
                                 text_artifacts=step_text_artifacts,
                             )
                         if engine == "runpy":
@@ -713,12 +711,11 @@ def run_all_steps(
                             f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
                             log_placeholder,
                         )
-                        if step_tracking:
+                        if step_tracker:
                             step_files = [script_artifact]
                             if export_target:
                                 step_files.append(export_target)
-                            _pipeline_runtime.log_mlflow_artifacts(
-                                step_tracking,
+                            step_tracker.log_artifacts(
                                 text_artifacts={f"step_{idx + 1}/stdout.txt": preview or ""},
                                 file_artifacts=step_files,
                                 tags={
@@ -727,9 +724,8 @@ def run_all_steps(
                                 },
                             )
                         executed += 1
-            if pipeline_tracking:
-                _pipeline_runtime.log_mlflow_artifacts(
-                    pipeline_tracking,
+            if pipeline_tracker:
+                pipeline_tracker.log_artifacts(
                     file_artifacts=[pipeline_log_artifact] if pipeline_log_artifact else [],
                     tags={"agilab.status": "completed"},
                     metrics={"executed_steps": executed},

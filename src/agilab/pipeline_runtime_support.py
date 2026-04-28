@@ -34,6 +34,7 @@ _MLFLOW_EXPORTS = (
     "ensure_default_mlflow_experiment",
     "temporary_env_overrides",
     "start_mlflow_run",
+    "start_tracker_run",
     "log_mlflow_artifacts",
     "wrap_code_with_mlflow_resume",
 )
@@ -86,6 +87,7 @@ mlflow_tracking_uri = _pipeline_runtime_mlflow_support.mlflow_tracking_uri
 ensure_default_mlflow_experiment = _pipeline_runtime_mlflow_support.ensure_default_mlflow_experiment
 temporary_env_overrides = _pipeline_runtime_mlflow_support.temporary_env_overrides
 start_mlflow_run = _pipeline_runtime_mlflow_support.start_mlflow_run
+start_tracker_run = _pipeline_runtime_mlflow_support.start_tracker_run
 log_mlflow_artifacts = _pipeline_runtime_mlflow_support.log_mlflow_artifacts
 wrap_code_with_mlflow_resume = _pipeline_runtime_mlflow_support.wrap_code_with_mlflow_resume
 

@@ -27,6 +27,28 @@ detection, or large-scale operational deployment, it should still be
 treated as early-stage tooling and paired with a hardened production
 stack.
 
+MLflow strategy
+---------------
+
+AGILab should not be positioned as an alternative experiment tracker, a second
+model registry, or a replacement run format. MLflow remains the system of
+record for runs, parameters, metrics, artifacts, models, and registry state.
+AGILab adds the industrial execution context around that record: managed
+environments, worker packaging, distributed execution, project structure,
+dataset and artifact paths, and reproducibility metadata.
+
+The intended split is simple:
+
+- **AGILab owns execution**: environments, workers, clusters, packaging,
+  reproducibility, and operator workflows.
+- **MLflow owns memory**: tracking, artifacts, model registry, versions, and
+  deployment aliases.
+
+In code, AGILab uses a small tracker facade such as
+``tracker.log_metric(...)`` and ``tracker.log_artifact(...)``. The default
+backend is MLflow, so normal AGILab execution can track automatically without
+asking users to hand-write MLflow boilerplate in every snippet or worker.
+
 Best fit and limits
 -------------------
 
@@ -477,7 +499,8 @@ Suggested workflow
 This is a handoff sketch, not a roadmap.
 
 1. Use AGILab to prototype algorithms, reuse app templates, and validate data
-   processing. Capture run history via ``~/log/execute/<app>/``.
+   processing. Capture execution history through AGILab run logs and
+   MLflow-backed tracking runs.
 2. Once an approach stabilises, prepare the project artefacts for your target
    environment and integrate it with your organisation’s deployment toolchain
    (MLflow, Kubeflow, internal devops stack). In a source checkout, this commonly

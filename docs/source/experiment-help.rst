@@ -142,6 +142,13 @@ This means MLflow is no longer just a nearby dashboard. It is the execution
 trace for PIPELINE runs, while the sidebar remains the place where you inspect
 that trace.
 
+AGILAB does not define a separate experiment tracker, model registry, run
+format, or metrics schema. The AGILAB runtime talks through a small tracker
+facade (for example ``tracker.log_metric(...)`` and
+``tracker.log_artifact(...)``), and the default backend is MLflow. This keeps
+tracking automatic during normal AGILAB execution while preserving compatibility
+with existing MLflow tooling.
+
 The tracking store is the directory configured by ``MLFLOW_TRACKING_DIR``.
 Subprocess-based steps receive the same ``MLFLOW_TRACKING_URI`` as in-process
 steps, so both execution paths are visible from the same MLflow UI.

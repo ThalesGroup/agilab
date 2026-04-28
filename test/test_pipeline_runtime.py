@@ -573,6 +573,83 @@ def test_start_mlflow_run_yields_none_when_mlflow_is_unavailable(monkeypatch, tm
         assert tracking is None
 
 
+def test_start_tracker_run_exposes_backend_neutral_logging_methods(monkeypatch, tmp_path):
+    run_requests: list[dict[str, object]] = []
+    artifact_calls: list[tuple[object, dict[str, object]]] = []
+    tracking_payload = {
+        "run": SimpleNamespace(info=SimpleNamespace(run_id="run-abc")),
+        "tracking_uri": "sqlite:///tmp/mlflow.db",
+    }
+
+    @contextmanager
+    def fake_start_mlflow_run(*_args, **kwargs):
+        run_requests.append(kwargs)
+        yield tracking_payload
+
+    monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
+    monkeypatch.setattr(
+        pipeline_runtime,
+        "log_mlflow_artifacts",
+        lambda tracking, **kwargs: artifact_calls.append((tracking, kwargs)),
+    )
+
+    artifact = tmp_path / "result.txt"
+    artifact.write_text("ok", encoding="utf-8")
+
+    with pipeline_runtime.start_tracker_run(
+        SimpleNamespace(MLFLOW_TRACKING_DIR=tmp_path),
+        run_name="pipeline",
+        tags={"kind": "demo"},
+        params={"step_count": 1},
+        nested=True,
+    ) as tracker:
+        assert tracker
+        assert tracker.enabled is True
+        assert tracker.run_id == "run-abc"
+        assert tracker.tracking_uri == "sqlite:///tmp/mlflow.db"
+
+        tracker.log_metric("score", 0.75)
+        tracker.log_metrics({"loss": 0.25})
+        tracker.set_tag("status", "ok")
+        tracker.set_tags({"phase": "test"})
+        tracker.log_text("logs/stdout.txt", "hello")
+        tracker.log_artifact(artifact)
+
+    assert run_requests == [
+        {
+            "run_name": "pipeline",
+            "tags": {"kind": "demo"},
+            "params": {"step_count": 1},
+            "nested": True,
+        }
+    ]
+    assert [call[0] for call in artifact_calls] == [tracking_payload] * 6
+    assert artifact_calls[0][1]["metrics"] == {"score": 0.75}
+    assert artifact_calls[1][1]["metrics"] == {"loss": 0.25}
+    assert artifact_calls[2][1]["tags"] == {"status": "ok"}
+    assert artifact_calls[3][1]["tags"] == {"phase": "test"}
+    assert artifact_calls[4][1]["text_artifacts"] == {"logs/stdout.txt": "hello"}
+    assert artifact_calls[5][1]["file_artifacts"] == [artifact]
+
+
+def test_start_tracker_run_degrades_to_disabled_tracker(monkeypatch, tmp_path):
+    @contextmanager
+    def fake_start_mlflow_run(*_args, **_kwargs):
+        yield None
+
+    monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
+
+    with pipeline_runtime.start_tracker_run(
+        SimpleNamespace(MLFLOW_TRACKING_DIR=tmp_path),
+        run_name="pipeline",
+    ) as tracker:
+        assert not tracker
+        assert tracker.enabled is False
+        assert tracker.run_id is None
+        assert tracker.tracking_uri is None
+        tracker.log_metric("ignored", 1.0)
+
+
 def test_mlflow_tracking_uri_migrates_legacy_filestore(tmp_path, monkeypatch):
     tracking_root = tmp_path / "mlflow-store"
     (tracking_root / "0").mkdir(parents=True)

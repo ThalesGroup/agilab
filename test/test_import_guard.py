@@ -61,6 +61,7 @@ def test_pipeline_run_controls_uses_explicit_module_aliases() -> None:
 
     assert callable(module._pipeline_steps.step_summary)
     assert callable(module._pipeline_runtime.start_mlflow_run)
+    assert callable(module._pipeline_runtime.start_tracker_run)
     assert module._logging_utils.LOG_PATH_LIMIT > 0
     assert not hasattr(module, "_step_summary")
     assert not hasattr(module, "LOG_PATH_LIMIT")
