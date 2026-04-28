@@ -96,6 +96,9 @@ normalize_local_models_csv() {
       seen="${seen}${normalized} "
     fi
   done
+  if (( ${#ordered[@]} == 0 )); then
+    return 0
+  fi
   printf '%s' "${ordered[*]}"
 }
 
