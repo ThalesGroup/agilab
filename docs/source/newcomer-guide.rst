@@ -95,133 +95,18 @@ cluster, and VM-based cluster validation.
 It is not scored higher yet because Azure, AWS, and GCP deployment validation
 remains open.
 
-Repeatable cluster proof
-------------------------
+After day 1: cluster proof
+--------------------------
 
-After the local first proof works, use the Flight cluster doctor for a small
-two-node validation. It creates tiny synthetic Flight CSVs, mirrors them to the
-remote worker under the same ``$HOME/localshare/...`` path, then validates the
-cluster-share contract before running compute: the scheduler writes a sentinel
-under ``--cluster-share`` and each remote worker must read it through
-``--remote-cluster-share``. After ``AGI.install`` plus ``AGI.run`` in Dask mode,
-the scheduler must also see the worker outputs through the local cluster-share
-path. A remote-only output directory is reported as a failure because it does not
-prove a shared cluster filesystem.
+Cluster validation is a second milestone, not part of the newcomer proof.
+Use it only after the local ``flight_project`` path has passed once.
 
-First mount or otherwise expose the same backing directory on every node. For
-example, the scheduler might use ``/Users/agi/clustershare/agilab-two-node``
-while the worker sees the same storage at
-``/Users/jpm/clustershare/agilab-two-node``.
+For the repeatable two-node check, go to :doc:`cluster`. That page owns:
 
-If you do not know which LAN machines are ready to use, run discovery first:
-
-.. code-block:: bash
-
-   agilab doctor --discover-lan --remote-user jpm
-
-The discovery pass combines passive sources such as ``known_hosts``, SSH config,
-the ARP table, and the local AGILAB LAN cache with a bounded SSH-port scan of
-local private ``/24`` networks. It does not guess passwords. Each reachable node
-is classified by SSH BatchMode auth, operating system, ``python3``, ``uv``,
-``sshfs``, and reverse SSH back to the scheduler when ``--scheduler`` is
-provided. Use ``--json`` or ``--summary-json`` when automation needs the
-machine-readable report:
-
-.. code-block:: bash
-
-   agilab doctor --discover-lan \
-     --remote-user jpm \
-     --scheduler 192.168.3.103 \
-     --cidr 192.168.3.0/24 \
-     --json
-
-Use the reported ``ready`` nodes as explicit ``--workers`` values. If discovery
-reports ``ssh-auth-needed``, ``python-missing``, ``uv-missing``,
-``sshfs-missing``, or ``reverse-ssh-needed``, fix that prerequisite before
-running the cluster-share setup.
-
-If the share is not mounted yet, let the doctor apply the SSHFS setup and then
-validate the shared filesystem contract:
-
-.. code-block:: bash
-
-   agilab doctor --cluster \
-     --scheduler 192.168.3.103 \
-     --workers jpm@192.168.3.35 \
-     --cluster-share /Users/agi/clustershare/agilab-two-node \
-     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node \
-     --setup-share sshfs \
-     --apply
-
-This creates the local cluster-share directory, checks ``sshfs`` on each remote
-worker, writes the remote ``~/.agilab/.env`` ``AGI_CLUSTER_SHARE`` value, mounts
-the scheduler path on the worker when not already mounted, and runs the sentinel
-share check. To inspect the commands without applying changes, print the setup
-script:
-
-On macOS workers, make the SSHFS prerequisite explicit before running
-``--setup-share``:
-
-- install a FUSE-backed SSHFS implementation such as FUSE-T SSHFS or
-  macFUSE plus SSHFS
-- ensure ``sshfs`` is visible to non-interactive SSH commands, for example
-  ``ssh <worker> 'command -v sshfs'``
-- ensure the worker can SSH back to the scheduler user referenced by
-  ``--scheduler``, because the worker-side mount command reads
-  ``<scheduler-user>@<scheduler>:/...``
-
-On older macOS hosts, Homebrew may exist at ``/usr/local/Homebrew/bin/brew``
-without being on the SSH ``PATH``. If ``command -v brew`` is empty, check that
-location before assuming no package manager exists. If ``sshfs`` lands under
-``/usr/local/bin``, add that directory to the remote user's non-interactive shell
-startup, then re-check with ``ssh <worker> 'command -v sshfs'``.
-
-.. code-block:: bash
-
-   agilab doctor --cluster \
-     --scheduler 192.168.3.103 \
-     --workers jpm@192.168.3.35 \
-     --cluster-share /Users/agi/clustershare/agilab-two-node \
-     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node \
-     --print-share-setup sshfs
-
-If you mounted the share manually, validate only the shared filesystem contract:
-
-.. code-block:: bash
-
-   agilab doctor --cluster \
-     --scheduler 192.168.3.103 \
-     --workers jpm@192.168.3.35 \
-     --cluster-share /Users/agi/clustershare/agilab-two-node \
-     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node \
-     --share-check-only
-
-From a source checkout:
-
-.. code-block:: bash
-
-   uv --preview-features extra-build-dependencies run python tools/cluster_flight_validation.py \
-     --cluster \
-     --scheduler 192.168.3.103 \
-     --workers jpm@192.168.3.35 \
-     --cluster-share /Users/agi/clustershare/agilab-two-node \
-     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node
-
-From an installed package, use the same doctor through the public CLI:
-
-.. code-block:: bash
-
-   agilab doctor --cluster \
-     --scheduler 192.168.3.103 \
-     --workers jpm@192.168.3.35 \
-     --cluster-share /Users/agi/clustershare/agilab-two-node \
-     --remote-cluster-share /Users/jpm/clustershare/agilab-two-node
-
-This is a post-day-1 proof. It assumes SSH key access already works and that
-the remote user can create ``~/localshare`` and access the mounted cluster-share
-path. The narrow release gate after any share repair is the standalone
-``--share-check-only`` command above; rerun the full Flight cluster validation
-only when you need fresh install, compute, and output-visibility evidence.
+- LAN discovery and SSH prerequisites
+- shared cluster-share setup and sentinel checks
+- the Flight cluster doctor command
+- source-checkout and package-mode cluster validation commands
 
 What to ignore on day 1
 -----------------------

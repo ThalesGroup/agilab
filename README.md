@@ -173,16 +173,16 @@ tools/data_connector_app_catalogs_report.py --compact
 
 ## Evaluation Snapshot
 
-Current CODEX 5.5 working scores, out of 5 and refreshed from the public KPI
-bundle, not production MLOps claims:
+Current CODEX 5.5 working summary, refreshed from the public KPI bundle:
 
-| KPI | Current score (/5) | Evidence | Limit |
-|---|---|---:|---|
-| Ease of adoption | `4.0 / 5` | Hosted Space, CLI-first local `flight_project` path, opt-in installer tests, local smoke: `5.86s` vs `600s`, fresh external-machine smoke on April 25, 2026: `26.87s` vs `600s`, repeatable Flight cluster doctor with shared cluster-share preflight, plus AI Lightning, Hugging Face, bare-metal cluster, and VM-based cluster validation. | Remaining validation gap: Azure, AWS, and GCP cloud deployments. |
-| Research experimentation | `4.0 / 5` | Isolated `uv`, `lab_steps.toml`, MLflow-tracked runs, analysis pages, reduce artifacts, public reduce benchmark, notebook reports, connector reports, and multi-app/global DAG evidence summarized by the KPI bundle. | Future apps/templates must opt in when they produce concrete merge outputs. |
-| Engineering prototyping | `4.0 / 5` | `app_args_form.py`, `pipeline_view`, reusable history, analysis-page templates, first-proof wizard/manifest evidence, connector provenance UI contracts, and global DAG operator-state/action/UI contracts. | Additional external replication beyond the current public first-proof paths is not claimed. |
-| Production readiness | `3.0 / 5` | Release preflight, CI/coverage, service health gates, connector-registry release paths, provenance-tagged manifest-indexing, cross-release, and cross-run release-decision page export, security hardening checklist. | Production model serving, feature stores, online monitoring, drift detection, and enterprise governance are outside scope. |
-| Overall public evaluation | `3.8 / 5` | Mean of the four scored public KPIs: `(4.0 + 4.0 + 4.0 + 3.0) / 4 = 3.75`. Cross-KPI evidence bundle and workflow-backed compatibility report documented in the compatibility matrix. | Alpha-stage software; not a production MLOps platform. |
+- `4.0 / 5` for ease of adoption, research experimentation, and engineering prototyping.
+- `3.0 / 5` for production readiness.
+- `3.8 / 5` overall public evaluation.
+
+These are public experimentation-workbench scores, not production MLOps claims.
+The evidence and limits are maintained in the
+[compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
+and [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html).
 
 ## Read Next
 

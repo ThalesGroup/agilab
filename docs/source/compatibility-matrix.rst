@@ -91,8 +91,7 @@ Maintainer evidence commands
 ----------------------------
 
 The public evaluation score is backed by reproducible checks rather than by the
-README table alone. Maintainers can collect the evidence bundle and supporting
-smokes with:
+README summary alone. For normal maintenance, use the compact checks first:
 
 .. code-block:: bash
 
@@ -100,188 +99,26 @@ smokes with:
    uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bundle.py --compact
    uv --preview-features extra-build-dependencies run python tools/revision_traceability_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/public_certification_profile_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/supply_chain_attestation_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/repository_knowledge_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
-   uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --url https://jpmorard-agilab.hf.space --analysis-view view_maps --json
-   uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/run_diff_evidence_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/ci_artifact_harvest_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/ci_provider_artifact_index.py --provider gitlab_ci --archive artifact.zip --compact
-   uv --preview-features extra-build-dependencies run python tools/ci_provider_artifact_index.py --live-gitlab --project group/project --pipeline-id 123 --compact
-   uv --preview-features extra-build-dependencies run python tools/multi_app_dag_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_dag_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_execution_plan_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_runner_state_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_dispatch_state_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_app_dispatch_smoke_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_state_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_dependency_view_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_live_state_updates_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_actions_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_ui_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/notebook_pipeline_import_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/notebook_roundtrip_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/notebook_union_environment_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_facility_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_resolution_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_health_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_health_actions_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_runtime_adapters_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_live_endpoint_smoke_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_ui_preview_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_live_ui_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_view_surface_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/data_connector_app_catalogs_report.py --compact
 
-The compact compatibility report checks the required public statuses, the proof
-commands behind validated entries, and optional ``run_manifest.json`` evidence.
-It scans default local log roots and also accepts explicit external evidence
-with ``--manifest`` or ``--manifest-dir``. When a manifest is present, the report
-derives that path's effective status from the manifest result; without a
-manifest, it falls back to the checked-in matrix status. The compact KPI bundle
-consumes that report and includes the ``run_diff_evidence_report_contract``,
-``revision_traceability_report_contract``,
-``public_certification_profile_report_contract``,
-``supply_chain_attestation_report_contract``,
-``repository_knowledge_report_contract``,
-``ci_artifact_harvest_report_contract``,
-``ci_provider_artifact_index_contract``,
-``multi_app_dag_report_contract``,
-``global_pipeline_dag_report_contract``,
-``global_pipeline_execution_plan_report_contract``,
-``global_pipeline_runner_state_report_contract``,
-``global_pipeline_dispatch_state_report_contract``,
-``global_pipeline_app_dispatch_smoke_report_contract``,
-``global_pipeline_operator_state_report_contract``,
-``global_pipeline_dependency_view_report_contract``,
-``global_pipeline_live_state_updates_report_contract``,
-``global_pipeline_operator_actions_report_contract``,
-``global_pipeline_operator_ui_report_contract``,
-``notebook_pipeline_import_report_contract``,
-``notebook_roundtrip_report_contract``,
-``notebook_union_environment_report_contract``,
-``data_connector_facility_report_contract``,
-``data_connector_resolution_report_contract``,
-``data_connector_health_report_contract``,
-``data_connector_health_actions_report_contract``,
-``data_connector_runtime_adapters_report_contract``,
-``data_connector_live_endpoint_smoke_report_contract``,
-``data_connector_ui_preview_report_contract``,
-``data_connector_live_ui_report_contract``,
-``data_connector_view_surface_report_contract``,
-``data_connector_app_catalogs_report_contract``, and
-``reduce_contract_adoption_guardrail`` checks, which respectively validate the
-static run-diff evidence report for baseline/candidate KPI, manifest, artifact,
-and counterfactual deltas without executing commands or network probes,
-the revision traceability report for repository HEAD, AGI core package, and
-built-in app manifest fingerprints without command or network execution,
-the bounded public certification profile for validated and documented public
-routes without production or third-party certification claims,
-the static supply-chain attestation for package metadata, lockfile, license,
-core versions, and built-in app manifests without formal attestation claims,
-the static repository knowledge index for code, tools, official docs, root
-runbooks, and package manifests while excluding generated outputs and keeping
-generated wiki content outside the source-of-truth boundary,
-the CI artifact harvest report for external-machine manifest, KPI,
-compatibility, and promotion-decision attachments with SHA-256 and provenance
-checks but no live CI provider queries,
-the downloaded GitLab CI/generic provider artifact-index adapter for the same
-harvest input without live provider access,
-checked-in cross-app DAG handoff sample plus supplemental portfolio sample,
-assemble the read-only product-level
-graph from app-local ``pipeline_view.dot`` files, define pending/not-executed
-runnable units with artifact dependencies and provenance, project runnable and
-blocked runner state with retry/partial-rerun metadata and operator messages,
-persist a queue-to-relay dispatch-state transition proof, execute
-``queue_baseline`` and ``relay_followup`` through the real
-``uav_queue_project`` and ``uav_relay_queue_project`` app entries, persist
-``queue_metrics`` and ``relay_metrics``, project operator-visible completed
-state plus retry/partial-rerun actions from that persisted dispatch state,
-project upstream/downstream dependency visualization for
-``queue_baseline -> relay_followup`` from that operator state, project ordered
-live orchestration-state update payloads from the dependency view, execute
-retry and partial-rerun operator requests through real app-entry action replay,
-render persisted global-DAG state into operator UI components, validate
-notebook-to-pipeline import from a checked-in ``.ipynb``, write a richer
-``lab_steps.toml`` preview used by the ``PIPELINE`` upload path without
-executing cells, validate ``lab_steps.toml -> supervisor notebook -> import ->
-lab_steps preview`` round-trip preservation, gate ``single-kernel union notebook``
-generation on compatible runtimes while requiring
-``supervisor_notebook_required`` for mixed cases, validate first-class SQL,
-OpenSearch, and object-storage connector definitions without network probes,
-validate connector-aware app/page resolution with ``legacy_path_fallback``
-preserved for migration,
-validate a supplemental multi-app DAG portfolio sample across flight, meteo
-forecast, pandas execution, and polars execution apps,
-plan connector health/status probes behind operator opt-in without executing
-network checks,
-expose operator-triggered health probe action rows without executing network
-checks in public evidence,
-bind credentialed connector adapters to runtime operations and health actions
-while deferring credential values and executing no network probes,
-validate opt-in live endpoint smoke plans, execute local SQLite smoke evidence
-without external credentials, and keep real endpoint execution behind operator
-allow-lists,
-render connector state and connector-derived provenance as static JSON+HTML
-preview evidence,
-wire connector state and connector-derived provenance into the Release Decision
-Streamlit page in ``streamlit_render_contract_only`` mode,
-verify the connector-aware Release Decision panels for state/provenance,
-health boundary, import/export provenance, and external artifact traceability
-in ``connector_view_surface_contract_only`` mode,
-validate app-local connector catalogs referenced from built-in
-``app_settings.toml`` files,
-and verify that every non-template built-in app exposes a reducer contract while recording
-``mycode_project`` as the explicit template-only exemption.
+For source-checkout first proof evidence, ``tools/newcomer_first_proof.py
+--json`` writes ``~/log/execute/flight/run_manifest.json``. The compatibility
+report can ingest that manifest directly:
 
-For the source-checkout first proof, ``tools/newcomer_first_proof.py --json``
-also writes ``~/log/execute/flight/run_manifest.json``. That stable manifest is
-the shared run record for command, environment, timing, artifact references, and
-validation status; the compact KPI bundle checks this as
-``run_manifest_contract``, and the release-decision page consumes it as the
-first promotion gate. The same page can now import external manifest evidence
-with ``--manifest`` / ``--manifest-dir`` style inputs, display source path,
-provenance, path id, timing, validation status, evidence status, SHA-256, byte
-size, UTC modified time, and optional sidecar signature metadata, and export
-that import summary in ``promotion_decision.json``. Release Decision also
-exports ``connector_registry_paths`` and ``connector_registry_summary`` so
-artifact, log, export, and first-proof paths are portable across page launches
-instead of reconstructed from local path glue. Export also updates
-``manifest_index.json`` under the artifact root so imported manifests are grouped
-by candidate bundle for later release decisions, and the page compares the
-current candidate against prior indexed evidence to flag better, stale, missing,
-failed, and newly validated manifests, including attachment hash matches. The
-same export includes a cross-run evidence bundle comparison across selected
-manifest, KPI, required artifact, and reduce-artifact evidence for the baseline
-and prior indexed releases. ``tools/run_diff_evidence_report.py --compact``
-backs that direction with a standalone ``run_diff_evidence_only`` contract that
-records check, artifact, manifest, and counterfactual deltas without live
-execution. ``tools/ci_artifact_harvest_report.py --compact`` adds the
-corresponding ``ci_artifact_contract_only`` evidence-harvest contract for
-external-machine attachments, and Release Decision can import the resulting
-``ci_artifact_harvest.json`` rows into ``promotion_decision.json`` before live
-provider harvesting is introduced.
-``tools/ci_provider_artifact_index.py --provider gitlab_ci --archive`` converts
-downloaded GitLab CI or generic provider artifact ZIPs into the same harvest
-input without provider API queries, and opt-in ``--live-gitlab`` can query and
-download a GitLab CI pipeline when operator credentials are available.
-``tools/github_actions_artifact_index.py
---archive`` keeps the GitHub Actions-specific ZIP path, and its opt-in
-``--live-github`` mode can query and download workflow-run artifacts when
-operator credentials are available.
-``tools/compatibility_report.py --artifact-index artifact_index.json`` can then
-derive per-release compatibility status from those downloaded attachments or
-from ``ci_artifact_harvest.json`` summaries.
-The ``pypi-publish`` release workflow runs the same live GitHub Actions
-artifact API path in its ``release-evidence`` job before publish jobs proceed.
+.. code-block:: bash
 
-The in-product first-proof wizard consumes the same support boundary: it routes
-newcomers to the single actionable source-checkout ``flight_project`` proof and
-keeps notebook and packaged-install routes documented, not recommended, until
-that local proof has passed once. It reads the same ``run_manifest.json`` and
-turns missing, invalid, incomplete, or failing evidence into a recovery
-checklist with the exact first-proof and compatibility-report commands.
+   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py \
+     --manifest ~/log/execute/flight/run_manifest.json \
+     --compact
+
+The broader evidence tooling covers release metadata, supply-chain metadata,
+connector contracts, global pipeline state, CI artifact harvests, and promotion
+decision exports. Keep those details in tool help, tests, and maintainer
+runbooks; this public page should stay a readable support-status map.
+
+The in-product first-proof wizard uses the same boundary: it routes newcomers
+to the source-checkout ``flight_project`` proof first, reads
+``run_manifest.json``, and turns missing or failing evidence into a recovery
+checklist.
 
 What remains roadmap work
 -------------------------
