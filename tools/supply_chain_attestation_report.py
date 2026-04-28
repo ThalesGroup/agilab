@@ -162,7 +162,8 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         _check_result(
             "supply_chain_attestation_app_manifests",
             "Supply-chain attestation app manifests",
-            summary.get("builtin_app_pyproject_count") == 7,
+            summary.get("builtin_app_pyproject_count") == len(state.get("builtin_app_pyprojects", []))
+            and all(row.get("sha256") for row in state.get("builtin_app_pyprojects", [])),
             "built-in app pyproject manifests are included in the attestation",
             evidence=["src/agilab/apps/builtin"],
             details={"builtin_app_pyprojects": state.get("builtin_app_pyprojects", [])},
