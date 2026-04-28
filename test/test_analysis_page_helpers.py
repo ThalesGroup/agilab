@@ -9,12 +9,22 @@ from types import SimpleNamespace
 
 
 MODULE_PATH = Path("src/agilab/pages/4_▶️ ANALYSIS.py")
+STATE_MODULE_PATH = Path("src/agilab/analysis_page_state.py")
 
 
 def _load_analysis_module():
     spec = importlib.util.spec_from_file_location("agilab_analysis_page_tests", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_analysis_state_module():
+    spec = importlib.util.spec_from_file_location("agilab_analysis_page_state_tests", STATE_MODULE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -257,6 +267,83 @@ def test_builtin_flight_project_defaults_to_view_maps_and_excludes_network_page(
     assert cfg["pages"]["default_view"] == "view_maps"
     assert cfg["pages"]["view_module"] == ["view_maps"]
     assert cfg["pages"]["excluded_views"] == ["view_maps_network"]
+
+
+def test_analysis_page_state_defaults_flight_to_view_maps_and_excludes_network(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    view_maps = tmp_path / "view_maps.py"
+    view_maps_network = tmp_path / "view_maps_network.py"
+    view_barycentric = tmp_path / "view_barycentric.py"
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={
+            "default_view": "view_maps",
+            "view_module": ["view_maps"],
+            "excluded_views": ["view_maps_network"],
+        },
+        current_page=None,
+        configured_views=["view_maps"],
+        resolved_pages={
+            "view_maps": view_maps,
+            "view_maps_network": view_maps_network,
+            "view_barycentric": view_barycentric,
+        },
+        custom_view_lookup={},
+    )
+
+    assert "view_maps_network" not in state.view_names
+    assert state.default_view_name == "view_maps"
+    assert state.widget_selection == ("view_maps",)
+    assert state.selected_views == ("view_maps",)
+    assert state.config_view_module == ("view_maps",)
+    assert state.default_route_path == view_maps
+
+
+def test_analysis_page_state_sanitizes_stale_session_selection_before_widget(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    view_maps = tmp_path / "view_maps.py"
+    view_maps_network = tmp_path / "view_maps_network.py"
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={
+            "default_view": "view_maps",
+            "excluded_views": ["view_maps_network"],
+        },
+        current_page=None,
+        configured_views=[],
+        resolved_pages={
+            "view_maps": view_maps,
+            "view_maps_network": view_maps_network,
+        },
+        custom_view_lookup={},
+        session_selection=["view_maps_network", "missing"],
+        has_session_selection=True,
+    )
+
+    assert state.view_names == ("view_maps",)
+    assert state.widget_selection == ("view_maps",)
+    assert state.default_route_path == view_maps
+
+
+def test_analysis_page_state_keeps_custom_selection_as_resolved_config_path(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    custom_view = tmp_path / "custom_view.py"
+    custom_key = str(custom_view)
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={},
+        current_page="main",
+        configured_views=[],
+        resolved_pages={},
+        custom_view_lookup={custom_key: custom_view},
+        session_selection=[custom_key],
+        has_session_selection=True,
+    )
+
+    assert state.view_names == (custom_key,)
+    assert state.selected_views == (custom_key,)
+    assert state.config_view_module == (str(custom_view.resolve()),)
+    assert state.default_route_path is None
 
 
 def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):

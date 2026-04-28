@@ -166,6 +166,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
             "test/test_orchestrate_page_state.py",
             "test/test_orchestrate_services.py",
             "test/test_orchestrate_support.py",
+            "test/test_analysis_page_helpers.py",
             "test/test_about_agilab_helpers.py",
             "test/test_cluster_flight_validation.py",
             "test/test_cluster_lan_discovery.py",
