@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -79,6 +80,72 @@ def test_repair_renamed_project_environment_moves_real_venv(tmp_path: Path):
     assert not source_venv.exists()
     assert not source_venv.is_symlink()
     assert (dest_venv / "marker.txt").read_text(encoding="utf-8") == "ok"
+
+
+def test_create_project_clone_action_creates_project_and_reports_strategy(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+
+    def _clone_project(source: Path, target: Path):
+        clone_calls.append((source, target))
+        (tmp_path / target).mkdir()
+
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="New Demo",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "success"
+    assert result.title == "Project 'new_demo_project' created."
+    assert result.detail is not None
+    assert "without sharing" in result.detail
+    assert result.data["new_name"] == "new_demo_project"
+    assert clone_calls == [(Path("source_project"), Path("new_demo_project"))]
+    assert (tmp_path / "new_demo_project").is_dir()
+
+
+def test_create_project_clone_action_rejects_duplicate_names(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+    (tmp_path / "existing_project").mkdir()
+    env = SimpleNamespace(
+        apps_path=tmp_path,
+        clone_project=lambda source, target: clone_calls.append((source, target)),
+    )
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Existing",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "warning"
+    assert result.title == "Project 'existing_project' already exists."
+    assert result.next_action is not None
+    assert "Choose another project name" in result.next_action
+    assert clone_calls == []
+
+
+def test_create_project_clone_action_reports_missing_clone_output(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=lambda _source, _target: None)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Missing Output",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "error"
+    assert result.title == "Error while creating 'missing_output_project'."
+    assert result.next_action is not None
+    assert "filesystem permissions" in result.next_action
 
 
 def test_safe_remove_path_collects_probe_errors(monkeypatch):

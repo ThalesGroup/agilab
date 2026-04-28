@@ -68,6 +68,16 @@ _page_bootstrap_module = import_agilab_module(
 )
 ensure_page_env = _page_bootstrap_module.ensure_page_env
 
+_action_execution_module = import_agilab_module(
+    "agilab.action_execution",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "action_execution.py",
+    fallback_name="agilab_action_execution_fallback",
+)
+ActionResult = _action_execution_module.ActionResult
+ActionSpec = _action_execution_module.ActionSpec
+run_streamlit_action = _action_execution_module.run_streamlit_action
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 CLONE_ENV_STRATEGY_LABELS = {
@@ -1559,6 +1569,58 @@ def _render_pre_prompt(env):
         ace,
     )
 
+
+def _create_project_clone_action(
+    env: AgiEnv,
+    *,
+    clone_source: str | Path,
+    raw_project_name: str,
+    clone_env_strategy: str,
+) -> ActionResult:
+    raw = raw_project_name.strip()
+    if not raw:
+        return ActionResult.error("Project name must not be empty.")
+
+    new_name = normalize_project_name(raw)
+    if not new_name:
+        return ActionResult.error("Could not normalize project name.")
+
+    dest_root = env.apps_path / new_name
+    if dest_root.exists():
+        return ActionResult.warning(
+            f"Project '{new_name}' already exists.",
+            next_action="Choose another project name or remove the existing project first.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    clone_source_path = Path(clone_source)
+    clone_source_root = _resolve_clone_source_root(env, clone_source_path)
+    env.clone_project(clone_source_path, Path(new_name))
+
+    if not dest_root.exists():
+        return ActionResult.error(
+            f"Error while creating '{new_name}'.",
+            next_action="Check the clone source, target path, and filesystem permissions.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    status_message = _finalize_cloned_project_environment(
+        clone_source_root,
+        dest_root,
+        clone_env_strategy,
+    )
+    return ActionResult.success(
+        f"Project '{new_name}' created.",
+        detail=status_message,
+        data={
+            "new_name": new_name,
+            "dest_root": dest_root,
+            "clone_source": clone_source_path,
+            "clone_env_strategy": clone_env_strategy,
+        },
+    )
+
+
 def handle_project_creation():
     """
     Handle the 'Create' tab in the sidebar for project creation.
@@ -1596,36 +1658,29 @@ def handle_project_creation():
 
     create_clicked = st.sidebar.button("Create", type="primary", width="stretch")
     if create_clicked:
-        if not raw:
-            st.error("Project name must not be empty.")
-            return
-
-        new_name = normalize_project_name(raw)
-        if (env.apps_path / new_name).exists():
-            st.warning(f"Project '{new_name}' already exists.")
-            return
-
-        # clone it
-        clone_source_root = _resolve_clone_source_root(env, Path(st.session_state["clone_src"]))
-        env.clone_project(Path(st.session_state["clone_src"]), Path(new_name))
-
-        # verify
-        dest_root = env.apps_path / new_name
-        if dest_root.exists():
-            status_message = _finalize_cloned_project_environment(
-                clone_source_root,
-                dest_root,
-                clone_env_strategy,
-            )
-            st.success(f"Project '{new_name}' created.")
-            if status_message:
-                st.info(status_message)
+        def _activate_clone(result):
+            new_name = str(result.data["new_name"])
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
             time.sleep(1.5)
             st.rerun()
-        else:
-            st.error(f"Error while creating '{new_name}'.")
+
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Create project",
+                start_message=f"Creating project '{raw or '<empty>'}'...",
+                failure_title="Project creation failed.",
+                failure_next_action="Check the clone source, target path, and filesystem permissions.",
+            ),
+            lambda: _create_project_clone_action(
+                env,
+                clone_source=st.session_state["clone_src"],
+                raw_project_name=raw,
+                clone_env_strategy=clone_env_strategy,
+            ),
+            on_success=_activate_clone,
+        )
     else:
         st.sidebar.info("Enter a project name and click 'Create'.")
 
