@@ -149,6 +149,16 @@ facade (for example ``tracker.log_metric(...)`` and
 tracking automatic during normal AGILAB execution while preserving compatibility
 with existing MLflow tooling.
 
+Inside a snippet or worker, prefer the AGILAB facade when you need custom
+domain metrics:
+
+.. code-block:: python
+
+   from agilab.tracking import tracker
+
+   tracker.log_metric("accuracy", 0.94)
+   tracker.log_artifact("reports/confusion_matrix.png")
+
 The tracking store is the directory configured by ``MLFLOW_TRACKING_DIR``.
 Subprocess-based steps receive the same ``MLFLOW_TRACKING_URI`` as in-process
 steps, so both execution paths are visible from the same MLflow UI.
