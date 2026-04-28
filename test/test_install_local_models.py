@@ -67,6 +67,22 @@ def test_root_installer_normalizes_requested_local_models_and_deduplicates_alias
     assert normalized == "qwen deepseek gpt-oss mistral"
 
 
+def test_installers_normalize_empty_local_model_list_under_nounset() -> None:
+    for script_path, next_function_name in (
+        (INSTALL_SH, "local_model_requested"),
+        (INSTALL_ENDUSER_SH, "ollama_tag_for_family"),
+    ):
+        normalized = _run_shell_function(
+            script_path,
+            "normalize_local_model_name",
+            next_function_name,
+            "normalize_local_models_csv",
+            "",
+        )
+
+        assert normalized == ""
+
+
 def test_root_installer_default_share_dir_is_user_scoped() -> None:
     script_text = INSTALL_SH.read_text(encoding="utf-8")
     function_body = "\n".join(

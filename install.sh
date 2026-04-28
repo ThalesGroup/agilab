@@ -317,6 +317,9 @@ normalize_local_models_csv() {
             seen="${seen}${normalized} "
         fi
     done
+    if (( ${#ordered[@]} == 0 )); then
+        return 0
+    fi
     printf '%s' "${ordered[*]}"
 }
 
@@ -329,6 +332,9 @@ remove_local_model_from_list() {
         [[ "$model" == "$model_to_remove" ]] && continue
         filtered+=("$model")
     done
+    if (( ${#filtered[@]} == 0 )); then
+        return 0
+    fi
     printf '%s' "${filtered[*]}"
 }
 
