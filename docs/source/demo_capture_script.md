@@ -107,7 +107,9 @@ uv --preview-features extra-build-dependencies run --with imageio-ffmpeg \
 
 Use this when one app is not enough and the audience needs a sharper story:
 mission data enters AGILAB, computation is distributed, constraints change, and
-the system returns a decision.
+the system returns a decision. The positioning is intentionally execution-first:
+chatbot-style demos answer questions, while this demo shows a reproducible path
+from data to action.
 
 This is not a chatbot or short teaser. Treat it as a technical hero demo and
 keep the recording in the `70-75s` final range.
@@ -145,6 +147,31 @@ Important scope note:
   optimization demos may live in an external apps checkout
 - keep dynamic-pipeline claims grounded in visible AGILAB steps, generated
   snippets, worker activity, and replayable evidence
+- do not publish competitor-specific claims in the public guide; keep the public
+  wording focused on AGILAB capability and evidence
+
+Scenario and pipeline:
+
+- inputs: sensor-style streams, network / satcom status, and operational
+  constraints such as latency, bandwidth, and risk
+- objective: optimize routing and decision-making under dynamic constraints
+- pipeline shape: data, cleaning, feature extraction, model selection,
+  optimization / RL, simulation, decision
+- output: selected strategy plus latency, cost, and reliability metrics
+
+Demo steps:
+
+1. Live Data Ingestion: simulated and real-like mission data, ending on an
+   artifact or dashboard refresh.
+2. Automatic Pipeline Generation: generated snippets and replayable DAG-style
+   steps, with adaptive workflow selection shown through the selected run path.
+3. Distributed Execution: visible worker activity or the clearest local-worker
+   equivalent, with scaling claims scoped to worker distribution.
+4. AI + Optimization Loop: prediction signal plus routing / optimization under
+   constraints.
+5. Real-Time Adaptation: bandwidth drop, node failure, or risk increase followed
+   by recompute, re-optimize, and a new decision.
+6. Final Output: selected strategy plus latency, cost, and reliability metrics.
 
 Use this asset for technical audiences. Do not replace the broad one-app intro
 video with it for first-time visitors.
@@ -164,9 +191,32 @@ Keep the act discipline strict:
 - use one fast `ORCHESTRATE` proof frame per act
 - flash `PIPELINE` only long enough to prove replayability
 - end each act on evidence, then cut immediately
+- make distributed execution the key moment: show worker activity or the
+  clearest available local-worker equivalent
 - show the failure injection as a before/after decision change, not as a long
   training sequence
 - close on metrics: latency, cost, and reliability
+
+Recommended narration:
+
+- opening: "Most AI demos answer questions. This one takes decisions."
+- mid-demo: "This is not a model. This is an autonomous system."
+- closing: "AGILAB turns mission data into an executable decision."
+
+Optional add-on:
+
+- air-gapped mode with no internet access and local models only, when the
+  environment is configured and validated
+
+Winning criteria:
+
+| Criteria | Strength |
+|---|---|
+| Innovation | Autonomous pipeline path |
+| Scalability | Distributed worker execution |
+| Real use case | Mission / network optimization |
+| AI depth | ML + optimization / orchestration |
+| Differentiation | Not a chatbot |
 
 If interactive screen capture is not possible from your environment, build the
 coherent synthetic composite instead:
