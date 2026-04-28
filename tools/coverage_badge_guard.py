@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
 import subprocess
 import sys
 import time
@@ -31,6 +32,12 @@ COMPONENT_XML = {
     "agi-node": "coverage-agi-node.xml",
     "agi-cluster": "coverage-agi-cluster.xml",
     "agi-gui": "coverage-agi-gui.xml",
+}
+
+COVERAGE_TOOLING_TESTS = {
+    "test/test_coverage_badge_guard.py",
+    "test/test_generate_component_coverage_badges.py",
+    "test/test_coverage_workflow.py",
 }
 
 
@@ -62,6 +69,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--require-fresh-xml",
         action="store_true",
         help="Require component XML files to be newer than changed files that affect them.",
+    )
+    parser.add_argument(
+        "--allow-badge-only",
+        action="store_true",
+        help=(
+            "Allow a push that only changes coverage badge SVGs. Prefer this only "
+            "when the badges were regenerated from current CI coverage artifacts."
+        ),
     )
     parser.add_argument(
         "--include-untracked",
@@ -131,6 +146,8 @@ def changed_files(base: str | None, *, include_untracked: bool = False) -> list[
 
 
 def _is_gui_coverage_path(path: str) -> bool:
+    if path in COVERAGE_TOOLING_TESTS:
+        return False
     if path.startswith("src/agilab/core/"):
         return False
     if path.startswith("src/agilab/test/"):
@@ -246,6 +263,46 @@ def stale_xml_messages(
     return messages
 
 
+def badge_only_update_messages(
+    changed_by_component: dict[str, list[str]],
+    *,
+    allow: bool = False,
+) -> list[str]:
+    if allow:
+        return []
+
+    badge_paths = sorted(
+        {
+            path
+            for paths in changed_by_component.values()
+            for path in paths
+            if _is_coverage_badge_output(path)
+        }
+    )
+    if not badge_paths:
+        return []
+
+    non_badge_coverage_paths = sorted(
+        {
+            path
+            for paths in changed_by_component.values()
+            for path in paths
+            if not _is_coverage_badge_output(path)
+        }
+    )
+    if non_badge_coverage_paths:
+        return []
+
+    return [
+        (
+            "badge-only coverage update blocked: local coverage XML can diverge from CI. "
+            "Include the source/test/workflow change that produced the new coverage, or set "
+            "AGILAB_ALLOW_BADGE_ONLY_UPDATE=1 only after regenerating from current CI artifacts "
+            f"({', '.join(badge_paths)})"
+        )
+    ]
+
+
 def badge_mismatch_messages(components: Sequence[str]) -> list[str]:
     generator = _load_badge_generator()
     messages: list[str] = []
@@ -301,6 +358,8 @@ def run_guard(args: argparse.Namespace) -> tuple[bool, list[str], list[str], lis
     failures: list[str] = []
     if args.require_fresh_xml:
         failures.extend(stale_xml_messages(changed_by_component))
+    allow_badge_only = args.allow_badge_only or os.environ.get("AGILAB_ALLOW_BADGE_ONLY_UPDATE") == "1"
+    failures.extend(badge_only_update_messages(changed_by_component, allow=allow_badge_only))
     failures.extend(badge_mismatch_messages(components))
     return not failures, paths, components, failures
 

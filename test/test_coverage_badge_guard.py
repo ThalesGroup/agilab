@@ -36,6 +36,14 @@ def test_changed_coverage_components_maps_gui_and_root_tests() -> None:
     }
 
 
+def test_changed_coverage_components_ignores_coverage_tooling_tests() -> None:
+    module = _load_module()
+
+    changed = module.changed_coverage_components(["test/test_coverage_badge_guard.py"])
+
+    assert changed == {}
+
+
 def test_changed_coverage_components_maps_core_tests_to_node_and_cluster() -> None:
     module = _load_module()
 
@@ -108,6 +116,44 @@ def test_stale_xml_messages_ignores_regenerated_badge_outputs(tmp_path: Path) ->
     messages = module.stale_xml_messages(
         {"agi-gui": ["badges/coverage-agi-gui.svg", "src/agilab/orchestrate_execute.py"]},
         repo_root=tmp_path,
+    )
+
+    assert messages == []
+
+
+def test_badge_only_update_messages_blocks_badge_only_changes() -> None:
+    module = _load_module()
+
+    messages = module.badge_only_update_messages(
+        {"agi-node": ["badges/coverage-agi-node.svg"]},
+    )
+
+    assert len(messages) == 1
+    assert "badge-only coverage update blocked" in messages[0]
+    assert "AGILAB_ALLOW_BADGE_ONLY_UPDATE=1" in messages[0]
+
+
+def test_badge_only_update_messages_allows_paired_coverage_inputs() -> None:
+    module = _load_module()
+
+    messages = module.badge_only_update_messages(
+        {
+            "agi-node": [
+                "badges/coverage-agi-node.svg",
+                "src/agilab/core/agi-node/src/agi_node/example.py",
+            ],
+        },
+    )
+
+    assert messages == []
+
+
+def test_badge_only_update_messages_allows_explicit_override() -> None:
+    module = _load_module()
+
+    messages = module.badge_only_update_messages(
+        {"agi-node": ["badges/coverage-agi-node.svg"]},
+        allow=True,
     )
 
     assert messages == []
