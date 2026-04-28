@@ -1187,6 +1187,11 @@ def test_landing_page_sections_use_clear_product_language():
         "try another built-in demo",
         "keep cluster mode for later",
     ]
+    assert [card["title"] for card in sections["explore_cards"]] == [
+        "Project",
+        "Orchestrate",
+        "Analysis",
+    ]
 
 
 def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
@@ -1209,10 +1214,26 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
 
     assert about_agilab._clean_openai_key("sk-" + "a" * 16) == "sk-" + "a" * 16
     assert any("Welcome to AGILAB" in body for kind, body in fake_st.events if kind == "info")
+    assert any("agilab-next" in body for kind, body in fake_st.events if kind == "markdown")
     assert any("agilab:" in body for kind, body in fake_st.events if kind == "write")
     assert any("agi-gui:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
     assert any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
+
+
+def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
+    import agi_gui.pagelib as pagelib
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(pagelib, "get_base64_of_image", lambda _path: "encoded-logo")
+
+    about_agilab.quick_logo(tmp_path)
+
+    body = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
+    assert "agilab-hero" in body
+    assert "From raw data to reproducible decisions" in body
+    assert "Control path" in body
 
 
 def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
@@ -1416,6 +1437,7 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
 
     about_agilab.render_newcomer_first_proof(env)
 
+    overview = _event_index(fake_st.events, "markdown", "agilab-proof")
     next_action = _event_index(fake_st.events, "warning", "Next action:")
     do_this_now = _event_index(fake_st.events, "markdown", "**2. Do this now**")
     done_when = _event_index(fake_st.events, "markdown", "**3. Done when**")
@@ -1427,7 +1449,7 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
     progress = _event_index(fake_st.events, "markdown", "**Progress**")
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
 
-    assert next_action < do_this_now < done_when < proof_details < progress < validated_path
+    assert overview < next_action < do_this_now < done_when < proof_details < progress < validated_path
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
