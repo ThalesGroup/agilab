@@ -559,6 +559,59 @@ async def _check_distribution_action(
     )
 
 
+async def _install_worker_action(
+    env: Any,
+    *,
+    install_command: str,
+    venv: Any,
+    local_log: list[str],
+) -> ActionResult:
+    install_stdout = ""
+    install_stderr = ""
+    install_error: Exception | None = None
+    try:
+        install_stdout, install_stderr = await env.run_agi(
+            install_command,
+            log_callback=lambda message: _append_log_lines(local_log, message),
+            venv=venv,
+        )
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
+        install_error = exc
+        install_stderr = str(exc)
+        _append_log_lines(local_log, f"ERROR: {install_stderr}")
+
+    error_flag = bool(str(install_stderr or "").strip()) or install_error is not None
+    if not error_flag and _log_indicates_install_failure(local_log):
+        error_flag = True
+        if not str(install_stderr or "").strip():
+            install_stderr = "Detected connection failure in install logs."
+
+    status_line = (
+        "✅ Install complete."
+        if not error_flag
+        else "❌ Install finished with errors. Check logs above."
+    )
+    _append_log_lines(local_log, status_line)
+    data = {
+        "install_command": install_command,
+        "install_log": tuple(local_log),
+        "stdout": install_stdout,
+        "stderr": install_stderr,
+        "venv": venv,
+    }
+    if error_flag:
+        return ActionResult.error(
+            "Cluster installation failed.",
+            detail=str(install_stderr or install_error or "Install logs indicate failure."),
+            next_action="Check install logs above, fix the worker environment, then rerun INSTALL.",
+            data=data,
+        )
+    return ActionResult.success(
+        "Cluster installation completed.",
+        data=data,
+    )
+
+
 @st.cache_data(show_spinner=False)
 def generate_profile_report(df: pd.DataFrame) -> Any:
     env = st.session_state["env"]
@@ -804,42 +857,20 @@ async def _render_deployment_panel(
                 height=INSTALL_LOG_HEIGHT,
             )
             with st.spinner("Installing worker..."):
-                _install_stdout = ""
-                install_stderr = ""
-                install_error: Exception | None = None
-                try:
-                    _install_stdout, install_stderr = await env.run_agi(
-                        install_command,
-                        log_callback=lambda message: _append_log_lines(local_log, message),
-                        venv=venv,
-                    )
-                except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
-                    install_error = exc
-                    install_stderr = str(exc)
-                    _append_log_lines(local_log, f"ERROR: {install_stderr}")
-
-                error_flag = bool(install_stderr.strip()) or install_error is not None
-                if not error_flag and _log_indicates_install_failure(local_log):
-                    error_flag = True
-                    if not install_stderr.strip():
-                        install_stderr = "Detected connection failure in install logs."
-
-                status_line = (
-                    "✅ Install complete."
-                    if not error_flag
-                    else "❌ Install finished with errors. Check logs above."
+                result = await _install_worker_action(
+                    env,
+                    install_command=install_command,
+                    venv=venv,
+                    local_log=local_log,
                 )
-                _append_log_lines(local_log, status_line)
                 with log_expander:
                     log_placeholder.code(
-                        "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
+                        "\n".join(result.data.get("install_log", local_log)[-LOG_DISPLAY_MAX_LINES:]),
                         language="python",
                         height=INSTALL_LOG_HEIGHT,
                     )
-                if error_flag:
-                    st.error("Cluster installation failed.")
-                else:
-                    st.success("Cluster installation completed.")
+                render_action_result(st, result)
+                if result.status == "success":
                     st.session_state["SET ARGS"] = True
                     st.session_state["show_run"] = True
 
