@@ -114,6 +114,14 @@ from data to action.
 This is not a chatbot or short teaser. Treat it as a technical hero demo and
 keep the recording in the `70-75s` final range.
 
+Tracked companion card:
+
+![Data IO 2026 AGILAB demo card](diagrams/agilab_data_io_2026_card.svg)
+
+Use `docs/source/diagrams/agilab_data_io_2026_card.svg` as the lightweight
+shareable poster or thumbnail. The MP4/GIF remain generated local artifacts
+under `artifacts/demo_media/` and are intentionally not tracked.
+
 Concrete command:
 
 ```bash
@@ -231,6 +239,9 @@ Outputs:
 - `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic.mp4`
 - `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic.gif`
 - `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic_poster.png`
+
+These files are generated for local review and publishing workflows. Keep them
+out of git unless a separate release channel explicitly needs a media upload.
 
 Current synthetic reel contract:
 

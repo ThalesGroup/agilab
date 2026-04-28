@@ -5,6 +5,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from xml.etree import ElementTree
 
 from PIL import Image
 import tomllib
@@ -15,6 +16,7 @@ THREE_PROJECT_MODULE_PATH = Path("tools/build_three_project_demo_reel.py").resol
 FLIGHT_SETTINGS = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
 PUBLIC_DEMO_GUIDE = Path("docs/source/demo_capture_script.md")
 CAPTURE_THREE_PROJECT = Path("tools/capture_three_project_demo.sh")
+DATA_IO_CARD = Path("docs/source/diagrams/agilab_data_io_2026_card.svg")
 
 
 def _load_module():
@@ -95,6 +97,8 @@ def test_public_demo_guide_avoids_private_routing_app_names() -> None:
     assert "sensor-style streams" in text
     assert "air-gapped mode" in text
     assert "Mission / network optimization" in text
+    assert "diagrams/agilab_data_io_2026_card.svg" in text
+    assert "MP4/GIF remain generated local artifacts" in text
     assert "sb3_trainer_project" not in text
     assert "thales_agilab/apps" not in text
     assert "FCAS" not in text
@@ -134,3 +138,16 @@ def test_capture_three_project_demo_generates_six_step_cue_sheet() -> None:
     assert "5. Real-Time Adaptation" in text
     assert "6. Final Output" in text
     assert "latency down, cost down, reliability up" in text
+
+
+def test_data_io_companion_card_is_valid_public_svg() -> None:
+    text = DATA_IO_CARD.read_text(encoding="utf-8")
+    root = ElementTree.fromstring(text)
+
+    assert root.tag.endswith("svg")
+    assert root.attrib["viewBox"] == "0 0 1200 675"
+    assert "Autonomous Mission Data" in text
+    assert "Final output: selected strategy" in text
+    assert ("fr" + "ed") not in text.lower()
+    assert ("obs" + "olete") not in text.lower()
+    assert "sb3_trainer_project" not in text
