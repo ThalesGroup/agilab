@@ -275,6 +275,67 @@ def test_compute_unified_version_never_drops_below_latest_release(monkeypatch) -
     }
 
 
+def test_compute_unified_version_handles_pypi_canonicalized_date_posts(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    class _FixedDatetime:
+        @staticmethod
+        def now(_tz):
+            return datetime(2026, 4, 28, 10, 0, 0, tzinfo=timezone.utc)
+
+    releases = {
+        "agi-env": {"2026.4.28.post2"},
+        "agi-node": {"2026.4.28.post1"},
+        "agilab": {"2026.4.28.post2"},
+    }
+
+    monkeypatch.setattr(module, "datetime", _FixedDatetime)
+    monkeypatch.setattr(
+        module,
+        "pypi_releases",
+        lambda name, _repo: releases.get(name, set()),
+    )
+
+    chosen, collisions = module.compute_unified_version(
+        ["agi-env", "agi-node", "agilab"],
+        "pypi",
+        None,
+    )
+
+    assert chosen == "2026.04.28.post3"
+    assert collisions == {
+        "agi-env": ["2026.4.28.post2"],
+        "agi-node": ["2026.4.28.post1"],
+        "agilab": ["2026.4.28.post2"],
+    }
+
+
+def test_compute_unified_version_treats_explicit_canonical_collision_as_used(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    releases = {
+        "agi-env": {"2026.4.28.post2"},
+        "agilab": {"2026.4.28.post2"},
+    }
+    monkeypatch.setattr(
+        module,
+        "pypi_releases",
+        lambda name, _repo: releases.get(name, set()),
+    )
+
+    chosen, collisions = module.compute_unified_version(
+        ["agi-env", "agilab"],
+        "pypi",
+        "2026.04.28.post2",
+    )
+
+    assert chosen == "2026.04.28.post3"
+    assert collisions == {
+        "agi-env": ["2026.4.28.post2"],
+        "agilab": ["2026.4.28.post2"],
+    }
+
+
 def test_compute_unified_version_rejects_free_explicit_version_below_latest_release(monkeypatch) -> None:
     module = _load_pypi_publish()
 
