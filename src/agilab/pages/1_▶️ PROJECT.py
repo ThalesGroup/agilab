@@ -699,10 +699,23 @@ def _import_project_action(
                 },
             )
 
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        zip_ref.extractall(target_dir)
-    if clean:
-        clean_project(target_dir)
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(target_dir)
+        if clean:
+            clean_project(target_dir)
+    except (OSError, RuntimeError, ValueError, zipfile.BadZipFile) as exc:
+        return ActionResult.error(
+            f"Project archive '{selected_archive}' could not be imported.",
+            detail=str(exc),
+            next_action="Check that the archive is a valid exported project zip.",
+            data={
+                "project_zip": selected_archive,
+                "import_target": import_target,
+                "target_dir": target_dir,
+                "zip_path": zip_path,
+            },
+        )
 
     if not target_dir.exists():
         return ActionResult.error(
@@ -2091,7 +2104,6 @@ def handle_project_import():
                         "Overwrite", type="primary", width="stretch"
                 ):
                     _run_import_action(overwrite=True)
-                    overwrite_modal.close()
                 if cols[1].button("Cancel", type="primary", width="stretch"):
                     overwrite_modal.close()
 
