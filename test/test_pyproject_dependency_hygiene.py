@@ -24,6 +24,12 @@ def _dependencies(path: Path) -> list[Requirement]:
     return [Requirement(dependency) for dependency in data.get("project", {}).get("dependencies", [])]
 
 
+def _optional_dependency_names(path: Path, extra: str) -> set[str]:
+    data = _load_pyproject(path)
+    dependencies = data.get("project", {}).get("optional-dependencies", {}).get(extra, [])
+    return {Requirement(dependency).name.lower() for dependency in dependencies}
+
+
 def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     deps = _dependency_names(REPO_ROOT / "pyproject.toml")
 
@@ -35,8 +41,11 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
         "humanize",
         "jupyter-ai",
         "keras",
+        "matplotlib",
         "noise",
         "numba",
+        "openai",
+        "plotly",
         "polars",
         "pulp",
         "py7zr",
@@ -51,6 +60,14 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
 
     # These are imported directly by the packaged AGILAB UI/runtime layer.
     assert {"pandas", "pydantic", "streamlit"} <= deps
+    assert "networkx" in deps
+
+
+def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
+    pyproject = REPO_ROOT / "pyproject.toml"
+
+    assert _optional_dependency_names(pyproject, "ai") == {"openai"}
+    assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
 
 
 def test_builtin_app_manifests_depend_on_core_packages_not_core_internals() -> None:

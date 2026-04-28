@@ -1,3 +1,4 @@
+import importlib
 import numbers
 import textwrap
 from collections import defaultdict
@@ -18,10 +19,22 @@ else:
     _MATPLOTLIB_IMPORT_ERROR = None
 
 
+def import_plotly_graph_objects(import_module_fn=importlib.import_module):
+    try:
+        return import_module_fn("plotly.graph_objects")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "plotly unavailable: install the optional visualization dependencies with `pip install 'agilab[viz]'`."
+        ) from exc
+
+
 def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
     """Shared drawing routine for distribution or DAG graphs."""
     if plt is None or Patch is None:
-        raise RuntimeError(f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}")
+        raise RuntimeError(
+            f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
+            "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
+        )
 
     pos = nx.multipartite_layout(graph, subset_key="level", align="horizontal")
     pos = {k: (-x, -y) for k, (x, y) in pos.items()}
@@ -225,7 +238,7 @@ def show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_ke
 
 def workload_barchart(workers, work_plan_metadata, partition_key, weights_key, weights_unit) -> None:
     """Display a workload bar chart using Plotly."""
-    import plotly.graph_objects as go
+    go = import_plotly_graph_objects()
 
     data = []
     for worker, chunks in zip(workers, work_plan_metadata):

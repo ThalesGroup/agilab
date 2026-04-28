@@ -113,7 +113,13 @@ def make_openai_client_and_model(envars: Dict[str, str], api_key: str):
         os.getenv("AZURE_OPENAI_API_KEY")
     )
 
-    import openai
+    try:
+        import openai
+    except ImportError as exc:
+        raise ImportError(
+            "OpenAI features require the optional AI dependency. "
+            "Install with `pip install 'agilab[ai]'` or `uv pip install 'agilab[ai]'`."
+        ) from exc
 
     try:
         from openai import OpenAI as OpenAIClient
