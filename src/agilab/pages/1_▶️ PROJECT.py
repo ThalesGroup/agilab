@@ -1621,6 +1621,65 @@ def _create_project_clone_action(
     )
 
 
+def _rename_project_action(
+    env: AgiEnv,
+    *,
+    raw_project_name: str,
+) -> ActionResult:
+    current = env.app
+    raw = raw_project_name.strip()
+    if not raw:
+        return ActionResult.error("Project name must not be empty.")
+
+    new_name = normalize_project_name(raw)
+    if not new_name:
+        return ActionResult.error("Could not normalize project name.")
+
+    src_path = env.apps_path / current
+    dest_path = env.apps_path / new_name
+    if dest_path.exists():
+        return ActionResult.warning(
+            f"Project '{new_name}' already exists.",
+            next_action="Choose another project name or remove the existing project first.",
+            data={"current": current, "new_name": new_name, "dest_path": dest_path},
+        )
+
+    env.clone_project(Path(current), Path(new_name))
+
+    if not dest_path.exists():
+        return ActionResult.error(
+            f"Error: Project '{new_name}' not found after renaming.",
+            next_action="Check the clone source, target path, and filesystem permissions.",
+            data={"current": current, "new_name": new_name, "dest_path": dest_path},
+        )
+
+    details: list[str] = []
+    renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
+    if renamed_venv_message:
+        details.append(renamed_venv_message)
+    if src_path.exists():
+        try:
+            shutil.rmtree(src_path)
+        except OSError as exc:
+            details.append(f"Project was renamed, but failed to remove {src_path}: {exc}")
+
+    return ActionResult.success(
+        f"Project renamed: '{current}' -> '{new_name}'",
+        detail="\n\n".join(details) or None,
+        next_action=(
+            f"Remove the old project directory manually: {src_path}"
+            if src_path.exists()
+            else None
+        ),
+        data={
+            "current": current,
+            "new_name": new_name,
+            "src_path": src_path,
+            "dest_path": dest_path,
+        },
+    )
+
+
 def handle_project_creation():
     """
     Handle the 'Create' tab in the sidebar for project creation.
@@ -1721,42 +1780,23 @@ def handle_project_rename():
 
     rename_clicked = st.sidebar.button("Rename", type="primary", width="stretch")
     if rename_clicked:
-        if not raw:
-            st.error("Project name must not be empty.")
-            return
-
-        # locally normalize
-        new_name = normalize_project_name(raw)
-        if not new_name:
-            st.error("Could not normalize project name.")
-            return
-
-        src_path  = env.apps_path / current
-        dest_path = env.apps_path / new_name
-
-        if dest_path.exists():
-            st.warning(f"Project '{new_name}' already exists.")
-            return
-
-        # perform clone
-        env.clone_project(Path(current), Path(new_name))
-
-        # verify & cleanup
-        if dest_path.exists():
-            renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
-            try:
-                shutil.rmtree(src_path, ignore_errors=True)
-            except OSError as exc:
-                st.warning(f"failed to remove {src_path}: {exc}")
-
-            st.success(f"Project renamed: '{current}' → '{new_name}'")
-            if renamed_venv_message:
-                st.info(renamed_venv_message)
+        def _activate_renamed_project(result):
+            new_name = str(result.data["new_name"])
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
             st.rerun()
-        else:
-            st.error(f"Error: Project '{new_name}' not found after renaming.")
+
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Rename project",
+                start_message=f"Renaming project '{current}'...",
+                failure_title="Project rename failed.",
+                failure_next_action="Check the target name, clone source, and filesystem permissions.",
+            ),
+            lambda: _rename_project_action(env, raw_project_name=raw),
+            on_success=_activate_renamed_project,
+        )
     else:
         st.sidebar.info("Enter a base name above and click Rename.")
 
