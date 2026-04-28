@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 import importlib
 from pathlib import Path
 import sys
@@ -460,3 +461,17 @@ def test_make_openai_client_and_model_module_fallback_without_base_url(monkeypat
     assert is_azure is False
     assert fake_openai.api_key == "module-secret"
     assert not hasattr(fake_openai, "api_base")
+
+
+def test_make_openai_client_and_model_reports_missing_optional_ai_extra(monkeypatch):
+    real_import = builtins.__import__
+
+    def import_without_openai(name, *args, **kwargs):
+        if name == "openai":
+            raise ImportError("missing openai")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_openai)
+
+    with pytest.raises(ImportError, match=r"agilab\[ai\]"):
+        pipeline_openai.make_openai_client_and_model({}, "openai-secret")

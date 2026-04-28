@@ -114,7 +114,10 @@ def consume_pending_execute_action(session_state) -> Optional[str]:
 
 def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional[str]) -> None:
     if plt is None:
-        raise RuntimeError(f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}")
+        raise RuntimeError(
+            f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
+            "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
+        )
 
     st.caption("Graph preview generated from JSON output")
     fig, ax = plt.subplots(figsize=(8, 6))

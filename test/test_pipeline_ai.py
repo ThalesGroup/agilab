@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import builtins
 from contextlib import nullcontext
 import importlib
 import importlib.util
@@ -1539,6 +1540,24 @@ def test_chat_online_handles_success_key_prompt_and_model_errors(monkeypatch):
     with pytest.raises(RuntimeError, match="model_not_found"):
         pipeline_ai.chat_online("question", [], {})
     assert any("requested model is unavailable" in message for message in infos)
+
+
+def test_chat_online_reports_missing_optional_ai_extra(monkeypatch):
+    errors: list[str] = []
+    monkeypatch.setattr(pipeline_ai, "st", SimpleNamespace(error=lambda message: errors.append(str(message))))
+    real_import = builtins.__import__
+
+    def import_without_openai(name, *args, **kwargs):
+        if name == "openai":
+            raise ImportError("missing openai")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_openai)
+
+    with pytest.raises(RuntimeError, match="missing openai"):
+        pipeline_ai.chat_online("question", [], {})
+
+    assert any("agilab[ai]" in message for message in errors)
 
 
 def test_configure_assistant_engine_and_gpt_oss_controls(monkeypatch):

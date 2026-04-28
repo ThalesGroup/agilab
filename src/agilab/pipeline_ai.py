@@ -438,7 +438,14 @@ def chat_online(
     envars: Dict[str, str],
 ) -> Tuple[str, str]:
     """Robust Chat Completions call: OpenAI, Azure OpenAI, or proxy base_url."""
-    import openai
+    try:
+        import openai
+    except ImportError as exc:
+        st.error(
+            "OpenAI features require the optional AI dependency. "
+            "Install with `pip install 'agilab[ai]'` or switch to a local/offline provider."
+        )
+        raise JumpToMain(exc) from exc
 
     # Refresh envars from the latest .env so model/key changes take effect without restart.
     env_file_map = _load_env_file_map(ENV_FILE_PATH)
