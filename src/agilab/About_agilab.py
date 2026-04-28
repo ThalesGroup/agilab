@@ -3,6 +3,7 @@
 # All rights reserved.
 # Co-author: Codex cli
 """Streamlit entry point for the AGILab interactive lab."""
+import json
 import os
 import importlib.util
 from pathlib import Path
@@ -79,13 +80,77 @@ st.session_state.setdefault("env_editor_new_value", "")
 st.session_state.setdefault("env_editor_reset", False)
 st.session_state.setdefault("env_editor_feedback", None)
 
-from agi_gui.pagelib import inject_theme, render_sidebar_version
 from agi_env.credential_store_support import store_cluster_credentials
-from agi_gui.ui_support import detect_agilab_version, store_last_active_app
+from agi_gui.ui_support import detect_agilab_version, read_theme_css, store_last_active_app
 
 FIRST_PROOF_PROJECT = _about_onboarding.FIRST_PROOF_PROJECT
 FIRST_PROOF_COMPATIBILITY_SLICE = _about_onboarding.FIRST_PROOF_COMPATIBILITY_SLICE
 FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _about_onboarding.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
+
+
+def get_about_content() -> dict[str, str]:
+    """Return Streamlit About-menu content without importing the full pagelib stack."""
+    return {
+        "About": (
+            ":blue[AGILab&trade;]\n\n"
+            "An IDE for Data Science in Engineering\n\n"
+            "Thales SIX GTS France SAS \n\n"
+            "support: open a GitHub issue"
+        )
+    }
+
+
+def inject_theme(base_path: Path | None = None) -> None:
+    """Inject AGILAB theme CSS without importing heavy dataframe/runtime helpers."""
+    css = read_theme_css(base_path, module_file=__file__)
+    if css is not None:
+        st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+
+
+def _sidebar_version_label(version: str) -> str:
+    normalized = str(version or "").strip()
+    if normalized.lower().startswith("v"):
+        normalized = normalized[1:].strip()
+    if not normalized:
+        return ""
+    return f"AGILAB v{normalized}"
+
+
+def _sidebar_version_style(version_label: str) -> str:
+    content_literal = json.dumps(version_label)
+    return (
+        "<style>"
+        "[data-testid='stSidebarContent'] { padding-bottom: 2.5rem; }"
+        "[data-testid='stSidebarContent']::after {"
+        f"content: {content_literal};"
+        "position: fixed;"
+        "left: 1rem;"
+        "bottom: 0.75rem;"
+        "font-size: 0.8rem;"
+        "opacity: 0.72;"
+        "z-index: 999;"
+        "pointer-events: none;"
+        "white-space: nowrap;"
+        "}"
+        "</style>"
+    )
+
+
+def render_sidebar_version(version: str) -> None:
+    """Render the sidebar version without importing the full pagelib stack."""
+    version_label = _sidebar_version_label(version)
+    if not version_label:
+        return
+    style_text = _sidebar_version_style(version_label)
+    html_fn = getattr(st, "html", None)
+    if callable(html_fn):
+        html_fn(style_text)
+        return
+    markdown_fn = getattr(st, "markdown", None)
+    if callable(markdown_fn):
+        markdown_fn(style_text, unsafe_allow_html=True)
+        return
+    st.sidebar.caption(version_label)
 
 
 def _sync_onboarding_module() -> None:
@@ -311,6 +376,11 @@ def page(env: Any) -> None:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
+    try:
+        _sync_layout_module()
+        _about_layout.render_sidebar_system_information()
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        pass
 
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env)
@@ -318,10 +388,6 @@ def page(env: Any) -> None:
     with st.expander("Installed package versions", expanded=False):
         _sync_layout_module()
         _about_layout.render_package_versions()
-
-    with st.expander("System information", expanded=False):
-        _sync_layout_module()
-        _about_layout.render_system_information()
 
     render_page_docs_access(
         env,
@@ -343,7 +409,6 @@ def page(env: Any) -> None:
 
 def main() -> None:
     """Initialise the Streamlit app, bootstrap the environment and display the UI."""
-    from agi_gui.pagelib import get_about_content
     st.set_page_config(
         page_title="AGILab",
         menu_items=get_about_content(),

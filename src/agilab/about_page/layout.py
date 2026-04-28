@@ -161,6 +161,37 @@ def quick_logo(resources_path: Path) -> None:
                 font-size: 0.86rem;
                 font-weight: 750;
               }}
+              .agilab-hero__flow {{
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 0.5rem;
+                margin-top: 1.1rem;
+                max-width: 760px;
+              }}
+              .agilab-hero__flow span {{
+                position: relative;
+                min-height: 3.35rem;
+                padding: 0.65rem 0.72rem;
+                border: 1px solid rgba(255,255,255,0.14);
+                border-radius: 16px;
+                background: rgba(255, 255, 255, 0.08);
+                color: rgba(247, 242, 232, 0.88);
+                font-size: 0.82rem;
+                font-weight: 850;
+                line-height: 1.25;
+              }}
+              .agilab-hero__flow span::after {{
+                content: "";
+                position: absolute;
+                right: -0.38rem;
+                top: 50%;
+                width: 0.38rem;
+                height: 1px;
+                background: rgba(255,255,255,0.26);
+              }}
+              .agilab-hero__flow span:last-child::after {{
+                display: none;
+              }}
               @media (max-width: 820px) {{
                 .agilab-hero__grid {{
                   grid-template-columns: 1fr;
@@ -169,6 +200,17 @@ def quick_logo(resources_path: Path) -> None:
                   align-items: flex-start;
                   border-radius: 18px;
                   flex-direction: column;
+                }}
+                .agilab-hero__flow {{
+                  grid-template-columns: repeat(2, minmax(0, 1fr));
+                }}
+              }}
+              @media (max-width: 520px) {{
+                .agilab-hero__flow {{
+                  grid-template-columns: 1fr;
+                }}
+                .agilab-hero__flow span::after {{
+                  display: none;
                 }}
               }}
             </style>
@@ -190,6 +232,12 @@ def quick_logo(resources_path: Path) -> None:
                     <span class="agilab-hero__chip">Project factory</span>
                     <span class="agilab-hero__chip">Local or worker execution</span>
                     <span class="agilab-hero__chip">Evidence-first analysis</span>
+                  </div>
+                  <div class="agilab-hero__flow" aria-label="AGILAB execution loop">
+                    <span>Data intake</span>
+                    <span>Pipeline assembly</span>
+                    <span>Distributed run</span>
+                    <span>Decision evidence</span>
                   </div>
                 </div>
                 <aside class="agilab-hero__panel" aria-label="AGILAB control path">
@@ -373,11 +421,26 @@ def render_package_versions() -> None:
 
 def render_system_information() -> None:
     """Render local OS and CPU information."""
+    os_label, cpu_name = system_information_summary()
+
+    st.write(f"OS: {os_label}")
+    st.write(f"CPU: {cpu_name}")
+
+
+def system_information_summary() -> tuple[str, str]:
+    """Return compact local OS and CPU labels for display surfaces."""
     import platform
 
-    st.write(f"OS: {platform.system()} {platform.release()}")
+    os_label = " ".join(part for part in (platform.system(), platform.release()) if part).strip()
     cpu_name = platform.processor() or platform.machine()
-    st.write(f"CPU: {cpu_name}")
+    return os_label or "Unknown OS", cpu_name or "Unknown CPU"
+
+
+def render_sidebar_system_information() -> None:
+    """Render compact local OS and CPU information in the sidebar."""
+    os_label, cpu_name = system_information_summary()
+    st.sidebar.caption(f"OS: {os_label}")
+    st.sidebar.caption(f"CPU: {cpu_name}")
 
 
 def render_footer() -> None:
