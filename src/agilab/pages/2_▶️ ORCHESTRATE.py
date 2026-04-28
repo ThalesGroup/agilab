@@ -1083,10 +1083,10 @@ async def _render_run_panels(
     execution_view_key = f"orchestrate_execution_view__{env.app}"
     execution_view = compact_choice(
         st,
-        "Execution panel",
+        "Execution mode",
         ("Run now", "Serve"),
         key=execution_view_key,
-        help="Show either the run panel or the submit panel.",
+        help="Run now executes once and stops. Serve starts a persistent service with status and stop controls.",
         fallback="radio",
     )
     show_run_panel = execution_view == "Run now"
