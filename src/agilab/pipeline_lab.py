@@ -108,6 +108,22 @@ def _resolve_step_engine(entry_engine: str, ui_engine: str, venv_root: str) -> s
     return "agi.run" if venv_root else "runpy"
 
 
+def _valid_runtime_path(raw: Any) -> str:
+    normalized = normalize_runtime_path(raw)
+    return normalized if normalized and _is_valid_runtime_root(normalized) else ""
+
+
+def _valid_runtime_choices(raw_paths: List[Any]) -> List[str]:
+    choices: List[str] = []
+    seen: set[str] = set()
+    for raw_path in raw_paths:
+        runtime = _valid_runtime_path(raw_path)
+        if runtime and runtime not in seen:
+            seen.add(runtime)
+            choices.append(runtime)
+    return choices
+
+
 @dataclass(frozen=True)
 class PipelineLabDeps:
     load_all_steps: Callable[..., Any]
@@ -338,11 +354,8 @@ def display_lab_tab(
         expander_reset_key = f"{safe_prefix}_expander_open"
         st.session_state[expander_reset_key] = {}
 
-    available_venvs = [
-        normalize_runtime_path(path) for path in get_available_virtualenvs(env)
-    ]
-    available_venvs = [path for path in dict.fromkeys(available_venvs) if path]
-    env_active_app = normalize_runtime_path(env.active_app)
+    available_venvs = _valid_runtime_choices(list(get_available_virtualenvs(env)))
+    env_active_app = _valid_runtime_path(getattr(env, "active_app", ""))
     manager_runtime = env_active_app
     if env_active_app:
         available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
@@ -352,7 +365,7 @@ def display_lab_tab(
     engine_state_key = f"{index_page_str}__engine_map"
     engine_map: Dict[int, str] = st.session_state.setdefault(engine_state_key, {})
     for idx_key, raw_value in list(selected_map.items()):
-        normalized_value = normalize_runtime_path(raw_value)
+        normalized_value = _valid_runtime_path(raw_value)
         if normalized_value:
             selected_map[idx_key] = normalized_value
         else:
@@ -402,9 +415,7 @@ def display_lab_tab(
                     help="Choose which virtual environment should execute this step.",
                     inline_limit=4,
                 )
-                selected_path = (
-                    "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
-                )
+                selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
                 run_new = st.button(
                     "Generate code",
                     type="primary",
@@ -589,11 +600,9 @@ def display_lab_tab(
             initial_snapshot = (entry.get("Q", ""), entry.get("C", ""))
             st.session_state[undo_key] = [initial_snapshot]
 
-        current_path_raw = normalize_runtime_path(selected_map.get(step, ""))
-        current_path = current_path_raw if _is_valid_runtime_root(current_path_raw) else ""
+        current_path = _valid_runtime_path(selected_map.get(step, ""))
         if not current_path:
-            entry_venv_raw = normalize_runtime_path(entry.get("E", ""))
-            entry_venv = entry_venv_raw if _is_valid_runtime_root(entry_venv_raw) else ""
+            entry_venv = _valid_runtime_path(entry.get("E", ""))
             if entry_venv:
                 selected_map[step] = entry_venv
                 current_path = entry_venv
@@ -620,7 +629,7 @@ def display_lab_tab(
         with st.expander(expander_title, expanded=expanded_flag):
             venv_col, _ = st.columns([3, 2], gap="small")
             with venv_col:
-                session_label = st.session_state.get(select_key, "")
+                session_label = _valid_runtime_path(st.session_state.get(select_key, ""))
                 initial_label = session_label or current_path or ""
                 if initial_label and initial_label not in venv_labels:
                     venv_labels.append(initial_label)
@@ -636,7 +645,7 @@ def display_lab_tab(
                     disabled=is_locked_step,
                     inline_limit=4,
                 )
-                selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
+                selected_path = "" if selected_label == venv_labels[0] else _valid_runtime_path(selected_label)
                 if selected_path:
                     selected_map[step] = selected_path
                 else:
@@ -1239,7 +1248,7 @@ def display_lab_tab(
                 help="Choose which virtual environment should execute this step.",
                 inline_limit=4,
             )
-            selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
+            selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
             run_new = st.button("Generate code", type="primary", width="stretch", key=f"{safe_prefix}_add_step_btn")
             if run_new:
                 prompt_text = st.session_state.get(new_q_key, "").strip()
