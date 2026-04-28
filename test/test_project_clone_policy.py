@@ -166,6 +166,23 @@ def test_import_project_action_reports_missing_archive(tmp_path: Path):
     assert result.data["zip_path"] == tmp_path / "exports" / "missing_project.zip"
 
 
+def test_import_project_action_reports_invalid_archive(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    export_root.mkdir()
+    (export_root / "demo_project.zip").write_text("not a zip", encoding="utf-8")
+    apps_root = tmp_path / "apps"
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(env, project_zip="demo_project.zip")
+
+    assert result.status == "error"
+    assert result.title == "Project archive 'demo_project.zip' could not be imported."
+    assert "valid exported project zip" in str(result.next_action)
+    assert result.data["target_dir"] == apps_root / "demo_project"
+    assert not result.data["target_dir"].exists()
+
+
 def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, monkeypatch):
     module = _load_project_module()
     export_root = tmp_path / "exports"
