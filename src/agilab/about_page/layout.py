@@ -180,7 +180,7 @@ def quick_logo(resources_path: Path) -> None:
                     <span>Thales open-source workbench</span>
                   </div>
                   <p class="agilab-hero__eyebrow">AI/ML experimentation workbench</p>
-                  <h1>From raw data to reproducible decisions.</h1>
+                  <h1>Reproducible AI engineering, from project to proof.</h1>
                   <p class="agilab-hero__lead">
                     AGILAB keeps project setup, environment management, execution,
                     and analysis on one operator path, so a demo can become a repeatable

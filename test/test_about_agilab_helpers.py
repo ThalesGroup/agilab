@@ -1232,7 +1232,7 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
 
     body = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
     assert "agilab-hero" in body
-    assert "From raw data to reproducible decisions" in body
+    assert "Reproducible AI engineering, from project to proof" in body
     assert "Control path" in body
 
 
