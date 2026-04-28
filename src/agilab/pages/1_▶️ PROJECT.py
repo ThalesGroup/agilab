@@ -1680,6 +1680,84 @@ def _rename_project_action(
     )
 
 
+def _delete_project_action(
+    env: AgiEnv,
+    *,
+    confirmed: bool,
+) -> ActionResult:
+    app_name = env.app
+    if not confirmed:
+        return ActionResult.error(
+            "Please confirm that you want to delete the project.",
+            next_action="Tick the confirmation checkbox before deleting.",
+            data={"app": app_name},
+        )
+
+    project_path = Path(env.active_app)
+    if not project_path.exists():
+        return ActionResult.error(
+            f"Project '{app_name}' does not exist.",
+            next_action="Refresh the PROJECT page or select another project.",
+            data={"app": app_name, "project_path": project_path},
+        )
+
+    cleanup_errors: list[str] = []
+    target_name = env.target
+    _cleanup_run_configuration_artifacts(app_name, target_name, cleanup_errors)
+    _cleanup_module_artifacts(app_name, target_name, cleanup_errors)
+    _safe_remove_path(
+        env.wenv_abs,
+        f"worker environment for {target_name}",
+        cleanup_errors,
+    )
+    _safe_remove_path(
+        Path.home() / "log" / "execute" / target_name,
+        f"log/execute/{target_name}",
+        cleanup_errors,
+    )
+
+    data_root = None
+    if env.app_data_rel:
+        try:
+            data_root = Path(env.app_data_rel).expanduser()
+        except (RuntimeError, TypeError, ValueError):
+            data_root = None
+    if data_root and data_root.name == target_name:
+        _safe_remove_path(
+            data_root,
+            f"AGI share directory for {target_name}",
+            cleanup_errors,
+        )
+
+    _safe_remove_path(project_path, f"Project '{app_name}'", cleanup_errors)
+    if _path_exists_or_symlink(project_path):
+        detail = "\n".join(f"Cleanup issue: {message}" for message in cleanup_errors) or None
+        return ActionResult.error(
+            f"Project '{app_name}' could not be removed.",
+            detail=detail,
+            next_action=f"Remove {project_path} manually, then refresh the PROJECT page.",
+            data={
+                "app": app_name,
+                "project_path": project_path,
+                "cleanup_errors": tuple(cleanup_errors),
+            },
+        )
+
+    env.projects = [project for project in env.projects if project != app_name]
+    next_app = env.projects[0] if env.projects else None
+    detail = "\n".join(f"Cleanup issue: {message}" for message in cleanup_errors) or None
+    return ActionResult.success(
+        f"Project '{app_name}' has been deleted.",
+        detail=detail,
+        data={
+            "app": app_name,
+            "project_path": project_path,
+            "cleanup_errors": tuple(cleanup_errors),
+            "next_app": next_app,
+        },
+    )
+
+
 def handle_project_creation():
     """
     Handle the 'Create' tab in the sidebar for project creation.
@@ -1814,61 +1892,29 @@ def handle_project_delete():
         key="confirm_delete",
     )
 
-    cols = st.sidebar.columns(3)
     # Delete button
     delete_clicked = st.sidebar.button("Delete", type="primary", width="stretch")
     if delete_clicked:
-        if not confirm_delete:
-            st.error("Please confirm that you want to delete the project.")
-        else:
-            project_path = env.active_app
-            if not project_path.exists():
-                st.error(f"Project '{env.app}' does not exist.")
-                return
-
-            cleanup_errors = []
-            target_name = env.target
-
-            _cleanup_run_configuration_artifacts(env.app, target_name, cleanup_errors)
-            _cleanup_module_artifacts(env.app, target_name, cleanup_errors)
-            _safe_remove_path(
-                env.wenv_abs,
-                f"worker environment for {target_name}",
-                cleanup_errors,
-            )
-            _safe_remove_path(
-                Path.home() / "log" / "execute" / target_name,
-                f"log/execute/{target_name}",
-                cleanup_errors,
-            )
-            data_root = None
-            if env.app_data_rel:
-                try:
-                    data_root = Path(env.app_data_rel).expanduser()
-                except TypeError:
-                    data_root = None
-            if data_root and data_root.name == target_name:
-                _safe_remove_path(
-                    data_root,
-                    f"AGI share directory for {target_name}",
-                    cleanup_errors,
-                )
-
-            _safe_remove_path(project_path, f"Project '{env.app}'", cleanup_errors)
-
-            env.projects = [p for p in env.projects if p != env.app]
-            if env.projects:
-                on_project_change(env.projects[0])
-
-            st.success(f"Project '{env.app}' has been deleted.")
-            del st.session_state.env
+        def _activate_after_delete(result):
+            next_app = result.data.get("next_app")
+            if next_app:
+                on_project_change(str(next_app))
+            st.session_state.pop("env", None)
             st.session_state.pop("templates", None)
-            if cleanup_errors:
-                for message in cleanup_errors:
-                    st.warning(f"Cleanup issue: {message}")
-
             st.session_state["switch_to_edit"] = True
             st.rerun()
+
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Delete project",
+                start_message=f"Deleting project '{env.app}'...",
+                failure_title="Project deletion failed.",
+                failure_next_action="Check filesystem permissions and project selection.",
+            ),
+            lambda: _delete_project_action(env, confirmed=confirm_delete),
+            on_success=_activate_after_delete,
+        )
     else:
         st.info("Select a project and confirm deletion to remove it.")
 

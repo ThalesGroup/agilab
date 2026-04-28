@@ -240,6 +240,124 @@ def test_rename_project_action_reports_source_cleanup_failure(tmp_path: Path, mo
     assert result.next_action == f"Remove the old project directory manually: {source_root}"
 
 
+def test_delete_project_action_requires_confirmation():
+    module = _load_project_module()
+    env = SimpleNamespace(app="current_project")
+
+    result = module._delete_project_action(env, confirmed=False)
+
+    assert result.status == "error"
+    assert result.title == "Please confirm that you want to delete the project."
+    assert result.next_action == "Tick the confirmation checkbox before deleting."
+
+
+def test_delete_project_action_reports_missing_project(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(
+        app="current_project",
+        active_app=tmp_path / "current_project",
+    )
+
+    result = module._delete_project_action(env, confirmed=True)
+
+    assert result.status == "error"
+    assert result.title == "Project 'current_project' does not exist."
+    assert "Refresh the PROJECT page" in str(result.next_action)
+
+
+def test_delete_project_action_removes_project_and_runtime_artifacts(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    project_path = tmp_path / "current_project"
+    project_path.mkdir()
+    wenv_path = tmp_path / "wenv" / "current_worker"
+    wenv_path.mkdir(parents=True)
+    data_root = tmp_path / "share" / "current"
+    data_root.mkdir(parents=True)
+    home_root = tmp_path / "home"
+    cleanup_calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(module.Path, "home", lambda: home_root)
+    monkeypatch.setattr(
+        module,
+        "_cleanup_run_configuration_artifacts",
+        lambda app, target, errors: cleanup_calls.append(("run", f"{app}:{target}")),
+    )
+    monkeypatch.setattr(
+        module,
+        "_cleanup_module_artifacts",
+        lambda app, target, errors: cleanup_calls.append(("module", f"{app}:{target}")),
+    )
+    env = SimpleNamespace(
+        app="current_project",
+        active_app=project_path,
+        target="current",
+        wenv_abs=wenv_path,
+        app_data_rel=data_root,
+        projects=["current_project", "next_project"],
+    )
+
+    result = module._delete_project_action(env, confirmed=True)
+
+    assert result.status == "success"
+    assert result.title == "Project 'current_project' has been deleted."
+    assert result.detail is None
+    assert result.data["next_app"] == "next_project"
+    assert result.data["cleanup_errors"] == ()
+    assert env.projects == ["next_project"]
+    assert not project_path.exists()
+    assert not wenv_path.exists()
+    assert not data_root.exists()
+    assert cleanup_calls == [
+        ("run", "current_project:current"),
+        ("module", "current_project:current"),
+    ]
+
+
+def test_delete_project_action_reports_project_removal_failure(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    project_path = tmp_path / "current_project"
+    project_path.mkdir()
+    home_root = tmp_path / "home"
+    original_safe_remove_path = module._safe_remove_path
+
+    def _safe_remove_path(candidate, label, errors):
+        if str(label).startswith("Project 'current_project'"):
+            errors.append("Project 'current_project': locked")
+            return
+        original_safe_remove_path(candidate, label, errors)
+
+    monkeypatch.setattr(module.Path, "home", lambda: home_root)
+    monkeypatch.setattr(module, "_safe_remove_path", _safe_remove_path)
+    monkeypatch.setattr(
+        module,
+        "_cleanup_run_configuration_artifacts",
+        lambda _app, _target, _errors: None,
+    )
+    monkeypatch.setattr(
+        module,
+        "_cleanup_module_artifacts",
+        lambda _app, _target, _errors: None,
+    )
+    env = SimpleNamespace(
+        app="current_project",
+        active_app=project_path,
+        target="current",
+        wenv_abs=tmp_path / "wenv" / "current_worker",
+        app_data_rel=None,
+        projects=["current_project", "next_project"],
+    )
+
+    result = module._delete_project_action(env, confirmed=True)
+
+    assert result.status == "error"
+    assert result.title == "Project 'current_project' could not be removed."
+    assert result.detail == "Cleanup issue: Project 'current_project': locked"
+    assert result.next_action == f"Remove {project_path} manually, then refresh the PROJECT page."
+    assert result.data["cleanup_errors"] == ("Project 'current_project': locked",)
+    assert env.projects == ["current_project", "next_project"]
+    assert project_path.exists()
+
+
 def test_safe_remove_path_collects_probe_errors(monkeypatch):
     module = _load_project_module()
     errors: list[str] = []
