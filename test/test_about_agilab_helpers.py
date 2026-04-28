@@ -1334,7 +1334,8 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
 def test_about_page_moves_system_information_to_sidebar(monkeypatch):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(about_agilab, "st", fake_st)
-    monkeypatch.setattr(about_agilab, "render_sidebar_version", lambda _version: None)
+    rendered_versions: list[str] = []
+    monkeypatch.setattr(about_agilab, "render_sidebar_version", rendered_versions.append)
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
     monkeypatch.setattr(about_agilab, "_render_env_editor", lambda _env: None)
     monkeypatch.setattr(about_agilab, "render_page_docs_access", lambda *_args, **_kwargs: None)
@@ -1364,8 +1365,9 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
     env_expander = _event_index(fake_st.events, "expander", "Environment Variables")
     expanders = [body for kind, body in fake_st.events if kind == "expander"]
     assert any("Environment Variables" in label for label in expanders)
-    assert "Installed package versions:False" in expanders
+    assert "Installed package versions:False" not in expanders
     assert "System information:False" not in expanders
+    assert rendered_versions == ["2026.4.28"]
     assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("GPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")

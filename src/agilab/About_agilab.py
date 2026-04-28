@@ -385,10 +385,6 @@ def page(env: Any) -> None:
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env)
 
-    with st.expander("Installed package versions", expanded=False):
-        _sync_layout_module()
-        _about_layout.render_package_versions()
-
     render_page_docs_access(
         env,
         html_file="agilab-help.html",
