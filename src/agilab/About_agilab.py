@@ -256,7 +256,7 @@ def _clean_openai_key(key: str | None) -> str | None:
 
 
 def openai_status_banner(env: Any) -> None:
-    """Show a non-blocking banner if OpenAI features are unavailable and direct users to the env editor."""
+    """Keep optional OpenAI setup silent on the first-launch path."""
     _sync_layout_module()
     _about_layout.openai_status_banner(env, env_file_path=ENV_FILE_PATH)
 
@@ -371,14 +371,6 @@ def page(env: Any) -> None:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
-    try:
-        _sync_layout_module()
-        _about_layout.render_sidebar_system_information()
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        pass
-
-    with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
-        _render_env_editor(env)
 
     render_page_docs_access(
         env,
@@ -387,6 +379,15 @@ def page(env: Any) -> None:
         sidebar=True,
         divider=False,
     )
+
+    try:
+        _sync_layout_module()
+        _about_layout.render_sidebar_system_information()
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        pass
+
+    with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
+        _render_env_editor(env)
 
     _sync_layout_module()
     _about_layout.render_footer()

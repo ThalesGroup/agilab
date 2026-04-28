@@ -49,13 +49,23 @@ def test_remote_docs_url_supports_anchors():
 def test_docs_candidates_and_open_remote_docs(monkeypatch):
     opened: list[str] = []
 
-    monkeypatch.setattr(page_docs.webbrowser, "open_new_tab", lambda url: opened.append(url))
+    def fake_open_new_tab(url):
+        opened.append(url)
+        return True
+
+    monkeypatch.setattr(page_docs.webbrowser, "open_new_tab", fake_open_new_tab)
 
     assert page_docs._docs_candidates("execute-help.html") == ("execute-help.html", "execute_help.html")
 
-    page_docs._open_remote_docs("execute-help.html", "#cluster")
+    assert page_docs._open_remote_docs("execute-help.html", "#cluster") is True
 
     assert opened == ["https://thalesgroup.github.io/agilab/execute-help.html#cluster"]
+
+
+def test_open_remote_docs_reports_unavailable_browser(monkeypatch):
+    monkeypatch.setattr(page_docs.webbrowser, "open_new_tab", lambda _url: False)
+
+    assert page_docs._open_remote_docs("execute-help.html", "#cluster") is False
 
 
 def test_open_local_page_docs_tries_legacy_aliases(monkeypatch):
@@ -181,7 +191,11 @@ def test_render_page_docs_access_uses_main_container_and_remote_button(monkeypat
         error=fake_container.error,
     )
     monkeypatch.setattr(page_docs, "st", fake_st)
-    monkeypatch.setattr(page_docs, "_open_remote_docs", lambda html_file, anchor="": events.append(("remote", f"{html_file}#{anchor}")))
+    def fake_open_remote_docs(html_file, anchor=""):
+        events.append(("remote", f"{html_file}#{anchor}"))
+        return True
+
+    monkeypatch.setattr(page_docs, "_open_remote_docs", fake_open_remote_docs)
     monkeypatch.setattr(page_docs, "_open_local_page_docs", lambda *_args, **_kwargs: events.append(("local", "opened")))
 
     page_docs.render_page_docs_access(
@@ -193,8 +207,47 @@ def test_render_page_docs_access_uses_main_container_and_remote_button(monkeypat
     )
 
     assert ("subheader", "Documentation") in events
+    assert ("button", "Read Documentation:help_docs_read") in events
     assert ("remote", "agilab-help.html#intro") in events
+    assert not any(kind == "local" for kind, _ in events)
     assert not any(kind == "caption" for kind, _ in events)
+    assert not any(kind == "error" for kind, _ in events)
+
+
+def test_render_page_docs_access_falls_back_to_local_docs_when_remote_unavailable(monkeypatch):
+    events: list[tuple[str, str]] = []
+
+    class FakeContainer:
+        def divider(self):
+            events.append(("divider", ""))
+
+        def subheader(self, title):
+            events.append(("subheader", title))
+
+        def caption(self, text):
+            events.append(("caption", text))
+
+        def button(self, label, **kwargs):
+            events.append(("button", f"{label}:{kwargs['key']}"))
+            return label == "Read Documentation"
+
+        def error(self, message):
+            events.append(("error", message))
+
+    fake_sidebar = FakeContainer()
+    monkeypatch.setattr(page_docs, "st", types.SimpleNamespace(sidebar=fake_sidebar))
+    monkeypatch.setattr(page_docs, "_open_remote_docs", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(page_docs, "_open_local_page_docs", lambda *_args, **_kwargs: "execute-help.html")
+
+    page_docs.render_page_docs_access(
+        object(),
+        html_file="execute-help.html",
+        anchor="cluster",
+        key_prefix="execute",
+        title="Execute docs",
+    )
+
+    assert ("button", "Read Documentation:execute_docs_read") in events
     assert not any(kind == "error" for kind, _ in events)
 
 
@@ -228,11 +281,11 @@ def test_render_page_docs_access_skips_divider_when_disabled(monkeypatch):
         divider=False,
     )
 
-    assert ("subheader", "Documentation") in events
+    assert not any(kind == "subheader" for kind, _ in events)
     assert not any(kind == "divider" for kind, _ in events)
 
 
-def test_render_page_docs_access_reports_local_docs_error_in_sidebar(monkeypatch):
+def test_render_page_docs_access_reports_docs_error_in_sidebar(monkeypatch):
     events: list[tuple[str, str]] = []
 
     class FakeContainer:
@@ -247,7 +300,7 @@ def test_render_page_docs_access_reports_local_docs_error_in_sidebar(monkeypatch
 
         def button(self, label, **kwargs):
             events.append(("button", f"{label}:{kwargs['key']}"))
-            return label == "Open Local Documentation"
+            return label == "Read Documentation"
 
         def error(self, message):
             events.append(("error", message))
@@ -259,7 +312,7 @@ def test_render_page_docs_access_reports_local_docs_error_in_sidebar(monkeypatch
         "_open_local_page_docs",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError("missing")),
     )
-    monkeypatch.setattr(page_docs, "_open_remote_docs", lambda *_args, **_kwargs: events.append(("remote", "opened")))
+    monkeypatch.setattr(page_docs, "_open_remote_docs", lambda *_args, **_kwargs: False)
 
     page_docs.render_page_docs_access(
         object(),
@@ -270,7 +323,6 @@ def test_render_page_docs_access_reports_local_docs_error_in_sidebar(monkeypatch
         caption="Local help is optional.",
     )
 
-    assert ("subheader", "Execute docs") in events
     assert ("caption", "Local help is optional.") in events
-    assert ("error", "Local documentation not found. Regenerate via docs/gen-docs.sh.") in events
-    assert not any(kind == "remote" for kind, _ in events)
+    assert ("button", "Read Documentation:execute_docs_read") in events
+    assert ("error", "Documentation not found online or locally. Regenerate via docs/gen-docs.sh.") in events
