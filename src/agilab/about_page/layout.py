@@ -84,6 +84,7 @@ def render_package_versions() -> None:
     packages = [
         ("agilab", "agilab"),
         ("agi-core", "agi-core"),
+        ("agi-gui", "agi-gui"),
         ("agi-node", "agi-node"),
         ("agi-env", "agi-env"),
     ]
@@ -116,4 +117,3 @@ def render_footer() -> None:
     """,
         unsafe_allow_html=True,
     )
-

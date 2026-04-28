@@ -372,14 +372,179 @@ def _page_pythonpath(*paths: Path) -> str:
         ordered_unique.append(value)
     return os.pathsep.join(ordered_unique)
 
-def _default_app_path(apps_path: Path | None) -> Path | None:
-    """Return the first *_project directory found under apps_path."""
-    if not apps_path or not apps_path.exists():
+
+def _safe_existing_dir(path: Path | None) -> Path | None:
+    if path is None:
         return None
-    for candidate in sorted(apps_path.iterdir()):
-        if candidate.is_dir() and candidate.name.endswith("_project"):
-            return candidate
+    try:
+        return path.resolve() if path.exists() and path.is_dir() else None
+    except OSError:
+        return None
+
+
+def _page_apps_path(current_file: str | Path = __file__) -> Path | None:
+    """Return the bundled apps root for source and packaged page layouts."""
+    current_path = Path(current_file).resolve()
+    candidates: list[Path] = []
+    parents = current_path.parents
+    if len(parents) > 1:
+        candidates.append(parents[1] / "apps")
+    if len(parents) > 2:
+        candidates.append(parents[2] / "agilab" / "apps")
+        candidates.append(parents[2] / "apps")
+    for candidate in candidates:
+        existing = _safe_existing_dir(candidate)
+        if existing is not None:
+            return existing
     return None
+
+
+def _candidate_app_paths(apps_path: Path | None, value: str | Path | None) -> list[Path]:
+    if value is None:
+        return []
+    raw_value = str(value).strip()
+    if not raw_value:
+        return []
+    try:
+        provided = Path(raw_value).expanduser()
+    except (RuntimeError, TypeError, ValueError):
+        return []
+
+    candidates: list[Path] = []
+    if provided.is_absolute() or len(provided.parts) > 1:
+        candidates.append(provided)
+        candidates.append(provided.parent / "builtin" / provided.name)
+
+    if apps_path is not None:
+        root = Path(apps_path).expanduser()
+        if len(provided.parts) == 1:
+            candidates.append(root / raw_value)
+        candidates.append(root / provided.name)
+        candidates.append(root / "builtin" / provided.name)
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return unique
+
+
+def _resolve_app_path(apps_path: Path | None, value: str | Path | None) -> Path | None:
+    for candidate in _candidate_app_paths(apps_path, value):
+        existing = _safe_existing_dir(candidate)
+        if existing is not None:
+            return existing
+    return None
+
+
+def _apps_path_for_active_app(active_app_path: Path) -> Path:
+    parent = active_app_path.parent
+    if parent.name == "builtin" and parent.parent.name == "apps":
+        return parent.parent
+    return parent
+
+
+def _default_app_path(apps_path: Path | None) -> Path | None:
+    """Return a deterministic default *_project, preferring bundled flight_project."""
+    root = _safe_existing_dir(Path(apps_path).expanduser() if apps_path else None)
+    if root is None:
+        return None
+    search_roots = [root]
+    if root.name != "builtin":
+        builtin_root = _safe_existing_dir(root / "builtin")
+        if builtin_root is not None:
+            search_roots.append(builtin_root)
+
+    for search_root in search_roots:
+        preferred = _safe_existing_dir(search_root / "flight_project")
+        if preferred is not None:
+            return preferred
+
+    for search_root in search_roots:
+        try:
+            candidates = sorted(search_root.iterdir())
+        except OSError:
+            continue
+        for candidate in candidates:
+            existing = _safe_existing_dir(candidate)
+            if existing is not None and existing.name.endswith("_project"):
+                return existing
+    return None
+
+
+def _stored_active_app_path(env: AgiEnv) -> Path | None:
+    active_app = getattr(env, "active_app", None)
+    if active_app:
+        try:
+            return Path(active_app)
+        except (RuntimeError, TypeError, ValueError):
+            return None
+    if getattr(env, "apps_path", None) and getattr(env, "app", None):
+        return Path(env.apps_path) / str(env.app)
+    return None
+
+
+def _store_active_app(env: AgiEnv) -> None:
+    active_app_path = _stored_active_app_path(env)
+    if active_app_path is None:
+        return
+    try:
+        store_last_active_app(active_app_path)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+
+
+def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
+    apps_path_value = st.session_state.get("apps_path")
+    apps_path = Path(apps_path_value).expanduser() if apps_path_value else None
+    if _safe_existing_dir(apps_path) is None:
+        apps_path = _page_apps_path()
+
+    active_app_path = _resolve_app_path(apps_path, requested_app)
+
+    if active_app_path is None:
+        active_app_path = _resolve_app_path(apps_path, st.session_state.get("app"))
+
+    if active_app_path is None:
+        active_app_path = _resolve_app_path(apps_path, os.environ.get("AGILAB_APP"))
+
+    if active_app_path is None:
+        last_app = load_last_active_app()
+        if last_app is not None:
+            active_app_path = _resolve_app_path(apps_path or _apps_path_for_active_app(Path(last_app)), last_app)
+
+    if active_app_path is None:
+        active_app_path = _default_app_path(apps_path)
+
+    if active_app_path is None:
+        st.error(
+            "Could not determine the active app. Please select a project first or set AGILAB_APP."
+        )
+        st.stop()
+
+    apps_path = _apps_path_for_active_app(active_app_path)
+    app_name = active_app_path.name
+    env = AgiEnv(
+        apps_path=apps_path,
+        app=app_name,
+        verbose=0,
+    )
+    env.init_done = True
+    st.session_state['env'] = env
+    st.session_state['IS_SOURCE_ENV'] = env.is_source_env
+    st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+    st.session_state['apps_path'] = str(apps_path)
+    st.session_state['app'] = app_name
+    try:
+        store_last_active_app(active_app_path)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+    return env
+
 
 def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str, process_env: dict[str, str] | None = None) -> None:
     """
@@ -1117,85 +1282,7 @@ async def main():
     requested_app = qp.get("active_app")
 
     if 'env' not in st.session_state:
-        apps_path_value = st.session_state.get("apps_path")
-        apps_path = Path(apps_path_value).expanduser() if apps_path_value else None
-        if apps_path is None:
-            repo_apps_path = Path(__file__).resolve().parents[2] / "apps"
-            if repo_apps_path.exists():
-                apps_path = repo_apps_path
-
-        # Derive active app path
-        active_app_path = None
-
-        def _resolve_requested_app(value: str | None) -> Path | None:
-            if not value:
-                return None
-            candidate = Path(value).expanduser()
-            if candidate.is_absolute() and candidate.exists():
-                return candidate
-            if apps_path:
-                candidate = Path(apps_path) / value
-                if candidate.exists():
-                    return candidate
-            return None
-
-        if requested_app:
-            candidate = _resolve_requested_app(requested_app)
-            if candidate is not None:
-                active_app_path = candidate
-                if apps_path is None:
-                    apps_path = candidate.parent
-
-        if active_app_path is None:
-            stored_app = st.session_state.get("app")
-            if stored_app and apps_path:
-                candidate = apps_path / stored_app
-                if candidate.exists():
-                    active_app_path = candidate
-
-        if active_app_path is None:
-            env_app = os.environ.get("AGILAB_APP")
-            if env_app:
-                candidate = Path(env_app).expanduser()
-                if candidate.exists():
-                    active_app_path = candidate
-                    if not apps_path:
-                        apps_path = candidate.parent
-
-        if active_app_path is None:
-            last_app = load_last_active_app()
-            if last_app is not None:
-                active_app_path = last_app
-                if not apps_path:
-                    apps_path = last_app.parent
-
-        if active_app_path is None:
-            active_app_path = _default_app_path(apps_path)
-
-        if active_app_path is None:
-            st.error(
-                "Could not determine the active app. Please select a project first or set AGILAB_APP."
-            )
-            st.stop()
-
-        app_name = active_app_path.name
-        if apps_path is None:
-            apps_path = active_app_path.parent
-
-        env = AgiEnv(
-            apps_path=apps_path,
-            app=app_name,
-            verbose=0,
-        )
-        env.init_done = True
-        st.session_state['env'] = env
-        st.session_state['IS_SOURCE_ENV'] = env.is_source_env
-        st.session_state['IS_WORKER_ENV'] = env.is_worker_env
-        if apps_path:
-            st.session_state['apps_path'] = str(apps_path)
-        if app_name:
-            st.session_state['app'] = app_name
-        store_last_active_app(active_app_path)
+        env = _initialize_analysis_env(requested_app)
     else:
         env = st.session_state['env']
 
@@ -1212,7 +1299,7 @@ async def main():
     if env.app:
         st.query_params["active_app"] = env.app
     if env.app:
-        store_last_active_app(Path(env.apps_path) / env.app)
+        _store_active_app(env)
 
     # Where to store selected pages per project
     project = env.app

@@ -1209,6 +1209,7 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert about_agilab._clean_openai_key("sk-" + "a" * 16) == "sk-" + "a" * 16
     assert any("Welcome to AGILAB" in body for kind, body in fake_st.events if kind == "info")
     assert any("agilab:" in body for kind, body in fake_st.events if kind == "write")
+    assert any("agi-gui:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
     assert any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
 
