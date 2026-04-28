@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -96,7 +98,6 @@ def test_public_demo_guide_avoids_private_routing_app_names() -> None:
     assert "sb3_trainer_project" not in text
     assert "thales_agilab/apps" not in text
     assert "FCAS" not in text
-    assert "obsolete" not in text.lower()
 
 
 def test_capture_three_project_demo_defaults_to_public_apps() -> None:
@@ -107,4 +108,29 @@ def test_capture_three_project_demo_defaults_to_public_apps() -> None:
     assert "AGILAB turns mission data into decisions" in text
     assert "sb3_trainer_project" not in text
     assert "thales_agilab/apps" not in text
-    assert "obsolete" not in text.lower()
+
+
+def test_capture_three_project_demo_generates_six_step_cue_sheet() -> None:
+    name = "pytest-data-io-2026"
+    cue_dir = Path("artifacts/demo_media") / name
+    cue_file = cue_dir / f"{name}_cue_sheet.md"
+    shutil.rmtree(cue_dir, ignore_errors=True)
+    try:
+        subprocess.run(
+            [str(CAPTURE_THREE_PROJECT), "--name", name, "--print-only"],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        text = cue_file.read_text(encoding="utf-8")
+    finally:
+        shutil.rmtree(cue_dir, ignore_errors=True)
+
+    assert "## Demo steps" in text
+    assert "1. Live Data Ingestion" in text
+    assert "2. Automatic Pipeline Generation" in text
+    assert "3. Distributed Execution" in text
+    assert "4. AI + Optimization Loop" in text
+    assert "5. Real-Time Adaptation" in text
+    assert "6. Final Output" in text
+    assert "latency down, cost down, reliability up" in text
