@@ -98,13 +98,43 @@ Preferred cut: \`70-75s\` final runtime with hard transitions and no idle waitin
 
 ## Goal
 
-Show AGILAB as a mission-data decision engine, not a chatbot:
+Core idea: show AGILAB as an autonomous mission-data decision engine:
 
 - ingest raw mission-like data
-- build and replay the pipeline path
+- build and replay the pipeline path from generated snippets and visible steps
 - distribute computation across workers
 - adapt after a bandwidth or node failure
 - return an optimized routing decision with visible metrics
+
+## Differentiation
+
+- chatbot-style demos focus on interaction
+- this demo focuses on impact and execution
+- positioning line: \`AGILAB turns mission data into decisions.\`
+
+## Scenario
+
+Context:
+
+- sensor-style streams
+- network / satcom status
+- operational constraints:
+  - latency
+  - bandwidth
+  - risk
+
+Objective:
+
+- optimize routing and decision-making under dynamic constraints
+
+## Pipeline overview
+
+\`Data -> Cleaning -> Feature extraction -> Model selection -> Optimization / RL -> Simulation -> Decision\`
+
+Scope note:
+
+- show generated snippets, replayable steps, worker activity, and decision evidence
+- do not claim unsupported first-class runtime DAG expansion unless that behavior is visible in the run
 
 ## Recording settings
 
@@ -132,6 +162,7 @@ Show AGILAB as a mission-data decision engine, not a chatbot:
 
 - select \`execution_pandas_project\` in \`PROJECT\`
 - frame the generated files as mission telemetry, sensor logs, or network status
+- show dashboard refresh or artifact update if available
 - show only the highest-signal ingestion settings:
   - \`nfile\`
   - \`rows_per_file\`
@@ -146,6 +177,7 @@ Show AGILAB as a mission-data decision engine, not a chatbot:
 
 - select \`meteo_forecast_project\` in \`PROJECT\`
 - frame the forecast as a constraint signal for the decision engine
+- present this as model selection / prediction, not a standalone weather demo
 - show only the minimal prediction context:
   - station
   - lag / horizon
@@ -160,9 +192,12 @@ Show AGILAB as a mission-data decision engine, not a chatbot:
 
 - switch to \`$RL_APP_LABEL\`
 - show one routing or optimization choice only:
+  - \`queue_aware\`
+  - or \`shortest_path\` baseline comparison
   - \`PPO-GNN\`
   - or \`Path Actor-Critic\`
 - move to \`ORCHESTRATE\` and show visible worker / cluster activity
+- make this the key moment in the cut
 - if a non-local worker is used, make the shared workers data path visible and avoid local-only paths
 - flash \`PIPELINE\` only if replayable optimization or inference steps are already visible
 - finish on one visible decision proof:
@@ -193,6 +228,32 @@ Show AGILAB as a mission-data decision engine, not a chatbot:
 - closing sentence:
   - \`This is not a model. This is an autonomous system path from mission data to decision.\`
 - keep the closing frame static and short
+
+## Technical stack callouts
+
+- \`AgiEnv\`: environment orchestration
+- \`AgiNode / AgiCluster\`: distributed execution
+- \`Dask / worker execution\`: parallel computing path when enabled
+- ML + optimization / RL: decision loop
+- Streamlit: operator visualization
+
+## Optional add-on
+
+Air-gapped mode:
+
+- no internet access
+- local models only
+- use this only when the environment is configured and validated
+
+## Winning criteria
+
+| Criteria | Strength |
+|---|---|
+| Innovation | Autonomous pipeline path |
+| Scalability | Distributed worker execution |
+| Real use case | Mission / network optimization |
+| AI depth | ML + optimization / orchestration |
+| Differentiation | Not a chatbot |
 
 ## Recording constraints
 
