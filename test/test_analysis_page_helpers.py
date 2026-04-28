@@ -260,6 +260,115 @@ def test_excluded_view_options_normalizes_configured_names():
     assert module._excluded_view_options(cfg) == {"view_maps_network"}
 
 
+def test_page_apps_path_prefers_agilab_apps_over_legacy_src_apps(tmp_path: Path):
+    module = _load_analysis_module()
+    page_file = tmp_path / "src" / "agilab" / "pages" / "4_ANALYSIS.py"
+    page_file.parent.mkdir(parents=True)
+    page_file.write_text("", encoding="utf-8")
+    legacy_apps = tmp_path / "src" / "apps"
+    legacy_apps.mkdir(parents=True)
+    bundled_apps = tmp_path / "src" / "agilab" / "apps"
+    bundled_apps.mkdir(parents=True)
+
+    assert module._page_apps_path(page_file) == bundled_apps.resolve()
+
+
+def test_resolve_app_path_accepts_builtin_project_name(tmp_path: Path):
+    module = _load_analysis_module()
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+
+    assert module._resolve_app_path(apps_path, "flight_project") == flight_project.resolve()
+
+
+def test_default_app_path_prefers_builtin_flight_project(tmp_path: Path):
+    module = _load_analysis_module()
+    apps_path = tmp_path / "apps"
+    generic_project = apps_path / "alpha_project"
+    flight_project = apps_path / "builtin" / "flight_project"
+    generic_project.mkdir(parents=True)
+    flight_project.mkdir(parents=True)
+
+    assert module._default_app_path(apps_path) == flight_project.resolve()
+
+
+def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+    stored_apps: list[Path] = []
+
+    class FakeAgiEnv:
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / "builtin" / app
+            self.is_source_env = True
+            self.is_worker_env = False
+
+    fake_st = SimpleNamespace(
+        session_state={},
+        error=lambda message: (_ for _ in ()).throw(AssertionError(message)),
+        stop=lambda: (_ for _ in ()).throw(AssertionError("st.stop should not be called")),
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "AgiEnv", FakeAgiEnv)
+    monkeypatch.setattr(module, "_page_apps_path", lambda: apps_path)
+    monkeypatch.setattr(module, "load_last_active_app", lambda: None)
+    monkeypatch.setattr(module, "store_last_active_app", stored_apps.append)
+
+    env = module._initialize_analysis_env("flight_project")
+
+    assert env.apps_path == apps_path.resolve()
+    assert env.app == "flight_project"
+    assert fake_st.session_state["apps_path"] == str(apps_path.resolve())
+    assert fake_st.session_state["app"] == "flight_project"
+    assert stored_apps == [flight_project.resolve()]
+
+
+def test_initialize_analysis_env_defaults_to_builtin_flight_project(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+
+    class FakeAgiEnv:
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / "builtin" / app
+            self.is_source_env = True
+            self.is_worker_env = False
+
+    fake_st = SimpleNamespace(
+        session_state={},
+        error=lambda message: (_ for _ in ()).throw(AssertionError(message)),
+        stop=lambda: (_ for _ in ()).throw(AssertionError("st.stop should not be called")),
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "AgiEnv", FakeAgiEnv)
+    monkeypatch.setattr(module, "_page_apps_path", lambda: apps_path)
+    monkeypatch.setattr(module, "load_last_active_app", lambda: None)
+    monkeypatch.setattr(module, "store_last_active_app", lambda _path: None)
+
+    env = module._initialize_analysis_env(None)
+
+    assert env.apps_path == apps_path.resolve()
+    assert env.app == "flight_project"
+
+
 def test_builtin_flight_project_defaults_to_view_maps_and_excludes_network_page():
     settings_path = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
     cfg = _load_analysis_module()._read_config(settings_path)
