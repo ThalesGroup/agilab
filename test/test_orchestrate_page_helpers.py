@@ -1041,6 +1041,116 @@ async def test_check_distribution_action_reports_run_exception(tmp_path: Path):
     assert result.data["dist_log"] == ("ERROR: cluster unavailable",)
 
 
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_success(tmp_path: Path):
+    module = _load_orchestrate_module()
+    captured: dict[str, object] = {}
+    local_log = ["=== Install request ==="]
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        captured["cmd"] = cmd
+        captured["venv"] = venv
+        log_callback("installing worker")
+        return "done", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Cluster installation completed."
+    assert captured == {"cmd": "install command", "venv": tmp_path}
+    assert result.data["stdout"] == "done"
+    assert result.data["stderr"] == ""
+    assert result.data["install_log"] == (
+        "=== Install request ===",
+        "installing worker",
+        "✅ Install complete.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_stderr_failure(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("installing worker")
+        return "", "worker failed"
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Cluster installation failed."
+    assert result.detail == "worker failed"
+    assert result.data["install_log"] == (
+        "installing worker",
+        "❌ Install finished with errors. Check logs above.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("TRACEBACK")
+        log_callback("error")
+        log_callback("connection")
+        return "", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.detail == "Detected connection failure in install logs."
+    assert "rerun INSTALL" in str(result.next_action)
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_run_exception(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        raise RuntimeError("uv missing")
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.detail == "uv missing"
+    assert result.data["install_log"] == (
+        "ERROR: uv missing",
+        "❌ Install finished with errors. Check logs above.",
+    )
+
+
 def test_clear_mount_table_cache_calls_cache_clear_when_available(monkeypatch):
     module = _load_orchestrate_module()
     called = {"count": 0}
