@@ -952,6 +952,45 @@ def test_display_lab_tab_existing_steps_updates_sequence_and_runtime_selection(m
     assert render_calls
 
 
+def test_display_lab_tab_renders_from_page_state_visible_steps(monkeypatch, tmp_path):
+    render_calls = []
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0, 1],
+        }
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [
+            {"D": "", "Q": "", "M": "", "C": "", "E": ""},
+            {"D": "", "Q": "visible", "M": "m", "C": "print('visible')", "E": ""},
+        ],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *args, **kwargs: render_calls.append((args, kwargs)),
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    rendered_steps = render_calls[-1][0][0]
+    assert [step["Q"] for step in rendered_steps] == ["visible"]
+    assert fake_st.session_state["demo__run_sequence"] == [1]
+    assert fake_st.session_state["demo_run_sequence_widget"] == [1]
+    assert 1 in fake_st.session_state["demo__engine_map"]
+    assert 0 not in fake_st.session_state["demo__engine_map"]
+
+
 def test_display_lab_tab_existing_steps_warns_for_empty_add_snippet(monkeypatch, tmp_path):
     snippet_path = tmp_path / "AGI_run_empty.py"
     snippet_path.write_text("", encoding="utf-8")
@@ -1198,6 +1237,51 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
     assert bumped
     assert any("Run pipeline started" in str(message) for message in pushed_logs)
     assert fake_st.messages.count(("rerun", "called")) >= 2
+
+
+def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monkeypatch, tmp_path):
+    run_calls = []
+    legacy_code = (
+        "from agi_cluster.agi_distributor import AGI\n"
+        "async def main(app_env):\n"
+        "    await AGI.run(app_env, mode=0)\n"
+    )
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 1],
+            "demo__run_sequence": [0],
+        },
+        buttons={"demo_run_all": True},
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [
+            {"D": "", "Q": "legacy run", "M": "m", "C": legacy_code, "E": "", "R": "agi.run"}
+        ],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        run_all_steps=lambda *args, **kwargs: run_calls.append((args, kwargs)),
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert run_calls == []
+    assert any(
+        kind == "warning" and "stale AGI.run snippets" in message
+        for kind, message in fake_st.messages
+    )
 
 
 def test_display_lab_tab_existing_steps_generates_new_step(monkeypatch, tmp_path):
