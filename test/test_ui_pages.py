@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
 import os
 import sys
 import tomllib
@@ -295,6 +296,11 @@ def load_args_from_toml(path):
     # Create apps-pages directory structure (not strictly needed since AgiEnv falls back to builtin apps)
     pages_dir = project_dir / "apps-pages"
     pages_dir.mkdir(parents=True, exist_ok=True)
+    env_file = tmp_path / ".agilab" / ".env"
+    env_file.parent.mkdir(parents=True, exist_ok=True)
+    env_file.write_text("CLUSTER_CREDENTIALS=\n", encoding="utf-8")
+    about_env_editor = importlib.import_module("agilab.about_page.env_editor")
+    monkeypatch.setattr(about_env_editor, "ENV_FILE_PATH", env_file, raising=False)
 
 
     # Mock CLI argv for AGILAB main page

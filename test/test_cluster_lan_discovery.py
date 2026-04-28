@@ -68,6 +68,10 @@ def test_discover_lan_nodes_combines_sources_and_scores_nodes(tmp_path: Path):
                         "os=Darwin",
                         "arch=x86_64",
                         "os_version=10.15.8",
+                        "cpu=Intel Core i9; cores: 16",
+                        "ram=64 GB",
+                        "gpu=AMD Radeon Pro",
+                        "npu=",
                         "python3=/usr/bin/python3",
                         "uv=/usr/local/bin/uv",
                         "sshfs=/usr/local/bin/sshfs",
@@ -84,6 +88,10 @@ def test_discover_lan_nodes_combines_sources_and_scores_nodes(tmp_path: Path):
                         "os=Darwin",
                         "arch=arm64",
                         "os_version=14.0",
+                        "cpu=Apple M4 Max; cores: 16",
+                        "ram=48 GB",
+                        "gpu=Apple M4 Max",
+                        "npu=Apple Neural Engine (16 cores)",
                         "python3=/usr/bin/python3",
                         "uv=/usr/local/bin/uv",
                         "sshfs=",
@@ -124,6 +132,8 @@ def test_discover_lan_nodes_combines_sources_and_scores_nodes(tmp_path: Path):
     cache = json.loads((tmp_path / ".agilab" / "lan_nodes.json").read_text(encoding="utf-8"))
     assert cache["cache_version"] == 1
     assert cache["nodes"][0]["status"] == "ready"
+    assert cache["nodes"][0]["cpu"] == "Intel Core i9; cores: 16"
+    assert cache["nodes"][0]["gpu"] == "AMD Radeon Pro"
 
 
 def test_passive_cache_only_discovery_does_not_tcp_probe(tmp_path: Path):
@@ -149,6 +159,10 @@ def test_passive_cache_only_discovery_does_not_tcp_probe(tmp_path: Path):
                 stdout="\n".join(
                     [
                         "hostname=cache-node",
+                        "cpu=AMD EPYC; cores: 64",
+                        "ram=256 GB",
+                        "gpu=NVIDIA L40S (142 SMs)",
+                        "npu=",
                         "python3=/usr/bin/python3",
                         "uv=/usr/local/bin/uv",
                         "sshfs=/usr/local/bin/sshfs",
@@ -171,6 +185,7 @@ def test_passive_cache_only_discovery_does_not_tcp_probe(tmp_path: Path):
     assert report.nodes[0].host == "192.168.3.55"
     assert report.nodes[0].tcp_ssh_open is None
     assert report.nodes[0].status == "ready"
+    assert report.nodes[0].gpu == "NVIDIA L40S (142 SMs)"
 
 
 def test_print_discovery_report_recommends_ready_workers(capsys):
@@ -253,6 +268,7 @@ def test_probe_helpers_classify_missing_prerequisites_and_reverse_ssh():
     assert discovery._parse_optional_bool("no") is False
     assert discovery._parse_optional_bool("") is None
     assert "reverse_ssh=" in discovery._remote_probe_command("agi@192.168.3.103")
+    assert "gpu=%s" in discovery._remote_probe_command("agi@192.168.3.103")
 
 
 def test_candidate_and_host_helpers_handle_edge_cases(tmp_path: Path, monkeypatch):
@@ -349,7 +365,9 @@ def test_default_cidrs_and_local_ipv4_hosts_handle_runner_failures(monkeypatch):
     hosts = discovery._local_ipv4_hosts(runner=failing_runner)
 
     assert hosts == {"192.168.3.103"}
-    assert discovery._default_cidrs({"192.168.3.103", "not-an-ip"}) == ("192.168.3.0/24",)
+    assert discovery._default_cidrs({"169.254.35.190", "192.168.3.103", "not-an-ip"}) == (
+        "192.168.3.0/24",
+    )
 
 
 def test_main_discover_lan_writes_json_summary(tmp_path: Path, monkeypatch, capsys):

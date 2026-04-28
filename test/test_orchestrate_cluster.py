@@ -65,6 +65,7 @@ class _FakeStreamlit:
         self.session_state = _State(session_state or {})
         self.markdowns: list[str] = []
         self.infos: list[str] = []
+        self.errors: list[str] = []
 
     def _value(self, key, default=""):
         if key in self.widget_values:
@@ -107,6 +108,9 @@ class _FakeStreamlit:
 
     def info(self, text):
         self.infos.append(text)
+
+    def error(self, text):
+        self.errors.append(text)
 
 
 def test_compute_cluster_mode_uses_expected_bitmask():
@@ -262,6 +266,79 @@ def test_cluster_credentials_value_formats_password_and_key_modes():
     assert orchestrate_cluster._cluster_credentials_value("", password="secret", use_ssh_key=False) == ""
 
 
+def test_lan_discovery_cluster_defaults_uses_ready_cache_nodes(tmp_path):
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        """
+{
+  "local_hosts": ["169.254.35.190", "192.168.3.103"],
+  "nodes": [
+    {"host": "192.168.3.35", "status": "ready"},
+    {"host": "192.168.3.36", "status": "sshfs-missing"}
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+
+    defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
+
+    assert defaults == {
+        "scheduler": "192.168.3.103:8786",
+        "workers": {"192.168.3.35": 1},
+    }
+
+
+def test_lan_discovery_cluster_defaults_accepts_explicit_non_private_lan_cache(tmp_path):
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        """
+{
+  "local_hosts": ["169.254.35.190", "192.128.20.111"],
+  "nodes": [
+    {"host": "192.128.20.130", "status": "ready"}
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+
+    defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
+
+    assert defaults == {
+        "scheduler": "192.128.20.111:8786",
+        "workers": {"192.128.20.130": 1},
+    }
+
+
+def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp_path):
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        """
+{
+  "local_hosts": ["192.168.20.111"],
+  "nodes": [
+    {"host": "192.168.20.1", "status": "ssh-auth-needed", "sources": ["arp", "tcp-scan"]},
+    {"host": "192.168.20.130", "status": "no-ssh-port", "sources": ["ssh-config"]},
+    {"host": "192.168.20.255", "status": "no-ssh-port", "sources": ["arp"]}
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+
+    defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
+
+    assert defaults == {
+        "scheduler": "192.168.20.111:8786",
+        "workers": {"192.168.20.130": 1},
+    }
+
+
+def _disable_lan_defaults(monkeypatch):
+    monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_cluster_defaults", lambda: {})
+
+
 def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         widget_values={
@@ -308,6 +385,208 @@ def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(
     assert writes["write"][0] == env.app_settings_file
 
 
+def test_render_cluster_settings_ui_populates_empty_cluster_from_lan_discovery(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
+            "cluster_use_key__demo_project": True,
+        },
+        session_state={
+            "app_settings": {"cluster": {"workers": {"127.0.0.1": 1}}},
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    monkeypatch.setattr(
+        orchestrate_cluster,
+        "_lan_discovery_cluster_defaults",
+        lambda: {
+            "scheduler": "192.168.3.103:8786",
+            "workers": {"192.168.3.35": 1},
+        },
+    )
+
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"192.168.3.35": 1} if "192.168.3.35" in raw else None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    share = tmp_path / "share"
+    share.mkdir()
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["scheduler"] == "192.168.3.103:8786"
+    assert cluster["workers"] == {"192.168.3.35": 1}
+    assert cluster["workers_data_path"] == str(share)
+    assert fake_st.session_state["cluster_scheduler__demo_project"] == "192.168.3.103:8786"
+    assert fake_st.session_state["cluster_workers__demo_project"] == '{\n  "192.168.3.35": 1\n}'
+    assert fake_st.session_state["cluster_workers_data_path__demo_project"] == str(share)
+
+
+def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_discovery(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
+            "cluster_scheduler__demo_project": "10.0.0.10:8786",
+            "cluster_workers__demo_project": '{"10.0.0.11": 2}',
+            "cluster_use_key__demo_project": True,
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "scheduler": "10.0.0.10:8786",
+                    "workers": {"10.0.0.11": 2},
+                }
+            },
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    monkeypatch.setattr(
+        orchestrate_cluster,
+        "_lan_discovery_cluster_defaults",
+        lambda: {
+            "scheduler": "192.168.3.103:8786",
+            "workers": {"192.168.3.35": 1},
+        },
+    )
+
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"10.0.0.11": 2} if "10.0.0.11" in raw else None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    share = tmp_path / "share"
+    share.mkdir()
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["scheduler"] == "10.0.0.10:8786"
+    assert cluster["workers"] == {"10.0.0.11": 2}
+
+
+def test_render_cluster_settings_ui_blocks_cluster_when_share_is_unusable(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
+        },
+        session_state={"app_settings": {"cluster": {}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"parsed": raw},
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    unusable_share = tmp_path / "not-a-directory"
+    unusable_share.write_text("not a directory", encoding="utf-8")
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        AGI_CLUSTER_SHARE=str(unusable_share),
+        agi_share_path=Path("localshare"),
+        share_root_path=lambda: tmp_path / "localshare",
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["cluster_enabled"] is False
+    assert fake_st.session_state.dask is False
+    assert fake_st.session_state["mode"] == 0
+    assert fake_st.errors
+    assert "AGI_CLUSTER_SHARE" in fake_st.errors[-1]
+    assert fake_st.session_state["cluster_enabled__demo_project__reset"] is True
+
+
+def test_render_cluster_settings_ui_creates_missing_cluster_share(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
+            "cluster_use_key__demo_project": True,
+        },
+        session_state={"app_settings": {"cluster": {}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"parsed": raw},
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    missing_share = tmp_path / "clustershare" / "agi"
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        AGI_CLUSTER_SHARE=str(missing_share),
+        agi_share_path=Path("localshare"),
+        share_root_path=lambda: missing_share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert missing_share.is_dir()
+    assert cluster["cluster_enabled"] is True
+    assert cluster["workers_data_path"] == str(missing_share)
+    assert fake_st.errors == []
+
+
 def test_render_cluster_settings_ui_uses_ssh_key_auth_and_resolved_share(monkeypatch, tmp_path):
     share_real = tmp_path / "share_real"
     share_real.mkdir()
@@ -330,6 +609,7 @@ def test_render_cluster_settings_ui_uses_ssh_key_auth_and_resolved_share(monkeyp
         },
     )
     monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
 
     env_calls: list[tuple[str, str]] = []
     writes: dict[str, object] = {}
@@ -392,6 +672,7 @@ def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores
         },
     )
     monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
 
     env_calls: list[tuple[str, str]] = []
     deps = orchestrate_cluster.OrchestrateClusterDeps(
@@ -402,11 +683,13 @@ def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores
         set_env_var=lambda key, value: env_calls.append((key, value)),
         agi_env_envars={"CLUSTER_CREDENTIALS": "old:user", "AGI_SSH_KEY_PATH": "~/.ssh/old"},
     )
+    share = tmp_path / "share"
+    share.mkdir()
     env = SimpleNamespace(
         app="demo_project",
         is_managed_pc=False,
         agi_share_path=Path("clustershare"),
-        share_root_path=lambda: tmp_path / "share",
+        share_root_path=lambda: share,
         user="",
         password=None,
         ssh_key_path="~/.ssh/old",
@@ -445,6 +728,7 @@ def test_render_cluster_settings_ui_password_auth_uses_stored_user_for_credentia
         },
     )
     monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
 
     env_calls: list[tuple[str, str]] = []
     deps = orchestrate_cluster.OrchestrateClusterDeps(
@@ -455,11 +739,13 @@ def test_render_cluster_settings_ui_password_auth_uses_stored_user_for_credentia
         set_env_var=lambda key, value: env_calls.append((key, value)),
         agi_env_envars={"CLUSTER_CREDENTIALS": ""},
     )
+    share = tmp_path / "share"
+    share.mkdir()
     env = SimpleNamespace(
         app="demo_project",
         is_managed_pc=False,
         agi_share_path=Path("clustershare"),
-        share_root_path=lambda: tmp_path / "share",
+        share_root_path=lambda: share,
         user="",
         password=None,
         ssh_key_path=None,
@@ -491,6 +777,7 @@ def test_render_cluster_settings_ui_ssh_key_mode_uses_env_default_key_when_input
         },
     )
     monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
 
     env_calls: list[tuple[str, str]] = []
     deps = orchestrate_cluster.OrchestrateClusterDeps(
@@ -501,11 +788,13 @@ def test_render_cluster_settings_ui_ssh_key_mode_uses_env_default_key_when_input
         set_env_var=lambda key, value: env_calls.append((key, value)),
         agi_env_envars={"AGI_SSH_KEY_PATH": ""},
     )
+    share = tmp_path / "share"
+    share.mkdir()
     env = SimpleNamespace(
         app="demo_project",
         is_managed_pc=False,
         agi_share_path=Path("clustershare"),
-        share_root_path=lambda: tmp_path / "share",
+        share_root_path=lambda: share,
         user="agi",
         password="stale",
         ssh_key_path=" ~/.ssh/id_demo ",
