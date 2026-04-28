@@ -1264,23 +1264,47 @@ def test_system_information_summary_handles_unknown_cpu(monkeypatch):
     monkeypatch.setattr(layout.platform, "release", lambda: "")
     monkeypatch.setattr(layout.platform, "processor", lambda: "")
     monkeypatch.setattr(layout.platform, "machine", lambda: "")
+    monkeypatch.setattr(layout.os, "cpu_count", lambda: None)
+    monkeypatch.setattr(layout, "_physical_cpu_count", lambda: None)
 
     assert layout.system_information_summary() == ("Unknown OS", "Unknown CPU")
 
 
-def test_system_information_lines_are_lightweight(monkeypatch):
+def test_system_information_lines_include_cpu_gpu_and_npu_core_counts(monkeypatch):
     layout = about_agilab._about_layout
 
     monkeypatch.setattr(layout.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(layout.platform, "release", lambda: "25.3.0")
     monkeypatch.setattr(layout.platform, "processor", lambda: "arm")
     monkeypatch.setattr(layout.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(layout.os, "cpu_count", lambda: 16)
+
+    def fake_command_output(command: tuple[str, ...]) -> str:
+        if command == ("system_profiler", "SPHardwareDataType"):
+            return """
+Hardware:
+    Hardware Overview:
+      Chip: Apple M4 Max
+      Total Number of Cores: 16 (12 Performance and 4 Efficiency)
+"""
+        if command == ("system_profiler", "SPDisplaysDataType"):
+            return """
+Graphics/Displays:
+    Apple M4 Max:
+      Chipset Model: Apple M4 Max
+      Type: GPU
+      Total Number of Cores: 40
+"""
+        return ""
+
+    monkeypatch.setattr(layout, "_command_output", fake_command_output)
 
     lines = dict(layout.system_information_lines())
 
     assert lines["OS"] == "Darwin 25.3.0"
-    assert lines["CPU"] == "arm"
-    assert set(lines) == {"OS", "CPU"}
+    assert lines["CPU"] == "Apple M4 Max; cores: 16 (12 Performance and 4 Efficiency)"
+    assert lines["GPU"] == "Apple M4 Max (40 cores)"
+    assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 
 def test_system_information_summary_uses_machine_when_processor_is_missing(monkeypatch):
@@ -1290,6 +1314,8 @@ def test_system_information_summary_uses_machine_when_processor_is_missing(monke
     monkeypatch.setattr(layout.platform, "release", lambda: "6.8.0")
     monkeypatch.setattr(layout.platform, "processor", lambda: "")
     monkeypatch.setattr(layout.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(layout.os, "cpu_count", lambda: None)
+    monkeypatch.setattr(layout, "_physical_cpu_count", lambda: None)
 
     assert layout.system_information_summary() == ("Linux 6.8.0", "x86_64")
 
