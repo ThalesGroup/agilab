@@ -89,9 +89,14 @@ def test_public_demo_guide_avoids_private_routing_app_names() -> None:
     assert "Data IO 2026 autonomous decision demo" in text
     assert "agilab-data-io-2026" in text
     assert "routing / optimization project" in text
+    assert "chatbot-style demos answer questions" in text
+    assert "sensor-style streams" in text
+    assert "air-gapped mode" in text
+    assert "Mission / network optimization" in text
     assert "sb3_trainer_project" not in text
     assert "thales_agilab/apps" not in text
     assert "FCAS" not in text
+    assert "obsolete" not in text.lower()
 
 
 def test_capture_three_project_demo_defaults_to_public_apps() -> None:
@@ -99,5 +104,7 @@ def test_capture_three_project_demo_defaults_to_public_apps() -> None:
 
     assert "agilab-data-io-2026" in text
     assert "src/agilab/apps/builtin/uav_relay_queue_project" in text
+    assert "AGILAB turns mission data into decisions" in text
     assert "sb3_trainer_project" not in text
     assert "thales_agilab/apps" not in text
+    assert "obsolete" not in text.lower()
