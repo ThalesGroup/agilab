@@ -3,3 +3,5 @@ include README.md
 include LICENSE
 include pyproject.toml
 include MANIFEST.in
+include setup.py
+include tools/package_wheel_sanitizer.py
