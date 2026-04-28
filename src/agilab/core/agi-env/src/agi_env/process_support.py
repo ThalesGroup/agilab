@@ -37,6 +37,11 @@ INLINE_EXPORT_EXCEPTIONS = (OSError, TypeError, ValueError)
 _HOST_PATH_CLS = type(Path("."))
 
 
+def _is_virtualenv_path(path: Path) -> bool:
+    bin_dir = "Scripts" if os.name == "nt" else "bin"
+    return (path / "pyvenv.cfg").exists() or (path / bin_dir).exists()
+
+
 def normalize_path(path):
     """Return ``path`` coerced to a normalised string representation."""
 
@@ -113,7 +118,7 @@ def build_subprocess_env(
 
     extra_paths = list(pythonpath_entries or [])
     active_prefix = Path(sys_prefix or sys.prefix).resolve()
-    if venv_path and active_prefix != venv_path.resolve():
+    if venv_path and _is_virtualenv_path(venv_path) and active_prefix != venv_path.resolve():
         extra_paths = []
 
     process_env.pop("PYTHONPATH", None)

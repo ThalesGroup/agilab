@@ -224,6 +224,35 @@ def test_collect_pythonpath_entries_uses_parent_when_init_file_exists(tmp_path: 
     assert entries[0] == str(package_parent.parent)
 
 
+def test_collect_pythonpath_entries_keeps_src_layout_root_with_init_file(tmp_path: Path):
+    src_root = tmp_path / "pkg" / "src"
+    src_root.mkdir(parents=True)
+    (src_root / "__init__.py").write_text("", encoding="utf-8")
+    env_pck = src_root / "agi_env"
+    env_pck.mkdir()
+
+    node_pck = tmp_path / "node" / "src" / "agi_node"
+    core_pck = tmp_path / "core" / "src" / "agi_core"
+    cluster_pck = tmp_path / "cluster" / "src" / "agi_cluster"
+    for pkg in (node_pck, core_pck, cluster_pck):
+        pkg.mkdir(parents=True)
+
+    entries = repository_support.collect_pythonpath_entries(
+        env_pck=env_pck,
+        node_pck=node_pck,
+        core_pck=core_pck,
+        cluster_pck=cluster_pck,
+        dist_abs=tmp_path / "dist",
+        app_src=tmp_path / "app_src",
+        wenv_abs=tmp_path / "wenv",
+        agilab_pck=tmp_path / "agilab_pck",
+        dedupe_paths_fn=lambda paths: [str(path) for path in paths],
+    )
+
+    assert entries[0] == str(src_root)
+    assert entries[1] == str(node_pck.parent)
+
+
 def test_configure_pythonpath_handles_empty_entries_and_preserves_existing_order():
     sys_path = ["/already-present"]
     environ = {}
