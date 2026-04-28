@@ -1206,6 +1206,68 @@ def test_landing_page_sections_use_clear_product_language():
     ]
 
 
+def test_system_information_lines_include_cpu_gpu_and_npu_core_counts(monkeypatch):
+    layout = about_agilab._about_layout
+
+    monkeypatch.setattr(layout.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(layout.platform, "release", lambda: "25.3.0")
+    monkeypatch.setattr(layout.platform, "processor", lambda: "arm")
+    monkeypatch.setattr(layout.platform, "machine", lambda: "arm64")
+    monkeypatch.setattr(layout.os, "cpu_count", lambda: 16)
+
+    def fake_command_output(command: tuple[str, ...]) -> str:
+        if command == ("system_profiler", "SPHardwareDataType"):
+            return """
+Hardware:
+    Hardware Overview:
+      Chip: Apple M4 Max
+      Total Number of Cores: 16 (12 Performance and 4 Efficiency)
+"""
+        if command == ("system_profiler", "SPDisplaysDataType"):
+            return """
+Graphics/Displays:
+    Apple M4 Max:
+      Chipset Model: Apple M4 Max
+      Type: GPU
+      Total Number of Cores: 40
+"""
+        return ""
+
+    monkeypatch.setattr(layout, "_command_output", fake_command_output)
+
+    lines = dict(layout.system_information_lines())
+
+    assert lines["OS"] == "Darwin 25.3.0"
+    assert lines["CPU"] == "Apple M4 Max; cores: 16 (12 Performance and 4 Efficiency)"
+    assert lines["GPU"] == "Apple M4 Max (40 cores)"
+    assert lines["NPU"] == "Apple Neural Engine (16 cores)"
+
+
+def test_system_information_lines_include_nvidia_gpu_summary(monkeypatch):
+    layout = about_agilab._about_layout
+
+    monkeypatch.setattr(layout.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(layout.platform, "release", lambda: "6.8.0")
+    monkeypatch.setattr(layout.platform, "processor", lambda: "")
+    monkeypatch.setattr(layout.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(layout.os, "cpu_count", lambda: 12)
+    monkeypatch.setattr(layout, "_physical_cpu_count", lambda: 6)
+
+    def fake_command_output(command: tuple[str, ...]) -> str:
+        if command and command[0] == "nvidia-smi":
+            return "NVIDIA A100, 108\nNVIDIA L4, 58"
+        return ""
+
+    monkeypatch.setattr(layout, "_command_output", fake_command_output)
+
+    lines = dict(layout.system_information_lines())
+
+    assert lines["OS"] == "Linux 6.8.0"
+    assert lines["CPU"] == "x86_64; cores: 6 physical / 12 logical"
+    assert lines["GPU"] == "2 GPUs: NVIDIA A100 (108 SMs); NVIDIA L4 (58 SMs)"
+    assert lines["NPU"] == "Not detected"
+
+
 def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     import agi_gui.pagelib as pagelib
 
@@ -1220,6 +1282,16 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     about_agilab.quick_logo(tmp_path)
     about_agilab.display_landing_page(tmp_path)
     about_agilab._sync_layout_module()
+    monkeypatch.setattr(
+        about_agilab._about_layout,
+        "system_information_lines",
+        lambda: [
+            ("OS", "Test OS"),
+            ("CPU", "Test CPU"),
+            ("GPU", "Test GPU"),
+            ("NPU", "Test NPU"),
+        ],
+    )
     about_agilab._about_layout.render_package_versions()
     about_agilab._about_layout.render_system_information()
     about_agilab._about_layout.render_sidebar_system_information()
@@ -1233,6 +1305,8 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert any("GPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert any("NPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
 
 
@@ -1264,6 +1338,17 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
     monkeypatch.setattr(about_agilab, "_render_env_editor", lambda _env: None)
     monkeypatch.setattr(about_agilab, "render_page_docs_access", lambda *_args, **_kwargs: None)
+    about_agilab._sync_layout_module()
+    monkeypatch.setattr(
+        about_agilab._about_layout,
+        "system_information_lines",
+        lambda: [
+            ("OS", "Test OS"),
+            ("CPU", "Test CPU"),
+            ("GPU", "Test GPU"),
+            ("NPU", "Test NPU"),
+        ],
+    )
 
     env = SimpleNamespace(
         app="flight_project",
@@ -1283,6 +1368,8 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
     assert "System information:False" not in expanders
     assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert any("GPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert any("NPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert env_expander >= 0
 
 

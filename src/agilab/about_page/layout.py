@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import os
+import platform
+import re
+import subprocess
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -420,27 +424,191 @@ def render_package_versions() -> None:
 
 
 def render_system_information() -> None:
-    """Render local OS and CPU information."""
-    os_label, cpu_name = system_information_summary()
+    """Render local OS, CPU, and accelerator information."""
+    for label, value in system_information_lines():
+        st.write(f"{label}: {value}")
 
-    st.write(f"OS: {os_label}")
-    st.write(f"CPU: {cpu_name}")
+
+def system_information_lines() -> list[tuple[str, str]]:
+    """Return labelled system information lines for display surfaces."""
+    os_label, cpu_name = system_information_summary()
+    gpu_summary, npu_summary = accelerator_information_summary()
+    return [
+        ("OS", os_label),
+        ("CPU", cpu_name),
+        ("GPU", gpu_summary),
+        ("NPU", npu_summary),
+    ]
 
 
 def system_information_summary() -> tuple[str, str]:
     """Return compact local OS and CPU labels for display surfaces."""
-    import platform
-
     os_label = " ".join(part for part in (platform.system(), platform.release()) if part).strip()
-    cpu_name = platform.processor() or platform.machine()
+    cpu_name = _cpu_summary(platform.system())
     return os_label or "Unknown OS", cpu_name or "Unknown CPU"
 
 
+def accelerator_information_summary() -> tuple[str, str]:
+    """Return compact GPU and NPU labels for display surfaces."""
+    system = platform.system()
+    hardware = _mac_hardware_profile() if system == "Darwin" else {}
+    gpu_summary = _gpu_summary(system)
+    npu_summary = _npu_summary(system, hardware.get("Chip", ""))
+    return gpu_summary, npu_summary
+
+
 def render_sidebar_system_information() -> None:
-    """Render compact local OS and CPU information in the sidebar."""
-    os_label, cpu_name = system_information_summary()
-    st.sidebar.caption(f"OS: {os_label}")
-    st.sidebar.caption(f"CPU: {cpu_name}")
+    """Render compact local hardware information in the sidebar."""
+    for label, value in system_information_lines():
+        st.sidebar.caption(f"{label}: {value}")
+
+
+@lru_cache(maxsize=8)
+def _command_output(command: tuple[str, ...]) -> str:
+    """Return best-effort command output for local hardware probes."""
+    try:
+        proc = subprocess.run(
+            command,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip()
+
+
+def _parse_system_profiler_pairs(output: str) -> dict[str, str]:
+    pairs: dict[str, str] = {}
+    for line in output.splitlines():
+        match = re.match(r"\s*([^:]+):\s*(.+?)\s*$", line)
+        if match:
+            pairs[match.group(1).strip()] = match.group(2).strip()
+    return pairs
+
+
+def _mac_hardware_profile() -> dict[str, str]:
+    if platform.system() != "Darwin":
+        return {}
+    return _parse_system_profiler_pairs(_command_output(("system_profiler", "SPHardwareDataType")))
+
+
+def _cpu_summary(system: str) -> str:
+    hardware = _mac_hardware_profile() if system == "Darwin" else {}
+    cpu_name = hardware.get("Chip") or platform.processor() or platform.machine()
+    core_label = _cpu_core_label(system, hardware)
+    return f"{cpu_name}; {core_label}" if core_label else cpu_name
+
+
+def _cpu_core_label(system: str, hardware: dict[str, str]) -> str:
+    if system == "Darwin" and hardware.get("Total Number of Cores"):
+        return f"cores: {hardware['Total Number of Cores']}"
+
+    logical = os.cpu_count()
+    physical = _physical_cpu_count()
+    if physical and logical and physical != logical:
+        return f"cores: {physical} physical / {logical} logical"
+    if logical:
+        return f"cores: {logical} logical"
+    return ""
+
+
+def _physical_cpu_count() -> int | None:
+    try:
+        import psutil  # type: ignore
+    except ImportError:
+        return None
+    try:
+        count = psutil.cpu_count(logical=False)
+    except Exception:
+        return None
+    return int(count) if count else None
+
+
+def _gpu_summary(system: str) -> str:
+    if system == "Darwin":
+        mac_gpu = _mac_gpu_summary()
+        if mac_gpu:
+            return mac_gpu
+
+    nvidia_gpu = _nvidia_gpu_summary()
+    if nvidia_gpu:
+        return nvidia_gpu
+    return "Not detected"
+
+
+def _mac_gpu_summary() -> str:
+    output = _command_output(("system_profiler", "SPDisplaysDataType"))
+    if not output:
+        return ""
+
+    gpus: list[str] = []
+    current_model = ""
+    current_cores = ""
+    current_is_gpu = False
+
+    def flush_current() -> None:
+        nonlocal current_model, current_cores, current_is_gpu
+        if current_model and (current_is_gpu or current_cores):
+            suffix = f" ({current_cores} cores)" if current_cores else ""
+            gpus.append(f"{current_model}{suffix}")
+        current_model = ""
+        current_cores = ""
+        current_is_gpu = False
+
+    for line in output.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("Chipset Model:"):
+            flush_current()
+            current_model = stripped.split(":", 1)[1].strip()
+        elif stripped == "Type: GPU":
+            current_is_gpu = True
+        elif stripped.startswith("Total Number of Cores:"):
+            current_cores = stripped.split(":", 1)[1].strip()
+    flush_current()
+
+    if not gpus:
+        return ""
+    if len(gpus) == 1:
+        return gpus[0]
+    return f"{len(gpus)} GPUs: " + "; ".join(gpus)
+
+
+def _nvidia_gpu_summary() -> str:
+    output = _command_output(
+        (
+            "nvidia-smi",
+            "--query-gpu=name,multiprocessor_count",
+            "--format=csv,noheader,nounits",
+        )
+    )
+    if not output:
+        return ""
+
+    gpus: list[str] = []
+    for line in output.splitlines():
+        parts = [part.strip() for part in line.split(",") if part.strip()]
+        if not parts:
+            continue
+        if len(parts) >= 2 and parts[1].isdigit():
+            gpus.append(f"{parts[0]} ({parts[1]} SMs)")
+        else:
+            gpus.append(parts[0])
+    if not gpus:
+        return ""
+    if len(gpus) == 1:
+        return gpus[0]
+    return f"{len(gpus)} GPUs: " + "; ".join(gpus)
+
+
+def _npu_summary(system: str, chip_name: str) -> str:
+    if system == "Darwin" and re.match(r"Apple M[1-4](?:\s|$)", chip_name):
+        return "Apple Neural Engine (16 cores)"
+    return "Not detected"
 
 
 def render_footer() -> None:
