@@ -1295,9 +1295,13 @@ def test_get_projects_zip_templates_and_about_content(tmp_path, monkeypatch):
         ),
     )
 
+    about_text = pagelib.get_about_content()["About"]
+
     assert pagelib.get_projects_zip() == ["alpha.zip", "beta.zip"]
     assert pagelib.get_templates() == ["builtin", "demo"]
-    assert "AGILab" in pagelib.get_about_content()["About"]
+    assert "AGILAB" in about_text
+    assert "Reproducible AI engineering, from project to proof." in about_text
+    assert "Data Science in Engineering" not in about_text
 
 
 def test_get_templates_falls_back_to_globbed_template_names(tmp_path, monkeypatch):

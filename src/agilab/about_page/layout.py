@@ -26,40 +26,19 @@ def quick_logo(resources_path: Path) -> None:
             <style>
               .agilab-hero {{
                 --agilab-ink: #f7f2e8;
-                --agilab-muted: rgba(247, 242, 232, 0.72);
+                --agilab-muted: rgba(247, 242, 232, 0.74);
                 --agilab-line: rgba(255, 255, 255, 0.16);
-                position: relative;
-                overflow: hidden;
-                max-width: 1180px;
-                margin: 1.15rem auto 1.35rem;
-                padding: clamp(1.4rem, 3vw, 2.7rem);
+                max-width: 980px;
+                margin: 1rem auto 1.15rem;
+                padding: clamp(1.15rem, 2.6vw, 2rem);
                 border: 1px solid var(--agilab-line);
-                border-radius: 30px;
+                border-radius: 24px;
                 color: var(--agilab-ink);
                 background:
-                  radial-gradient(circle at 10% 5%, rgba(255, 190, 94, 0.34), transparent 32%),
-                  radial-gradient(circle at 85% 20%, rgba(52, 211, 153, 0.24), transparent 34%),
-                  linear-gradient(135deg, #08111f 0%, #102331 45%, #1f2a19 100%);
-                box-shadow: 0 28px 72px rgba(7, 17, 31, 0.34);
+                  radial-gradient(circle at 0% 0%, rgba(255, 190, 94, 0.28), transparent 34%),
+                  linear-gradient(135deg, #08111f 0%, #132b33 58%, #263019 100%);
+                box-shadow: 0 20px 52px rgba(7, 17, 31, 0.24);
                 font-family: "Aptos Display", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
-              }}
-              .agilab-hero::before {{
-                content: "";
-                position: absolute;
-                inset: -40% -12% auto auto;
-                width: 460px;
-                height: 460px;
-                border-radius: 999px;
-                background: conic-gradient(from 130deg, rgba(255,255,255,0.24), rgba(255,255,255,0), rgba(255, 190, 94, 0.22));
-                filter: blur(4px);
-                opacity: 0.72;
-              }}
-              .agilab-hero__grid {{
-                position: relative;
-                display: grid;
-                grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
-                gap: clamp(1.25rem, 4vw, 3rem);
-                align-items: stretch;
               }}
               .agilab-hero__brand {{
                 display: inline-flex;
@@ -91,64 +70,16 @@ def quick_logo(resources_path: Path) -> None:
               .agilab-hero h1 {{
                 margin: 0;
                 max-width: 760px;
-                font-size: clamp(2.45rem, 5.5vw, 5.8rem);
-                line-height: 0.92;
-                letter-spacing: -0.075em;
+                font-size: clamp(2.05rem, 4.3vw, 4.2rem);
+                line-height: 0.98;
+                letter-spacing: -0.055em;
               }}
               .agilab-hero__lead {{
                 max-width: 720px;
-                margin: 1.15rem 0 0;
+                margin: 0.9rem 0 0;
                 color: var(--agilab-muted);
-                font-size: clamp(1.02rem, 1.8vw, 1.26rem);
-                line-height: 1.55;
-              }}
-              .agilab-hero__panel {{
-                align-self: end;
-                border: 1px solid var(--agilab-line);
-                border-radius: 24px;
-                background: rgba(255, 255, 255, 0.09);
-                box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
-                backdrop-filter: blur(12px);
-                padding: 1rem;
-              }}
-              .agilab-hero__panel-title {{
-                margin: 0 0 0.75rem;
-                color: #ffd28a;
-                font-size: 0.76rem;
-                font-weight: 900;
-                letter-spacing: 0.13em;
-                text-transform: uppercase;
-              }}
-              .agilab-hero__step {{
-                display: grid;
-                grid-template-columns: 2.1rem minmax(0, 1fr);
-                gap: 0.72rem;
-                align-items: start;
-                padding: 0.84rem 0.25rem;
-                border-top: 1px solid rgba(255,255,255,0.12);
-              }}
-              .agilab-hero__step:first-of-type {{
-                border-top: 0;
-              }}
-              .agilab-hero__num {{
-                display: grid;
-                place-items: center;
-                width: 2.1rem;
-                height: 2.1rem;
-                border-radius: 14px;
-                background: #f7f2e8;
-                color: #0e1a25;
-                font-weight: 950;
-              }}
-              .agilab-hero__step strong {{
-                display: block;
-                margin: 0 0 0.12rem;
-                color: #ffffff;
-              }}
-              .agilab-hero__step span {{
-                color: var(--agilab-muted);
-                font-size: 0.94rem;
-                line-height: 1.38;
+                font-size: clamp(0.98rem, 1.55vw, 1.15rem);
+                line-height: 1.5;
               }}
               .agilab-hero__chips {{
                 display: flex;
@@ -165,100 +96,29 @@ def quick_logo(resources_path: Path) -> None:
                 font-size: 0.86rem;
                 font-weight: 750;
               }}
-              .agilab-hero__flow {{
-                display: grid;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-                gap: 0.5rem;
-                margin-top: 1.1rem;
-                max-width: 760px;
-              }}
-              .agilab-hero__flow span {{
-                position: relative;
-                min-height: 3.35rem;
-                padding: 0.65rem 0.72rem;
-                border: 1px solid rgba(255,255,255,0.14);
-                border-radius: 16px;
-                background: rgba(255, 255, 255, 0.08);
-                color: rgba(247, 242, 232, 0.88);
-                font-size: 0.82rem;
-                font-weight: 850;
-                line-height: 1.25;
-              }}
-              .agilab-hero__flow span::after {{
-                content: "";
-                position: absolute;
-                right: -0.38rem;
-                top: 50%;
-                width: 0.38rem;
-                height: 1px;
-                background: rgba(255,255,255,0.26);
-              }}
-              .agilab-hero__flow span:last-child::after {{
-                display: none;
-              }}
-              @media (max-width: 820px) {{
-                .agilab-hero__grid {{
-                  grid-template-columns: 1fr;
-                }}
+              @media (max-width: 520px) {{
                 .agilab-hero__brand {{
                   align-items: flex-start;
                   border-radius: 18px;
                   flex-direction: column;
                 }}
-                .agilab-hero__flow {{
-                  grid-template-columns: repeat(2, minmax(0, 1fr));
-                }}
-              }}
-              @media (max-width: 520px) {{
-                .agilab-hero__flow {{
-                  grid-template-columns: 1fr;
-                }}
-                .agilab-hero__flow span::after {{
-                  display: none;
-                }}
               }}
             </style>
             <section class="agilab-hero" aria-label="AGILAB introduction">
-              <div class="agilab-hero__grid">
-                <div>
-                  <div class="agilab-hero__brand">
-                    <img src="{img_src}" alt="AGILAB logo">
-                    <span>Thales open-source workbench</span>
-                  </div>
-                  <p class="agilab-hero__eyebrow">AI/ML experimentation workbench</p>
-                  <h1>Reproducible AI engineering, from project to proof.</h1>
-                  <p class="agilab-hero__lead">
-                    AGILAB keeps project setup, environment management, execution,
-                    and analysis on one operator path, so a demo can become a repeatable
-                    engineering proof instead of a pile of scripts.
-                  </p>
-                  <div class="agilab-hero__chips" aria-label="AGILAB capabilities">
-                    <span class="agilab-hero__chip">Project factory</span>
-                    <span class="agilab-hero__chip">Local or worker execution</span>
-                    <span class="agilab-hero__chip">Evidence-first analysis</span>
-                  </div>
-                  <div class="agilab-hero__flow" aria-label="AGILAB execution loop">
-                    <span>Data intake</span>
-                    <span>Pipeline assembly</span>
-                    <span>Distributed run</span>
-                    <span>Decision evidence</span>
-                  </div>
-                </div>
-                <aside class="agilab-hero__panel" aria-label="AGILAB control path">
-                  <p class="agilab-hero__panel-title">Control path</p>
-                  <div class="agilab-hero__step">
-                    <span class="agilab-hero__num">1</span>
-                    <div><strong>Choose a project</strong><span>Start from a built-in app or your own workflow.</span></div>
-                  </div>
-                  <div class="agilab-hero__step">
-                    <span class="agilab-hero__num">2</span>
-                    <div><strong>Execute with evidence</strong><span>Install, run, and record what changed.</span></div>
-                  </div>
-                  <div class="agilab-hero__step">
-                    <span class="agilab-hero__num">3</span>
-                    <div><strong>Inspect the result</strong><span>Open ANALYSIS and validate generated artifacts.</span></div>
-                  </div>
-                </aside>
+              <div class="agilab-hero__brand">
+                <img src="{img_src}" alt="AGILAB logo">
+                <span>Thales open-source workbench</span>
+              </div>
+              <p class="agilab-hero__eyebrow">AI/ML experimentation</p>
+              <h1>Reproducible AI workflows.</h1>
+              <p class="agilab-hero__lead">
+                Select a project, run it, and inspect the result without switching
+                between scripts, notebooks, and dashboards.
+              </p>
+              <div class="agilab-hero__chips" aria-label="AGILAB workflow">
+                <span class="agilab-hero__chip">Project</span>
+                <span class="agilab-hero__chip">Run</span>
+                <span class="agilab-hero__chip">Analyse</span>
               </div>
             </section>
             """,

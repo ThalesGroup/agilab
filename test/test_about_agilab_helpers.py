@@ -1206,66 +1206,92 @@ def test_landing_page_sections_use_clear_product_language():
     ]
 
 
-def test_system_information_lines_include_cpu_gpu_and_npu_core_counts(monkeypatch):
+def test_about_layout_rejects_placeholder_openai_keys():
+    layout = about_agilab._about_layout
+
+    assert layout.clean_openai_key(None) is None
+    assert layout.clean_openai_key("") is None
+    assert layout.clean_openai_key(" your-key ") is None
+    assert layout.clean_openai_key("sk-XXXX") is None
+    assert layout.clean_openai_key("short") is None
+    assert layout.clean_openai_key(" sk-" + "a" * 16 + " ") == "sk-" + "a" * 16
+
+
+def test_about_layout_openai_status_banner_warns_only_without_valid_key(
+    tmp_path,
+    monkeypatch,
+):
+    layout = about_agilab._about_layout
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(layout, "st", fake_st)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    layout.openai_status_banner(
+        SimpleNamespace(OPENAI_API_KEY="your-key"),
+        env_file_path=tmp_path / ".env",
+    )
+
+    assert any("OpenAI features are disabled" in body for kind, body in fake_st.events if kind == "warning")
+
+    fake_st.events.clear()
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-" + "a" * 16)
+
+    layout.openai_status_banner(
+        SimpleNamespace(OPENAI_API_KEY="your-key"),
+        env_file_path=tmp_path / ".env",
+    )
+
+    assert not [body for kind, body in fake_st.events if kind == "warning"]
+
+
+def test_about_page_openai_status_banner_repairs_cached_layout_without_os(monkeypatch):
+    layout = about_agilab._about_layout
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.delattr(layout, "os")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    about_agilab.openai_status_banner(SimpleNamespace(OPENAI_API_KEY="your-key"))
+
+    assert layout.os is about_agilab.os
+    assert any("OpenAI features are disabled" in body for kind, body in fake_st.events if kind == "warning")
+
+
+def test_system_information_summary_handles_unknown_cpu(monkeypatch):
+    layout = about_agilab._about_layout
+
+    monkeypatch.setattr(layout.platform, "system", lambda: "")
+    monkeypatch.setattr(layout.platform, "release", lambda: "")
+    monkeypatch.setattr(layout.platform, "processor", lambda: "")
+    monkeypatch.setattr(layout.platform, "machine", lambda: "")
+
+    assert layout.system_information_summary() == ("Unknown OS", "Unknown CPU")
+
+
+def test_system_information_lines_are_lightweight(monkeypatch):
     layout = about_agilab._about_layout
 
     monkeypatch.setattr(layout.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(layout.platform, "release", lambda: "25.3.0")
     monkeypatch.setattr(layout.platform, "processor", lambda: "arm")
     monkeypatch.setattr(layout.platform, "machine", lambda: "arm64")
-    monkeypatch.setattr(layout.os, "cpu_count", lambda: 16)
-
-    def fake_command_output(command: tuple[str, ...]) -> str:
-        if command == ("system_profiler", "SPHardwareDataType"):
-            return """
-Hardware:
-    Hardware Overview:
-      Chip: Apple M4 Max
-      Total Number of Cores: 16 (12 Performance and 4 Efficiency)
-"""
-        if command == ("system_profiler", "SPDisplaysDataType"):
-            return """
-Graphics/Displays:
-    Apple M4 Max:
-      Chipset Model: Apple M4 Max
-      Type: GPU
-      Total Number of Cores: 40
-"""
-        return ""
-
-    monkeypatch.setattr(layout, "_command_output", fake_command_output)
 
     lines = dict(layout.system_information_lines())
 
     assert lines["OS"] == "Darwin 25.3.0"
-    assert lines["CPU"] == "Apple M4 Max; cores: 16 (12 Performance and 4 Efficiency)"
-    assert lines["GPU"] == "Apple M4 Max (40 cores)"
-    assert lines["NPU"] == "Apple Neural Engine (16 cores)"
+    assert lines["CPU"] == "arm"
+    assert set(lines) == {"OS", "CPU"}
 
 
-def test_system_information_lines_include_nvidia_gpu_summary(monkeypatch):
+def test_system_information_summary_uses_machine_when_processor_is_missing(monkeypatch):
     layout = about_agilab._about_layout
 
     monkeypatch.setattr(layout.platform, "system", lambda: "Linux")
     monkeypatch.setattr(layout.platform, "release", lambda: "6.8.0")
     monkeypatch.setattr(layout.platform, "processor", lambda: "")
     monkeypatch.setattr(layout.platform, "machine", lambda: "x86_64")
-    monkeypatch.setattr(layout.os, "cpu_count", lambda: 12)
-    monkeypatch.setattr(layout, "_physical_cpu_count", lambda: 6)
 
-    def fake_command_output(command: tuple[str, ...]) -> str:
-        if command and command[0] == "nvidia-smi":
-            return "NVIDIA A100, 108\nNVIDIA L4, 58"
-        return ""
-
-    monkeypatch.setattr(layout, "_command_output", fake_command_output)
-
-    lines = dict(layout.system_information_lines())
-
-    assert lines["OS"] == "Linux 6.8.0"
-    assert lines["CPU"] == "x86_64; cores: 6 physical / 12 logical"
-    assert lines["GPU"] == "2 GPUs: NVIDIA A100 (108 SMs); NVIDIA L4 (58 SMs)"
-    assert lines["NPU"] == "Not detected"
+    assert layout.system_information_summary() == ("Linux 6.8.0", "x86_64")
 
 
 def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
@@ -1288,8 +1314,6 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
         lambda: [
             ("OS", "Test OS"),
             ("CPU", "Test CPU"),
-            ("GPU", "Test GPU"),
-            ("NPU", "Test NPU"),
         ],
     )
     about_agilab._about_layout.render_package_versions()
@@ -1305,8 +1329,6 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert any("GPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert any("NPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
 
 
@@ -1328,7 +1350,10 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
     assert "AGILAB v2026.4.28" in markdown
     assert about_agilab._sidebar_version_label("2026.4.28") == "AGILAB v2026.4.28"
     assert about_agilab._sidebar_version_label("") == ""
-    assert "open a GitHub issue" in about_menu["About"]
+    assert "AGILAB" in about_menu["About"]
+    assert "Reproducible AI engineering, from project to proof." in about_menu["About"]
+    assert "Support: open a GitHub issue" in about_menu["About"]
+    assert "Data Science in Engineering" not in about_menu["About"]
 
 
 def test_about_page_moves_system_information_to_sidebar(monkeypatch):
@@ -1346,8 +1371,6 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
         lambda: [
             ("OS", "Test OS"),
             ("CPU", "Test CPU"),
-            ("GPU", "Test GPU"),
-            ("NPU", "Test NPU"),
         ],
     )
 
@@ -1370,8 +1393,6 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
     assert rendered_versions == ["2026.4.28"]
     assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert any("GPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert any("NPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert env_expander >= 0
 
 
@@ -1386,10 +1407,13 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
 
     body = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
     assert "agilab-hero" in body
-    assert "Reproducible AI engineering, from project to proof" in body
-    assert "Control path" in body
-    assert "Data intake" in body
-    assert "Decision evidence" in body
+    assert "Reproducible AI workflows" in body
+    assert "Project" in body
+    assert "Run" in body
+    assert "Analyse" in body
+    assert "Control path" not in body
+    assert "Data intake" not in body
+    assert "Decision evidence" not in body
 
 
 def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
