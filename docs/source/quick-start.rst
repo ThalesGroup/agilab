@@ -42,6 +42,34 @@ Prerequisites
 - If you plan to explore remote workers later, keep SSH access for that later
   step; it is not needed for the first proof path.
 
+Upgrade or first 10 minutes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use one lane and stop when the first-proof manifest passes. Do not mix source,
+package, private-app, and cluster variables during the first 10 minutes.
+
+**Source checkout, including upgrades after a new release**::
+
+   git pull --ff-only
+   ./install.sh --install-apps
+   uv --preview-features extra-build-dependencies run agilab first-proof --json
+
+**Published package install or upgrade**::
+
+   uv --preview-features extra-build-dependencies tool upgrade agilab
+   agilab first-proof --json
+
+If you installed AGILAB inside an activated project environment instead of as a
+``uv`` tool, upgrade that environment explicitly::
+
+   uv pip install --upgrade agilab
+   agilab first-proof --json
+
+The adoption checkpoint is always the same: ``run_manifest.json`` reports
+``status: pass`` and the default ``flight_project`` analysis view opens. If it
+does not pass, stay on this lane and use :doc:`newcomer-troubleshooting`
+before changing install route.
+
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
