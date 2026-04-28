@@ -67,6 +67,17 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.orchestrate_page_state",
+    {
+        "OrchestratePageStateDeps": "OrchestratePageStateDeps",
+        "build_orchestrate_page_state": "build_orchestrate_page_state",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_page_state.py",
+    fallback_name="agilab_orchestrate_page_state_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.page_bootstrap",
     {
         "ensure_page_env": "_ensure_page_env",
@@ -911,17 +922,27 @@ async def _render_run_panels(
     if show_run_panel:
         with st.expander("Optimize execution"):
             cluster_params = st.session_state.app_settings["cluster"]
-            cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
-
-            available_modes = available_benchmark_modes(
-                cluster_params,
-                cluster_enabled=cluster_enabled,
+            try:
+                local_share_path = env.share_root_path()
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+                local_share_path = None
+            run_state_deps = OrchestratePageStateDeps(
+                available_benchmark_modes=available_benchmark_modes,
+                sanitize_benchmark_modes=sanitize_benchmark_modes,
+                resolve_requested_run_mode=resolve_requested_run_mode,
+                describe_run_mode=describe_run_mode,
+                benchmark_workers_data_path_issue=benchmark_workers_data_path_issue,
+                optional_string_expr=optional_string_expr,
+                optional_python_expr=optional_python_expr,
             )
             benchmark_modes_key = f"benchmark_modes__{env.app}"
-            selected_benchmark_modes = sanitize_benchmark_modes(
-                st.session_state.get(benchmark_modes_key, []),
-                available_modes,
+            run_state = build_orchestrate_page_state(
+                cluster_params=cluster_params,
+                selected_benchmark_modes=st.session_state.get(benchmark_modes_key, []),
+                local_share_path=local_share_path,
+                deps=run_state_deps,
             )
+            selected_benchmark_modes = list(run_state.selected_benchmark_modes)
             if st.session_state.pop("benchmark_reset_pending", False):
                 selected_benchmark_modes = []
             if st.session_state.get(benchmark_modes_key) != selected_benchmark_modes:
@@ -929,7 +950,7 @@ async def _render_run_panels(
 
             selected_benchmark_modes = st.multiselect(
                 "Benchmark modes",
-                options=available_modes,
+                options=list(run_state.available_benchmark_modes),
                 key=benchmark_modes_key,
                 format_func=benchmark_mode_label,
                 help=(
@@ -937,63 +958,37 @@ async def _render_run_panels(
                     "the single mode defined by the optimization toggles."
                 ),
             )
-            selected_benchmark_modes = sanitize_benchmark_modes(
-                selected_benchmark_modes,
-                available_modes,
-            )
-            benchmark_enabled = bool(selected_benchmark_modes)
-            st.session_state["benchmark"] = benchmark_enabled
-
-            run_mode = resolve_requested_run_mode(
-                cluster_params,
-                cluster_enabled=cluster_enabled,
-                benchmark_enabled=benchmark_enabled,
-                benchmark_modes=selected_benchmark_modes,
+            run_state = build_orchestrate_page_state(
+                cluster_params=cluster_params,
+                selected_benchmark_modes=selected_benchmark_modes,
+                local_share_path=local_share_path,
+                deps=run_state_deps,
             )
 
-            info_label = describe_run_mode(run_mode, benchmark_enabled)
-
-            st.session_state["mode"] = run_mode
-            st.info(info_label)
-            if benchmark_enabled:
-                labels = ", ".join(benchmark_mode_label(mode) for mode in selected_benchmark_modes)
+            st.session_state["benchmark"] = run_state.benchmark_enabled
+            st.session_state["mode"] = run_state.run_mode
+            st.info(run_state.run_mode_label)
+            if run_state.benchmark_enabled:
+                labels = ", ".join(benchmark_mode_label(mode) for mode in run_state.selected_benchmark_modes)
                 st.caption(f"Benchmark will iterate only on: {labels}")
             else:
                 st.caption("Leave Benchmark modes empty to run the single selected mode.")
 
-            verbose = cluster_params.get("verbose", 1)
-            enabled = cluster_enabled
-            scheduler = optional_string_expr(enabled, cluster_params.get("scheduler"))
-            workers = optional_python_expr(enabled, cluster_params.get("workers"))
-            raw_workers_data_path = cluster_params.get("workers_data_path", "")
-            workers_data_path = optional_string_expr(enabled, raw_workers_data_path)
-            try:
-                local_share_path = env.share_root_path()
-            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-                local_share_path = None
-            benchmark_path_issue = benchmark_workers_data_path_issue(
-                modes=selected_benchmark_modes,
-                workers=cluster_params.get("workers"),
-                workers_data_path=raw_workers_data_path,
-                local_share_path=local_share_path,
-            )
-            if benchmark_path_issue:
-                st.error(benchmark_path_issue)
+            verbose = run_state.verbose
+            scheduler = run_state.scheduler
+            workers = run_state.workers
+            if not run_state.can_run:
+                st.error(run_state.run_disabled_reason)
                 cmd = None
             else:
-                rapids_enabled = (
-                    any(int(mode) & 8 for mode in selected_benchmark_modes)
-                    if benchmark_enabled
-                    else bool(cluster_params.get("rapids", False))
-                )
                 cmd = build_run_snippet(
                     env=env,
                     verbose=verbose,
-                    run_mode=run_mode,
+                    run_mode=run_state.run_mode,
                     scheduler=scheduler,
                     workers=workers,
-                    workers_data_path=workers_data_path,
-                    rapids_enabled=rapids_enabled,
+                    workers_data_path=run_state.workers_data_path,
+                    rapids_enabled=run_state.rapids_enabled,
                     run_args=st.session_state.app_settings.get("args", {}),
                 )
                 st.code(cmd, language="python")
