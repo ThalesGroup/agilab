@@ -910,11 +910,7 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
         with open(pre_prompt_path, encoding="utf-8") as stream:
             pre_prompt_content = json.load(stream)
     except FileNotFoundError:
-        st.warning(f"Missing pre_prompt.json at {pre_prompt_path}; using empty prompt.")
-        try:
-            pre_prompt_path.write_text("[]\n", encoding="utf-8")
-        except OSError:
-            st.warning(f"Unable to create {pre_prompt_path}; check folder permissions.")
+        logger.info("No pre_prompt.json found at %s; using empty Pipeline prompt.", pre_prompt_path)
         return []
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
         st.warning(f"Failed to load pre_prompt.json: {exc}")
@@ -925,6 +921,15 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
 
     st.warning(f"pre_prompt.json at {pre_prompt_path} is not a list of messages; using empty prompt.")
     return []
+
+
+def _caption_once(key: str, message: str) -> None:
+    """Render low-priority Pipeline guidance once per Streamlit session."""
+    notice_key = f"_pipeline_notice_seen__{key}"
+    if st.session_state.get(notice_key):
+        return
+    st.caption(message)
+    st.session_state[notice_key] = True
 
 
 def _load_about_page_module():
@@ -980,9 +985,10 @@ def page() -> None:
     df_file = st.session_state.get("df_file")
     if not df_file or not Path(df_file).exists():
         default_df_path = (lab_dir / DEFAULT_DF).resolve()
-        st.info(
-            f"No dataframe exported for {lab_dir.name}. "
-            f"You can proceed without a dataframe; data-dependent steps may need {default_df_path}."
+        _caption_once(
+            f"missing_df::{lab_dir}",
+            f"No dataframe exported for {lab_dir.name} yet. "
+            f"Data-dependent steps may need `{default_df_path}`.",
         )
         st.session_state["df_file"] = None
 

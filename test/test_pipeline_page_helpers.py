@@ -76,7 +76,7 @@ def test_load_pre_prompt_messages_returns_list(tmp_path, monkeypatch):
     assert warnings == []
 
 
-def test_load_pre_prompt_messages_recovers_missing_file(tmp_path, monkeypatch):
+def test_load_pre_prompt_messages_treats_missing_file_as_optional(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     warnings: list[str] = []
     fake_st = SimpleNamespace(warning=lambda message: warnings.append(str(message)))
@@ -89,8 +89,8 @@ def test_load_pre_prompt_messages_recovers_missing_file(tmp_path, monkeypatch):
     result = module._load_pre_prompt_messages(env)
 
     assert result == []
-    assert (app_src / "pre_prompt.json").read_text(encoding="utf-8") == "[]\n"
-    assert any("Missing pre_prompt.json" in message for message in warnings)
+    assert not (app_src / "pre_prompt.json").exists()
+    assert warnings == []
 
 
 def test_load_pre_prompt_messages_rejects_invalid_json(tmp_path, monkeypatch):
@@ -108,6 +108,22 @@ def test_load_pre_prompt_messages_rejects_invalid_json(tmp_path, monkeypatch):
 
     assert result == []
     assert any("Failed to load pre_prompt.json" in message for message in warnings)
+
+
+def test_caption_once_suppresses_repeated_low_priority_guidance(monkeypatch):
+    module = _load_pipeline_module()
+    captions: list[str] = []
+    fake_st = SimpleNamespace(
+        caption=lambda message: captions.append(str(message)),
+        session_state={},
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+
+    module._caption_once("demo", "Only once.")
+    module._caption_once("demo", "Only once.")
+    module._caption_once("other", "Second notice.")
+
+    assert captions == ["Only once.", "Second notice."]
 
 
 def test_ensure_notebook_export_creates_missing_notebook(tmp_path, monkeypatch):
