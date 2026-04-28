@@ -722,56 +722,17 @@ def build_latency_distribution_frame(frames: dict[str, pd.DataFrame]) -> pd.Data
     return pd.concat(rows, ignore_index=True)
 
 
-def _is_missing_value(value: Any) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, (list, tuple, dict, set)):
-        return False
-    try:
-        missing = pd.isna(value)
-    except Exception:
-        return False
-    return bool(missing) if isinstance(missing, (bool, int, float)) else False
-
-
-def _coerce_path_sequence(value: Any) -> list[Any]:
-    parsed = _parse_structured_value(value)
-    while True:
-        if parsed is None:
-            return []
-        if isinstance(parsed, tuple):
-            parsed = list(parsed)
-        if not isinstance(parsed, list):
-            return []
-
-        cleaned = [item for item in parsed if not _is_missing_value(item)]
-        if not cleaned:
-            return []
-
-        if all(_is_scalar_like(item) for item in cleaned):
-            return cleaned
-
-        nested_sequences = [item for item in cleaned if isinstance(item, (list, tuple))]
-        if len(cleaned) == 1 and len(nested_sequences) == 1:
-            parsed = nested_sequences[0]
-            continue
-
-        return cleaned
-
-
-def _path_hop_count(value: Any) -> int | None:
-    path_values = _coerce_path_sequence(value)
-    if not path_values:
+def _bearer_hop_count(value: Any) -> int | None:
+    bearer_values = [str(item).strip() for item in _parse_list_like(value) if str(item).strip()]
+    if not bearer_values:
         return None
-    if all(isinstance(item, (list, tuple)) for item in path_values):
-        return len(path_values)
-    return max(len(path_values) - 1, 0)
+    return len(bearer_values)
 
 
 def build_hop_count_distribution_frame(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
     rows: list[pd.DataFrame] = []
     for label, frame in frames.items():
-        if "path" not in frame.columns:
+        if "bearers" not in frame.columns:
             continue
 
         routed = _routed_flag_series(frame)
@@ -779,7 +740,7 @@ def build_hop_count_distribution_frame(frames: dict[str, pd.DataFrame]) -> pd.Da
             hop_count
             for idx in frame.index
             if routed.get(idx, 0.0) > 0
-            for hop_count in [_path_hop_count(frame.at[idx, "path"])]
+            for hop_count in [_bearer_hop_count(frame.at[idx, "bearers"])]
             if hop_count is not None
         ]
         if not hop_counts:
