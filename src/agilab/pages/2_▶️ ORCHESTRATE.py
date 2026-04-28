@@ -89,6 +89,19 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.action_execution",
+    {
+        "ActionResult": "ActionResult",
+        "ActionSpec": "ActionSpec",
+        "render_action_result": "render_action_result",
+        "run_streamlit_action": "run_streamlit_action",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "action_execution.py",
+    fallback_name="agilab_action_execution_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.orchestrate_page_helpers",
     {
         "app_install_status": "_orchestrate_app_install_status",
@@ -407,6 +420,144 @@ def load_distribution(file_path: str | Path) -> tuple[list[str], list[Any], list
         data = json.load(f)
     workers = [f"{ip}-{i}" for ip, count in data.get("workers", {}).items() for i in range(1, count + 1)]
     return workers, data.get("work_plan_metadata", []), data.get("work_plan", [])
+
+
+def _apply_distribution_plan_action(
+    *,
+    dist_tree_path: Path,
+    workers: list[str],
+    work_plan_metadata: list[Any],
+    work_plan: list[Any],
+    selections: Any,
+    target_args: dict[str, Any],
+) -> Any:
+    try:
+        new_work_plan_metadata, new_work_plan = reassign_distribution_plan(
+            workers=workers,
+            work_plan_metadata=work_plan_metadata,
+            work_plan=work_plan,
+            selections=selections,
+        )
+    except (RuntimeError, TypeError, ValueError, KeyError) as exc:
+        return ActionResult.error(
+            "Distribution plan could not be reassigned.",
+            detail=str(exc),
+            next_action="Refresh the distribution preview, then retry the assignment.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+
+    try:
+        raw_payload = dist_tree_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ActionResult.error(
+            "Distribution plan file does not exist.",
+            next_action="Run CHECK distribute to regenerate distribution.json.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+    except OSError as exc:
+        return ActionResult.error(
+            "Distribution plan file could not be read.",
+            detail=str(exc),
+            next_action="Check filesystem permissions, then rerun CHECK distribute.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+
+    try:
+        payload = json.loads(raw_payload)
+    except json.JSONDecodeError as exc:
+        return ActionResult.error(
+            "Distribution plan file is not valid JSON.",
+            detail=str(exc),
+            next_action="Run CHECK distribute to regenerate distribution.json.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+
+    try:
+        updated_payload = update_distribution_payload(
+            payload,
+            target_args=target_args,
+            work_plan_metadata=new_work_plan_metadata,
+            work_plan=new_work_plan,
+        )
+        dist_tree_path.write_text(json.dumps(updated_payload), encoding="utf-8")
+    except (OSError, RuntimeError, TypeError, ValueError, KeyError) as exc:
+        return ActionResult.error(
+            "Distribution plan could not be saved.",
+            detail=str(exc),
+            next_action="Check target args and filesystem permissions, then retry.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+
+    return ActionResult.success(
+        "Distribution plan updated.",
+        next_action="Run EXECUTE to use the updated workplan.",
+        data={
+            "dist_tree_path": dist_tree_path,
+            "work_plan_metadata": new_work_plan_metadata,
+            "work_plan": new_work_plan,
+        },
+    )
+
+
+async def _check_distribution_action(
+    env: Any,
+    *,
+    cmd: str,
+    project_path: Path,
+) -> ActionResult:
+    dist_log: list[str] = []
+    runtime_root = (
+        Path(getattr(env, "agi_cluster"))
+        if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
+        and getattr(env, "agi_cluster", None)
+        else project_path
+    )
+    command = cmd.replace("asyncio.run(main())", env.snippet_tail)
+
+    try:
+        stdout, stderr = await env.run_agi(
+            command,
+            log_callback=lambda message: _append_log_lines(dist_log, message),
+            venv=runtime_root,
+        )
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
+        _append_log_lines(dist_log, f"ERROR: {exc}")
+        return ActionResult.error(
+            "Distribution build failed.",
+            detail=str(exc),
+            next_action="Check orchestration settings and logs, then retry CHECK distribute.",
+            data={
+                "command": command,
+                "dist_log": tuple(dist_log),
+                "runtime_root": runtime_root,
+            },
+        )
+
+    if stderr:
+        _append_log_lines(dist_log, stderr)
+    if stdout:
+        _append_log_lines(dist_log, stdout)
+
+    data = {
+        "command": command,
+        "dist_log": tuple(dist_log),
+        "runtime_root": runtime_root,
+        "stdout": stdout,
+        "stderr": stderr,
+    }
+    if str(stderr or "").strip():
+        return ActionResult.error(
+            "Distribution build failed.",
+            detail=str(stderr).strip(),
+            next_action="Check orchestration settings and logs, then retry CHECK distribute.",
+            data=data,
+        )
+
+    return ActionResult.success(
+        "Distribution built successfully.",
+        data=data,
+    )
+
 
 @st.cache_data(show_spinner=False)
 def generate_profile_report(df: pd.DataFrame) -> Any:
@@ -782,34 +933,24 @@ async def _render_distribution_panel(
         )
         st.code(cmd, language="python")
         if st.button("CHECK distribute", key="preview_btn", type="primary"):
-            st.session_state.preview_tree = True
             with st.expander("Orchestration log", expanded=False):
-                dist_log: list[str] = []
                 live_log_placeholder = st.empty()
                 _reset_traceback_skip()
-                runtime_root = (
-                    Path(getattr(env, "agi_cluster"))
-                    if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
-                    and getattr(env, "agi_cluster", None)
-                    else project_path
-                )
                 with st.spinner("Building distribution..."):
-                    stdout, stderr = await env.run_agi(
-                        cmd.replace("asyncio.run(main())", env.snippet_tail),
-                        log_callback=lambda message: _append_log_lines(dist_log, message),
-                        venv=runtime_root,
+                    result = await _check_distribution_action(
+                        env,
+                        cmd=cmd,
+                        project_path=project_path,
                     )
-                if stderr:
-                    _append_log_lines(dist_log, stderr)
-                if stdout:
-                    _append_log_lines(dist_log, stdout)
+                dist_log = list(result.data.get("dist_log", ()))
                 live_log_placeholder.code(
                     "\n".join(dist_log[-LOG_DISPLAY_MAX_LINES:]),
                     language="python",
                     height=LIVE_LOG_MIN_HEIGHT,
                 )
-                if not stderr:
-                    st.success("Distribution built successfully.")
+                render_action_result(st, result)
+                if result.status == "success":
+                    st.session_state.preview_tree = True
 
         with st.expander("Workplan", expanded=False):
             if st.session_state.get("preview_tree"):
@@ -858,24 +999,30 @@ async def _render_distribution_panel(
                                 b2.selectbox("Worker", options=workers, key=key, index=i if i < len(workers) else 0)
                             count += 1
                     if st.button("Apply", key="apply_btn", type="primary"):
-                        new_work_plan_metadata, new_work_plan = reassign_distribution_plan(
-                            workers=workers,
-                            work_plan_metadata=work_plan_metadata,
-                            work_plan=work_plan,
-                            selections=st.session_state,
+                        def _rerun_after_apply(_result: Any) -> None:
+                            _clear_cached_distribution()
+                            st.rerun()
+
+                        run_streamlit_action(
+                            st,
+                            ActionSpec(
+                                name="Apply distribution",
+                                start_message="Applying distribution workplan...",
+                                failure_title="Distribution apply failed.",
+                                failure_next_action=(
+                                    "Refresh the distribution preview, then retry the assignment."
+                                ),
+                            ),
+                            lambda: _apply_distribution_plan_action(
+                                dist_tree_path=dist_tree_path,
+                                workers=workers,
+                                work_plan_metadata=work_plan_metadata,
+                                work_plan=work_plan,
+                                selections=st.session_state,
+                                target_args=st.session_state.app_settings["args"],
+                            ),
+                            on_success=_rerun_after_apply,
                         )
-                        # Read & update the original JSON dict (avoid writing to the workers list)
-                        with open(dist_tree_path, "r") as f:
-                            data = json.load(f)
-                        data = update_distribution_payload(
-                            data,
-                            target_args=st.session_state.app_settings["args"],
-                            work_plan_metadata=new_work_plan_metadata,
-                            work_plan=new_work_plan,
-                        )
-                        with open(dist_tree_path, "w") as f:
-                            json.dump(data, f)
-                        st.rerun()
 
 
 async def _render_run_panels(
