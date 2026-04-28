@@ -28,6 +28,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _package_root() -> Path:
+    """Return the installed or source ``agilab`` package directory."""
+
+    return Path(__file__).resolve().parents[1]
+
+
+def _app_dir_candidates(app_slug: str) -> list[Path]:
+    package_root = _package_root()
+    return [
+        package_root / "apps" / "builtin" / f"{app_slug}_project",
+        package_root / "apps" / f"{app_slug}_project",
+    ]
+
+
 def _inject_source_core_paths(script_path: str | os.PathLike[str], sys_path: list[str]) -> None:
     repo_root = Path(script_path).resolve().parents[3]
     core_root = repo_root / "src" / "agilab" / "core"
@@ -68,8 +83,7 @@ def _seed_example_scripts(app_slug: str) -> None:
     if not app_slug:
         return
 
-    repo_root = Path(__file__).resolve().parents[3]
-    examples_dir = repo_root / "src" / "agilab" / "examples" / app_slug
+    examples_dir = _package_root() / "examples" / app_slug
     if not examples_dir.exists():
         return
 
@@ -94,9 +108,8 @@ def _seed_lab_steps(app_slug: str) -> None:
     if not app_slug:
         return
 
-    repo_root = Path(__file__).resolve().parents[3]
-    app_dir = repo_root / "src" / "agilab" / "apps" / f"{app_slug}_project"
-    if not app_dir.exists():
+    app_dir = next((candidate for candidate in _app_dir_candidates(app_slug) if candidate.exists()), None)
+    if app_dir is None:
         return
 
     export_root = Path(os.environ.get("AGI_EXPORT_DIR", Path.home() / "export")).expanduser()
@@ -124,8 +137,10 @@ def _seed_app_settings(app_slug: str) -> None:
     if not app_slug:
         return
 
-    repo_root = Path(__file__).resolve().parents[3]
-    app_dir = repo_root / "src" / "agilab" / "apps" / f"{app_slug}_project" / "src"
+    project_dir = next((candidate for candidate in _app_dir_candidates(app_slug) if candidate.exists()), None)
+    if project_dir is None:
+        return
+    app_dir = project_dir / "src"
     source = app_dir / "app_settings.toml"
     if not source.exists():
         return

@@ -228,6 +228,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = [
     "agilab",
+    "agilab.about_page*",
     "agilab.resources*",
 ]
 exclude = [
@@ -244,6 +245,7 @@ exclude = [
 agilab = [
     "resources/*.*",
     "resources/help/*",
+    "examples/*/AGI_*.py",
     "pages/*.py",
     "apps/install.py",
     "apps/builtin/*/pyproject.toml",

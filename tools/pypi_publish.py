@@ -269,10 +269,12 @@ def builtin_app_pyprojects() -> List[pathlib.Path]:
     )
 
 
-def sync_builtin_app_versions(new_version: str) -> List[pathlib.Path]:
+def sync_builtin_app_versions(new_version: str, pins: Dict[str, str] | None = None) -> List[pathlib.Path]:
     updated: List[pathlib.Path] = []
     for pyproject_path in builtin_app_pyprojects():
         set_version_in_pyproject(pyproject_path, new_version)
+        if pins:
+            pin_internal_deps(pyproject_path, pins)
         rel = pyproject_path.relative_to(REPO_ROOT)
         print(f"[version] builtin app {rel}: {new_version}")
         updated.append(pyproject_path)
@@ -457,6 +459,45 @@ def run_release_preflight(cfg: Cfg) -> None:
         cmd.extend(["--profile", profile])
     print("[preflight] Running required local release preflight: " + ", ".join(profiles))
     run(cmd, cwd=REPO_ROOT)
+
+
+def run_pre_upload_release_guard(
+    cfg: Cfg,
+    *,
+    planned_tag: str | None,
+    chosen_version: str,
+    version_targets: list[str],
+) -> None:
+    """Prove release metadata is locally pushable before irreversible upload."""
+    if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
+        return
+    if planned_tag is not None:
+        update_public_demo_release_test(planned_tag)
+    print(f"[preflight] Running pre-upload release metadata guard for {chosen_version}")
+    run_release_preflight(cfg)
+    run(
+        [
+            sys.executable,
+            "tools/generate_component_coverage_badges.py",
+            "--components",
+            "agi-env",
+            "agi-node",
+            "agi-cluster",
+            "agi-gui",
+            "agi-core",
+            "agilab",
+        ],
+        cwd=REPO_ROOT,
+    )
+    run(
+        [
+            sys.executable,
+            "tools/coverage_badge_guard.py",
+            "--changed-only",
+            "--require-fresh-xml",
+        ],
+        cwd=REPO_ROOT,
+    )
 
 
 def split_base_and_post(ver: str) -> Tuple[str, int | None]:
@@ -1718,6 +1759,7 @@ def main():
         print(f"[plan] Unified version: {chosen}")
         date_tag = normalize_base(chosen)  # date base (YYYY.MM.DD)
         print(f"[plan] Tag base (UTC): {date_tag}")
+        planned_tag = compute_date_tag() if cfg.repo == "pypi" and cfg.git_tag else None
         if cfg.dry_run:
             print("[dry-run] Collisions per package:")
             for n in version_targets:
@@ -1739,6 +1781,9 @@ def main():
         pins = current_versions.copy()
         for name in selected_core_names:
             pins[name] = chosen
+
+        if sync_builtin_versions:
+            sync_builtin_app_versions(chosen, pins)
 
         # Update README badges before building so the packaged long_description
         # and uploaded PyPI page embed the new versioned badge immediately.
@@ -1781,15 +1826,19 @@ def main():
                     print(f"[build] umbrella: {', '.join(root_files)}")
             all_files.extend(root_files)
 
-        if sync_builtin_versions:
-            sync_builtin_app_versions(chosen)
-
         # Dry-run end
         if cfg.dry_run:
             print("[dry-run] Would twine check & upload:")
             for f in all_files:
                 print("  -", f)
             return
+
+        run_pre_upload_release_guard(
+            cfg,
+            planned_tag=planned_tag,
+            chosen_version=chosen,
+            version_targets=version_targets,
+        )
 
         # Twine
         twine_check(all_files)
@@ -1809,13 +1858,19 @@ def main():
                 uv_build_project(project, cfg.dist)
                 all_files2.extend(dist_files(project))
             if build_umbrella:
+                if sync_builtin_versions:
+                    sync_builtin_app_versions(chosen2, pins2)
                 _, umbrella_toml, _ = UMBRELLA
                 set_version_in_pyproject(umbrella_toml, chosen2)
                 pin_internal_deps(umbrella_toml, pins2)
                 uv_build_repo_root(cfg.dist)
                 all_files2.extend(dist_files_root())
-            if sync_builtin_versions:
-                sync_builtin_app_versions(chosen2)
+            run_pre_upload_release_guard(
+                cfg,
+                planned_tag=planned_tag,
+                chosen_version=chosen2,
+                version_targets=version_targets,
+            )
             twine_check(all_files2)
             globals()['UPLOAD_COLLISION_DETECTED'] = False
             globals()['UPLOAD_SUCCESS_COUNT'] = 0
@@ -1843,7 +1898,7 @@ def main():
         # Git tag/commit (optional)
         if cfg.git_commit_version or (cfg.repo == "pypi" and cfg.git_tag):
             with defer_sigint("release metadata finalization") as deferred_interrupt:
-                tag = compute_date_tag() if cfg.repo == "pypi" and cfg.git_tag else None
+                tag = planned_tag if cfg.repo == "pypi" and cfg.git_tag else None
                 if tag is not None:
                     update_public_release_references(tag, chosen, version_targets)
                 if cfg.git_commit_version:

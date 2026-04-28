@@ -163,3 +163,14 @@ def test_package_data_includes_app_installer_for_with_install() -> None:
     package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
 
     assert "apps/install.py" in package_data
+    assert "examples/*/AGI_*.py" in package_data
+
+
+def test_package_discovery_includes_about_page_helpers() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    package_includes = set(pyproject["tool"]["setuptools"]["packages"]["find"]["include"])
+
+    assert "agilab.about_page*" in package_includes
+    for helper in ("bootstrap.py", "env_editor.py", "layout.py", "onboarding.py"):
+        assert (ROOT / "src" / "agilab" / "about_page" / helper).is_file()
