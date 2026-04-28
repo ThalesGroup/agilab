@@ -37,7 +37,7 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
     assert report["summary"]["aligned_core_versions"] is True
     assert report["summary"]["page_lib_component_count"] == 1
     assert report["summary"]["aligned_page_lib_versions"] is True
-    assert report["summary"]["builtin_app_pyproject_count"] == 7
+    assert report["summary"]["builtin_app_pyproject_count"] == 8
     assert report["summary"]["command_execution_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
     assert report["summary"]["formal_supply_chain_attestation"] is False
@@ -73,7 +73,16 @@ def test_supply_chain_attestation_records_core_and_app_manifests() -> None:
     assert {row["name"] for row in state["page_lib_components"]} == {
         "agi-gui",
     }
-    assert len(state["builtin_app_pyprojects"]) == 7
+    assert [row["app"] for row in state["builtin_app_pyprojects"]] == [
+        "data_io_2026_project",
+        "execution_pandas_project",
+        "execution_polars_project",
+        "flight_project",
+        "meteo_forecast_project",
+        "mycode_project",
+        "uav_queue_project",
+        "uav_relay_queue_project",
+    ]
     assert all(row["sha256"] for row in state["root_files"])
     assert state["provenance"]["executes_commands"] is False
     assert state["provenance"]["queries_network"] is False
