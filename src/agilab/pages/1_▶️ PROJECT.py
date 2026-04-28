@@ -1783,7 +1783,19 @@ def _create_project_clone_action(
 
     clone_source_path = Path(clone_source)
     clone_source_root = _resolve_clone_source_root(env, clone_source_path)
-    env.clone_project(clone_source_path, Path(new_name))
+    try:
+        env.clone_project(clone_source_path, Path(new_name))
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' could not be cloned.",
+            detail=str(exc),
+            next_action="Check the clone source, target path, and filesystem permissions.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+            },
+        )
 
     if not dest_root.exists():
         return ActionResult.error(
@@ -1792,11 +1804,24 @@ def _create_project_clone_action(
             data={"new_name": new_name, "dest_root": dest_root},
         )
 
-    status_message = _finalize_cloned_project_environment(
-        clone_source_root,
-        dest_root,
-        clone_env_strategy,
-    )
+    try:
+        status_message = _finalize_cloned_project_environment(
+            clone_source_root,
+            dest_root,
+            clone_env_strategy,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was created, but environment finalization failed.",
+            detail=str(exc),
+            next_action="Check the cloned .venv state, then rerun INSTALL before EXECUTE.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "clone_env_strategy": clone_env_strategy,
+            },
+        )
     return ActionResult.success(
         f"Project '{new_name}' created.",
         detail=status_message,
@@ -1832,7 +1857,20 @@ def _rename_project_action(
             data={"current": current, "new_name": new_name, "dest_path": dest_path},
         )
 
-    env.clone_project(Path(current), Path(new_name))
+    try:
+        env.clone_project(Path(current), Path(new_name))
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{current}' could not be cloned to '{new_name}'.",
+            detail=str(exc),
+            next_action="Check the source project, target path, and filesystem permissions.",
+            data={
+                "current": current,
+                "new_name": new_name,
+                "src_path": src_path,
+                "dest_path": dest_path,
+            },
+        )
 
     if not dest_path.exists():
         return ActionResult.error(
@@ -1842,7 +1880,22 @@ def _rename_project_action(
         )
 
     details: list[str] = []
-    renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
+    try:
+        renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was cloned, but environment preservation failed.",
+            detail=str(exc),
+            next_action=(
+                f"Inspect {src_path} and {dest_path}, then rerun INSTALL before EXECUTE."
+            ),
+            data={
+                "current": current,
+                "new_name": new_name,
+                "src_path": src_path,
+                "dest_path": dest_path,
+            },
+        )
     if renamed_venv_message:
         details.append(renamed_venv_message)
     if src_path.exists():
