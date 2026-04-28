@@ -71,6 +71,7 @@ _pipeline_page_state_module = import_agilab_module(
     fallback_name="agilab_pipeline_page_state_fallback",
 )
 PipelinePageStateDeps = _pipeline_page_state_module.PipelinePageStateDeps
+PipelineAction = _pipeline_page_state_module.PipelineAction
 build_pipeline_page_state = _pipeline_page_state_module.build_pipeline_page_state
 clear_pipeline_run_logs = _pipeline_page_state_module.clear_pipeline_run_logs
 
@@ -524,6 +525,7 @@ def display_lab_tab(
             steps=persisted_steps,
             sequence=st.session_state.get(sequence_state_key, []),
             session_state=st.session_state,
+            selected_lab=lab_dir,
             env=env,
             deps=PipelinePageStateDeps(
                 is_displayable_step=lambda entry: _is_displayable_step(dict(entry)),
@@ -1431,49 +1433,69 @@ def display_lab_tab(
     force_run_confirm_key = f"{index_page_str}_confirm_force_run"
     run_col, force_col = st.columns(2)
     with run_col:
+        run_blocked_reason = page_state.blocked_actions.get(
+            PipelineAction.RUN_PIPELINE,
+            "",
+        )
         run_all_clicked = st.button(
             "Run pipeline",
             key=f"{index_page_str}_run_all",
-            help=page_state.run_disabled_reason or "Execute every step sequentially using its saved virtual environment.",
+            help=run_blocked_reason or "Execute every step sequentially using its saved virtual environment.",
             type="secondary",
             width="stretch",
-            disabled=not page_state.can_run,
+            disabled=PipelineAction.RUN_PIPELINE not in page_state.available_actions,
         )
     with force_col:
         if lock_state:
+            force_blocked_reason = page_state.blocked_actions.get(
+                PipelineAction.FORCE_RUN,
+                "",
+            )
             if lock_state.get("is_stale"):
                 force_run_clicked = st.button(
                     "Clear stale lock and run",
                     key=f"{index_page_str}_force_run_stale",
-                    help="Remove the stale pipeline lock and start a new run.",
+                    help=force_blocked_reason or "Remove the stale pipeline lock and start a new run.",
                     type="primary",
                     width="stretch",
-                    disabled=not page_state.can_force_run,
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
             elif st.session_state.get(force_run_confirm_key, False):
                 force_run_clicked = st.button(
                     "Confirm force unlock",
                     key=f"{index_page_str}_force_run_confirm",
-                    help="Remove the current lock and start a new run. Use this only if the previous run is gone.",
+                    help=force_blocked_reason
+                    or "Remove the current lock and start a new run. Use this only if the previous run is gone.",
                     type="primary",
                     width="stretch",
-                    disabled=not page_state.can_force_run,
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
             else:
                 force_run_arm_clicked = st.button(
                     "Force unlock and run",
                     key=f"{index_page_str}_force_run_arm",
-                    help="Use only when a previous pipeline run was interrupted and left a lock behind.",
+                    help=force_blocked_reason
+                    or "Use only when a previous pipeline run was interrupted and left a lock behind.",
                     type="secondary",
                     width="stretch",
-                    disabled=not page_state.can_force_run,
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
 
-    if run_all_clicked and not page_state.can_run:
-        st.warning(page_state.run_disabled_reason or "Pipeline cannot run in the current state.")
+    if run_all_clicked and PipelineAction.RUN_PIPELINE not in page_state.available_actions:
+        st.warning(
+            page_state.blocked_actions.get(
+                PipelineAction.RUN_PIPELINE,
+                "Pipeline cannot run in the current state.",
+            )
+        )
         run_all_clicked = False
-    if force_run_clicked and not page_state.can_force_run:
-        st.warning(page_state.run_disabled_reason or "Pipeline cannot be force-run in the current state.")
+    if force_run_clicked and PipelineAction.FORCE_RUN not in page_state.available_actions:
+        st.warning(
+            page_state.blocked_actions.get(
+                PipelineAction.FORCE_RUN,
+                "Pipeline cannot be force-run in the current state.",
+            )
+        )
         force_run_clicked = False
 
     if force_run_arm_clicked:
@@ -1645,6 +1667,7 @@ def display_lab_tab(
         )
 
     with st.expander("Run logs", expanded=True):
+        log_page_state = _build_page_state()
         clear_logs = st.button(
             "Clear logs",
             key=f"{index_page_str}__clear_logs_global",
@@ -1657,13 +1680,14 @@ def display_lab_tab(
                 toast(st, result.message, state="info")
             else:
                 st.warning(result.message)
+            log_page_state = _build_page_state()
         log_placeholder = st.empty()
         st.session_state[run_placeholder_key] = log_placeholder
-        logs = st.session_state.get(run_logs_key, [])
+        logs = list(log_page_state.run_logs)
         if logs:
             log_placeholder.code("\n".join(logs))
         else:
             log_placeholder.caption("No runs recorded yet.")
-        last_log_file = st.session_state.get(f"{index_page_str}__last_run_log_file")
+        last_log_file = log_page_state.last_run_log_file
         if last_log_file:
             st.caption(f"Most recent run log: {last_log_file}")

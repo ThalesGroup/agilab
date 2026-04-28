@@ -42,6 +42,7 @@ def test_pipeline_page_state_keeps_visible_steps_when_logs_are_missing_or_cleare
         steps=steps,
         sequence=[0],
         session_state=session_state,
+        selected_lab=tmp_path / "mission_lab",
         deps=_deps(),
     )
 
@@ -57,10 +58,47 @@ def test_pipeline_page_state_keeps_visible_steps_when_logs_are_missing_or_cleare
     )
 
     assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
+    assert state_without_logs.selected_lab == "mission_lab"
     assert state_without_logs.visible_steps[0].label == "Step 1: generate trajectories"
     assert state_after_clear.visible_steps == state_without_logs.visible_steps
     assert state_after_clear.run_logs == ()
     assert state_after_clear.can_run is True
+    assert pipeline_page_state.PipelineAction.RUN_PIPELINE in state_after_clear.available_actions
+    assert pipeline_page_state.PipelineAction.CLEAR_LOGS in state_after_clear.available_actions
+    assert state_after_clear.blocked_actions[pipeline_page_state.PipelineAction.FORCE_RUN] == (
+        "No pipeline lock is present."
+    )
+
+
+def test_pipeline_page_state_derives_blocked_actions_for_empty_and_stale_labs(tmp_path):
+    empty_state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        steps_file=tmp_path / "empty_lab" / "lab_steps.toml",
+        steps=[],
+        sequence=[],
+        session_state={},
+        deps=_deps(),
+    )
+    assert empty_state.selected_lab == "empty_lab"
+    assert pipeline_page_state.PipelineAction.RUN_PIPELINE not in empty_state.available_actions
+    assert "No visible pipeline steps" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
+
+    stale_state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        steps_file=tmp_path / "lab_steps.toml",
+        steps=[{"Q": "legacy run", "C": "await AGI.run(app_env, mode=0)"}],
+        sequence=[0],
+        session_state={},
+        deps=_deps(
+            find_legacy_agi_run_steps=lambda _steps, _sequence: [
+                {"step": 1, "line": 4, "summary": "legacy run"}
+            ]
+        ),
+    )
+    assert pipeline_page_state.PipelineAction.ADD_STEP in stale_state.available_actions
+    assert pipeline_page_state.PipelineAction.RUN_PIPELINE not in stale_state.available_actions
+    assert pipeline_page_state.PipelineAction.FORCE_RUN not in stale_state.available_actions
+    assert "stale AGI.run snippets" in stale_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
 
 
 def test_pipeline_page_state_refuses_stale_legacy_snippets_before_runtime(tmp_path):

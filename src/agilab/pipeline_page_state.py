@@ -23,6 +23,13 @@ class PipelineCommandStatus(str, Enum):
     NO_OP = "no-op"
 
 
+class PipelineAction(str, Enum):
+    ADD_STEP = "add_step"
+    CLEAR_LOGS = "clear_logs"
+    RUN_PIPELINE = "run_pipeline"
+    FORCE_RUN = "force_run"
+
+
 @dataclass(frozen=True)
 class PipelineCommandResult:
     status: PipelineCommandStatus
@@ -46,6 +53,7 @@ class PipelineVisibleStep:
 class PipelinePageState:
     index_page: str
     steps_file: Path
+    selected_lab: str
     status: PipelineWorkflowStatus
     total_steps: int
     visible_steps: Tuple[PipelineVisibleStep, ...]
@@ -58,6 +66,8 @@ class PipelinePageState:
     can_run: bool
     can_force_run: bool
     run_disabled_reason: str
+    available_actions: Tuple[PipelineAction, ...]
+    blocked_actions: Mapping[PipelineAction, str]
 
 
 def _default_is_displayable_step(entry: Mapping[str, Any]) -> bool:
@@ -150,6 +160,70 @@ def _format_stale_step_refs(stale_steps: Sequence[Mapping[str, Any]]) -> str:
     return "; ".join(refs)
 
 
+def _selected_lab_name(raw: Any, steps_file: Path, env: Any = None) -> str:
+    candidates = [
+        raw,
+        getattr(env, "selected_lab", None),
+        getattr(env, "lab", None),
+        steps_file.parent,
+        getattr(env, "app", None),
+    ]
+    for candidate in candidates:
+        if candidate in (None, ""):
+            continue
+        try:
+            text = str(candidate).strip()
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+        if not text:
+            continue
+        try:
+            path = Path(text)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return text
+        name = path.name.strip()
+        return name or text
+    return ""
+
+
+def _derive_actions(
+    *,
+    can_run: bool,
+    can_force_run: bool,
+    lock_state: Optional[Mapping[str, Any]],
+    run_disabled_reason: str,
+    runnable_step_count: int,
+    stale_step_refs: Sequence[Mapping[str, Any]],
+) -> tuple[Tuple[PipelineAction, ...], Mapping[PipelineAction, str]]:
+    available: list[PipelineAction] = [
+        PipelineAction.ADD_STEP,
+        PipelineAction.CLEAR_LOGS,
+    ]
+    blocked: dict[PipelineAction, str] = {}
+
+    if can_run:
+        available.append(PipelineAction.RUN_PIPELINE)
+    else:
+        blocked[PipelineAction.RUN_PIPELINE] = (
+            run_disabled_reason or "Pipeline cannot run in the current state."
+        )
+
+    if can_force_run:
+        available.append(PipelineAction.FORCE_RUN)
+    else:
+        if stale_step_refs:
+            reason = run_disabled_reason or "Stale snippets must be regenerated before force-run."
+        elif runnable_step_count == 0:
+            reason = run_disabled_reason or "No selected pipeline step contains runnable code."
+        elif not lock_state:
+            reason = "No pipeline lock is present."
+        else:
+            reason = run_disabled_reason or "Pipeline cannot be force-run in the current state."
+        blocked[PipelineAction.FORCE_RUN] = reason
+
+    return tuple(available), blocked
+
+
 def build_pipeline_page_state(
     *,
     index_page: str,
@@ -157,6 +231,7 @@ def build_pipeline_page_state(
     steps: Sequence[Mapping[str, Any]],
     sequence: Optional[Sequence[Any]],
     session_state: Mapping[str, Any],
+    selected_lab: Any = None,
     env: Any = None,
     deps: PipelinePageStateDeps = PipelinePageStateDeps(),
 ) -> PipelinePageState:
@@ -225,10 +300,19 @@ def build_pipeline_page_state(
 
     can_run = not run_disabled_reason and runnable_step_count > 0
     can_force_run = bool(lock_state) and not stale_step_refs and runnable_step_count > 0
+    available_actions, blocked_actions = _derive_actions(
+        can_run=can_run,
+        can_force_run=can_force_run,
+        lock_state=lock_state,
+        run_disabled_reason=run_disabled_reason,
+        runnable_step_count=runnable_step_count,
+        stale_step_refs=stale_step_refs,
+    )
 
     return PipelinePageState(
         index_page=index_page,
         steps_file=Path(steps_file),
+        selected_lab=_selected_lab_name(selected_lab, Path(steps_file), env=env),
         status=status,
         total_steps=total_steps,
         visible_steps=tuple(visible_steps),
@@ -241,6 +325,8 @@ def build_pipeline_page_state(
         can_run=can_run,
         can_force_run=can_force_run,
         run_disabled_reason=run_disabled_reason,
+        available_actions=available_actions,
+        blocked_actions=blocked_actions,
     )
 
 
