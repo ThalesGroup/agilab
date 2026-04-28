@@ -1,0 +1,29 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+
+from setuptools import setup
+from setuptools.command.build_py import build_py as _build_py
+
+
+def _load_sanitizer():
+    module_path = Path(__file__).resolve().parent / "tools" / "package_wheel_sanitizer.py"
+    spec = importlib.util.spec_from_file_location("agilab_package_wheel_sanitizer", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Unable to load package wheel sanitizer from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class build_py(_build_py):
+    def run(self):
+        super().run()
+        sanitizer = _load_sanitizer()
+        changed = sanitizer.sanitize_packaged_builtin_app_pyprojects(self.build_lib)
+        for pyproject_path in changed:
+            print(f"[build_py] sanitized packaged app manifest: {pyproject_path}")
+
+
+setup(cmdclass={"build_py": build_py})
