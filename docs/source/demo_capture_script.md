@@ -105,14 +105,29 @@ uv --preview-features extra-build-dependencies run --with imageio-ffmpeg \
 
 ### Data IO 2026 autonomous decision demo
 
-Use this when one app is not enough and the audience needs a sharper story:
-mission data enters AGILAB, computation is distributed, constraints change, and
-the system returns a decision. The positioning is intentionally execution-first:
-chatbot-style demos answer questions, while this demo shows a reproducible path
-from data to action.
+`data_io_2026_project` is the first-class public demo for the Data IO 2026
+story. Use it when the audience needs to see a complete AGILAB loop: mission
+data enters the system, AGILAB builds the runnable pipeline, worker execution
+produces evidence, a mission event changes the constraints, and the analysis
+view shows the final decision.
 
-This is not a chatbot or short teaser. Treat it as a technical hero demo and
-keep the recording in the `70-75s` final range.
+Treat it as a technical hero demo, not a short teaser. Keep the public recording
+in the `70-75s` final range and end on measurable evidence.
+
+Primary run path:
+
+1. `PROJECT` -> select `src/agilab/apps/builtin/data_io_2026_project`.
+2. `ORCHESTRATE` -> `INSTALL`, then `EXECUTE`.
+3. `ANALYSIS` -> open the default `view_data_io_decision` page.
+
+Successful run indicators:
+
+- the seeded scenario is `mission_decision_demo.json`
+- the initial strategy is `direct_satcom`
+- the adapted strategy is `relay_mesh`
+- the analysis view shows latency, cost, and reliability deltas versus the
+  no-replan outcome
+- the artifact bundle is written under `export/data_io_2026/data_io_decision`
 
 Tracked companion card:
 
@@ -122,7 +137,60 @@ Use `docs/source/diagrams/agilab_data_io_2026_card.svg` as the lightweight
 shareable poster or thumbnail. The MP4/GIF remain generated local artifacts
 under `artifacts/demo_media/` and are intentionally not tracked.
 
-Concrete command:
+Scenario and pipeline:
+
+- inputs: sensor-style streams, network / satcom status, and operational
+  constraints such as latency, bandwidth, reliability, cost, and risk
+- objective: select the best mission route under changed constraints
+- generated pipeline: ingestion, cleaning, feature extraction, route scoring,
+  event detection, re-planning, and decision evidence export
+- output: selected strategy plus latency, cost, and reliability deltas
+
+Demo steps:
+
+1. Live data ingestion: show the seeded mission scenario and input streams.
+2. Pipeline generation: show the app pipeline view and generated pipeline
+   artifact.
+3. Distributed execution: show worker execution or the clearest local-worker
+   equivalent.
+4. Optimization loop: show candidate route scoring.
+5. Adaptation: inject the bandwidth drop and show the re-plan.
+6. Final decision: close on selected strategy and metric deltas.
+
+Preferred operator cut:
+
+- opener: `4s`
+- ingestion and generated pipeline: `16s`
+- worker execution: `16s`
+- route scoring: `14s`
+- failure injection and re-plan: `14s`
+- decision metrics: `10s`
+
+Keep the act discipline strict:
+
+- show at most two settings before moving on
+- use one fast `ORCHESTRATE` proof frame
+- flash `PIPELINE` only long enough to prove replayability
+- make worker execution the key technical moment
+- show adaptation as a before/after decision change
+- close on latency, cost, and reliability deltas
+
+Recommended narration:
+
+- opening: "AGILAB turns mission data into an executable decision."
+- mid-demo: "The pipeline is replayable, and the decision is backed by artifacts."
+- closing: "The result is not just a recommendation; it is an auditable run."
+
+Optional add-on:
+
+- air-gapped mode with no internet access and local models only, when the
+  environment is configured and validated
+
+Optional composite capture:
+
+The legacy three-project capture remains useful when you want a broader montage
+across ingestion, prediction, and decision apps instead of the focused
+`data_io_2026_project` flow.
 
 ```bash
 tools/capture_three_project_demo.sh --name agilab-data-io-2026 --duration 82 --trim 74
@@ -137,8 +205,8 @@ tools/capture_three_project_demo.sh --name agilab-data-io-2026 --duration 82 --t
 This wrapper:
 
 - writes a cue sheet under `artifacts/demo_media/<name>/`
-- points to the exact project roots for the ingestion, prediction, and decision
-  acts
+- points to public project roots for the ingestion, prediction, and decision
+  montage acts
 - then delegates the actual recording/export to `tools/capture_demo_workflow.sh`
 
 Default sequence:
@@ -151,70 +219,14 @@ Default sequence:
 Important scope note:
 
 - the default sequence uses public built-ins from `agilab`
-- the final decision act is configurable because stronger routing /
-  optimization demos may live in an external apps checkout
+- the first-class Data IO demo is `data_io_2026_project`; the three-project
+  wrapper is only a composite media workflow
 - keep dynamic-pipeline claims grounded in visible AGILAB steps, generated
   snippets, worker activity, and replayable evidence
-- do not publish competitor-specific claims in the public guide; keep the public
-  wording focused on AGILAB capability and evidence
-
-Scenario and pipeline:
-
-- inputs: sensor-style streams, network / satcom status, and operational
-  constraints such as latency, bandwidth, and risk
-- objective: optimize routing and decision-making under dynamic constraints
-- pipeline shape: data, cleaning, feature extraction, model selection,
-  optimization / RL, simulation, decision
-- output: selected strategy plus latency, cost, and reliability metrics
-
-Demo steps:
-
-1. Live Data Ingestion: simulated and real-like mission data, ending on an
-   artifact or dashboard refresh.
-2. Automatic Pipeline Generation: generated snippets and replayable DAG-style
-   steps, with adaptive workflow selection shown through the selected run path.
-3. Distributed Execution: visible worker activity or the clearest local-worker
-   equivalent, with scaling claims scoped to worker distribution.
-4. AI + Optimization Loop: prediction signal plus routing / optimization under
-   constraints.
-5. Real-Time Adaptation: bandwidth drop, node failure, or risk increase followed
-   by recompute, re-optimize, and a new decision.
-6. Final Output: selected strategy plus latency, cost, and reliability metrics.
+- do not publish competitor-specific claims in the public guide
 
 Use this asset for technical audiences. Do not replace the broad one-app intro
 video with it for first-time visitors.
-
-Preferred operator cut:
-
-- opener: `4s`
-- live ingestion: `15s`
-- prediction / constraints: `15s`
-- distributed optimization: `21s`
-- failure injection and adaptation: `11s`
-- decision metrics: `8s`
-
-Keep the act discipline strict:
-
-- show at most two settings before moving on
-- use one fast `ORCHESTRATE` proof frame per act
-- flash `PIPELINE` only long enough to prove replayability
-- end each act on evidence, then cut immediately
-- make distributed execution the key moment: show worker activity or the
-  clearest available local-worker equivalent
-- show the failure injection as a before/after decision change, not as a long
-  training sequence
-- close on metrics: latency, cost, and reliability
-
-Recommended narration:
-
-- opening: "Most AI demos answer questions. This one takes decisions."
-- mid-demo: "This is not a model. This is an autonomous system."
-- closing: "AGILAB turns mission data into an executable decision."
-
-Optional add-on:
-
-- air-gapped mode with no internet access and local models only, when the
-  environment is configured and validated
 
 Winning criteria:
 
