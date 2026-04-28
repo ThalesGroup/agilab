@@ -9,11 +9,26 @@ import tomllib
 
 
 MODULE_PATH = Path("tools/build_product_demo_reel.py").resolve()
+THREE_PROJECT_MODULE_PATH = Path("tools/build_three_project_demo_reel.py").resolve()
 FLIGHT_SETTINGS = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
+PUBLIC_DEMO_GUIDE = Path("docs/source/demo_capture_script.md")
+CAPTURE_THREE_PROJECT = Path("tools/capture_three_project_demo.sh")
 
 
 def _load_module():
     spec = importlib.util.spec_from_file_location("build_product_demo_reel_test_module", MODULE_PATH)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_three_project_module():
+    tools_dir = str(THREE_PROJECT_MODULE_PATH.parent)
+    if tools_dir not in sys.path:
+        sys.path.insert(0, tools_dir)
+    spec = importlib.util.spec_from_file_location("build_three_project_demo_reel_test_module", THREE_PROJECT_MODULE_PATH)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -56,3 +71,33 @@ def test_flight_view_maps_seed_defaults_are_portable() -> None:
     assert view_maps["lat"] == "lat"
     assert view_maps["long"] == "long"
     assert "/home/agi" not in FLIGHT_SETTINGS.read_text(encoding="utf-8")
+
+
+def test_three_project_reel_uses_data_io_decision_positioning() -> None:
+    module = _load_three_project_module()
+
+    assert module.DEMO_SLUG == "agilab-data-io-2026"
+    assert "Mission Data -> Decision Engine" in module.MISSION_TITLE
+    assert "executable routing decision" in module.MISSION_SUBTITLE
+    assert "agilab_data_io_2026" in module.DEFAULT_MP4
+    assert "data_ml_rl" not in module.DEFAULT_MP4
+
+
+def test_public_demo_guide_avoids_private_routing_app_names() -> None:
+    text = PUBLIC_DEMO_GUIDE.read_text(encoding="utf-8")
+
+    assert "Data IO 2026 autonomous decision demo" in text
+    assert "agilab-data-io-2026" in text
+    assert "routing / optimization project" in text
+    assert "sb3_trainer_project" not in text
+    assert "thales_agilab/apps" not in text
+    assert "FCAS" not in text
+
+
+def test_capture_three_project_demo_defaults_to_public_apps() -> None:
+    text = CAPTURE_THREE_PROJECT.read_text(encoding="utf-8")
+
+    assert "agilab-data-io-2026" in text
+    assert "src/agilab/apps/builtin/uav_relay_queue_project" in text
+    assert "sb3_trainer_project" not in text
+    assert "thales_agilab/apps" not in text
