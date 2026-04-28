@@ -41,8 +41,10 @@ Use these patterns as the default direction for future workflow-page changes.
 - Ports and Adapters: partially done. `BootstrapPorts`, `Orchestrate*Deps`, and
   support modules exist, but not every external dependency is behind an
   injected adapter yet.
-- Command Result: partially done. Some command-like objects exist, but workflow
-  actions are not yet uniform typed command functions.
+- Command Result: partially done. `ActionResult`, `ActionSpec`, and
+  `run_streamlit_action` provide the first shared Streamlit command-result
+  primitive, with PROJECT clone creation as the first adopter. Other workflow
+  actions still need to move toward the same typed boundary.
 - Explicit State Machine: partially done. Global pipeline state helpers exist,
   but Pipeline editor, Pipeline run flow, and service mode still need one
   explicit workflow-state model.
@@ -58,16 +60,18 @@ Use these patterns as the default direction for future workflow-page changes.
 
 ## Recommended Sequence
 
-1. Add a minimal `PipelinePageState` / ViewModel builder.
-2. Derive selected lab, visible steps, stale-snippet status, lock/run status,
+1. Keep extending typed command-result actions from PROJECT clone creation to
+   the next high-friction workflow buttons.
+2. Add a minimal `PipelinePageState` / ViewModel builder.
+3. Derive selected lab, visible steps, stale-snippet status, lock/run status,
    and available actions from that state.
-3. Move `RUN` and `CLEAR LOGS` behind typed command functions.
-4. Add an explicit Pipeline workflow-state enum covering `empty`, `generated`,
+4. Move `RUN` and `CLEAR LOGS` behind typed command functions.
+5. Add an explicit Pipeline workflow-state enum covering `empty`, `generated`,
    `stale`, `runnable`, `running`, `failed`, and `complete`.
-5. Add `lab_steps.toml` schema metadata for newly saved pipeline files and a
+6. Add `lab_steps.toml` schema metadata for newly saved pipeline files and a
    clear refusal or refresh path for unsupported versions.
-6. Apply the same pattern to Orchestrate service mode after Pipeline is stable.
-7. Convert snippet templates and page widgets into typed registries once state
+7. Apply the same pattern to Orchestrate service mode after Pipeline is stable.
+8. Convert snippet templates and page widgets into typed registries once state
    and command boundaries are in place.
 
 ## First Slice Acceptance Criteria
