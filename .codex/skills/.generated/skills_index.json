@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-24T17:57:58Z",
+  "generated_at_utc": "2026-04-28T11:14:17Z",
   "tool": "tools/codex_skills.py",
   "count": 23,
   "skills": [
@@ -15,7 +15,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-08",
+      "updated": "2026-04-28",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
     },
@@ -23,7 +23,7 @@
       "name": "agilab-huggingface-spaces",
       "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-24",
+      "updated": "2026-04-28",
       "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
       "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is:\n- `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.md`"
     },
@@ -31,7 +31,7 @@
       "name": "agilab-installer",
       "description": "Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-17",
+      "updated": "2026-04-28",
       "path": ".codex/skills/agilab-installer/SKILL.md",
       "body_preview": "# AGILAB Installer Skill\nUse this skill when working on:\n- `install.sh` / `install.ps1` (root installer)\n- `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)"
     },
@@ -71,7 +71,7 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-21",
+      "updated": "2026-04-28",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
     },
