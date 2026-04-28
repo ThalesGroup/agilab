@@ -555,15 +555,10 @@ def get_templates():
 
 def get_about_content():
     """
-    Get the content of the 'About' section.
+    Get the Streamlit About-menu content.
 
     Returns:
-        dict: A dictionary containing information about the Agi&trade; agilab.
-
-            'About': str
-                A string containing information about the Agi&trade; agilab.
-
-                    ':blue[Agi&trade;] V5\n\n:blue[S]peedy :blue[Py]thon :blue[D]istributed  agilab for Data Science  2020-2024 \n\nThales SIX GTS France SAS \n\nsupport: open a GitHub issue'
+        dict: A Streamlit menu item payload with the canonical AGILAB About text.
     """
     return about_content_payload()
 

@@ -9,6 +9,7 @@ import importlib.util
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
+from agi_env.pagelib_resource_support import about_content_payload as _about_content_payload
 
 logger = AgiLogger.get_logger(__name__)
 
@@ -90,14 +91,7 @@ FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _about_onboarding.FIRST_PROOF_HELPER_SCRIPT
 
 def get_about_content() -> dict[str, str]:
     """Return Streamlit About-menu content without importing the full pagelib stack."""
-    return {
-        "About": (
-            ":blue[AGILab&trade;]\n\n"
-            "An IDE for Data Science in Engineering\n\n"
-            "Thales SIX GTS France SAS \n\n"
-            "support: open a GitHub issue"
-        )
-    }
+    return _about_content_payload()
 
 
 def inject_theme(base_path: Path | None = None) -> None:
@@ -230,6 +224,7 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
 def _sync_layout_module() -> None:
     """Mirror About-page compatibility globals into display helpers."""
     _about_layout.st = st
+    _about_layout.os = os
 
 
 def quick_logo(resources_path: Path) -> None:
