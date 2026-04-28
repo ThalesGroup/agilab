@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -80,6 +81,60 @@ def test_repair_renamed_project_environment_moves_real_venv(tmp_path: Path):
     assert not source_venv.exists()
     assert not source_venv.is_symlink()
     assert (dest_venv / "marker.txt").read_text(encoding="utf-8") == "ok"
+
+
+def test_export_project_action_creates_zip_and_honors_gitignore(tmp_path: Path):
+    module = _load_project_module()
+    project_root = tmp_path / "demo_project"
+    project_root.mkdir()
+    (project_root / ".gitignore").write_text("ignored.txt\nignored_dir/\n", encoding="utf-8")
+    (project_root / "keep.txt").write_text("ok", encoding="utf-8")
+    (project_root / "ignored.txt").write_text("ignore", encoding="utf-8")
+    ignored_dir = project_root / "ignored_dir"
+    ignored_dir.mkdir()
+    (ignored_dir / "nested.txt").write_text("ignore", encoding="utf-8")
+    export_root = tmp_path / "exports"
+    env = SimpleNamespace(app="demo_project", active_app=project_root, export_apps=export_root)
+
+    result = module._export_project_action(env)
+
+    assert result.status == "success"
+    assert result.title == f"Project exported to {export_root / 'demo_project.zip'}"
+    assert result.detail is None
+    assert result.data["app_zip"] == "demo_project.zip"
+    with zipfile.ZipFile(result.data["output_zip"], "r") as archive:
+        assert sorted(archive.namelist()) == [".gitignore", "keep.txt"]
+
+
+def test_export_project_action_reports_missing_gitignore(tmp_path: Path):
+    module = _load_project_module()
+    project_root = tmp_path / "demo_project"
+    project_root.mkdir()
+    (project_root / "keep.txt").write_text("ok", encoding="utf-8")
+    export_root = tmp_path / "exports"
+    env = SimpleNamespace(app="demo_project", active_app=project_root, export_apps=export_root)
+
+    result = module._export_project_action(env)
+
+    assert result.status == "success"
+    assert result.detail == "No .gitignore found; exported all files."
+    with zipfile.ZipFile(result.data["output_zip"], "r") as archive:
+        assert archive.namelist() == ["keep.txt"]
+
+
+def test_export_project_action_reports_missing_project(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(
+        app="missing_project",
+        active_app=tmp_path / "missing_project",
+        export_apps=tmp_path / "exports",
+    )
+
+    result = module._export_project_action(env)
+
+    assert result.status == "error"
+    assert result.title == "Project 'missing_project' does not exist."
+    assert "select another project" in str(result.next_action)
 
 
 def test_create_project_clone_action_creates_project_and_reports_strategy(tmp_path: Path):

@@ -590,17 +590,19 @@ def _cleanup_module_artifacts(app_name, target_name, errors):
 # -------------------- Project Export Handler -------------------- #
 
 
-def handle_export_project():
-    """
-    Handle the export of a project to a zip file.
-    """
-    env = st.session_state["env"]
-    input_dir = env.active_app
-    output_zip = (env.export_apps / env.app).with_suffix(".zip")
-    gitignore_path = input_dir / ".gitignore"
+def _export_project_action(env: AgiEnv) -> ActionResult:
+    input_dir = Path(env.active_app)
+    if not input_dir.exists():
+        return ActionResult.error(
+            f"Project '{env.app}' does not exist.",
+            next_action="Refresh the PROJECT page or select another project.",
+            data={"app": env.app, "input_dir": input_dir},
+        )
 
-    if not gitignore_path.exists():
-        st.info("No .gitignore found; exporting all files.")
+    output_zip = (env.export_apps / env.app).with_suffix(".zip")
+    output_zip.parent.mkdir(parents=True, exist_ok=True)
+    gitignore_path = input_dir / ".gitignore"
+    detail = None if gitignore_path.exists() else "No .gitignore found; exported all files."
     spec = read_gitignore(gitignore_path)
 
     with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as out:
@@ -609,19 +611,43 @@ def handle_export_project():
             if spec.match_file(rel_root):
                 continue
             for file in files:
-                relative_file_path = os.path.relpath(
-                    os.path.join(root, file), input_dir
-                )
+                source_path = Path(root) / file
+                relative_file_path = os.path.relpath(source_path, input_dir)
                 if not spec.match_file(relative_file_path):
-                    out.write(os.path.join(root, file), relative_file_path)
+                    out.write(source_path, relative_file_path)
 
-    st.session_state["export_message"] = "Export completed."
-    time.sleep(1)
     app_zip = env.app + ".zip"
-    if app_zip not in st.session_state["archives"]:
-        st.session_state["archives"].append(app_zip)
+    return ActionResult.success(
+        f"Project exported to {output_zip}",
+        detail=detail,
+        data={"app": env.app, "app_zip": app_zip, "output_zip": output_zip},
+    )
 
-    st.info(f"Project exported to {(env.export_apps / app_zip)}")
+
+def handle_export_project():
+    """
+    Handle the export of a project to a zip file.
+    """
+    env = st.session_state["env"]
+
+    def _remember_export(result):
+        app_zip = str(result.data["app_zip"])
+        archives = st.session_state.setdefault("archives", ["-- Select a file --"])
+        if app_zip not in archives:
+            archives.append(app_zip)
+        st.session_state["export_message"] = "Export completed."
+
+    run_streamlit_action(
+        st,
+        ActionSpec(
+            name="Export project",
+            start_message=f"Exporting project '{env.app}'...",
+            failure_title="Project export failed.",
+            failure_next_action="Check the project path, export directory, and filesystem permissions.",
+        ),
+        lambda: _export_project_action(env),
+        on_success=_remember_export,
+    )
 
 
 def import_project(project_zip, ignore=False):
