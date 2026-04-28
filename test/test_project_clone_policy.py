@@ -137,6 +137,107 @@ def test_export_project_action_reports_missing_project(tmp_path: Path):
     assert "select another project" in str(result.next_action)
 
 
+def _write_project_archive(path: Path, files: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+
+
+def test_import_project_action_requires_archive_selection(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(export_apps=tmp_path / "exports", apps_path=tmp_path / "apps")
+
+    result = module._import_project_action(env, project_zip="-- Select a file --")
+
+    assert result.status == "error"
+    assert result.title == "Please select a project archive."
+    assert "Choose an exported project zip" in str(result.next_action)
+
+
+def test_import_project_action_reports_missing_archive(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(export_apps=tmp_path / "exports", apps_path=tmp_path / "apps")
+
+    result = module._import_project_action(env, project_zip="missing_project.zip")
+
+    assert result.status == "error"
+    assert result.title == "Project archive 'missing_project.zip' does not exist."
+    assert result.data["zip_path"] == tmp_path / "exports" / "missing_project.zip"
+
+
+def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    _write_project_archive(
+        export_root / "demo_project.zip",
+        {"README.md": "demo", "src/demo.py": "print('ok')\n"},
+    )
+    cleaned: list[Path] = []
+    monkeypatch.setattr(module, "clean_project", lambda path: cleaned.append(path))
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        clean=True,
+        overwrite=False,
+    )
+
+    target_dir = apps_root / "demo_project"
+    assert result.status == "success"
+    assert result.title == "Project 'demo_project' successfully imported."
+    assert result.data["target_dir"] == target_dir
+    assert (target_dir / "README.md").read_text(encoding="utf-8") == "demo"
+    assert (target_dir / "src" / "demo.py").read_text(encoding="utf-8") == "print('ok')\n"
+    assert cleaned == [target_dir]
+
+
+def test_import_project_action_requires_overwrite_for_existing_project(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    (target_dir / "existing.txt").write_text("keep", encoding="utf-8")
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        overwrite=False,
+    )
+
+    assert result.status == "warning"
+    assert result.title == "Project 'demo_project' already exists."
+    assert "Confirm overwrite" in str(result.next_action)
+    assert (target_dir / "existing.txt").read_text(encoding="utf-8") == "keep"
+
+
+def test_import_project_action_overwrites_existing_project(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    (target_dir / "old.txt").write_text("old", encoding="utf-8")
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
+
+    assert result.status == "success"
+    assert not (target_dir / "old.txt").exists()
+    assert (target_dir / "new.txt").read_text(encoding="utf-8") == "new"
+
+
 def test_create_project_clone_action_creates_project_and_reports_strategy(tmp_path: Path):
     module = _load_project_module()
     clone_calls: list[tuple[Path, Path]] = []

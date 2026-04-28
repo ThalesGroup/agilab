@@ -650,6 +650,83 @@ def handle_export_project():
     )
 
 
+def _import_project_action(
+    env: AgiEnv,
+    *,
+    project_zip: str,
+    clean: bool = False,
+    overwrite: bool = False,
+) -> ActionResult:
+    selected_archive = str(project_zip).strip()
+    if not selected_archive or selected_archive == "-- Select a file --":
+        return ActionResult.error(
+            "Please select a project archive.",
+            next_action="Choose an exported project zip from the sidebar.",
+        )
+
+    zip_path = env.export_apps / selected_archive
+    if not zip_path.exists():
+        return ActionResult.error(
+            f"Project archive '{selected_archive}' does not exist.",
+            next_action=f"Check {env.export_apps} or export the project again.",
+            data={"project_zip": selected_archive, "zip_path": zip_path},
+        )
+
+    import_target = Path(selected_archive).stem
+    target_dir = env.apps_path / import_target
+    if target_dir.exists():
+        if not overwrite:
+            return ActionResult.warning(
+                f"Project '{import_target}' already exists.",
+                next_action="Confirm overwrite to replace the existing project.",
+                data={
+                    "project_zip": selected_archive,
+                    "import_target": import_target,
+                    "target_dir": target_dir,
+                },
+            )
+        try:
+            shutil.rmtree(target_dir)
+        except OSError as exc:
+            return ActionResult.error(
+                f"Project '{import_target}' is not removable.",
+                detail=str(exc),
+                next_action="Check filesystem permissions, then retry the import.",
+                data={
+                    "project_zip": selected_archive,
+                    "import_target": import_target,
+                    "target_dir": target_dir,
+                },
+            )
+
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        zip_ref.extractall(target_dir)
+    if clean:
+        clean_project(target_dir)
+
+    if not target_dir.exists():
+        return ActionResult.error(
+            f"Error while importing '{import_target}'.",
+            next_action="Check archive contents and filesystem permissions.",
+            data={
+                "project_zip": selected_archive,
+                "import_target": import_target,
+                "target_dir": target_dir,
+            },
+        )
+
+    return ActionResult.success(
+        f"Project '{import_target}' successfully imported.",
+        data={
+            "project_zip": selected_archive,
+            "import_target": import_target,
+            "target_dir": target_dir,
+            "clean": clean,
+            "overwrite": overwrite,
+        },
+    )
+
+
 def import_project(project_zip, ignore=False):
     """
     Import a project from a zip archive.
@@ -658,15 +735,14 @@ def import_project(project_zip, ignore=False):
         ignore (bool, optional): Whether to clean the project after import. Defaults to False.
     """
     env = st.session_state["env"]
-    zip_path = env.export_apps / project_zip
-    project_name = Path(project_zip).stem
-    target_dir = env.apps_path / project_name
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        zip_ref.extractall(target_dir)
-    if ignore:
-        clean_project(target_dir)
-
-    st.session_state["project_imported"] = True
+    result = _import_project_action(
+        env,
+        project_zip=project_zip,
+        clean=ignore,
+        overwrite=True,
+    )
+    st.session_state["project_imported"] = result.status == "success"
+    return result
 
 
 # -------------------- Project Cloner (Recursive with .venv Symlink) -------------------- #
@@ -1973,13 +2049,37 @@ def handle_project_import():
         target_dir = env.apps_path / import_target
         overwrite_modal = Modal("Import project", key="import-modal", max_width=450)
 
+        def _activate_import(result):
+            imported_project = str(result.data["import_target"])
+            env.change_app(imported_project)
+            on_project_change(imported_project)
+            st.session_state["switch_to_edit"] = True
+            st.rerun()
+
+        def _run_import_action(*, overwrite: bool) -> None:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Import project",
+                    start_message=f"Importing project '{import_target}'...",
+                    failure_title="Project import failed.",
+                    failure_next_action="Check the archive, target path, and filesystem permissions.",
+                ),
+                lambda: _import_project_action(
+                    env,
+                    project_zip=selected_archive,
+                    clean=st.session_state["clean_import"],
+                    overwrite=overwrite,
+                ),
+                on_success=_activate_import,
+            )
+
         import_clicked = st.sidebar.button(
             "Import", type="primary", width="stretch"
         )
         if import_clicked:
             if not target_dir.exists():
-                import_project(selected_archive, st.session_state["clean_import"])
-                env.change_app(import_target)
+                _run_import_action(overwrite=False)
             else:
                 overwrite_modal.open()
 
@@ -1990,27 +2090,10 @@ def handle_project_import():
                 if cols[0].button(
                         "Overwrite", type="primary", width="stretch"
                 ):
-                    try:
-                        shutil.rmtree(target_dir)
-                        import_project(selected_archive, st.session_state["clean_import"])
-                        env.change_app(import_target)
-                        overwrite_modal.close()
-                    except PermissionError:
-                        st.error(f"Project '{import_target}' is not removable.")
+                    _run_import_action(overwrite=True)
+                    overwrite_modal.close()
                 if cols[1].button("Cancel", type="primary", width="stretch"):
                     overwrite_modal.close()
-
-        if st.session_state.get("project_imported"):
-            project_path = env.apps_path / import_target
-            if project_path.exists():
-                st.success(f"Project '{import_target}' successfully imported.")
-                on_project_change(import_target)
-                # Set the switch flag to switch the sidebar tab
-                st.session_state["switch_to_edit"] = True
-                st.rerun()  # Trigger rerun to apply the change
-            else:
-                st.error(f"Error while importing '{import_target}'.")
-            del st.session_state["project_imported"]
 
 
 # -------------------- Streamlit Page Rendering -------------------- #
