@@ -74,6 +74,7 @@ PipelinePageStateDeps = _pipeline_page_state_module.PipelinePageStateDeps
 PipelineAction = _pipeline_page_state_module.PipelineAction
 build_pipeline_page_state = _pipeline_page_state_module.build_pipeline_page_state
 clear_pipeline_run_logs = _pipeline_page_state_module.clear_pipeline_run_logs
+start_pipeline_run_command = _pipeline_page_state_module.start_pipeline_run_command
 
 _pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
@@ -1581,22 +1582,22 @@ def display_lab_tab(
             st.rerun()
 
     if run_all_clicked or force_run_clicked:
-        st.session_state.pop(force_run_confirm_key, None)
-        st.session_state[f"{index_page_str}__last_run_status"] = "running"
-        run_placeholder = _get_run_placeholder(index_page_str)
-        log_file_path, log_error = _prepare_run_log_file(index_page_str, env, prefix="pipeline")
-        if log_file_path:
-            _push_run_log(
-                index_page_str,
-                f"Run pipeline started… logs will be saved to {log_file_path}",
-                run_placeholder,
-            )
-        else:
-            _push_run_log(
-                index_page_str,
-                f"Run pipeline started… (unable to prepare log file: {log_error})",
-                run_placeholder,
-            )
+        requested_action = PipelineAction.FORCE_RUN if force_run_clicked else PipelineAction.RUN_PIPELINE
+        start_result = start_pipeline_run_command(
+            page_state=page_state,
+            requested_action=requested_action,
+            session_state=st.session_state,
+            env=env,
+            prepare_run_log_file=_prepare_run_log_file,
+            get_run_placeholder=_get_run_placeholder,
+            push_run_log=_push_run_log,
+            force_confirm_key=force_run_confirm_key,
+        )
+        if not start_result.ok:
+            st.warning(start_result.message)
+            st.rerun()
+            return
+        run_placeholder = start_result.details.get("log_placeholder")
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
@@ -1609,7 +1610,7 @@ def display_lab_tab(
                         module_path,
                         env,
                         log_placeholder=run_placeholder,
-                        force_lock_clear=force_run_clicked,
+                        force_lock_clear=bool(start_result.details.get("force_lock_clear")),
                     )
                 except Exception:
                     st.session_state[f"{index_page_str}__last_run_status"] = "failed"

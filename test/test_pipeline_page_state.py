@@ -101,6 +101,139 @@ def test_pipeline_page_state_derives_blocked_actions_for_empty_and_stale_labs(tm
     assert "stale AGI.run snippets" in stale_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
 
 
+def test_start_pipeline_run_command_refuses_blocked_actions_without_side_effects(tmp_path):
+    session_state: dict[str, Any] = {}
+    state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        steps_file=tmp_path / "lab_steps.toml",
+        steps=[],
+        sequence=[],
+        session_state=session_state,
+        deps=_deps(),
+    )
+    calls: list[str] = []
+
+    result = pipeline_page_state.start_pipeline_run_command(
+        page_state=state,
+        requested_action=pipeline_page_state.PipelineAction.RUN_PIPELINE,
+        session_state=session_state,
+        env=object(),
+        prepare_run_log_file=lambda *_args, **_kwargs: calls.append("prepare"),
+        get_run_placeholder=lambda *_args, **_kwargs: calls.append("placeholder"),
+        push_run_log=lambda *_args, **_kwargs: calls.append("push"),
+        force_confirm_key="demo_confirm_force_run",
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.REFUSED
+    assert "No visible pipeline steps" in result.message
+    assert session_state == {}
+    assert calls == []
+
+
+def test_start_pipeline_run_command_sets_running_status_and_logs_path(tmp_path):
+    session_state: dict[str, Any] = {"demo_confirm_force_run": True}
+    pushed: list[tuple[str, str, object]] = []
+    placeholder = object()
+    state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        steps_file=tmp_path / "lab_steps.toml",
+        steps=[{"Q": "run", "C": "print('run')"}],
+        sequence=[0],
+        session_state=session_state,
+        deps=_deps(),
+    )
+
+    result = pipeline_page_state.start_pipeline_run_command(
+        page_state=state,
+        requested_action=pipeline_page_state.PipelineAction.RUN_PIPELINE,
+        session_state=session_state,
+        env=object(),
+        prepare_run_log_file=lambda *_args, **_kwargs: (tmp_path / "pipeline.log", None),
+        get_run_placeholder=lambda *_args, **_kwargs: placeholder,
+        push_run_log=lambda index_page, message, log_placeholder: pushed.append(
+            (index_page, message, log_placeholder)
+        ),
+        force_confirm_key="demo_confirm_force_run",
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
+    assert result.details["force_lock_clear"] is False
+    assert result.details["log_file_path"] == str(tmp_path / "pipeline.log")
+    assert result.details["log_placeholder"] is placeholder
+    assert session_state["demo__last_run_status"] == "running"
+    assert "demo_confirm_force_run" not in session_state
+    assert pushed == [
+        (
+            "demo",
+            f"Run pipeline started... logs will be saved to {tmp_path / 'pipeline.log'}",
+            placeholder,
+        )
+    ]
+
+
+def test_start_pipeline_run_command_force_run_continues_without_log_file(tmp_path):
+    session_state: dict[str, Any] = {}
+    pushed: list[str] = []
+    state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        steps_file=tmp_path / "lab_steps.toml",
+        steps=[{"Q": "run", "C": "print('run')"}],
+        sequence=[0],
+        session_state=session_state,
+        env=object(),
+        deps=_deps(
+            inspect_pipeline_run_lock=lambda _env: {
+                "owner_text": "pid 123",
+                "is_stale": True,
+            }
+        ),
+    )
+
+    result = pipeline_page_state.start_pipeline_run_command(
+        page_state=state,
+        requested_action=pipeline_page_state.PipelineAction.FORCE_RUN,
+        session_state=session_state,
+        env=object(),
+        prepare_run_log_file=lambda *_args, **_kwargs: (None, "no log"),
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        push_run_log=lambda _index_page, message, _placeholder: pushed.append(message),
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
+    assert result.details["force_lock_clear"] is True
+    assert result.details["log_error"] == "no log"
+    assert pushed == ["Run pipeline started... (unable to prepare log file: no log)"]
+
+
+def test_start_pipeline_run_command_marks_failed_when_logging_raises(tmp_path):
+    session_state: dict[str, Any] = {}
+    state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        steps_file=tmp_path / "lab_steps.toml",
+        steps=[{"Q": "run", "C": "print('run')"}],
+        sequence=[0],
+        session_state=session_state,
+        deps=_deps(),
+    )
+
+    def _raise_push(*_args, **_kwargs):
+        raise RuntimeError("push blocked")
+
+    result = pipeline_page_state.start_pipeline_run_command(
+        page_state=state,
+        requested_action=pipeline_page_state.PipelineAction.RUN_PIPELINE,
+        session_state=session_state,
+        env=object(),
+        prepare_run_log_file=lambda *_args, **_kwargs: (tmp_path / "pipeline.log", None),
+        get_run_placeholder=lambda *_args, **_kwargs: None,
+        push_run_log=_raise_push,
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.FAILED
+    assert "push blocked" in result.message
+    assert session_state["demo__last_run_status"] == "failed"
+
+
 def test_pipeline_page_state_refuses_stale_legacy_snippets_before_runtime(tmp_path):
     stale_ref = {"step": 1, "line": 4, "summary": "legacy run", "project": "flight_project"}
 
