@@ -1,0 +1,274 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Mapping, MutableMapping, Optional, Sequence, Tuple
+
+
+class PipelineWorkflowStatus(str, Enum):
+    EMPTY = "empty"
+    GENERATED = "generated"
+    STALE = "stale"
+    RUNNABLE = "runnable"
+    RUNNING = "running"
+    FAILED = "failed"
+    COMPLETE = "complete"
+
+
+class PipelineCommandStatus(str, Enum):
+    SUCCESS = "success"
+    REFUSED = "refused"
+    FAILED = "failed"
+    NO_OP = "no-op"
+
+
+@dataclass(frozen=True)
+class PipelineCommandResult:
+    status: PipelineCommandStatus
+    message: str
+    details: Mapping[str, Any] = field(default_factory=dict)
+
+    @property
+    def ok(self) -> bool:
+        return self.status in {PipelineCommandStatus.SUCCESS, PipelineCommandStatus.NO_OP}
+
+
+@dataclass(frozen=True)
+class PipelineVisibleStep:
+    index: int
+    label: str
+    summary: str
+    runnable: bool
+
+
+@dataclass(frozen=True)
+class PipelinePageState:
+    index_page: str
+    steps_file: Path
+    status: PipelineWorkflowStatus
+    total_steps: int
+    visible_steps: Tuple[PipelineVisibleStep, ...]
+    execution_sequence: Tuple[int, ...]
+    stale_step_refs: Tuple[Mapping[str, Any], ...]
+    lock_state: Optional[Mapping[str, Any]]
+    run_logs: Tuple[str, ...]
+    last_run_log_file: str
+    runnable_step_count: int
+    can_run: bool
+    can_force_run: bool
+    run_disabled_reason: str
+
+
+def _default_is_displayable_step(entry: Mapping[str, Any]) -> bool:
+    question = entry.get("Q", "")
+    if isinstance(question, str) and question.strip():
+        return True
+    code = entry.get("C", "")
+    return isinstance(code, str) and bool(code.strip())
+
+
+def _default_is_runnable_step(entry: Mapping[str, Any]) -> bool:
+    code = entry.get("C", "")
+    return isinstance(code, str) and bool(code.strip())
+
+
+def _default_step_summary(entry: Mapping[str, Any]) -> str:
+    question = str(entry.get("Q") or "").strip()
+    if question:
+        return " ".join(question.split())
+    code = str(entry.get("C") or "").strip()
+    if code:
+        return " ".join(code.splitlines()[0].split())
+    return ""
+
+
+def _default_step_label(idx: int, entry: Mapping[str, Any]) -> str:
+    summary = _default_step_summary(entry)
+    return f"Step {idx + 1}: {summary}" if summary else f"Step {idx + 1}"
+
+
+def _default_find_legacy_steps(
+    _steps: Sequence[Mapping[str, Any]],
+    _sequence: Sequence[int],
+) -> Sequence[Mapping[str, Any]]:
+    return ()
+
+
+@dataclass(frozen=True)
+class PipelinePageStateDeps:
+    is_displayable_step: Callable[[Mapping[str, Any]], bool] = _default_is_displayable_step
+    is_runnable_step: Callable[[Mapping[str, Any]], bool] = _default_is_runnable_step
+    step_summary: Callable[[Mapping[str, Any]], str] = _default_step_summary
+    step_label: Callable[[int, Mapping[str, Any]], str] = _default_step_label
+    find_legacy_agi_run_steps: Callable[
+        [Sequence[Mapping[str, Any]], Sequence[int]], Sequence[Mapping[str, Any]]
+    ] = _default_find_legacy_steps
+    inspect_pipeline_run_lock: Optional[Callable[[Any], Optional[Mapping[str, Any]]]] = None
+
+
+def normalize_execution_sequence(total_steps: int, sequence: Optional[Sequence[Any]]) -> Tuple[int, ...]:
+    """Return a valid execution order, defaulting to all steps when selection is empty."""
+    selected: list[int] = []
+    seen: set[int] = set()
+    for raw in sequence or ():
+        try:
+            idx = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= idx < total_steps and idx not in seen:
+            selected.append(idx)
+            seen.add(idx)
+    if not selected and total_steps:
+        selected = list(range(total_steps))
+    return tuple(selected)
+
+
+def _coerce_steps(steps: Sequence[Mapping[str, Any]]) -> Tuple[Mapping[str, Any], ...]:
+    coerced: list[Mapping[str, Any]] = []
+    for entry in steps:
+        if isinstance(entry, Mapping):
+            coerced.append(entry)
+    return tuple(coerced)
+
+
+def _format_stale_step_refs(stale_steps: Sequence[Mapping[str, Any]]) -> str:
+    refs: list[str] = []
+    for item in stale_steps[:5]:
+        step = item.get("step", "?")
+        line = item.get("line", "?")
+        summary = str(item.get("summary") or "").strip()
+        project = str(item.get("project") or "").strip()
+        label = f"step {step}, line {line}"
+        if project:
+            label += f", {project}"
+        if summary:
+            label += f": {summary}"
+        refs.append(label)
+    if len(stale_steps) > 5:
+        refs.append(f"{len(stale_steps) - 5} more")
+    return "; ".join(refs)
+
+
+def build_pipeline_page_state(
+    *,
+    index_page: str,
+    steps_file: Path,
+    steps: Sequence[Mapping[str, Any]],
+    sequence: Optional[Sequence[Any]],
+    session_state: Mapping[str, Any],
+    env: Any = None,
+    deps: PipelinePageStateDeps = PipelinePageStateDeps(),
+) -> PipelinePageState:
+    """Build a pure view-model for the Pipeline workflow controls."""
+    step_entries = _coerce_steps(steps)
+    total_steps = len(step_entries)
+    execution_sequence = normalize_execution_sequence(total_steps, sequence)
+
+    visible_steps: list[PipelineVisibleStep] = []
+    for idx, entry in enumerate(step_entries):
+        if not deps.is_displayable_step(entry):
+            continue
+        visible_steps.append(
+            PipelineVisibleStep(
+                index=idx,
+                label=str(deps.step_label(idx, entry)),
+                summary=str(deps.step_summary(entry)),
+                runnable=bool(deps.is_runnable_step(entry)),
+            )
+        )
+
+    stale_step_refs = tuple(dict(item) for item in deps.find_legacy_agi_run_steps(step_entries, execution_sequence))
+    lock_state = deps.inspect_pipeline_run_lock(env) if deps.inspect_pipeline_run_lock else None
+    lock_state = dict(lock_state) if isinstance(lock_state, Mapping) else None
+    active_lock = bool(lock_state and not lock_state.get("is_stale"))
+    stale_lock = bool(lock_state and lock_state.get("is_stale"))
+
+    selected_runnable = {
+        step.index
+        for step in visible_steps
+        if step.runnable and step.index in execution_sequence
+    }
+    runnable_step_count = len(selected_runnable)
+    run_logs_key = f"{index_page}__run_logs"
+    raw_logs = session_state.get(run_logs_key, ())
+    run_logs = tuple(str(line) for line in raw_logs) if isinstance(raw_logs, Sequence) and not isinstance(raw_logs, str) else ()
+    last_status = str(session_state.get(f"{index_page}__last_run_status") or "").strip().lower()
+    last_run_log_file = str(session_state.get(f"{index_page}__last_run_log_file") or "")
+
+    run_disabled_reason = ""
+    if stale_step_refs:
+        detail = _format_stale_step_refs(stale_step_refs)
+        run_disabled_reason = (
+            "Selected steps contain stale AGI.run snippets that must be regenerated "
+            f"before execution: {detail}."
+        )
+        status = PipelineWorkflowStatus.STALE
+    elif active_lock:
+        owner = str(lock_state.get("owner_text") or "unknown owner") if lock_state else "unknown owner"
+        run_disabled_reason = f"Pipeline is already running or locked by {owner}."
+        status = PipelineWorkflowStatus.RUNNING
+    elif stale_lock:
+        status = PipelineWorkflowStatus.STALE
+    elif not visible_steps:
+        run_disabled_reason = f"No visible pipeline steps were loaded from {steps_file}."
+        status = PipelineWorkflowStatus.EMPTY
+    elif runnable_step_count == 0:
+        run_disabled_reason = "No selected pipeline step contains runnable code."
+        status = PipelineWorkflowStatus.GENERATED
+    elif last_status in {"failed", "error"}:
+        status = PipelineWorkflowStatus.FAILED
+    elif last_status in {"complete", "completed", "success", "succeeded"}:
+        status = PipelineWorkflowStatus.COMPLETE
+    else:
+        status = PipelineWorkflowStatus.RUNNABLE
+
+    can_run = not run_disabled_reason and runnable_step_count > 0
+    can_force_run = bool(lock_state) and not stale_step_refs and runnable_step_count > 0
+
+    return PipelinePageState(
+        index_page=index_page,
+        steps_file=Path(steps_file),
+        status=status,
+        total_steps=total_steps,
+        visible_steps=tuple(visible_steps),
+        execution_sequence=execution_sequence,
+        stale_step_refs=stale_step_refs,
+        lock_state=lock_state,
+        run_logs=run_logs,
+        last_run_log_file=last_run_log_file,
+        runnable_step_count=runnable_step_count,
+        can_run=can_run,
+        can_force_run=can_force_run,
+        run_disabled_reason=run_disabled_reason,
+    )
+
+
+def clear_pipeline_run_logs(
+    session_state: MutableMapping[str, Any],
+    index_page: str,
+) -> PipelineCommandResult:
+    """Clear displayed Pipeline logs without touching steps or saved log files."""
+    key = f"{index_page}__run_logs"
+    try:
+        logs = session_state.get(key, [])
+        if not logs:
+            session_state.setdefault(key, [])
+            return PipelineCommandResult(
+                status=PipelineCommandStatus.NO_OP,
+                message="No page run logs to clear.",
+                details={"key": key},
+            )
+        count = len(logs) if hasattr(logs, "__len__") else 0
+        session_state[key] = []
+    except Exception as exc:
+        return PipelineCommandResult(
+            status=PipelineCommandStatus.FAILED,
+            message=f"Could not clear page run logs: {exc}",
+            details={"key": key, "error": str(exc)},
+        )
+    return PipelineCommandResult(
+        status=PipelineCommandStatus.SUCCESS,
+        message="Page run logs cleared; saved log files are untouched.",
+        details={"key": key, "count": count},
+    )
