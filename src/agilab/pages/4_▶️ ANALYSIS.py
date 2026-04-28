@@ -41,6 +41,17 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_symbols(
+    globals(),
+    "agilab.analysis_page_state",
+    {
+        "build_analysis_view_selection_state": "build_analysis_view_selection_state",
+        "normalize_view_name": "_analysis_normalize_view_name",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "analysis_page_state.py",
+    fallback_name="agilab_analysis_page_state_fallback",
+)
 
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
@@ -1089,10 +1100,7 @@ def _read_config(path: Path) -> dict:
 
 def _normalize_view_name(value: str) -> str:
     """Normalize page bundle labels by removing leading icon glyphs/decoration."""
-    if not value:
-        return ""
-    normalized = re.sub(r"^\s*[^\w-]+", "", value).strip()
-    return normalized or value.strip()
+    return _analysis_normalize_view_name(value)
 
 def _write_config(path: Path, cfg: dict):
     try:
@@ -1247,16 +1255,6 @@ async def main():
     if not all_available_views:
         st.info("No pages found under AGILAB_PAGES_ABS.")
 
-    # Build preselection from stored config (legacy names + custom paths)
-    preselect: list[str] = []
-    for value in configured_views:
-        if value in all_available_views:
-            preselect.append(value)
-            continue
-        normalized = _normalize_view_name(value)
-        if normalized in resolved_pages:
-            preselect.append(normalized)
-
     clone_source_paths = [""]
     clone_source_labels = {"": "Blank template"}
     for view_path in sorted(all_views, key=lambda p: p.as_posix()):
@@ -1347,57 +1345,22 @@ async def main():
                         )
                         st.rerun()
 
-    # Merge resolved pages and custom entries for display.
-    excluded_view_names = _excluded_view_options(cfg)
-    all_view_names = [
-        view_name
-        for view_name in sorted(set(resolved_pages.keys()) | set(custom_view_lookup.keys()))
-        if _normalize_view_name(view_name) not in excluded_view_names
-    ]
-    if bool(cfg.get("pages", {}).get("restrict_to_view_module")):
-        configured_options = _configured_view_options(
-            configured_views,
-            all_view_names,
-            resolved_pages,
-        )
-        view_names = configured_options or all_view_names
-    else:
-        view_names = all_view_names
-
     selection_key = f"view_selection__{project or 'default'}"
-    default_view_name, default_view_path = _resolve_default_view(
-        cfg.get("pages", {}).get("default_view"),
-        view_names,
-        resolved_pages,
-        custom_view_lookup,
+    pages_cfg = cfg.get("pages", {})
+    pages_cfg = pages_cfg if isinstance(pages_cfg, dict) else {}
+    selection_state = build_analysis_view_selection_state(
+        pages_cfg=pages_cfg,
+        current_page=current_page,
+        configured_views=configured_views,
+        resolved_pages=resolved_pages,
+        custom_view_lookup=custom_view_lookup,
+        session_selection=st.session_state.get(selection_key),
+        has_session_selection=selection_key in st.session_state,
     )
-
-    initial_selection = list(preselect)
-    if (
-        not current_page
-        and default_view_name
-        and default_view_path is not None
-        and default_view_name not in initial_selection
-    ):
-        initial_selection = [default_view_name, *initial_selection]
-
-    if selection_key not in st.session_state:
-        st.session_state[selection_key] = initial_selection
-    else:
-        # Sanitize any persisted selection to only include currently available views
-        current = st.session_state.get(selection_key, [])
-        if not isinstance(current, list):
-            current = []
-        cleaned = [v for v in current if v in view_names]
-        if (
-            not current_page
-            and default_view_name
-            and default_view_path is not None
-            and default_view_name not in cleaned
-        ):
-            cleaned = [default_view_name, *cleaned]
-        if cleaned != current:
-            st.session_state[selection_key] = cleaned
+    view_names = list(selection_state.view_names)
+    widget_selection = list(selection_state.widget_selection)
+    if st.session_state.get(selection_key) != widget_selection:
+        st.session_state[selection_key] = widget_selection
 
     # Styling is handled globally in resources/theme.css. No per-page override here to avoid double borders.
 
@@ -1409,27 +1372,24 @@ async def main():
         help="Selected pages are shown as quick-access shortcuts on the AGILAB start screen."
     )
 
-    selected_views = [v for v in selected_views if v in view_names]
-    if (
-        not current_page
-        and default_view_name
-        and default_view_path is not None
-        and default_view_name not in selected_views
-    ):
-        selected_views = [default_view_name, *selected_views]
+    selection_state = build_analysis_view_selection_state(
+        pages_cfg=pages_cfg,
+        current_page=current_page,
+        configured_views=configured_views,
+        resolved_pages=resolved_pages,
+        custom_view_lookup=custom_view_lookup,
+        session_selection=selected_views,
+        has_session_selection=True,
+    )
+    selected_views = list(selection_state.selected_views)
 
-    if cfg.get("pages", {}).get("view_module") != selected_views:
-        normalized_config = []
-        for page_id in selected_views:
-            if page_id in resolved_pages:
-                normalized_config.append(page_id)
-            else:
-                normalized_config.append(str(Path(page_id).resolve()))
+    normalized_config = list(selection_state.config_view_module)
+    if cfg.get("pages", {}).get("view_module") != normalized_config:
         cfg.setdefault("pages", {})["view_module"] = normalized_config
         _write_config(app_settings, cfg)
 
-    if not current_page and default_view_name and default_view_path is not None:
-        view_str = str(default_view_path.resolve())
+    if selection_state.default_route_path is not None:
+        view_str = str(selection_state.default_route_path.resolve())
         st.session_state["current_page"] = view_str
         st.query_params["current_page"] = view_str
         st.rerun()
