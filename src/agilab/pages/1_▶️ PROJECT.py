@@ -76,6 +76,7 @@ _action_execution_module = import_agilab_module(
 )
 ActionResult = _action_execution_module.ActionResult
 ActionSpec = _action_execution_module.ActionSpec
+render_action_result = _action_execution_module.render_action_result
 run_streamlit_action = _action_execution_module.run_streamlit_action
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -376,6 +377,99 @@ def _build_updated_function_source(
 
 def _write_python_source(path: Path, source_code: str) -> None:
     path.write_text(source_code)
+
+
+def _save_code_editor_file_action(file: Path, updated_text: str, lang: str) -> ActionResult:
+    path = Path(file)
+    if lang == "json":
+        try:
+            json.loads(updated_text)
+        except json.JSONDecodeError as exc:
+            return ActionResult.error(
+                f"Failed to save changes to '{path.name}'.",
+                detail=f"Invalid JSON format. {exc}",
+                next_action="Fix the JSON syntax and save again.",
+                data={"file": path},
+            )
+
+    try:
+        path.write_text(updated_text, encoding="utf-8")
+    except OSError as exc:
+        return ActionResult.error(
+            f"Failed to save changes to '{path.name}'.",
+            detail=str(exc),
+            next_action="Check filesystem permissions and retry.",
+            data={"file": path},
+        )
+
+    return ActionResult.success(
+        f"Changes saved to '{path.name}'.",
+        data={"file": path, "lang": lang},
+    )
+
+
+def _update_attributes_source_action(
+    path: Path,
+    updated_attributes_code: str,
+    selected_class: str,
+) -> ActionResult:
+    try:
+        original_source = _read_python_source(path)
+        updated_source = _build_updated_attributes_source(
+            original_source,
+            updated_attributes_code,
+            selected_class,
+        )
+        _write_python_source(path, updated_source)
+    except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            "Error updating attributes.",
+            detail=str(exc),
+            next_action="Fix the attributes snippet and save again.",
+            data={"file": path, "selected_class": selected_class},
+        )
+
+    return ActionResult.success(
+        "Attributes updated successfully.",
+        data={"file": path, "selected_class": selected_class},
+    )
+
+
+def _update_function_source_action(
+    path: Path,
+    updated_function_code: str,
+    selected_item: str,
+    selected_class: str,
+) -> ActionResult:
+    try:
+        original_source = _read_python_source(path)
+        updated_source = _build_updated_function_source(
+            original_source,
+            updated_function_code,
+            selected_item,
+            selected_class,
+        )
+        _write_python_source(path, updated_source)
+    except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Error updating function/method '{selected_item}'.",
+            detail=str(exc),
+            next_action="Fix the function snippet and save again.",
+            data={
+                "file": path,
+                "selected_item": selected_item,
+                "selected_class": selected_class,
+            },
+        )
+
+    return ActionResult.success(
+        f"Function/Method '{selected_item}' updated successfully.",
+        data={
+            "file": path,
+            "selected_item": selected_item,
+            "selected_class": selected_class,
+        },
+    )
 
 
 def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
@@ -1269,21 +1363,14 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
         if isinstance(response, dict):
             if response.get("type") == "save" and code != response.get("text", ""):
                 updated_text = response["text"]
-                if lang == "json":
-                    try:
-                        # Validate JSON before saving
-                        json.loads(updated_text)
-                        file.write_text(updated_text)
-                        st.success(f"Changes saved to '{file.name}'.")
-                        time.sleep(1)
-                        if "app_settings" in st.session_state:
-                            del st.session_state["app_settings"]
-                    except json.JSONDecodeError as e:
-                        st.error(f"Failed to save changes: Invalid JSON format. {e}")
-                else:
-                    # For non-JSON files, save directly
-                    file.write_text(updated_text)
-                    st.success(f"Changes saved to '{file.name}'.")
+                if fct is not None:
+                    return response
+                result = _save_code_editor_file_action(Path(file), updated_text, lang)
+                render_action_result(st, result)
+                if result.status == "success" and lang == "json":
+                    time.sleep(1)
+                    st.session_state.pop("app_settings", None)
+        return response
     else:
         # Case when the user doesn't have access to write to the file
         st.write(f"### {file.name}")
@@ -1401,18 +1488,12 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
             # Check if a save action was triggered
             if isinstance(response, dict) and response.get("type") == "save":
-                try:
-                    updated_attributes_code = response.get("text", attributes_code)
-                    original_source = _read_python_source(path)
-                    updated_source = _build_updated_attributes_source(
-                        original_source,
-                        updated_attributes_code,
-                        st.session_state[class_state_key],
-                    )
-                    _write_python_source(path, updated_source)
-                    st.success("Attributes updated successfully.")
-                except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as ve:
-                    st.error(f"Error updating attributes: {ve}")
+                result = _update_attributes_source_action(
+                    path,
+                    response.get("text", attributes_code),
+                    st.session_state[class_state_key],
+                )
+                render_action_result(st, result)
         else:
             # Handle the selected method or function
             try:
@@ -1435,21 +1516,13 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
             # Check if a save action was triggered
             if isinstance(response, dict) and response.get("type") == "save":
-                try:
-                    updated_function_code = response.get("text", function_code)
-                    original_source = _read_python_source(path)
-                    updated_source = _build_updated_function_source(
-                        original_source,
-                        updated_function_code,
-                        selected_item,
-                        st.session_state[class_state_key],
-                    )
-                    _write_python_source(path, updated_source)
-                    st.success(
-                        f"Function/Method '{selected_item}' updated successfully."
-                    )
-                except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as ve:
-                    st.error(f"Error updating function/method: {ve}")
+                result = _update_function_source_action(
+                    path,
+                    response.get("text", function_code),
+                    selected_item,
+                    st.session_state[class_state_key],
+                )
+                render_action_result(st, result)
 
 
 # -------------------- Sidebar Handlers -------------------- #
