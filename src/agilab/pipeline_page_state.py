@@ -358,3 +358,65 @@ def clear_pipeline_run_logs(
         message="Page run logs cleared; saved log files are untouched.",
         details={"key": key, "count": count},
     )
+
+
+def start_pipeline_run_command(
+    *,
+    page_state: PipelinePageState,
+    requested_action: PipelineAction,
+    session_state: MutableMapping[str, Any],
+    env: Any,
+    prepare_run_log_file: Callable[..., tuple[Any, Any]],
+    get_run_placeholder: Callable[..., Any],
+    push_run_log: Callable[..., Any],
+    force_confirm_key: str | None = None,
+) -> PipelineCommandResult:
+    """Prepare a Pipeline run from typed state before Streamlit renders progress."""
+    if requested_action not in {PipelineAction.RUN_PIPELINE, PipelineAction.FORCE_RUN}:
+        return PipelineCommandResult(
+            status=PipelineCommandStatus.REFUSED,
+            message=f"Unsupported pipeline action: {requested_action}.",
+            details={"action": requested_action},
+        )
+
+    if requested_action not in page_state.available_actions:
+        return PipelineCommandResult(
+            status=PipelineCommandStatus.REFUSED,
+            message=page_state.blocked_actions.get(
+                requested_action,
+                "Pipeline cannot run in the current state.",
+            ),
+            details={"action": requested_action, "status": page_state.status},
+        )
+
+    if force_confirm_key:
+        session_state.pop(force_confirm_key, None)
+    session_state[f"{page_state.index_page}__last_run_status"] = "running"
+
+    try:
+        run_placeholder = get_run_placeholder(page_state.index_page)
+        log_file_path, log_error = prepare_run_log_file(page_state.index_page, env, prefix="pipeline")
+        if log_file_path:
+            message = f"Run pipeline started... logs will be saved to {log_file_path}"
+        else:
+            message = f"Run pipeline started... (unable to prepare log file: {log_error})"
+        push_run_log(page_state.index_page, message, run_placeholder)
+    except Exception as exc:
+        session_state[f"{page_state.index_page}__last_run_status"] = "failed"
+        return PipelineCommandResult(
+            status=PipelineCommandStatus.FAILED,
+            message=f"Could not start pipeline run: {exc}",
+            details={"action": requested_action, "error": str(exc)},
+        )
+
+    return PipelineCommandResult(
+        status=PipelineCommandStatus.SUCCESS,
+        message=message,
+        details={
+            "action": requested_action,
+            "force_lock_clear": requested_action is PipelineAction.FORCE_RUN,
+            "log_file_path": str(log_file_path) if log_file_path else "",
+            "log_error": str(log_error or ""),
+            "log_placeholder": run_placeholder,
+        },
+    )
