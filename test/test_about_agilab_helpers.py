@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
@@ -666,7 +667,7 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
     assert refreshed_envs == [result.env]
     assert ("APPS_PATH", str(apps_path)) not in set_env_calls
     assert ("IS_SOURCE_ENV", "1") in set_env_calls
-    assert "OPENAI_API_KEY not set" in fake_st.warnings[0]
+    assert fake_st.warnings == []
 
 
 def test_bootstrap_resolve_apps_path_rejects_empty_or_malformed_marker(tmp_path):
@@ -919,7 +920,7 @@ def test_bootstrap_page_environment_uses_injected_ports_and_services(tmp_path):
     assert port_calls.activated == [result.env]
     assert port_calls.stored == [apps_path / "remembered"]
     assert ("APPS_PATH", str(apps_path)) in saved_values
-    assert any("OPENAI_API_KEY not set" in message for event, message in fake_st.events if event == "warning")
+    assert not [message for event, message in fake_st.events if event == "warning"]
 
 
 def test_bootstrap_page_environment_cli_active_app_overrides_last_app(tmp_path):
@@ -1217,7 +1218,7 @@ def test_about_layout_rejects_placeholder_openai_keys():
     assert layout.clean_openai_key(" sk-" + "a" * 16 + " ") == "sk-" + "a" * 16
 
 
-def test_about_layout_openai_status_banner_warns_only_without_valid_key(
+def test_about_layout_openai_status_banner_is_silent_without_valid_key(
     tmp_path,
     monkeypatch,
 ):
@@ -1231,7 +1232,7 @@ def test_about_layout_openai_status_banner_warns_only_without_valid_key(
         env_file_path=tmp_path / ".env",
     )
 
-    assert any("OpenAI features are disabled" in body for kind, body in fake_st.events if kind == "warning")
+    assert not fake_st.events
 
     fake_st.events.clear()
     monkeypatch.setenv("OPENAI_API_KEY", "sk-" + "a" * 16)
@@ -1254,7 +1255,7 @@ def test_about_page_openai_status_banner_repairs_cached_layout_without_os(monkey
     about_agilab.openai_status_banner(SimpleNamespace(OPENAI_API_KEY="your-key"))
 
     assert layout.os is about_agilab.os
-    assert any("OpenAI features are disabled" in body for kind, body in fake_st.events if kind == "warning")
+    assert not fake_st.events
 
 
 def test_system_information_summary_handles_unknown_cpu(monkeypatch):
@@ -1355,7 +1356,7 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
+    assert not any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
 
 
 def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatch):
@@ -1389,7 +1390,11 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
     monkeypatch.setattr(about_agilab, "render_sidebar_version", rendered_versions.append)
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
     monkeypatch.setattr(about_agilab, "_render_env_editor", lambda _env: None)
-    monkeypatch.setattr(about_agilab, "render_page_docs_access", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        about_agilab,
+        "render_page_docs_access",
+        lambda *_args, **_kwargs: fake_st.events.append(("sidebar.button", "Read Documentation")),
+    )
     about_agilab._sync_layout_module()
     monkeypatch.setattr(
         about_agilab._about_layout,
@@ -1417,8 +1422,10 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
     assert "Installed package versions:False" not in expanders
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
-    assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    docs_button = _event_index(fake_st.events, "sidebar.button", "Read Documentation")
+    os_caption = _event_index(fake_st.events, "sidebar.caption", "OS:")
+    cpu_caption = _event_index(fake_st.events, "sidebar.caption", "CPU:")
+    assert docs_button < os_caption < cpu_caption
     assert env_expander >= 0
 
 
@@ -1433,13 +1440,46 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
 
     body = "\n".join(body for kind, body in fake_st.events if kind == "markdown")
     assert "agilab-hero" in body
+    assert "width: 100%" in body
     assert "Reproducible AI workflows" in body
+    assert "agilab-hero__visual" in body
+    assert "agilab-hero__target-img" in body
+    assert "data:image/svg+xml;base64," in body
+    assert "Bias variance controls, underfit overfit symptoms, and train test diagnosis" in body
+    assert '<g transform="translate(54 111)">' not in body
+    assert "<svg viewBox" not in body
+    assert "Thales open-source workbench" not in body
+    assert "Open-source workbench" in body
+    assert "Select a project, run it, and inspect the result" not in body
+    assert "Thales SIX GTS" in body
+    assert "BSD 3-Clause License" in body
     assert "Project" in body
     assert "Run" in body
     assert "Analyse" in body
     assert "Control path" not in body
     assert "Data intake" not in body
     assert "Decision evidence" not in body
+
+
+def test_about_hero_target_svg_data_uri_keeps_svg_encoded():
+    prefix = "data:image/svg+xml;base64,"
+    data_uri = about_agilab._about_layout._hero_target_svg_data_uri()
+
+    assert data_uri.startswith(prefix)
+    decoded = base64.b64decode(data_uri.removeprefix(prefix)).decode("utf-8")
+    assert decoded.startswith("<svg ")
+    assert '<g transform="translate(54 111)">' not in decoded
+    assert '<g transform="translate(306 111)">' not in decoded
+    assert 'viewBox="0 0 420 260"' in decoded
+    assert '<g transform="translate(118 127)">' in decoded
+    assert "Generalization map" in decoded
+    assert "Bias &#8596; Variance" in decoded
+    assert "Controls" in decoded
+    assert "Underfit &#8596; Overfit" in decoded
+    assert "Symptoms" in decoded
+    assert "Train vs Test" in decoded
+    assert "Diagnosis" in decoded
+    assert "controls drive symptoms; train/test confirms" in decoded
 
 
 def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
@@ -1643,6 +1683,11 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
 
     about_agilab.render_newcomer_first_proof(env)
 
+    start_here = _event_index(
+        fake_st.events,
+        "expander",
+        "Start here: run flight_project first:False",
+    )
     overview = _event_index(fake_st.events, "markdown", "agilab-proof")
     next_action = _event_index(fake_st.events, "warning", "Next action:")
     do_this_now = _event_index(fake_st.events, "markdown", "**2. Do this now**")
@@ -1655,7 +1700,7 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
     progress = _event_index(fake_st.events, "markdown", "**Progress**")
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
 
-    assert overview < next_action < do_this_now < done_when < proof_details < progress < validated_path
+    assert start_here < overview < next_action < do_this_now < done_when < proof_details < progress < validated_path
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):

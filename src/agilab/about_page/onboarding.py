@@ -410,7 +410,7 @@ def render_newcomer_first_proof(
     if feedback:
         st.success(str(feedback))
 
-    with st.expander(content["title"], expanded=True):
+    with st.expander(content["title"], expanded=False):
         progress_rows = _first_proof_progress_rows(state)
         st.markdown(
             _first_proof_overview_html(content, state, progress_rows),

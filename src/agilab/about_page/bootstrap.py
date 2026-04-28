@@ -342,9 +342,6 @@ def bootstrap_page_environment(
         environ=ports.environ,
         logger=logger,
     )
-    if openai_missing:
-        streamlit.warning("OPENAI_API_KEY not set. OpenAI-powered features will be disabled.")
-
     streamlit.session_state["first_run"] = False
     try:
         streamlit.query_params["active_app"] = env.app

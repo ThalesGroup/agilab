@@ -229,7 +229,6 @@ def _all_button_labels(at: AppTest) -> list[str]:
 def _assert_docs_actions_present(at: AppTest) -> None:
     labels = _all_button_labels(at)
     assert "Read Documentation" in labels
-    assert "Open Local Documentation" in labels
 
 
 def _assert_docs_actions_absent(at: AppTest) -> None:
@@ -948,7 +947,7 @@ def test_agilab_main_page_theme_injection(mock_ui_env):
         "Expected theme CSS to be injected via st.markdown"
 
 
-def test_agilab_main_page_missing_openai_key_warning_points_to_env_editor(mock_ui_env):
+def test_agilab_main_page_missing_openai_key_stays_silent_on_first_launch(mock_ui_env):
     at = _app_test("src/agilab/About_agilab.py")
 
     with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
@@ -956,11 +955,9 @@ def test_agilab_main_page_missing_openai_key_warning_points_to_env_editor(mock_u
 
     assert not at.exception
     warning_messages = [str(item.value) for item in at.warning]
-    assert any(
-        "Set OPENAI_API_KEY below in 'Environment Variables', then reload the app." in message
-        for message in warning_messages
-    )
-    assert not any("via the 'Environment Variables' expander" in message for message in warning_messages)
+    info_messages = [str(item.value) for item in at.info]
+    assert not any("OPENAI_API_KEY" in message for message in warning_messages)
+    assert not any("OPENAI_API_KEY" in message for message in info_messages)
 
 
 def test_experiment_page_missing_openai_key(mock_ui_env):

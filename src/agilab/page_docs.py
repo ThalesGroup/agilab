@@ -29,8 +29,11 @@ def _remote_docs_url(html_file: str, anchor: str = "") -> str:
     return f"{base}#{clean_anchor}"
 
 
-def _open_remote_docs(html_file: str, anchor: str = "") -> None:
-    webbrowser.open_new_tab(_remote_docs_url(html_file, anchor))
+def _open_remote_docs(html_file: str, anchor: str = "") -> bool:
+    try:
+        return bool(webbrowser.open_new_tab(_remote_docs_url(html_file, anchor)))
+    except (OSError, RuntimeError, webbrowser.Error):
+        return False
 
 
 def _resolve_local_page_docs_path(env, html_file: str) -> Path | None:
@@ -84,6 +87,12 @@ def _open_local_page_docs(env, html_file: str, anchor: str = "") -> str:
     raise FileNotFoundError(f"Local documentation file '{html_file}' was not found.")
 
 
+def _open_preferred_page_docs(env, html_file: str, anchor: str = "") -> str:
+    if _open_remote_docs(html_file, anchor):
+        return "remote"
+    return f"local:{_open_local_page_docs(env, html_file, anchor)}"
+
+
 def render_page_docs_access(
     env,
     *,
@@ -98,24 +107,18 @@ def render_page_docs_access(
     container = st.sidebar if sidebar else st
     if divider:
         container.divider()
-    container.subheader(title)
+    if not sidebar:
+        container.subheader(title)
     if caption:
         container.caption(caption)
 
     if container.button(
         "Read Documentation",
-        key=f"{key_prefix}_docs_remote",
+        key=f"{key_prefix}_docs_read",
         type="primary",
         width="stretch",
     ):
-        _open_remote_docs(html_file, anchor)
-
-    if container.button(
-        "Open Local Documentation",
-        key=f"{key_prefix}_docs_local",
-        width="stretch",
-    ):
         try:
-            _open_local_page_docs(env, html_file, anchor)
+            _open_preferred_page_docs(env, html_file, anchor)
         except FileNotFoundError:
-            container.error("Local documentation not found. Regenerate via docs/gen-docs.sh.")
+            container.error("Documentation not found online or locally. Regenerate via docs/gen-docs.sh.")
