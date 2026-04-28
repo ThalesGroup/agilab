@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -41,6 +41,9 @@ class OrchestrateExecuteDeps:
     log_display_max_lines: int
     live_log_min_height: int
     install_log_height: int
+
+    def __replace__(self, **changes: Any) -> "OrchestrateExecuteDeps":
+        return replace(self, **changes)
 
 
 def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> list[Path]:
