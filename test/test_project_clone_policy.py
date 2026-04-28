@@ -703,6 +703,70 @@ def test_build_updated_attributes_source_rewrites_selected_class():
     assert "value = 1" not in updated
 
 
+def test_save_code_editor_file_action_rejects_invalid_json_without_overwrite(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "settings.json"
+    target.write_text('{"ok": true}\n', encoding="utf-8")
+
+    result = module._save_code_editor_file_action(target, "{bad json", "json")
+
+    assert result.status == "error"
+    assert result.title == "Failed to save changes to 'settings.json'."
+    assert "Invalid JSON" in str(result.detail)
+    assert target.read_text(encoding="utf-8") == '{"ok": true}\n'
+
+
+def test_save_code_editor_file_action_writes_valid_text(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "README.md"
+
+    result = module._save_code_editor_file_action(target, "# Demo\n", "markdown")
+
+    assert result.status == "success"
+    assert result.title == "Changes saved to 'README.md'."
+    assert target.read_text(encoding="utf-8") == "# Demo\n"
+
+
+def test_update_function_source_action_preserves_module_context(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "demo.py"
+    target.write_text(
+        "VALUE = 1\n\n"
+        "def keep():\n"
+        "    return VALUE\n\n"
+        "def demo():\n"
+        "    return 1\n",
+        encoding="utf-8",
+    )
+
+    result = module._update_function_source_action(
+        target,
+        "def demo():\n    return 2\n",
+        "demo",
+        "module-level",
+    )
+
+    updated = target.read_text(encoding="utf-8")
+    assert result.status == "success"
+    assert "def keep" in updated
+    assert "return VALUE" in updated
+    assert "return 2" in updated
+    assert "return 1" not in updated
+
+
+def test_update_attributes_source_action_reports_invalid_class(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "demo.py"
+    target.write_text("class Demo:\n    value = 1\n", encoding="utf-8")
+
+    result = module._update_attributes_source_action(target, "value = 2\n", "Missing")
+
+    assert result.status == "error"
+    assert result.title == "Error updating attributes."
+    assert "Class 'Missing' not found" in str(result.detail)
+    assert "value = 1" in target.read_text(encoding="utf-8")
+
+
 def test_build_updated_function_source_rejects_non_function_code():
     module = _load_project_module()
 
