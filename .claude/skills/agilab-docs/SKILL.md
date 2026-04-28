@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-08
+  updated: 2026-04-28
 ---
 
 # Docs Skill (AGILAB)
@@ -77,6 +77,14 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 
 - Public documentation must not mention non-public apps/repositories.
 - Keep examples generic and refer to “external apps repository” rather than naming private app modules.
+- Before a public release or Hugging Face deploy, scan public docs and demo
+  packaging for internal competitive wording, private project names, local
+  validation paths, and non-public strategy text. Include at least README,
+  `docs/source`, canonical `../thales_agilab/docs/source`, and the Hugging Face
+  README bundle in the scan.
+- Public demo copy must describe AGILAB's capabilities directly. Do not publish
+  internal comparison language such as "beats <competitor>", "make it obsolete",
+  or named internal competitor positioning.
 
 ## Positioning Claim Guardrail
 

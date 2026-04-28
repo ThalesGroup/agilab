@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-24
+  updated: 2026-04-28
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -112,6 +112,8 @@ Before touching the Space deployment, verify:
    `builtin`, `templates`, `install.py`, and package metadata. If the working
    checkout has ignored private app symlinks, deploy from a temporary clean
    worktree at `origin/main` rather than from the dirty checkout.
+   Also verify LFS-backed built-in assets are present in that clean worktree
+   before staging the Space.
 6. Any public-facing AGILAB docs that link to the Space are updated only after the deployment contract is stable.
 
 When feasible, inspect the deploy script rather than paraphrasing it from memory.
@@ -121,10 +123,12 @@ Clean worktree pattern when private app symlinks are present:
 ```bash
 tmpdir=$(mktemp -d /tmp/agilab-hf-public.XXXXXX)
 git worktree add --detach "$tmpdir" origin/main
+git -C "$tmpdir" lfs install --local
+git -C "$tmpdir" lfs pull
+find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort
 /Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh \
   --agilab-path "$tmpdir" \
   --space jpmorard/agilab
-git worktree remove "$tmpdir"
 ```
 
 After upload, verify the Space cutover separately from the file upload:
@@ -137,6 +141,46 @@ curl -I -L --max-time 20 https://jpmorard-agilab.hf.space/
 If the fix is about a deployed file, download that exact file from the Space and
 inspect it. Do not assume the runtime is serving the new code until
 `runtime.stage` is `RUNNING` and the runtime SHA matches the uploaded Space SHA.
+Only remove the temporary worktree after this cutover check passes:
+
+```bash
+git worktree remove "$tmpdir"
+```
+
+Runtime cutover check:
+
+```bash
+python3 - <<'PY'
+import json
+import subprocess
+import time
+
+for attempt in range(1, 31):
+    info = json.loads(subprocess.check_output(
+        ["hf", "spaces", "info", "jpmorard/agilab", "--format", "json"],
+        text=True,
+    ))
+    runtime = info.get("runtime") or {}
+    raw = runtime.get("raw") or {}
+    stage = runtime.get("stage") or raw.get("stage")
+    repo_sha = info.get("sha")
+    runtime_sha = raw.get("sha")
+    private = info.get("private")
+    print(f"attempt={attempt} stage={stage} private={private} repo_sha={repo_sha} runtime_sha={runtime_sha}")
+    if stage in {"RUNNING", "READY"} and private is False and runtime_sha == repo_sha:
+        raise SystemExit(0)
+    time.sleep(20)
+raise SystemExit(1)
+PY
+```
+
+If the Space is stuck in `RUNNING_BUILDING` or `RUNNING_APP_STARTING`, inspect
+the relevant logs before making another upload:
+
+```bash
+hf spaces logs jpmorard/agilab --build --tail 120
+hf spaces logs jpmorard/agilab --tail 160
+```
 
 ## When Editing the Space Contract
 

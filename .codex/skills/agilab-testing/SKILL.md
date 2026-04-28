@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-21
+  updated: 2026-04-28
 ---
 
 # Testing Skill (AGILAB)
@@ -84,6 +84,29 @@ Use this skill when validating changes.
 
 - Whole repo tests (if needed):
   - `uv --preview-features extra-build-dependencies run --no-sync pytest`
+
+## Release Validation Gate
+
+Use this when the user asks for full documentation alignment, source-install
+validation, release, and Hugging Face sync in one flow.
+
+- Keep docs validation separate from installer validation:
+  - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --delete`
+  - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
+- Validate the release candidate from a clean public source clone with an
+  isolated `HOME`, not from the developer checkout:
+  - clone `https://github.com/ThalesGroup/agilab.git` into a new directory under `$HOME`
+  - run `git lfs install --local && git lfs pull`
+  - run the installer with `--install-apps builtin --test-root --test-core --test-apps --skip-offline`
+  - set `AGI_LOCAL_DIR="$PWD/localshare"` and `--agi-share-dir "$PWD/clustershare"`
+- If the release includes a first-proof or demo claim, run the demo command from
+  that same clean clone and record the produced artifact path plus key metrics.
+- Treat benign `uv self update` failures from package-manager-installed `uv` as
+  warnings only when the installer catches them and continues; do not ignore
+  uncaught install failures.
+- After release, verify package publication with a network-level check such as
+  `curl https://pypi.org/pypi/agilab/json`, because local Python SSL trust can
+  differ from the actual PyPI publication state.
 
 ## Coverage Notes
 
