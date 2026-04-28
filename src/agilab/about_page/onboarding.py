@@ -74,9 +74,9 @@ def _render_newcomer_first_proof_static() -> None:
         <div style="border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 12px; padding: 1rem 1.2rem; margin: 1rem 0 1.25rem 0; background: rgba(250, 250, 250, 0.82);">
           <h3 style="margin-top: 0;">{content["title"]}</h3>
           <p style="margin-bottom: 0.75rem;">{content["intro"]}</p>
-          <p style="margin-bottom: 0.35rem;"><strong>First proof steps</strong></p>
+          <p style="margin-bottom: 0.35rem;"><strong>Do this now</strong></p>
           <ol style="margin-top: 0.1rem; margin-bottom: 0.75rem;">{steps_html}</ol>
-          <p style="margin-bottom: 0.35rem;"><strong>You are done when</strong></p>
+          <p style="margin-bottom: 0.35rem;"><strong>Done when</strong></p>
           <ul style="margin-top: 0.1rem; margin-bottom: 0.5rem;">{success_html}</ul>
         </div>
         """,
@@ -192,13 +192,11 @@ def render_newcomer_first_proof(
         st.success(str(feedback))
 
     with st.expander(content["title"], expanded=True):
+        st.markdown("**1. Goal**")
         st.write(content["intro"])
         _render_first_proof_next_action(env, state, activate_project)
 
-        st.markdown("**Progress**")
-        st.markdown(_first_proof_progress_markdown(_first_proof_progress_rows(state)))
-
-        st.markdown("**Do this now**")
+        st.markdown("**2. Do this now**")
         step_lines = [
             f"{index}. {detail}"
             for index, (_, detail) in enumerate(content["steps"], start=1)
@@ -211,60 +209,60 @@ def render_newcomer_first_proof(
                 preview += ", ..."
             st.caption(f"Generated files found: {preview}")
 
-        st.markdown("**You are done when**")
+        st.markdown("**3. Done when**")
         st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
-        st.caption("After that: try another demo. Keep cluster mode for later.")
+        st.caption("After that: try another demo. Keep cluster and service mode for later.")
 
-        st.divider()
-        st.markdown("**Troubleshooting and evidence**")
-        st.caption(
-            "Validated path: "
-            f"{state['recommended_path_label']} "
-            f"({state['compatibility_status']}; report: {state['compatibility_report_status']})."
-        )
-        st.caption(
-            "Preflight evidence: "
-            f"`{state['cli_command']}` "
-            f"({', '.join(state['proof_command_labels'])}; "
-            f"target <= {state['target_seconds']:.0f}s)."
-        )
-        if state["run_manifest_loaded"]:
-            manifest_summary = state["run_manifest_summary"]
+        with st.expander("If it fails / proof details", expanded=False):
+            st.markdown("**Progress**")
+            st.markdown(_first_proof_progress_markdown(_first_proof_progress_rows(state)))
             st.caption(
-                "Run manifest: "
-                f"`{state['run_manifest_path']}` "
-                f"({state['run_manifest_status']}; "
-                f"{manifest_summary.get('artifact_count', 0)} artifact refs)."
+                "Validated path: "
+                f"{state['recommended_path_label']} "
+                f"({state['compatibility_status']}; report: {state['compatibility_report_status']})."
             )
-        else:
-            st.caption(f"Run manifest expected at: `{state['run_manifest_path']}`.")
+            st.caption(
+                "CLI proof command: "
+                f"`{state['cli_command']}` "
+                f"({', '.join(state['proof_command_labels'])}; "
+                f"target <= {state['target_seconds']:.0f}s)."
+            )
+            if state["run_manifest_loaded"]:
+                manifest_summary = state["run_manifest_summary"]
+                st.caption(
+                    "Run manifest: "
+                    f"`{state['run_manifest_path']}` "
+                    f"({state['run_manifest_status']}; "
+                    f"{manifest_summary.get('artifact_count', 0)} artifact refs)."
+                )
+            else:
+                st.caption(f"Run manifest expected at: `{state['run_manifest_path']}`.")
 
-        if state["remediation_status"] == "passed":
-            st.caption(state["remediation_title"])
-        elif state["remediation_status"] in {"missing", "missing_manifest_with_outputs"}:
-            st.info(state["remediation_title"])
-        else:
-            st.warning(state["remediation_title"])
+            if state["remediation_status"] == "passed":
+                st.caption(state["remediation_title"])
+            elif state["remediation_status"] in {"missing", "missing_manifest_with_outputs"}:
+                st.info(state["remediation_title"])
+            else:
+                st.warning(state["remediation_title"])
 
-        st.markdown("**Recovery checklist**")
-        st.markdown("\n".join(f"- {item}" for item in state["remediation_actions"]))
-        st.markdown("**Evidence commands**")
-        st.code("\n".join(state["evidence_commands"]), language="bash")
-        if state["run_manifest_validation_rows"] and state["remediation_status"] != "passed":
-            validation_preview = "; ".join(
-                f"{row['label']}={row['status']}"
-                for row in state["run_manifest_validation_rows"]
+            st.markdown("**Recovery checklist**")
+            st.markdown("\n".join(f"- {item}" for item in state["remediation_actions"]))
+            st.markdown("**Evidence commands**")
+            st.code("\n".join(state["evidence_commands"]), language="bash")
+            if state["run_manifest_validation_rows"] and state["remediation_status"] != "passed":
+                validation_preview = "; ".join(
+                    f"{row['label']}={row['status']}"
+                    for row in state["run_manifest_validation_rows"]
+                )
+                st.caption(f"Manifest validations: {validation_preview}")
+            st.caption(
+                "Evidence links: "
+                + " | ".join(
+                    f"[{label}]({url})"
+                    for label, url in state["remediation_links"]
+                )
             )
-            st.caption(f"Manifest validations: {validation_preview}")
-        st.caption(
-            "Evidence links: "
-            + " | ".join(
-                f"[{label}]({url})"
-                for label, url in state["remediation_links"]
-            )
-        )
 
         st.divider()
         if display_landing_page is not None:
             display_landing_page(Path(env.st_resources))
-

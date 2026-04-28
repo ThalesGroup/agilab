@@ -1158,8 +1158,8 @@ def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides(
 def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
-    assert content["title"] == "Start here"
-    assert "validated flight_project source-checkout proof" in content["intro"]
+    assert content["title"] == "Start here: run flight_project first"
+    assert "built-in flight demo locally" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
     assert content["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
@@ -1169,7 +1169,8 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
         "ANALYSIS",
     ]
     assert any("flight_project" in detail for _, detail in content["steps"])
-    assert any("Generated files" in item for item in content["success_criteria"])
+    assert any("generated files" in item for item in content["success_criteria"])
+    assert any("cluster, benchmark, and service options off" in detail for _, detail in content["steps"])
     assert content["compatibility_status"] == "validated"
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
@@ -1416,15 +1417,17 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
     about_agilab.render_newcomer_first_proof(env)
 
     next_action = _event_index(fake_st.events, "warning", "Next action:")
-    progress = _event_index(fake_st.events, "markdown", "**Progress**")
-    troubleshooting = _event_index(
+    do_this_now = _event_index(fake_st.events, "markdown", "**2. Do this now**")
+    done_when = _event_index(fake_st.events, "markdown", "**3. Done when**")
+    proof_details = _event_index(
         fake_st.events,
-        "markdown",
-        "**Troubleshooting and evidence**",
+        "expander",
+        "If it fails / proof details:False",
     )
+    progress = _event_index(fake_st.events, "markdown", "**Progress**")
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
 
-    assert next_action < progress < troubleshooting < validated_path
+    assert next_action < do_this_now < done_when < proof_details < progress < validated_path
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
@@ -1446,4 +1449,5 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
     assert "ANALYSIS" in body
     assert "flight_project" in body
     assert "run_manifest.json" in body
-    assert "You are done when" in body
+    assert "Do this now" in body
+    assert "Done when" in body
