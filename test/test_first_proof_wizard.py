@@ -23,6 +23,8 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
 
     content = module.newcomer_first_proof_content()
 
+    assert content["title"] == "Start here: run flight_project first"
+    assert "built-in flight demo locally" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["recommended_path_label"] == "Source checkout first proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
@@ -32,6 +34,7 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
     assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
     assert content["run_manifest_filename"] == "run_manifest.json"
     assert [label for label, _ in content["steps"]] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+    assert any("cluster, benchmark, and service options off" in detail for _, detail in content["steps"])
     assert "tools/newcomer_first_proof.py --json" in content["cli_command"]
     assert any("run_manifest.json" in item for item in content["success_criteria"])
 
