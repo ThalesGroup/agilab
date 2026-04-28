@@ -1,4 +1,6 @@
+import ipaddress
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -23,6 +25,18 @@ RUN_MODE_LABELS: tuple[str, ...] = (
     "14: rapids and dask and cython",
     "15: rapids and dask and pool and cython",
 )
+LAN_DISCOVERY_CACHE = Path(".agilab") / "lan_nodes.json"
+LAN_READY_STATUSES = {"ready"}
+LAN_CONFIGURED_WORKER_SOURCES = {"cache", "ssh-config"}
+LAN_WORKER_CANDIDATE_STATUSES = {
+    "ready",
+    "reverse-ssh-needed",
+    "sshfs-missing",
+    "uv-missing",
+    "python-missing",
+    "ssh-auth-needed",
+    "no-ssh-port",
+}
 
 
 @dataclass(frozen=True)
@@ -150,6 +164,215 @@ def _cluster_credentials_value(user: str, *, password: str = "", use_ssh_key: bo
     return f"{sanitized_user}:{password}"
 
 
+def _is_empty_scheduler(value: Any) -> bool:
+    normalized = str(value or "").strip().lower()
+    return normalized in {"", "none", "local", "localhost", "127.0.0.1", "127.0.0.1:8786"}
+
+
+def _is_empty_workers(value: Any) -> bool:
+    if value in (None, ""):
+        return True
+    if isinstance(value, dict):
+        return not value or value == {"127.0.0.1": 1}
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.lower() in {"", "none"}:
+            return True
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return False
+        return _is_empty_workers(parsed)
+    return False
+
+
+def _is_empty_workers_data_path(value: Any) -> bool:
+    return str(value or "").strip().lower() in {"", "none", "local", "localshare"}
+
+
+def _env_cluster_share_candidate(env: Any) -> Path | None:
+    raw_value = getattr(env, "AGI_CLUSTER_SHARE", None)
+    envars = getattr(env, "envars", None)
+    if not raw_value and isinstance(envars, dict):
+        raw_value = envars.get("AGI_CLUSTER_SHARE")
+    if not raw_value:
+        try:
+            raw_value = env.share_root_path()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return None
+
+    try:
+        candidate = Path(str(raw_value)).expanduser()
+    except (OSError, TypeError, ValueError):
+        return None
+    if not candidate.is_absolute():
+        candidate = Path.home() / candidate
+    try:
+        return candidate.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return candidate
+
+
+def _cluster_share_problem(env: Any) -> str | None:
+    candidate = _env_cluster_share_candidate(env)
+    if candidate is None:
+        return "Cluster mode needs `AGI_CLUSTER_SHARE`, but no cluster share path is configured."
+    if not candidate.is_dir():
+        if candidate.exists():
+            return f"Cluster mode needs a writable `AGI_CLUSTER_SHARE`, but `{candidate}` is not a directory."
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            return (
+                f"Cluster mode needs a writable `AGI_CLUSTER_SHARE`, but `{candidate}` "
+                f"could not be created: {exc}"
+            )
+        if not candidate.is_dir():
+            return f"Cluster mode needs a writable `AGI_CLUSTER_SHARE`, but `{candidate}` is not a directory."
+    if not os.access(candidate, os.W_OK):
+        return f"Cluster mode needs a writable `AGI_CLUSTER_SHARE`, but `{candidate}` is not writable."
+    return None
+
+
+def _scheduler_host_score(host: str) -> tuple[int, int, str]:
+    """Prefer routable LAN scheduler addresses over link-local fallbacks."""
+    cleaned = str(host or "").strip()
+    if not cleaned:
+        return (3, 1, "")
+    try:
+        address = ipaddress.ip_address(cleaned)
+    except ValueError:
+        return (2, 0, cleaned)
+    if address.is_loopback or address.is_multicast or address.is_unspecified or address.is_link_local:
+        return (3, 0, cleaned)
+    if address.is_private:
+        return (0, 0, cleaned)
+    return (1, 0, cleaned)
+
+
+def _select_lan_scheduler_host(local_hosts: Any) -> str:
+    if not isinstance(local_hosts, list):
+        return ""
+    candidates = [str(host).strip() for host in local_hosts if str(host).strip()]
+    if not candidates:
+        return ""
+    return min(candidates, key=_scheduler_host_score)
+
+
+def _is_lan_autofill_host(host: str) -> bool:
+    cleaned = str(host or "").strip()
+    if not cleaned:
+        return False
+    try:
+        address = ipaddress.ip_address(cleaned)
+    except ValueError:
+        if any(char.isspace() for char in cleaned):
+            return False
+        lowered = cleaned.lower()
+        if lowered in {"localhost"}:
+            return False
+        return "." not in lowered or lowered.endswith(".local")
+
+    if address.is_loopback or address.is_multicast or address.is_unspecified or address.is_link_local:
+        return False
+    if address.version == 4 and str(address).rsplit(".", 1)[-1] in {"0", "255"}:
+        return False
+    return True
+
+
+def _lan_node_sources(node: dict[str, Any]) -> set[str]:
+    sources = node.get("sources")
+    if isinstance(sources, list):
+        return {str(source).strip() for source in sources if str(source).strip()}
+    if isinstance(sources, tuple):
+        return {str(source).strip() for source in sources if str(source).strip()}
+    return set()
+
+
+def _is_lan_worker_autofill_candidate(node: dict[str, Any]) -> bool:
+    host = str(node.get("host") or "").strip()
+    if not _is_lan_autofill_host(host):
+        return False
+    status = str(node.get("status") or "").strip()
+    if status not in LAN_WORKER_CANDIDATE_STATUSES:
+        return False
+    if status in LAN_READY_STATUSES:
+        return True
+    return bool(_lan_node_sources(node) & LAN_CONFIGURED_WORKER_SOURCES)
+
+
+def _default_lan_discovery_cache_path() -> Path:
+    return Path.home() / LAN_DISCOVERY_CACHE
+
+
+def _lan_discovery_cluster_defaults(cache_path: Path | None = None) -> dict[str, Any]:
+    """Return scheduler/workers defaults from the last LAN discovery cache."""
+    cache_file = cache_path or _default_lan_discovery_cache_path()
+    try:
+        payload = json.loads(cache_file.expanduser().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+
+    defaults: dict[str, Any] = {}
+    local_hosts = payload.get("local_hosts")
+    scheduler_host = _select_lan_scheduler_host(local_hosts)
+    if scheduler_host:
+        defaults["scheduler"] = f"{scheduler_host}:8786"
+
+    nodes = payload.get("nodes")
+    workers: dict[str, int] = {}
+    if isinstance(nodes, list):
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            host = str(node.get("host") or "").strip()
+            if _is_lan_worker_autofill_candidate(node):
+                workers[host] = 1
+    if workers:
+        defaults["workers"] = dict(sorted(workers.items()))
+    return defaults
+
+
+def _apply_lan_discovery_defaults(
+    cluster_params: dict[str, Any],
+    session_state: dict[str, Any],
+    widget_keys: dict[str, str],
+    *,
+    defaults: dict[str, Any],
+) -> None:
+    """Populate empty cluster fields before widgets are created."""
+    if not defaults:
+        return
+    scheduler_key = widget_keys["scheduler"]
+    workers_key = widget_keys["workers"]
+    should_fill_scheduler = _is_empty_scheduler(cluster_params.get("scheduler"))
+    should_fill_workers = _is_empty_workers(cluster_params.get("workers"))
+
+    scheduler = defaults.get("scheduler")
+    if scheduler and should_fill_scheduler and _is_empty_scheduler(session_state.get(scheduler_key)):
+        scheduler_value = str(scheduler)
+        cluster_params["scheduler"] = scheduler_value
+        session_state[scheduler_key] = scheduler_value
+
+    workers = defaults.get("workers")
+    if isinstance(workers, dict) and workers and should_fill_workers and _is_empty_workers(session_state.get(workers_key)):
+        cluster_params["workers"] = workers
+        session_state[workers_key] = json.dumps(workers, indent=2)
+
+    workers_data_path_key = widget_keys["workers_data_path"]
+    workers_data_path = defaults.get("workers_data_path")
+    if (
+        workers_data_path
+        and _is_empty_workers_data_path(cluster_params.get("workers_data_path"))
+        and _is_empty_workers_data_path(session_state.get(workers_data_path_key))
+    ):
+        workers_data_path_value = str(workers_data_path)
+        cluster_params["workers_data_path"] = workers_data_path_value
+        session_state[workers_data_path_key] = workers_data_path_value
+
+
 def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
     app_settings = st.session_state.get("app_settings")
     if not isinstance(app_settings, dict):
@@ -179,19 +402,48 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
         cluster_params[param] = updated_value
 
     cluster_enabled_key = widget_keys["cluster_enabled"]
+    cluster_share_problem = _cluster_share_problem(env)
+    reset_cluster_toggle_key = f"{cluster_enabled_key}__reset"
+    if st.session_state.pop(reset_cluster_toggle_key, False):
+        st.session_state[cluster_enabled_key] = False
+    if bool(cluster_params.get("cluster_enabled", False)) and cluster_share_problem:
+        cluster_params["cluster_enabled"] = False
+        if cluster_enabled_key not in st.session_state:
+            st.session_state[cluster_enabled_key] = False
+
     if cluster_enabled_key not in st.session_state:
         st.session_state[cluster_enabled_key] = bool(cluster_params.get("cluster_enabled", False))
-    cluster_enabled = st.toggle(
+    cluster_requested = st.toggle(
         "Enable Cluster",
         key=cluster_enabled_key,
         help="Enable cluster: provide a scheduler IP and workers configuration.",
     )
-    cluster_params["cluster_enabled"] = bool(cluster_enabled)
+    if cluster_requested and cluster_share_problem:
+        st.error(
+            f"{cluster_share_problem} Fix the cluster share before enabling cluster mode; "
+            "the setting was not saved."
+        )
+        cluster_enabled = False
+        cluster_params["cluster_enabled"] = False
+        st.session_state[reset_cluster_toggle_key] = True
+    else:
+        cluster_enabled = bool(cluster_requested)
+        cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
     if cluster_enabled:
         st.markdown(f"**agi_share_path:** {_describe_share_path(env)}")
 
         scheduler_widget_key = widget_keys["scheduler"]
+        cluster_share_candidate = _env_cluster_share_candidate(env)
+        lan_defaults = _lan_discovery_cluster_defaults()
+        if cluster_share_candidate is not None:
+            lan_defaults = {**lan_defaults, "workers_data_path": str(cluster_share_candidate)}
+        _apply_lan_discovery_defaults(
+            cluster_params,
+            st.session_state,
+            widget_keys,
+            defaults=lan_defaults,
+        )
         if scheduler_widget_key not in st.session_state:
             st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
         user_widget_key = widget_keys["user"]

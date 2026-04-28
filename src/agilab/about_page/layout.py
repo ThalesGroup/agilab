@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import base64
+import html
+import json
 import os
 import platform
 import re
 import subprocess
+import tomllib
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import streamlit as st
 
@@ -444,9 +448,623 @@ def accelerator_information_summary() -> tuple[str, str]:
     return gpu_summary, npu_summary
 
 
-def render_sidebar_system_information() -> None:
-    """Render compact local hardware information in the sidebar."""
-    for label, value in system_information_lines():
+def _memory_summary() -> str:
+    """Return compact local RAM label."""
+    try:
+        import psutil  # type: ignore
+    except ImportError:
+        psutil = None  # type: ignore[assignment]
+    if psutil is not None:
+        try:
+            return _format_bytes(int(psutil.virtual_memory().total))
+        except Exception:
+            pass
+
+    if platform.system() == "Darwin":
+        value = _command_output(("sysctl", "-n", "hw.memsize"))
+        if value.isdigit():
+            return _format_bytes(int(value))
+
+    meminfo = _command_output(("sh", "-c", "awk '/MemTotal/ {print int($2 * 1024)}' /proc/meminfo 2>/dev/null"))
+    if meminfo.isdigit():
+        return _format_bytes(int(meminfo))
+    return "Unknown RAM"
+
+
+def _format_bytes(byte_count: int) -> str:
+    gib = byte_count / (1024**3)
+    if gib >= 10:
+        return f"{gib:.0f} GB"
+    return f"{gib:.1f} GB"
+
+
+def _local_hardware_summary() -> dict[str, str]:
+    _, cpu_name = system_information_summary()
+    gpu_summary, npu_summary = accelerator_information_summary()
+    return {
+        "CPU": cpu_name or "Unknown CPU",
+        "RAM": _memory_summary(),
+        "GPU": gpu_summary or "Not detected",
+        "NPU": npu_summary or "Not detected",
+    }
+
+
+def _safe_text(value: Any) -> str:
+    if value in (None, ""):
+        return ""
+    return str(value).strip()
+
+
+def _active_app_settings_from_session() -> dict[str, Any]:
+    settings = st.session_state.get("app_settings")
+    return dict(settings) if isinstance(settings, dict) else {}
+
+
+def _active_app_settings_from_file(env: Any) -> dict[str, Any]:
+    settings_file = getattr(env, "app_settings_file", None)
+    if not settings_file:
+        return {}
+    try:
+        path = Path(settings_file).expanduser()
+    except (TypeError, ValueError):
+        return {}
+    try:
+        if not path.is_file():
+            return {}
+        with path.open("rb") as handle:
+            payload = tomllib.load(handle)
+    except (OSError, RuntimeError, tomllib.TOMLDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _active_app_settings(env: Any) -> dict[str, Any]:
+    file_settings = _active_app_settings_from_file(env)
+    if file_settings:
+        return file_settings
+    return _active_app_settings_from_session()
+
+
+def _cluster_params_from_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    cluster = settings.get("cluster")
+    return dict(cluster) if isinstance(cluster, dict) else {}
+
+
+def _format_bool_flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _cluster_mode_label(cluster_params: dict[str, Any]) -> str:
+    enabled = _format_bool_flag(cluster_params.get("cluster_enabled", False))
+    modes = []
+    if enabled:
+        modes.append("dask")
+    for key in ("pool", "cython", "rapids"):
+        if _format_bool_flag(cluster_params.get(key, False)):
+            modes.append(key)
+    if enabled:
+        suffix = f" ({', '.join(modes)})" if modes else ""
+        return f"enabled{suffix}"
+    suffix = f" ({', '.join(modes)})" if modes else " (local)"
+    return f"disabled{suffix}"
+
+
+def _env_cluster_share(env: Any) -> str:
+    for name in ("AGI_CLUSTER_SHARE", "agi_share_path", "agi_share_path_abs"):
+        value = _safe_text(getattr(env, name, ""))
+        if value:
+            return value
+    envars = getattr(env, "envars", None)
+    if isinstance(envars, dict):
+        value = _safe_text(envars.get("AGI_CLUSTER_SHARE"))
+        if value:
+            return value
+    return ""
+
+
+def _scheduler_host(scheduler: str) -> str:
+    cleaned = scheduler.strip()
+    if not cleaned:
+        return ""
+    if "://" in cleaned:
+        parsed = urlparse(cleaned)
+        return parsed.hostname or cleaned
+    if cleaned.startswith("[") and "]" in cleaned:
+        return cleaned[1 : cleaned.index("]")]
+    if cleaned.count(":") == 1:
+        return cleaned.split(":", 1)[0]
+    return cleaned
+
+
+def _is_local_node(host: str) -> bool:
+    return host.strip().lower() in {"", "local", "localhost", "127.0.0.1", "::1"}
+
+
+def _scheduler_display(scheduler: str, *, cluster_enabled: bool) -> str:
+    cleaned = scheduler.strip()
+    if not cleaned:
+        return "not configured" if cluster_enabled else "local process"
+    host = cleaned
+    port: int | None = None
+    if "://" in cleaned:
+        parsed = urlparse(cleaned)
+        host = parsed.hostname or cleaned
+        port = parsed.port
+    else:
+        target = cleaned.rsplit("@", 1)[-1]
+        if target.startswith("[") and "]" in target:
+            host = target[1 : target.index("]")]
+            rest = target[target.index("]") + 1 :]
+            if rest.startswith(":") and rest[1:].isdigit():
+                port = int(rest[1:])
+        elif target.count(":") == 1:
+            host, raw_port = target.split(":", 1)
+            if raw_port.isdigit():
+                port = int(raw_port)
+        else:
+            host = target
+    host = host.strip()
+    if not host:
+        return "not configured" if cluster_enabled else "local process"
+    if cluster_enabled and not _is_local_node(host) and port is None:
+        port = 8786
+    if port is None:
+        return host
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"{host}:{port}"
+
+
+def _remote_hardware_probe_command() -> str:
+    return r"""
+printf 'OS=%s %s\n' "$(uname -s 2>/dev/null)" "$(uname -r 2>/dev/null)"
+cpu=''
+if command -v lscpu >/dev/null 2>&1; then
+  cpu="$(lscpu 2>/dev/null | awk -F: '/Model name/ {sub(/^[ \t]+/, "", $2); print $2; exit}')"
+fi
+if [ -z "$cpu" ] && [ -r /proc/cpuinfo ]; then
+  cpu="$(awk -F: '/model name/ {sub(/^[ \t]+/, "", $2); print $2; exit}' /proc/cpuinfo)"
+fi
+if [ -z "$cpu" ] && command -v sysctl >/dev/null 2>&1; then
+  cpu="$(sysctl -n machdep.cpu.brand_string 2>/dev/null)"
+fi
+if [ -z "$cpu" ]; then cpu="$(uname -m 2>/dev/null)"; fi
+cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null)"
+if [ -n "$cores" ]; then cpu="$cpu; cores: $cores"; fi
+printf 'CPU=%s\n' "$cpu"
+ram=''
+if [ -r /proc/meminfo ]; then
+  ram="$(awk '/MemTotal/ {printf "%.0f GB", ($2 * 1024) / (1024 * 1024 * 1024)}' /proc/meminfo)"
+fi
+if [ -z "$ram" ] && command -v sysctl >/dev/null 2>&1; then
+  ram_bytes="$(sysctl -n hw.memsize 2>/dev/null)"
+  if [ -n "$ram_bytes" ]; then ram="$(awk -v b="$ram_bytes" 'BEGIN {printf "%.0f GB", b / (1024 * 1024 * 1024)}')"; fi
+fi
+printf 'RAM=%s\n' "$ram"
+gpu=''
+if command -v nvidia-smi >/dev/null 2>&1; then
+  gpu="$(nvidia-smi --query-gpu=name,multiprocessor_count --format=csv,noheader,nounits 2>/dev/null | awk -F, '{gsub(/^[ \t]+|[ \t]+$/, "", $1); gsub(/^[ \t]+|[ \t]+$/, "", $2); if ($2 != "") print $1 " (" $2 " SMs)"; else print $1}' | paste -sd ';' -)"
+fi
+if [ -z "$gpu" ] && command -v system_profiler >/dev/null 2>&1; then
+  gpu="$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F: '/Chipset Model/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+fi
+printf 'GPU=%s\n' "$gpu"
+npu=''
+chip=''
+if command -v system_profiler >/dev/null 2>&1; then
+  chip="$(system_profiler SPHardwareDataType 2>/dev/null | awk -F: '/Chip/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+fi
+case "$chip" in
+  Apple\ M*) npu='Apple Neural Engine (16 cores)' ;;
+esac
+printf 'NPU=%s\n' "$npu"
+""".strip()
+
+
+def _ssh_target(host: str, user: str) -> str:
+    if "@" in host or not user:
+        return host
+    return f"{user}@{host}"
+
+
+@lru_cache(maxsize=32)
+def _remote_hardware_probe(host: str, user: str, ssh_key_path: str) -> str:
+    command: list[str] = [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=1",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+    ]
+    if ssh_key_path:
+        command.extend(["-i", ssh_key_path])
+    command.extend([_ssh_target(host, user), _remote_hardware_probe_command()])
+    return _command_output(tuple(command))
+
+
+def _parse_hardware_probe_output(output: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in output.splitlines():
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip()
+    return {
+        "CPU": values.get("CPU") or "Unknown CPU",
+        "RAM": values.get("RAM") or "Unknown RAM",
+        "GPU": values.get("GPU") or "Not detected",
+        "NPU": values.get("NPU") or "Not detected",
+    }
+
+
+def _hardware_summary_from_mapping(payload: Any) -> dict[str, str] | None:
+    if not isinstance(payload, dict):
+        return None
+    source = payload.get("hardware")
+    if not isinstance(source, dict):
+        source = payload
+    values: dict[str, str] = {}
+    aliases = {
+        "CPU": ("CPU", "cpu"),
+        "RAM": ("RAM", "ram", "memory"),
+        "GPU": ("GPU", "gpu"),
+        "NPU": ("NPU", "npu"),
+    }
+    for target_key, source_keys in aliases.items():
+        for source_key in source_keys:
+            raw_value = source.get(source_key)
+            if raw_value not in (None, ""):
+                values[target_key] = str(raw_value).strip()
+                break
+    if not values:
+        return None
+    return {
+        "CPU": values.get("CPU") or "Unknown CPU",
+        "RAM": values.get("RAM") or "Unknown RAM",
+        "GPU": values.get("GPU") or "Not detected",
+        "NPU": values.get("NPU") or "Not detected",
+    }
+
+
+def _node_hardware_summary(host: str, *, user: str = "", ssh_key_path: str = "") -> dict[str, str]:
+    probe_host = _scheduler_host(host)
+    if _is_local_node(probe_host):
+        return _local_hardware_summary()
+    output = _remote_hardware_probe(probe_host, user.strip(), ssh_key_path.strip())
+    if not output:
+        return {
+            "CPU": "unreachable",
+            "RAM": "unreachable",
+            "GPU": "unreachable",
+            "NPU": "unreachable",
+        }
+    return _parse_hardware_probe_output(output)
+
+
+def _hardware_line(summary: dict[str, str]) -> str:
+    return "; ".join(f"{key}: {summary[key]}" for key in ("CPU", "RAM", "GPU", "NPU"))
+
+
+def _parse_cpu_cores(value: str) -> int | None:
+    match = re.search(r"\bcores:\s*(\d+)\b", value, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    match = re.search(r"\b(\d+)\s*(?:cores?|vcpus?)\b", value, flags=re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def _parse_ram_gb(value: str) -> float | None:
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(TB|GB|MB)\b", value, flags=re.IGNORECASE)
+    if not match:
+        return None
+    amount = float(match.group(1))
+    unit = match.group(2).upper()
+    if unit == "TB":
+        return amount * 1024.0
+    if unit == "MB":
+        return amount / 1024.0
+    return amount
+
+
+def _format_ram_gb(value: float) -> str:
+    rounded = round(value, 1)
+    if rounded.is_integer():
+        return f"{int(rounded)} GB"
+    return f"{rounded:.1f} GB"
+
+
+def _resource_unavailable(value: str) -> bool:
+    normalized = value.strip().lower()
+    return normalized in {
+        "",
+        "not configured",
+        "not detected",
+        "unknown cpu",
+        "unknown ram",
+        "unreachable",
+    }
+
+
+def _split_resource_descriptors(value: str) -> list[str]:
+    if _resource_unavailable(value):
+        return []
+    prefix_match = re.match(r"^\d+\s+\w+:\s*(.+)$", value.strip())
+    if prefix_match:
+        value = prefix_match.group(1)
+    return [part.strip() for part in value.split(";") if part.strip()]
+
+
+def _format_counted_resources(counts: dict[str, int], *, empty: str = "Not detected") -> str:
+    if not counts:
+        return empty
+    parts = []
+    for label, count in sorted(counts.items()):
+        parts.append(label if count == 1 else f"{count} x {label}")
+    return "; ".join(parts)
+
+
+def _format_unreachable_workers(count: int) -> str:
+    return f"{count} worker unreachable" if count == 1 else f"{count} workers unreachable"
+
+
+def _append_unreachable_suffix(value: str, unreachable_workers: int) -> str:
+    if not unreachable_workers:
+        return value
+    unreachable_label = _format_unreachable_workers(unreachable_workers)
+    if value and value.lower() not in {"unknown", "not detected", "not configured"}:
+        return f"{value} + {unreachable_label}"
+    return unreachable_label
+
+
+def _summary_unreachable(summary: dict[str, str]) -> bool:
+    return all(str(summary.get(key, "")).strip().lower() == "unreachable" for key in ("CPU", "RAM", "GPU", "NPU"))
+
+
+def _node_identity(host: str) -> str:
+    normalized = _scheduler_host(_safe_text(host)).strip().lower()
+    if "@" in normalized:
+        normalized = normalized.rsplit("@", 1)[-1]
+    return normalized
+
+
+def _workers_items(value: Any) -> list[tuple[str, Any]]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return []
+        try:
+            parsed = json.loads(stripped)
+        except (json.JSONDecodeError, TypeError):
+            return [(stripped, 1)]
+        return _workers_items(parsed)
+    if isinstance(value, dict):
+        return sorted(value.items(), key=lambda item: str(item[0]))
+    if isinstance(value, (list, tuple, set)):
+        return [(item, 1) for item in sorted(_safe_text(item) for item in value if _safe_text(item))]
+    return []
+
+
+def _hardware_inventory_from_settings(cluster_params: dict[str, Any]) -> dict[str, dict[str, str]]:
+    inventory: dict[str, dict[str, str]] = {}
+    for section_name in ("hardware", "worker_hardware"):
+        section = cluster_params.get(section_name)
+        if not isinstance(section, dict):
+            continue
+        for host, payload in section.items():
+            identity = _node_identity(str(host))
+            if not identity:
+                continue
+            summary = _hardware_summary_from_mapping(payload)
+            if summary:
+                inventory[identity] = summary
+    return inventory
+
+
+@lru_cache(maxsize=8)
+def _lan_discovery_hardware_inventory(cache_path: str = "") -> dict[str, dict[str, str]]:
+    path = Path(cache_path).expanduser() if cache_path else Path.home() / ".agilab" / "lan_nodes.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list):
+        return {}
+    inventory: dict[str, dict[str, str]] = {}
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        host = _safe_text(node.get("host")) or _safe_text(node.get("ssh_target"))
+        identity = _node_identity(host)
+        if not identity:
+            continue
+        summary = _hardware_summary_from_mapping(node)
+        if summary:
+            inventory[identity] = summary
+    return inventory
+
+
+def _cluster_resource_totals(
+    *,
+    cluster_enabled: bool,
+    scheduler: str,
+    worker_items: list[tuple[str, Any]],
+    user: str,
+    ssh_key_path: str,
+    hardware_inventory: dict[str, dict[str, str]] | None = None,
+) -> dict[str, str]:
+    nodes: list[str] = []
+    seen_nodes: set[str] = set()
+
+    def add_node(host: str) -> None:
+        identity = _node_identity(host)
+        if identity in seen_nodes:
+            return
+        seen_nodes.add(identity)
+        nodes.append(host)
+
+    if cluster_enabled:
+        if scheduler:
+            add_node(scheduler)
+        for worker, _count in worker_items:
+            worker_host = _safe_text(worker)
+            if worker_host:
+                add_node(worker_host)
+    else:
+        add_node("")
+
+    if not nodes:
+        return {
+            "CPU": "not configured",
+            "RAM": "not configured",
+            "GPU": "not configured",
+            "NPU": "not configured",
+        }
+
+    total_cores = 0
+    total_ram_gb = 0.0
+    gpu_counts: dict[str, int] = {}
+    npu_counts: dict[str, int] = {}
+    unreachable_workers = 0
+    hardware_inventory = hardware_inventory or {}
+
+    for host in nodes:
+        summary = _node_hardware_summary(host, user=user, ssh_key_path=ssh_key_path)
+        if _summary_unreachable(summary):
+            configured_summary = hardware_inventory.get(_node_identity(host))
+            if configured_summary:
+                summary = configured_summary
+            else:
+                unreachable_workers += 1
+                continue
+        cores = _parse_cpu_cores(summary.get("CPU", ""))
+        if cores is not None:
+            total_cores += cores
+        ram_gb = _parse_ram_gb(summary.get("RAM", ""))
+        if ram_gb is not None:
+            total_ram_gb += ram_gb
+        for label in _split_resource_descriptors(summary.get("GPU", "")):
+            gpu_counts[label] = gpu_counts.get(label, 0) + 1
+        for label in _split_resource_descriptors(summary.get("NPU", "")):
+            npu_counts[label] = npu_counts.get(label, 0) + 1
+
+    cpu_value = f"{total_cores} cores" if total_cores else "unknown"
+    ram_value = _format_ram_gb(total_ram_gb) if total_ram_gb else "unknown"
+    gpu_value = _format_counted_resources(gpu_counts)
+    npu_value = _format_counted_resources(npu_counts)
+    return {
+        "CPU": _append_unreachable_suffix(cpu_value, unreachable_workers),
+        "RAM": _append_unreachable_suffix(ram_value, unreachable_workers),
+        "GPU": _append_unreachable_suffix(gpu_value, unreachable_workers),
+        "NPU": _append_unreachable_suffix(npu_value, unreachable_workers),
+    }
+
+
+def active_app_cluster_information_lines(env: Any) -> list[tuple[str, str]]:
+    """Return active-app scheduler and cluster context for sidebar display."""
+    settings = _active_app_settings(env)
+    cluster_params = _cluster_params_from_settings(settings)
+    cluster_enabled = _format_bool_flag(cluster_params.get("cluster_enabled", False))
+
+    app_name = _safe_text(getattr(env, "app", "")) or "not selected"
+    scheduler = _safe_text(cluster_params.get("scheduler")) or _safe_text(getattr(env, "scheduler", ""))
+    scheduler_display = _scheduler_display(scheduler, cluster_enabled=cluster_enabled)
+    ssh_user = _safe_text(cluster_params.get("user")) or _safe_text(getattr(env, "user", ""))
+    ssh_key_path = _safe_text(cluster_params.get("ssh_key_path")) or _safe_text(getattr(env, "ssh_key_path", ""))
+    worker_items = _workers_items(cluster_params.get("workers", {}))
+    hardware_inventory = {
+        **_lan_discovery_hardware_inventory(),
+        **_hardware_inventory_from_settings(cluster_params),
+    }
+    resource_totals = _cluster_resource_totals(
+        cluster_enabled=cluster_enabled,
+        scheduler=scheduler,
+        worker_items=worker_items,
+        user=ssh_user,
+        ssh_key_path=ssh_key_path,
+        hardware_inventory=hardware_inventory,
+    )
+    workers_data_path = _safe_text(cluster_params.get("workers_data_path")) or _env_cluster_share(env)
+    if not workers_data_path:
+        workers_data_path = "not configured" if cluster_enabled else "not used"
+
+    lines = [
+        ("Active app", app_name),
+        ("Scheduler", scheduler_display),
+        ("Mode", _cluster_mode_label(cluster_params)),
+        ("Share", workers_data_path),
+        ("CPU", resource_totals["CPU"]),
+        ("RAM", resource_totals["RAM"]),
+        ("GPU", resource_totals["GPU"]),
+        ("NPU", resource_totals["NPU"]),
+    ]
+    return lines
+
+
+def _sidebar_system_information_html(lines: list[tuple[str, str]]) -> str:
+    rows = []
+    for label, value in lines:
+        escaped_label = html.escape(label)
+        escaped_value = html.escape(value)
+        escaped_aria_label = html.escape(f"{label}: {value}", quote=True)
+        rows.append(
+            f"<div class='agilab-sidebar-system-row' aria-label='{escaped_aria_label}'>"
+            f"<span class='agilab-sidebar-system-label'>{escaped_label}</span>"
+            "<span class='agilab-sidebar-system-colon'>:</span>"
+            f"<span class='agilab-sidebar-system-value'>{escaped_value}</span>"
+            "</div>"
+        )
+    return (
+        "<style>"
+        ".agilab-sidebar-system {"
+        "display:grid;"
+        "gap:.2rem;"
+        "margin:.4rem 0 .65rem 0;"
+        "font-size:.78rem;"
+        "line-height:1.28;"
+        "}"
+        ".agilab-sidebar-system-row {"
+        "display:grid;"
+        "grid-template-columns:max-content .45rem minmax(0,1fr);"
+        "column-gap:.18rem;"
+        "align-items:start;"
+        "}"
+        ".agilab-sidebar-system-label {"
+        "color:rgba(247,242,232,.62);"
+        "white-space:nowrap;"
+        "}"
+        ".agilab-sidebar-system-colon {"
+        "color:rgba(247,242,232,.42);"
+        "text-align:center;"
+        "}"
+        ".agilab-sidebar-system-value {"
+        "color:#72d6b4;"
+        "font-weight:650;"
+        "overflow-wrap:anywhere;"
+        "}"
+        "</style>"
+        "<div class='agilab-sidebar-system'>"
+        f"{''.join(rows)}"
+        "</div>"
+    )
+
+
+def render_sidebar_system_information(env: Any) -> None:
+    """Render active-app scheduler and cluster context in the sidebar."""
+    lines = active_app_cluster_information_lines(env)
+    markdown = getattr(st.sidebar, "markdown", None)
+    if callable(markdown):
+        markdown(_sidebar_system_information_html(lines), unsafe_allow_html=True)
+        return
+    for label, value in lines:
         st.sidebar.caption(f"{label}: {value}")
 
 

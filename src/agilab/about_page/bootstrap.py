@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import argparse
 import os
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, MutableMapping, Optional
 
 from agi_env.credential_store_support import CLUSTER_CREDENTIALS_KEY, KEYRING_SENTINEL
+
+try:  # pragma: no cover - optional import fallback is exercised through behavior tests
+    import tomli_w as _tomli_writer
+except ModuleNotFoundError:  # pragma: no cover - dependency is present in AGILAB envs
+    _tomli_writer = None
 
 
 @dataclass
@@ -267,6 +273,109 @@ def stop_startup_with_error(streamlit: Any, message: str) -> None:
         stop()
 
 
+def is_cluster_share_startup_error(exc: BaseException) -> bool:
+    """Return whether startup failed because a persisted cluster share is unusable."""
+    message = str(exc)
+    return message.startswith("Cluster mode requires AGI_CLUSTER_SHARE")
+
+
+def cluster_share_startup_error_message(exc: BaseException) -> str:
+    """Return a user-facing recovery message for stale/broken cluster settings."""
+    return (
+        f"{exc}\n\n"
+        "Cluster mode is enabled for the active app, but the configured cluster share "
+        "is not available. Mount or create a writable `AGI_CLUSTER_SHARE`, then reload "
+        "AGILAB. You can also disable the stale cluster setting for this app and reload."
+    )
+
+
+def startup_active_app_name(streamlit: Any, args: argparse.Namespace, ports: BootstrapPorts) -> str | None:
+    """Resolve the active app name before an ``AgiEnv`` instance exists."""
+    query_params = getattr(streamlit, "query_params", {}) or {}
+    query_value = None
+    try:
+        query_value = query_params.get("active_app")
+    except AttributeError:
+        query_value = None
+
+    candidates = [query_value, args.active_app]
+    try:
+        candidates.append(ports.load_last_active_app())
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+
+    for value in candidates:
+        if isinstance(value, (list, tuple)):
+            value = value[0] if value else None
+        text = str(value or "").strip()
+        if not text:
+            continue
+        app_name = Path(text).name
+        if app_name.endswith(("_project", "_worker")):
+            return app_name
+    return None
+
+
+def workspace_app_settings_file(env_file_path: Path, app_name: str | None) -> Path | None:
+    """Return the mutable per-user app settings path for a pre-init app name."""
+    if not app_name:
+        return None
+    return env_file_path.expanduser().parent / "apps" / app_name / "app_settings.toml"
+
+
+def disable_cluster_in_app_settings(settings_path: Path) -> bool:
+    """Set ``[cluster].cluster_enabled`` to false in a workspace settings file."""
+    if _tomli_writer is None:
+        raise RuntimeError("Writing settings requires the 'tomli-w' package.")
+    if not settings_path.exists():
+        return False
+    payload = tomllib.loads(settings_path.read_text(encoding="utf-8"))
+    cluster = payload.get("cluster")
+    if not isinstance(cluster, dict) or cluster.get("cluster_enabled") is False:
+        return False
+    cluster["cluster_enabled"] = False
+    with settings_path.open("wb") as handle:
+        _tomli_writer.dump(payload, handle)
+    return True
+
+
+def handle_cluster_share_startup_error(
+    *,
+    streamlit: Any,
+    exc: BaseException,
+    env_file_path: Path,
+    args: argparse.Namespace,
+    ports: BootstrapPorts,
+) -> None:
+    """Render cluster-share recovery controls before stopping startup."""
+    app_name = startup_active_app_name(streamlit, args, ports)
+    settings_path = workspace_app_settings_file(env_file_path, app_name)
+    message = cluster_share_startup_error_message(exc)
+    if settings_path is not None:
+        message = f"{message}\n\nWorkspace settings: `{settings_path}`"
+    streamlit.error(message)
+
+    button = getattr(streamlit, "button", None)
+    if callable(button) and settings_path is not None and button("Disable cluster mode and reload"):
+        try:
+            changed = disable_cluster_in_app_settings(settings_path)
+        except (OSError, RuntimeError, tomllib.TOMLDecodeError) as write_err:
+            streamlit.error(f"Could not disable cluster mode in `{settings_path}`: {write_err}")
+        else:
+            if changed:
+                streamlit.success(f"Disabled cluster mode in `{settings_path}`.")
+            else:
+                streamlit.info(f"Cluster mode was already disabled or missing in `{settings_path}`.")
+            rerun = getattr(streamlit, "rerun", None)
+            if callable(rerun):
+                rerun()
+            return
+
+    stop = getattr(streamlit, "stop", None)
+    if callable(stop):
+        stop()
+
+
 def bootstrap_page_environment(
     *,
     streamlit: Any,
@@ -304,6 +413,15 @@ def bootstrap_page_environment(
         env = ports.agi_env_cls(apps_path=apps_path, verbose=1)
     except RuntimeError as exc:
         if handle_data_root_failure(exc, agi_env_cls=ports.agi_env_cls):
+            return BootstrapResult(env=None, handled_recovery=True)
+        if is_cluster_share_startup_error(exc):
+            handle_cluster_share_startup_error(
+                streamlit=streamlit,
+                exc=exc,
+                env_file_path=env_file_path,
+                args=args,
+                ports=ports,
+            )
             return BootstrapResult(env=None, handled_recovery=True)
         raise
 

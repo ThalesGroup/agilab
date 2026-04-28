@@ -382,7 +382,7 @@ def page(env: Any) -> None:
 
     try:
         _sync_layout_module()
-        _about_layout.render_sidebar_system_information()
+        _about_layout.render_sidebar_system_information(env)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
 

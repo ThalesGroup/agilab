@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import importlib.util
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -127,6 +128,14 @@ def _event_index(events: list[tuple[str, str]], kind: str, text: str) -> int:
     return next(
         index
         for index, (event_kind, body) in enumerate(events)
+        if event_kind == kind and text in body
+    )
+
+
+def _event_body(events: list[tuple[str, str]], kind: str, text: str) -> str:
+    return next(
+        body
+        for event_kind, body in events
         if event_kind == kind and text in body
     )
 
@@ -551,6 +560,89 @@ def test_bootstrap_stop_startup_with_error_allows_missing_stop():
     bootstrap.stop_startup_with_error(fake_st, "bad startup")
 
     assert events == ["bad startup"]
+
+
+def test_bootstrap_page_environment_handles_cluster_share_startup_error(monkeypatch, tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+
+    class FailingAgiEnv:
+        def __init__(self, *_args, **_kwargs):
+            raise RuntimeError(
+                "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
+                "Configured AGI_CLUSTER_SHARE='/missing/share' is not usable; env=/tmp/.env"
+            )
+
+    monkeypatch.setattr(bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: tmp_path / "apps")
+    ports, _port_calls = _make_bootstrap_ports(FailingAgiEnv)
+    fake_st = _FakeStreamlit()
+    fake_st.query_params["active_app"] = "flight_project"
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {},
+        logger=object(),
+        apply_active_app_request=lambda *_args: False,
+        handle_data_root_failure=lambda *_args, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=[],
+        ports=ports,
+    )
+
+    assert result.handled_recovery is True
+    assert fake_st.stopped is True
+    error_message = _event_body(fake_st.events, "error", "Cluster mode is enabled")
+    assert "Disable cluster mode and reload" in [body for kind, body in fake_st.events if kind == "button"]
+    assert "AGI_CLUSTER_SHARE" in error_message
+
+
+def test_bootstrap_cluster_share_startup_error_can_disable_stale_app_setting(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    settings_path = tmp_path / ".agilab/apps/flight_project/app_settings.toml"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text(
+        """
+[args]
+data_in = "flight/dataset"
+
+[cluster]
+cluster_enabled = true
+user = "agi"
+""",
+        encoding="utf-8",
+    )
+    class ClickStreamlit(_FakeStreamlit):
+        def __init__(self):
+            super().__init__()
+            self.query_params["active_app"] = "flight_project"
+
+        def button(self, label: str, **_kwargs):
+            self.events.append(("button", label))
+            return True
+
+        def rerun(self):
+            self.events.append(("rerun", ""))
+
+    fake_st = ClickStreamlit()
+    ports, _port_calls = _make_bootstrap_ports(object())
+    bootstrap.handle_cluster_share_startup_error(
+        streamlit=fake_st,
+        exc=RuntimeError(
+            "Cluster mode requires AGI_CLUSTER_SHARE to be mounted and writable. "
+            "Configured AGI_CLUSTER_SHARE='/missing/share' is not usable; env=/tmp/.env"
+        ),
+        env_file_path=tmp_path / ".agilab/.env",
+        args=bootstrap.parse_startup_args([]),
+        ports=ports,
+    )
+
+    payload = settings_path.read_text(encoding="utf-8")
+    assert "cluster_enabled = false" in payload
+    assert ("success", f"Disabled cluster mode in `{settings_path}`.") in fake_st.events
+    assert ("rerun", "") in fake_st.events
+    assert fake_st.stopped is False
 
 
 def test_bootstrap_sync_active_app_from_query_updates_query_and_store(tmp_path):
@@ -1321,11 +1413,39 @@ def test_system_information_summary_uses_machine_when_processor_is_missing(monke
     assert layout.system_information_summary() == ("Linux 6.8.0", "x86_64")
 
 
+def test_about_sidebar_hardware_helpers_parse_cluster_endpoints():
+    layout = about_agilab._about_layout
+
+    assert layout._scheduler_host("tcp://scheduler.example:8786") == "scheduler.example"
+    assert layout._scheduler_host("192.168.20.111:8786") == "192.168.20.111"
+    assert layout._scheduler_host("[2001:db8::1]:8786") == "2001:db8::1"
+    assert layout._scheduler_host("agi@192.168.20.130") == "agi@192.168.20.130"
+    assert layout._scheduler_display("tcp://scheduler.example:8786", cluster_enabled=True) == "scheduler.example:8786"
+    assert layout._scheduler_display("192.168.20.111", cluster_enabled=True) == "192.168.20.111:8786"
+    assert layout._scheduler_display("agi@192.168.20.130", cluster_enabled=True) == "192.168.20.130:8786"
+    assert layout._parse_hardware_probe_output("CPU=AMD EPYC\nRAM=128 GB\n") == {
+        "CPU": "AMD EPYC",
+        "RAM": "128 GB",
+        "GPU": "Not detected",
+        "NPU": "Not detected",
+    }
+
+
 def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     import agi_gui.pagelib as pagelib
 
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(
+        about_agilab._about_layout,
+        "_node_hardware_summary",
+        lambda *_args, **_kwargs: {
+            "CPU": "Test CPU; cores: 16",
+            "RAM": "64 GB",
+            "GPU": "Test GPU",
+            "NPU": "Test NPU",
+        },
+    )
     monkeypatch.setattr(
         pagelib,
         "get_base64_of_image",
@@ -1345,7 +1465,15 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     )
     about_agilab._about_layout.render_package_versions()
     about_agilab._about_layout.render_system_information()
-    about_agilab._about_layout.render_sidebar_system_information()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "10.0.0.1:8786",
+            "workers": {"10.0.0.2": 2},
+            "workers_data_path": "/mnt/agilab",
+        }
+    }
+    about_agilab._about_layout.render_sidebar_system_information(SimpleNamespace(app="flight_project"))
     about_agilab._about_layout.render_footer()
 
     assert about_agilab._clean_openai_key("sk-" + "a" * 16) == "sk-" + "a" * 16
@@ -1354,8 +1482,18 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert any("agilab:" in body for kind, body in fake_st.events if kind == "write")
     assert any("agi-gui:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
-    assert any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert any("CPU:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
+    sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
+    assert "grid-template-columns:max-content .45rem minmax(0,1fr);" in sidebar_markup
+    assert "color:#72d6b4;" in sidebar_markup
+    assert "Active app: flight_project" in sidebar_markup
+    assert "Scheduler: 10.0.0.1:8786" in sidebar_markup
+    assert "Mode: enabled (dask)" in sidebar_markup
+    assert "CPU: 32 cores" in sidebar_markup
+    assert "RAM: 128 GB" in sidebar_markup
+    assert "GPU: 2 x Test GPU" in sidebar_markup
+    assert "NPU: 2 x Test NPU" in sidebar_markup
+    assert "Worker 10.0.0.2" not in sidebar_markup
     assert not any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
 
 
@@ -1383,9 +1521,28 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
     assert "Data Science in Engineering" not in about_menu["About"]
 
 
-def test_about_page_moves_system_information_to_sidebar(monkeypatch):
+def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(
+        about_agilab._about_layout,
+        "_node_hardware_summary",
+        lambda *_args, **_kwargs: {
+            "CPU": "Synthetic CPU; cores: 32",
+            "RAM": "128 GB",
+            "GPU": "NVIDIA A100 (108 SMs)",
+            "NPU": "Not detected",
+        },
+    )
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "pool": True,
+            "scheduler": "192.168.20.111:8786",
+            "workers": {"192.168.20.130": 1},
+            "workers_data_path": "/home/agi/clustershare",
+        }
+    }
     rendered_versions: list[str] = []
     monkeypatch.setattr(about_agilab, "render_sidebar_version", rendered_versions.append)
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
@@ -1395,16 +1552,6 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
         "render_page_docs_access",
         lambda *_args, **_kwargs: fake_st.events.append(("sidebar.button", "Read Documentation")),
     )
-    about_agilab._sync_layout_module()
-    monkeypatch.setattr(
-        about_agilab._about_layout,
-        "system_information_lines",
-        lambda: [
-            ("OS", "Test OS"),
-            ("CPU", "Test CPU"),
-        ],
-    )
-
     env = SimpleNamespace(
         app="flight_project",
         apps_path=Path("/tmp/agilab/apps"),
@@ -1423,10 +1570,209 @@ def test_about_page_moves_system_information_to_sidebar(monkeypatch):
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
     docs_button = _event_index(fake_st.events, "sidebar.button", "Read Documentation")
-    os_caption = _event_index(fake_st.events, "sidebar.caption", "OS:")
-    cpu_caption = _event_index(fake_st.events, "sidebar.caption", "CPU:")
-    assert docs_button < os_caption < cpu_caption
+    sidebar_grid = _event_index(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
+    sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
+    assert "Active app: flight_project" in sidebar_markup
+    assert "Scheduler: 192.168.20.111:8786" in sidebar_markup
+    assert "Mode: enabled (dask, pool)" in sidebar_markup
+    assert "Share: /home/agi/clustershare" in sidebar_markup
+    assert "CPU: 64 cores" in sidebar_markup
+    assert "RAM: 256 GB" in sidebar_markup
+    assert "GPU: 2 x NVIDIA A100 (108 SMs)" in sidebar_markup
+    assert "NPU: Not detected" in sidebar_markup
+    assert "Worker 192.168.20.130" not in sidebar_markup
+    assert docs_button < sidebar_grid < env_expander
+    assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert env_expander >= 0
+
+
+def test_active_app_cluster_information_prefers_active_app_settings_file(tmp_path, monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab._about_layout, "st", fake_st)
+    monkeypatch.setattr(
+        about_agilab._about_layout,
+        "_node_hardware_summary",
+        lambda *_args, **_kwargs: {
+            "CPU": "Fresh CPU; cores: 24",
+            "RAM": "96 GB",
+            "GPU": "Fresh GPU",
+            "NPU": "Fresh NPU",
+        },
+    )
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "stale.scheduler:8786",
+        }
+    }
+    settings_file = tmp_path / "app_settings.toml"
+    settings_file.write_text(
+        """
+[cluster]
+cluster_enabled = true
+cython = true
+scheduler = "fresh.scheduler"
+workers_data_path = "/fresh/share"
+
+[cluster.workers]
+"worker-a" = 2
+""",
+        encoding="utf-8",
+    )
+
+    lines = dict(
+        about_agilab._about_layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_project", app_settings_file=settings_file)
+        )
+    )
+
+    assert lines["Active app"] == "flight_project"
+    assert lines["Scheduler"] == "fresh.scheduler:8786"
+    assert lines["Mode"] == "enabled (dask, cython)"
+    assert lines["Share"] == "/fresh/share"
+    assert lines["CPU"] == "48 cores"
+    assert lines["RAM"] == "192 GB"
+    assert lines["GPU"] == "2 x Fresh GPU"
+    assert lines["NPU"] == "2 x Fresh NPU"
+    assert not any(label.startswith("Worker ") for label, _value in lines.items())
+
+
+def test_active_app_cluster_information_counts_duplicate_scheduler_once(monkeypatch):
+    monkeypatch.setattr(
+        about_agilab._about_layout,
+        "_node_hardware_summary",
+        lambda *_args, **_kwargs: {
+            "CPU": "Apple M4 Max; cores: 16",
+            "RAM": "48 GB",
+            "GPU": "Apple M4 Max",
+            "NPU": "Apple Neural Engine (16 cores)",
+        },
+    )
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "192.168.20.111:8786",
+            "workers": {"192.168.20.111": 1},
+            "workers_data_path": "/Users/agi/clustershare/agi",
+        }
+    }
+    monkeypatch.setattr(about_agilab._about_layout, "st", fake_st)
+
+    lines = dict(
+        about_agilab._about_layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_project")
+        )
+    )
+
+    assert lines["CPU"] == "16 cores"
+    assert lines["RAM"] == "48 GB"
+    assert lines["GPU"] == "Apple M4 Max"
+    assert lines["NPU"] == "Apple Neural Engine (16 cores)"
+
+
+def test_active_app_cluster_information_marks_unreachable_worker_hardware_unknown(monkeypatch):
+    def fake_hardware(host, **_kwargs):
+        if about_agilab._about_layout._scheduler_host(host) == "192.168.20.130":
+            return {
+                "CPU": "unreachable",
+                "RAM": "unreachable",
+                "GPU": "unreachable",
+                "NPU": "unreachable",
+            }
+        return {
+            "CPU": "Apple M4 Max; cores: 16",
+            "RAM": "48 GB",
+            "GPU": "Apple M4 Max",
+            "NPU": "Apple Neural Engine (16 cores)",
+        }
+
+    monkeypatch.setattr(about_agilab._about_layout, "_node_hardware_summary", fake_hardware)
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "192.168.20.111:8786",
+            "workers": {"192.168.20.111": 1, "192.168.20.130": 1},
+            "workers_data_path": "/Users/agi/clustershare/agi",
+        }
+    }
+    monkeypatch.setattr(about_agilab._about_layout, "st", fake_st)
+
+    lines = dict(
+        about_agilab._about_layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_project")
+        )
+    )
+
+    assert lines["CPU"] == "16 cores + 1 worker unreachable"
+    assert lines["RAM"] == "48 GB + 1 worker unreachable"
+    assert lines["GPU"] == "Apple M4 Max + 1 worker unreachable"
+    assert lines["NPU"] == "Apple Neural Engine (16 cores) + 1 worker unreachable"
+
+
+def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_worker(monkeypatch, tmp_path):
+    def fake_hardware(host, **_kwargs):
+        if about_agilab._about_layout._scheduler_host(host) == "192.168.20.130":
+            return {
+                "CPU": "unreachable",
+                "RAM": "unreachable",
+                "GPU": "unreachable",
+                "NPU": "unreachable",
+            }
+        return {
+            "CPU": "Apple M4 Max; cores: 16",
+            "RAM": "48 GB",
+            "GPU": "Apple M4 Max",
+            "NPU": "Apple Neural Engine (16 cores)",
+        }
+
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "host": "192.168.20.130",
+                        "cpu": "AMD EPYC; cores: 32",
+                        "ram": "128 GB",
+                        "gpu": "NVIDIA L40S (142 SMs)",
+                        "npu": "Not detected",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(about_agilab._about_layout, "_node_hardware_summary", fake_hardware)
+    original_inventory = about_agilab._about_layout._lan_discovery_hardware_inventory
+    monkeypatch.setattr(
+        about_agilab._about_layout,
+        "_lan_discovery_hardware_inventory",
+        lambda _cache_path="": original_inventory(str(cache_path)),
+    )
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "192.168.20.111:8786",
+            "workers": {"192.168.20.111": 1, "192.168.20.130": 1},
+            "workers_data_path": "/Users/agi/clustershare/agi",
+        }
+    }
+    monkeypatch.setattr(about_agilab._about_layout, "st", fake_st)
+
+    lines = dict(
+        about_agilab._about_layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_project")
+        )
+    )
+
+    assert lines["CPU"] == "48 cores"
+    assert lines["RAM"] == "176 GB"
+    assert lines["GPU"] == "Apple M4 Max; NVIDIA L40S (142 SMs)"
+    assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 
 def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):

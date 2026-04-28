@@ -308,6 +308,29 @@ def test_compact_choice_uses_global_streamlit_state_for_streamlit_containers(mon
     assert calls[0][2]["key"] == "mode"
 
 
+def test_compact_choice_ignores_callable_container_session_state(monkeypatch) -> None:
+    calls = []
+    native_state = _State({"mode": "Edit"})
+
+    class SidebarLike:
+        __module__ = "streamlit.delta_generator"
+
+        def session_state(self):
+            return None
+
+        def segmented_control(self, label, options, **kwargs):
+            calls.append((label, list(options), kwargs))
+            return native_state["mode"]
+
+    monkeypatch.setitem(sys.modules, "streamlit", SimpleNamespace(session_state=native_state))
+
+    result = ux_widgets.compact_choice(SidebarLike(), "Mode", ["Run", "Edit"], key="mode", default="Run")
+
+    assert result == "Edit"
+    assert "default" not in calls[0][2]
+    assert calls[0][2]["key"] == "mode"
+
+
 def test_compact_choice_detects_keyed_attribute_state() -> None:
     calls = []
 
