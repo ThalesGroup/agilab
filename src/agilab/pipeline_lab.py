@@ -64,6 +64,16 @@ _snippet_source_guidance = _pipeline_steps_module.snippet_source_guidance
 _step_label_for_multiselect = _pipeline_steps_module.step_label_for_multiselect
 _step_summary = _pipeline_steps_module.step_summary
 
+_pipeline_page_state_module = import_agilab_module(
+    "agilab.pipeline_page_state",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_page_state.py",
+    fallback_name="agilab_pipeline_page_state_fallback",
+)
+PipelinePageStateDeps = _pipeline_page_state_module.PipelinePageStateDeps
+build_pipeline_page_state = _pipeline_page_state_module.build_pipeline_page_state
+clear_pipeline_run_logs = _pipeline_page_state_module.clear_pipeline_run_logs
+
 _pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
     current_file=__file__,
@@ -495,6 +505,26 @@ def display_lab_tab(
     st.session_state.setdefault(run_logs_key, [])
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
+
+    def _build_page_state(*, include_lock: bool = False):
+        return build_pipeline_page_state(
+            index_page=index_page_str,
+            steps_file=steps_file,
+            steps=persisted_steps,
+            sequence=st.session_state.get(sequence_state_key, []),
+            session_state=st.session_state,
+            env=env,
+            deps=PipelinePageStateDeps(
+                is_displayable_step=lambda entry: _is_displayable_step(dict(entry)),
+                is_runnable_step=lambda entry: _pipeline_steps_module.is_runnable_step(dict(entry)),
+                step_summary=lambda entry: _step_summary(dict(entry), width=80),
+                step_label=lambda idx, entry: _step_label_for_multiselect(idx, dict(entry), env=env),
+                find_legacy_agi_run_steps=_pipeline_steps_module.find_legacy_agi_run_steps,
+                inspect_pipeline_run_lock=_inspect_pipeline_run_lock if include_lock else None,
+            ),
+        )
+
+    render_page_state = _build_page_state()
 
     @st.fragment
     def _render_pipeline_step_fragment(step: int, entry: Dict[str, Any]) -> None:
@@ -1169,13 +1199,14 @@ def display_lab_tab(
         with st.expander("Conceptual view", expanded=False):
             st.graphviz_chart(conceptual_dot, width="content")
 
+    render_steps = [persisted_steps[item.index] for item in render_page_state.visible_steps]
     render_pipeline_view(
-        persisted_steps,
+        render_steps,
         title="Execution view" if conceptual_dot else "Pipeline view",
     )
 
-    for step, entry in enumerate(persisted_steps):
-        _render_pipeline_step_fragment(step, entry)
+    for visible_step in render_page_state.visible_steps:
+        _render_pipeline_step_fragment(visible_step.index, persisted_steps[visible_step.index])
 
     # Add-step expander to append a new step at the end
     new_q_key = f"{safe_prefix}_new_q"
@@ -1337,7 +1368,7 @@ def display_lab_tab(
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
     if total_steps > 0:
-        sequence_options = list(range(total_steps))
+        sequence_options = [item.index for item in render_page_state.visible_steps]
         stored_sequence = [idx for idx in st.session_state.get(sequence_state_key, sequence_options) if idx in sequence_options]
         stored_sequence = stored_sequence or sequence_options
         st.session_state[sequence_state_key] = stored_sequence
@@ -1366,7 +1397,11 @@ def display_lab_tab(
             st.session_state[sequence_state_key] = final_sequence
             _persist_sequence_preferences(module_path, steps_file, final_sequence)
 
-    lock_state = _inspect_pipeline_run_lock(env)
+    page_state = _build_page_state(include_lock=True)
+    if page_state.stale_step_refs and page_state.run_disabled_reason:
+        st.warning(page_state.run_disabled_reason)
+
+    lock_state = page_state.lock_state
     if lock_state:
         owner_text = str(lock_state.get("owner_text") or "unknown owner")
         stale_reason = lock_state.get("stale_reason")
@@ -1390,9 +1425,10 @@ def display_lab_tab(
         run_all_clicked = st.button(
             "Run pipeline",
             key=f"{index_page_str}_run_all",
-            help="Execute every step sequentially using its saved virtual environment.",
+            help=page_state.run_disabled_reason or "Execute every step sequentially using its saved virtual environment.",
             type="secondary",
             width="stretch",
+            disabled=not page_state.can_run,
         )
     with force_col:
         if lock_state:
@@ -1403,6 +1439,7 @@ def display_lab_tab(
                     help="Remove the stale pipeline lock and start a new run.",
                     type="primary",
                     width="stretch",
+                    disabled=not page_state.can_force_run,
                 )
             elif st.session_state.get(force_run_confirm_key, False):
                 force_run_clicked = st.button(
@@ -1411,6 +1448,7 @@ def display_lab_tab(
                     help="Remove the current lock and start a new run. Use this only if the previous run is gone.",
                     type="primary",
                     width="stretch",
+                    disabled=not page_state.can_force_run,
                 )
             else:
                 force_run_arm_clicked = st.button(
@@ -1419,7 +1457,15 @@ def display_lab_tab(
                     help="Use only when a previous pipeline run was interrupted and left a lock behind.",
                     type="secondary",
                     width="stretch",
+                    disabled=not page_state.can_force_run,
                 )
+
+    if run_all_clicked and not page_state.can_run:
+        st.warning(page_state.run_disabled_reason or "Pipeline cannot run in the current state.")
+        run_all_clicked = False
+    if force_run_clicked and not page_state.can_force_run:
+        st.warning(page_state.run_disabled_reason or "Pipeline cannot be force-run in the current state.")
+        force_run_clicked = False
 
     if force_run_arm_clicked:
         st.session_state[force_run_confirm_key] = True
@@ -1505,6 +1551,7 @@ def display_lab_tab(
 
     if run_all_clicked or force_run_clicked:
         st.session_state.pop(force_run_confirm_key, None)
+        st.session_state[f"{index_page_str}__last_run_status"] = "running"
         run_placeholder = _get_run_placeholder(index_page_str)
         log_file_path, log_error = _prepare_run_log_file(index_page_str, env, prefix="pipeline")
         if log_file_path:
@@ -1534,10 +1581,12 @@ def display_lab_tab(
                         force_lock_clear=force_run_clicked,
                     )
                 except Exception:
+                    st.session_state[f"{index_page_str}__last_run_status"] = "failed"
                     run_status.update(label="Pipeline run failed. Inspect Run logs.", state="error", expanded=True)
                     toast(st, "Pipeline run failed. Inspect Run logs.", state="error")
                     raise
                 else:
+                    st.session_state[f"{index_page_str}__last_run_status"] = "complete"
                     run_status.update(label="Pipeline run finished. Inspect Run logs.", state="complete", expanded=False)
                     toast(st, "Pipeline run finished. Inspect Run logs.", state="success")
         finally:
@@ -1594,8 +1643,11 @@ def display_lab_tab(
             width="stretch",
         )
         if clear_logs:
-            st.session_state[run_logs_key] = []
-            toast(st, "Page run logs cleared; saved log files are untouched.", state="info")
+            result = clear_pipeline_run_logs(st.session_state, index_page_str)
+            if result.ok:
+                toast(st, result.message, state="info")
+            else:
+                st.warning(result.message)
         log_placeholder = st.empty()
         st.session_state[run_placeholder_key] = log_placeholder
         logs = st.session_state.get(run_logs_key, [])
