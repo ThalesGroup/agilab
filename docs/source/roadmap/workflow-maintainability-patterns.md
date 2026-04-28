@@ -33,6 +33,26 @@ Use these patterns as the default direction for future workflow-page changes.
   templates should move toward typed registries instead of repeated discovery
   rules.
 
+## Roadmap Item: Pattern-Gated Workflow Changes
+
+Treat long-term workflow-page maintenance as an explicit design-pattern
+adoption program, not a sequence of isolated Streamlit fixes.
+
+Every non-trivial change to PROJECT, ORCHESTRATE, PIPELINE, or service-control
+pages should declare which pattern it is advancing and should add or update the
+nearest support-module test. If a change cannot fit one of the patterns above,
+the implementation should either introduce the missing pattern deliberately or
+explain why the page-local exception is temporary.
+
+The next concrete slice is Pipeline-first:
+
+- Add a minimal `PipelinePageState` / ViewModel builder.
+- Move `RUN` and `CLEAR LOGS` behind typed command-result functions.
+- Represent stale snippets, missing logs, and runnable labs as state instead of
+  rediscovering them in individual widgets.
+- Keep Streamlit as the rendering adapter; do not move page behavior into
+  `agi-env` or worker internals.
+
 ## Current Status
 
 - Page State / ViewModel: partially done. Some typed state and report objects
