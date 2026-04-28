@@ -479,6 +479,17 @@ def safe_ver(x: str) -> Version:
         return Version("0")
 
 
+def versions_equivalent(left: str, right: str) -> bool:
+    try:
+        return Version(left) == Version(right)
+    except InvalidVersion:
+        return left == right
+
+
+def release_exists(candidate: str, releases: set[str]) -> bool:
+    return any(versions_equivalent(candidate, release) for release in releases)
+
+
 def max_base_across_packages(package_names: List[str], repo_target: str) -> str:
     all_versions = set()
     for n in package_names:
@@ -508,18 +519,18 @@ def next_free_post_for_all(package_names: List[str], repo_target: str, base: str
     k_start = 1
     for releases in per_pkg.values():
         max_post = 0
-        if base in releases:
+        release_parts = [split_base_and_post(release) for release in releases]
+        if any(post is None and versions_equivalent(release_base, base) for release_base, post in release_parts):
             max_post = 0
-        for v in releases:
-            b, post = split_base_and_post(v)
-            if b == base and post is not None and post > max_post:
+        for release_base, post in release_parts:
+            if versions_equivalent(release_base, base) and post is not None and post > max_post:
                 max_post = post
         k_start = max(k_start, max_post + 1)
 
     k = k_start
     while True:
         cand = f"{base}.post{k}"
-        if all(cand not in per_pkg[n] for n in package_names):
+        if all(not release_exists(cand, per_pkg[name]) for name in package_names):
             return cand
         k += 1
 
@@ -531,7 +542,11 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
         provided = base_version
         provided_base = normalize_base(provided)
         existing_by_pkg = {n: pypi_releases(n, repo_target) for n in core_names}
-        provided_in_use = any(provided in rels for rels in existing_by_pkg.values())
+        provided_in_use = any(
+            versions_equivalent(provided, release)
+            for rels in existing_by_pkg.values()
+            for release in rels
+        )
         if not provided_in_use:
             chosen = provided
             base = provided_base
@@ -561,11 +576,11 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
     for n in core_names:
         rels = pypi_releases(n, repo_target)
         hits: List[str] = []
-        if base in rels:
-            hits.append(base)
         for v in rels:
             b, post = split_base_and_post(v)
-            if b == base and v != base and safe_ver(v) < safe_ver(chosen):
+            if not versions_equivalent(b, base):
+                continue
+            if post is None or safe_ver(v) < safe_ver(chosen):
                 hits.append(v)
         collisions[n] = sorted(set(hits), key=safe_ver)
 
