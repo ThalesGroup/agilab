@@ -248,6 +248,7 @@ jobs:
             test/test_orchestrate_distribution.py \
             test/test_orchestrate_execute.py \
             test/test_orchestrate_page_helpers.py \
+            test/test_orchestrate_page_state.py \
             test/test_orchestrate_services.py \
             test/test_orchestrate_support.py \
             test/test_about_agilab_helpers.py \
