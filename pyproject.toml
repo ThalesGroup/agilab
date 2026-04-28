@@ -1,5 +1,5 @@
 [project]
-version = "2026.04.28.post2"
+version = "2026.04.28.post3"
 name = "agilab"
 description = "AGILAB is an end-to-end experimentation platform linking interactive development with scalable, reproducible execution orchestration."
 requires-python = ">=3.11"
@@ -36,7 +36,7 @@ keywords = [
     "jupyter",
     "ci-cd"
 ]
-dependencies = ["agi-core==2026.04.28.post2", "agi-gui==2026.04.28.post2", "astor", "legacy-cgi; python_version >= '3.13'", "mlflow", "networkx", "numpy>=1.14.1", "pandas>=2.3.0", "pathspec", "pydantic", "standard-imghdr; python_version >= '3.13'", "streamlit>=1.56.0", "tomli_w"]
+dependencies = ["agi-core==2026.04.28.post3", "agi-gui==2026.04.28.post3", "astor", "legacy-cgi; python_version >= '3.13'", "mlflow", "networkx", "numpy>=1.14.1", "pandas>=2.3.0", "pathspec", "pydantic", "standard-imghdr; python_version >= '3.13'", "streamlit>=1.56.0", "tomli_w"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -53,6 +53,8 @@ agilab = "agilab.lab_run:main"
 ai = ["openai"]
 viz = ["matplotlib", "plotly"]
 offline = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
+
+
 
 
 
