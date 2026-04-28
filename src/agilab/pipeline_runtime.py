@@ -52,6 +52,7 @@ _safe_service_start_template_impl = _pipeline_runtime_support_module.safe_servic
 _sqlite_identifier_impl = _pipeline_runtime_support_module.sqlite_identifier
 _sqlite_uri_for_path_impl = _pipeline_runtime_support_module.sqlite_uri_for_path
 _start_mlflow_run_impl = _pipeline_runtime_support_module.start_mlflow_run
+_start_tracker_run_impl = _pipeline_runtime_support_module.start_tracker_run
 _stream_run_command_impl = _pipeline_runtime_support_module.stream_run_command
 _temporary_env_overrides_impl = _pipeline_runtime_support_module.temporary_env_overrides
 _to_bool_flag_impl = _pipeline_runtime_support_module.to_bool_flag
@@ -253,6 +254,28 @@ def start_mlflow_run(
         truncate_text_fn=truncate_mlflow_text,
     ) as tracking:
         yield tracking
+
+
+@contextmanager
+def start_tracker_run(
+    env: AgiEnv,
+    *,
+    run_name: str,
+    tags: Optional[Dict[str, Any]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    nested: bool = False,
+):
+    """Open a backend-neutral AGILAB tracker run backed by MLflow today."""
+    with _start_tracker_run_impl(
+        env,
+        run_name=run_name,
+        tags=tags,
+        params=params,
+        nested=nested,
+        start_mlflow_run_fn=start_mlflow_run,
+        log_mlflow_artifacts_fn=log_mlflow_artifacts,
+    ) as tracker:
+        yield tracker
 
 
 def log_mlflow_artifacts(
