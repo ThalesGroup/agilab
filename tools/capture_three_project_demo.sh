@@ -136,6 +136,27 @@ Scope note:
 - show generated snippets, replayable steps, worker activity, and decision evidence
 - do not claim unsupported first-class runtime DAG expansion unless that behavior is visible in the run
 
+## Demo steps
+
+1. Live Data Ingestion
+   - simulated + real-like mission data
+   - dashboard refresh or artifact update if available
+2. Automatic Pipeline Generation
+   - generated snippets and replayable DAG-style steps
+   - adaptive workflow selection shown through the selected run path
+3. Distributed Execution
+   - parallel worker activity or the clearest local-worker equivalent
+   - scaling claim scoped to worker distribution, not unsupported production autoscaling
+4. AI + Optimization Loop
+   - prediction signal
+   - routing / optimization decision under constraints
+5. Real-Time Adaptation
+   - bandwidth drop, node failure, or risk increase
+   - recompute, re-optimize, new decision
+6. Final Output
+   - selected strategy
+   - latency down, cost down, reliability up
+
 ## Recording settings
 
 - clip name: \`$NAME\`
