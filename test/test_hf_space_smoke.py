@@ -44,6 +44,21 @@ def test_private_app_entries_flags_only_direct_non_public_apps() -> None:
     assert offenders == ["uav_graph_routing_project"]
 
 
+def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:
+    module = _load_module()
+
+    offenders = module.unexpected_page_entries(
+        [
+            {"path": "src/agilab/apps-pages/README.md"},
+            {"path": "src/agilab/apps-pages/view_maps"},
+            {"path": "src/agilab/apps-pages/view_maps_network"},
+            {"path": "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"},
+        ]
+    )
+
+    assert offenders == ["view_maps_network"]
+
+
 def test_check_route_rejects_localhost_connection_body() -> None:
     module = _load_module()
 
@@ -85,7 +100,7 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     assert summary.success is True
     assert summary.total_duration_seconds == 2.1
     assert summary.within_target is True
-    assert [check.label for check in summary.checks][-1] == "public app tree"
+    assert [check.label for check in summary.checks][-2:] == ["public app tree", "public pages tree"]
 
 
 def test_main_json_returns_failure_for_private_app(monkeypatch, capsys) -> None:

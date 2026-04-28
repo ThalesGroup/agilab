@@ -16,6 +16,7 @@ from agi_node.agi_dispatcher import BaseWorker
 from agi_node.pandas_worker import PandasWorker
 from data_io_2026 import DataIo2026Args
 from data_io_2026.artifacts import build_decision_artifacts
+from data_io_2026.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -143,6 +144,11 @@ class DataIo2026Worker(PandasWorker):
         summary["source_file"] = artifacts.get("source_file", "")
 
         _write_json(run_root / f"{stem}_summary_metrics.json", summary)
+        write_reduce_artifact(
+            summary,
+            run_root,
+            worker_id=artifacts.get("worker_id", 0),
+        )
         _write_json(run_root / f"{stem}_mission_decision.json", artifacts["mission_decision"])
         _write_json(run_root / f"{stem}_generated_pipeline.json", artifacts["generated_pipeline"])
         _write_csv(run_root / f"{stem}_sensor_stream.csv", artifacts["sensor_stream"])
