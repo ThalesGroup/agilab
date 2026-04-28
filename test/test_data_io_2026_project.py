@@ -106,8 +106,15 @@ def test_data_io_2026_worker_exports_analysis_artifacts(tmp_path: Path) -> None:
 
         pipeline_path = root / "mission_decision_demo_generated_pipeline.json"
         decision_path = root / "mission_decision_demo_mission_decision.json"
+        reduce_path = root / "reduce_summary_worker_0.json"
         assert pipeline_path.is_file()
         assert decision_path.is_file()
+        assert reduce_path.is_file()
+
+        reduce_artifact = json.loads(reduce_path.read_text(encoding="utf-8"))
+        assert reduce_artifact["name"] == "data_io_2026_reduce_summary"
+        assert reduce_artifact["reducer"] == "data_io_2026.mission-decision.v1"
+        assert reduce_artifact["payload"]["selected_strategies"] == ["relay_mesh"]
 
         routes_df = pd.read_csv(root / "mission_decision_demo_candidate_routes.csv")
         timeline_df = pd.read_csv(root / "mission_decision_demo_decision_timeline.csv")

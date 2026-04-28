@@ -99,6 +99,39 @@ README summary alone. For normal maintenance, use the compact checks first:
    uv --preview-features extra-build-dependencies run python tools/kpi_evidence_bundle.py --compact
    uv --preview-features extra-build-dependencies run python tools/revision_traceability_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/public_certification_profile_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+   uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --target-url https://jpmorard-agilab.hf.space
+   uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/supply_chain_attestation_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/repository_knowledge_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/run_diff_evidence_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/ci_artifact_harvest_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/github_actions_artifact_index.py --archive artifact.zip --output artifact_index.json
+   uv --preview-features extra-build-dependencies run python tools/ci_provider_artifact_index.py --provider gitlab_ci --archive artifact.zip --output artifact_index.json
+   uv --preview-features extra-build-dependencies run python tools/multi_app_dag_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_dag_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_execution_plan_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_runner_state_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_dispatch_state_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_app_dispatch_smoke_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_state_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_dependency_view_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_live_state_updates_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_actions_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/global_pipeline_operator_ui_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/notebook_pipeline_import_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/notebook_roundtrip_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/notebook_union_environment_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_facility_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_resolution_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_health_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_health_actions_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_runtime_adapters_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_live_endpoint_smoke_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_ui_preview_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_live_ui_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_view_surface_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/data_connector_app_catalogs_report.py --compact
 
 For source-checkout first proof evidence, ``tools/newcomer_first_proof.py
 --json`` writes ``~/log/execute/flight/run_manifest.json``. The compatibility

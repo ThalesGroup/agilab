@@ -17,6 +17,7 @@ DEFAULT_SPACE_ID = "jpmorard/agilab"
 DEFAULT_SPACE_URL = "https://jpmorard-agilab.hf.space"
 DEFAULT_TARGET_SECONDS = 30.0
 APP_TREE_PATH = "src/agilab/apps"
+PAGES_TREE_PATH = "src/agilab/apps-pages"
 ALLOWED_APP_ENTRIES = {
     ".DS_Store",
     ".gitignore",
@@ -27,6 +28,14 @@ ALLOWED_APP_ENTRIES = {
     "install.py",
     "src",
     "templates",
+}
+ALLOWED_PAGE_ENTRIES = {
+    ".DS_Store",
+    ".gitignore",
+    "README.md",
+    "__init__.py",
+    "__pycache__",
+    "view_maps",
 }
 BAD_BODY_PATTERNS = (
     "127.0.0.1",
@@ -78,13 +87,6 @@ def route_specs() -> list[RouteSpec]:
                 "current_page": "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
             },
         ),
-        RouteSpec(
-            "flight view_maps_network",
-            query={
-                "active_app": "flight_project",
-                "current_page": "/app/src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py",
-            },
-        ),
     ]
 
 
@@ -95,9 +97,9 @@ def build_space_url(base_url: str, spec: RouteSpec) -> str:
     return url
 
 
-def build_tree_api_url(space_id: str) -> str:
+def build_tree_api_url(space_id: str, tree_path: str = APP_TREE_PATH) -> str:
     quoted_space = "/".join(urllib.parse.quote(part, safe="") for part in space_id.split("/"))
-    quoted_path = urllib.parse.quote(APP_TREE_PATH, safe="/")
+    quoted_path = urllib.parse.quote(tree_path, safe="/")
     return f"https://huggingface.co/api/spaces/{quoted_space}/tree/main/{quoted_path}"
 
 
@@ -148,8 +150,8 @@ def check_route(
     return CheckResult(spec.label, True, duration, f"HTTP {status}", url)
 
 
-def _direct_app_entry_name(path_value: str) -> str | None:
-    prefix = APP_TREE_PATH + "/"
+def _direct_tree_entry_name(path_value: str, tree_path: str) -> str | None:
+    prefix = tree_path + "/"
     if not path_value.startswith(prefix):
         return None
     relative = path_value[len(prefix) :]
@@ -158,13 +160,34 @@ def _direct_app_entry_name(path_value: str) -> str | None:
     return relative
 
 
-def private_app_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
+def _unexpected_direct_entries(
+    entries: Sequence[dict[str, Any]],
+    *,
+    tree_path: str,
+    allowed_entries: set[str],
+) -> list[str]:
     offenders: list[str] = []
     for entry in entries:
-        name = _direct_app_entry_name(str(entry.get("path", "")))
-        if name and name not in ALLOWED_APP_ENTRIES:
+        name = _direct_tree_entry_name(str(entry.get("path", "")), tree_path)
+        if name and name not in allowed_entries:
             offenders.append(name)
     return sorted(set(offenders))
+
+
+def private_app_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
+    return _unexpected_direct_entries(
+        entries,
+        tree_path=APP_TREE_PATH,
+        allowed_entries=ALLOWED_APP_ENTRIES,
+    )
+
+
+def unexpected_page_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
+    return _unexpected_direct_entries(
+        entries,
+        tree_path=PAGES_TREE_PATH,
+        allowed_entries=ALLOWED_PAGE_ENTRIES,
+    )
 
 
 def check_public_app_tree(
@@ -196,6 +219,35 @@ def check_public_app_tree(
     return CheckResult("public app tree", True, duration, "no non-public app entries", url)
 
 
+def check_public_pages_tree(
+    space_id: str,
+    *,
+    timeout: float,
+    fetcher: JsonFetcher = fetch_json,
+    clock: Clock = time.perf_counter,
+) -> CheckResult:
+    url = build_tree_api_url(space_id, PAGES_TREE_PATH)
+    start = clock()
+    try:
+        payload = fetcher(url, timeout)
+    except Exception as exc:
+        return CheckResult("public pages tree", False, clock() - start, f"request failed: {exc}", url)
+
+    duration = clock() - start
+    if not isinstance(payload, list):
+        return CheckResult("public pages tree", False, duration, "tree API returned non-list payload", url)
+    offenders = unexpected_page_entries(payload)
+    if offenders:
+        return CheckResult(
+            "public pages tree",
+            False,
+            duration,
+            "unexpected page entries: " + ", ".join(offenders),
+            url,
+        )
+    return CheckResult("public pages tree", True, duration, "only expected public pages", url)
+
+
 def run_smoke(
     *,
     space_id: str = DEFAULT_SPACE_ID,
@@ -211,6 +263,7 @@ def run_smoke(
         for spec in route_specs()
     ]
     checks.append(check_public_app_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
+    checks.append(check_public_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
     total = sum(check.duration_seconds for check in checks)
     success = all(check.success for check in checks)
     return SmokeSummary(

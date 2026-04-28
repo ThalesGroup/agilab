@@ -145,8 +145,8 @@ def test_revision_traceability_report_contract_fingerprints_repo() -> None:
     assert check["details"]["summary"]["schema"] == "agilab.revision_traceability.v1"
     assert check["details"]["summary"]["execution_mode"] == "revision_traceability_static"
     assert check["details"]["summary"]["core_component_count"] == 5
-    assert check["details"]["summary"]["builtin_app_count"] == 7
-    assert check["details"]["summary"]["app_fingerprint_count"] == 7
+    assert check["details"]["summary"]["builtin_app_count"] == 8
+    assert check["details"]["summary"]["app_fingerprint_count"] == 8
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert "revision_traceability_builtin_apps" in check["details"]["check_ids"]
@@ -188,7 +188,7 @@ def test_supply_chain_attestation_report_contract_fingerprints_package() -> None
     assert check["details"]["summary"]["license_present"] is True
     assert check["details"]["summary"]["core_component_count"] == 4
     assert check["details"]["summary"]["aligned_core_versions"] is True
-    assert check["details"]["summary"]["builtin_app_pyproject_count"] == 7
+    assert check["details"]["summary"]["builtin_app_pyproject_count"] == 8
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["formal_supply_chain_attestation"] is False
@@ -839,7 +839,7 @@ def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None
     check = module._check_reduce_contract_adoption_guardrail(Path.cwd())
 
     assert check["status"] == "pass"
-    assert check["details"]["checked_app_count"] == 6
+    assert check["details"]["checked_app_count"] == 7
     assert check["details"]["template_only_exemptions"] == {
         "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
     }
@@ -882,12 +882,15 @@ def test_optional_hf_smoke_run_is_explicit(monkeypatch) -> None:
                     "base app",
                     "flight project",
                     "flight view_maps",
-                    "flight view_maps_network",
                 )
             ]
 
         @staticmethod
         def check_public_app_tree():
+            return None
+
+        @staticmethod
+        def check_public_pages_tree():
             return None
 
         @staticmethod
@@ -897,7 +900,10 @@ def test_optional_hf_smoke_run_is_explicit(monkeypatch) -> None:
                 total_duration_seconds=1.0,
                 target_seconds=30.0,
                 within_target=True,
-                checks=[_FakeCheck("public app tree", True, 1.0, "ok")],
+                checks=[
+                    _FakeCheck("public app tree", True, 0.5, "ok"),
+                    _FakeCheck("public pages tree", True, 0.5, "ok"),
+                ],
             )
 
     original_loader = module._load_tool_module

@@ -331,8 +331,8 @@ def _check_revision_traceability_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.revision_traceability.v1"
             and summary.get("execution_mode") == "revision_traceability_static"
             and summary.get("core_component_count") == 5
-            and summary.get("builtin_app_count") == 7
-            and summary.get("app_fingerprint_count") == 7
+            and summary.get("builtin_app_count") == 8
+            and summary.get("app_fingerprint_count") == 8
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
         )
@@ -427,7 +427,7 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("license_present") is True
             and summary.get("core_component_count") == 4
             and summary.get("aligned_core_versions") is True
-            and summary.get("builtin_app_pyproject_count") == 7
+            and summary.get("builtin_app_pyproject_count") == 8
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("formal_supply_chain_attestation") is False
@@ -2169,12 +2169,12 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
             "base app",
             "flight project",
             "flight view_maps",
-            "flight view_maps_network",
         }
         ok = (
             required_labels.issubset(labels)
             and hf_space_smoke.DEFAULT_SPACE_ID == "jpmorard/agilab"
             and callable(hf_space_smoke.check_public_app_tree)
+            and callable(hf_space_smoke.check_public_pages_tree)
         )
         details = {
             "space_id": hf_space_smoke.DEFAULT_SPACE_ID,
