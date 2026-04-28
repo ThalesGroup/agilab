@@ -601,6 +601,39 @@ def _parse_list_like(value: Any) -> list[Any]:
     return []
 
 
+def _is_missing_value(value: Any) -> bool:
+    if value is None:
+        return True
+    try:
+        result = pd.isna(value)
+    except (TypeError, ValueError):
+        return False
+    if isinstance(result, bool):
+        return result
+    try:
+        return bool(result)
+    except (TypeError, ValueError):
+        return False
+
+
+def _coerce_path_sequence(value: Any) -> list[Any]:
+    items = [item for item in _parse_list_like(value) if not _is_missing_value(item)]
+    if len(items) == 1 and isinstance(items[0], (list, tuple)):
+        return [item for item in list(items[0]) if not _is_missing_value(item)]
+    return items
+
+
+def _path_hop_count(value: Any) -> int | None:
+    path = _coerce_path_sequence(value)
+    if not path:
+        return None
+    if all(isinstance(item, (list, tuple)) for item in path):
+        return len(path)
+    if len(path) < 2:
+        return None
+    return len(path) - 1
+
+
 def _routed_flag_series(frame: pd.DataFrame) -> pd.Series:
     if "routed" in frame.columns:
         routed = _metric_series(frame, "routed")
@@ -732,7 +765,7 @@ def _bearer_hop_count(value: Any) -> int | None:
 def build_hop_count_distribution_frame(frames: dict[str, pd.DataFrame]) -> pd.DataFrame:
     rows: list[pd.DataFrame] = []
     for label, frame in frames.items():
-        if "bearers" not in frame.columns:
+        if "path" not in frame.columns:
             continue
 
         routed = _routed_flag_series(frame)
@@ -740,7 +773,7 @@ def build_hop_count_distribution_frame(frames: dict[str, pd.DataFrame]) -> pd.Da
             hop_count
             for idx in frame.index
             if routed.get(idx, 0.0) > 0
-            for hop_count in [_bearer_hop_count(frame.at[idx, "bearers"])]
+            for hop_count in [_path_hop_count(frame.at[idx, "path"])]
             if hop_count is not None
         ]
         if not hop_counts:
