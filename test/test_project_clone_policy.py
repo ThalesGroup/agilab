@@ -352,6 +352,59 @@ def test_create_project_clone_action_reports_missing_clone_output(tmp_path: Path
     assert "filesystem permissions" in result.next_action
 
 
+def test_create_project_clone_action_reports_clone_exception(tmp_path: Path):
+    module = _load_project_module()
+
+    def _raise_clone(_source: Path, _target: Path) -> None:
+        raise OSError("copy denied")
+
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_raise_clone)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Broken Clone",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "error"
+    assert result.title == "Project 'broken_clone_project' could not be cloned."
+    assert result.detail == "copy denied"
+    assert "filesystem permissions" in str(result.next_action)
+    assert result.data["dest_root"] == tmp_path / "broken_clone_project"
+
+
+def test_create_project_clone_action_reports_environment_finalization_failure(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+
+    def _clone_project(_source: Path, target: Path) -> None:
+        (tmp_path / target).mkdir()
+
+    def _raise_finalize(*_args, **_kwargs) -> None:
+        raise ValueError("bad strategy")
+
+    monkeypatch.setattr(module, "_finalize_cloned_project_environment", _raise_finalize)
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Partial Clone",
+        clone_env_strategy="unknown",
+    )
+
+    assert result.status == "error"
+    assert result.title == (
+        "Project 'partial_clone_project' was created, but environment finalization failed."
+    )
+    assert result.detail == "bad strategy"
+    assert "rerun INSTALL" in str(result.next_action)
+    assert (tmp_path / "partial_clone_project").is_dir()
+
+
 def test_rename_project_action_preserves_venv_and_removes_source(tmp_path: Path):
     module = _load_project_module()
     clone_calls: list[tuple[Path, Path]] = []
@@ -416,6 +469,59 @@ def test_rename_project_action_reports_missing_clone_output(tmp_path: Path):
     assert result.title == "Error: Project 'missing_output_project' not found after renaming."
     assert result.next_action is not None
     assert "filesystem permissions" in result.next_action
+
+
+def test_rename_project_action_reports_clone_exception(tmp_path: Path):
+    module = _load_project_module()
+
+    def _raise_clone(_source: Path, _target: Path) -> None:
+        raise OSError("copy denied")
+
+    env = SimpleNamespace(
+        app="current_project",
+        apps_path=tmp_path,
+        clone_project=_raise_clone,
+    )
+
+    result = module._rename_project_action(env, raw_project_name="Broken")
+
+    assert result.status == "error"
+    assert result.title == "Project 'current_project' could not be cloned to 'broken_project'."
+    assert result.detail == "copy denied"
+    assert "filesystem permissions" in str(result.next_action)
+    assert result.data["dest_path"] == tmp_path / "broken_project"
+
+
+def test_rename_project_action_reports_environment_preservation_failure(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+    source_root = tmp_path / "current_project"
+    source_root.mkdir()
+
+    def _clone_project(_source: Path, target: Path) -> None:
+        (tmp_path / target).mkdir()
+
+    def _raise_repair(_source: Path, _dest: Path) -> None:
+        raise OSError("venv locked")
+
+    monkeypatch.setattr(module, "_repair_renamed_project_environment", _raise_repair)
+    env = SimpleNamespace(
+        app="current_project",
+        apps_path=tmp_path,
+        clone_project=_clone_project,
+    )
+
+    result = module._rename_project_action(env, raw_project_name="Renamed")
+
+    assert result.status == "error"
+    assert result.title == (
+        "Project 'renamed_project' was cloned, but environment preservation failed."
+    )
+    assert result.detail == "venv locked"
+    assert "rerun INSTALL" in str(result.next_action)
+    assert (tmp_path / "renamed_project").is_dir()
 
 
 def test_rename_project_action_reports_source_cleanup_failure(tmp_path: Path, monkeypatch):
