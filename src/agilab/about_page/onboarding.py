@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+from html import escape
 from pathlib import Path
 from typing import Any, Callable, Dict, List
 
@@ -62,18 +63,44 @@ def _render_newcomer_first_proof_static() -> None:
     """Render the legacy concise newcomer checklist used by helper tests."""
     content = _newcomer_first_proof_content()
     steps_html = "".join(
-        f"<li><strong>{label}</strong>: {detail}</li>"
+        f"<li><strong>{escape(str(label))}</strong>: {escape(str(detail))}</li>"
         for label, detail in content["steps"]
     )
     success_html = "".join(
-        f"<li>{item}</li>"
+        f"<li>{escape(str(item))}</li>"
         for item in content["success_criteria"]
     )
     st.markdown(
         f"""
-        <div style="border: 1px solid rgba(120, 120, 120, 0.35); border-radius: 12px; padding: 1rem 1.2rem; margin: 1rem 0 1.25rem 0; background: rgba(250, 250, 250, 0.82);">
-          <h3 style="margin-top: 0;">{content["title"]}</h3>
-          <p style="margin-bottom: 0.75rem;">{content["intro"]}</p>
+        <style>
+          .agilab-proof-static {{
+            margin: 1rem 0 1.25rem;
+            padding: 1.15rem 1.25rem;
+            border: 1px solid rgba(10, 31, 51, 0.12);
+            border-radius: 20px;
+            background:
+              radial-gradient(circle at 100% 0%, rgba(255, 190, 94, 0.20), transparent 34%),
+              linear-gradient(135deg, #ffffff 0%, #f5f8f4 100%);
+            box-shadow: 0 14px 40px rgba(12, 27, 42, 0.08);
+            font-family: "Aptos", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+          }}
+          .agilab-proof-static h3 {{
+            margin: 0 0 0.45rem;
+            color: #0a1f33;
+            letter-spacing: -0.02em;
+          }}
+          .agilab-proof-static p,
+          .agilab-proof-static li {{
+            color: #4b6258;
+            line-height: 1.5;
+          }}
+          .agilab-proof-static strong {{
+            color: #0a1f33;
+          }}
+        </style>
+        <div class="agilab-proof-static">
+          <h3>{escape(str(content["title"]))}</h3>
+          <p style="margin-bottom: 0.75rem;">{escape(str(content["intro"]))}</p>
           <p style="margin-bottom: 0.35rem;"><strong>Do this now</strong></p>
           <ol style="margin-top: 0.1rem; margin-bottom: 0.75rem;">{steps_html}</ol>
           <p style="margin-bottom: 0.35rem;"><strong>Done when</strong></p>
@@ -146,6 +173,198 @@ def _first_proof_progress_markdown(rows: List[Dict[str, str]]) -> str:
     return "\n".join(table)
 
 
+def _first_proof_status_tone(status: str) -> str:
+    """Return a stable CSS tone for a first-proof status label."""
+    normalized = status.strip().lower()
+    if normalized == "done":
+        return "done"
+    if normalized == "next":
+        return "next"
+    if normalized in {"attention", "blocked"}:
+        return "attention"
+    return "waiting"
+
+
+def _first_proof_overview_html(
+    content: Dict[str, Any],
+    state: Dict[str, Any],
+    rows: List[Dict[str, str]],
+) -> str:
+    """Render the first-proof cockpit card."""
+    cards_html = "".join(
+        (
+            f"""<article class="agilab-proof__status agilab-proof__status--{_first_proof_status_tone(row['status'])}">
+                  <span>{escape(str(row["status"]))}</span>
+                  <strong>{escape(str(row["step"]))}</strong>
+                  <p>{escape(str(row["detail"]))}</p>
+                </article>"""
+        )
+        for row in rows
+    )
+    target_seconds = float(state.get("target_seconds") or 0.0)
+    active_app = str(state.get("active_app_name") or "none")
+    route = str(state.get("recommended_path_label") or "recommended path")
+    return f"""
+        <style>
+          .agilab-proof {{
+            margin: 0.25rem 0 1.05rem;
+            padding: clamp(1rem, 2.2vw, 1.45rem);
+            border: 1px solid rgba(10, 31, 51, 0.11);
+            border-radius: 24px;
+            background:
+              radial-gradient(circle at 8% 0%, rgba(255, 190, 94, 0.24), transparent 32%),
+              radial-gradient(circle at 92% 15%, rgba(52, 211, 153, 0.16), transparent 32%),
+              linear-gradient(135deg, #ffffff 0%, #f4f8f5 100%);
+            box-shadow: 0 18px 48px rgba(12, 27, 42, 0.09);
+            font-family: "Aptos", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+          }}
+          .agilab-proof__head {{
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 1rem;
+            align-items: start;
+          }}
+          .agilab-proof__kicker {{
+            margin: 0 0 0.45rem;
+            color: #39513f;
+            font-size: 0.72rem;
+            font-weight: 900;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+          }}
+          .agilab-proof h2 {{
+            margin: 0;
+            color: #0a1f33;
+            font-size: clamp(1.55rem, 3vw, 2.25rem);
+            letter-spacing: -0.055em;
+            line-height: 1.02;
+          }}
+          .agilab-proof__intro {{
+            max-width: 760px;
+            margin: 0.75rem 0 0;
+            color: #587064;
+            line-height: 1.55;
+            font-size: 0.98rem;
+          }}
+          .agilab-proof__seal {{
+            min-width: 170px;
+            padding: 0.75rem 0.85rem;
+            border: 1px solid rgba(10, 31, 51, 0.10);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.72);
+            text-align: right;
+          }}
+          .agilab-proof__seal span {{
+            display: block;
+            color: #77877f;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+          }}
+          .agilab-proof__seal strong {{
+            display: block;
+            margin-top: 0.15rem;
+            color: #0a1f33;
+            font-size: 1.08rem;
+          }}
+          .agilab-proof__rail {{
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.72rem;
+            margin-top: 1rem;
+          }}
+          .agilab-proof__status {{
+            min-height: 132px;
+            padding: 0.9rem;
+            border: 1px solid rgba(10, 31, 51, 0.10);
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.76);
+          }}
+          .agilab-proof__status span {{
+            display: inline-flex;
+            margin-bottom: 0.65rem;
+            padding: 0.18rem 0.52rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+          }}
+          .agilab-proof__status--done span {{
+            color: #14532d;
+            background: rgba(34, 197, 94, 0.16);
+          }}
+          .agilab-proof__status--next span {{
+            color: #7c4a03;
+            background: rgba(255, 190, 94, 0.24);
+          }}
+          .agilab-proof__status--attention span {{
+            color: #8a1f11;
+            background: rgba(248, 113, 113, 0.16);
+          }}
+          .agilab-proof__status--waiting span {{
+            color: #475569;
+            background: rgba(100, 116, 139, 0.13);
+          }}
+          .agilab-proof__status strong {{
+            display: block;
+            margin-bottom: 0.35rem;
+            color: #0a1f33;
+          }}
+          .agilab-proof__status p {{
+            margin: 0;
+            color: #60736c;
+            font-size: 0.9rem;
+            line-height: 1.42;
+          }}
+          .agilab-proof__meta {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.9rem;
+          }}
+          .agilab-proof__meta span {{
+            padding: 0.42rem 0.62rem;
+            border: 1px solid rgba(10, 31, 51, 0.10);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.62);
+            color: #4d655b;
+            font-size: 0.84rem;
+            font-weight: 750;
+          }}
+          @media (max-width: 900px) {{
+            .agilab-proof__head,
+            .agilab-proof__rail {{
+              grid-template-columns: 1fr;
+            }}
+            .agilab-proof__seal {{
+              text-align: left;
+            }}
+          }}
+        </style>
+        <section class="agilab-proof" aria-label="First proof onboarding">
+          <div class="agilab-proof__head">
+            <div>
+              <p class="agilab-proof__kicker">First proof path</p>
+              <h2>{escape(str(content["title"]))}</h2>
+              <p class="agilab-proof__intro">{escape(str(content["intro"]))}</p>
+            </div>
+            <div class="agilab-proof__seal">
+              <span>Target</span>
+              <strong>&lt;= {target_seconds:.0f}s</strong>
+            </div>
+          </div>
+          <div class="agilab-proof__rail">{cards_html}</div>
+          <div class="agilab-proof__meta">
+            <span>Route: {escape(route)}</span>
+            <span>Active app: {escape(active_app)}</span>
+            <span>PROJECT / ORCHESTRATE / ANALYSIS</span>
+          </div>
+        </section>
+        """
+
+
 def _render_first_proof_next_action(
     env: Any,
     state: Dict[str, Any],
@@ -192,6 +411,11 @@ def render_newcomer_first_proof(
         st.success(str(feedback))
 
     with st.expander(content["title"], expanded=True):
+        progress_rows = _first_proof_progress_rows(state)
+        st.markdown(
+            _first_proof_overview_html(content, state, progress_rows),
+            unsafe_allow_html=True,
+        )
         st.markdown("**1. Goal**")
         st.write(content["intro"])
         _render_first_proof_next_action(env, state, activate_project)
@@ -215,7 +439,7 @@ def render_newcomer_first_proof(
 
         with st.expander("If it fails / proof details", expanded=False):
             st.markdown("**Progress**")
-            st.markdown(_first_proof_progress_markdown(_first_proof_progress_rows(state)))
+            st.markdown(_first_proof_progress_markdown(progress_rows))
             st.caption(
                 "Validated path: "
                 f"{state['recommended_path_label']} "
