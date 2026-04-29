@@ -61,8 +61,10 @@ The Pipeline-first slice is now the reference implementation:
   `PipelinePageState` / ViewModel for visible steps, selected lab, stale
   snippets, lock/run status, logs, and available actions. Orchestrate service
   mode now has typed service state for visible action/status/health/export
-  flows. Broader Orchestrate install/distribute/run views still need the same
-  level of consolidation.
+  flows. Broader Orchestrate has started the same consolidation with typed
+  EXECUTE/combo action readiness for no-command, serve-mode, and incomplete
+  installation states. INSTALL/DISTRIBUTE controls and remaining run artifacts
+  still need the same treatment.
 - Ports and Adapters: partially done. `BootstrapPorts`, `Orchestrate*Deps`, and
   support modules exist, but not every external dependency is behind an
   injected adapter yet.
@@ -76,8 +78,9 @@ The Pipeline-first slice is now the reference implementation:
   `PipelineWorkflowStatus` enum covering `empty`, `generated`, `stale`,
   `runnable`, `running`, `failed`, and `complete`. Orchestrate service mode has
   a `ServiceWorkflowStatus` model for `disabled`, `idle`, `starting`,
-  `running`, `unhealthy`, `failed`, and `stopping`. Broader Orchestrate views
-  still need explicit workflow-state models.
+  `running`, `unhealthy`, `failed`, and `stopping`. Broader Orchestrate now has
+  a first execute/combo workflow-state slice; the full install/distribute/run
+  workflow still needs explicit state models.
 - Versioned Artifact Contracts: partially done. `AGILAB_SNIPPET_API`, run
   manifest schema support, `lab_steps.toml` v1 metadata/refusal support,
   exported notebook metadata v1 support, and `app_settings.toml` v1
@@ -94,8 +97,9 @@ The Pipeline-first slice is now the reference implementation:
 
 ## Recommended Sequence
 
-1. Apply the ViewModel, command-result, and workflow-state pattern to broader
-   Orchestrate install/distribute/run views.
+1. Continue applying the ViewModel, command-result, and workflow-state pattern
+   to broader Orchestrate install/distribute/run views, starting with
+   INSTALL/DISTRIBUTE readiness and command results.
 2. Extend versioned contracts to remaining persisted UI artifacts.
 3. Introduce a versioned pipeline-step template registry when raw generated
    snippets are replaced with structured `template` steps.

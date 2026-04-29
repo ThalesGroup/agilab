@@ -126,3 +126,82 @@ def test_orchestrate_page_state_blocks_remote_dask_without_shared_workers_path(t
     assert state.run_mode == [4]
     assert state.can_run is False
     assert "local share" in state.run_disabled_reason
+
+
+def test_orchestrate_execute_workflow_state_is_ready_when_installed(tmp_path):
+    project_path = tmp_path / "project"
+    worker_env_path = tmp_path / "wenv"
+    (project_path / ".venv").mkdir(parents=True)
+    (worker_env_path / ".venv").mkdir(parents=True)
+
+    state = orchestrate_page_state.build_orchestrate_execute_workflow_state(
+        show_run_panel=True,
+        cmd="print('run')",
+        project_path=project_path,
+        worker_env_path=worker_env_path,
+    )
+
+    assert state.command_configured is True
+    assert state.missing_install_paths == ()
+    assert state.run_action.enabled is True
+    assert state.combo_action.enabled is True
+    assert state.blocked_actions == {}
+
+
+def test_orchestrate_execute_workflow_state_reports_missing_install_paths(tmp_path):
+    project_path = tmp_path / "project"
+    worker_env_path = tmp_path / "wenv"
+
+    state = orchestrate_page_state.build_orchestrate_execute_workflow_state(
+        show_run_panel=True,
+        cmd="print('run')",
+        project_path=project_path,
+        worker_env_path=worker_env_path,
+    )
+
+    assert state.run_action.enabled is False
+    assert state.combo_action.enabled is False
+    assert len(state.missing_install_paths) == 2
+    assert f"manager venv `{project_path / '.venv'}`" in state.missing_install_paths
+    assert f"worker venv `{worker_env_path / '.venv'}`" in state.missing_install_paths
+    assert "installation is incomplete" in state.run_action.disabled_reason
+    assert "installation is incomplete" in state.combo_action.disabled_reason
+
+
+def test_orchestrate_execute_workflow_state_blocks_missing_command(tmp_path):
+    project_path = tmp_path / "project"
+    worker_env_path = tmp_path / "wenv"
+    (project_path / ".venv").mkdir(parents=True)
+    (worker_env_path / ".venv").mkdir(parents=True)
+
+    state = orchestrate_page_state.build_orchestrate_execute_workflow_state(
+        show_run_panel=True,
+        cmd=None,
+        project_path=project_path,
+        worker_env_path=worker_env_path,
+    )
+
+    assert state.command_configured is False
+    assert state.missing_install_paths == ()
+    assert state.run_action.enabled is False
+    assert state.combo_action.enabled is False
+    assert "No EXECUTE command configured" in state.run_action.disabled_reason
+
+
+def test_orchestrate_execute_workflow_state_blocks_serve_mode(tmp_path):
+    project_path = tmp_path / "project"
+    worker_env_path = tmp_path / "wenv"
+    (project_path / ".venv").mkdir(parents=True)
+    (worker_env_path / ".venv").mkdir(parents=True)
+
+    state = orchestrate_page_state.build_orchestrate_execute_workflow_state(
+        show_run_panel=False,
+        cmd="print('run')",
+        project_path=project_path,
+        worker_env_path=worker_env_path,
+    )
+
+    assert state.run_action.enabled is False
+    assert state.combo_action.enabled is False
+    assert "`Serve` mode selected" in state.run_action.disabled_reason
+    assert "`Serve` mode selected" in state.blocked_actions[orchestrate_page_state.OrchestrateExecuteAction.RUN]

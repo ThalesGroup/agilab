@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 
@@ -10,6 +12,11 @@ class OrchestrateWorkflowStatus(str, Enum):
     SINGLE_RUN = "single-run"
     BENCHMARK = "benchmark"
     BLOCKED = "blocked"
+
+
+class OrchestrateExecuteAction(str, Enum):
+    RUN = "run"
+    COMBO = "combo"
 
 
 @dataclass(frozen=True)
@@ -43,6 +50,33 @@ class OrchestratePageState:
     run_disabled_reason: str
 
 
+@dataclass(frozen=True)
+class OrchestrateActionReadiness:
+    action: OrchestrateExecuteAction
+    enabled: bool
+    disabled_reason: str
+    missing_install_paths: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class OrchestrateExecuteWorkflowState:
+    show_run_panel: bool
+    command_configured: bool
+    manager_venv_path: Path
+    worker_venv_path: Path | None
+    missing_install_paths: tuple[str, ...]
+    actions: Mapping[OrchestrateExecuteAction, OrchestrateActionReadiness]
+    blocked_actions: Mapping[OrchestrateExecuteAction, str]
+
+    @property
+    def run_action(self) -> OrchestrateActionReadiness:
+        return self.actions[OrchestrateExecuteAction.RUN]
+
+    @property
+    def combo_action(self) -> OrchestrateActionReadiness:
+        return self.actions[OrchestrateExecuteAction.COMBO]
+
+
 def _coerce_int_tuple(values: Sequence[Any]) -> tuple[int, ...]:
     result: list[int] = []
     for value in values:
@@ -61,6 +95,98 @@ def _coerce_verbose(value: Any) -> int:
     except (TypeError, ValueError):
         return 1
     return verbose if verbose >= 0 else 1
+
+
+def _missing_install_paths(manager_venv: Path, worker_venv: Path | None) -> tuple[str, ...]:
+    missing: list[str] = []
+    if not manager_venv.exists():
+        missing.append(f"manager venv `{manager_venv}`")
+    if worker_venv is None:
+        missing.append("worker venv `<unknown>`")
+    elif not worker_venv.exists():
+        missing.append(f"worker venv `{worker_venv}`")
+    return tuple(missing)
+
+
+def _install_gap_reason(action_label: str, missing_install_paths: tuple[str, ...]) -> str:
+    return (
+        f"{action_label} is unavailable because the installation is incomplete. "
+        "Run INSTALL first to create: " + ", ".join(missing_install_paths)
+    )
+
+
+def _execute_readiness(
+    *,
+    action: OrchestrateExecuteAction,
+    show_run_panel: bool,
+    command_configured: bool,
+    missing_install_paths: tuple[str, ...],
+) -> OrchestrateActionReadiness:
+    if not show_run_panel:
+        return OrchestrateActionReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason="`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.",
+            missing_install_paths=missing_install_paths,
+        )
+    if not command_configured:
+        return OrchestrateActionReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason="No EXECUTE command configured; please configure it first.",
+            missing_install_paths=missing_install_paths,
+        )
+    if missing_install_paths:
+        action_label = "EXECUTE" if action is OrchestrateExecuteAction.RUN else "EXECUTE \u2192 LOAD \u2192 EXPORT"
+        return OrchestrateActionReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason=_install_gap_reason(action_label, missing_install_paths),
+            missing_install_paths=missing_install_paths,
+        )
+    return OrchestrateActionReadiness(
+        action=action,
+        enabled=True,
+        disabled_reason="",
+        missing_install_paths=(),
+    )
+
+
+def build_orchestrate_execute_workflow_state(
+    *,
+    show_run_panel: bool,
+    cmd: str | None,
+    project_path: Path | str,
+    worker_env_path: Path | str | None,
+) -> OrchestrateExecuteWorkflowState:
+    """Build the pure ORCHESTRATE execute/combo action state."""
+    manager_venv = Path(project_path) / ".venv"
+    worker_venv = Path(worker_env_path) / ".venv" if worker_env_path else None
+    missing_paths = _missing_install_paths(manager_venv, worker_venv)
+    command_configured = bool(cmd)
+    actions = {
+        action: _execute_readiness(
+            action=action,
+            show_run_panel=show_run_panel,
+            command_configured=command_configured,
+            missing_install_paths=missing_paths,
+        )
+        for action in OrchestrateExecuteAction
+    }
+    blocked_actions = {
+        action: readiness.disabled_reason
+        for action, readiness in actions.items()
+        if not readiness.enabled
+    }
+    return OrchestrateExecuteWorkflowState(
+        show_run_panel=show_run_panel,
+        command_configured=command_configured,
+        manager_venv_path=manager_venv,
+        worker_venv_path=worker_venv,
+        missing_install_paths=missing_paths,
+        actions=MappingProxyType(actions),
+        blocked_actions=MappingProxyType(blocked_actions),
+    )
 
 
 def build_orchestrate_page_state(
