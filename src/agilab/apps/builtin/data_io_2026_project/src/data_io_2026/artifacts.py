@@ -6,6 +6,8 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .fred_support import fred_fixture_feature_rows
+
 
 @dataclass(frozen=True)
 class MissionWeights:
@@ -367,6 +369,7 @@ def build_decision_artifacts(scenario: Mapping[str, Any], args: Any) -> dict[str
             "source": "constraints",
         },
     ]
+    feature_table.extend(fred_fixture_feature_rows())
 
     decision_timeline = [
         {

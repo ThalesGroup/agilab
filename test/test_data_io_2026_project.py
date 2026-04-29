@@ -16,6 +16,13 @@ if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
 from data_io_2026 import DataIo2026, DataIo2026Args, build_decision_artifacts
+from data_io_2026.fred_support import (
+    FRED_FIXTURE_SERIES_ID,
+    fetch_fred_csv_rows,
+    fred_csv_url,
+    fred_fixture_rows,
+    parse_fred_csv,
+)
 from data_io_2026_worker import DataIo2026Worker
 from data_io_2026_worker.data_io_2026_worker import _args_with_defaults
 
@@ -66,6 +73,7 @@ def test_data_io_2026_decision_artifacts_replan_after_bandwidth_drop() -> None:
 
     artifacts = build_decision_artifacts(scenario, DataIo2026Args())
     summary = artifacts["summary"]
+    feature_rows = artifacts["feature_table"]
 
     assert summary["initial_strategy"] == "direct_satcom"
     assert summary["selected_strategy"] == "relay_mesh"
@@ -75,6 +83,64 @@ def test_data_io_2026_decision_artifacts_replan_after_bandwidth_drop() -> None:
     assert summary["pipeline_stage_count"] == len(artifacts["generated_pipeline"]["stages"])
     assert {row["phase"] for row in artifacts["candidate_routes"]} == {"baseline", "post_failure"}
     assert len(artifacts["decision_timeline"]) == 6
+    assert {
+        ("public_macro_fixture_series", "fred_fixture"),
+        ("public_macro_fixture_value", "fred_fixture"),
+        ("public_macro_fixture_date", "fred_fixture"),
+    } <= {(row["feature"], row["source"]) for row in feature_rows}
+
+
+def test_data_io_2026_fred_fixture_and_parser_are_deterministic() -> None:
+    rows = fred_fixture_rows()
+
+    assert [row["date"] for row in rows] == ["2026-01-01", "2026-02-01", "2026-03-01"]
+    assert {row["series_id"] for row in rows} == {FRED_FIXTURE_SERIES_ID}
+    assert rows[-1]["value"] == 3.9
+    assert rows[-1]["source"] == "fred_fixture"
+
+    parsed = parse_fred_csv(
+        "DATE,UNRATE\n2026-01-01,4.1\n2026-02-01,.\n2026-03-01,not-a-number\n",
+        series_id="UNRATE",
+    )
+    assert parsed == [
+        {
+            "date": "2026-01-01",
+            "series_id": "UNRATE",
+            "value": 4.1,
+            "source": "fred",
+        }
+    ]
+
+
+def test_data_io_2026_fred_live_fetch_is_optional_and_injectable() -> None:
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        @staticmethod
+        def read() -> bytes:
+            return b"DATE,FEDFUNDS\n2026-04-01,3.8\n"
+
+    calls: list[tuple[str, float]] = []
+
+    def _opener(url: str, *, timeout: float):
+        calls.append((url, timeout))
+        return _Response()
+
+    rows = fetch_fred_csv_rows(opener=_opener, timeout=1.5)
+
+    assert rows == [
+        {
+            "date": "2026-04-01",
+            "series_id": "FEDFUNDS",
+            "value": 3.8,
+            "source": "fred",
+        }
+    ]
+    assert calls == [(fred_csv_url("FEDFUNDS"), 1.5)]
 
 
 def test_data_io_2026_worker_exports_analysis_artifacts(tmp_path: Path) -> None:
@@ -150,9 +216,15 @@ def test_data_io_2026_public_analysis_config_and_wording() -> None:
         Path("src/agilab/apps-pages/view_data_io_decision/README.md"),
     ]
     public_text = "\n".join(path.read_text(encoding="utf-8") for path in public_files).lower()
-    assert "fred" not in public_text
+    assert "fred" in public_text
+    assert "fredapi" in public_text
     assert "obsolete" not in public_text
     assert "private project" not in public_text
+
+    dependencies = " ".join(
+        tomllib.loads((APP_ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["dependencies"]
+    ).lower()
+    assert "fredapi" not in dependencies
 
 
 def test_data_io_2026_worker_is_installable_supported_worker() -> None:

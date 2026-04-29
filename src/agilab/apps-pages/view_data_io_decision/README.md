@@ -16,6 +16,7 @@ The page reads the artifacts exported by `data_io_2026_project` and displays:
 - route scoring table
 - decision timeline
 - input sensor stream and feature evidence
+- deterministic FRED-compatible context evidence when present
 
 Expected artifact root:
 
