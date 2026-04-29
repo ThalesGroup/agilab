@@ -26,7 +26,7 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
     report = module.build_report(run_docs_profile=False)
 
     assert report["kpi"] == "Production readiness"
-    assert report["supported_score"] == "3.0 / 5"
+    assert report["supported_score"] == module.SUPPORTED_SCORE
     assert report["status"] == "pass"
     assert report["summary"]["docs_profile_executed"] is False
     check_ids = {check["id"] for check in report["checks"]}

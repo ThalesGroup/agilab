@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from functools import lru_cache
+import importlib.util
+import re
+import sys
 from pathlib import Path
 
 
@@ -17,9 +21,11 @@ ADOPTION_DOC_PAGES = (
     Path("docs/source/newcomer-guide.rst"),
 )
 POSITIONING_DOC = Path("docs/source/agilab-mlops-positioning.rst")
+STRATEGIC_DOC = Path("docs/source/strategic-potential.rst")
 FEATURES_DOC = Path("docs/source/features.rst")
 COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
 COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
+DOCS_SOURCE = Path("docs/source")
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
 PUBLIC_HF_SPACE_BADGE = "https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge"
 AGI_CORE_NOTEBOOK_URL = "https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"
@@ -27,7 +33,43 @@ AGI_CORE_NOTEBOOK_BADGE = "https://img.shields.io/badge/agi--core-notebook-1D4ED
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
-LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.29-4"
+CURRENT_RELEASE_VERSION = "2026.04.29.post3"
+LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.29-5"
+KPI_BUNDLE_TOOL = Path("tools/kpi_evidence_bundle.py").resolve()
+
+
+@lru_cache(maxsize=1)
+def _load_kpi_module():
+    spec = importlib.util.spec_from_file_location(
+        "kpi_evidence_bundle_for_public_demo_links_test",
+        KPI_BUNDLE_TOOL,
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@lru_cache(maxsize=1)
+def _kpi_snapshot() -> dict:
+    return _load_kpi_module().build_score_snapshot()
+
+
+def _kpi_score(name: str) -> str:
+    return _kpi_snapshot()["summary"]["score_components"][name]
+
+
+def _overall_score() -> str:
+    return _kpi_snapshot()["supported_score"]
+
+
+def _baseline_score() -> str:
+    return _load_kpi_module().BASELINE_REVIEW_SCORE
+
+
+def _strategic_score() -> str:
+    return _kpi_snapshot()["summary"]["strategic_potential_score"]
 
 
 def test_readme_advertises_public_huggingface_space_page() -> None:
@@ -160,28 +202,28 @@ def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     assert "PROJECT` -> select" not in readme
     assert "tools/newcomer_first_proof.py --json" in readme
     assert "ease of adoption" in readme
-    assert "4.0 / 5" in readme
+    assert _kpi_score("Ease of adoption") in readme
 
 
 def test_readme_captures_research_experimentation_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert "research experimentation" in readme
-    assert "4.0 / 5" in readme
+    assert _kpi_score("Research experimentation") in readme
 
 
 def test_readme_captures_engineering_prototyping_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert "engineering prototyping" in readme
-    assert "4.0 / 5" in readme
+    assert _kpi_score("Engineering prototyping") in readme
 
 
 def test_readme_captures_production_readiness_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert "production readiness" in readme
-    assert "3.0 / 5" in readme
+    assert _kpi_score("Production readiness") in readme
 
 
 def test_readme_captures_overall_public_evaluation_evidence() -> None:
@@ -194,10 +236,10 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
     assert "not as a replacement for mature orchestration or production MLOps platforms" in readme
     assert "project setup, environment management, execution, and result analysis" in readme
     assert "Overall public evaluation" in readme
-    assert "3.2 / 5` ->" not in readme
-    assert "3.8 / 5" in readme
+    assert f"{_baseline_score()}` ->" not in readme
+    assert _overall_score() in readme
     assert "rounded category average" in readme
-    assert "4.0 / 5" in readme
+    assert _kpi_score("Ease of adoption") in readme
     assert "public KPI bundle" in readme
 
 
@@ -206,6 +248,59 @@ def test_readme_links_to_mlops_positioning_page() -> None:
 
     assert "MLOps positioning" in readme
     assert "https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html" in readme
+
+
+def test_readme_links_to_strategic_scorecard_page() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert "strategic score movement rule" in readme
+    assert "Strategic scorecard" in readme
+    assert "https://thalesgroup.github.io/agilab/strategic-potential.html" in readme
+
+
+def test_docs_link_positioning_to_strategic_scorecard() -> None:
+    index = Path("docs/source/index.rst").read_text(encoding="utf-8")
+    positioning = POSITIONING_DOC.read_text(encoding="utf-8")
+    strategic = STRATEGIC_DOC.read_text(encoding="utf-8")
+
+    assert "strategic-potential" in index
+    assert ":doc:`strategic-potential`" in positioning
+    assert "Score movement rule" in strategic
+    assert "4.3 / 5" in strategic
+
+
+def test_public_docs_do_not_teach_stale_agi_run_snippets() -> None:
+    stale_fragments = (
+        "AGI_command_flight.py",
+        "asyncio.get_event_loop()",
+        "AGI._",
+        "mode=13",
+        "mode=15",
+        "modes_enabled=13",
+        "modes_enabled=15",
+    )
+    legacy_run_call = re.compile(
+        r"AGI\.run\(\s*\n\s*app_env,\s*\n(?:(?!request=).)*?\bmode\s*=",
+        re.DOTALL,
+    )
+    paths = sorted(
+        path
+        for pattern in ("*.rst", "*.py")
+        for path in DOCS_SOURCE.rglob(pattern)
+    )
+    offenders: list[str] = []
+
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        offenders.extend(
+            f"{path}: contains {fragment!r}"
+            for fragment in stale_fragments
+            if fragment in text
+        )
+        if legacy_run_call.search(text):
+            offenders.append(f"{path}: contains legacy AGI.run(app_env, mode=...) shape")
+
+    assert offenders == []
 
 
 def test_readme_links_to_public_changelog() -> None:
@@ -224,9 +319,9 @@ def test_readme_links_to_public_releases_page() -> None:
 def test_changelog_documents_current_public_release() -> None:
     changelog = CHANGELOG.read_text(encoding="utf-8")
 
-    assert "## [2026.04.29.post2] - 2026-04-29" in changelog
+    assert f"## [{CURRENT_RELEASE_VERSION}] - 2026-04-29" in changelog
     assert LATEST_RELEASE_URL in changelog
-    assert "Published AGILAB `2026.04.29.post2` to PyPI" in changelog
+    assert f"Published AGILAB `{CURRENT_RELEASE_VERSION}` to PyPI" in changelog
     assert "create or update the" in changelog
 
 
@@ -250,7 +345,7 @@ def test_newcomer_docs_capture_adoption_evidence() -> None:
 
     assert "Adoption evidence" in text
     assert "Ease of adoption" in text
-    assert "4.0 / 5" in text
+    assert _kpi_score("Ease of adoption") in text
     assert "5.86s" in text
     assert "600s" in text
 
@@ -274,7 +369,7 @@ def test_positioning_docs_capture_research_experimentation_evidence() -> None:
 
     assert "Research experimentation evidence" in text
     assert "Research experimentation" in text
-    assert "4.0 / 5" in text
+    assert _kpi_score("Research experimentation") in text
     assert "lab_steps.toml" in text
     assert "supervisor notebook export" in text
     assert "MLflow tracking" in text
@@ -287,7 +382,7 @@ def test_positioning_docs_capture_engineering_prototyping_evidence() -> None:
 
     assert "Engineering prototyping evidence" in text
     assert "Engineering prototyping" in text
-    assert "4.0 / 5" in text
+    assert _kpi_score("Engineering prototyping") in text
     assert "app-shaped prototype" in text
     assert "pipeline_view" in text
     assert "analysis-page templates" in text
@@ -299,7 +394,7 @@ def test_positioning_docs_capture_production_readiness_evidence() -> None:
 
     assert "Production readiness evidence" in text
     assert "Production readiness" in text
-    assert "3.0 / 5" in text
+    assert _kpi_score("Production readiness") in text
     assert "workflow-parity profiles" in text
     assert "compatibility matrix" in text
     assert "service health gates" in text
@@ -312,7 +407,7 @@ def test_positioning_docs_capture_strategic_potential_evidence() -> None:
 
     assert "Strategic potential evidence" in text
     assert "Strategic potential" in text
-    assert "4.2 / 5" in text
+    assert _strategic_score() in text
     assert "TRL" in text
     assert "public demo path" in text
     assert "handoff model" in text
@@ -323,7 +418,7 @@ def test_features_docs_capture_engineering_prototyping_evidence() -> None:
 
     assert "Engineering prototyping evidence" in text
     assert "Engineering prototyping" in text
-    assert "4.0 / 5" in text
+    assert _kpi_score("Engineering prototyping") in text
     assert "app_args_form.py" in text
     assert "app_settings.toml" in text
     assert "pipeline_view.dot" in text
@@ -334,7 +429,7 @@ def test_features_docs_capture_production_readiness_controls() -> None:
 
     assert "Production-readiness controls" in text
     assert "Production readiness" in text
-    assert "3.0 / 5" in text
+    assert _kpi_score("Production readiness") in text
     assert "tools/pypi_publish.py" in text
     assert "tools/service_health_check.py" in text
     assert "promotion_decision.json" in text

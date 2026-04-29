@@ -25,17 +25,15 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     bundle = module.build_bundle(run_hf_smoke=False)
 
     assert bundle["kpi"] == "Overall public evaluation"
-    assert bundle["supported_score"] == "3.8 / 5"
-    assert bundle["baseline_review_score"] == "3.2 / 5"
+    assert bundle["supported_score"] == module.SUPPORTED_OVERALL_SCORE
+    assert bundle["baseline_review_score"] == module.BASELINE_REVIEW_SCORE
     assert bundle["status"] == "pass"
     assert bundle["summary"]["hf_smoke_executed"] is False
     assert bundle["summary"]["score_components"] == {
-        "Ease of adoption": "4.0 / 5",
-        "Research experimentation": "4.0 / 5",
-        "Engineering prototyping": "4.0 / 5",
-        "Production readiness": "3.0 / 5",
+        name: f"{score:.1f} / 5"
+        for name, score in module.KPI_COMPONENT_SCORES.items()
     }
-    assert bundle["summary"]["score_formula"] == "(4.0 + 4.0 + 4.0 + 3.0) / 4 = 3.75"
+    assert bundle["summary"]["score_formula"] == module._score_formula()
     check_ids = {check["id"] for check in bundle["checks"]}
     assert check_ids == {
         "workflow_compatibility_report",
@@ -102,6 +100,7 @@ def test_render_readme_summary_uses_kpi_bundle_scores() -> None:
 
 def test_refresh_readme_summary_replaces_static_block(tmp_path: Path) -> None:
     module = _load_module()
+    snapshot = module.build_score_snapshot()
     readme_path = tmp_path / "README.md"
     readme_path.write_text(
         "\n".join(
@@ -123,7 +122,7 @@ def test_refresh_readme_summary_replaces_static_block(tmp_path: Path) -> None:
 
     changed = module.refresh_readme_summary(
         readme_path=readme_path,
-        bundle=module.build_score_snapshot(),
+        bundle=snapshot,
     )
 
     refreshed = readme_path.read_text(encoding="utf-8")
@@ -131,7 +130,7 @@ def test_refresh_readme_summary_replaces_static_block(tmp_path: Path) -> None:
     assert module.README_SUMMARY_START in refreshed
     assert module.README_SUMMARY_END in refreshed
     assert "- stale" not in refreshed
-    assert "`4.2 / 5` for strategic potential." in refreshed
+    assert f"`{snapshot['summary']['strategic_potential_score']}` for strategic potential." in refreshed
     assert "These are public experimentation-workbench scores" in refreshed
 
 

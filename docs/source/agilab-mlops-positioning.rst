@@ -10,6 +10,8 @@ This page is about positioning, not the detailed feature list or the roadmap.
 
 - For current shipped capabilities, see :doc:`features`.
 - For planned work, see :doc:`roadmap/agilab-future-work`.
+- For the public strategic scorecard and score movement rule, see
+  :doc:`strategic-potential`.
 
 Executive review summary
 ------------------------
@@ -344,7 +346,9 @@ between research experiments and engineering validation:
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
 higher yet because future app/template reducer adoption discipline and broader
-fresh-install validation are still roadmap work.
+fresh-install validation are still roadmap work. The public scorecard in
+:doc:`strategic-potential` defines the evidence required before maintainers
+should move that score to ``4.3 / 5`` or higher.
 
 Together, the current public category scores round to an overall public
 evaluation of ``3.8 / 5``. This is a compact experimentation-workbench snapshot,

@@ -98,6 +98,7 @@ references, and example projects.
    agilab-github
    package-publishing-policy
    beta-readiness
+   strategic-potential
 
 .. toctree::
    :maxdepth: 2

@@ -185,15 +185,13 @@ If you want the simplest mental model first, start with a local-only run:
 
    import asyncio
 
-   from agi_cluster.agi_distributor import AGI
+   from agi_cluster.agi_distributor import AGI, RunRequest
    from agi_env import AgiEnv
 
    async def main():
        app_env = AgiEnv(app="mycode_project", verbose=1)
-       result = await AGI.run(
-           app_env,
-           mode=0,  # plain local Python execution
-       )
+       request = RunRequest(mode=AGI.PYTHON_MODE)
+       result = await AGI.run(app_env, request=request)
        print(result)
 
    asyncio.run(main())
@@ -210,7 +208,7 @@ distributed ``AGI.run(...)`` snippet typically looks like this:
 
    import asyncio
 
-   from agi_cluster.agi_distributor import AGI
+   from agi_cluster.agi_distributor import AGI, RunRequest
    from agi_env import AgiEnv
 
    async def main():
@@ -219,12 +217,12 @@ distributed ``AGI.run(...)`` snippet typically looks like this:
            "192.168.1.21": 1,  # one worker slot on host 1
            "192.168.1.22": 1,  # one worker slot on host 2
        }
-       result = await AGI.run(
-           app_env,
+       request = RunRequest(
            scheduler="192.168.1.10",
            workers=workers,
-           mode=4,  # distributed cluster execution, no pool/cython/rapids extras
+           mode=AGI.DASK_MODE,
        )
+       result = await AGI.run(app_env, request=request)
        print(result)
 
    asyncio.run(main())
