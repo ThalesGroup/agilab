@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-04-29T09:14:16Z",
+  "generated_at_utc": "2026-04-29T09:30:20Z",
   "tool": "tools/codex_skills.py",
-  "count": 24,
+  "count": 25,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -10,6 +10,14 @@
       "updated": null,
       "path": ".codex/skills/advanced-svg-system-design/SKILL.md",
       "body_preview": "# Advanced SVG System Design\n## Overview\nUse this skill when a project needs more than SVG cleanup.\nFocus on building a durable diagram system: layout rules, reusable components,"
+    },
+    {
+      "name": "agilab-code-statistics",
+      "description": "Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-29",
+      "path": ".codex/skills/agilab-code-statistics/SKILL.md",
+      "body_preview": "# AGILAB Code Statistics\nUse this skill to answer code-statistics questions quickly and reproducibly.\nDefault to tracked files only, so ignored caches, virtualenvs, local datasets,\ngenerated docs output, and untracked scratch files do not distort the numbers."
     },
     {
       "name": "agilab-docs",
