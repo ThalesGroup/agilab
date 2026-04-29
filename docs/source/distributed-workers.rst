@@ -70,6 +70,12 @@ Typical distributed settings include:
 - enabling or disabling ``pool``, ``cython``, and ``rapids`` according to the
   worker capabilities
 
+When cluster mode is enabled from ORCHESTRATE, AGILAB first tries to populate
+the scheduler and worker fields from LAN discovery. Treat that as a convenience
+bootstrap: inspect the discovered values, keep only hosts that pass your SSH and
+share checks, and override the fields manually when discovery misses a node or
+finds a host you do not want to use.
+
 These values are persisted in the per-user workspace copy of
 ``app_settings.toml``, so future snippet generations stay aligned with the same
 cluster definition.
