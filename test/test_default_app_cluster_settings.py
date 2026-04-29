@@ -2,15 +2,27 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = ROOT / "src"
+SRC_PACKAGE = SRC_ROOT / "agilab"
+sys.path.insert(0, str(SRC_ROOT))
+
+import agilab as _agilab_package
+
+if str(SRC_PACKAGE) not in _agilab_package.__path__:
+    _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
+
+from agilab.app_template_registry import discover_app_templates
 
 
 def _settings_files() -> list[Path]:
+    templates = discover_app_templates(ROOT / "src/agilab/apps/templates", require_settings=True)
     return [
         *sorted((ROOT / "src/agilab/apps/builtin").glob("*_project/src/app_settings.toml")),
-        *sorted((ROOT / "src/agilab/apps/templates").glob("*_template/src/app_settings.toml")),
+        *(template.settings_path for template in templates if template.settings_path is not None),
     ]
 
 

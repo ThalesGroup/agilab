@@ -2,11 +2,22 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
+import sys
 
 from packaging.requirements import Requirement
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+SRC_PACKAGE = SRC_ROOT / "agilab"
+sys.path.insert(0, str(SRC_ROOT))
+
+import agilab as _agilab_package
+
+if str(SRC_PACKAGE) not in _agilab_package.__path__:
+    _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
+
+from agilab.app_template_registry import discover_app_templates
 
 
 def _load_pyproject(path: Path) -> dict:
@@ -201,8 +212,8 @@ def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
 
 
 def test_app_templates_keep_dependency_lists_app_local() -> None:
-    template_roots = sorted((REPO_ROOT / "src/agilab/apps/templates").glob("*_template"))
-    assert template_roots
+    templates = discover_app_templates(REPO_ROOT / "src/agilab/apps/templates").templates
+    assert templates
 
     stale_template_deps = {
         "cython",
@@ -218,17 +229,17 @@ def test_app_templates_keep_dependency_lists_app_local() -> None:
         "setuptools",
     }
 
-    for template_root in template_roots:
-        deps = _dependency_names(template_root / "pyproject.toml")
-        assert deps.isdisjoint(stale_template_deps), template_root.name
-        assert {"pydantic", "streamlit"} <= deps, template_root.name
+    for template in templates:
+        deps = _dependency_names(template.pyproject_path)
+        assert deps.isdisjoint(stale_template_deps), template.name
+        assert {"pydantic", "streamlit"} <= deps, template.name
 
 
 def test_non_core_app_manifests_avoid_exact_pins_except_known_runtime_caps() -> None:
     app_pyprojects = [
         *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
         *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml"),
-        *(REPO_ROOT / "src/agilab/apps/templates").glob("*_template/pyproject.toml"),
+        *(template.pyproject_path for template in discover_app_templates(REPO_ROOT / "src/agilab/apps/templates")),
     ]
     allowed_exact_pins = {
         "src/agilab/apps-pages/view_autoencoder_latenspace/pyproject.toml": {"tensorflow"},
