@@ -327,7 +327,15 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
         )
     )
 
-    assert profiles == ["agi-env", "agi-core-combined", "agi-gui", "docs", "installer", "shared-core-typing"]
+    assert profiles == [
+        "agi-env",
+        "agi-core-combined",
+        "agi-gui",
+        "docs",
+        "installer",
+        "shared-core-typing",
+        "dependency-policy",
+    ]
 
 
 def test_compute_unified_version_rejects_auto_post_when_latest_release_is_newer_on_pypi(monkeypatch) -> None:

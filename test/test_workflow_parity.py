@@ -39,6 +39,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     docs = profiles["docs"][0]
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
+    dependency_policy = profiles["dependency-policy"][0]
 
     assert agi_env.timeout_seconds == 20 * 60
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
@@ -96,9 +97,13 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_view*.py" not in agi_gui.argv
     assert "test/test_view_maps.py" in agi_gui.argv
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
+    assert docs.remove_paths == ["docs/html"]
     assert badges[-1].label == "badge drift guard"
     assert badges[-1].argv == ["git", "diff", "--exit-code", "--", "badges/"]
     assert strict_typing.argv[-1] == "tools/shared_core_strict_typing.py"
+    assert dependency_policy.label == "dependency policy"
+    assert dependency_policy.argv[-1] == "test/test_pyproject_dependency_hygiene.py"
+    assert "addopts=" in dependency_policy.argv
 
 
 def test_selected_profiles_uses_combined_core_profile_by_default() -> None:

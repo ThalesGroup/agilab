@@ -462,7 +462,15 @@ def require_safe_pypi_release(cfg: Cfg) -> None:
 def release_preflight_profiles(cfg: Cfg) -> list[str]:
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only or not cfg.release_preflight:
         return []
-    return ["agi-env", "agi-core-combined", "agi-gui", "docs", "installer", "shared-core-typing"]
+    return [
+        "agi-env",
+        "agi-core-combined",
+        "agi-gui",
+        "docs",
+        "installer",
+        "shared-core-typing",
+        "dependency-policy",
+    ]
 
 
 def run_release_preflight(cfg: Cfg) -> None:

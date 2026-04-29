@@ -58,7 +58,7 @@ publishing a beta-classified package:
 
 .. code-block:: bash
 
-   uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-env --profile agi-core-combined --profile agi-gui --profile docs --profile installer --profile shared-core-typing
+   uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-env --profile agi-core-combined --profile agi-gui --profile docs --profile installer --profile shared-core-typing --profile dependency-policy
    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --with-install
    uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose
    uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json

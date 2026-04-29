@@ -30,6 +30,10 @@ def _optional_dependency_names(path: Path, extra: str) -> set[str]:
     return {Requirement(dependency).name.lower() for dependency in dependencies}
 
 
+def _has_version_floor(requirement: Requirement) -> bool:
+    return any(spec.operator in {">=", "~=", "=="} for spec in requirement.specifier)
+
+
 def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     deps = _dependency_names(REPO_ROOT / "pyproject.toml")
 
@@ -63,11 +67,38 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     assert "networkx" in deps
 
 
+def test_root_runtime_dependencies_have_explicit_version_policy() -> None:
+    pyproject = REPO_ROOT / "pyproject.toml"
+    internal_exact_pins = {"agi-core", "agi-gui"}
+    violations: list[str] = []
+
+    for requirement in _dependencies(pyproject):
+        name = requirement.name.lower()
+        if name in internal_exact_pins:
+            if not any(spec.operator == "==" for spec in requirement.specifier):
+                violations.append(f"{requirement}: internal package must be exactly pinned")
+            continue
+        if not _has_version_floor(requirement):
+            violations.append(f"{requirement}: missing lower bound or compatible version floor")
+
+    assert violations == []
+
+
 def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
     pyproject = REPO_ROOT / "pyproject.toml"
 
     assert _optional_dependency_names(pyproject, "ai") == {"openai"}
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
+
+    optional_dependencies = _load_pyproject(pyproject).get("project", {}).get("optional-dependencies", {})
+    violations: list[str] = []
+    for extra_name, dependencies in optional_dependencies.items():
+        for dependency in dependencies:
+            requirement = Requirement(dependency)
+            if not _has_version_floor(requirement):
+                violations.append(f"{extra_name}: {requirement}")
+
+    assert violations == []
 
 
 def test_builtin_app_manifests_depend_on_core_packages_not_core_internals() -> None:
