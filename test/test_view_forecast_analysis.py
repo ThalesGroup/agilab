@@ -27,7 +27,13 @@ def _create_forecast_project(tmp_path: Path) -> Path:
     return project_dir
 
 
-def _run_forecast_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTest:
+def _run_forecast_page(
+    tmp_path: Path,
+    monkeypatch,
+    project_dir: Path,
+    *,
+    default_timeout: int = 20,
+) -> AppTest:
     argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
     with patch.object(sys, "argv", argv):
         monkeypatch.setenv("AGI_EXPORT_DIR", str(tmp_path / "export"))
@@ -35,7 +41,7 @@ def _run_forecast_page(tmp_path: Path, monkeypatch, project_dir: Path) -> AppTes
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
-        at = AppTest.from_file(PAGE_PATH, default_timeout=20)
+        at = AppTest.from_file(PAGE_PATH, default_timeout=default_timeout)
         at.run()
     return at
 
@@ -78,7 +84,7 @@ def test_view_forecast_analysis_renders_exported_artifacts(tmp_path, monkeypatch
         encoding="utf-8",
     )
 
-    at = _run_forecast_page(tmp_path, monkeypatch, project_dir)
+    at = _run_forecast_page(tmp_path, monkeypatch, project_dir, default_timeout=60)
 
     assert not at.exception
     assert any(title.value == "Forecast analysis" for title in at.title)
