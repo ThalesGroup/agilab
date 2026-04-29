@@ -87,32 +87,34 @@ def hydrate_cluster_widget_state(
     is_managed_pc: bool,
 ) -> None:
     widget_keys = cluster_widget_keys(app_state_name)
-    session_state[widget_keys["cluster_enabled"]] = bool(cluster_params.get("cluster_enabled", False))
-    session_state[widget_keys["cython"]] = bool(cluster_params.get("cython", False))
-    session_state[widget_keys["pool"]] = bool(cluster_params.get("pool", False))
+    session_state.setdefault(widget_keys["cluster_enabled"], bool(cluster_params.get("cluster_enabled", False)))
+    session_state.setdefault(widget_keys["cython"], bool(cluster_params.get("cython", False)))
+    session_state.setdefault(widget_keys["pool"], bool(cluster_params.get("pool", False)))
     if is_managed_pc:
         session_state[widget_keys["rapids"]] = False
     else:
-        session_state[widget_keys["rapids"]] = bool(cluster_params.get("rapids", False))
+        session_state.setdefault(widget_keys["rapids"], bool(cluster_params.get("rapids", False)))
 
-    session_state[widget_keys["scheduler"]] = str(cluster_params.get("scheduler", "") or "")
-    session_state[widget_keys["user"]] = str(cluster_params.get("user", "") or "")
-    session_state[widget_keys["ssh_key_path"]] = str(cluster_params.get("ssh_key_path", "") or "")
-    session_state[widget_keys["workers_data_path"]] = str(cluster_params.get("workers_data_path", "") or "")
+    session_state.setdefault(widget_keys["scheduler"], str(cluster_params.get("scheduler", "") or ""))
+    session_state.setdefault(widget_keys["user"], str(cluster_params.get("user", "") or ""))
+    session_state.setdefault(widget_keys["ssh_key_path"], str(cluster_params.get("ssh_key_path", "") or ""))
+    session_state.setdefault(widget_keys["workers_data_path"], str(cluster_params.get("workers_data_path", "") or ""))
 
     workers_value = cluster_params.get("workers", {})
-    if isinstance(workers_value, dict):
-        session_state[widget_keys["workers"]] = json.dumps(workers_value, indent=2)
-    elif workers_value in (None, ""):
-        session_state[widget_keys["workers"]] = ""
-    else:
-        session_state[widget_keys["workers"]] = str(workers_value)
+    workers_key = widget_keys["workers"]
+    if workers_key not in session_state:
+        if isinstance(workers_value, dict):
+            session_state[workers_key] = json.dumps(workers_value, indent=2)
+        elif workers_value in (None, ""):
+            session_state[workers_key] = ""
+        else:
+            session_state[workers_key] = str(workers_value)
 
     auth_method = cluster_params.get("auth_method")
     use_key = bool(cluster_params.get("ssh_key_path"))
     if isinstance(auth_method, str):
         use_key = auth_method.lower() == "ssh_key"
-    session_state[widget_keys["use_key"]] = use_key
+    session_state.setdefault(widget_keys["use_key"], use_key)
     session_state.pop(widget_keys["password"], None)
 
 

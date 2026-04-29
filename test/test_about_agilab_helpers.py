@@ -1711,6 +1711,63 @@ def test_active_app_cluster_information_marks_unreachable_worker_hardware_unknow
     assert lines["NPU"] == "Apple Neural Engine (16 cores) + 1 worker unreachable"
 
 
+def test_active_app_cluster_information_reports_worker_ssh_auth_needed(monkeypatch, tmp_path):
+    layout = about_agilab._about_layout
+    cache_path = tmp_path / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "host": "192.168.20.15",
+                        "ssh_target": "agi@192.168.20.15",
+                        "status": "ssh-auth-needed",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_hardware(host, **_kwargs):
+        if layout._node_identity(host) == "192.168.20.15":
+            return {
+                "CPU": "unreachable",
+                "RAM": "unreachable",
+                "GPU": "unreachable",
+                "NPU": "unreachable",
+            }
+        return {
+            "CPU": "Apple M4 Max; cores: 16",
+            "RAM": "48 GB",
+            "GPU": "Apple M4 Max",
+            "NPU": "Apple Neural Engine (16 cores)",
+        }
+
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "127.0.0.1",
+            "workers": {"192.168.20.15": 1},
+            "workers_data_path": "/Users/agi/clustershare/agi",
+        }
+    }
+    monkeypatch.setattr(layout, "st", fake_st)
+    monkeypatch.setattr(layout.Path, "home", classmethod(lambda _cls: tmp_path))
+    monkeypatch.setattr(layout, "_node_hardware_summary", fake_hardware)
+    layout._lan_discovery_hardware_inventory.cache_clear()
+    layout._remote_hardware_probe.cache_clear()
+
+    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+
+    assert lines["CPU"] == "16 cores + 1 worker SSH auth needed"
+    assert lines["RAM"] == "48 GB + 1 worker SSH auth needed"
+    assert lines["GPU"] == "Apple M4 Max + 1 worker SSH auth needed"
+    assert lines["NPU"] == "Apple Neural Engine (16 cores) + 1 worker SSH auth needed"
+
+
 def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_worker(monkeypatch, tmp_path):
     def fake_hardware(host, **_kwargs):
         if about_agilab._about_layout._scheduler_host(host) == "192.168.20.130":
