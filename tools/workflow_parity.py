@@ -80,6 +80,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "skills",
             "installer",
             "shared-core-typing",
+            "dependency-policy",
         ],
         help="Parity profile to run. May be passed multiple times.",
     )
@@ -136,6 +137,7 @@ def _profile_descriptions() -> dict[str, str]:
         "skills": "Validate and regenerate the repo Codex skill mirror outputs.",
         "installer": "Run local installer parity checks including shell syntax and contract checks.",
         "shared-core-typing": "Run the curated shared-core strict mypy slice.",
+        "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
     }
 
 
@@ -151,6 +153,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "skills": _skills_profile(args.skills),
         "installer": _installer_profile(args.app_path, args.worker_copy),
         "shared-core-typing": _shared_core_typing_profile(),
+        "dependency-policy": _dependency_policy_profile(),
     }
 
 
@@ -479,6 +482,7 @@ def _docs_profile() -> list[CommandSpec]:
                 "docs/source",
                 "docs/html",
             ],
+            remove_paths=["docs/html"],
         )
     ]
 
@@ -590,6 +594,25 @@ def _shared_core_typing_profile() -> list[CommandSpec]:
                 "mypy",
                 "python",
                 "tools/shared_core_strict_typing.py",
+            ],
+        )
+    ]
+
+
+def _dependency_policy_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="dependency policy",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "pytest",
+                "-q",
+                "-o",
+                "addopts=",
+                "test/test_pyproject_dependency_hygiene.py",
             ],
         )
     ]

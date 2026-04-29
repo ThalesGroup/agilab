@@ -53,7 +53,9 @@ jobs:
           uv --preview-features extra-build-dependencies run --no-project python tools/workflow_parity.py \
             --profile agi-env \
             --profile agi-gui \
-            --profile agi-core-combined
+            --profile agi-core-combined \
+            --profile shared-core-typing \
+            --profile dependency-policy
 
 
   release-evidence:
