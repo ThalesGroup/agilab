@@ -71,6 +71,9 @@ def test_packaged_example_catalog_is_documented() -> None:
     catalog = EXAMPLES_ROOT / "README.md"
     assert catalog.is_file()
     catalog_text = catalog.read_text(encoding="utf-8")
+    assert "## Learning Path" in catalog_text
+    assert "## What To Notice" in catalog_text
+    assert "## How To Read An Example" in catalog_text
 
     for example_name, script_names in EXAMPLE_APPS.items():
         example_dir = EXAMPLES_ROOT / example_name
@@ -81,8 +84,28 @@ def test_packaged_example_catalog_is_documented() -> None:
         for script_name in script_names:
             assert (example_dir / script_name).is_file()
             assert script_name in readme_text
-        for heading in ("## Purpose", "## Install", "## Run", "## Expected Input", "## Expected Output"):
+        for heading in (
+            "## Purpose",
+            "## What You Learn",
+            "## Install",
+            "## Run",
+            "## Expected Input",
+            "## Expected Output",
+            "## Read The Script",
+            "## Change One Thing",
+            "## Troubleshooting",
+        ):
             assert heading in readme_text
+
+
+def test_packaged_example_readmes_teach_safe_adaptation() -> None:
+    for example_name in EXAMPLE_APPS:
+        readme_text = (EXAMPLES_ROOT / example_name / "README.md").read_text(encoding="utf-8")
+
+        assert "RunRequest" in readme_text
+        assert "Change One Thing" in readme_text
+        assert "Troubleshooting" in readme_text
+        assert "Expected Output" in readme_text
 
 
 def test_packaged_example_readmes_are_included_as_package_data() -> None:

@@ -16,6 +16,10 @@ from agilab.data_connector_cloud import (
     ACCEPTED_OBJECT_STORAGE_PROVIDERS,
     object_storage_provider,
 )
+from agilab.data_connector_search import (
+    ACCEPTED_SEARCH_INDEX_PROVIDERS,
+    search_index_provider,
+)
 
 
 SCHEMA = "agilab.data_connector_facility.v1"
@@ -71,7 +75,7 @@ def _required_fields(kind: str) -> tuple[str, ...]:
     if kind == "sql":
         return ("id", "kind", "label", "uri", "driver", "query_mode")
     if kind == "opensearch":
-        return ("id", "kind", "label", "url", "index", "auth_ref")
+        return ("id", "kind", "label", "index", "auth_ref")
     if kind == "object_storage":
         return ("id", "kind", "label", "provider", "bucket", "prefix", "auth_ref")
     return ("id", "kind", "label")
@@ -80,6 +84,8 @@ def _required_fields(kind: str) -> tuple[str, ...]:
 def _optional_fields(kind: str) -> tuple[str, ...]:
     if kind == "object_storage":
         return ("account", "storage_account", "container", "region", "endpoint_url")
+    if kind == "opensearch":
+        return ("provider", "url", "cluster_uri", "endpoint", "scheme")
     return ()
 
 
@@ -95,6 +101,24 @@ def _validate_connector(row: Mapping[str, Any], index: int) -> list[DataConnecto
             issues.append(_issue(connector_id, f"missing required field: {field}"))
     if kind == "sql" and str(row.get("query_mode", "") or "") != "read_only":
         issues.append(_issue(connector_id, "SQL connector must be read_only"))
+    if kind == "opensearch":
+        provider = str(row.get("provider", "") or "opensearch")
+        if search_index_provider(provider) is None:
+            issues.append(
+                _issue(
+                    connector_id,
+                    "unsupported opensearch provider: "
+                    f"{provider or '(missing)'}; supported providers: "
+                    f"{', '.join(ACCEPTED_SEARCH_INDEX_PROVIDERS)}",
+                )
+            )
+        if not str(
+            row.get("url", "")
+            or row.get("cluster_uri", "")
+            or row.get("endpoint", "")
+            or ""
+        ).strip():
+            issues.append(_issue(connector_id, "missing required field: url or cluster_uri"))
     if kind == "object_storage":
         provider = str(row.get("provider", "") or "")
         if object_storage_provider(provider) is None:

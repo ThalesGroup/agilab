@@ -63,7 +63,7 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
     required = [
         "data connector facility report",
         "tools/data_connector_facility_report.py --compact",
-        "SQL, OpenSearch, and object-storage connector definitions",
+        "SQL, OpenSearch/ELK/Hawk, and object-storage connector definitions",
         "contract_validation_only",
     ]
     doc_path = repo_root / DOC_RELATIVE_PATH
