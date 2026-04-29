@@ -6,7 +6,8 @@ agilab local publisher for TestPyPI / PyPI using ~/.pypirc.
 
 Highlights
 - Builds with uv (wheels and/or sdists). No pep517 shim.
-- Unified version for published AGI libraries + umbrella. If busy, auto-bumps .postN.
+- Unified version for published AGI libraries + umbrella. Real PyPI never auto-bumps
+  to .postN; choose an explicit new version instead. TestPyPI may auto-bump for retries.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - Twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
@@ -90,7 +91,13 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--verbose", action="store_true", help="Verbose logging for cleanup")
 
     # Version control
-    ap.add_argument("--version", help="Explicit version 'X.Y.Z[.postN]'. If omitted, base=UTC YYYY.MM.DD then .postN chosen")
+    ap.add_argument(
+        "--version",
+        help=(
+            "Explicit version 'X.Y.Z[.postN]'. If omitted, base=UTC YYYY.MM.DD. "
+            "Real PyPI refuses automatic .postN bumps when that version is already used."
+        ),
+    )
 
     # Cleanup / purge (web login)
     ap.add_argument("--purge-before", action="store_true", help="Run cleanup before upload (leave most recent only)")
@@ -593,6 +600,19 @@ def next_free_post_for_all(package_names: List[str], repo_target: str, base: str
         k += 1
 
 
+def _raise_pypi_auto_post_disabled(version: str, repo_target: str, collisions: Dict[str, List[str]] | None = None) -> None:
+    collision_lines = []
+    for package, releases in sorted((collisions or {}).items()):
+        if releases:
+            collision_lines.append(f"{package}: {', '.join(releases)}")
+    detail = f" Existing releases: {'; '.join(collision_lines)}." if collision_lines else ""
+    raise SystemExit(
+        f"ERROR: {repo_target} release version {version} is already used. "
+        "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
+        f"{detail}"
+    )
+
+
 def compute_unified_version(core_names: List[str], repo_target: str, base_version: str | None) -> Tuple[str, Dict[str, List[str]]]:
     collisions: Dict[str, List[str]] = {n: [] for n in core_names}
 
@@ -610,6 +630,13 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
             base = provided_base
         else:
             base = provided_base
+            for name, releases in existing_by_pkg.items():
+                collisions[name] = sorted(
+                    {release for release in releases if versions_equivalent(provided, release)},
+                    key=safe_ver,
+                )
+            if repo_target == "pypi":
+                _raise_pypi_auto_post_disabled(provided, repo_target, collisions)
             chosen = next_free_post_for_all(core_names, repo_target, base)
     else:
         today_base = datetime.now(timezone.utc).strftime("%Y.%m.%d")
@@ -620,8 +647,23 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
             if latest_base is not None and safe_ver(latest_base) > safe_ver(today_base)
             else today_base
         )
-        # if no releases at all, still .post1 to keep everything uniform
-        chosen = next_free_post_for_all(core_names, repo_target, base)
+        if repo_target == "pypi":
+            existing_by_pkg = {n: pypi_releases(n, repo_target) for n in core_names}
+            for name, releases in existing_by_pkg.items():
+                collisions[name] = sorted(
+                    {
+                        release
+                        for release in releases
+                        if versions_equivalent(normalize_base(release), base)
+                    },
+                    key=safe_ver,
+                )
+            if any(collisions.values()):
+                _raise_pypi_auto_post_disabled(base, repo_target, collisions)
+            chosen = base
+        else:
+            # TestPyPI is often reused during release rehearsals, so keep .postN there.
+            chosen = next_free_post_for_all(core_names, repo_target, base)
 
     latest = latest_existing_release(core_names, repo_target)
     if latest is not None and safe_ver(chosen) < safe_ver(latest):
@@ -1904,6 +1946,11 @@ def main():
         twine_check(all_files)
         twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
         if not cfg.dry_run and UPLOAD_COLLISION_DETECTED and UPLOAD_SUCCESS_COUNT == 0:
+            if cfg.repo == "pypi":
+                raise SystemExit(
+                    f"ERROR: PyPI upload reported a version collision for {chosen}. "
+                    "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
+                )
             print('[auto-bump] upload collision detected; bumping to next .postN and retrying upload...')
             base_only = normalize_base(chosen)
             chosen2 = next_free_post_for_all(version_targets, cfg.repo, base_only)

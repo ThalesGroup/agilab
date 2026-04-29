@@ -44,6 +44,33 @@ def test_changed_coverage_components_ignores_coverage_tooling_tests() -> None:
     assert changed == {}
 
 
+def test_changed_coverage_components_ignores_release_and_public_docs_tests() -> None:
+    module = _load_module()
+
+    changed = module.changed_coverage_components(
+        [
+            "test/test_public_demo_links.py",
+            "test/test_pypi_publish.py",
+            "test/test_pypi_publish_workflow.py",
+        ]
+    )
+
+    assert changed == {}
+
+
+def test_changed_coverage_components_ignores_package_metadata() -> None:
+    module = _load_module()
+
+    changed = module.changed_coverage_components(
+        [
+            "pyproject.toml",
+            "src/agilab/apps/builtin/flight_project/pyproject.toml",
+        ]
+    )
+
+    assert changed == {}
+
+
 def test_changed_coverage_components_maps_core_tests_to_node_and_cluster() -> None:
     module = _load_module()
 

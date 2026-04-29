@@ -129,8 +129,11 @@ jobs:
       - test
       - release-evidence
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/agilab/
     permissions:
-      contents: write
+      contents: read
       id-token: write
     env:
       VERSION: ${{ github.event.inputs.version || github.ref_name }}
@@ -151,6 +154,7 @@ jobs:
 
       - name: Clean previous builds
         run: |
+          rm -rf dist-library
           rm -rf src/agilab/core/agi-env/dist
           rm -rf src/agilab/lib/agi-gui/dist
           rm -rf src/agilab/core/agi-node/dist
@@ -162,56 +166,50 @@ jobs:
         run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-env --wheel
       - name: Verify agi-env
         run: twine check src/agilab/core/agi-env/dist/*
-      - name: Publish agi-env to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload --skip-existing src/agilab/core/agi-env/dist/*
 
       - name: Build agi-gui
         run: uv --preview-features extra-build-dependencies build --project src/agilab/lib/agi-gui --wheel
       - name: Verify agi-gui
         run: twine check src/agilab/lib/agi-gui/dist/*
-      - name: Publish agi-gui to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload --skip-existing src/agilab/lib/agi-gui/dist/*
 
       - name: Build agi-node
         run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-node --wheel
       - name: Verify agi-node
         run: twine check src/agilab/core/agi-node/dist/*
-      - name: Publish agi-node to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload --skip-existing src/agilab/core/agi-node/dist/*
 
       - name: Build agi-cluster
         run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-cluster --wheel
       - name: Verify agi-cluster
         run: twine check src/agilab/core/agi-cluster/dist/*
-      - name: Publish agi-cluster to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload --skip-existing src/agilab/core/agi-cluster/dist/*
 
       - name: Build agi-core
         run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-core --wheel
       - name: Verify agi-core
         run: twine check src/agilab/core/agi-core/dist/*
-      - name: Publish agi-core to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload --skip-existing src/agilab/core/agi-core/dist/*
+
+      - name: Collect library distributions
+        run: |
+          set -euxo pipefail
+          mkdir -p dist-library
+          cp src/agilab/core/agi-env/dist/* dist-library/
+          cp src/agilab/lib/agi-gui/dist/* dist-library/
+          cp src/agilab/core/agi-node/dist/* dist-library/
+          cp src/agilab/core/agi-cluster/dist/* dist-library/
+          cp src/agilab/core/agi-core/dist/* dist-library/
+
+      - name: Publish library packages to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-library/
+          skip-existing: true
   publish-agilab:
     needs: publish-library-packages
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/agilab/
     permissions:
-      contents: write
+      contents: read
       id-token: write
     env:
       VERSION: ${{ github.event.inputs.version || github.ref_name }}
@@ -246,7 +244,7 @@ jobs:
         run: twine check dist/*
 
       - name: Publish agilab to PyPI
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_SECRET }}
-        run: twine upload --skip-existing dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: true

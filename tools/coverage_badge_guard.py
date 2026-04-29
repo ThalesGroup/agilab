@@ -39,6 +39,12 @@ COVERAGE_TOOLING_TESTS = {
     "test/test_generate_component_coverage_badges.py",
     "test/test_coverage_workflow.py",
 }
+NON_GUI_ROOT_TESTS = {
+    *COVERAGE_TOOLING_TESTS,
+    "test/test_public_demo_links.py",
+    "test/test_pypi_publish.py",
+    "test/test_pypi_publish_workflow.py",
+}
 
 
 class GuardError(RuntimeError):
@@ -146,7 +152,9 @@ def changed_files(base: str | None, *, include_untracked: bool = False) -> list[
 
 
 def _is_gui_coverage_path(path: str) -> bool:
-    if path in COVERAGE_TOOLING_TESTS:
+    if path in NON_GUI_ROOT_TESTS:
+        return False
+    if path == "pyproject.toml" or path.endswith("/pyproject.toml"):
         return False
     if path.startswith("src/agilab/core/"):
         return False
