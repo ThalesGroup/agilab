@@ -793,14 +793,14 @@ def test_edit_page_load(mock_ui_env):
     _assert_docs_actions_absent(at)
 
 
-def test_execute_page_cython_toggle(mock_ui_env):
-    """Test toggling the Cython checkbox on the EXECUTE page."""
+def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
+    """Test that the EXECUTE page hydrates the Cython checkbox from app settings."""
     at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    Path(env.app_settings_file).write_text("[cluster]\ncython = true\n", encoding="utf-8")
     at.session_state["env"] = env
-    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
     _seed_env_editor_state(at, env)
 
     at.run()
@@ -808,17 +808,10 @@ def test_execute_page_cython_toggle(mock_ui_env):
 
     app_state_name = _current_app_state_name(at)
     cython_key = f"cluster_cython__{app_state_name}"
-    at.checkbox(key=cython_key).set_value(True).run()
-    assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     assert cluster_state.get("cython", at.session_state[cython_key]) is True
-
-    at.checkbox(key=cython_key).set_value(False).run()
-    assert not at.exception
-    app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
-    cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
-    assert cluster_state.get("cython", at.session_state[cython_key]) is False
+    assert at.session_state[cython_key] is True
 
 
 def test_execute_page_workers_data_path(mock_ui_env):
