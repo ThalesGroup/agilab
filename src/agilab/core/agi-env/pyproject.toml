@@ -1,5 +1,5 @@
 [project]
-version = "2026.04.29.post4"
+version = "2026.04.29.post5"
 name = "agi-env"
 description = "Environment bootstrap package for AGILAB with virtualenv, path, and runtime helpers"
 requires-python = ">=3.11"
@@ -25,14 +25,15 @@ classifiers = [
 ]
 
 keywords = [
-    "environment",
-    "orchestration",
-    "virtual-environments",
-    "dependency-management",
-    "headless-runtime",
     "python",
+    "reproducibility",
+    "reproducible-research",
+    "workflow-orchestration",
+    "dependency-management",
+    "virtual-environments",
+    "environment-management",
     "python-automation",
-    "pycharm"
+    "free-threaded-python",
 ]
 
 dependencies = [
@@ -53,6 +54,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
 
 
 
