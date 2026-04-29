@@ -3,12 +3,19 @@ from __future__ import annotations
 import importlib.util
 import py_compile
 import sys
+import tomllib
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "src/agilab/apps/install.py"
 EXAMPLES_ROOT = ROOT / "src/agilab/examples"
+EXAMPLE_APPS = {
+    "data_io_2026": ("AGI_install_data_io_2026.py", "AGI_run_data_io_2026.py"),
+    "flight": ("AGI_install_flight.py", "AGI_run_flight.py"),
+    "meteo_forecast": ("AGI_install_meteo_forecast.py", "AGI_run_meteo_forecast.py"),
+    "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
+}
 
 
 def _load_installer(monkeypatch, tmp_path: Path):
@@ -58,6 +65,44 @@ def test_packaged_agi_example_scripts_are_compile_safe() -> None:
     assert scripts
     for script in scripts:
         py_compile.compile(str(script), doraise=True)
+
+
+def test_packaged_example_catalog_is_documented() -> None:
+    catalog = EXAMPLES_ROOT / "README.md"
+    assert catalog.is_file()
+    catalog_text = catalog.read_text(encoding="utf-8")
+
+    for example_name, script_names in EXAMPLE_APPS.items():
+        example_dir = EXAMPLES_ROOT / example_name
+        readme = example_dir / "README.md"
+        assert readme.is_file()
+        readme_text = readme.read_text(encoding="utf-8")
+        assert example_name in catalog_text
+        for script_name in script_names:
+            assert (example_dir / script_name).is_file()
+            assert script_name in readme_text
+        for heading in ("## Purpose", "## Install", "## Run", "## Expected Input", "## Expected Output"):
+            assert heading in readme_text
+
+
+def test_packaged_example_readmes_are_included_as_package_data() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+
+    assert "examples/README.md" in package_data
+    assert "examples/*/README.md" in package_data
+    assert "examples/*/AGI_*.py" in package_data
+
+
+def test_packaged_examples_avoid_magic_mode_literals() -> None:
+    magic_mode_fragments = ("mode=13", "mode=15", "modes_enabled=13", "modes_enabled=15")
+    scripts = sorted(EXAMPLES_ROOT.glob("*/AGI_*.py"))
+
+    assert scripts
+    for script in scripts:
+        text = script.read_text(encoding="utf-8")
+        for fragment in magic_mode_fragments:
+            assert fragment not in text
 
 
 def test_packaged_run_and_install_examples_import_with_fake_home(tmp_path: Path, monkeypatch) -> None:
