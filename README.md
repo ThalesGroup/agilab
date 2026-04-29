@@ -201,10 +201,12 @@ The strategic score movement rule is tracked in the
 [strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html).
 
 One forward-looking improvement area is elasticity. AGILAB is currently strongest
-at "train, execute, inspect, compare"; a later differentiator would be
-multi-agent reinforcement learning for active mesh optimization, where moving
-nodes can become agents that adapt trajectories to improve network evidence.
-That is a roadmap direction, not a shipped capability claim.
+at the `Train -> Test -> Evidence` loop: run a pipeline, inspect artifacts, and
+compare outcomes. A later differentiator would be multi-agent reinforcement
+learning for active mesh optimization, where aircraft, UAVs, or satellites are
+not just moving nodes but active agents that can adapt flight paths or routing
+to improve network evidence. That is a roadmap direction, not a shipped
+capability claim.
 
 ## Read Next
 
