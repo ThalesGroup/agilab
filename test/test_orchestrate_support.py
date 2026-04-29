@@ -37,8 +37,35 @@ def test_write_app_settings_toml_sanitizes_none_and_paths(tmp_path):
     sanitized = orchestrate_support.write_app_settings_toml(settings_file, payload)
     written = tomllib.loads(settings_file.read_text(encoding="utf-8"))
 
-    assert sanitized == {"args": {"data_in": "/tmp/input", "items": ["/tmp/a", "b"]}}
+    assert sanitized == {
+        "__meta__": {"schema": "agilab.app_settings.v1", "version": 1},
+        "args": {"data_in": "/tmp/input", "items": ["/tmp/a", "b"]},
+    }
     assert written == sanitized
+
+
+def test_prepare_app_settings_for_write_preserves_existing_supported_metadata(tmp_path):
+    settings_file = tmp_path / "app_settings.toml"
+    payload = {
+        "__meta__": {"schema": "custom.schema", "version": "1", "owner": "test"},
+        "cluster": {"cluster_enabled": True},
+    }
+
+    sanitized = orchestrate_support.write_app_settings_toml(settings_file, payload)
+    written = tomllib.loads(settings_file.read_text(encoding="utf-8"))
+
+    assert sanitized["__meta__"] == {"schema": "custom.schema", "version": "1", "owner": "test"}
+    assert written == sanitized
+
+
+def test_prepare_app_settings_for_write_rejects_future_metadata_version(tmp_path):
+    settings_file = tmp_path / "app_settings.toml"
+    payload = {"__meta__": {"schema": "agilab.app_settings.v2", "version": 2}}
+
+    with pytest.raises(ValueError, match="Unsupported app_settings.toml schema version 2"):
+        orchestrate_support.write_app_settings_toml(settings_file, payload)
+
+    assert not settings_file.exists()
 
 
 def test_evaluate_service_health_gate_detects_restart_rate():
