@@ -41,13 +41,16 @@ agi-core
     - Single Node with MacOS, Windows (from W11) or Linux (Ubuntu from ubuntu 24.04)
     - Cluster with heterogeneous os per node
 
-- **Dynamic Node Capacity Calibration:**
+- **Node Capacity Calibration:**
 
-  - Automatically calibrates the capacity of each node to optimize performance.
+  - Estimates relative worker capacity and feeds those weights into the
+    dispatcher.
 
-- **Static Load Balancing:**
+- **Capacity-Weighted Static Load Balancing:**
 
-  - Distributes workloads evenly across nodes to ensure efficient resource utilization.
+  - Builds a deterministic work plan before execution. Large plans use
+    capacity-normalized longest-processing-time assignment; the scheduler does
+    not rebalance already-running work in flight.
 
 - **Distributed Work-Plan Execution:**
 

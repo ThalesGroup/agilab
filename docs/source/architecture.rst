@@ -115,8 +115,8 @@ Layers at a glance
 
 **Execution back-plane**
     - :doc:`agi-distributor` contains the Dask-based scheduler, worker templates and
-      capacity balancer. Workers are packaged (``python -m agi_node…``) into
-      ``~/wenv/<app>_worker`` before run time.
+      capacity-weighted work-plan balancer. Workers are packaged
+      (``python -m agi_node…``) into ``~/wenv/<app>_worker`` before run time.
     - Optional cluster helpers (SSH, remote installs, zip staging) live under
       ``src/agilab/core/agi-node/agi_dispatcher`` and are reused by every app.
     - AGILAB submits one coarse AGILAB task per worker to the outer Dask
