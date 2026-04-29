@@ -11,6 +11,7 @@ Highlights
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - Twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
+- Optional exact release deletion using pypi-cleanup --version-regex.
 - Optional yank previous versions on PyPI.
 - Optional git tag (date-based), GitHub Release, and commit of version bumps.
 
@@ -110,6 +111,23 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--password", help="Cleanup/Purge web-login password (NOT used for twine)")
     ap.add_argument("--cleanup-timeout", type=int, default=60, help="Cleanup timeout seconds (0 disables)")
     ap.add_argument("--skip-cleanup", action="store_true", help="Disable cleanup entirely")
+    ap.add_argument(
+        "--delete-pypi-release",
+        action="append",
+        default=[],
+        metavar="VERSION",
+        help=(
+            "Cleanup: delete exactly VERSION from the selected PyPI packages using pypi-cleanup. "
+            "Repeatable; requires web-login cleanup credentials."
+        ),
+    )
+    ap.add_argument(
+        "--delete-former-pypi-release",
+        dest="delete_pypi_release",
+        action="append",
+        metavar="VERSION",
+        help="Alias for --delete-pypi-release.",
+    )
 
     # Yank
     ap.add_argument("--yank-previous", action="store_true", help="On PyPI, yank versions older than the chosen version")
@@ -177,6 +195,7 @@ class Cfg:
     gen_docs: bool
     release_preflight: bool = True
     delete_former_github_release: bool = False
+    delete_pypi_releases: list[str] | None = None
 
 
 def make_cfg(args: argparse.Namespace) -> Cfg:
@@ -206,6 +225,7 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         packages=list(args.packages) if getattr(args, "packages", None) else None,
         gen_docs=bool(getattr(args, "gen_docs", False)),
         release_preflight=bool(getattr(args, "release_preflight", True)),
+        delete_pypi_releases=list(getattr(args, "delete_pypi_release", []) or []),
     )
 
 
@@ -330,6 +350,51 @@ def read_cleanup_creds_from_pypirc(repo_name: str) -> tuple[str | None, str | No
     username = (cfg.get(section, "username", fallback="") or "").strip() or None
     password = (cfg.get(section, "password", fallback="") or "").strip() or None
     return username, password
+
+
+def cleanup_host(repo_name: str) -> str:
+    return "https://test.pypi.org/" if repo_name == "testpypi" else "https://pypi.org/"
+
+
+def cleanup_credentials(cfg: Cfg, *, required: bool = False) -> tuple[str, str] | None:
+    pypirc_user, pypirc_pass = read_cleanup_creds_from_pypirc(cfg.repo)
+
+    # precedence: CLI > env > ~/.pypirc cleanup section
+    cleanup_user = (
+        (cfg.cleanup_user or "").strip()
+        or (os.environ.get("PYPI_USERNAME") or "").strip()
+        or pypirc_user
+        or ""
+    )
+    cleanup_pass = (
+        (cfg.cleanup_pass or "").strip()
+        or (os.environ.get("PYPI_CLEANUP_PASSWORD") or "").strip()
+        or (os.environ.get("PYPI_PASSWORD") or "").strip()
+        or pypirc_pass
+        or ""
+    )
+
+    if not cleanup_user or not cleanup_pass:
+        message = "cleanup web-login credentials via CLI, env, or ~/.pypirc are required; tokens won't work here."
+        if required:
+            raise SystemExit(f"ERROR: {message}")
+        print(f"[cleanup] Skipping: requires {message}")
+        return None
+    if cleanup_user == "__token__" or str(cleanup_pass).startswith("pypi-"):
+        message = "cleanup needs real account credentials, not an API token."
+        if required:
+            raise SystemExit(f"ERROR: {message}")
+        print(f"[cleanup] Skipping: {message}")
+        return None
+    return cleanup_user, cleanup_pass
+
+
+def exact_release_regex(version: str) -> str:
+    try:
+        normalized = str(Version(version.strip().lstrip("v")))
+    except InvalidVersion as exc:
+        raise SystemExit(f"ERROR: Invalid --delete-pypi-release version: {version!r}") from exc
+    return f"^{re.escape(normalized)}$"
 
 
 def load_doc(p: pathlib.Path):
@@ -1020,31 +1085,11 @@ def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
     if cfg.skip_cleanup:
         return
 
-    host = "https://pypi.org/"
-    if cfg.repo == "testpypi":
-        host = "https://test.pypi.org/"
-
-    pypirc_user, pypirc_pass = read_cleanup_creds_from_pypirc(cfg.repo)
-
-    # precedence: CLI > env > ~/.pypirc cleanup section
-    cleanup_user = (
-        (cfg.cleanup_user or "").strip()
-        or (os.environ.get("PYPI_USERNAME") or "").strip()
-        or pypirc_user
-    )
-    cleanup_pass = (
-        (cfg.cleanup_pass or "").strip()
-        or (os.environ.get("PYPI_CLEANUP_PASSWORD") or "").strip()
-        or (os.environ.get("PYPI_PASSWORD") or "").strip()
-        or pypirc_pass
-    )
-
-    if not cleanup_user or not cleanup_pass:
-        print("[cleanup] Skipping: requires cleanup web-login credentials via CLI, env, or ~/.pypirc; tokens won't work here.")
+    credentials = cleanup_credentials(cfg)
+    if credentials is None:
         return
-    if cleanup_user == "__token__" or str(cleanup_pass).startswith("pypi-"):
-        print("[cleanup] Skipping: cleanup needs real account credentials (not API token).")
-        return
+    cleanup_user, cleanup_pass = credentials
+    host = cleanup_host(cfg.repo)
 
     def run_cleanup(package: str):
         cmd = [
@@ -1077,6 +1122,49 @@ def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
 
     for pkg in packages:
         run_cleanup(pkg)
+
+
+def delete_exact_pypi_releases(cfg: Cfg, packages: list[str]) -> None:
+    versions = list(cfg.delete_pypi_releases or [])
+    if not versions:
+        return
+    if cfg.skip_cleanup:
+        raise SystemExit("ERROR: --delete-pypi-release cannot be used with --skip-cleanup.")
+
+    if cfg.dry_run:
+        for version in versions:
+            for package in packages:
+                print(f"[cleanup] Would delete exact release {version} from {package} on {cfg.repo}")
+        return
+
+    cleanup_user, cleanup_pass = cleanup_credentials(cfg, required=True) or ("", "")
+    host = cleanup_host(cfg.repo)
+    env = {
+        "PYPI_USERNAME": cleanup_user,
+        "PYPI_PASSWORD": cleanup_pass,
+        "PYPI_CLEANUP_PASSWORD": cleanup_pass,
+    }
+
+    for version in versions:
+        pattern = exact_release_regex(version)
+        for package in packages:
+            cmd = [
+                "pypi-cleanup",
+                "--version-regex",
+                pattern,
+                "--do-it",
+                "-y",
+                "--host",
+                host,
+                "--package",
+                package,
+                "--username",
+                cleanup_user,
+            ]
+            if cfg.verbose:
+                cmd.append("-v")
+            print(f"[cleanup] Deleting exact release {version} from {package} on {cfg.repo}")
+            run(cmd, cwd=REPO_ROOT, env=env, timeout=(cfg.cleanup_timeout or None))
 
 
 # ---------- Yank ----------
@@ -1772,13 +1860,35 @@ def git_commit_version(chosen_version: str, include_docs: bool = False, *, push:
     )
     if diff_status.returncode == 0:
         print("[git] no staged release metadata changes to commit")
+        ensure_release_metadata_committed(files)
         return
     run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
+    ensure_release_metadata_committed(files)
     print(f"[git] committed version bump to {chosen_version}")
     if push:
         branch = current_git_branch(REPO_ROOT)
         run(["git", "push", "origin", branch], cwd=REPO_ROOT)
         print(f"[git] pushed release metadata on {branch}")
+
+
+def ensure_release_metadata_committed(files: list[str]) -> None:
+    if not files:
+        return
+    proc = subprocess.run(
+        ["git", "status", "--porcelain", "--", *files],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    dirty = [line for line in (proc.stdout or "").splitlines() if line.strip()]
+    if dirty:
+        formatted = "\n".join(f"  {line}" for line in dirty)
+        raise SystemExit(
+            "ERROR: release metadata paths are still dirty after the release commit. "
+            "Refusing to tag a source tree that does not match the uploaded artifacts:\n"
+            f"{formatted}"
+        )
 
 
 def git_reset_pyprojects():
@@ -1878,7 +1988,10 @@ def main():
 
         # Cleanup-only path
         if cfg.cleanup_only:
-            cleanup_leave_latest(cfg, version_targets)
+            if cfg.delete_pypi_releases:
+                delete_exact_pypi_releases(cfg, version_targets)
+            else:
+                cleanup_leave_latest(cfg, version_targets)
             return
 
         # Optional purge BEFORE
@@ -1999,6 +2112,9 @@ def main():
         # Yank (optional, PyPI only)
         if cfg.yank_previous:
             yank_previous_versions(cfg, version_targets, chosen)
+
+        if cfg.delete_pypi_releases:
+            delete_exact_pypi_releases(cfg, version_targets)
 
         # Purge AFTER (optional)
         if cfg.purge_after:

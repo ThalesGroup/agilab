@@ -139,6 +139,8 @@ jobs:
       id-token: write
     env:
       VERSION: ${{ github.event.inputs.version || github.ref_name }}
+      PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN || secrets.PYPI_SECRET }}
+      PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -199,7 +201,39 @@ jobs:
           cp src/agilab/core/agi-cluster/dist/* dist-library/
           cp src/agilab/core/agi-core/dist/* dist-library/
 
-      - name: Publish library packages to PyPI
+      - name: Check whether library distributions already exist on PyPI
+        id: library-pypi-state
+        run: |
+          set -euxo pipefail
+          python tools/pypi_distribution_state.py \
+            --dist-dir dist-library \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Ensure PyPI auth is configured for library packages
+        if: steps.library-pypi-state.outputs.all-exist != 'true'
+        run: |
+          set -euo pipefail
+          if [ -n "${PYPI_TOKEN:-}" ]; then
+            echo "Using PyPI API token authentication."
+            exit 0
+          fi
+          if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
+            echo "Using PyPI trusted publishing."
+            exit 0
+          fi
+          echo "ERROR: Missing PYPI_API_TOKEN/PYPI_SECRET. To use OIDC instead, configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
+          exit 2
+
+      - name: Publish library packages to PyPI with token
+        if: steps.library-pypi-state.outputs.all-exist != 'true' && env.PYPI_TOKEN != ''
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist-library/
+          skip-existing: true
+          password: ${{ env.PYPI_TOKEN }}
+
+      - name: Publish library packages to PyPI with trusted publishing
+        if: steps.library-pypi-state.outputs.all-exist != 'true' && env.PYPI_TOKEN == '' && env.PYPI_TRUSTED_PUBLISHING == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist-library/
@@ -215,6 +249,8 @@ jobs:
       id-token: write
     env:
       VERSION: ${{ github.event.inputs.version || github.ref_name }}
+      PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN || secrets.PYPI_SECRET }}
+      PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -245,7 +281,39 @@ jobs:
       - name: Verify agilab
         run: twine check dist/*
 
-      - name: Publish agilab to PyPI
+      - name: Check whether agilab distribution already exists on PyPI
+        id: agilab-pypi-state
+        run: |
+          set -euxo pipefail
+          python tools/pypi_distribution_state.py \
+            --dist-dir dist \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Ensure PyPI auth is configured for agilab
+        if: steps.agilab-pypi-state.outputs.all-exist != 'true'
+        run: |
+          set -euo pipefail
+          if [ -n "${PYPI_TOKEN:-}" ]; then
+            echo "Using PyPI API token authentication."
+            exit 0
+          fi
+          if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
+            echo "Using PyPI trusted publishing."
+            exit 0
+          fi
+          echo "ERROR: Missing PYPI_API_TOKEN/PYPI_SECRET. To use OIDC instead, configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
+          exit 2
+
+      - name: Publish agilab to PyPI with token
+        if: steps.agilab-pypi-state.outputs.all-exist != 'true' && env.PYPI_TOKEN != ''
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/
+          skip-existing: true
+          password: ${{ env.PYPI_TOKEN }}
+
+      - name: Publish agilab to PyPI with trusted publishing
+        if: steps.agilab-pypi-state.outputs.all-exist != 'true' && env.PYPI_TOKEN == '' && env.PYPI_TRUSTED_PUBLISHING == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
