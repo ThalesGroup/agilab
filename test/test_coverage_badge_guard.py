@@ -64,6 +64,11 @@ def test_changed_coverage_components_ignores_package_metadata() -> None:
     changed = module.changed_coverage_components(
         [
             "pyproject.toml",
+            "src/agilab/core/agi-env/pyproject.toml",
+            "src/agilab/core/agi-node/pyproject.toml",
+            "src/agilab/core/agi-cluster/pyproject.toml",
+            "src/agilab/core/agi-core/pyproject.toml",
+            "src/agilab/lib/agi-gui/pyproject.toml",
             "src/agilab/apps/builtin/flight_project/pyproject.toml",
         ]
     )

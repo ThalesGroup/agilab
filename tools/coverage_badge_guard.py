@@ -41,7 +41,9 @@ COVERAGE_TOOLING_TESTS = {
 }
 NON_GUI_ROOT_TESTS = {
     *COVERAGE_TOOLING_TESTS,
+    "test/test_connector_registry.py",
     "test/test_public_demo_links.py",
+    "test/test_pypi_distribution_state.py",
     "test/test_pypi_publish.py",
     "test/test_pypi_publish_workflow.py",
 }
@@ -170,6 +172,8 @@ def _is_gui_coverage_path(path: str) -> bool:
 def changed_coverage_components(paths: Sequence[str]) -> dict[str, list[str]]:
     by_component: dict[str, list[str]] = {component: [] for component in COVERAGE_COMPONENTS}
     for path in paths:
+        if path == "pyproject.toml" or path.endswith("/pyproject.toml"):
+            continue
         if path.startswith("src/agilab/core/agi-env/") or path == ".coveragerc.agi-env":
             by_component["agi-env"].append(path)
         if path.startswith("src/agilab/core/agi-node/"):

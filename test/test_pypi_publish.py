@@ -19,6 +19,36 @@ def _load_pypi_publish():
     return module
 
 
+def _base_cfg(module, **overrides):
+    values = {
+        "repo": "pypi",
+        "dist": "both",
+        "skip_existing": True,
+        "retries": 1,
+        "dry_run": False,
+        "verbose": False,
+        "version": None,
+        "purge_before": False,
+        "purge_after": False,
+        "cleanup_only": False,
+        "clean_days": None,
+        "clean_delete_project": False,
+        "cleanup_user": None,
+        "cleanup_pass": None,
+        "cleanup_timeout": 0,
+        "skip_cleanup": True,
+        "yank_previous": False,
+        "git_tag": False,
+        "git_commit_version": False,
+        "git_reset_on_failure": False,
+        "pypirc_check": False,
+        "packages": None,
+        "gen_docs": False,
+    }
+    values.update(overrides)
+    return module.Cfg(**values)
+
+
 def test_shields_badge_uses_stable_cache_endpoint() -> None:
     module = _load_pypi_publish()
 
@@ -662,6 +692,69 @@ def test_require_safe_pypi_release_rejects_former_release_delete_without_github_
         assert "--delete-former-github-release requires --repo pypi --git-tag" in str(exc)
     else:
         raise AssertionError("require_safe_pypi_release() should reject impossible GitHub release cleanup")
+
+
+def test_exact_release_regex_normalizes_zero_padded_versions() -> None:
+    module = _load_pypi_publish()
+
+    assert module.exact_release_regex("2026.04.29.post1") == r"^2026\.4\.29\.post1$"
+
+
+def test_delete_exact_pypi_releases_uses_precise_cleanup_pattern(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    cfg = _base_cfg(
+        module,
+        cleanup_user="maintainer",
+        cleanup_pass="secret",
+        cleanup_timeout=12,
+        skip_cleanup=False,
+        delete_pypi_releases=["2026.04.29.post1"],
+    )
+    calls = []
+
+    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, env=None, timeout=None: calls.append((cmd, env, timeout)))
+
+    module.delete_exact_pypi_releases(cfg, ["agilab", "agi-core"])
+
+    assert len(calls) == 2
+    first_cmd, first_env, first_timeout = calls[0]
+    assert first_cmd == [
+        "pypi-cleanup",
+        "--version-regex",
+        r"^2026\.4\.29\.post1$",
+        "--do-it",
+        "-y",
+        "--host",
+        "https://pypi.org/",
+        "--package",
+        "agilab",
+        "--username",
+        "maintainer",
+    ]
+    assert first_env["PYPI_PASSWORD"] == "secret"
+    assert first_timeout == 12
+    assert calls[1][0][7:9] == ["--package", "agi-core"]
+
+
+def test_delete_exact_pypi_releases_requires_web_credentials(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    cfg = _base_cfg(
+        module,
+        skip_cleanup=False,
+        delete_pypi_releases=["2026.4.29.post1"],
+    )
+
+    monkeypatch.delenv("PYPI_USERNAME", raising=False)
+    monkeypatch.delenv("PYPI_PASSWORD", raising=False)
+    monkeypatch.delenv("PYPI_CLEANUP_PASSWORD", raising=False)
+    monkeypatch.setattr(module, "read_cleanup_creds_from_pypirc", lambda _repo: (None, None))
+
+    try:
+        module.delete_exact_pypi_releases(cfg, ["agilab"])
+    except SystemExit as exc:
+        assert "cleanup web-login credentials" in str(exc)
+    else:
+        raise AssertionError("delete_exact_pypi_releases() should reject missing cleanup credentials")
 
 
 def test_find_docs_repository_uses_docs_repository_env_name(tmp_path, monkeypatch) -> None:
@@ -1613,6 +1706,38 @@ def test_git_commit_version_pushes_branch_when_requested(monkeypatch) -> None:
         ["git", "add", "pyproject.toml"],
         ["git", "commit", "-m", "chore(release): bump version to 2026.03.23"],
         ["git", "push", "origin", "main"],
+    ]
+
+
+def test_git_commit_version_blocks_dirty_release_metadata_after_commit(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(module, "git_paths_to_commit", lambda include_docs=False: ["pyproject.toml"])
+    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
+
+    def fake_subprocess_run(cmd, *_args, **_kwargs):
+        if cmd[:3] == ["git", "diff", "--cached"]:
+            return subprocess.CompletedProcess(cmd, 1)
+        if cmd[:3] == ["git", "status", "--porcelain"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=" M pyproject.toml\n")
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, env=None, timeout=None: calls.append(cmd))
+
+    try:
+        module.git_commit_version("2026.03.23", push=True)
+    except SystemExit as exc:
+        assert "release metadata paths are still dirty after the release commit" in str(exc)
+        assert "pyproject.toml" in str(exc)
+    else:
+        raise AssertionError("git_commit_version() should reject dirty release metadata after commit")
+
+    assert calls == [
+        ["git", "add", "pyproject.toml"],
+        ["git", "commit", "-m", "chore(release): bump version to 2026.03.23"],
     ]
 
 
