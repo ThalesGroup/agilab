@@ -74,6 +74,7 @@ PipelinePageStateDeps = _pipeline_page_state_module.PipelinePageStateDeps
 PipelineAction = _pipeline_page_state_module.PipelineAction
 build_pipeline_page_state = _pipeline_page_state_module.build_pipeline_page_state
 clear_pipeline_run_logs = _pipeline_page_state_module.clear_pipeline_run_logs
+finish_pipeline_run_command = _pipeline_page_state_module.finish_pipeline_run_command
 start_pipeline_run_command = _pipeline_page_state_module.start_pipeline_run_command
 
 _pipeline_runtime_module = import_agilab_module(
@@ -1613,14 +1614,23 @@ def display_lab_tab(
                         force_lock_clear=bool(start_result.details.get("force_lock_clear")),
                     )
                 except Exception:
-                    st.session_state[f"{index_page_str}__last_run_status"] = "failed"
-                    run_status.update(label="Pipeline run failed. Inspect Run logs.", state="error", expanded=True)
-                    toast(st, "Pipeline run failed. Inspect Run logs.", state="error")
+                    finish_result = finish_pipeline_run_command(
+                        session_state=st.session_state,
+                        index_page=index_page_str,
+                        succeeded=False,
+                    )
+                    run_status.update(label=finish_result.message, state="error", expanded=True)
+                    toast(st, finish_result.message, state="error")
                     raise
                 else:
-                    st.session_state[f"{index_page_str}__last_run_status"] = "complete"
-                    run_status.update(label="Pipeline run finished. Inspect Run logs.", state="complete", expanded=False)
-                    toast(st, "Pipeline run finished. Inspect Run logs.", state="success")
+                    finish_result = finish_pipeline_run_command(
+                        session_state=st.session_state,
+                        index_page=index_page_str,
+                        succeeded=True,
+                        message="Pipeline run finished. Inspect Run logs.",
+                    )
+                    run_status.update(label=finish_result.message, state="complete", expanded=False)
+                    toast(st, finish_result.message, state="success")
         finally:
             st.session_state.pop(f"{index_page_str}__run_log_file", None)
         st.rerun()

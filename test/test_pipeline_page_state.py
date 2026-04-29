@@ -234,6 +234,50 @@ def test_start_pipeline_run_command_marks_failed_when_logging_raises(tmp_path):
     assert session_state["demo__last_run_status"] == "failed"
 
 
+def test_finish_pipeline_run_command_records_success_and_failure_status() -> None:
+    session_state: dict[str, Any] = {}
+
+    success = pipeline_page_state.finish_pipeline_run_command(
+        session_state=session_state,
+        index_page="demo",
+        succeeded=True,
+        message="finished",
+    )
+    failure = pipeline_page_state.finish_pipeline_run_command(
+        session_state=session_state,
+        index_page="demo",
+        succeeded=False,
+    )
+
+    assert success.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
+    assert success.message == "finished"
+    assert success.details == {"index_page": "demo", "status": "complete"}
+    assert failure.status is pipeline_page_state.PipelineCommandStatus.FAILED
+    assert failure.message == "Pipeline run failed. Inspect Run logs."
+    assert failure.details == {"index_page": "demo", "status": "failed"}
+    assert session_state["demo__last_run_status"] == "failed"
+
+
+def test_finish_pipeline_run_command_reports_session_state_write_errors() -> None:
+    class BrokenSessionState(dict):
+        def __setitem__(self, key, value):
+            raise RuntimeError("state locked")
+
+    result = pipeline_page_state.finish_pipeline_run_command(
+        session_state=BrokenSessionState(),
+        index_page="demo",
+        succeeded=True,
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.FAILED
+    assert "state locked" in result.message
+    assert result.details == {
+        "index_page": "demo",
+        "status": "complete",
+        "error": "state locked",
+    }
+
+
 def test_pipeline_page_state_refuses_stale_legacy_snippets_before_runtime(tmp_path):
     stale_ref = {"step": 1, "line": 4, "summary": "legacy run", "project": "flight_project"}
 
