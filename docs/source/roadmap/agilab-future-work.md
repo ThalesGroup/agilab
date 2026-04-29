@@ -752,7 +752,9 @@ Current shipped baseline:
   `agilab.data_connector_facility.v1` against
   `docs/source/data/data_connectors_sample.toml`
 - the sample covers SQL, OpenSearch/ELK, and object-storage connector
-  definitions with kind-specific required fields
+  definitions with kind-specific required fields; the current object-storage
+  contract covers AWS S3/S3-compatible stores, Azure Blob Storage, and Google
+  Cloud Storage
 - remote credentials are represented as `env:` references and the report runs
   in `contract_validation_only` mode without live network probes
 - `tools/data_connector_resolution_report.py --compact` validates
