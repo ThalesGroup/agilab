@@ -757,6 +757,32 @@ def test_delete_exact_pypi_releases_requires_web_credentials(monkeypatch) -> Non
         raise AssertionError("delete_exact_pypi_releases() should reject missing cleanup credentials")
 
 
+def test_main_cleanup_only_exact_delete_skips_publish_version_computation(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    cfg = _base_cfg(
+        module,
+        cleanup_only=True,
+        skip_cleanup=False,
+        packages=["agilab"],
+        delete_pypi_releases=["2026.04.29.post1"],
+    )
+    deleted = []
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "assert_pypirc_has", lambda _repo: None)
+    monkeypatch.setattr(module, "delete_exact_pypi_releases", lambda _cfg, packages: deleted.append(packages))
+    monkeypatch.setattr(
+        module,
+        "compute_unified_version",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not compute publish version")),
+    )
+
+    module.main()
+
+    assert deleted == [["agilab"]]
+
+
 def test_find_docs_repository_uses_docs_repository_env_name(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 

@@ -1942,6 +1942,10 @@ def main():
     selected_core_names = [name for name, *_ in selected_core_entries]
     version_targets = selected_core_names + ([UMBRELLA[0]] if build_umbrella else [])
 
+    if cfg.cleanup_only and cfg.delete_pypi_releases:
+        delete_exact_pypi_releases(cfg, version_targets)
+        return
+
     if cfg.version is not None:
         latest_existing = latest_existing_release(version_targets, cfg.repo)
         if latest_existing is not None and safe_ver(cfg.version) < safe_ver(latest_existing):
@@ -1988,10 +1992,7 @@ def main():
 
         # Cleanup-only path
         if cfg.cleanup_only:
-            if cfg.delete_pypi_releases:
-                delete_exact_pypi_releases(cfg, version_targets)
-            else:
-                cleanup_leave_latest(cfg, version_targets)
+            cleanup_leave_latest(cfg, version_targets)
             return
 
         # Optional purge BEFORE
