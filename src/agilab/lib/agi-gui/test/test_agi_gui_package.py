@@ -27,10 +27,20 @@ def test_agi_gui_exposes_version() -> None:
 def test_agi_gui_exports_file_picker_helpers() -> None:
     module = importlib.import_module("agi_gui")
 
+    assert module.ActionStyle.__name__ == "ActionStyle"
+    assert module.ActionSpec.__name__ == "ActionSpec"
     assert callable(module.agi_file_picker)
+    assert callable(module.action_button)
+    assert callable(module.action_row)
+    assert callable(module.action_style)
     assert callable(module.list_file_picker_entries)
     assert callable(module.compact_choice)
     assert callable(module.confirm_button)
+    assert callable(module.empty_state)
+    assert callable(module.normalize_action_kind)
+    assert callable(module.normalize_message_state)
+    assert callable(module.normalize_status_state)
+    assert callable(module.notice)
     assert callable(module.status_container)
     assert callable(module.toast)
 

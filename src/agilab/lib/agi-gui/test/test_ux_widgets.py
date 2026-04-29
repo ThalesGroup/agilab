@@ -201,6 +201,195 @@ def test_status_container_update_without_label_only_updates_state() -> None:
     assert fake.events == [("info", "Running")]
 
 
+def test_normalize_ui_states_and_action_styles() -> None:
+    assert ux_widgets.normalize_message_state("failed") == "failed"
+    assert ux_widgets.normalize_message_state("unknown") == "info"
+    assert ux_widgets.normalize_status_state("success") == "complete"
+    assert ux_widgets.normalize_status_state("failed") == "error"
+    assert ux_widgets.normalize_action_kind("run") == "primary"
+    assert ux_widgets.normalize_action_kind("delete") == "destructive"
+    assert ux_widgets.action_style("run").button_type == "primary"
+    assert ux_widgets.action_style("delete").status_state == "warning"
+
+
+def test_action_button_applies_normalized_defaults() -> None:
+    calls = []
+
+    class NativeButton(_FakeStreamlit):
+        def button(self, label, **kwargs):
+            calls.append((label, kwargs))
+            return True
+
+    fake = NativeButton()
+
+    assert ux_widgets.action_button(fake, "Run pipeline", key="run", kind="run") is True
+    assert calls == [
+        (
+            "Run pipeline",
+            {
+                "key": "run",
+                "help": None,
+                "type": "primary",
+                "width": "stretch",
+                "disabled": False,
+            },
+        )
+    ]
+
+
+def test_action_button_allows_explicit_overrides() -> None:
+    calls = []
+
+    class NativeButton(_FakeStreamlit):
+        def button(self, label, **kwargs):
+            calls.append((label, kwargs))
+            return False
+
+    fake = NativeButton()
+
+    assert ux_widgets.action_button(
+        fake,
+        "Preview",
+        key="preview",
+        kind="run",
+        type="secondary",
+        width="content",
+        icon=":material/visibility:",
+        help="Build a preview.",
+        disabled=True,
+    ) is False
+    assert calls[0][1]["type"] == "secondary"
+    assert calls[0][1]["width"] == "content"
+    assert calls[0][1]["icon"] == ":material/visibility:"
+    assert calls[0][1]["disabled"] is True
+
+
+def test_action_button_retries_legacy_button_signatures() -> None:
+    calls = []
+
+    class LegacyButton(_FakeStreamlit):
+        def button(self, label, **kwargs):
+            calls.append((label, kwargs))
+            if "width" in kwargs:
+                raise TypeError("legacy signature")
+            return True
+
+    fake = LegacyButton()
+
+    assert ux_widgets.action_button(
+        fake,
+        "Refresh",
+        key="refresh",
+        kind="refresh",
+        icon=":material/refresh:",
+    ) is True
+    assert len(calls) == 3
+    assert calls[-1][1] == {
+        "key": "refresh",
+        "help": None,
+        "type": "secondary",
+        "disabled": False,
+    }
+
+
+def test_notice_normalizes_states_and_retries_legacy_message_signatures() -> None:
+    fake = _FakeStreamlit()
+
+    ux_widgets.notice(fake, "Stale cache", state="stale", icon="warning")
+
+    assert fake.events == [("warning", "Stale cache")]
+
+
+def test_empty_state_renders_notice_and_optional_action() -> None:
+    fake = _FakeStreamlit(buttons={"load": True})
+
+    clicked = ux_widgets.empty_state(
+        fake,
+        "No data loaded yet.",
+        body="Generate and execute a step first.",
+        state="idle",
+        action=ux_widgets.ActionSpec("Load sample", key="load", kind="run"),
+    )
+
+    assert clicked is True
+    assert fake.events == [
+        ("info", "No data loaded yet.\n\nGenerate and execute a step first."),
+        ("button", "load"),
+    ]
+
+
+def test_action_row_renders_actions_in_columns_with_normalized_defaults() -> None:
+    calls = []
+
+    class Column:
+        def __init__(self, name):
+            self.name = name
+
+        def __enter__(self):
+            calls.append(("enter", self.name))
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            calls.append(("exit", self.name))
+            return False
+
+        def button(self, label, **kwargs):
+            calls.append(("button", self.name, label, kwargs))
+            return kwargs["key"] == "run"
+
+    class ColumnStreamlit(_FakeStreamlit):
+        def columns(self, spec, gap="small"):
+            calls.append(("columns", spec, gap))
+            count = spec if isinstance(spec, int) else len(spec)
+            return [Column(f"col-{idx}") for idx in range(count)]
+
+    result = ux_widgets.action_row(
+        ColumnStreamlit(),
+        [
+            ux_widgets.ActionSpec("Run", key="run", kind="run"),
+            {"label": "Cancel", "key": "cancel", "kind": "cancel"},
+        ],
+        columns=[1, 1],
+    )
+
+    assert result == {"run": True, "cancel": False}
+    assert calls[0] == ("columns", [1, 1], "small")
+    assert calls[2] == (
+        "button",
+        "col-0",
+        "Run",
+        {
+            "key": "run",
+            "help": None,
+            "type": "primary",
+            "width": "stretch",
+            "disabled": False,
+        },
+    )
+    assert calls[5][2] == "Cancel"
+    assert calls[5][3]["type"] == "secondary"
+
+
+def test_action_row_does_not_drop_actions_when_columns_are_short() -> None:
+    fake = _FakeStreamlit(buttons={"run": True, "save": True})
+
+    class ShortColumns(_FakeStreamlit):
+        def columns(self, spec, gap="small"):
+            return [fake]
+
+    result = ux_widgets.action_row(
+        ShortColumns(),
+        [
+            ux_widgets.ActionSpec("Run", key="run", kind="run"),
+            ux_widgets.ActionSpec("Save", key="save", kind="save"),
+        ],
+        columns=[1],
+    )
+
+    assert result == {"run": True, "save": False}
+    assert fake.events == [("button", "run")]
+
+
 def test_compact_choice_uses_native_segmented_control() -> None:
     calls = []
 
