@@ -41,7 +41,7 @@ Open `AGI_run_flight.py` and look for these lines first:
 - `APP = "flight_project"` selects the built-in app.
 - `data_in="flight/dataset"` names the input folder.
 - `data_out="flight/dataframe"` names the generated artifacts.
-- `mode=ALL_RUN_MODES` asks AGILAB to exercise every supported local run mode.
+- `mode=LOCAL_RUN_MODES` asks AGILAB to exercise the public local run modes.
 
 ## Change One Thing
 

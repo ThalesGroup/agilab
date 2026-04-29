@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import py_compile
 import sys
@@ -16,6 +17,14 @@ EXAMPLE_APPS = {
     "meteo_forecast": ("AGI_install_meteo_forecast.py", "AGI_run_meteo_forecast.py"),
     "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
 }
+
+
+def _expected_script_paths() -> list[Path]:
+    return sorted(
+        EXAMPLES_ROOT / example_name / script_name
+        for example_name, script_names in EXAMPLE_APPS.items()
+        for script_name in script_names
+    )
 
 
 def _load_installer(monkeypatch, tmp_path: Path):
@@ -65,6 +74,12 @@ def test_packaged_agi_example_scripts_are_compile_safe() -> None:
     assert scripts
     for script in scripts:
         py_compile.compile(str(script), doraise=True)
+
+
+def test_packaged_agi_example_catalog_matches_seeded_scripts() -> None:
+    scripts = sorted(EXAMPLES_ROOT.glob("*/AGI_*.py"))
+
+    assert scripts == _expected_script_paths()
 
 
 def test_packaged_example_catalog_is_documented() -> None:
@@ -128,6 +143,17 @@ def test_packaged_examples_avoid_magic_mode_literals() -> None:
             assert fragment not in text
 
 
+def test_packaged_examples_use_public_api_and_modern_runner() -> None:
+    for script in _expected_script_paths():
+        text = script.read_text(encoding="utf-8")
+
+        assert "AGI._" not in text
+        assert "asyncio.get_event_loop()" not in text
+        assert "asyncio.run(main())" in text
+        assert "def agilab_apps_path() -> Path:" in text
+        assert "open(f\"{Path.home()}" not in text
+
+
 def test_packaged_run_and_install_examples_import_with_fake_home(tmp_path: Path, monkeypatch) -> None:
     agilab_path = tmp_path / ".local" / "share" / "agilab"
     agilab_path.mkdir(parents=True)
@@ -150,3 +176,84 @@ def test_packaged_run_and_install_examples_import_with_fake_home(tmp_path: Path,
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
         assert callable(module.main)
+
+
+def test_packaged_examples_fail_cleanly_without_agilab_marker(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    for script in _expected_script_paths():
+        module_name = f"agilab_example_missing_marker_{script.parent.name}_{script.stem}"
+        sys.modules.pop(module_name, None)
+        spec = importlib.util.spec_from_file_location(module_name, script)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+
+        try:
+            module.agilab_apps_path()
+        except SystemExit as exc:
+            assert "AGILAB is not initialized" in str(exc)
+        else:
+            raise AssertionError(f"{script} did not fail cleanly without .agilab-path")
+
+
+def test_packaged_example_main_bodies_build_public_requests(tmp_path: Path, monkeypatch) -> None:
+    agilab_path = tmp_path / ".local" / "share" / "agilab"
+    agilab_path.mkdir(parents=True)
+    (agilab_path / ".agilab-path").write_text(str(ROOT / "src/agilab"), encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    for script in _expected_script_paths():
+        calls: dict[str, object] = {}
+
+        class FakeEnv:
+            def __init__(self, **kwargs):
+                calls["env_kwargs"] = kwargs
+
+        class FakeAGI:
+            @staticmethod
+            async def install(env, **kwargs):
+                calls["operation"] = "install"
+                calls["env"] = env
+                calls["kwargs"] = kwargs
+                return {"ok": True, "operation": "install"}
+
+            @staticmethod
+            async def run(env, request):
+                calls["operation"] = "run"
+                calls["env"] = env
+                calls["request"] = request
+                return {"ok": True, "operation": "run"}
+
+        module_name = f"agilab_example_main_{script.parent.name}_{script.stem}"
+        sys.modules.pop(module_name, None)
+        spec = importlib.util.spec_from_file_location(module_name, script)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        module.AgiEnv = FakeEnv
+        module.AGI = FakeAGI
+
+        result = asyncio.run(module.main())
+
+        assert result["ok"] is True
+        env_kwargs = calls["env_kwargs"]
+        assert env_kwargs["apps_path"] == ROOT / "src/agilab/apps"
+        assert str(env_kwargs["app"]).endswith("_project")
+        assert env_kwargs["verbose"] == 1
+        if script.name.startswith("AGI_install_"):
+            assert calls["operation"] == "install"
+            kwargs = calls["kwargs"]
+            assert kwargs["scheduler"] == "127.0.0.1"
+            assert kwargs["workers"] == {"127.0.0.1": 1}
+            assert isinstance(kwargs["modes_enabled"], int)
+            assert kwargs["modes_enabled"] > 0
+        else:
+            assert calls["operation"] == "run"
+            request = calls["request"]
+            assert request.scheduler == "127.0.0.1"
+            assert request.workers == {"127.0.0.1": 1}
+            assert request.mode is not None
+            assert "args" not in request.params

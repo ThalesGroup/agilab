@@ -5,13 +5,22 @@ from agi_cluster.agi_distributor import AGI, RunRequest
 from agi_env import AgiEnv
 
 
-AGILAB_PATH = open(f"{Path.home()}/.local/share/agilab/.agilab-path").read().strip()
-APPS_PATH = Path(AGILAB_PATH) / "apps"
 APP = "data_io_2026_project"
+PYTHON_ONLY_MODE = AGI.PYTHON_MODE
+
+
+def agilab_apps_path() -> Path:
+    marker = Path.home() / ".local/share/agilab/.agilab-path"
+    if not marker.is_file():
+        raise SystemExit(
+            "AGILAB is not initialized. Run the AGILAB installer or "
+            "`agilab first-proof --json` before this example."
+        )
+    return Path(marker.read_text(encoding="utf-8").strip()) / "apps"
 
 
 async def main():
-    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
+    app_env = AgiEnv(apps_path=agilab_apps_path(), app=APP, verbose=1)
     request = RunRequest(
         params={
             "data_in": "data_io_2026/scenarios",
@@ -25,7 +34,7 @@ async def main():
         },
         data_in="data_io_2026/scenarios",
         data_out="data_io_2026/results",
-        mode=AGI.PYTHON_MODE,
+        mode=PYTHON_ONLY_MODE,
         scheduler="127.0.0.1",
         workers={"127.0.0.1": 1},
     )
@@ -35,4 +44,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main())
