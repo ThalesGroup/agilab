@@ -1,9 +1,9 @@
 [project]
 name = "flight_project"
-version = "2026.04.29.post5"
+version = "2026.04.29.post6"
 description = "Built-in AGILab example app (flight telemetry preprocessing)"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.04.29.post5", "agi-node>=2026.04.29.post5", "geopy", "polars[rtcompat]", "pydantic", "py7zr", "streamlit>=1.56.0"]
+dependencies = ["agi-env>=2026.04.29.post6", "agi-node>=2026.04.29.post6", "geopy", "polars[rtcompat]", "pydantic", "py7zr", "streamlit>=1.56.0"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }
