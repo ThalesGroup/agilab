@@ -63,13 +63,14 @@ jobs:
 
       - name: Upload agi-env coverage to Codecov
         if: always() && hashFiles('coverage-agi-env.xml') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-env.xml
           flags: agi-env,agi-core
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Archive agi-env coverage XML
         if: always() && hashFiles('coverage-agi-env.xml') != ''
@@ -160,23 +161,25 @@ jobs:
 
       - name: Upload agi-node coverage to Codecov
         if: always() && hashFiles('coverage-agi-node.xml') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-node.xml
           flags: agi-node,agi-core
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Upload agi-cluster coverage to Codecov
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-cluster.xml
           flags: agi-cluster,agi-core
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Archive agi-node coverage XML
         if: always() && hashFiles('coverage-agi-node.xml') != ''
@@ -292,13 +295,14 @@ jobs:
 
       - name: Upload agi-gui coverage to Codecov
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-gui.xml
           flags: agi-gui
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Archive agi-gui coverage XML
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
@@ -338,6 +342,7 @@ jobs:
         run: git diff --exit-code -- badges/
 
       - name: Upload repo-wide agilab coverage to Codecov
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: >-
@@ -347,4 +352,4 @@ jobs:
             ./merged-coverage/coverage-agi-gui.xml
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
