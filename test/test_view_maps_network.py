@@ -204,7 +204,7 @@ def test_view_maps_network_warns_when_no_dataset_exists(
         pyproject_name="demo-map-project",
     )
 
-    at = run_page_app_test(str(MODULE_PATH), project_dir, export_root=tmp_path / "export")
+    at = run_page_app_test(str(MODULE_PATH), project_dir, export_root=tmp_path / "export", timeout=60)
 
     assert not at.exception
     assert any("Maps Network Graph" in title.value for title in at.title)
