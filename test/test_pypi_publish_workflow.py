@@ -31,3 +31,16 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
     assert "--profile agi-gui" in text
     assert "--profile agi-core-combined" in text
     assert "uv run --dev --project agi-cluster python -m pytest" not in text
+
+
+def test_pypi_publish_uses_trusted_publishing_without_static_secret() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "id-token: write" in text
+    assert "environment:\n      name: pypi" in text
+    assert "uses: pypa/gh-action-pypi-publish@release/v1" in text
+    assert "packages-dir: dist-library/" in text
+    assert "packages-dir: dist/" in text
+    assert "PYPI_SECRET" not in text
+    assert "TWINE_PASSWORD" not in text
+    assert "twine upload" not in text

@@ -37,7 +37,30 @@ jobs:
             exit 1
           fi
 
-      - name: Confirm local-only test policy
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Compile critical Python entrypoints
         run: |
-          echo "Repository tests are intentionally local-only."
-          echo "GitHub Actions CI runs lightweight repository guardrails only."
+          set -euo pipefail
+          python -m py_compile \
+            src/agilab/About_agilab.py \
+            src/agilab/first_proof_cli.py \
+            src/agilab/orchestrate_execute.py \
+            src/agilab/pipeline_openai.py \
+            tools/newcomer_first_proof.py \
+            tools/pypi_publish.py
+
+      - name: Validate first-proof command contract
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python src/agilab/first_proof_cli.py --print-only --json
+
+      - name: Confirm extended test policy
+        run: |
+          echo "GitHub Actions CI runs repository guardrails plus a minimal first-proof command contract."
+          echo "Run local workflow parity profiles before push for full test coverage."

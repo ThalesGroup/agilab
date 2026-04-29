@@ -330,7 +330,7 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
     assert profiles == ["agi-env", "agi-core-combined", "agi-gui", "docs", "installer", "shared-core-typing"]
 
 
-def test_compute_unified_version_never_drops_below_latest_release(monkeypatch) -> None:
+def test_compute_unified_version_rejects_auto_post_when_latest_release_is_newer_on_pypi(monkeypatch) -> None:
     module = _load_pypi_publish()
 
     class _FixedDatetime:
@@ -351,21 +351,41 @@ def test_compute_unified_version_never_drops_below_latest_release(monkeypatch) -
         lambda name, _repo: releases.get(name, set()),
     )
 
+    try:
+        module.compute_unified_version(
+            ["agi-env", "agi-node", "agilab"],
+            "pypi",
+            None,
+        )
+    except SystemExit as exc:
+        assert "Automatic .postN PyPI version bumps are disabled" in str(exc)
+        assert "agi-env: 2026.4.25" in str(exc)
+    else:
+        raise AssertionError("compute_unified_version() should not auto-create .postN on real PyPI")
+
+
+def test_compute_unified_version_uses_today_base_without_post_on_pypi(monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    class _FixedDatetime:
+        @staticmethod
+        def now(_tz):
+            return datetime(2026, 4, 29, 10, 0, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(module, "datetime", _FixedDatetime)
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: set())
+
     chosen, collisions = module.compute_unified_version(
         ["agi-env", "agi-node", "agilab"],
         "pypi",
         None,
     )
 
-    assert chosen == "2026.4.25.post1"
-    assert collisions == {
-        "agi-env": ["2026.4.25"],
-        "agi-node": ["2026.4.25"],
-        "agilab": ["2026.4.25"],
-    }
+    assert chosen == "2026.04.29"
+    assert collisions == {"agi-env": [], "agi-node": [], "agilab": []}
 
 
-def test_compute_unified_version_handles_pypi_canonicalized_date_posts(monkeypatch) -> None:
+def test_compute_unified_version_handles_testpypi_canonicalized_date_posts(monkeypatch) -> None:
     module = _load_pypi_publish()
 
     class _FixedDatetime:
@@ -388,7 +408,7 @@ def test_compute_unified_version_handles_pypi_canonicalized_date_posts(monkeypat
 
     chosen, collisions = module.compute_unified_version(
         ["agi-env", "agi-node", "agilab"],
-        "pypi",
+        "testpypi",
         None,
     )
 
@@ -400,7 +420,7 @@ def test_compute_unified_version_handles_pypi_canonicalized_date_posts(monkeypat
     }
 
 
-def test_compute_unified_version_treats_explicit_canonical_collision_as_used(monkeypatch) -> None:
+def test_compute_unified_version_rejects_explicit_canonical_collision_on_pypi(monkeypatch) -> None:
     module = _load_pypi_publish()
 
     releases = {
@@ -413,17 +433,17 @@ def test_compute_unified_version_treats_explicit_canonical_collision_as_used(mon
         lambda name, _repo: releases.get(name, set()),
     )
 
-    chosen, collisions = module.compute_unified_version(
-        ["agi-env", "agilab"],
-        "pypi",
-        "2026.04.28.post2",
-    )
-
-    assert chosen == "2026.04.28.post3"
-    assert collisions == {
-        "agi-env": ["2026.4.28.post2"],
-        "agilab": ["2026.4.28.post2"],
-    }
+    try:
+        module.compute_unified_version(
+            ["agi-env", "agilab"],
+            "pypi",
+            "2026.04.28.post2",
+        )
+    except SystemExit as exc:
+        assert "Automatic .postN PyPI version bumps are disabled" in str(exc)
+        assert "agi-env: 2026.4.28.post2" in str(exc)
+    else:
+        raise AssertionError("compute_unified_version() should reject explicit collisions on real PyPI")
 
 
 def test_compute_unified_version_rejects_free_explicit_version_below_latest_release(monkeypatch) -> None:
@@ -1244,6 +1264,86 @@ def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -
     module.main()
 
     assert order[:4] == ["badge", "build", "badge", "build"]
+
+
+def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-env"',
+                'version = "2026.03.16"',
+                'dependencies = []',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    order: list[str] = []
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+    )
+
+    def _twine_upload(*_args, **_kwargs):
+        module.UPLOAD_COLLISION_DETECTED = True
+        module.UPLOAD_SUCCESS_COUNT = 0
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "run_release_preflight", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: set())
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(module, "twine_upload", _twine_upload)
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: order.append("badge"))
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: order.append("build"))
+    monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "next_free_post_for_all", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not auto-post for pypi")))
+    monkeypatch.setattr(module, "git_reset_pyprojects", lambda: order.append("reset"))
+
+    try:
+        module.main()
+    except SystemExit as exc:
+        assert "Automatic .postN PyPI version bumps are disabled" in str(exc)
+    else:
+        raise AssertionError("main() should reject real PyPI upload collisions")
+
+    assert order == ["badge", "build", "reset"]
 
 
 def test_twine_upload_reports_summary_and_skip_existing(monkeypatch, capsys) -> None:
