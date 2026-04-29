@@ -45,13 +45,17 @@ This is not a raw repo push and not a generic Space scaffold. The deploy script 
 
 Keep the skill aligned with the README contract:
 - the Space exposes the AGILAB Streamlit interface
-- Space mode is single-node only
+- Space mode is single-container only
+- local Dask multi-worker execution may be demonstrated inside that container
+  using `127.0.0.1:8786`, `{"127.0.0.1": 2}`, and a writable in-container
+  `AGI_CLUSTER_SHARE`
 - offline/local LLM paths such as Ollama are not available there
 - storage is ephemeral unless a Hugging Face dataset mount is used
 
 Do not promise:
-- multi-node ORCHESTRATE behavior
+- remote multi-node ORCHESTRATE behavior
 - remote-cluster parity
+- remote SSH workers from the hosted Space
 - local `~/agi-space` or `~/wenv` semantics
 - developer-machine assumptions
 
