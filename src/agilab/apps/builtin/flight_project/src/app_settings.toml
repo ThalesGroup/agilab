@@ -18,6 +18,11 @@ cython = true
 pool = true
 rapids = true
 cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 2
 
 [cluster.service_health]
 allow_idle = false
