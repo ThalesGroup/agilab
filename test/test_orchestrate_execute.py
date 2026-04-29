@@ -148,7 +148,7 @@ def test_find_preview_target_returns_none_when_latest_file_disappears(tmp_path, 
     def flaky_stat(self: Path, *args, **kwargs):
         if self == newest_csv:
             newest_calls["count"] += 1
-            if newest_calls["count"] >= 5:
+            if newest_calls["count"] >= 4:
                 raise FileNotFoundError("simulated race")
         return original_stat(self, *args, **kwargs)
 
@@ -170,6 +170,54 @@ def test_find_preview_target_returns_none_when_only_hidden_or_empty_files_exist(
 
     assert target is None
     assert files == []
+
+
+def test_find_preview_target_caps_candidate_search(tmp_path, monkeypatch):
+    files = []
+    for index in range(3):
+        file_path = tmp_path / f"artifact_{index}.csv"
+        file_path.write_text("a,b\n1,2\n", encoding="utf-8")
+        files.append(file_path)
+
+    monkeypatch.setattr(orchestrate_execute, "PREVIEW_MAX_SEARCH_FILES", 2)
+
+    target, found_files = orchestrate_execute.find_preview_target(files)
+
+    assert target in files[:2]
+    assert found_files == files[:2]
+
+
+def test_preview_candidate_paths_are_sorted_before_search_cap(tmp_path, monkeypatch):
+    root = tmp_path / "output"
+    root.mkdir()
+    first = root / "a.csv"
+    second = root / "b.csv"
+    first.write_text("a,b\n1,2\n", encoding="utf-8")
+    second.write_text("a,b\n3,4\n", encoding="utf-8")
+
+    def fake_rglob(self, pattern):
+        if self == root and pattern == "*.csv":
+            return [second, first]
+        return []
+
+    monkeypatch.setattr(orchestrate_execute.Path, "rglob", fake_rglob)
+    monkeypatch.setattr(orchestrate_execute, "PREVIEW_MAX_SEARCH_FILES", 1)
+
+    assert orchestrate_execute._preview_candidate_paths([root]) == [first]
+
+
+def test_find_preview_target_skips_oversized_files(tmp_path, monkeypatch):
+    small_csv = tmp_path / "small.csv"
+    small_csv.write_text("a,b\n1,2\n", encoding="utf-8")
+    large_csv = tmp_path / "large.csv"
+    large_csv.write_text("a,b\n" + ("x" * 50), encoding="utf-8")
+
+    monkeypatch.setattr(orchestrate_execute, "PREVIEW_MAX_FILE_BYTES", 12)
+
+    target, found_files = orchestrate_execute.find_preview_target([large_csv, small_csv])
+
+    assert target == small_csv
+    assert found_files == [small_csv]
 
 
 def test_pending_execute_action_round_trip():

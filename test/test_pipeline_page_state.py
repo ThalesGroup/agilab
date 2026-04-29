@@ -63,6 +63,8 @@ def test_pipeline_page_state_keeps_visible_steps_when_logs_are_missing_or_cleare
     assert state_after_clear.visible_steps == state_without_logs.visible_steps
     assert state_after_clear.run_logs == ()
     assert state_after_clear.can_run is True
+    assert pipeline_page_state.PipelineAction.DELETE_STEP in state_after_clear.available_actions
+    assert pipeline_page_state.PipelineAction.DELETE_ALL in state_after_clear.available_actions
     assert pipeline_page_state.PipelineAction.RUN_PIPELINE in state_after_clear.available_actions
     assert pipeline_page_state.PipelineAction.CLEAR_LOGS in state_after_clear.available_actions
     assert state_after_clear.blocked_actions[pipeline_page_state.PipelineAction.FORCE_RUN] == (
@@ -81,7 +83,10 @@ def test_pipeline_page_state_derives_blocked_actions_for_empty_and_stale_labs(tm
     )
     assert empty_state.selected_lab == "empty_lab"
     assert pipeline_page_state.PipelineAction.RUN_PIPELINE not in empty_state.available_actions
+    assert pipeline_page_state.PipelineAction.DELETE_STEP not in empty_state.available_actions
+    assert pipeline_page_state.PipelineAction.DELETE_ALL not in empty_state.available_actions
     assert "No visible pipeline steps" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
+    assert "No pipeline step" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.DELETE_STEP]
 
     stale_state = pipeline_page_state.build_pipeline_page_state(
         index_page="demo",
@@ -99,6 +104,21 @@ def test_pipeline_page_state_derives_blocked_actions_for_empty_and_stale_labs(tm
     assert pipeline_page_state.PipelineAction.RUN_PIPELINE not in stale_state.available_actions
     assert pipeline_page_state.PipelineAction.FORCE_RUN not in stale_state.available_actions
     assert "stale AGI.run snippets" in stale_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
+
+
+def test_pipeline_page_state_exposes_undo_action_when_delete_snapshot_exists(tmp_path):
+    session_state: dict[str, Any] = {"demo__undo_delete_snapshot": {"steps": [{"Q": "old"}]}}
+
+    state = pipeline_page_state.build_pipeline_page_state(
+        index_page="demo",
+        steps_file=tmp_path / "lab_steps.toml",
+        steps=[{"Q": "run", "C": "print('run')"}],
+        sequence=[0],
+        session_state=session_state,
+        deps=_deps(),
+    )
+
+    assert pipeline_page_state.PipelineAction.UNDO_DELETE in state.available_actions
 
 
 def test_start_pipeline_run_command_refuses_blocked_actions_without_side_effects(tmp_path):
@@ -359,3 +379,187 @@ def test_clear_pipeline_run_logs_returns_noop_and_failure_results():
     )
     assert failed.status is pipeline_page_state.PipelineCommandStatus.FAILED
     assert "blocked" in failed.message
+
+
+def test_delete_pipeline_step_command_preserves_snapshot_and_logs(tmp_path):
+    session_state: dict[str, Any] = {"demo__run_logs": ["keep me"]}
+    selected_map: dict[int, str] = {0: "runtime-a", 1: "runtime-b"}
+    removed: list[tuple[Any, ...]] = []
+    steps = [
+        {"Q": "alpha", "C": "print('a')"},
+        {"Q": "beta", "C": "print('b')"},
+    ]
+
+    result = pipeline_page_state.delete_pipeline_step_command(
+        session_state=session_state,
+        index_page="demo",
+        step_index=0,
+        lab_dir=tmp_path / "lab",
+        steps_file=tmp_path / "lab_steps.toml",
+        persisted_steps=steps,
+        selected_map=selected_map,
+        capture_pipeline_snapshot=lambda index_page, captured_steps: {
+            "index_page": index_page,
+            "steps": list(captured_steps),
+        },
+        remove_step=lambda *args: removed.append(args),
+        timestamp="2026-04-29T08:00:00",
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
+    assert selected_map == {1: "runtime-b"}
+    assert removed == [(tmp_path / "lab", "0", tmp_path / "lab_steps.toml", "demo")]
+    assert session_state["demo__run_logs"] == ["keep me"]
+    undo_snapshot = session_state["demo__undo_delete_snapshot"]
+    assert undo_snapshot["label"] == "remove step 1"
+    assert undo_snapshot["timestamp"] == "2026-04-29T08:00:00"
+    assert undo_snapshot["steps"] == steps
+
+
+def test_delete_pipeline_step_command_refuses_missing_step(tmp_path):
+    selected_map: dict[int, str] = {0: "runtime-a"}
+    removed: list[tuple[Any, ...]] = []
+
+    result = pipeline_page_state.delete_pipeline_step_command(
+        session_state={},
+        index_page="demo",
+        step_index=4,
+        lab_dir=tmp_path / "lab",
+        steps_file=tmp_path / "lab_steps.toml",
+        persisted_steps=[{"Q": "alpha"}],
+        selected_map=selected_map,
+        capture_pipeline_snapshot=lambda *_args: {"steps": []},
+        remove_step=lambda *args: removed.append(args),
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.REFUSED
+    assert selected_map == {0: "runtime-a"}
+    assert removed == []
+
+
+def test_delete_all_pipeline_steps_command_resets_editor_state_without_touching_logs(tmp_path):
+    session_state: dict[str, Any] = {
+        "demo": [1, "d", "q", "m", "c", "detail", 3],
+        "demo__details": {0: "a"},
+        "demo__venv_map": {0: "runtime-a"},
+        "demo__run_sequence": [2, 0],
+        "demo_run_sequence_widget": [2, 0],
+        "demo__run_logs": ["existing"],
+        "demo_confirm_delete_all": True,
+        "demo__q_rev": 4,
+        "lab_selected_venv": "runtime-a",
+    }
+    removed: list[str] = []
+    bumps: list[str] = []
+    persisted_sequences: list[list[int]] = []
+    steps = [{"Q": "a"}, {"Q": "b"}, {"Q": "c"}]
+
+    result = pipeline_page_state.delete_all_pipeline_steps_command(
+        session_state=session_state,
+        index_page="demo",
+        lab_dir=tmp_path / "lab",
+        module_path=tmp_path / "module",
+        steps_file=tmp_path / "lab_steps.toml",
+        persisted_steps=steps,
+        sequence_widget_key="demo_run_sequence_widget",
+        capture_pipeline_snapshot=lambda _index_page, captured_steps: {"steps": list(captured_steps)},
+        remove_step=lambda _lab_dir, step, _steps_file, _index_page: removed.append(step),
+        bump_history_revision=lambda: bumps.append("bump"),
+        persist_sequence_preferences=lambda _module, _steps_file, sequence: persisted_sequences.append(
+            list(sequence)
+        ),
+        confirm_key="demo_confirm_delete_all",
+        timestamp="2026-04-29T08:01:00",
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
+    assert removed == ["2", "1", "0"]
+    assert bumps == ["bump"]
+    assert persisted_sequences == [[]]
+    assert "demo_confirm_delete_all" not in session_state
+    assert "demo_run_sequence_widget" not in session_state
+    assert session_state["demo"] == [0, "", "", "", "", "", 0]
+    assert session_state["demo__details"] == {}
+    assert session_state["demo__venv_map"] == {}
+    assert session_state["demo__run_sequence"] == []
+    assert session_state["demo__run_logs"] == ["existing"]
+    assert session_state["lab_selected_venv"] == ""
+    assert session_state["demo__clear_q"] is True
+    assert session_state["demo__force_blank_q"] is True
+    assert session_state["demo__q_rev"] == 5
+    undo_snapshot = session_state["demo__undo_delete_snapshot"]
+    assert undo_snapshot["label"] == "delete pipeline"
+    assert undo_snapshot["timestamp"] == "2026-04-29T08:01:00"
+    assert undo_snapshot["steps"] == steps
+
+
+def test_delete_all_pipeline_steps_command_noops_without_steps(tmp_path):
+    session_state: dict[str, Any] = {
+        "demo": [0, "", "", "", "", "", 0],
+        "demo_confirm_delete_all": True,
+    }
+
+    result = pipeline_page_state.delete_all_pipeline_steps_command(
+        session_state=session_state,
+        index_page="demo",
+        lab_dir=tmp_path / "lab",
+        module_path=tmp_path / "module",
+        steps_file=tmp_path / "lab_steps.toml",
+        persisted_steps=[],
+        sequence_widget_key="demo_run_sequence_widget",
+        capture_pipeline_snapshot=lambda *_args: {"steps": []},
+        remove_step=lambda *_args: None,
+        bump_history_revision=lambda: None,
+        persist_sequence_preferences=lambda *_args: None,
+        confirm_key="demo_confirm_delete_all",
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.NO_OP
+    assert "demo_confirm_delete_all" not in session_state
+
+
+def test_undo_pipeline_delete_command_restores_and_clears_snapshot(tmp_path):
+    session_state: dict[str, Any] = {
+        "demo__undo_delete_snapshot": {"steps": [{"Q": "restored"}], "label": "delete pipeline"}
+    }
+    restored: list[tuple[Any, ...]] = []
+
+    result = pipeline_page_state.undo_pipeline_delete_command(
+        session_state=session_state,
+        index_page="demo",
+        module_path=tmp_path / "module",
+        steps_file=tmp_path / "lab_steps.toml",
+        sequence_widget_key="demo_run_sequence_widget",
+        restore_pipeline_snapshot=lambda *args: restored.append(args) or None,
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
+    assert "demo__undo_delete_snapshot" not in session_state
+    assert restored == [
+        (
+            tmp_path / "module",
+            tmp_path / "lab_steps.toml",
+            "demo",
+            "demo_run_sequence_widget",
+            {"steps": [{"Q": "restored"}], "label": "delete pipeline"},
+        )
+    ]
+
+
+def test_undo_pipeline_delete_command_reports_restore_errors(tmp_path):
+    session_state: dict[str, Any] = {
+        "demo__undo_delete_snapshot": {"steps": [{"Q": "restored"}], "label": "delete pipeline"}
+    }
+
+    result = pipeline_page_state.undo_pipeline_delete_command(
+        session_state=session_state,
+        index_page="demo",
+        module_path=tmp_path / "module",
+        steps_file=tmp_path / "lab_steps.toml",
+        sequence_widget_key="demo_run_sequence_widget",
+        restore_pipeline_snapshot=lambda *_args: "restore boom",
+    )
+
+    assert result.status is pipeline_page_state.PipelineCommandStatus.FAILED
+    assert result.message == "Undo failed: restore boom"
+    assert "demo__undo_delete_snapshot" in session_state

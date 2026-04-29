@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import stat
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +24,9 @@ from agi_env import AgiEnv
 from agi_gui.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
 
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
+PREVIEW_FILE_PATTERNS = ("*.parquet", "*.csv", "*.json", "*.gml")
+PREVIEW_MAX_SEARCH_FILES = int(os.environ.get("AGILAB_PREVIEW_MAX_SEARCH_FILES", "1000"))
+PREVIEW_MAX_FILE_BYTES = int(os.environ.get("AGILAB_PREVIEW_MAX_FILE_BYTES", str(25 * 1024 * 1024)))
 
 
 @dataclass(frozen=True)
@@ -74,32 +78,52 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
     return unique_roots
 
 
-def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], list[Path]]:
+def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
     search_files: list[Path] = []
+
+    def _append_candidate(candidate: Path) -> bool:
+        if len(search_files) >= PREVIEW_MAX_SEARCH_FILES:
+            return False
+        search_files.append(candidate)
+        return True
+
     for root in candidate_roots:
         if root.is_dir():
-            search_files.extend(
-                list(root.rglob("*.parquet"))
-                + list(root.rglob("*.csv"))
-                + list(root.rglob("*.json"))
-                + list(root.rglob("*.gml"))
-            )
+            for pattern in PREVIEW_FILE_PATTERNS:
+                for candidate in sorted(root.rglob(pattern), key=lambda path: str(path)):
+                    if not _append_candidate(candidate):
+                        return search_files
         elif root.is_file():
-            search_files.append(root)
+            if not _append_candidate(root):
+                return search_files
+    return search_files
 
-    filtered_files = [
-        file_path
-        for file_path in search_files
-        if file_path.is_file()
-        and not file_path.name.startswith("._")
-        and file_path.stat().st_size > 0
-    ]
-    if not filtered_files:
+
+def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], list[Path]]:
+    search_files = _preview_candidate_paths(candidate_roots)
+
+    filtered_records: list[tuple[Path, float]] = []
+    for file_path in search_files:
+        if file_path.name.startswith("._"):
+            continue
+        try:
+            file_stat = file_path.stat()
+        except (FileNotFoundError, OSError):
+            continue
+        if not stat.S_ISREG(file_stat.st_mode):
+            continue
+        if file_stat.st_size <= 0 or file_stat.st_size > PREVIEW_MAX_FILE_BYTES:
+            continue
+        filtered_records.append((file_path, file_stat.st_mtime))
+
+    if not filtered_records:
         return None, []
 
+    filtered_files = [file_path for file_path, _mtime in filtered_records]
+    target_file = max(filtered_records, key=lambda item: (item[1], str(item[0])))[0]
     try:
-        target_file = max(filtered_files, key=lambda file: file.stat().st_mtime)
-    except FileNotFoundError:
+        target_file.stat()
+    except (FileNotFoundError, OSError):
         return None, filtered_files
     return target_file, filtered_files
 

@@ -1775,6 +1775,83 @@ def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_wor
     assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 
+def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypatch, tmp_path):
+    layout = about_agilab._about_layout
+    cache_path = tmp_path / ".agilab" / "lan_nodes.json"
+
+    def write_lan_cache(*, cpu: str, ram: str, gpu: str, npu: str) -> None:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(
+            json.dumps(
+                {
+                    "nodes": [
+                        {
+                            "host": "192.168.20.130",
+                            "cpu": cpu,
+                            "ram": ram,
+                            "gpu": gpu,
+                            "npu": npu,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def fake_hardware(host, **_kwargs):
+        if layout._node_identity(host) == "192.168.20.130":
+            return {
+                "CPU": "unreachable",
+                "RAM": "unreachable",
+                "GPU": "unreachable",
+                "NPU": "unreachable",
+            }
+        return {
+            "CPU": "Apple M4 Max; cores: 16",
+            "RAM": "48 GB",
+            "GPU": "Apple M4 Max",
+            "NPU": "Apple Neural Engine (16 cores)",
+        }
+
+    write_lan_cache(
+        cpu="AMD EPYC; cores: 32",
+        ram="128 GB",
+        gpu="NVIDIA L40S (142 SMs)",
+        npu="Not detected",
+    )
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "127.0.0.1",
+            "workers": {"192.168.20.130": 1},
+            "workers_data_path": "/Users/agi/clustershare/agi",
+        }
+    }
+    monkeypatch.setattr(layout, "st", fake_st)
+    monkeypatch.setattr(layout.Path, "home", classmethod(lambda _cls: tmp_path))
+    monkeypatch.setattr(layout, "_node_hardware_summary", fake_hardware)
+    layout._lan_discovery_hardware_inventory.cache_clear()
+    layout._remote_hardware_probe.cache_clear()
+
+    first_lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+
+    write_lan_cache(
+        cpu="AMD EPYC; cores: 64",
+        ram="256 GB",
+        gpu="NVIDIA B200 (132 SMs)",
+        npu="Not detected",
+    )
+    second_lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+
+    assert first_lines["CPU"] == "48 cores"
+    assert first_lines["RAM"] == "176 GB"
+    assert first_lines["GPU"] == "Apple M4 Max; NVIDIA L40S (142 SMs)"
+    assert second_lines["CPU"] == "80 cores"
+    assert second_lines["RAM"] == "304 GB"
+    assert second_lines["GPU"] == "Apple M4 Max; NVIDIA B200 (132 SMs)"
+
+
 def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     import agi_gui.pagelib as pagelib
 
