@@ -73,9 +73,9 @@ The Pipeline-first slice is now the reference implementation:
   `runnable`, `running`, `failed`, and `complete`. Service mode still needs an
   explicit workflow-state model.
 - Versioned Artifact Contracts: partially done. `AGILAB_SNIPPET_API`, run
-  manifest schema support, and `lab_steps.toml` v1 metadata/refusal support
-  exist. Exported notebooks, screenshots, and app settings still need the same
-  contract treatment.
+  manifest schema support, `lab_steps.toml` v1 metadata/refusal support, and
+  exported notebook metadata v1 support exist. Screenshots and app settings
+  still need the same contract treatment.
 - Facade Boundary: improved but incomplete. The `agi-gui` split and shared
   page bootstrap reduce direct coupling, but pages still touch low-level
   internals and session state in places.
@@ -87,8 +87,7 @@ The Pipeline-first slice is now the reference implementation:
 
 1. Apply the same ViewModel, command-result, and workflow-state pattern to
    Orchestrate service mode.
-2. Extend versioned contracts to exported notebooks, screenshots, and app
-   settings.
+2. Extend versioned contracts to screenshots and app settings.
 3. Convert snippet templates and page widgets into typed registries once state
    and command boundaries are in place.
 
