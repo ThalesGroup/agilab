@@ -4,7 +4,6 @@ import ast
 import logging
 import os
 import re
-import shutil
 import textwrap
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
@@ -17,6 +16,9 @@ from agi_env import AgiEnv
 
 ORCHESTRATE_LOCKED_STEP_KEY = "_orchestrate_locked_step"
 ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
+LAB_STEPS_META_KEY = "__meta__"
+LAB_STEPS_SCHEMA = "agilab.lab_steps.v1"
+LAB_STEPS_SCHEMA_VERSION = 1
 LEGACY_AGI_RUN_KEYWORDS = frozenset(
     {
         "args",
@@ -30,6 +32,47 @@ LEGACY_AGI_RUN_KEYWORDS = frozenset(
 )
 
 logger = logging.getLogger(__name__)
+
+
+def ensure_lab_steps_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Stamp lab_steps data with the current persisted artifact contract."""
+    meta = data.get(LAB_STEPS_META_KEY)
+    if not isinstance(meta, dict):
+        meta = {}
+        data[LAB_STEPS_META_KEY] = meta
+    meta.setdefault("schema", LAB_STEPS_SCHEMA)
+    meta.setdefault("version", LAB_STEPS_SCHEMA_VERSION)
+    return data
+
+
+def lab_steps_contract_error(data: Dict[str, Any]) -> str:
+    """Return a refusal reason when lab_steps metadata is unsupported."""
+    meta = data.get(LAB_STEPS_META_KEY, {})
+    if meta in ({}, None):
+        return ""
+    if not isinstance(meta, dict):
+        return "lab_steps.toml __meta__ must be a TOML table."
+    raw_version = meta.get("version")
+    if raw_version in (None, ""):
+        return ""
+    try:
+        version = int(raw_version)
+    except (TypeError, ValueError):
+        return f"Unsupported lab_steps.toml schema version {raw_version!r}."
+    if version < 1 or version > LAB_STEPS_SCHEMA_VERSION:
+        return (
+            f"Unsupported lab_steps.toml schema version {version}; "
+            "upgrade AGILAB before editing this pipeline."
+        )
+    return ""
+
+
+def prepare_lab_steps_for_write(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate and stamp lab_steps data before persisting it."""
+    error = lab_steps_contract_error(data)
+    if error:
+        raise ValueError(error)
+    return ensure_lab_steps_metadata(data)
 
 def normalize_imported_orchestrate_snippet(
     code: Any,
@@ -221,7 +264,7 @@ def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int
 
     scanned_steps = 0
     for key, entries in data.items():
-        if key == "__meta__" or not isinstance(entries, list):
+        if key == LAB_STEPS_META_KEY or not isinstance(entries, list):
             continue
         for entry in entries:
             if not isinstance(entry, dict):
@@ -450,7 +493,7 @@ def _select_lab_steps_payload(
 
     fallback: List[Tuple[Dict[str, Any], str, List[Dict[str, Any]]]] = []
     for key, entries in data.items():
-        if key == "__meta__":
+        if key == LAB_STEPS_META_KEY:
             continue
         selected = _usable(str(key), entries)
         if selected is not None:
@@ -491,27 +534,25 @@ def restore_missing_export_steps(
         data, source_key, entries = selected
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            if source_key == primary_key:
-                shutil.copy2(source, target)
-            else:
-                normalized = dict(data)
+            normalized = dict(data)
+            if source_key != primary_key:
                 normalized[primary_key] = entries
                 for key in key_candidates:
                     if key != primary_key:
                         normalized.pop(key, None)
-                meta = normalized.get("__meta__")
-                if isinstance(meta, dict):
-                    primary_meta_key = sequence_meta_key(primary_key)
-                    for key in key_candidates:
-                        old_meta_key = sequence_meta_key(key)
-                        if old_meta_key in meta and primary_meta_key not in meta:
-                            meta[primary_meta_key] = meta[old_meta_key]
-                    for key in key_candidates:
-                        old_meta_key = sequence_meta_key(key)
-                        if old_meta_key != primary_meta_key:
-                            meta.pop(old_meta_key, None)
-                with target.open("wb") as handle:
-                    tomli_w.dump(_convert_paths_to_strings(normalized), handle)
+            meta = normalized.get(LAB_STEPS_META_KEY)
+            if isinstance(meta, dict):
+                primary_meta_key = sequence_meta_key(primary_key)
+                for key in key_candidates:
+                    old_meta_key = sequence_meta_key(key)
+                    if old_meta_key in meta and primary_meta_key not in meta:
+                        meta[primary_meta_key] = meta[old_meta_key]
+                for key in key_candidates:
+                    old_meta_key = sequence_meta_key(key)
+                    if old_meta_key != primary_meta_key:
+                        meta.pop(old_meta_key, None)
+            with target.open("wb") as handle:
+                tomli_w.dump(_convert_paths_to_strings(prepare_lab_steps_for_write(normalized)), handle)
             logger.info("Restored missing Pipeline steps file %s from %s", target, source)
             return source
         except (OSError, TypeError, ValueError) as exc:
@@ -551,7 +592,7 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
 
     candidates: List[Tuple[str, List[Dict[str, Any]]]] = []
     for key, entries in data.items():
-        if key == "__meta__":
+        if key == LAB_STEPS_META_KEY:
             continue
         if isinstance(entries, list) and entries and _matches_module(str(key)):
             candidates.append((key, entries))
@@ -572,7 +613,7 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
 
     try:
         with steps_file.open("wb") as handle:
-            tomli_w.dump(_convert_paths_to_strings(data), handle)
+            tomli_w.dump(_convert_paths_to_strings(prepare_lab_steps_for_write(data)), handle)
     except (OSError, TypeError, ValueError):
         logger.warning("Failed to normalize module keys for %s", steps_file)
 
@@ -592,7 +633,9 @@ def load_sequence_preferences(module: Union[str, Path], steps_file: Path, env: O
     except tomllib.TOMLDecodeError as exc:
         logger.warning("Failed to parse sequence metadata from %s: %s", steps_file, exc)
         return []
-    meta = data.get("__meta__", {})
+    meta = data.get(LAB_STEPS_META_KEY, {})
+    if not isinstance(meta, dict):
+        return []
     raw_sequence = meta.get(sequence_meta_key(module_key), [])
     if not isinstance(raw_sequence, list):
         return []
@@ -617,7 +660,12 @@ def persist_sequence_preferences(
     except tomllib.TOMLDecodeError as exc:
         logger.error("Failed to load steps while saving sequence metadata: %s", exc)
         return
-    meta = data.setdefault("__meta__", {})
+    try:
+        prepare_lab_steps_for_write(data)
+    except ValueError as exc:
+        logger.error("Refusing to persist execution sequence to %s: %s", steps_file, exc)
+        return
+    meta = data.setdefault(LAB_STEPS_META_KEY, {})
     meta_key = sequence_meta_key(module_key)
     if meta.get(meta_key) == normalized:
         return
@@ -625,7 +673,7 @@ def persist_sequence_preferences(
     try:
         steps_file.parent.mkdir(parents=True, exist_ok=True)
         with steps_file.open("wb") as handle:
-            tomli_w.dump(_convert_paths_to_strings(data), handle)
+            tomli_w.dump(_convert_paths_to_strings(prepare_lab_steps_for_write(data)), handle)
     except (OSError, TypeError, ValueError) as exc:
         logger.error("Failed to persist execution sequence to %s: %s", steps_file, exc)
 

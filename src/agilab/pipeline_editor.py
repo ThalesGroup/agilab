@@ -58,6 +58,7 @@ _pipeline_steps_module = import_agilab_module(
 )
 _bump_history_revision = _pipeline_steps_module.bump_history_revision
 _ensure_primary_module_key = _pipeline_steps_module.ensure_primary_module_key
+_prepare_lab_steps_for_write = _pipeline_steps_module.prepare_lab_steps_for_write
 _is_displayable_step = _pipeline_steps_module.is_displayable_step
 _looks_like_step = _pipeline_steps_module.looks_like_step
 _module_keys = _pipeline_steps_module.module_keys
@@ -250,8 +251,8 @@ def remove_step(
     current_sequence = st.session_state.get(sequence_key, [])
     _persist_sequence_preferences(module_path, steps_file, current_sequence)
 
-    serializable_steps = convert_paths_to_strings(steps)
     try:
+        serializable_steps = convert_paths_to_strings(_prepare_lab_steps_for_write(steps))
         with open(steps_file, "wb") as f:
             tomli_w.dump(serializable_steps, f)
     except (OSError, TypeError, ValueError) as e:
@@ -291,7 +292,7 @@ def _write_steps_for_module(
         )
 
     steps[module_key] = _prune_invalid_entries(normalized_steps)
-    serializable_steps = convert_paths_to_strings(steps)
+    serializable_steps = convert_paths_to_strings(_prepare_lab_steps_for_write(steps))
     with open(steps_file, "wb") as f:
         tomli_w.dump(serializable_steps, f)
     toml_to_notebook(steps, steps_file)
@@ -715,8 +716,8 @@ def save_step(
     steps[module_str] = _prune_invalid_entries(steps[module_str], keep_index=index_step)
     nsteps = len(steps[module_str])
 
-    serializable_steps = convert_paths_to_strings(steps)
     try:
+        serializable_steps = convert_paths_to_strings(_prepare_lab_steps_for_write(steps))
         with open(steps_file, "wb") as f:
             tomli_w.dump(serializable_steps, f)
     except (OSError, TypeError, ValueError) as e:
@@ -754,7 +755,7 @@ def _force_persist_step(
         steps[module_key][step_idx] = merged
         steps_file.parent.mkdir(parents=True, exist_ok=True)
         with open(steps_file, "wb") as f:
-            tomli_w.dump(steps, f)
+            tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(steps)), f)
     except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
         logger.error(
             "Force persist failed for step %s -> %s: %s",
@@ -798,7 +799,7 @@ def notebook_to_toml(
     cell_count = int(notebook_import.get("summary", {}).get("pipeline_step_count", 0) or 0)
     try:
         with open(toml_path, "wb") as toml_file:
-            tomli_w.dump(toml_content, toml_file)
+            tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(toml_content)), toml_file)
     except (OSError, TypeError, ValueError) as e:
         _emit_streamlit_message("error", f"Failed to save TOML file: {e}")
         logger.error(
@@ -892,7 +893,7 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
                     if filtered:
                         cleaned[mod] = filtered
             with open(steps_file, "wb") as f:
-                tomli_w.dump(convert_paths_to_strings(cleaned), f)
+                tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(cleaned)), f)
             _bump_history_revision()
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
             st.error(f"Failed to save steps file from editor: {e}")

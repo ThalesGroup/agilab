@@ -169,6 +169,10 @@ def test_save_step_roundtrip_writes_toml_and_notebook(monkeypatch, tmp_path):
     assert nsteps == 1
     assert entry["Q"] == "Describe step"
     assert entry["M"] == "gpt-x"
+    assert stored["__meta__"] == {
+        "schema": "agilab.lab_steps.v1",
+        "version": 1,
+    }
     assert stored["flight_project"][0]["R"] == "agi.run"
     assert notebook["cells"][0]["source"] == ["print('ok')"]
 
@@ -765,6 +769,39 @@ C = "print('short')"
     assert entry["Q"] == "question"
     assert fake_st.session_state["_experiment_last_save_skipped"] is True
     assert errors == ["Failed to save steps file: save boom"]
+
+
+def test_save_step_refuses_future_lab_steps_schema(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        "[__meta__]\nversion = 999\n[[flight_project]]\nQ = 'First'\nC = 'print(1)'\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={"_experiment_last_save_skipped": False},
+        error=lambda message, *args, **kwargs: errors.append(str(message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
+
+    nsteps, entry = pipeline_editor.save_step(
+        tmp_path / "flight_project",
+        ["detail", "updated question", "model", "print(2)"],
+        current_step=0,
+        nsteps=1,
+        steps_file=steps_file,
+    )
+
+    assert nsteps == 1
+    assert entry["Q"] == "updated question"
+    assert fake_st.session_state["_experiment_last_save_skipped"] is True
+    assert errors == [
+        "Failed to save steps file: Unsupported lab_steps.toml schema version 999; "
+        "upgrade AGILAB before editing this pipeline."
+    ]
 
 
 def test_save_query_valid_uses_runtime_and_engine_maps(monkeypatch, tmp_path):
