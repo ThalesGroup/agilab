@@ -1,8 +1,8 @@
 Beta readiness
 ==============
 
-AGILAB should move from the PyPI ``Alpha`` classifier to ``Beta`` only after a
-single release candidate proves that the public adoption path is repeatable.
+AGILAB now uses the PyPI ``Beta`` classifier after a single release candidate
+proved that the public adoption path is repeatable.
 This page is the maintainer checklist for that decision. It is intentionally
 stricter than the normal release preflight because a classifier change is a
 public maturity signal, not just a version bump.
@@ -13,15 +13,15 @@ Decision rule
 Promote the next public release to beta when all of these are true:
 
 - The repository is clean and ``HEAD`` matches ``origin/main``.
-- All release-package classifiers are switched together from
-  ``Development Status :: 3 - Alpha`` to ``Development Status :: 4 - Beta``.
+- All release-package classifiers are switched together from the previous
+  ``Alpha`` classifier to ``Development Status :: 4 - Beta``.
 - The full PyPI release preflight passes locally.
 - The built-in ``flight_project`` first proof passes from a clean install path.
 - The public Hugging Face Space is public, running, and serves the same SHA as
   the uploaded Space repository.
 - The Space source tree contains only public app entries under
   ``src/agilab/apps``.
-- Public docs no longer describe the promoted release as alpha-stage software.
+- Public docs no longer describe the promoted release as pre-beta software.
 - The release notes state the beta scope clearly: experimentation and
   engineering prototyping, not production serving or enterprise MLOps.
 
@@ -35,8 +35,8 @@ Use the beta readiness tool before editing classifiers:
    uv --preview-features extra-build-dependencies run python tools/beta_readiness.py
 
 This planning mode checks that the release machinery, public app tree, and beta
-documentation are present. It intentionally allows current ``Alpha`` classifiers
-so maintainers can run it before making the classifier change.
+documentation are present. It intentionally allows the previous ``Alpha``
+classifier so maintainers can run it before making the classifier change.
 
 After the classifier and docs wording have been updated for the release
 candidate, run the strict final gate:
