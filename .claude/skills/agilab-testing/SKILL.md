@@ -47,6 +47,12 @@ Use this skill when validating changes.
 
 ## Regression Hygiene
 
+- KPI/evidence tests:
+  - For product KPI snapshots, derive expected scores and release metadata from
+    the evidence tool or public snapshot builder instead of duplicating numeric
+    literals in several tests.
+  - Keep literal thresholds only for policy boundaries or synthetic fixtures
+    where the number is the behavior under test.
 - User-facing rename sweeps:
   - When renaming a page/app/demo label, grep both the old and new wording across the page package, tests, README files, and `docs/source`.
   - Prefer a side-effect-free metadata module (for example `page_meta.py`) for page titles or other user-facing labels that tests also assert.
@@ -94,6 +100,10 @@ Use this skill when validating changes.
   - `COVERAGE_FILE=.coverage.agi-node uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest --with pytest-asyncio --with pytest-cov python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --cov=agi_node --cov-report=xml:coverage-agi-node.xml src/agilab/core/test`
 - Streamlit page regression (active-app aware):
   - Patch `sys.argv` with `["<page>.py", "--active-app", "<app_path>"]` before `streamlit.testing.v1.AppTest.from_file(...)`.
+  - If an AppTest passes in isolation but times out in the full profile, first
+    confirm there is no real hang with an isolated run, then raise only that
+    test's timeout narrowly. Do not mask global AppTest latency by inflating the
+    whole suite timeout.
   - Example:
     `uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
 - Service health smoke tests (CI parity on Python 3.13):
