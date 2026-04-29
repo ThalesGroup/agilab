@@ -344,6 +344,10 @@ That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
 higher yet because future app/template reducer adoption discipline and broader
 fresh-install validation are still roadmap work.
 
+Together, the current public category scores round to an overall public
+evaluation of ``3.8 / 5``. This is a compact experimentation-workbench snapshot,
+not a production MLOps certification.
+
 Where AGILab helps
 ------------------
 

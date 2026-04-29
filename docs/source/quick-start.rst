@@ -199,6 +199,12 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
     agilab first-proof --json
     uv run agilab
 
+Optional feature stacks stay out of the base package install. Add
+``agilab[ai]`` for OpenAI-backed AI features and ``agilab[viz]`` for optional
+Plotly/matplotlib visualizations::
+
+    uv pip install "agilab[ai,viz]"
+
 **agi-core demo**:
 
 - Use :doc:`notebook-quickstart` when you intentionally want the notebook-first
