@@ -44,6 +44,10 @@ Use this runbook whenever you:
 - **Dependency policy gate**: Use
   `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile dependency-policy`
   to verify runtime dependency hygiene, especially before release or when editing `pyproject.toml` files.
+- **PyPI release cleanup**: Use `tools/pypi_publish.py --delete-pypi-release <version>` only when a specific
+  old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex`
+  match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted
+  publishing credentials.
 - **Impact triage first**: For non-trivial diffs, run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before edits or push. Use its output to decide whether the change is app-local vs shared-core,
   which targeted tests are required, whether install repros are mandatory, and whether generated
