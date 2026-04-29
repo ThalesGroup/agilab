@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-04-28T11:14:17Z",
+  "generated_at_utc": "2026-04-29T06:58:35Z",
   "tool": "tools/codex_skills.py",
   "count": 23,
   "skills": [
@@ -71,7 +71,7 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-28",
+      "updated": "2026-04-29",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
     },
@@ -135,7 +135,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-15",
+      "updated": "2026-04-29",
       "path": ".codex/skills/repo-skill-maintenance/SKILL.md",
       "body_preview": "# Repo Skill Maintenance\nUse this skill when working on the shared skill trees in `agilab`.\nThe goal is to keep one canonical source for shared skills, keep the repo Codex\nmirror valid, and avoid the accidental bulk-sync regressions that can overwrite"
     },
