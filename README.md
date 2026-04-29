@@ -200,6 +200,12 @@ and [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positi
 The strategic score movement rule is tracked in the
 [strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html).
 
+One forward-looking improvement area is elasticity. AGILAB is currently strongest
+at "train, execute, inspect, compare"; a later differentiator would be
+multi-agent reinforcement learning for active mesh optimization, where moving
+nodes can become agents that adapt trajectories to improve network evidence.
+That is a roadmap direction, not a shipped capability claim.
+
 ## Read Next
 
 - [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
