@@ -1967,7 +1967,8 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert "agilab-hero__visual" in body
     assert "agilab-hero__target-img" in body
     assert "data:image/svg+xml;base64," in body
-    assert "Bias variance controls, underfit overfit symptoms, and train test diagnosis" in body
+    assert "Digital twin assisted generalization map" in body
+    assert "bias variance controls, underfit overfit symptoms, and train test diagnosis" in body
     assert '<g transform="translate(54 111)">' not in body
     assert "<svg viewBox" not in body
     assert "Thales open-source workbench" not in body
@@ -1998,16 +1999,18 @@ def test_about_hero_target_svg_data_uri_keeps_svg_encoded():
     assert decoded.startswith("<svg ")
     assert '<g transform="translate(54 111)">' not in decoded
     assert '<g transform="translate(306 111)">' not in decoded
-    assert 'viewBox="0 0 420 260"' in decoded
-    assert '<g transform="translate(118 127)">' in decoded
-    assert "Generalization map" in decoded
+    assert 'viewBox="0 0 560 300"' in decoded
+    assert '<g transform="translate(116 146)">' in decoded
+    assert "Generalization + digital twin map" in decoded
+    assert "Digital twin" in decoded
+    assert "simulate reality" in decoded
     assert "Bias &#8596; Variance" in decoded
     assert "Controls" in decoded
     assert "Underfit &#8596; Overfit" in decoded
     assert "Symptoms" in decoded
     assert "Train vs Test" in decoded
     assert "Diagnosis" in decoded
-    assert "controls drive symptoms; train/test confirms" in decoded
+    assert "simulate, run, diagnose, then tune the real workflow" in decoded
 
 
 def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):

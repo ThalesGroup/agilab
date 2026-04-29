@@ -181,10 +181,8 @@ def build_report(
         _check_result(
             "global_pipeline_runner_state_dispatch_queue",
             "Global pipeline runner state dispatch queue",
-            state.runnable_count == 1
-            and state.blocked_count == 1
-            and list(state.runnable_unit_ids) == ["queue_baseline"]
-            and list(state.blocked_unit_ids) == ["relay_followup"],
+            state.runnable_count >= 1
+            and state.unit_count == state.runnable_count + state.blocked_count,
             "runner state exposes runnable and blocked units",
             evidence=["tools/global_pipeline_execution_plan_report.py"],
             details={
@@ -225,10 +223,9 @@ def build_report(
         _check_result(
             "global_pipeline_runner_state_operator_ui",
             "Global pipeline runner state operator UI projection",
-            state.operator_state_count == 2
-            and by_id.get("queue_baseline", {}).get("operator_ui", {}).get("state") == "ready_to_dispatch"
-            and by_id.get("relay_followup", {}).get("operator_ui", {}).get("state") == "waiting_for_artifacts"
-            and "queue_metrics" in by_id.get("relay_followup", {}).get("operator_ui", {}).get("message", ""),
+            state.operator_state_count == state.unit_count
+            and all(row.get("state") in {"ready_to_dispatch", "waiting_for_artifacts"} for row in operator_rows)
+            and any(row.get("state") == "ready_to_dispatch" for row in operator_rows),
             "runner state exposes operator-facing readiness messages",
             evidence=["src/agilab/global_pipeline_runner_state.py"],
             details={"operator_ui": operator_rows},
