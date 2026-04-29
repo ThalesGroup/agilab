@@ -17,6 +17,7 @@ from plotly.colors import qualitative as plotly_qualitative
 from plotly.subplots import make_subplots
 import streamlit as st
 import tomllib
+from agi_env.app_settings_support import prepare_app_settings_for_write
 
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
@@ -97,9 +98,13 @@ def _persist_app_settings(env: AgiEnv) -> None:
         return
     path = Path(env.app_settings_file)
     try:
+        prepared_settings = prepare_app_settings_for_write(settings)
+    except ValueError:
+        return
+    try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as handle:
-            _dump_toml(settings, handle)
+            _dump_toml(prepared_settings, handle)
     except (OSError, RuntimeError):
         pass
 

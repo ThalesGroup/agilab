@@ -14,6 +14,7 @@ import re
 import shlex
 import socket
 import subprocess
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -23,6 +24,16 @@ from typing import Any, Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+from agilab.screenshot_manifest import (  # noqa: E402
+    build_page_shots_manifest,
+    screenshot_manifest_path,
+    write_screenshot_manifest,
+)
+
 DEFAULT_ACTIVE_APP = REPO_ROOT / "src/agilab/apps/builtin/flight_project"
 DEFAULT_APPS_PATH = REPO_ROOT / "src/agilab/apps"
 DEFAULT_TIMEOUT_SECONDS = 90.0
@@ -343,7 +354,22 @@ def _screenshot(page: Any, screenshot_dir: Path | None, label: str) -> str | Non
     safe_label = re.sub(r"[^A-Za-z0-9_.-]+", "-", label).strip("-") or "step"
     path = screenshot_dir / f"{safe_label}.png"
     page.screenshot(path=str(path), full_page=True)
+    _refresh_screenshot_manifest(screenshot_dir)
     return str(path)
+
+
+def _refresh_screenshot_manifest(screenshot_dir: Path) -> None:
+    try:
+        source_command = tuple(sys.argv) if sys.argv else ("tools/agilab_web_robot.py",)
+        manifest = build_page_shots_manifest(
+            screenshot_dir,
+            source_command=source_command,
+        )
+        write_screenshot_manifest(manifest, screenshot_manifest_path(screenshot_dir))
+    except Exception:
+        # Screenshot capture is diagnostic. Do not hide the original UI failure
+        # behind a secondary manifest-write error.
+        return
 
 
 def assert_page_healthy(

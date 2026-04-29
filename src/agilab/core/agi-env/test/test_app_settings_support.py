@@ -5,6 +5,45 @@ import pytest
 import agi_env.app_settings_support as app_settings_module
 
 
+def test_prepare_app_settings_for_write_sanitizes_and_stamps_metadata(tmp_path: Path):
+    payload = {
+        "args": {
+            "data_in": tmp_path / "data",
+            "unused": None,
+            "items": (tmp_path / "a", None, "b"),
+        }
+    }
+
+    prepared = app_settings_module.prepare_app_settings_for_write(payload)
+
+    assert prepared == {
+        "__meta__": {"schema": "agilab.app_settings.v1", "version": 1},
+        "args": {"data_in": str(tmp_path / "data"), "items": [str(tmp_path / "a"), "b"]},
+    }
+    assert payload["args"]["unused"] is None
+
+
+def test_prepare_app_settings_for_write_preserves_supported_metadata():
+    payload = {"__meta__": {"schema": "custom.schema", "version": "1", "owner": "test"}}
+
+    prepared = app_settings_module.prepare_app_settings_for_write(payload)
+
+    assert prepared["__meta__"] == {"schema": "custom.schema", "version": "1", "owner": "test"}
+
+
+def test_prepare_app_settings_for_write_rejects_invalid_metadata():
+    with pytest.raises(ValueError, match="__meta__ must be a TOML table"):
+        app_settings_module.prepare_app_settings_for_write({"__meta__": "bad"})
+
+    with pytest.raises(ValueError, match="Unsupported app_settings.toml schema version 'bad'"):
+        app_settings_module.prepare_app_settings_for_write({"__meta__": {"version": "bad"}})
+
+    with pytest.raises(ValueError, match="Unsupported app_settings.toml schema version 2"):
+        app_settings_module.prepare_app_settings_for_write(
+            {"__meta__": {"schema": "agilab.app_settings.v2", "version": 2}}
+        )
+
+
 def test_app_settings_aliases_and_candidate_paths(tmp_path: Path):
     assert app_settings_module.app_settings_aliases("demo_project") == {"demo_project", "demo_worker"}
     assert app_settings_module.app_settings_aliases("demo_worker") == {"demo_worker", "demo_project"}
@@ -24,6 +63,15 @@ def test_app_settings_aliases_and_candidate_paths(tmp_path: Path):
     assert app_settings_module.candidate_app_settings_path(src_dir.parent) == src_settings
     assert app_settings_module.candidate_app_settings_path(object()) is None
     assert app_settings_module.candidate_app_settings_path(tmp_path / "missing") is None
+
+
+def test_app_settings_contract_error_rejects_future_and_invalid_metadata() -> None:
+    assert app_settings_module.app_settings_contract_error({"__meta__": {"version": 999}}).startswith(
+        "Unsupported app_settings.toml schema version 999"
+    )
+    assert app_settings_module.app_settings_contract_error({"__meta__": "bad"}) == (
+        "app_settings.toml __meta__ must be a TOML table."
+    )
 
 
 def test_candidate_app_settings_path_handles_probe_oserror_and_propagates_runtime_bug(tmp_path: Path, monkeypatch):

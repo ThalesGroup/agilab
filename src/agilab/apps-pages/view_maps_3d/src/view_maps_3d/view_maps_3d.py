@@ -58,6 +58,7 @@ def _default_app() -> Path | None:
 
 
 from agi_env import AgiEnv
+from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.pagelib import find_files, load_df, render_dataframe_preview, render_logo, _dump_toml_payload
 import tomllib as _toml
 
@@ -793,7 +794,7 @@ def page():
         try:
             settings_path.parent.mkdir(parents=True, exist_ok=True)
             with open(settings_path, "wb") as fh:
-                _dump_toml_payload(persisted, fh)
+                _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
         except Exception:
             pass
 

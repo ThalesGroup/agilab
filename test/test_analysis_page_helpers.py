@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import sys
+import tomllib
 import types
 from pathlib import Path
 from types import SimpleNamespace
@@ -54,7 +55,11 @@ def test_write_config_creates_parent_and_persists_toml(tmp_path: Path):
 
     module._write_config(config_path, {"title": "demo"})
 
-    assert config_path.read_text(encoding="utf-8") == 'title = "demo"\n'
+    data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    assert data == {
+        "__meta__": {"schema": "agilab.app_settings.v1", "version": 1},
+        "title": "demo",
+    }
 
 
 def test_write_config_reports_oserror(tmp_path: Path, monkeypatch):
