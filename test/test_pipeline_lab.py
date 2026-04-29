@@ -1320,6 +1320,7 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
     remove_calls = []
     bumped = []
     pushed_logs = []
+    finish_calls = []
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 2],
@@ -1340,6 +1341,20 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
     monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
     monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+
+    def _finish_pipeline_run_command(*, session_state, index_page, succeeded, message=None):
+        finish_calls.append((index_page, succeeded, message))
+        session_state[f"{index_page}__last_run_status"] = "complete" if succeeded else "failed"
+        return pipeline_lab._pipeline_page_state_module.PipelineCommandResult(
+            status=(
+                pipeline_lab._pipeline_page_state_module.PipelineCommandStatus.SUCCESS
+                if succeeded
+                else pipeline_lab._pipeline_page_state_module.PipelineCommandStatus.FAILED
+            ),
+            message=message or "finished",
+        )
+
+    monkeypatch.setattr(pipeline_lab, "finish_pipeline_run_command", _finish_pipeline_run_command)
 
     deps = _make_lab_deps(
         load_all_steps=lambda *_args, **_kwargs: [
@@ -1365,6 +1380,7 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
 
     assert run_calls
     assert run_calls[-1][1]["force_lock_clear"] is False
+    assert finish_calls == [("demo", True, "Pipeline run finished. Inspect Run logs.")]
     assert remove_calls
     assert [call[0][1] for call in remove_calls] == ["1", "0"]
     assert fake_st.session_state["demo"] == [0, "", "", "", "", "", 0]

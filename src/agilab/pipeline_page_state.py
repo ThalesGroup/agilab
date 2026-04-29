@@ -420,3 +420,33 @@ def start_pipeline_run_command(
             "log_placeholder": run_placeholder,
         },
     )
+
+
+def finish_pipeline_run_command(
+    *,
+    session_state: MutableMapping[str, Any],
+    index_page: str,
+    succeeded: bool,
+    message: str | None = None,
+) -> PipelineCommandResult:
+    """Record Pipeline run completion through the command boundary."""
+    status_value = "complete" if succeeded else "failed"
+    try:
+        session_state[f"{index_page}__last_run_status"] = status_value
+    except Exception as exc:
+        return PipelineCommandResult(
+            status=PipelineCommandStatus.FAILED,
+            message=f"Could not record pipeline run status: {exc}",
+            details={"index_page": index_page, "status": status_value, "error": str(exc)},
+        )
+
+    return PipelineCommandResult(
+        status=PipelineCommandStatus.SUCCESS if succeeded else PipelineCommandStatus.FAILED,
+        message=message
+        or (
+            "Pipeline run finished."
+            if succeeded
+            else "Pipeline run failed. Inspect Run logs."
+        ),
+        details={"index_page": index_page, "status": status_value},
+    )
