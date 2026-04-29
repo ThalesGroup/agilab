@@ -248,14 +248,7 @@ class WorkDispatcher:
         """
         if not workers:
             workers = workers_default
-        caps = []
-
-        if not capacities:
-            for w in list(workers.values()):
-                for j in range(w):
-                    caps.append(1)
-            capacities = caps
-        capacities = np.array(list(capacities))
+        capacities = WorkDispatcher._normalize_worker_capacities(capacities, workers)
 
         if len(weights) > 1:
             if nchunk2 < threshold:
@@ -276,6 +269,23 @@ class WorkDispatcher:
                     for chk in weights
                 ]
             ]
+
+    @staticmethod
+    def _normalize_worker_capacities(capacities: Optional[List[Any]], workers: Dict) -> np.ndarray:
+        capacity_values = [] if capacities is None else list(capacities)
+        if not capacity_values:
+            capacity_values = [
+                1.0
+                for worker_count in workers.values()
+                for _ in range(worker_count)
+            ]
+
+        normalized = np.array(capacity_values, dtype=float)
+        if normalized.size == 0:
+            raise ValueError("worker capacities must contain at least one worker slot")
+        if not np.all(np.isfinite(normalized)) or np.any(normalized <= 0):
+            raise ValueError("worker capacities must be finite positive values")
+        return normalized
 
     @staticmethod
     def _make_chunks_optimal(
@@ -302,7 +312,7 @@ class WorkDispatcher:
         nchk = len(chkweights)
         if chunks is None:  # 1ere execution
             chunks = [[] for _ in range(nchk)]
-            chunks_sizes = np.array([0] * nchk)
+            chunks_sizes = np.zeros(nchk, dtype=float)
             subsets.sort(reverse=True, key=lambda i: i[1])
             racine = True
 
@@ -354,27 +364,31 @@ class WorkDispatcher:
 
     @staticmethod
     def _make_chunks_fastest(subsets: List[Any], chk_weights: List[Any]) -> List[List[Any]]:
-        """Partitions subsets in nchk weighted chunks, in a fast but non optimal way
+        """Partitions subsets using capacity-normalized LPT scheduling.
 
         Args:
           subsets: list of tuples ('label', size)
-          chk_weights: list containing the relative size of each chunk
+          chk_weights: list containing the relative capacity of each worker
 
         Returns:
           : list of chunk weighted
 
         """
-        nchk = len(chk_weights)
+        capacities = WorkDispatcher._normalize_worker_capacities(chk_weights, {})
+        nchk = len(capacities)
 
         subsets.sort(reverse=True, key=lambda j: j[1])
         chunks = [[] for _ in range(nchk)]
-        chunks_sizes = np.array([0] * nchk)
+        normalized_loads = np.zeros(nchk, dtype=float)
 
         for subset in subsets:
-            # We add each subset to the chunk that will be the smallest if it is added to it
-            smallest_chunk = np.argmin(chunks_sizes + (subset[1] / chk_weights))
+            subset_weight = float(subset[1])
+            if not np.isfinite(subset_weight) or subset_weight < 0:
+                raise ValueError("work item weights must be finite non-negative values")
+            projected_loads = normalized_loads + (subset_weight / capacities)
+            smallest_chunk = int(np.argmin(projected_loads))
             chunks[smallest_chunk].append(subset)
-            chunks_sizes[smallest_chunk] += subset[1] / chk_weights[smallest_chunk]
+            normalized_loads[smallest_chunk] = projected_loads[smallest_chunk]
 
         return chunks
 
