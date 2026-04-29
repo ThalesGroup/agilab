@@ -107,6 +107,8 @@ def preserve_real_user_state_for_root_tests(tmp_path):
                 src.unlink()
 
     for src, backup in export_snapshots:
+        if not backup.exists():
+            continue
         src.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(backup, src)
 
