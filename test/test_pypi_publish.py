@@ -127,7 +127,7 @@ def test_pypi_releases_uses_simple_index_when_json_is_stale(monkeypatch) -> None
     assert module.pypi_releases("agilab", "pypi") == {"2026.4.18", "2026.4.19"}
 
 
-def test_sync_builtin_app_versions_pins_internal_runtime_deps(tmp_path, monkeypatch) -> None:
+def test_sync_builtin_app_versions_lower_bounds_internal_runtime_deps(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     pyproject = tmp_path / "src/agilab/apps/builtin/flight_project/pyproject.toml"
@@ -157,8 +157,8 @@ def test_sync_builtin_app_versions_pins_internal_runtime_deps(tmp_path, monkeypa
     text = pyproject.read_text(encoding="utf-8")
     assert updated == [pyproject]
     assert 'version = "2026.04.28.post4"' in text
-    assert '"agi-env==2026.04.28.post4"' in text
-    assert '"agi-node==2026.04.28.post4"' in text
+    assert '"agi-env>=2026.04.28.post4"' in text
+    assert '"agi-node>=2026.04.28.post4"' in text
     assert "[tool.uv.sources]" in text
 
 
@@ -556,6 +556,84 @@ def test_create_or_update_github_release_requires_gh(monkeypatch) -> None:
         assert "requires the GitHub CLI" in str(exc)
     else:
         raise AssertionError("create_or_update_github_release() should require gh")
+
+
+def test_delete_former_github_release_deletes_first_non_current_release(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(cmd, **_kwargs):
+        assert cmd == ["/usr/bin/gh", "release", "list", "--limit", "20", "--json", "tagName"]
+        return subprocess.CompletedProcess(
+            cmd,
+            0,
+            stdout='[{"tagName": "v2026.04.29"}, {"tagName": "v2026.04.28"}, {"tagName": "v2026.04.27"}]',
+            stderr="",
+        )
+
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/gh" if name == "gh" else None)
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, env=None, timeout=None: calls.append(cmd))
+
+    deleted = module.delete_former_github_release("2026.04.29")
+
+    assert deleted == "v2026.04.28"
+    assert calls == [["/usr/bin/gh", "release", "delete", "v2026.04.28", "--yes"]]
+
+
+def test_delete_former_github_release_noops_when_only_current_release_exists(monkeypatch, tmp_path) -> None:
+    module = _load_pypi_publish()
+    calls: list[list[str]] = []
+
+    def fake_subprocess_run(cmd, **_kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout='[{"tagName": "v2026.04.29"}]', stderr="")
+
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/gh" if name == "gh" else None)
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, env=None, timeout=None: calls.append(cmd))
+
+    assert module.delete_former_github_release("v2026.04.29") is None
+    assert calls == []
+
+
+def test_require_safe_pypi_release_rejects_former_release_delete_without_github_release() -> None:
+    module = _load_pypi_publish()
+
+    cfg = module.Cfg(
+        repo="testpypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version=None,
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=False,
+        git_commit_version=False,
+        git_reset_on_failure=False,
+        pypirc_check=False,
+        packages=["agilab"],
+        gen_docs=False,
+        delete_former_github_release=True,
+    )
+
+    try:
+        module.require_safe_pypi_release(cfg)
+    except SystemExit as exc:
+        assert "--delete-former-github-release requires --repo pypi --git-tag" in str(exc)
+    else:
+        raise AssertionError("require_safe_pypi_release() should reject impossible GitHub release cleanup")
 
 
 def test_find_docs_repository_uses_docs_repository_env_name(tmp_path, monkeypatch) -> None:
@@ -1327,6 +1405,86 @@ def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
     assert order == ["preflight", "pre-upload-guard", "release-refs", "commit", "tag", "github-release"]
 
 
+def test_main_deletes_former_github_release_after_current_release(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version="2026.03.23",
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        pypirc_check=False,
+        packages=["agi-env"],
+        gen_docs=False,
+        delete_former_github_release=True,
+    )
+
+    order: list[str] = []
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
+    monkeypatch.setattr(
+        module,
+        "run_pre_upload_release_guard",
+        lambda *_args, **_kwargs: order.append("pre-upload-guard"),
+    )
+    monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
+    monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
+    monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+    monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
+    monkeypatch.setattr(module, "delete_former_github_release", lambda *_args, **_kwargs: order.append("delete-former"))
+
+    module.main()
+
+    assert order == [
+        "preflight",
+        "pre-upload-guard",
+        "release-refs",
+        "commit",
+        "tag",
+        "github-release",
+        "delete-former",
+    ]
+
+
 def test_git_commit_version_pushes_branch_when_requested(monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -1645,6 +1803,8 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
         if "generate_component_coverage_badges.py" in command_text:
             calls.append("coverage-badges")
         elif "coverage_badge_guard.py" in command_text:
+            assert "--changed-only" in cmd
+            assert "--require-fresh-xml" not in cmd
             calls.append("coverage-guard")
         else:
             calls.append(command_text)

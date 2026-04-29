@@ -111,6 +111,14 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--git-tag", action="store_true", help="Create & push date tag (vYYYY.MM.DD[-N]) on PyPI")
     ap.add_argument("--git-commit-version", action="store_true", help="git add/commit pyproject version bumps")
     ap.add_argument("--git-reset-on-failure", action="store_true", help="On failure, git checkout -- pyproject files")
+    ap.add_argument(
+        "--delete-former-github-release",
+        action="store_true",
+        help=(
+            "After creating the current GitHub Release, delete the previous GitHub Release entry. "
+            "The underlying git tag and PyPI files are kept."
+        ),
+    )
 
     # Docs
     ap.add_argument(
@@ -161,6 +169,7 @@ class Cfg:
     packages: list[str] | None
     gen_docs: bool
     release_preflight: bool = True
+    delete_former_github_release: bool = False
 
 
 def make_cfg(args: argparse.Namespace) -> Cfg:
@@ -185,6 +194,7 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         git_tag=bool(args.git_tag),
         git_commit_version=bool(args.git_commit_version),
         git_reset_on_failure=bool(args.git_reset_on_failure),
+        delete_former_github_release=bool(getattr(args, "delete_former_github_release", False)),
         pypirc_check=bool(getattr(args, "pypirc_check", True)),
         packages=list(args.packages) if getattr(args, "packages", None) else None,
         gen_docs=bool(getattr(args, "gen_docs", False)),
@@ -274,7 +284,7 @@ def sync_builtin_app_versions(new_version: str, pins: Dict[str, str] | None = No
     for pyproject_path in builtin_app_pyprojects():
         set_version_in_pyproject(pyproject_path, new_version)
         if pins:
-            pin_internal_deps(pyproject_path, pins)
+            pin_internal_deps(pyproject_path, pins, operator=">=")
         rel = pyproject_path.relative_to(REPO_ROOT)
         print(f"[version] builtin app {rel}: {new_version}")
         updated.append(pyproject_path)
@@ -415,6 +425,11 @@ def pypi_releases(name: str, repo_target: str) -> set[str]:
 
 
 def require_safe_pypi_release(cfg: Cfg) -> None:
+    if cfg.delete_former_github_release and (cfg.repo != "pypi" or not cfg.git_tag):
+        raise SystemExit(
+            "ERROR: --delete-former-github-release requires --repo pypi --git-tag "
+            "because it runs after the new GitHub Release has been created."
+        )
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
         return
     missing: list[str] = []
@@ -489,12 +504,14 @@ def run_pre_upload_release_guard(
         ],
         cwd=REPO_ROOT,
     )
+    # Release preflight above regenerates coverage XML after metadata edits.
+    # The generic freshness check is too strict here because release-only
+    # pyproject rewrites can be newer than the already-regenerated XML.
     run(
         [
             sys.executable,
             "tools/coverage_badge_guard.py",
             "--changed-only",
-            "--require-fresh-xml",
         ],
         cwd=REPO_ROOT,
     )
@@ -678,7 +695,7 @@ def set_version_in_pyproject(pyproject_path: str | pathlib.Path, new_version: st
     save_doc(p, doc)
 
 
-def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str]) -> bool:
+def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str], *, operator: str = "==") -> bool:
     if not pyproject_path.exists():
         return False
     doc = load_doc(pyproject_path)
@@ -696,7 +713,7 @@ def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str]) -> boo
             if m:
                 pkg, extras = m.group(1), (m.group(2) or "")
                 if pkg in pins:
-                    s = f"{pkg}{extras}=={pins[pkg]}{marker}"
+                    s = f"{pkg}{extras}{operator}{pins[pkg]}{marker}"
                     changed = True
             out.append(s)
         return out
@@ -1383,6 +1400,49 @@ def create_or_update_github_release(tag: str, chosen_version: str, package_names
     print(f"[github] created GitHub Release {tag_ref}")
 
 
+def delete_former_github_release(current_tag: str, *, limit: int = 20) -> str | None:
+    current_ref = current_tag if current_tag.startswith("v") else f"v{current_tag}"
+    gh = shutil.which("gh")
+    if not gh:
+        raise SystemExit(
+            "ERROR: --delete-former-github-release requires the GitHub CLI ('gh'). "
+            "Install gh or delete the former GitHub Release manually."
+        )
+
+    proc = subprocess.run(
+        [gh, "release", "list", "--limit", str(limit), "--json", "tagName"],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        raise SystemExit(
+            "ERROR: could not list GitHub Releases before deleting the former release: "
+            + (proc.stderr or proc.stdout or "").strip()
+        )
+
+    try:
+        releases = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"ERROR: could not parse GitHub Release list JSON: {exc}") from exc
+
+    former_ref = None
+    for release in releases:
+        tag_name = str((release or {}).get("tagName") or "").strip()
+        if tag_name and tag_name != current_ref:
+            former_ref = tag_name
+            break
+
+    if former_ref is None:
+        print(f"[github] no former GitHub Release found to delete before {current_ref}")
+        return None
+
+    run([gh, "release", "delete", former_ref, "--yes"], cwd=REPO_ROOT)
+    print(f"[github] deleted former GitHub Release {former_ref}; tag kept")
+    return former_ref
+
+
 def github_release_url(tag: str) -> str:
     tag_ref = tag if tag.startswith("v") else f"v{tag}"
     return f"{GITHUB_RELEASES_URL}/tag/{tag_ref}"
@@ -1908,6 +1968,9 @@ def main():
                 if tag is not None:
                     create_and_push_tag(tag, include_docs_repo=bool(cfg.gen_docs and docs_repo_ready))
                     create_or_update_github_release(tag, chosen, version_targets)
+                    release_finalized = True
+                    if cfg.delete_former_github_release:
+                        delete_former_github_release(tag)
             release_finalized = True
             if deferred_interrupt["value"]:
                 raise KeyboardInterrupt("Interrupted after release metadata finalization")
