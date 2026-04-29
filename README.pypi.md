@@ -101,10 +101,11 @@ compatibility status, and roadmap scope live in the public docs:
 
 ## Evaluation Snapshot
 
-Current public evaluation is `3.8 / 5`, from the four public KPI scores:
-adoption `4.0 / 5`, research experimentation `4.0 / 5`, engineering
-prototyping `4.0 / 5`, and production readiness `3.0 / 5`. This is an AI/ML
-experimentation-workbench score, not a production MLOps claim. Validation
+Current public evaluation is `3.8 / 5`, from the four evidence-backed public
+KPI scores: adoption `4.0 / 5`, research experimentation `4.0 / 5`,
+engineering prototyping `4.0 / 5`, and production readiness `3.0 / 5`.
+Strategic potential is tracked separately at `4.2 / 5`. These are AI/ML
+experimentation-workbench scores, not production MLOps claims. Validation
 includes local and external macOS checks, AI Lightning, Hugging Face, one
 bare-metal cluster, and one VM-based cluster. Azure, AWS, and GCP deployments
 remain validation gaps.

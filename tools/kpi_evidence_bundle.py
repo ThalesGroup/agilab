@@ -2594,6 +2594,7 @@ def build_bundle(
                 name: f"{score:.1f} / 5"
                 for name, score in KPI_COMPONENT_SCORES.items()
             },
+            "strategic_potential_score": STRATEGIC_POTENTIAL_SCORE,
             "score_formula": _score_formula(),
             "score_rounding": "one decimal, half up",
         },
@@ -2601,8 +2602,9 @@ def build_bundle(
             f"Supports an overall public evaluation of {SUPPORTED_OVERALL_SCORE} "
             "as the one-decimal mean of the four scored public KPIs: adoption, "
             "research experimentation, engineering prototyping, and bounded "
-            "production-readiness evidence. It does not change the alpha status "
-            "or claim production MLOps coverage."
+            "production-readiness evidence. Strategic potential is tracked "
+            f"separately at {STRATEGIC_POTENTIAL_SCORE}. It does not change the "
+            "alpha status or claim production MLOps coverage."
         ),
         "checks": checks,
     }
