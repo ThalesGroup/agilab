@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-04-24
+  updated: 2026-04-29
 ---
 
 # AGILab runbook (Agent Skill)
@@ -93,6 +93,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`
 - Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
   - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
+  - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
 
 ## CI and badge checks
 
