@@ -89,6 +89,21 @@ Two vertical stories should carry most public evaluation:
      - ``data_io_2026_project``, Release Decision evidence, connector reports,
        run-diff evidence, and promotion-decision exports.
 
+Elasticity opportunity
+----------------------
+
+The most credible next strategic improvement is elasticity, not another
+tracking dashboard or model registry. AGILab is currently strongest at the
+``train, execute, inspect, compare`` loop. A later step would be multi-agent
+reinforcement learning for active mesh optimization: aircraft, UAVs, satellites,
+or other moving nodes would become active agents that can adapt their trajectory
+or routing behavior to improve network-level evidence.
+
+This is a roadmap direction, not a current shipped capability. It should raise
+the strategic score only after there is public proof that AGILab can express the
+agent policy contract, run the closed-loop scenario reproducibly, and compare
+baseline versus adaptive-network outcomes through the existing evidence layer.
+
 Score movement rule
 -------------------
 

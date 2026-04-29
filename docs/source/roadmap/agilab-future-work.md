@@ -70,6 +70,16 @@ use this order:
 5. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
+6. **Elasticity and active mesh optimization**
+   - keep the current public claim bounded to "train, execute, inspect,
+     compare"
+   - evolve toward multi-agent reinforcement learning only after the evidence
+     layer can compare baseline versus adaptive-network outcomes
+   - model moving nodes such as aircraft, UAVs, or satellites as active agents
+     that can adapt trajectory or routing behavior to improve network KPIs
+   - avoid duplicating experiment tracking or model-registry concepts; the
+     differentiator should be closed-loop execution and evidence, not another
+     metrics UI
 
 Why this order:
 
@@ -82,6 +92,8 @@ Why this order:
 - keep notebook interop after the orchestration state model is clearer
 - stabilize contracts before standardizing distributed reduction
 - keep operator refinements downstream of the proof/evidence layer
+- keep MARL and active-mesh work downstream of reproducible execution,
+  baseline/candidate comparison, and the shared evidence contract
 
 ## Streamlit-inspired AGILab views
 
