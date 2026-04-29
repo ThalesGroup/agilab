@@ -28,6 +28,9 @@ KPI_COMPONENT_SCORES = {
 }
 OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(len(KPI_COMPONENT_SCORES))
 SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
+STRATEGIC_POTENTIAL_SCORE = "4.2 / 5"
+README_SUMMARY_START = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_START -->"
+README_SUMMARY_END = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->"
 TEMPLATE_ONLY_BUILTIN_APPS = {
     "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
 }
@@ -2433,6 +2436,95 @@ def _score_formula() -> str:
     return f"({terms}) / {len(KPI_COMPONENT_SCORES)} = {OVERALL_SCORE_RAW}"
 
 
+def build_score_snapshot() -> dict[str, Any]:
+    """Return the scoring fields needed by lightweight public summaries."""
+    return {
+        "kpi": "Overall public evaluation",
+        "supported_score": SUPPORTED_OVERALL_SCORE,
+        "summary": {
+            "score_components": {
+                name: f"{score:.1f} / 5"
+                for name, score in KPI_COMPONENT_SCORES.items()
+            },
+            "strategic_potential_score": STRATEGIC_POTENTIAL_SCORE,
+            "score_formula": _score_formula(),
+            "score_rounding": "one decimal, half up",
+        },
+    }
+
+
+def render_readme_summary(bundle: dict[str, Any]) -> str:
+    """Render the public README summary from the machine-readable KPI bundle."""
+    components = bundle["summary"]["score_components"]
+    adoption = components["Ease of adoption"]
+    research = components["Research experimentation"]
+    prototyping = components["Engineering prototyping"]
+    production = components["Production readiness"]
+    strategic = bundle["summary"]["strategic_potential_score"]
+
+    lines = ["Current CODEX 5.5 working summary, refreshed from the public KPI bundle:", ""]
+    if adoption == research == prototyping:
+        lines.append(
+            f"- `{adoption}` for ease of adoption, research experimentation, "
+            "and engineering prototyping."
+        )
+    else:
+        lines.extend(
+            [
+                f"- `{adoption}` for ease of adoption.",
+                f"- `{research}` for research experimentation.",
+                f"- `{prototyping}` for engineering prototyping.",
+            ]
+        )
+    lines.extend(
+        [
+            f"- `{production}` for production readiness.",
+            f"- `{strategic}` for strategic potential.",
+            f"- Overall public evaluation, rounded category average: `{bundle['supported_score']}`.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _replace_readme_summary_block(readme_text: str, bundle: dict[str, Any]) -> str:
+    generated = (
+        f"{README_SUMMARY_START}\n"
+        f"{render_readme_summary(bundle)}\n"
+        f"{README_SUMMARY_END}"
+    )
+    if README_SUMMARY_START in readme_text or README_SUMMARY_END in readme_text:
+        start = readme_text.find(README_SUMMARY_START)
+        end = readme_text.find(README_SUMMARY_END)
+        if start == -1 or end == -1 or end < start:
+            raise ValueError("README KPI summary markers are incomplete or out of order")
+        end += len(README_SUMMARY_END)
+        return f"{readme_text[:start]}{generated}{readme_text[end:]}"
+
+    pattern = re.compile(
+        r"Current CODEX 5\.5 working summary, refreshed from the public KPI bundle:\n\n"
+        r"(?:- .+\n)+",
+        re.MULTILINE,
+    )
+    updated, count = pattern.subn(f"{generated}\n", readme_text)
+    if count != 1:
+        raise ValueError("expected exactly one README Evaluation Snapshot summary block")
+    return updated
+
+
+def refresh_readme_summary(
+    *,
+    readme_path: Path = REPO_ROOT / "README.md",
+    bundle: dict[str, Any] | None = None,
+) -> bool:
+    bundle = bundle or build_score_snapshot()
+    readme_text = readme_path.read_text(encoding="utf-8")
+    updated = _replace_readme_summary_block(readme_text, bundle)
+    if updated == readme_text:
+        return False
+    readme_path.write_text(updated, encoding="utf-8")
+    return True
+
+
 def build_bundle(
     *,
     repo_root: Path = REPO_ROOT,
@@ -2530,11 +2622,36 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit compact JSON without indentation.",
     )
+    parser.add_argument(
+        "--readme-summary",
+        action="store_true",
+        help="Emit the Markdown Evaluation Snapshot summary used in README.md.",
+    )
+    parser.add_argument(
+        "--refresh-readme-summary",
+        action="store_true",
+        help="Refresh README.md Evaluation Snapshot from the KPI bundle.",
+    )
+    parser.add_argument(
+        "--readme-path",
+        type=Path,
+        default=REPO_ROOT / "README.md",
+        help="README path used with --refresh-readme-summary.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
+    if args.readme_summary:
+        print(render_readme_summary(build_score_snapshot()))
+        return 0
+    if args.refresh_readme_summary:
+        changed = refresh_readme_summary(readme_path=args.readme_path, bundle=build_score_snapshot())
+        status = "refreshed" if changed else "already current"
+        print(f"{args.readme_path}: {status}")
+        return 0
+
     bundle = build_bundle(run_hf_smoke=args.run_hf_smoke)
     if args.compact:
         print(json.dumps(bundle, sort_keys=True, separators=(",", ":")))

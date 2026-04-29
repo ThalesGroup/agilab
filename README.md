@@ -184,12 +184,14 @@ tools/data_connector_app_catalogs_report.py --compact
 
 ## Evaluation Snapshot
 
+<!-- AGILAB_PUBLIC_KPI_SUMMARY_START -->
 Current CODEX 5.5 working summary, refreshed from the public KPI bundle:
 
 - `4.0 / 5` for ease of adoption, research experimentation, and engineering prototyping.
 - `3.0 / 5` for production readiness.
 - `4.2 / 5` for strategic potential.
 - Overall public evaluation, rounded category average: `3.8 / 5`.
+<!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->
 
 These are public experimentation-workbench scores, not production MLOps claims.
 The evidence and limits are maintained in the

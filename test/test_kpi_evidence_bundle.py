@@ -83,6 +83,58 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     }
 
 
+def test_render_readme_summary_uses_kpi_bundle_scores() -> None:
+    module = _load_module()
+    snapshot = module.build_score_snapshot()
+
+    summary = module.render_readme_summary(snapshot)
+    components = snapshot["summary"]["score_components"]
+
+    assert "Current CODEX 5.5 working summary" in summary
+    assert (
+        f"`{components['Ease of adoption']}` for ease of adoption, research experimentation, "
+        "and engineering prototyping."
+    ) in summary
+    assert f"`{components['Production readiness']}` for production readiness." in summary
+    assert f"`{snapshot['summary']['strategic_potential_score']}` for strategic potential." in summary
+    assert f"rounded category average: `{snapshot['supported_score']}`" in summary
+
+
+def test_refresh_readme_summary_replaces_static_block(tmp_path: Path) -> None:
+    module = _load_module()
+    readme_path = tmp_path / "README.md"
+    readme_path.write_text(
+        "\n".join(
+            [
+                "# AGILAB",
+                "",
+                "## Evaluation Snapshot",
+                "",
+                "Current CODEX 5.5 working summary, refreshed from the public KPI bundle:",
+                "",
+                "- stale",
+                "",
+                "These are public experimentation-workbench scores, not production MLOps claims.",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    changed = module.refresh_readme_summary(
+        readme_path=readme_path,
+        bundle=module.build_score_snapshot(),
+    )
+
+    refreshed = readme_path.read_text(encoding="utf-8")
+    assert changed is True
+    assert module.README_SUMMARY_START in refreshed
+    assert module.README_SUMMARY_END in refreshed
+    assert "- stale" not in refreshed
+    assert "`4.2 / 5` for strategic potential." in refreshed
+    assert "These are public experimentation-workbench scores" in refreshed
+
+
 def test_workflow_compatibility_report_requires_hf_demo_validated() -> None:
     module = _load_module()
 
