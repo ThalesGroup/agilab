@@ -816,13 +816,41 @@ def _format_unreachable_workers(count: int) -> str:
     return f"{count} worker unreachable" if count == 1 else f"{count} workers unreachable"
 
 
-def _append_unreachable_suffix(value: str, unreachable_workers: int) -> str:
-    if not unreachable_workers:
+def _worker_issue_label(status: str) -> str:
+    normalized = status.strip().lower()
+    if normalized == "ssh-auth-needed":
+        return "SSH auth needed"
+    if normalized == "no-ssh-port":
+        return "SSH port unavailable"
+    if normalized == "reverse-ssh-needed":
+        return "reverse SSH needed"
+    if normalized == "sshfs-missing":
+        return "SSHFS missing"
+    if normalized == "uv-missing":
+        return "uv missing"
+    if normalized == "python-missing":
+        return "Python missing"
+    return "unreachable"
+
+
+def _format_worker_issue_counts(issue_counts: dict[str, int]) -> str:
+    parts = []
+    for label, count in sorted(issue_counts.items()):
+        if label == "unreachable":
+            parts.append(_format_unreachable_workers(count))
+            continue
+        worker_word = "worker" if count == 1 else "workers"
+        parts.append(f"{count} {worker_word} {label}")
+    return " + ".join(parts)
+
+
+def _append_worker_issue_suffix(value: str, issue_counts: dict[str, int]) -> str:
+    if not issue_counts:
         return value
-    unreachable_label = _format_unreachable_workers(unreachable_workers)
+    issue_label = _format_worker_issue_counts(issue_counts)
     if value and value.lower() not in {"unknown", "not detected", "not configured"}:
-        return f"{value} + {unreachable_label}"
-    return unreachable_label
+        return f"{value} + {issue_label}"
+    return issue_label
 
 
 def _summary_unreachable(summary: dict[str, str]) -> bool:
@@ -867,6 +895,15 @@ def _hardware_inventory_from_settings(cluster_params: dict[str, Any]) -> dict[st
             if summary:
                 inventory[identity] = summary
     return inventory
+
+
+def _hardware_summary_has_detected_resources(summary: dict[str, str] | None) -> bool:
+    if not summary:
+        return False
+    return any(
+        not _resource_unavailable(str(summary.get(key, "")))
+        for key in ("CPU", "RAM", "GPU", "NPU")
+    )
 
 
 def _default_lan_discovery_cache_path() -> Path:
@@ -953,7 +990,13 @@ def _lan_discovery_hardware_inventory(cache_path: str = "") -> dict[str, dict[st
         identity = _node_identity(host)
         if not identity:
             continue
-        summary = _hardware_summary_from_mapping(node)
+        summary = _hardware_summary_from_mapping(node) or {}
+        status = _safe_text(node.get("status"))
+        error_values = node.get("errors")
+        if status:
+            summary["_status"] = status
+        if isinstance(error_values, list) and error_values:
+            summary["_error"] = _safe_text(error_values[0])
         if summary:
             inventory[identity] = summary
     return inventory
@@ -1000,17 +1043,19 @@ def _cluster_resource_totals(
     total_ram_gb = 0.0
     gpu_counts: dict[str, int] = {}
     npu_counts: dict[str, int] = {}
-    unreachable_workers = 0
+    worker_issue_counts: dict[str, int] = {}
     hardware_inventory = hardware_inventory or {}
 
     for host in nodes:
         summary = _node_hardware_summary(host, user=user, ssh_key_path=ssh_key_path)
         if _summary_unreachable(summary):
             configured_summary = hardware_inventory.get(_node_identity(host))
-            if configured_summary:
+            if _hardware_summary_has_detected_resources(configured_summary):
                 summary = configured_summary
             else:
-                unreachable_workers += 1
+                status = _safe_text(configured_summary.get("_status")) if configured_summary else ""
+                issue_label = _worker_issue_label(status)
+                worker_issue_counts[issue_label] = worker_issue_counts.get(issue_label, 0) + 1
                 continue
         cores = _parse_cpu_cores(summary.get("CPU", ""))
         if cores is not None:
@@ -1028,10 +1073,10 @@ def _cluster_resource_totals(
     gpu_value = _format_counted_resources(gpu_counts)
     npu_value = _format_counted_resources(npu_counts)
     return {
-        "CPU": _append_unreachable_suffix(cpu_value, unreachable_workers),
-        "RAM": _append_unreachable_suffix(ram_value, unreachable_workers),
-        "GPU": _append_unreachable_suffix(gpu_value, unreachable_workers),
-        "NPU": _append_unreachable_suffix(npu_value, unreachable_workers),
+        "CPU": _append_worker_issue_suffix(cpu_value, worker_issue_counts),
+        "RAM": _append_worker_issue_suffix(ram_value, worker_issue_counts),
+        "GPU": _append_worker_issue_suffix(gpu_value, worker_issue_counts),
+        "NPU": _append_worker_issue_suffix(npu_value, worker_issue_counts),
     }
 
 

@@ -197,6 +197,52 @@ def test_hydrate_and_clear_cluster_widget_state_are_project_scoped():
     assert "cluster_workers__demo_project" not in session_state
 
 
+def test_hydrate_cluster_widget_state_preserves_existing_widget_values():
+    session_state = _State(
+        {
+            "cluster_enabled__demo_project": False,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": True,
+            "cluster_rapids__demo_project": False,
+            "cluster_scheduler__demo_project": "192.168.1.10:8786",
+            "cluster_user__demo_project": "local-user",
+            "cluster_ssh_key__demo_project": "~/.ssh/local",
+            "cluster_workers_data_path__demo_project": "/local/data",
+            "cluster_workers__demo_project": '{"192.168.1.11": 1}',
+            "cluster_use_key__demo_project": False,
+        }
+    )
+
+    orchestrate_cluster.hydrate_cluster_widget_state(
+        session_state,
+        "demo_project",
+        {
+            "cluster_enabled": True,
+            "cython": True,
+            "pool": False,
+            "rapids": True,
+            "scheduler": "127.0.0.1:8786",
+            "user": "agi",
+            "auth_method": "ssh_key",
+            "ssh_key_path": "~/.ssh/id_demo",
+            "workers_data_path": "/cluster/data",
+            "workers": {"127.0.0.1": 2},
+        },
+        is_managed_pc=False,
+    )
+
+    assert session_state["cluster_enabled__demo_project"] is False
+    assert session_state["cluster_cython__demo_project"] is False
+    assert session_state["cluster_pool__demo_project"] is True
+    assert session_state["cluster_rapids__demo_project"] is False
+    assert session_state["cluster_scheduler__demo_project"] == "192.168.1.10:8786"
+    assert session_state["cluster_user__demo_project"] == "local-user"
+    assert session_state["cluster_ssh_key__demo_project"] == "~/.ssh/local"
+    assert session_state["cluster_workers_data_path__demo_project"] == "/local/data"
+    assert session_state["cluster_workers__demo_project"] == '{"192.168.1.11": 1}'
+    assert session_state["cluster_use_key__demo_project"] is False
+
+
 def test_persist_env_var_if_changed_ignores_same_value():
     calls: list[tuple[str, str]] = []
 
