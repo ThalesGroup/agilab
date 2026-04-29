@@ -32,6 +32,16 @@ def _run_block(start_name: str, end_name: str) -> str:
     return workflow_text[start:end]
 
 
+def _step_block(step_name: str) -> str:
+    workflow_text = _workflow_text()
+    start_marker = f"      - name: {step_name}"
+    start = workflow_text.index(start_marker)
+    next_step = workflow_text.find("\n      - name:", start + len(start_marker))
+    if next_step == -1:
+        next_step = len(workflow_text)
+    return workflow_text[start:next_step]
+
+
 def test_core_coverage_runs_shared_core_suite_once_for_node_and_cluster() -> None:
     workflow_text = _workflow_text()
 
@@ -178,3 +188,20 @@ def test_agi_gui_workflow_wildcard_covers_all_workflow_tests() -> None:
         f"coverage.yml agi-gui workflow wildcard is out of sync; "
         f"missing={missing}, extra={extra}"
     )
+
+
+def test_codecov_uploads_are_external_reporting_not_blocking_gates() -> None:
+    upload_steps = [
+        "Upload agi-env coverage to Codecov",
+        "Upload agi-node coverage to Codecov",
+        "Upload agi-cluster coverage to Codecov",
+        "Upload agi-gui coverage to Codecov",
+        "Upload repo-wide agilab coverage to Codecov",
+    ]
+
+    for step_name in upload_steps:
+        block = _step_block(step_name)
+
+        assert "uses: codecov/codecov-action@v6" in block
+        assert "continue-on-error: true" in block
+        assert "fail_ci_if_error: false" in block
