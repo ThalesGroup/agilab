@@ -18,7 +18,7 @@ from agi_gui.pagelib import (
     run_lab,
     save_csv,
 )
-from agi_gui.ux_widgets import compact_choice, confirm_button, status_container, toast
+from agi_gui.ux_widgets import action_button, compact_choice, confirm_button, empty_state, status_container, toast
 from agi_env.snippet_contract import (
     clean_stale_snippet_files,
     is_generated_agi_snippet,
@@ -421,11 +421,11 @@ def display_lab_tab(
                     inline_limit=4,
                 )
                 selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
-                run_new = st.button(
+                run_new = action_button(
+                    st,
                     "Generate code",
-                    type="primary",
-                    width="stretch",
                     key=f"{safe_prefix}_add_first_step_btn",
+                    kind="generate",
                 )
                 if run_new:
                     prompt_text = st.session_state.get(new_q_key, "").strip()
@@ -470,11 +470,11 @@ def display_lab_tab(
                 if snippet_path:
                     st.caption(f"Snippet source: `{snippet_path}`")
                 st.code(snippet_code or "# Empty snippet", language="python")
-                import_new = st.button(
+                import_new = action_button(
+                    st,
                     "Add snippet",
-                    type="primary",
-                    width="stretch",
                     key=f"{safe_prefix}_add_first_snippet_btn",
+                    kind="add",
                 )
                 if import_new:
                     if not snippet_code.strip():
@@ -671,11 +671,11 @@ def display_lab_tab(
                 st.caption("This step is locked. Re-run ORCHESTRATE and re-import it here if you need changes.")
                 st.code(st.session_state.get(code_val_key, entry.get("C", "")) or "# Empty snippet", language="python")
 
-                if st.button(
+                if action_button(
+                    st,
                     "Run imported step",
-                    type="primary",
-                    width="stretch",
                     key=f"{safe_prefix}_run_locked_{step}",
+                    kind="run",
                 ):
                     _run_locked_step(
                         env,
@@ -699,27 +699,28 @@ def display_lab_tab(
                     )
 
                 if st.session_state.get(confirm_delete_key, False):
-                    delete_clicked = st.button(
+                    delete_clicked = action_button(
+                        st,
                         "Confirm remove",
-                        type="primary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_confirm_{step}",
+                        kind="destructive",
+                        type="primary",
                     )
-                    cancel_delete_clicked = st.button(
+                    cancel_delete_clicked = action_button(
+                        st,
                         "Cancel",
-                        type="secondary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_cancel_{step}",
+                        kind="cancel",
                     )
                     arm_delete_clicked = False
                 else:
                     delete_clicked = False
                     cancel_delete_clicked = False
-                    arm_delete_clicked = st.button(
+                    arm_delete_clicked = action_button(
+                        st,
                         "Remove",
-                        type="secondary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_{step}",
+                        kind="remove",
                     )
 
                 if arm_delete_clicked:
@@ -762,46 +763,48 @@ def display_lab_tab(
             )
             btn_save, btn_run, btn_revert, btn_delete = st.columns([1, 1, 1, 1], gap="small")
             with btn_save:
-                save_pressed = st.button(
+                save_pressed = action_button(
+                    st,
                     "Save",
-                    type="secondary",
-                    width="stretch",
                     key=f"{safe_prefix}_save_{step}",
+                    kind="save",
+                    type="secondary",
                 )
             with btn_run:
-                run_pressed = st.button(
+                run_pressed = action_button(
+                    st,
                     "Gen code",
-                    type="primary",
-                    width="stretch",
                     key=f"{safe_prefix}_run_{step}",
+                    kind="generate",
                 )
             with btn_revert:
-                revert_pressed = st.button(
+                revert_pressed = action_button(
+                    st,
                     "Undo",
-                    type="secondary",
-                    width="stretch",
                     key=f"{safe_prefix}_revert_{step}",
+                    kind="revert",
                 )
             with btn_delete:
                 if st.session_state.get(confirm_delete_key, False):
-                    delete_clicked = st.button(
+                    delete_clicked = action_button(
+                        st,
                         "Confirm remove",
-                        type="primary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_confirm_{step}",
+                        kind="destructive",
+                        type="primary",
                     )
-                    cancel_delete_clicked = st.button(
+                    cancel_delete_clicked = action_button(
+                        st,
                         "Cancel",
-                        type="secondary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_cancel_{step}",
+                        kind="cancel",
                     )
                 else:
-                    arm_delete_clicked = st.button(
+                    arm_delete_clicked = action_button(
+                        st,
                         "Remove",
-                        type="secondary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_{step}",
+                        kind="remove",
                     )
 
             if arm_delete_clicked:
@@ -1271,7 +1274,7 @@ def display_lab_tab(
                 inline_limit=4,
             )
             selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
-            run_new = st.button("Generate code", type="primary", width="stretch", key=f"{safe_prefix}_add_step_btn")
+            run_new = action_button(st, "Generate code", key=f"{safe_prefix}_add_step_btn", kind="generate")
             if run_new:
                 prompt_text = st.session_state.get(new_q_key, "").strip()
                 if prompt_text:
@@ -1350,11 +1353,11 @@ def display_lab_tab(
             if snippet_path:
                 st.caption(f"Snippet source: `{snippet_path}`")
             st.code(snippet_code or "# Empty snippet", language="python")
-            import_new = st.button(
+            import_new = action_button(
+                st,
                 "Add snippet",
-                type="primary",
-                width="stretch",
                 key=f"{safe_prefix}_add_step_snippet_btn",
+                kind="add",
             )
             if import_new:
                 if not snippet_code.strip():
@@ -1457,12 +1460,12 @@ def display_lab_tab(
             PipelineAction.RUN_PIPELINE,
             "",
         )
-        run_all_clicked = st.button(
+        run_all_clicked = action_button(
+            st,
             "Run pipeline",
             key=f"{index_page_str}_run_all",
+            kind="run",
             help=run_blocked_reason or "Execute every step sequentially using its saved virtual environment.",
-            type="secondary",
-            width="stretch",
             disabled=PipelineAction.RUN_PIPELINE not in page_state.available_actions,
         )
     with force_col:
@@ -1472,32 +1475,32 @@ def display_lab_tab(
                 "",
             )
             if lock_state.get("is_stale"):
-                force_run_clicked = st.button(
+                force_run_clicked = action_button(
+                    st,
                     "Clear stale lock and run",
                     key=f"{index_page_str}_force_run_stale",
+                    kind="run",
                     help=force_blocked_reason or "Remove the stale pipeline lock and start a new run.",
-                    type="primary",
-                    width="stretch",
                     disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
             elif st.session_state.get(force_run_confirm_key, False):
-                force_run_clicked = st.button(
+                force_run_clicked = action_button(
+                    st,
                     "Confirm force unlock",
                     key=f"{index_page_str}_force_run_confirm",
+                    kind="run",
                     help=force_blocked_reason
                     or "Remove the current lock and start a new run. Use this only if the previous run is gone.",
-                    type="primary",
-                    width="stretch",
                     disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
             else:
-                force_run_arm_clicked = st.button(
+                force_run_arm_clicked = action_button(
+                    st,
                     "Force unlock and run",
                     key=f"{index_page_str}_force_run_arm",
+                    kind="destructive",
                     help=force_blocked_reason
                     or "Use only when a previous pipeline run was interrupted and left a lock behind.",
-                    type="secondary",
-                    width="stretch",
                     disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
 
@@ -1523,11 +1526,11 @@ def display_lab_tab(
         st.rerun()
 
     if st.session_state.get(force_run_confirm_key, False) and not (force_run_clicked or force_run_arm_clicked):
-        force_run_cancel_clicked = st.button(
+        force_run_cancel_clicked = action_button(
+            st,
             "Cancel force unlock",
             key=f"{index_page_str}_force_run_cancel",
-            type="secondary",
-            width="stretch",
+            kind="cancel",
         )
     if force_run_cancel_clicked:
         st.session_state.pop(force_run_confirm_key, None)
@@ -1542,28 +1545,29 @@ def display_lab_tab(
     delete_all_confirm_key = f"{index_page_str}_confirm_delete_all"
     with delete_all_col:
         if st.session_state.get(delete_all_confirm_key, False):
-            delete_all_clicked = st.button(
+            delete_all_clicked = action_button(
+                st,
                 "Confirm delete",
                 key=f"{index_page_str}_delete_all_confirm",
                 help="Permanently remove every step in this lab.",
+                kind="destructive",
                 type="primary",
-                width="stretch",
             )
         else:
-            arm_delete_all_clicked = st.button(
+            arm_delete_all_clicked = action_button(
+                st,
                 "Delete all",
                 key=f"{index_page_str}_delete_all",
                 help="Remove every step in this lab.",
-                type="secondary",
-                width="stretch",
+                kind="delete",
             )
     with cancel_col:
         if st.session_state.get(delete_all_confirm_key, False):
-            cancel_delete_all_clicked = st.button(
+            cancel_delete_all_clicked = action_button(
+                st,
                 "Cancel",
                 key=f"{index_page_str}_delete_all_cancel",
-                type="secondary",
-                width="stretch",
+                kind="cancel",
             )
 
     if arm_delete_all_clicked:
@@ -1577,12 +1581,12 @@ def display_lab_tab(
     undo_payload = st.session_state.get(delete_undo_key)
     if isinstance(undo_payload, dict) and isinstance(undo_payload.get("steps"), list):
         undo_label = str(undo_payload.get("label", "last delete"))
-        undo_delete_clicked = st.button(
+        undo_delete_clicked = action_button(
+            st,
             "Undo delete",
             key=f"{index_page_str}_undo_delete",
             help=f"Restore the pipeline state before the latest delete action ({undo_label}).",
-            type="secondary",
-            width="stretch",
+            kind="revert",
         )
 
     if undo_delete_clicked:
@@ -1689,17 +1693,19 @@ def display_lab_tab(
             truncation_label="PIPELINE preview limited",
         )
     else:
-        st.info(
-            f"No data loaded yet. Generate and execute a step so the latest {DEFAULT_DF} appears under the Dataframe selector."
+        empty_state(
+            st,
+            "No data loaded yet.",
+            body=f"Generate and execute a step so the latest {DEFAULT_DF} appears under the Dataframe selector.",
         )
 
     with st.expander("Run logs", expanded=True):
         log_page_state = _build_page_state()
-        clear_logs = st.button(
+        clear_logs = action_button(
+            st,
             "Clear logs",
             key=f"{index_page_str}__clear_logs_global",
-            type="secondary",
-            width="stretch",
+            kind="clear",
         )
         if clear_logs:
             result = clear_pipeline_run_logs(st.session_state, index_page_str)
