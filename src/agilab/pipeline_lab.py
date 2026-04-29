@@ -1,5 +1,6 @@
 import importlib.util
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -93,7 +94,31 @@ _python_for_step = _pipeline_runtime_module.python_for_step
 start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
 wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
 
+_src_root = Path(__file__).resolve().parents[1]
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
+_agilab_pkg = sys.modules.get("agilab")
+if _agilab_pkg is not None:
+    package_path = str(_src_root / "agilab")
+    package_paths = list(getattr(_agilab_pkg, "__path__", []) or [])
+    if package_path not in package_paths:
+        _agilab_pkg.__path__ = [*package_paths, package_path]
+
+_global_runner_state_module = import_agilab_module(
+    "agilab.global_pipeline_runner_state",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "global_pipeline_runner_state.py",
+    fallback_name="agilab_global_pipeline_runner_state_fallback",
+)
+dispatch_next_runnable = _global_runner_state_module.dispatch_next_runnable
+load_runner_state = _global_runner_state_module.load_runner_state
+persist_runner_state = _global_runner_state_module.persist_runner_state
+write_runner_state = _global_runner_state_module.write_runner_state
+
 logger = logging.getLogger(__name__)
+GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
+GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
+GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_flight_sample.json")
 
 
 def _normalize_editor_text(raw: Optional[str]) -> str:
@@ -127,6 +152,112 @@ def _valid_runtime_choices(raw_paths: List[Any]) -> List[str]:
             seen.add(runtime)
             choices.append(runtime)
     return choices
+
+
+def _repo_root_for_global_dag() -> Path:
+    candidates = [
+        Path.cwd(),
+        Path(__file__).resolve().parents[2],
+    ]
+    for candidate in candidates:
+        if (candidate / "docs" / "source" / "data").is_dir():
+            return candidate.resolve()
+    return Path(__file__).resolve().parents[2]
+
+
+def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
+    app_name = Path(str(getattr(env, "app", "") or getattr(env, "target", ""))).name
+    preferred = (
+        GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH
+        if app_name in {"flight", "flight_project"}
+        else GLOBAL_DAG_SAMPLE_RELATIVE_PATH
+    )
+    preferred_path = repo_root / preferred
+    if preferred_path.is_file():
+        return preferred_path
+    fallback_path = repo_root / GLOBAL_DAG_SAMPLE_RELATIVE_PATH
+    return fallback_path if fallback_path.is_file() else None
+
+
+def _global_runner_state_path(lab_dir: Path) -> Path:
+    return lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
+
+
+def _load_or_create_global_runner_state(env: AgiEnv, lab_dir: Path) -> tuple[dict[str, Any], Path, Path | None]:
+    repo_root = _repo_root_for_global_dag()
+    dag_path = _global_runner_dag_path(env, repo_root)
+    state_path = _global_runner_state_path(lab_dir)
+    if state_path.is_file():
+        return load_runner_state(state_path), state_path, dag_path
+    proof = persist_runner_state(
+        repo_root=repo_root,
+        output_path=state_path,
+        dag_path=dag_path,
+    )
+    return proof.runner_state, state_path, dag_path
+
+
+def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
+    units = state.get("units", [])
+    if not isinstance(units, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for unit in units:
+        if not isinstance(unit, dict):
+            continue
+        rows.append(
+            {
+                "unit": str(unit.get("id", "")),
+                "app": str(unit.get("app", "")),
+                "status": str(unit.get("dispatch_status", "")),
+                "depends_on": ", ".join(str(item) for item in unit.get("depends_on", []) if str(item)),
+            }
+        )
+    return rows
+
+
+def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str: str) -> None:
+    try:
+        state, state_path, dag_path = _load_or_create_global_runner_state(env, lab_dir)
+    except Exception as exc:
+        st.caption(f"Global DAG runner preview is unavailable: {exc}")
+        return
+
+    summary = state.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+    with st.expander("Global DAG runner", expanded=False):
+        st.caption("Operator preview only: dispatch changes state, but does not execute apps or synthesize artifacts.")
+        if dag_path is not None:
+            st.caption(f"DAG contract: `{dag_path}`")
+        st.caption(f"State file: `{state_path}`")
+        planned_col, running_col, completed_col, failed_col = st.columns(4)
+        planned_col.metric("Planned", int(summary.get("planned_count", 0) or 0))
+        running_col.metric("Running", int(summary.get("running_count", 0) or 0))
+        completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
+        failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
+
+        rows = _state_units_for_display(state)
+        if rows:
+            st.dataframe(rows, hide_index=True, use_container_width=True)
+        else:
+            st.caption("No global DAG units are available.")
+
+        dispatch_clicked = action_button(
+            st,
+            "Dispatch next runnable",
+            key=f"{index_page_str}_global_runner_dispatch_next",
+            kind="run",
+            help="Move the next runnable global DAG unit to running state without executing the app.",
+        )
+        if dispatch_clicked:
+            result = dispatch_next_runnable(state)
+            if result.ok:
+                write_runner_state(state_path, result.state)
+                st.success(result.message)
+                st.rerun()
+            else:
+                st.warning(result.message)
 
 
 @dataclass(frozen=True)
@@ -381,6 +512,7 @@ def display_lab_tab(
         bool(snippet_option_map),
         env.app,
     )
+    _render_global_runner_state_panel(env, lab_dir, index_page_str)
     step_source_key = f"{safe_prefix}_new_step_source"
     source_options = ["gen step"] + list(snippet_option_map.keys())
     if st.session_state.get(step_source_key) not in source_options:

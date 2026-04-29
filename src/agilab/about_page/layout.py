@@ -23,7 +23,7 @@ import streamlit as st
 def _hero_target_svg_data_uri() -> str:
     """Return the banner target diagram as an image-safe SVG data URI."""
     svg = """
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 260" role="img" aria-label="Bias variance controls, underfit overfit symptoms, and train test diagnosis">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 300" role="img" aria-label="Digital twin assisted generalization map linking simulation, bias variance controls, underfit overfit symptoms, and train test diagnosis">
   <defs>
     <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur stdDeviation="2.4" result="blur" />
@@ -35,6 +35,10 @@ def _hero_target_svg_data_uri() -> str:
     <linearGradient id="cardFill" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="rgba(255,255,255,.12)" />
       <stop offset="1" stop-color="rgba(255,255,255,.045)" />
+    </linearGradient>
+    <linearGradient id="twinFill" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="rgba(114,214,180,.24)" />
+      <stop offset="1" stop-color="rgba(255,210,138,.09)" />
     </linearGradient>
   </defs>
   <style>
@@ -49,67 +53,79 @@ def _hero_target_svg_data_uri() -> str:
     .core{fill:none;stroke:rgba(255,210,138,.44);stroke-width:1.2}
     .axis{stroke:rgba(247,242,232,.16)}
     .connector{fill:none;stroke:rgba(247,242,232,.24);stroke-width:1.1;stroke-linecap:round}
+    .flow{fill:none;stroke:#72d6b4;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+    .flow-warm{fill:none;stroke:#ffbe5e;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
   </style>
-  <text class="title" x="210" y="24" text-anchor="middle">Generalization map</text>
-  <text class="note" x="210" y="239" text-anchor="middle">controls drive symptoms; train/test confirms</text>
+  <text class="title" x="280" y="24" text-anchor="middle">Generalization + digital twin map</text>
+  <text class="note" x="280" y="273" text-anchor="middle">simulate, run, diagnose, then tune the real workflow</text>
 
-  <g transform="translate(118 127)">
-    <circle class="target" r="78" />
-    <circle class="ring" r="58" />
-    <circle class="ring" r="38" />
+  <g transform="translate(116 146)">
+    <circle class="target" r="76" />
+    <circle class="ring" r="56" />
+    <circle class="ring" r="37" />
     <circle class="core" r="18" />
-    <line class="axis" x1="-86" y1="0" x2="86" y2="0" />
-    <line class="axis" x1="0" y1="-86" x2="0" y2="86" />
+    <line class="axis" x1="-84" y1="0" x2="84" y2="0" />
+    <line class="axis" x1="0" y1="-84" x2="0" y2="84" />
     <circle cx="0" cy="0" r="4.6" fill="#ffd28a" filter="url(#glow)" />
   </g>
 
-  <ellipse cx="119" cy="126" rx="19" ry="14" fill="rgba(114,214,180,.08)" stroke="#72d6b4" stroke-width="2" stroke-dasharray="4 3" />
+  <ellipse cx="117" cy="145" rx="19" ry="14" fill="rgba(114,214,180,.08)" stroke="#72d6b4" stroke-width="2" stroke-dasharray="4 3" />
   <g fill="#72d6b4" filter="url(#glow)">
-    <circle cx="113" cy="123" r="3.8" />
-    <circle cx="121" cy="127" r="3.8" />
-    <circle cx="126" cy="120" r="3.8" />
-    <circle cx="116" cy="133" r="3.8" />
+    <circle cx="111" cy="142" r="3.8" />
+    <circle cx="119" cy="146" r="3.8" />
+    <circle cx="124" cy="139" r="3.8" />
+    <circle cx="114" cy="152" r="3.8" />
   </g>
 
-  <path d="M118 127 L178 80" fill="none" stroke="#ffbe5e" stroke-width="3" stroke-linecap="round" />
-  <path d="M166 79 L180 79 L174 92" fill="none" stroke="#ffbe5e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-  <ellipse cx="179" cy="80" rx="20" ry="14" fill="rgba(255,190,94,.08)" stroke="#ffbe5e" stroke-width="2" stroke-dasharray="4 3" />
+  <path d="M116 146 L175 97" fill="none" stroke="#ffbe5e" stroke-width="3" stroke-linecap="round" />
+  <path d="M163 97 L177 96 L171 109" fill="none" stroke="#ffbe5e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <ellipse cx="177" cy="97" rx="20" ry="14" fill="rgba(255,190,94,.08)" stroke="#ffbe5e" stroke-width="2" stroke-dasharray="4 3" />
   <g fill="#ffbe5e">
-    <circle cx="171" cy="76" r="3.8" />
-    <circle cx="179" cy="82" r="3.8" />
-    <circle cx="186" cy="77" r="3.8" />
-    <circle cx="183" cy="88" r="3.8" />
+    <circle cx="169" cy="93" r="3.8" />
+    <circle cx="177" cy="99" r="3.8" />
+    <circle cx="184" cy="94" r="3.8" />
+    <circle cx="181" cy="105" r="3.8" />
   </g>
 
-  <ellipse cx="116" cy="129" rx="59" ry="49" fill="rgba(255,112,94,.035)" stroke="#ff705e" stroke-width="1.8" stroke-dasharray="6 5" />
+  <ellipse cx="114" cy="148" rx="58" ry="48" fill="rgba(255,112,94,.035)" stroke="#ff705e" stroke-width="1.8" stroke-dasharray="6 5" />
   <g fill="none" stroke="#ff705e" stroke-width="2.3">
-    <circle cx="73" cy="93" r="3.8" />
-    <circle cx="160" cy="106" r="3.8" />
-    <circle cx="85" cy="162" r="3.8" />
-    <circle cx="145" cy="177" r="3.8" />
-    <circle cx="101" cy="116" r="3.8" />
+    <circle cx="72" cy="113" r="3.8" />
+    <circle cx="158" cy="126" r="3.8" />
+    <circle cx="84" cy="181" r="3.8" />
+    <circle cx="143" cy="195" r="3.8" />
+    <circle cx="100" cy="135" r="3.8" />
   </g>
 
-  <path class="connector" d="M200 82 C218 75, 221 72, 231 68" />
-  <path class="connector" d="M180 127 C204 127, 216 127, 231 127" />
-  <path class="connector" d="M174 168 C205 185, 218 190, 231 190" />
+  <rect class="card" x="218" y="75" width="128" height="132" rx="18" />
+  <rect x="228" y="86" width="108" height="76" rx="14" fill="url(#twinFill)" stroke="rgba(114,214,180,.42)" />
+  <path d="M248 138 C256 113, 273 101, 293 103 C316 105, 329 122, 324 145" fill="none" stroke="rgba(247,242,232,.28)" stroke-width="2.2" />
+  <path d="M319 133 L325 146 L311 143" fill="none" stroke="rgba(247,242,232,.28)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="282" cy="124" r="21" fill="rgba(6,12,20,.23)" stroke="#72d6b4" stroke-width="2" />
+  <path d="M268 126 L278 114 L290 135 L299 118" fill="none" stroke="#ffd28a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+  <text class="eyebrow" x="282" y="181" text-anchor="middle">Digital twin</text>
+  <text class="tiny" x="282" y="195" text-anchor="middle">simulate reality</text>
 
-  <rect class="card" x="230" y="47" width="166" height="42" rx="12" />
-  <rect x="230" y="47" width="5" height="42" rx="2.5" fill="#ffd28a" />
-  <text class="eyebrow" x="245" y="63">Controls</text>
-  <text class="main" x="245" y="80">Bias &#8596; Variance</text>
+  <path class="flow" d="M178 147 C193 143, 205 139, 218 134" />
+  <path class="flow" d="M346 134 C357 126, 360 121, 372 111" />
+  <path class="flow-warm" d="M346 151 C358 154, 362 158, 372 164" />
+  <path class="flow" d="M346 171 C357 183, 361 190, 372 202" />
 
-  <rect class="card" x="230" y="106" width="166" height="42" rx="12" />
-  <rect x="230" y="106" width="5" height="42" rx="2.5" fill="#ffbe5e" />
-  <text class="eyebrow" x="245" y="122">Symptoms</text>
-  <text class="main" x="245" y="139">Underfit &#8596; Overfit</text>
+  <rect class="card" x="371" y="82" width="164" height="44" rx="12" />
+  <rect x="371" y="82" width="5" height="44" rx="2.5" fill="#ffd28a" />
+  <text class="eyebrow" x="386" y="99">Controls</text>
+  <text class="main" x="386" y="116">Bias &#8596; Variance</text>
 
-  <rect class="card" x="230" y="165" width="166" height="48" rx="12" />
-  <rect x="230" y="165" width="5" height="48" rx="2.5" fill="#72d6b4" />
-  <text class="eyebrow" x="245" y="181">Diagnosis</text>
-  <text class="main" x="245" y="197">Train vs Test</text>
-  <path d="M326 197 C337 187, 352 183, 383 180" fill="none" stroke="#72d6b4" stroke-width="2" stroke-linecap="round" />
-  <path d="M326 190 C339 178, 351 174, 364 178 C376 182, 383 190, 390 199" fill="none" stroke="#ffbe5e" stroke-width="2" stroke-linecap="round" />
+  <rect class="card" x="371" y="144" width="164" height="44" rx="12" />
+  <rect x="371" y="144" width="5" height="44" rx="2.5" fill="#ffbe5e" />
+  <text class="eyebrow" x="386" y="161">Symptoms</text>
+  <text class="main" x="386" y="178">Underfit &#8596; Overfit</text>
+
+  <rect class="card" x="371" y="206" width="164" height="52" rx="12" />
+  <rect x="371" y="206" width="5" height="52" rx="2.5" fill="#72d6b4" />
+  <text class="eyebrow" x="386" y="223">Diagnosis</text>
+  <text class="main" x="386" y="239">Train vs Test</text>
+  <path d="M467 239 C478 229, 493 225, 524 222" fill="none" stroke="#72d6b4" stroke-width="2" stroke-linecap="round" />
+  <path d="M467 232 C480 220, 492 216, 505 220 C517 224, 524 232, 531 241" fill="none" stroke="#ffbe5e" stroke-width="2" stroke-linecap="round" />
 </svg>
 """.strip()
     encoded = base64.b64encode(svg.encode("utf-8")).decode("ascii")
@@ -180,7 +196,7 @@ def quick_logo(resources_path: Path) -> None:
               }}
               .agilab-hero__body {{
                 display: grid;
-                grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+                grid-template-columns: minmax(230px, 0.82fr) minmax(410px, 1.18fr);
                 gap: clamp(1.1rem, 3vw, 2.2rem);
                 align-items: center;
               }}
@@ -208,7 +224,7 @@ def quick_logo(resources_path: Path) -> None:
               }}
               .agilab-hero__visual {{
                 position: relative;
-                min-height: 225px;
+                min-height: 260px;
                 padding: 0.85rem;
                 border: 1px solid rgba(255,255,255,0.18);
                 border-radius: 22px;
@@ -246,10 +262,15 @@ def quick_logo(resources_path: Path) -> None:
               .agilab-hero__legal-sep {{
                 color: rgba(247, 242, 232, 0.24);
               }}
-              @media (max-width: 520px) {{
+              @media (max-width: 900px) {{
                 .agilab-hero__body {{
                   grid-template-columns: 1fr;
                 }}
+                .agilab-hero__visual {{
+                  min-height: unset;
+                }}
+              }}
+              @media (max-width: 520px) {{
                 .agilab-hero__brand {{
                   align-items: flex-start;
                   border-radius: 18px;
@@ -294,11 +315,11 @@ def quick_logo(resources_path: Path) -> None:
                     <span class="agilab-hero__chip">Analyse</span>
                   </div>
                 </div>
-                <div class="agilab-hero__visual" role="img" aria-label="Bias versus precision target diagram">
+                <div class="agilab-hero__visual" role="img" aria-label="Digital twin assisted generalization map">
                   <img
                     class="agilab-hero__target-img"
                     src="{target_svg_src}"
-                    alt="Bias variance controls, underfit overfit symptoms, and train test diagnosis"
+                    alt="Digital twin assisted generalization map linking simulation, bias variance controls, underfit overfit symptoms, and train test diagnosis"
                   >
                 </div>
               </div>

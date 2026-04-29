@@ -103,6 +103,12 @@ class _FakeStreamlit:
     def graphviz_chart(self, chart, width=None):
         self.messages.append(("graphviz", str(bool(chart))))
 
+    def metric(self, label, value, delta=None, help=None):
+        self.messages.append(("metric", f"{label}={value}"))
+
+    def dataframe(self, data, **_kwargs):
+        self.messages.append(("dataframe", str(len(data) if hasattr(data, "__len__") else "unknown")))
+
     def divider(self):
         self.messages.append(("divider", "called"))
 
@@ -652,6 +658,38 @@ def test_pipeline_lab_helper_functions_cover_editor_text_and_engine_defaults():
     assert pipeline_lab._resolve_step_engine("", "", "/tmp/runtime") == "agi.run"
     assert pipeline_lab._resolve_step_engine("agi.run", "runpy", "") == "agi.run"
     assert pipeline_lab._resolve_step_engine("", "runpy", "") == "runpy"
+
+
+def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state_path = tmp_path / ".agilab" / "runner_state.json"
+    assert state_path.is_file()
+    state = pipeline_lab.load_runner_state(state_path)
+    assert state["source"]["dag_path"] == "docs/source/data/multi_app_dag_flight_sample.json"
+    assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
+    assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert ("metric", "Planned=2") in fake_st.messages
+    assert ("dataframe", "2") in fake_st.messages
+
+
+def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_dispatch_next": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["run_status"] == "running"
+    assert state["summary"]["running_unit_ids"] == ["flight_context"]
+    assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert any(kind == "success" and "flight_context" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
 
 
 def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_path):
