@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import stat
+import importlib.util
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +23,22 @@ else:
 
 from agi_env import AgiEnv
 from agi_gui.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
+
+_import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_module = _import_guard_module.import_agilab_module
+
+_orchestrate_page_state = import_agilab_module(
+    "agilab.orchestrate_page_state",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_page_state.py",
+    fallback_name="agilab_orchestrate_page_state_fallback",
+)
+build_orchestrate_execute_workflow_state = _orchestrate_page_state.build_orchestrate_execute_workflow_state
 
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
 PREVIEW_FILE_PATTERNS = ("*.parquet", "*.csv", "*.json", "*.gml")
@@ -180,6 +197,12 @@ async def render_execute_section(
     LOG_DISPLAY_MAX_LINES = deps.log_display_max_lines
     LIVE_LOG_MIN_HEIGHT = deps.live_log_min_height
     INSTALL_LOG_HEIGHT = deps.install_log_height
+    execute_state = build_orchestrate_execute_workflow_state(
+        show_run_panel=show_run_panel,
+        cmd=cmd,
+        project_path=project_path,
+        worker_env_path=getattr(env, "wenv_abs", None),
+    )
 
     existing_run_log = st.session_state.get("run_log_cache", "").strip()
     run_log_expander = None
@@ -251,7 +274,7 @@ async def render_execute_section(
         if show_run_panel:
             run_col, load_col, delete_col = st.columns(3)
             run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
-            if cmd:
+            if execute_state.command_configured:
                 if run_col.button(
                     run_label,
                     key="run_btn",
@@ -357,7 +380,7 @@ async def render_execute_section(
                     st.success("Dataframe preview restore completed.")
                 _rerun_fragment_or_app()
 
-            if cmd:
+            if execute_state.command_configured:
                 if st.button(
                     "EXECUTE → LOAD → EXPORT",
                     key="combo_exec_load_export",
@@ -529,42 +552,22 @@ async def render_execute_section(
             st.info("Dataframe preview cleared. Run EXECUTE then LOAD to refresh with new output.")
         st.session_state[delete_undo_key] = undo_payload
 
-    if show_run_panel and run_clicked and cmd:
-        manager_venv = project_path / ".venv"
-        worker_venv = env.wenv_abs / ".venv"
-        if not manager_venv.exists() or not worker_venv.exists():
-            missing = []
-            if not manager_venv.exists():
-                missing.append(f"manager venv `{manager_venv}`")
-            if not worker_venv.exists():
-                missing.append(f"worker venv `{worker_venv}`")
-            st.error(
-                "EXECUTE is unavailable because the installation is incomplete. "
-                "Run INSTALL first to create: " + ", ".join(missing)
-            )
-        else:
+    if show_run_panel and run_clicked:
+        run_action = execute_state.run_action
+        if run_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
             if st.session_state.get("benchmark"):
                 st.session_state["_benchmark_expand"] = True
                 st.rerun()
+        else:
+            st.error(run_action.disabled_reason)
 
     if show_run_panel and combo_clicked:
-        manager_venv = project_path / ".venv"
-        worker_venv = env.wenv_abs / ".venv"
-        if cmd and manager_venv.exists() and worker_venv.exists():
+        combo_action = execute_state.combo_action
+        if combo_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
-        elif not cmd:
-            st.error("No EXECUTE command configured; please configure it first.")
         else:
-            missing = []
-            if not manager_venv.exists():
-                missing.append(f"manager venv `{manager_venv}`")
-            if not worker_venv.exists():
-                missing.append(f"worker venv `{worker_venv}`")
-            st.error(
-                "EXECUTE → LOAD → EXPORT is unavailable because the installation is incomplete. "
-                "Run INSTALL first to create: " + ", ".join(missing)
-            )
+            st.error(combo_action.disabled_reason)
 
         st.session_state["_combo_load_trigger"] = True
         st.session_state["_combo_export_trigger"] = True
