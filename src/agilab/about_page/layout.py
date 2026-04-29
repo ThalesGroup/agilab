@@ -49,12 +49,18 @@ def _hero_target_svg_data_uri() -> str:
     .note{fill:rgba(255,210,138,.9);font:850 10.5px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.08em}
     .card{fill:url(#cardFill);stroke:rgba(247,242,232,.18);stroke-width:1}
     .target{fill:rgba(255,255,255,.06);stroke:rgba(247,242,232,.28);stroke-width:1.4}
+    .twin-shell{fill:url(#twinFill);stroke:rgba(114,214,180,.42);stroke-width:1.2}
+    .twin-grid{fill:none;stroke:rgba(114,214,180,.38);stroke-width:.8}
     .ring{fill:none;stroke:rgba(247,242,232,.22);stroke-width:1.1}
     .core{fill:none;stroke:rgba(255,210,138,.44);stroke-width:1.2}
     .axis{stroke:rgba(247,242,232,.16)}
     .connector{fill:none;stroke:rgba(247,242,232,.24);stroke-width:1.1;stroke-linecap:round}
     .flow{fill:none;stroke:#72d6b4;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
     .flow-warm{fill:none;stroke:#ffbe5e;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+    .sim-orbit{fill:none;stroke:rgba(255,210,138,.64);stroke-width:1.7;stroke-linecap:round;stroke-dasharray:5 4}
+    .sim-line{fill:none;stroke:#72d6b4;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+    .sim-warm{fill:none;stroke:#ffd28a;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .sim-dot{fill:#ffd28a}
   </style>
   <text class="title" x="280" y="24" text-anchor="middle">Generalization + digital twin map</text>
   <text class="note" x="280" y="273" text-anchor="middle">simulate, run, diagnose, then tune the real workflow</text>
@@ -97,13 +103,23 @@ def _hero_target_svg_data_uri() -> str:
   </g>
 
   <rect class="card" x="218" y="75" width="128" height="132" rx="18" />
-  <rect x="228" y="86" width="108" height="76" rx="14" fill="url(#twinFill)" stroke="rgba(114,214,180,.42)" />
-  <path d="M248 138 C256 113, 273 101, 293 103 C316 105, 329 122, 324 145" fill="none" stroke="rgba(247,242,232,.28)" stroke-width="2.2" />
-  <path d="M319 133 L325 146 L311 143" fill="none" stroke="rgba(247,242,232,.28)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="282" cy="124" r="21" fill="rgba(6,12,20,.23)" stroke="#72d6b4" stroke-width="2" />
-  <path d="M268 126 L278 114 L290 135 L299 118" fill="none" stroke="#ffd28a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+  <g aria-label="digital twin simulation symbol">
+    <rect class="twin-shell" x="228" y="86" width="108" height="76" rx="14" />
+    <path class="twin-grid" d="M238 105 H326 M238 124 H326 M238 143 H326 M256 94 V154 M282 94 V154 M308 94 V154" />
+    <path class="sim-orbit" d="M246 124 C250 101, 268 93, 291 96 C315 99, 329 116, 325 137 C322 155, 303 162, 281 159 C258 156, 243 144, 246 124" />
+    <path class="sim-warm" d="M318 132 L326 139 L316 143" />
+
+    <path class="sim-line" d="M246 135 C253 126, 260 124, 267 131 C273 137, 279 137, 286 129" />
+    <circle class="sim-dot" cx="253" cy="126" r="2.8" />
+    <circle class="sim-dot" cx="279" cy="137" r="2.8" />
+
+    <path class="sim-line" d="M298 113 L313 105 L327 113 L327 134 L313 143 L298 135 Z" />
+    <path class="sim-line" d="M298 113 L313 122 L327 113 M313 122 V143" />
+    <path class="sim-warm" d="M286 118 H298 M293 114 L299 118 L293 122" />
+    <path class="sim-warm" d="M299 139 H286 M292 135 L286 139 L292 143" />
+  </g>
   <text class="eyebrow" x="282" y="181" text-anchor="middle">Digital twin</text>
-  <text class="tiny" x="282" y="195" text-anchor="middle">simulate reality</text>
+  <text class="tiny" x="282" y="195" text-anchor="middle">simulate &#8596; reality</text>
 
   <path class="flow" d="M178 147 C193 143, 205 139, 218 134" />
   <path class="flow" d="M346 134 C357 126, 360 121, 372 111" />

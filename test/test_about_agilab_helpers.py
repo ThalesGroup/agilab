@@ -2003,7 +2003,8 @@ def test_about_hero_target_svg_data_uri_keeps_svg_encoded():
     assert '<g transform="translate(116 146)">' in decoded
     assert "Generalization + digital twin map" in decoded
     assert "Digital twin" in decoded
-    assert "simulate reality" in decoded
+    assert "digital twin simulation symbol" in decoded
+    assert "simulate &#8596; reality" in decoded
     assert "Bias &#8596; Variance" in decoded
     assert "Controls" in decoded
     assert "Underfit &#8596; Overfit" in decoded
