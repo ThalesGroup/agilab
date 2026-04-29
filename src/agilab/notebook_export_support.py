@@ -10,6 +10,8 @@ from typing import Any, Dict, Iterable, Sequence
 
 import tomllib
 
+from .page_bundle_registry import discover_page_bundle
+
 
 DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
 NOTEBOOK_EXPORT_SCHEMA = "agilab.notebook_export.v1"
@@ -440,24 +442,8 @@ def _load_related_page_manifest(
 def _discover_page_script(pages_root: str | Path | None, module_name: str) -> str:
     if not pages_root:
         return ""
-    try:
-        root = Path(pages_root).expanduser()
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return ""
-
-    candidates = (
-        root / f"{module_name}.py",
-        root / module_name / f"{module_name}.py",
-        root / module_name / "main.py",
-        root / module_name / "app.py",
-        root / module_name / "src" / module_name / f"{module_name}.py",
-        root / module_name / "src" / module_name / "main.py",
-        root / module_name / "src" / module_name / "app.py",
-    )
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate.resolve())
-    return ""
+    bundle = discover_page_bundle(pages_root, module_name)
+    return str(bundle.script_path) if bundle is not None else ""
 
 
 def _discover_page_inline_renderer(

@@ -18,6 +18,25 @@ from typing import Any, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SRC_ROOT = REPO_ROOT / "src"
+SRC_PACKAGE = SRC_ROOT / "agilab"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+try:
+    import agilab as _agilab_package
+except ModuleNotFoundError:
+    _agilab_package = None
+if _agilab_package is not None and str(SRC_PACKAGE) not in _agilab_package.__path__:
+    _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
+
+from agilab.page_bundle_registry import (  # noqa: E402
+    PageBundleSpec,
+    configured_page_bundle_names,
+    discover_page_bundle,
+    discover_page_bundles,
+    resolve_page_bundles,
+)
+
 WEB_ROBOT_PATH = REPO_ROOT / "tools/agilab_web_robot.py"
 DEFAULT_APPS_ROOT = REPO_ROOT / "src/agilab/apps/builtin"
 DEFAULT_APPS_PAGES_ROOT = REPO_ROOT / "src/agilab/apps-pages"
@@ -215,23 +234,13 @@ def public_builtin_apps(apps_root: Path = DEFAULT_APPS_ROOT) -> list[Path]:
 
 
 def _apps_page_entrypoint(project_dir: Path) -> Path | None:
-    src_dir = project_dir / "src"
-    preferred = sorted(src_dir.glob(f"*/{project_dir.name}.py"))
-    if preferred:
-        return preferred[0].resolve()
-    candidates = sorted(src_dir.glob("*/view_*.py"))
-    return candidates[0].resolve() if candidates else None
+    bundle = discover_page_bundle(project_dir.parent, project_dir.name)
+    return bundle.script_path if bundle is not None else None
 
 
 def public_apps_pages(pages_root: Path = DEFAULT_APPS_PAGES_ROOT) -> list[AppsPageRoute]:
-    routes: list[AppsPageRoute] = []
-    for project_dir in sorted(path for path in pages_root.iterdir() if path.is_dir() and not path.name.startswith(".")):
-        if not (project_dir / "pyproject.toml").exists():
-            continue
-        entrypoint = _apps_page_entrypoint(project_dir)
-        if entrypoint is not None:
-            routes.append(AppsPageRoute(project_dir.name, entrypoint))
-    return routes
+    registry = discover_page_bundles(pages_root, require_pyproject=True)
+    return [_apps_page_route(bundle) for bundle in registry]
 
 
 def parse_csv(value: str) -> list[str]:
@@ -266,24 +275,10 @@ def resolve_apps_pages(apps_pages: str, *, pages_root: Path = DEFAULT_APPS_PAGES
         raise ValueError("'configured' apps-pages are resolved per app")
     if apps_pages == "none":
         return []
-    discovered = public_apps_pages(pages_root)
     if apps_pages == "all":
-        return discovered
-    by_name = {route.name: route for route in discovered}
-    resolved: list[AppsPageRoute] = []
-    for item in parse_csv(apps_pages):
-        candidate = Path(item).expanduser()
-        if candidate.exists():
-            resolved.append(AppsPageRoute(candidate.stem, candidate.resolve()))
-        elif item in by_name:
-            resolved.append(by_name[item])
-        else:
-            project_dir = pages_root / item
-            entrypoint = _apps_page_entrypoint(project_dir) if project_dir.exists() else None
-            if entrypoint is None:
-                raise ValueError(f"Unknown apps-page route: {item}")
-            resolved.append(AppsPageRoute(item, entrypoint))
-    return resolved
+        return public_apps_pages(pages_root)
+    bundles = resolve_page_bundles(parse_csv(apps_pages), pages_root=pages_root, require_pyproject=True)
+    return [_apps_page_route(bundle) for bundle in bundles]
 
 
 def configured_apps_pages_for_app(app: Path | str, *, pages_root: Path = DEFAULT_APPS_PAGES_ROOT) -> list[AppsPageRoute]:
@@ -295,25 +290,12 @@ def configured_apps_pages_for_app(app: Path | str, *, pages_root: Path = DEFAULT
         settings = tomllib.loads(settings_path.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError):
         return []
-    pages_config = settings.get("pages")
-    if not isinstance(pages_config, dict):
-        return []
-    names: list[str] = []
-    default_view = pages_config.get("default_view")
-    if isinstance(default_view, str) and default_view:
-        names.append(default_view)
-    view_module = pages_config.get("view_module")
-    if isinstance(view_module, list):
-        names.extend(item for item in view_module if isinstance(item, str) and item)
-    by_name = {route.name: route for route in public_apps_pages(pages_root)}
-    selected: list[AppsPageRoute] = []
-    seen: set[str] = set()
-    for name in names:
-        if name in seen or name not in by_name:
-            continue
-        seen.add(name)
-        selected.append(by_name[name])
-    return selected
+    registry = discover_page_bundles(pages_root, require_pyproject=True)
+    return [_apps_page_route(bundle) for bundle in registry.select(configured_page_bundle_names(settings))]
+
+
+def _apps_page_route(bundle: PageBundleSpec) -> AppsPageRoute:
+    return AppsPageRoute(bundle.name, bundle.script_path)
 
 
 def page_label(page: str) -> str:
