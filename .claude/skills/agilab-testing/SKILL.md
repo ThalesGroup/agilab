@@ -68,6 +68,12 @@ Use this skill when validating changes.
 - Cluster/share regressions:
   - Keep explicit regressions for “cluster share missing”, “cluster share equals local share”, and
     “no silent fallback to localshare”.
+  - For scheduler/worker inventory UI, cover mixed-node summaries: local scheduler
+    values, reachable remote worker values, and unreachable-node counters should be
+    derived from the same probe result model instead of hand-built display strings.
+  - When LAN discovery auto-populates scheduler/workers, test both the discovery
+    result and the persisted form fields so the UI cannot show discovered nodes
+    without saving executable cluster settings.
 - App settings split:
   - Source `app_settings.toml` files are seeds; mutable settings live in the user workspace.
   - Tests should target the right layer and avoid asserting that runtime writes back into source files.

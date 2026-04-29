@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-24
+  updated: 2026-04-29
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -19,6 +19,14 @@ Use this skill when editing:
 - Never assign `st.session_state["k"] = …` **after** a widget with `key="k"` was created.
   - Prefer `st.session_state.setdefault("k", default)` before the widget.
   - Or use widget return values and compute derived state separately.
+- Do not both pre-seed `st.session_state[key]` and pass a widget default/value/index for
+  the same keyed widget. Pick one source of initialization:
+  - use the widget default and leave `st.session_state` untouched before creation, or
+  - pre-seed `st.session_state` before creation and omit the widget default.
+  This avoids Streamlit warnings such as "created with a default value but also had its
+  value set via the Session State API".
+  Shared widget wrappers should drop their default argument when the key already
+  exists in session state.
 
 - If you need to “reset” a widget value:
   - Use a different key (versioned key pattern), or
