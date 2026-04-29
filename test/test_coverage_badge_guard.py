@@ -49,6 +49,7 @@ def test_changed_coverage_components_ignores_release_and_public_docs_tests() -> 
 
     changed = module.changed_coverage_components(
         [
+            "test/test_beta_readiness.py",
             "test/test_public_demo_links.py",
             "test/test_pypi_publish.py",
             "test/test_pypi_publish_workflow.py",
