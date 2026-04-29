@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-28
+  updated: 2026-04-29
 ---
 
 # Docs Skill (AGILAB)
@@ -77,6 +77,13 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 
 - Public documentation must not mention non-public apps/repositories.
 - Keep examples generic and refer to “external apps repository” rather than naming private app modules.
+- Public examples should teach the current public API shape. Prefer exported
+  constants, request objects, and stable wrappers over private `AGI._*`
+  internals, raw mode bitmasks, stale generated scripts, or legacy event-loop
+  snippets.
+- When updating public examples, add or refresh a stale-snippet grep/test for the
+  old pattern so outdated snippets do not reappear in README, `docs/source`,
+  canonical docs, or Hugging Face copy.
 - Before a public release or Hugging Face deploy, scan public docs and demo
   packaging for internal competitive wording, private project names, local
   validation paths, and non-public strategy text. Include at least README,
