@@ -159,6 +159,12 @@ def quick_logo(resources_path: Path) -> None:
                 font-size: 0.74rem;
                 font-weight: 800;
               }}
+              .agilab-hero__top {{
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+              }}
               .agilab-hero__brand img {{
                 width: 112px;
                 height: auto;
@@ -217,7 +223,8 @@ def quick_logo(resources_path: Path) -> None:
                 display: block;
               }}
               .agilab-hero__legal {{
-                margin: 1.55rem 0 0;
+                margin: 0;
+                max-width: 25rem;
                 color: rgba(247, 242, 232, 0.58);
                 font-size: 0.78rem;
                 line-height: 1.35;
@@ -232,12 +239,24 @@ def quick_logo(resources_path: Path) -> None:
                   border-radius: 18px;
                   flex-direction: column;
                 }}
+                .agilab-hero__top {{
+                  align-items: flex-start;
+                  flex-direction: column;
+                }}
+                .agilab-hero__legal {{
+                  text-align: left;
+                }}
               }}
             </style>
             <section class="agilab-hero" aria-label="AGILAB introduction">
-              <div class="agilab-hero__brand">
-                <img src="{img_src}" alt="AGILAB logo">
-                <span>Open-source workbench</span>
+              <div class="agilab-hero__top">
+                <div class="agilab-hero__brand">
+                  <img src="{img_src}" alt="AGILAB logo">
+                  <span>Open-source workbench</span>
+                </div>
+                <p class="agilab-hero__legal">
+                  &copy; 2020-{current_year} Thales SIX GTS France. Licensed under the BSD 3-Clause License.
+                </p>
               </div>
               <div class="agilab-hero__body">
                 <div class="agilab-hero__copy">
@@ -257,9 +276,6 @@ def quick_logo(resources_path: Path) -> None:
                   >
                 </div>
               </div>
-              <p class="agilab-hero__legal">
-                &copy; 2020-{current_year} Thales SIX GTS. Licensed under the BSD 3-Clause License.
-              </p>
             </section>
             """,
             unsafe_allow_html=True,
