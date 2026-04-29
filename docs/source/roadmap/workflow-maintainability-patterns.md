@@ -44,38 +44,33 @@ nearest support-module test. If a change cannot fit one of the patterns above,
 the implementation should either introduce the missing pattern deliberately or
 explain why the page-local exception is temporary.
 
-The Pipeline-first slice is now the reference implementation:
+The next concrete slice is Pipeline-first:
 
 - Add a minimal `PipelinePageState` / ViewModel builder.
 - Move `RUN` and `CLEAR LOGS` behind typed command-result functions.
 - Represent stale snippets, missing logs, and runnable labs as state instead of
   rediscovering them in individual widgets.
-- Stamp newly saved `lab_steps.toml` files with schema metadata and refuse
-  unsupported future versions before editing.
 - Keep Streamlit as the rendering adapter; do not move page behavior into
   `agi-env` or worker internals.
 
 ## Current Status
 
-- Page State / ViewModel: partially done. Pipeline has a typed
-  `PipelinePageState` / ViewModel for visible steps, selected lab, stale
-  snippets, lock/run status, logs, and available actions. Orchestrate still
-  needs the same level of consolidation.
+- Page State / ViewModel: partially done. Some typed state and report objects
+  exist, but Pipeline and Orchestrate still read and write Streamlit session
+  state directly in multiple places.
 - Ports and Adapters: partially done. `BootstrapPorts`, `Orchestrate*Deps`, and
   support modules exist, but not every external dependency is behind an
   injected adapter yet.
 - Command Result: partially done. `ActionResult`, `ActionSpec`, and
-  `run_streamlit_action` provide shared Streamlit command-result primitives.
-  Pipeline run, clear-logs, delete, delete-all, and undo-delete flows now use
-  typed command results; remaining workflow actions should follow that shape.
-- Explicit State Machine: partially done. Pipeline has a
-  `PipelineWorkflowStatus` enum covering `empty`, `generated`, `stale`,
-  `runnable`, `running`, `failed`, and `complete`. Service mode still needs an
+  `run_streamlit_action` provide the first shared Streamlit command-result
+  primitive, with PROJECT clone creation as the first adopter. Other workflow
+  actions still need to move toward the same typed boundary.
+- Explicit State Machine: partially done. Global pipeline state helpers exist,
+  but Pipeline editor, Pipeline run flow, and service mode still need one
   explicit workflow-state model.
-- Versioned Artifact Contracts: partially done. `AGILAB_SNIPPET_API`, run
-  manifest schema support, and `lab_steps.toml` v1 metadata/refusal support
-  exist. Exported notebooks, screenshots, and app settings still need the same
-  contract treatment.
+- Versioned Artifact Contracts: partially done. `AGILAB_SNIPPET_API` and run
+  manifest schema support exist, but related artifacts are not all versioned
+  with migration or refusal paths.
 - Facade Boundary: improved but incomplete. The `agi-gui` split and shared
   page bootstrap reduce direct coupling, but pages still touch low-level
   internals and session state in places.
@@ -85,11 +80,18 @@ The Pipeline-first slice is now the reference implementation:
 
 ## Recommended Sequence
 
-1. Apply the same ViewModel, command-result, and workflow-state pattern to
-   Orchestrate service mode.
-2. Extend versioned contracts to exported notebooks, screenshots, and app
-   settings.
-3. Convert snippet templates and page widgets into typed registries once state
+1. Keep extending typed command-result actions from PROJECT clone creation to
+   the next high-friction workflow buttons.
+2. Add a minimal `PipelinePageState` / ViewModel builder.
+3. Derive selected lab, visible steps, stale-snippet status, lock/run status,
+   and available actions from that state.
+4. Move `RUN` and `CLEAR LOGS` behind typed command functions.
+5. Add an explicit Pipeline workflow-state enum covering `empty`, `generated`,
+   `stale`, `runnable`, `running`, `failed`, and `complete`.
+6. Add `lab_steps.toml` schema metadata for newly saved pipeline files and a
+   clear refusal or refresh path for unsupported versions.
+7. Apply the same pattern to Orchestrate service mode after Pipeline is stable.
+8. Convert snippet templates and page widgets into typed registries once state
    and command boundaries are in place.
 
 ## First Slice Acceptance Criteria
