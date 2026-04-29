@@ -1237,6 +1237,9 @@ def test_toml_to_notebook_handles_meta_string_steps_and_blank_entries(tmp_path):
     assert notebook["metadata"]["kernelspec"]["name"] == "python3"
     assert notebook["metadata"]["language_info"]["name"] == "python"
     assert "pycharm" in notebook["metadata"]
+    assert notebook["metadata"]["agilab"]["schema"] == "agilab.notebook_export.v1"
+    assert notebook["metadata"]["agilab"]["version"] == 1
+    assert notebook["metadata"]["agilab"]["export_mode"] == "plain"
 
 
 def test_pycharm_notebook_mirror_path_targets_source_checkout_for_external_exports(tmp_path):
@@ -1663,6 +1666,8 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     page_markdown = "".join(notebook["cells"][-2]["source"])
     analysis_source = "".join(notebook["cells"][-1]["source"])
 
+    assert metadata["schema"] == "agilab.notebook_export.v1"
+    assert metadata["version"] == 1
     assert metadata["export_mode"] == "supervisor"
     assert metadata["project_name"] == "demo_project"
     assert metadata["controller_python"] == sys.executable
