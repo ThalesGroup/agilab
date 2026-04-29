@@ -167,9 +167,10 @@ single notebook but less ceremony than a production MLOps platform:
 - the data connector facility report validates
   ``tools/data_connector_facility_report.py --compact`` against
   ``SQL, OpenSearch, and object-storage connector definitions`` in a plain-text
-  TOML catalog; it runs in ``contract_validation_only`` mode, checks
-  kind-specific fields, and requires environment references instead of embedded
-  remote credentials
+  TOML catalog; object-storage contracts cover AWS S3/S3-compatible stores,
+  Azure Blob Storage, and Google Cloud Storage. It runs in
+  ``contract_validation_only`` mode, checks kind-specific fields, and requires
+  environment references instead of embedded remote credentials
 - the data connector resolution report validates
   ``tools/data_connector_resolution_report.py --compact`` for
   connector-aware app/page resolution; it resolves app-settings connector IDs,

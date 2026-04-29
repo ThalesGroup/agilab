@@ -186,6 +186,13 @@ The narrow release gate after any share repair is the standalone
 ``--share-check-only`` command above. Rerun the full Flight cluster validation
 only when you need fresh install, compute, and output-visibility evidence.
 
+For a stricter two-node proof, run with only the remote worker in
+``--workers``. The install log should show AGILAB adding
+``dask[distributed]`` to the generated ``wenv/<app>_worker`` environment before
+launching the remote ``dask worker`` process, and the run log should show the
+remote worker executing the Flight batches. The scheduler must then see the
+remote outputs through ``--cluster-share``.
+
 SSH key setup
 -------------
 
