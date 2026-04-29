@@ -94,6 +94,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
   - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
   - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
+  - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.
 
 ## CI and badge checks
 
