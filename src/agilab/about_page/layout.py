@@ -550,8 +550,9 @@ def _cluster_mode_label(cluster_params: dict[str, Any]) -> str:
     if enabled:
         suffix = f" ({', '.join(modes)})" if modes else ""
         return f"enabled{suffix}"
-    suffix = f" ({', '.join(modes)})" if modes else " (local)"
-    return f"disabled{suffix}"
+    if modes:
+        return f"local ({', '.join(modes)} available)"
+    return "local"
 
 
 def _env_cluster_share(env: Any) -> str:
@@ -1105,9 +1106,12 @@ def active_app_cluster_information_lines(env: Any) -> list[tuple[str, str]]:
         ssh_key_path=ssh_key_path,
         hardware_inventory=hardware_inventory,
     )
-    workers_data_path = _safe_text(cluster_params.get("workers_data_path")) or _env_cluster_share(env)
-    if not workers_data_path:
-        workers_data_path = "not configured" if cluster_enabled else "not used"
+    if cluster_enabled:
+        workers_data_path = _safe_text(cluster_params.get("workers_data_path")) or _env_cluster_share(env)
+        if not workers_data_path:
+            workers_data_path = "not configured"
+    else:
+        workers_data_path = "not used"
 
     lines = [
         ("Active app", app_name),

@@ -1637,6 +1637,48 @@ workers_data_path = "/fresh/share"
     assert not any(label.startswith("Worker ") for label, _value in lines.items())
 
 
+def test_active_app_cluster_information_hides_cluster_share_when_cluster_disabled(monkeypatch):
+    layout = about_agilab._about_layout
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": False,
+            "pool": True,
+            "cython": True,
+            "rapids": True,
+        }
+    }
+    monkeypatch.setattr(layout, "st", fake_st)
+    monkeypatch.setattr(
+        layout,
+        "_node_hardware_summary",
+        lambda *_args, **_kwargs: {
+            "CPU": "HF CPU; cores: 8",
+            "RAM": "124 GB",
+            "GPU": "Not detected",
+            "NPU": "Not detected",
+        },
+    )
+
+    lines = dict(
+        layout.active_app_cluster_information_lines(
+            SimpleNamespace(
+                app="flight_project",
+                AGI_CLUSTER_SHARE="/home/user/clustershare",
+                AGI_LOCAL_SHARE="/home/user/localshare",
+            )
+        )
+    )
+
+    assert lines["Scheduler"] == "local process"
+    assert lines["Mode"] == "local (pool, cython, rapids available)"
+    assert lines["Share"] == "not used"
+    assert lines["CPU"] == "8 cores"
+    assert lines["RAM"] == "124 GB"
+    assert lines["GPU"] == "Not detected"
+    assert lines["NPU"] == "Not detected"
+
+
 def test_active_app_cluster_information_counts_duplicate_scheduler_once(monkeypatch):
     monkeypatch.setattr(
         about_agilab._about_layout,
