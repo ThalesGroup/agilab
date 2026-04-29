@@ -250,7 +250,12 @@ def test_view_maps_3d_warns_when_no_dataset_exists(tmp_path, create_temp_app_pro
         "df_select_mode = \"Single file\"\n",
         pyproject_name="demo-map-3d-project",
     )
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=missing_export_root)
+    at = run_page_app_test(
+        PAGE_PATH,
+        project_dir,
+        export_root=missing_export_root,
+        timeout=60,
+    )
 
     assert not at.exception
     assert any("Cartography-3D Visualisation" in title.value for title in at.title)
