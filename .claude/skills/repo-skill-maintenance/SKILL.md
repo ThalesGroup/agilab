@@ -3,7 +3,7 @@ name: repo-skill-maintenance
 description: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-15
+  updated: 2026-04-29
 ---
 
 # Repo Skill Maintenance
@@ -46,13 +46,13 @@ Do not hand-edit both repo trees for the same shared skill.
    - `SKILL.md`
    - optional `agents/openai.yaml`
    - optional `references/`, `scripts/`, `assets/`
-4. Sync only the intended skill into `.codex/skills/`:
+4. Sync only the intended skill or skills into `.codex/skills/`:
 
 ```bash
-python3 tools/sync_agent_skills.py --skills <skill-name>
+python3 tools/sync_agent_skills.py --skills <skill-name> [<skill-name> ...]
 ```
 
-5. Validate and regenerate the Codex index:
+5. Validate and regenerate the Codex index once after all intended skill syncs:
 
 ```bash
 python3 tools/codex_skills.py --root .codex/skills validate --strict
@@ -70,6 +70,9 @@ python3 tools/codex_skills.py --root .codex/skills generate
 
 - Do not run `python3 tools/sync_agent_skills.py --all` unless you have already
   reconciled any older Claude/Codex drift on purpose.
+- When multiple skills are being edited in one pipeline, do not validate and
+  regenerate the Codex index after each individual skill. Sync all touched
+  skills in one targeted command, then run validation and generation once.
 - Do not migrate `~/.codex/skills/.system` into the repo.
 - Do not leave a copied third-party skill with missing repo-required frontmatter
   such as `license`.

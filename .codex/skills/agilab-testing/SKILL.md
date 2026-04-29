@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-28
+  updated: 2026-04-29
 ---
 
 # Testing Skill (AGILAB)
@@ -27,6 +27,23 @@ Use this skill when validating changes.
 - Prefer fixing the class of failure, not a single symptom. If a regression comes from filesystem
   ordering, polluted `HOME`/`~/.agilab`, or stale cluster config leaking from the runner, harden the
   shared helper or shared test fixture instead of patching just one assertion.
+
+## Pipeline Efficiency
+
+- When multiple AGILAB skills are active in the same turn, build one validation
+  plan from the final changed-file set instead of running each skill's checks
+  independently.
+- Run `tools/impact_validate.py` once per stable diff. Reuse its output if no
+  files changed since the previous run; rerun only after edits that alter the
+  impact surface.
+- Batch repeated artifact checks at the end of the edit loop:
+  docs mirror sync, coverage badge guard, skill mirror sync, Codex skill index
+  generation, and release dry-runs should not run once per skill.
+- Run cheap read-only inspections in parallel when possible, but keep write or
+  generation commands serialized so generated files do not race.
+- If several workflow parity profiles are required, run each required profile
+  once. Prefer a single command with repeated `--profile` arguments when the
+  tool supports it.
 
 ## Regression Hygiene
 
