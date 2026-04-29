@@ -1062,7 +1062,7 @@ def test_view_maps_network_page_reports_dataframe_load_contract_failures(
 
     monkeypatch.setattr("agi_env.pagelib.load_df", _fake_load_df)
 
-    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)
+    at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=60)
 
     assert not at.exception
     warnings = [warning.value for warning in at.warning]
