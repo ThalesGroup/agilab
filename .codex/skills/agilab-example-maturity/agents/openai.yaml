@@ -1,0 +1,4 @@
+interface:
+  display_name: "AGILAB Example Maturity"
+  short_description: "Harden AGILAB packaged examples"
+  default_prompt: "Use $agilab-example-maturity to raise AGILAB packaged examples to external-beta quality."

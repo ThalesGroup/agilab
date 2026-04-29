@@ -81,6 +81,52 @@ def test_public_app_tree_rejects_non_public_entries(tmp_path: Path) -> None:
     assert check.evidence == ["private_project"]
 
 
+def test_public_app_tree_rejects_tracked_non_public_entries(tmp_path: Path) -> None:
+    module = _load_module()
+
+    def _runner(argv):
+        assert argv == ["git", "-C", str(tmp_path), "ls-files", "-z", "--", "src/agilab/apps"]
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            "src/agilab/apps/builtin/flight_project/pyproject.toml\0"
+            "src/agilab/apps/private_project/pyproject.toml\0",
+            "",
+        )
+
+    check = module.check_public_app_tree(tmp_path, _runner)
+
+    assert check.success is False
+    assert check.evidence == ["private_project"]
+    assert "tracked release entries" in check.detail
+
+
+def test_public_app_tree_allows_ignored_local_private_entries(tmp_path: Path) -> None:
+    module = _load_module()
+    apps = tmp_path / "src/agilab/apps"
+    (apps / "builtin").mkdir(parents=True)
+    (apps / "private_project").mkdir()
+
+    def _runner(argv):
+        if argv == ["git", "-C", str(tmp_path), "ls-files", "-z", "--", "src/agilab/apps"]:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                "src/agilab/apps/builtin/flight_project/pyproject.toml\0",
+                "",
+            )
+        if argv == ["git", "-C", str(tmp_path), "check-ignore", "--quiet", "src/agilab/apps/private_project"]:
+            return subprocess.CompletedProcess(argv, 0, "", "")
+        raise AssertionError(f"unexpected command: {argv}")
+
+    check = module.check_public_app_tree(tmp_path, _runner)
+
+    assert check.success is True
+    assert check.evidence == []
+    assert "not release-blocking" in check.detail
+    assert "private_project" in check.detail
+
+
 def test_final_gate_requires_network_and_clean_tree(tmp_path: Path) -> None:
     module = _load_module()
     _write_release_package_set(tmp_path, module.BETA_CLASSIFIER)
@@ -100,6 +146,13 @@ def test_final_gate_requires_network_and_clean_tree(tmp_path: Path) -> None:
             return subprocess.CompletedProcess(argv, 0, "abc\n", "")
         if argv == ["git", "rev-parse", "origin/main"]:
             return subprocess.CompletedProcess(argv, 0, "abc\n", "")
+        if argv == ["git", "-C", str(tmp_path), "ls-files", "-z", "--", "src/agilab/apps"]:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                "src/agilab/apps/builtin/flight_project/pyproject.toml\0",
+                "",
+            )
         raise AssertionError(f"unexpected command: {argv}")
 
     summary = module.run_gate(
