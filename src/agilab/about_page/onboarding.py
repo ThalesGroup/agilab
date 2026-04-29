@@ -185,12 +185,63 @@ def _first_proof_status_tone(status: str) -> str:
     return "waiting"
 
 
+def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
+    """Return first-run microcopy for the next visible user action."""
+    active_app = str(state.get("active_app_name") or "none")
+    next_step = str(state.get("next_step") or "").strip()
+    if not state["project_available"]:
+        return {
+            "tone": "attention",
+            "phase": "Fix setup",
+            "title": "Restore the built-in flight demo",
+            "detail": next_step or "`flight_project` is missing from the app list.",
+            "cta_label": "Open troubleshooting",
+            "proof_hint": "`flight_project` must exist before the first proof can run.",
+        }
+    if not state["current_app_matches"]:
+        return {
+            "tone": "next",
+            "phase": "Step 1",
+            "title": "Select `flight_project`",
+            "detail": f"You are on `{active_app}`. Switch to the guided demo before running anything.",
+            "cta_label": "Use `flight_project`",
+            "proof_hint": "This keeps the first proof on the documented, supportable route.",
+        }
+    if state["run_manifest_passed"]:
+        return {
+            "tone": "done",
+            "phase": "Complete",
+            "title": "First proof is green",
+            "detail": "The manifest passes. Keep it as evidence before trying another demo.",
+            "cta_label": "Try another demo",
+            "proof_hint": "`run_manifest.json` is valid for the first-proof route.",
+        }
+    if state["run_manifest_loaded"] or state["run_output_detected"]:
+        return {
+            "tone": "attention",
+            "phase": "Step 3",
+            "title": "Finish the evidence",
+            "detail": next_step or "Generate or repair `run_manifest.json` before moving on.",
+            "cta_label": "Show proof details",
+            "proof_hint": "Done when `run_manifest.json` passes the compatibility checks.",
+        }
+    return {
+        "tone": "next",
+        "phase": "Step 2",
+        "title": "Install, then execute",
+        "detail": "Open `ORCHESTRATE`; click `INSTALL`, then `EXECUTE` with cluster and service mode off.",
+        "cta_label": "Go to `ORCHESTRATE`",
+        "proof_hint": "Done when ANALYSIS opens and `run_manifest.json` appears.",
+    }
+
+
 def _first_proof_overview_html(
     content: Dict[str, Any],
     state: Dict[str, Any],
     rows: List[Dict[str, str]],
 ) -> str:
     """Render the first-proof cockpit card."""
+    next_action = _first_proof_next_action_model(state)
     cards_html = "".join(
         (
             f"""<article class="agilab-proof__status agilab-proof__status--{_first_proof_status_tone(row['status'])}">
@@ -268,6 +319,62 @@ def _first_proof_overview_html(
             color: #0a1f33;
             font-size: 1.08rem;
           }}
+          .agilab-proof__action {{
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 0.85rem;
+            align-items: center;
+            margin-top: 1rem;
+            padding: 0.9rem;
+            border: 1px solid rgba(10, 31, 51, 0.12);
+            border-radius: 20px;
+            background:
+              linear-gradient(135deg, rgba(10, 31, 51, 0.92), rgba(35, 58, 50, 0.90));
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+          }}
+          .agilab-proof__action--done {{
+            background: linear-gradient(135deg, #14532d, #2f5c40);
+          }}
+          .agilab-proof__action--attention {{
+            background: linear-gradient(135deg, #7f1d1d, #86450b);
+          }}
+          .agilab-proof__action span {{
+            display: inline-flex;
+            margin-bottom: 0.32rem;
+            color: #ffd28a;
+            font-size: 0.72rem;
+            font-weight: 900;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+          }}
+          .agilab-proof__action strong {{
+            display: block;
+            color: #fffaf0;
+            font-size: 1.05rem;
+          }}
+          .agilab-proof__action p {{
+            margin: 0.28rem 0 0;
+            color: rgba(255, 250, 240, 0.78);
+            line-height: 1.45;
+          }}
+          .agilab-proof__action aside {{
+            min-width: 190px;
+            padding: 0.7rem 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.09);
+            color: rgba(255, 250, 240, 0.86);
+            font-size: 0.84rem;
+            font-weight: 800;
+            text-align: right;
+          }}
+          .agilab-proof__action aside small {{
+            display: block;
+            margin-top: 0.25rem;
+            color: rgba(255, 250, 240, 0.62);
+            font-weight: 650;
+            line-height: 1.35;
+          }}
           .agilab-proof__rail {{
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -335,10 +442,14 @@ def _first_proof_overview_html(
           }}
           @media (max-width: 900px) {{
             .agilab-proof__head,
-            .agilab-proof__rail {{
+            .agilab-proof__rail,
+            .agilab-proof__action {{
               grid-template-columns: 1fr;
             }}
             .agilab-proof__seal {{
+              text-align: left;
+            }}
+            .agilab-proof__action aside {{
               text-align: left;
             }}
           }}
@@ -354,6 +465,17 @@ def _first_proof_overview_html(
               <span>Target</span>
               <strong>&lt;= {target_seconds:.0f}s</strong>
             </div>
+          </div>
+          <div class="agilab-proof__action agilab-proof__action--{escape(next_action['tone'])}">
+            <div>
+              <span>{escape(next_action["phase"])}</span>
+              <strong>{escape(next_action["title"])}</strong>
+              <p>{escape(next_action["detail"])}</p>
+            </div>
+            <aside>
+              {escape(next_action["cta_label"])}
+              <small>{escape(next_action["proof_hint"])}</small>
+            </aside>
           </div>
           <div class="agilab-proof__rail">{cards_html}</div>
           <div class="agilab-proof__meta">
@@ -371,13 +493,14 @@ def _render_first_proof_next_action(
     activate_project: Callable[[Any, Path], bool] | None,
 ) -> None:
     """Render the primary next action before diagnostics."""
+    action = _first_proof_next_action_model(state)
     st.markdown("**Next action**")
     if not state["project_available"]:
-        st.error(state["next_step"])
+        st.error(f"Next action: {action['title']} - {action['detail']}")
     elif not state["current_app_matches"]:
-        st.warning(f"Next action: {state['next_step']}")
+        st.warning(f"Next action: {action['title']} - {action['detail']}")
         if st.button(
-            "Use `flight_project`",
+            action["cta_label"],
             key="first_proof:activate",
             type="primary",
             use_container_width=True,
@@ -386,11 +509,11 @@ def _render_first_proof_next_action(
                 st.session_state["first_proof_feedback"] = "`flight_project` selected."
                 st.rerun()
     elif state["run_manifest_passed"]:
-        st.success(f"Next action: {state['next_step']}")
+        st.success(f"Next action: {action['title']} - {action['detail']}")
     elif state["run_manifest_loaded"] or state["run_output_detected"]:
-        st.warning(f"Next action: {state['next_step']}")
+        st.warning(f"Next action: {action['title']} - {action['detail']}")
     else:
-        st.info(f"Next action: {state['next_step']}")
+        st.info(f"Next action: {action['title']} - {action['detail']}")
 
 
 def render_newcomer_first_proof(

@@ -196,6 +196,11 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
     return _about_onboarding._first_proof_progress_rows(state)
 
 
+def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
+    """Return first-run microcopy for the next visible user action."""
+    return _about_onboarding._first_proof_next_action_model(state)
+
+
 def _first_proof_progress_markdown(rows: List[Dict[str, str]]) -> str:
     """Render progress rows as a small Markdown table."""
     return _about_onboarding._first_proof_progress_markdown(rows)

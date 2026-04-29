@@ -1642,7 +1642,7 @@ def _check_data_connector_facility_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.data_connector_facility.v1"
             and summary.get("run_status") == "validated"
             and summary.get("execution_mode") == "contract_validation_only"
-            and summary.get("connector_count") == 3
+            and summary.get("connector_count") == 5
             and summary.get("supported_kinds") == [
                 "object_storage",
                 "opensearch",
@@ -1744,10 +1744,10 @@ def _check_data_connector_health_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.data_connector_health.v1"
             and summary.get("run_status") == "planned"
             and summary.get("execution_mode") == "health_probe_plan_only"
-            and summary.get("connector_count") == 3
-            and summary.get("planned_probe_count") == 3
+            and summary.get("connector_count") == 5
+            and summary.get("planned_probe_count") == 5
             and summary.get("executed_probe_count") == 0
-            and summary.get("opt_in_required_count") == 3
+            and summary.get("opt_in_required_count") == 5
             and summary.get("network_probe_count") == 0
             and summary.get("status_values") == ["unknown_not_probed"]
             and summary.get("unhealthy_count") == 0
@@ -1793,15 +1793,15 @@ def _check_data_connector_health_actions_report(repo_root: Path) -> dict[str, An
             and summary.get("schema") == "agilab.data_connector_health_actions.v1"
             and summary.get("run_status") == "ready_for_operator_trigger"
             and summary.get("execution_mode") == "operator_trigger_contract_only"
-            and summary.get("action_count") == 3
-            and summary.get("connector_count") == 3
-            and summary.get("operator_trigger_count") == 3
-            and summary.get("pending_action_count") == 3
-            and summary.get("pending_operator_trigger_count") == 3
+            and summary.get("action_count") == 5
+            and summary.get("connector_count") == 5
+            and summary.get("operator_trigger_count") == 5
+            and summary.get("pending_action_count") == 5
+            and summary.get("pending_operator_trigger_count") == 5
             and summary.get("executed_probe_count") == 0
             and summary.get("network_probe_count") == 0
-            and summary.get("operator_context_required_count") == 3
-            and summary.get("credential_gated_count") == 2
+            and summary.get("operator_context_required_count") == 5
+            and summary.get("credential_gated_count") == 4
             and summary.get("no_credential_required_count") == 1
             and summary.get("default_status_values") == ["unknown_not_probed"]
             and summary.get("result_status_values") == ["unknown_not_probed"]
@@ -1847,13 +1847,13 @@ def _check_data_connector_runtime_adapters_report(repo_root: Path) -> dict[str, 
             and summary.get("schema") == "agilab.data_connector_runtime_adapters.v1"
             and summary.get("run_status") == "ready_for_runtime_binding"
             and summary.get("execution_mode") == "runtime_adapter_contract_only"
-            and summary.get("connector_count") == 3
-            and summary.get("adapter_count") == 3
-            and summary.get("runtime_ready_count") == 3
-            and summary.get("credential_deferred_count") == 2
+            and summary.get("connector_count") == 5
+            and summary.get("adapter_count") == 5
+            and summary.get("runtime_ready_count") == 5
+            and summary.get("credential_deferred_count") == 4
             and summary.get("no_credential_required_count") == 1
-            and summary.get("operator_opt_in_required_count") == 3
-            and summary.get("health_action_binding_count") == 3
+            and summary.get("operator_opt_in_required_count") == 5
+            and summary.get("health_action_binding_count") == 5
             and summary.get("executed_adapter_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("credential_value_materialized_count") == 0
@@ -1905,8 +1905,8 @@ def _check_data_connector_live_endpoint_smoke_report(repo_root: Path) -> dict[st
             and summary.get("schema")
             == "agilab.data_connector_live_endpoint_smoke.v1"
             and summary.get("execution_mode") == "live_endpoint_smoke_plan_only"
-            and summary.get("connector_count") == 3
-            and summary.get("planned_endpoint_count") == 3
+            and summary.get("connector_count") == 5
+            and summary.get("planned_endpoint_count") == 5
             and summary.get("executed_endpoint_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("sqlite_smoke_healthy_count") == 1
@@ -1951,11 +1951,11 @@ def _check_data_connector_ui_preview_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("run_status") == "ready_for_ui_preview"
             and summary.get("execution_mode") == "static_ui_preview_only"
             and summary.get("persistence_format") == "json+html"
-            and summary.get("connector_card_count") == 3
+            and summary.get("connector_card_count") == 5
             and summary.get("page_binding_count") == 2
             and summary.get("legacy_fallback_count") == 2
-            and summary.get("health_probe_status_count") == 3
-            and summary.get("component_count") == 8
+            and summary.get("health_probe_status_count") == 5
+            and summary.get("component_count") == 10
             and summary.get("network_probe_count") == 0
             and summary.get("html_rendered") is True
             and summary.get("html_written") is True
@@ -2002,10 +2002,10 @@ def _check_data_connector_live_ui_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.data_connector_live_ui.v1"
             and summary.get("run_status") == "ready_for_live_ui"
             and summary.get("execution_mode") == "streamlit_render_contract_only"
-            and summary.get("connector_card_count") == 3
+            and summary.get("connector_card_count") == 5
             and summary.get("page_binding_count") == 2
             and summary.get("legacy_fallback_count") == 2
-            and summary.get("health_probe_status_count") == 3
+            and summary.get("health_probe_status_count") == 5
             and summary.get("streamlit_metric_count") == 4
             and summary.get("streamlit_dataframe_count") == 4
             and summary.get("network_probe_count") == 0
@@ -2062,9 +2062,9 @@ def _check_data_connector_view_surface_report(repo_root: Path) -> dict[str, Any]
             and summary.get("release_decision_surface_count") == 4
             and summary.get("page_source_loaded") is True
             and summary.get("live_ui_run_status") == "ready_for_live_ui"
-            and summary.get("connector_card_count") == 3
+            and summary.get("connector_card_count") == 5
             and summary.get("page_binding_count") == 2
-            and summary.get("health_probe_status_count") == 3
+            and summary.get("health_probe_status_count") == 5
             and summary.get("external_artifact_traceability_ready") is True
             and summary.get("import_export_provenance_ready") is True
             and summary.get("network_probe_count") == 0

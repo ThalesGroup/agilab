@@ -6,9 +6,19 @@ from pathlib import Path
 
 
 REPORT_PATH = Path("tools/data_connector_runtime_adapters_report.py").resolve()
+CORE_PATH = Path("src/agilab/data_connector_runtime_adapters.py").resolve()
 
 
 def _load_module(path: Path, name: str):
+    src_root = Path.cwd() / "src"
+    src_root_text = str(src_root)
+    if src_root_text not in sys.path:
+        sys.path.insert(0, src_root_text)
+    package = sys.modules.get("agilab")
+    package_paths = getattr(package, "__path__", None)
+    package_path = str(src_root / "agilab")
+    if package_paths is not None and package_path not in list(package_paths):
+        package_paths.append(package_path)
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -33,13 +43,13 @@ def test_data_connector_runtime_adapters_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["schema"] == "agilab.data_connector_runtime_adapters.v1"
     assert report["summary"]["run_status"] == "ready_for_runtime_binding"
     assert report["summary"]["execution_mode"] == "runtime_adapter_contract_only"
-    assert report["summary"]["connector_count"] == 3
-    assert report["summary"]["adapter_count"] == 3
-    assert report["summary"]["runtime_ready_count"] == 3
-    assert report["summary"]["credential_deferred_count"] == 2
+    assert report["summary"]["connector_count"] == 5
+    assert report["summary"]["adapter_count"] == 5
+    assert report["summary"]["runtime_ready_count"] == 5
+    assert report["summary"]["credential_deferred_count"] == 4
     assert report["summary"]["no_credential_required_count"] == 1
-    assert report["summary"]["operator_opt_in_required_count"] == 3
-    assert report["summary"]["health_action_binding_count"] == 3
+    assert report["summary"]["operator_opt_in_required_count"] == 5
+    assert report["summary"]["health_action_binding_count"] == 5
     assert report["summary"]["executed_adapter_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
     assert report["summary"]["credential_value_materialized_count"] == 0
@@ -54,7 +64,9 @@ def test_data_connector_runtime_adapters_report_passes(tmp_path: Path) -> None:
         "read_only_connectivity_check",
     ]
     assert report["summary"]["runtime_dependencies"] == [
+        "package:azure-storage-blob",
         "package:boto3",
+        "package:google-cloud-storage",
         "package:psycopg",
         "python:urllib.request",
     ]
@@ -92,8 +104,62 @@ def test_data_connector_runtime_adapters_persist_runtime_rows(tmp_path: Path) ->
         "deferred_to_operator_runtime",
         "none_required",
     }
-    assert sum(1 for adapter in adapters if adapter["requires_credentials"]) == 2
+    assert sum(1 for adapter in adapters if adapter["requires_credentials"]) == 4
     assert sum(1 for adapter in adapters if not adapter["requires_credentials"]) == 1
+    targets = {adapter["connector_id"]: adapter["target"] for adapter in adapters}
+    assert targets["artifact_object_store"] == "s3://agilab-artifacts/experiments/"
+    assert targets["azure_artifact_store"] == "azure_blob://agilabstorage/agilab-artifacts/experiments/"
+    assert targets["gcp_artifact_store"] == "gs://agilab-artifacts/experiments/"
     assert all(adapter["network_probe_executed"] is False for adapter in adapters)
     assert all(adapter["credential_value_materialized"] is False for adapter in adapters)
     assert all(adapter["safe_for_public_evidence"] is True for adapter in adapters)
+
+
+def test_data_connector_runtime_adapters_accepts_aws_s3_alias(tmp_path: Path) -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "data_connector_runtime_adapters_core_aws_alias_test_module",
+    )
+    catalog = {
+        "connectors": [
+            {
+                "id": "warehouse_sql",
+                "kind": "sql",
+                "label": "Warehouse SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+                "driver": "postgresql",
+                "query_mode": "read_only",
+            },
+            {
+                "id": "ops_opensearch",
+                "kind": "opensearch",
+                "label": "Operations OpenSearch",
+                "url": "https://opensearch.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env:OPENSEARCH_TOKEN",
+            },
+            {
+                "id": "aws_artifact_store",
+                "kind": "object_storage",
+                "label": "AWS Artifact Store",
+                "provider": "AWS_S3",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "env:AWS_PROFILE",
+            }
+        ]
+    }
+
+    state = core_module.build_data_connector_runtime_adapters(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "ready_for_runtime_binding"
+    adapter = next(
+        row for row in state["adapters"]
+        if row["connector_id"] == "aws_artifact_store"
+    )
+    assert adapter["target"] == "s3://agilab-artifacts/experiments/"
+    assert adapter["runtime_dependency"] == "package:boto3"
+    assert adapter["credential_env_name"] == "AWS_PROFILE"

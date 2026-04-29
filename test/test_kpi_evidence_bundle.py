@@ -598,7 +598,7 @@ def test_data_connector_facility_report_contract_validates_connector_targets() -
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_facility.v1"
     assert check["details"]["summary"]["run_status"] == "validated"
     assert check["details"]["summary"]["execution_mode"] == "contract_validation_only"
-    assert check["details"]["summary"]["connector_count"] == 3
+    assert check["details"]["summary"]["connector_count"] == 5
     assert check["details"]["summary"]["supported_kinds"] == [
         "object_storage",
         "opensearch",
@@ -645,10 +645,10 @@ def test_data_connector_health_report_contract_plans_opt_in_probes() -> None:
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_health.v1"
     assert check["details"]["summary"]["run_status"] == "planned"
     assert check["details"]["summary"]["execution_mode"] == "health_probe_plan_only"
-    assert check["details"]["summary"]["connector_count"] == 3
-    assert check["details"]["summary"]["planned_probe_count"] == 3
+    assert check["details"]["summary"]["connector_count"] == 5
+    assert check["details"]["summary"]["planned_probe_count"] == 5
     assert check["details"]["summary"]["executed_probe_count"] == 0
-    assert check["details"]["summary"]["opt_in_required_count"] == 3
+    assert check["details"]["summary"]["opt_in_required_count"] == 5
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["status_values"] == ["unknown_not_probed"]
     assert check["details"]["summary"]["unhealthy_count"] == 0
@@ -665,15 +665,15 @@ def test_data_connector_health_actions_report_contract_exposes_operator_triggers
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_health_actions.v1"
     assert check["details"]["summary"]["run_status"] == "ready_for_operator_trigger"
     assert check["details"]["summary"]["execution_mode"] == "operator_trigger_contract_only"
-    assert check["details"]["summary"]["action_count"] == 3
-    assert check["details"]["summary"]["connector_count"] == 3
-    assert check["details"]["summary"]["operator_trigger_count"] == 3
-    assert check["details"]["summary"]["pending_action_count"] == 3
-    assert check["details"]["summary"]["pending_operator_trigger_count"] == 3
+    assert check["details"]["summary"]["action_count"] == 5
+    assert check["details"]["summary"]["connector_count"] == 5
+    assert check["details"]["summary"]["operator_trigger_count"] == 5
+    assert check["details"]["summary"]["pending_action_count"] == 5
+    assert check["details"]["summary"]["pending_operator_trigger_count"] == 5
     assert check["details"]["summary"]["executed_probe_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
-    assert check["details"]["summary"]["operator_context_required_count"] == 3
-    assert check["details"]["summary"]["credential_gated_count"] == 2
+    assert check["details"]["summary"]["operator_context_required_count"] == 5
+    assert check["details"]["summary"]["credential_gated_count"] == 4
     assert check["details"]["summary"]["no_credential_required_count"] == 1
     assert check["details"]["summary"]["default_status_values"] == ["unknown_not_probed"]
     assert check["details"]["summary"]["result_status_values"] == ["unknown_not_probed"]
@@ -692,13 +692,13 @@ def test_data_connector_runtime_adapters_report_contract_exposes_bindings() -> N
     )
     assert check["details"]["summary"]["run_status"] == "ready_for_runtime_binding"
     assert check["details"]["summary"]["execution_mode"] == "runtime_adapter_contract_only"
-    assert check["details"]["summary"]["connector_count"] == 3
-    assert check["details"]["summary"]["adapter_count"] == 3
-    assert check["details"]["summary"]["runtime_ready_count"] == 3
-    assert check["details"]["summary"]["credential_deferred_count"] == 2
+    assert check["details"]["summary"]["connector_count"] == 5
+    assert check["details"]["summary"]["adapter_count"] == 5
+    assert check["details"]["summary"]["runtime_ready_count"] == 5
+    assert check["details"]["summary"]["credential_deferred_count"] == 4
     assert check["details"]["summary"]["no_credential_required_count"] == 1
-    assert check["details"]["summary"]["operator_opt_in_required_count"] == 3
-    assert check["details"]["summary"]["health_action_binding_count"] == 3
+    assert check["details"]["summary"]["operator_opt_in_required_count"] == 5
+    assert check["details"]["summary"]["health_action_binding_count"] == 5
     assert check["details"]["summary"]["executed_adapter_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["credential_value_materialized_count"] == 0
@@ -721,8 +721,8 @@ def test_data_connector_live_endpoint_smoke_report_contract_reports_opt_in() -> 
         "agilab.data_connector_live_endpoint_smoke.v1"
     )
     assert check["details"]["summary"]["execution_mode"] == "live_endpoint_smoke_plan_only"
-    assert check["details"]["summary"]["connector_count"] == 3
-    assert check["details"]["summary"]["planned_endpoint_count"] == 3
+    assert check["details"]["summary"]["connector_count"] == 5
+    assert check["details"]["summary"]["planned_endpoint_count"] == 5
     assert check["details"]["summary"]["executed_endpoint_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["sqlite_smoke_healthy_count"] == 1
@@ -742,11 +742,11 @@ def test_data_connector_ui_preview_report_contract_renders_connector_state() -> 
     assert check["details"]["summary"]["run_status"] == "ready_for_ui_preview"
     assert check["details"]["summary"]["execution_mode"] == "static_ui_preview_only"
     assert check["details"]["summary"]["persistence_format"] == "json+html"
-    assert check["details"]["summary"]["connector_card_count"] == 3
+    assert check["details"]["summary"]["connector_card_count"] == 5
     assert check["details"]["summary"]["page_binding_count"] == 2
     assert check["details"]["summary"]["legacy_fallback_count"] == 2
-    assert check["details"]["summary"]["health_probe_status_count"] == 3
-    assert check["details"]["summary"]["component_count"] == 8
+    assert check["details"]["summary"]["health_probe_status_count"] == 5
+    assert check["details"]["summary"]["component_count"] == 10
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["html_rendered"] is True
     assert check["details"]["summary"]["html_written"] is True
@@ -763,10 +763,10 @@ def test_data_connector_live_ui_report_contract_wires_release_decision() -> None
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_live_ui.v1"
     assert check["details"]["summary"]["run_status"] == "ready_for_live_ui"
     assert check["details"]["summary"]["execution_mode"] == "streamlit_render_contract_only"
-    assert check["details"]["summary"]["connector_card_count"] == 3
+    assert check["details"]["summary"]["connector_card_count"] == 5
     assert check["details"]["summary"]["page_binding_count"] == 2
     assert check["details"]["summary"]["legacy_fallback_count"] == 2
-    assert check["details"]["summary"]["health_probe_status_count"] == 3
+    assert check["details"]["summary"]["health_probe_status_count"] == 5
     assert check["details"]["summary"]["streamlit_metric_count"] == 4
     assert check["details"]["summary"]["streamlit_dataframe_count"] == 4
     assert check["details"]["summary"]["network_probe_count"] == 0

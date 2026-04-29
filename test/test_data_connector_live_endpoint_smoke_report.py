@@ -30,8 +30,8 @@ def test_live_endpoint_smoke_report_passes_public_contract(tmp_path: Path) -> No
     assert report["status"] == "pass"
     assert report["summary"]["schema"] == "agilab.data_connector_live_endpoint_smoke.v1"
     assert report["summary"]["execution_mode"] == "live_endpoint_smoke_plan_only"
-    assert report["summary"]["connector_count"] == 3
-    assert report["summary"]["planned_endpoint_count"] == 3
+    assert report["summary"]["connector_count"] == 5
+    assert report["summary"]["planned_endpoint_count"] == 5
     assert report["summary"]["executed_endpoint_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
     assert report["summary"]["sqlite_smoke_healthy_count"] == 1

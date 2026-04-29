@@ -2012,6 +2012,42 @@ def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
     assert by_step["Evidence manifest"]["status"] == "Waiting"
 
 
+def test_first_proof_next_action_model_guides_first_click(tmp_path):
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+
+    select_state = about_agilab._newcomer_first_proof_state(
+        SimpleNamespace(
+            apps_path=apps_path,
+            app="mycode_project",
+            AGILAB_LOG_ABS=tmp_path / "log",
+        )
+    )
+
+    select_action = about_agilab._first_proof_next_action_model(select_state)
+
+    assert select_action["phase"] == "Step 1"
+    assert select_action["tone"] == "next"
+    assert select_action["title"] == "Select `flight_project`"
+    assert select_action["cta_label"] == "Use `flight_project`"
+    assert "mycode_project" in select_action["detail"]
+
+    run_state = about_agilab._newcomer_first_proof_state(
+        SimpleNamespace(
+            apps_path=apps_path,
+            app="flight_project",
+            AGILAB_LOG_ABS=tmp_path / "log",
+        )
+    )
+    run_action = about_agilab._first_proof_next_action_model(run_state)
+
+    assert run_action["phase"] == "Step 2"
+    assert run_action["title"] == "Install, then execute"
+    assert "ORCHESTRATE" in run_action["detail"]
+    assert "run_manifest.json" in run_action["proof_hint"]
+
+
 def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     apps_path = tmp_path / "apps"
     flight_project = apps_path / "flight_project"
@@ -2169,6 +2205,7 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
         "Start here: run flight_project first:False",
     )
     overview = _event_index(fake_st.events, "markdown", "agilab-proof")
+    action_strip = _event_index(fake_st.events, "markdown", "agilab-proof__action")
     next_action = _event_index(fake_st.events, "warning", "Next action:")
     do_this_now = _event_index(fake_st.events, "markdown", "**2. Do this now**")
     done_when = _event_index(fake_st.events, "markdown", "**3. Done when**")
@@ -2179,8 +2216,12 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
     )
     progress = _event_index(fake_st.events, "markdown", "**Progress**")
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
+    overview_markup = _event_body(fake_st.events, "markdown", "agilab-proof__action")
 
-    assert start_here < overview < next_action < do_this_now < done_when < proof_details < progress < validated_path
+    assert "Select `flight_project`" in overview_markup
+    assert "Use `flight_project`" in overview_markup
+    assert "This keeps the first proof on the documented, supportable route." in overview_markup
+    assert start_here < overview <= action_strip < next_action < do_this_now < done_when < proof_details < progress < validated_path
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):

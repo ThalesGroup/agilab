@@ -37,6 +37,7 @@ from agilab.data_connector_facility import (
     SUPPORTED_KINDS,
     persist_data_connector_facility,
 )
+from agilab.data_connector_cloud import SUPPORTED_OBJECT_STORAGE_PROVIDERS
 
 
 def _check_result(
@@ -128,6 +129,14 @@ def _build_report_with_paths(
         for connector in connectors
         if isinstance(connector, dict)
     }
+    object_storage_providers = sorted(
+        {
+            str(connector.get("provider", "") or "")
+            for connector in connectors
+            if isinstance(connector, dict)
+            and connector.get("kind") == "object_storage"
+        }
+    )
     auth_refs = [
         str(connector.get("auth_ref", "") or "")
         for connector in connectors
@@ -154,10 +163,10 @@ def _build_report_with_paths(
         _check_result(
             "data_connector_facility_first_class_targets",
             "Data connector facility first-class targets",
-            summary.get("connector_count") == 3
+            summary.get("connector_count") == 5
             and summary.get("supported_kinds") == sorted(SUPPORTED_KINDS)
             and summary.get("missing_kinds") == [],
-            "catalog defines SQL, OpenSearch, and object-storage connectors",
+            "catalog defines SQL, OpenSearch, and multi-cloud object-storage connectors",
             evidence=[proof["catalog_path"]],
             details=summary,
         ),
@@ -166,10 +175,13 @@ def _build_report_with_paths(
             "Data connector facility required fields",
             connector_by_kind.get("sql", {}).get("query_mode") == "read_only"
             and connector_by_kind.get("opensearch", {}).get("index") == "agilab-runs-*"
-            and connector_by_kind.get("object_storage", {}).get("provider") == "s3",
+            and object_storage_providers == list(SUPPORTED_OBJECT_STORAGE_PROVIDERS),
             "connector rows include kind-specific required fields",
             evidence=[proof["catalog_path"]],
-            details={"connector_by_kind": connector_by_kind},
+            details={
+                "connector_by_kind": connector_by_kind,
+                "object_storage_providers": object_storage_providers,
+            },
         ),
         _check_result(
             "data_connector_facility_secret_boundary",

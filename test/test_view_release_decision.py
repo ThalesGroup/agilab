@@ -390,7 +390,7 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     assert any(header.value == "Connector path registry" for header in at.subheader)
     connector_live_ui = at.session_state["release_decision_connector_live_ui"]
     assert connector_live_ui["run_status"] == "ready_for_live_ui"
-    assert connector_live_ui["summary"]["connector_card_count"] == 3
+    assert connector_live_ui["summary"]["connector_card_count"] == 5
     assert connector_live_ui["summary"]["page_binding_count"] == 2
     assert connector_live_ui["summary"]["network_probe_count"] == 0
 

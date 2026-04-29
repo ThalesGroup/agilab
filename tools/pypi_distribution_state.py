@@ -59,6 +59,10 @@ def _parse_distribution_name(path: Path) -> tuple[str, Version]:
     return str(canonicalize_name(name)), version
 
 
+def _is_distribution_file(path: Path) -> bool:
+    return path.name.endswith((".whl", ".tar.gz", ".zip"))
+
+
 def fetch_pypi_releases(name: str) -> set[Version]:
     url = PYPI_JSON_URL.format(name=urllib.parse.quote(name))
     try:
@@ -85,7 +89,7 @@ def analyze_distribution_dir(
     *,
     fetch_releases: Callable[[str], set[Version]] = fetch_pypi_releases,
 ) -> list[DistributionState]:
-    files = sorted(path for path in dist_dir.iterdir() if path.is_file())
+    files = sorted(path for path in dist_dir.iterdir() if path.is_file() and _is_distribution_file(path))
     if not files:
         raise DistributionStateError(f"no distribution files found in {dist_dir}")
 

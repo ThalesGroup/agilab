@@ -14,6 +14,7 @@ from urllib.parse import unquote, urlparse
 import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
 
+from agi_cluster.agi_distributor import deployment_dask_support
 from agi_env import AgiEnv
 
 
@@ -791,6 +792,16 @@ async def deploy_local_worker(
     if env.verbose > 0:
         log.info(f"Installing workers: {cmd_worker}")
     await run_fn(cmd_worker, wenv_abs)
+
+    if deployment_dask_support.dask_mode_enabled(agi_cls):
+        cmd_worker = deployment_dask_support.dask_runtime_install_command(
+            uv_worker,
+            wenv_abs,
+            offline_flag=offline_flag,
+        )
+        if env.verbose > 0:
+            log.info(f"Installing Dask worker runtime: {cmd_worker}")
+        await run_fn(cmd_worker, wenv_abs)
 
     write_staged_uv_sources_pth_fn(
         worker_site_packages_dir_fn(wenv_abs, env.pyvers_worker, windows=(os.name == "nt")),
