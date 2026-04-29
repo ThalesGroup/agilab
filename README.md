@@ -93,15 +93,26 @@ installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
 The PyPI package is the thinnest public entry point:
 
 ```bash
-pip install agilab
+mkdir ~/agi-workspace && cd ~/agi-workspace
+uv venv
+source .venv/bin/activate
+uv pip install agilab
 agilab first-proof --json
-agilab
+uv run agilab
 ```
 
 Use `agilab first-proof --json` for a quick package-level check. For the most
 representative full product run, prefer the source-checkout `flight_project`
 path above because it exercises the same app installation, execution, and
 analysis flow documented in the web UI.
+
+Optional feature stacks stay out of the base package install. Add
+`agilab[ai]` for OpenAI-backed AI features and `agilab[viz]` for optional
+Plotly/matplotlib visualizations:
+
+```bash
+uv pip install "agilab[ai,viz]"
+```
 
 ## App Repository Updates
 
@@ -177,7 +188,8 @@ Current CODEX 5.5 working summary, refreshed from the public KPI bundle:
 
 - `4.0 / 5` for ease of adoption, research experimentation, and engineering prototyping.
 - `3.0 / 5` for production readiness.
-- Overall public evaluation: `3.8 / 5`.
+- `4.2 / 5` for strategic potential.
+- Overall public evaluation, rounded category average: `3.8 / 5`.
 
 These are public experimentation-workbench scores, not production MLOps claims.
 The evidence and limits are maintained in the
