@@ -71,8 +71,8 @@ use this order:
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
 6. **Elasticity and active mesh optimization**
-   - keep the current public claim bounded to "train, execute, inspect,
-     compare"
+   - keep the current public claim bounded to the `Train -> Test -> Evidence`
+     loop
    - evolve toward multi-agent reinforcement learning only after the evidence
      layer can compare baseline versus adaptive-network outcomes
    - model moving nodes such as aircraft, UAVs, or satellites as active agents

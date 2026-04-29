@@ -94,10 +94,11 @@ Elasticity opportunity
 
 The most credible next strategic improvement is elasticity, not another
 tracking dashboard or model registry. AGILab is currently strongest at the
-``train, execute, inspect, compare`` loop. A later step would be multi-agent
-reinforcement learning for active mesh optimization: aircraft, UAVs, satellites,
-or other moving nodes would become active agents that can adapt their trajectory
-or routing behavior to improve network-level evidence.
+``Train -> Test -> Evidence`` loop: run a pipeline, inspect artifacts, and
+compare outcomes. A later step would be multi-agent reinforcement learning for
+active mesh optimization: aircraft, UAVs, satellites, or other moving nodes
+would become active agents that can adapt their trajectory or routing behavior
+to improve network-level evidence.
 
 This is a roadmap direction, not a current shipped capability. It should raise
 the strategic score only after there is public proof that AGILab can express the
