@@ -29,9 +29,9 @@ Use these patterns as the default direction for future workflow-page changes.
 - **Facade Boundary**: pages should depend on `agi_gui` and page-support
   helpers. If a low-level `agi_env` or worker dependency is unavoidable,
   isolate it behind a page-local port.
-- **Registry Pattern**: page bundles, widgets, app templates, and remaining
-  snippet-template discovery should move toward typed registries instead of
-  repeated discovery rules.
+- **Registry Pattern**: page bundles, widgets, app templates, reusable snippet
+  candidates, and future structured step templates should move toward typed
+  registries instead of repeated discovery rules.
 
 ## Roadmap Item: Pattern-Gated Workflow Changes
 
@@ -88,15 +88,17 @@ The Pipeline-first slice is now the reference implementation:
   page bootstrap reduce direct coupling, but pages still touch low-level
   internals and session state in places.
 - Registry Pattern: partially done. Connector registries, page bundles,
-  `agi_gui` widgets, and app templates have typed registries. Remaining
-  snippet-template discovery should move behind the same registry shape.
+  `agi_gui` widgets, app templates, and Pipeline reusable snippet candidates
+  have typed registries. A future structured pipeline-step template registry
+  remains part of the versioned pipeline-step proposal.
 
 ## Recommended Sequence
 
-1. Move remaining snippet-template discovery behind a typed registry.
-2. Apply the ViewModel, command-result, and workflow-state pattern to broader
+1. Apply the ViewModel, command-result, and workflow-state pattern to broader
    Orchestrate install/distribute/run views.
-3. Extend versioned contracts to remaining persisted UI artifacts.
+2. Extend versioned contracts to remaining persisted UI artifacts.
+3. Introduce a versioned pipeline-step template registry when raw generated
+   snippets are replaced with structured `template` steps.
 
 ## First Slice Acceptance Criteria
 

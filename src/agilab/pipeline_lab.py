@@ -22,8 +22,6 @@ from agi_gui.pagelib import (
 from agi_gui.ux_widgets import action_button, compact_choice, confirm_button, empty_state, status_container, toast
 from agi_env.snippet_contract import (
     clean_stale_snippet_files,
-    is_generated_agi_snippet,
-    is_supported_snippet_api,
     stale_snippet_cleanup_message,
 )
 
@@ -93,6 +91,14 @@ log_mlflow_artifacts = _pipeline_runtime_module.log_mlflow_artifacts
 _python_for_step = _pipeline_runtime_module.python_for_step
 start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
 wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
+
+_snippet_registry_module = import_agilab_module(
+    "agilab.snippet_registry",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "snippet_registry.py",
+    fallback_name="agilab_snippet_registry_fallback",
+)
+discover_pipeline_snippets = _snippet_registry_module.discover_pipeline_snippets
 
 _src_root = Path(__file__).resolve().parents[1]
 if str(_src_root) not in sys.path:
@@ -299,46 +305,8 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
     _ensure_safe_service_template = deps.ensure_safe_service_template
     SAFE_SERVICE_START_TEMPLATE_FILENAME = deps.safe_service_template_filename
     SAFE_SERVICE_START_TEMPLATE_MARKER = deps.safe_service_template_marker
-    discovered: List[Path] = []
-    stale_snippets: List[Path] = []
-    seen: set[str] = set()
-
-    def _is_current_or_non_agi_snippet(path: Path) -> bool:
-        try:
-            code = path.read_text(encoding="utf-8")
-        except (AttributeError, OSError, RuntimeError, TypeError, UnicodeDecodeError, ValueError):
-            return True
-        if not is_generated_agi_snippet(code):
-            return True
-        if is_supported_snippet_api(code):
-            return True
-        stale_snippets.append(path)
-        return False
-
-    def _add_path(candidate: Path) -> None:
-        try:
-            path = candidate.expanduser()
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            path = candidate
-        if not path.exists() or not path.is_file() or path.suffix.lower() != ".py":
-            return
-        try:
-            unique_key = str(path.resolve())
-        except (OSError, RuntimeError, ValueError):
-            unique_key = str(path)
-        if unique_key in seen:
-            return
-        seen.add(unique_key)
-        if not _is_current_or_non_agi_snippet(path):
-            return
-        discovered.append(path)
 
     snippet_file = st.session_state.get("snippet_file")
-    if snippet_file:
-        _add_path(Path(snippet_file))
-
-    run_script = steps_file.parent / "AGI_run.py"
-    _add_path(run_script)
     safe_service_template = _ensure_safe_service_template(
         env,
         steps_file,
@@ -346,32 +314,16 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
         marker=SAFE_SERVICE_START_TEMPLATE_MARKER,
         debug_log=logger.debug,
     )
-    if safe_service_template:
-        _add_path(safe_service_template)
 
-    # Avoid importing arbitrary execute logs (stale app_args) from runenv.
-    # Only keep a short-lived, app-scoped run snippet that is still
-    # aligned with the current app_settings modification timestamp.
-    runenv_root = getattr(env, "runenv", None)
-    if runenv_root:
-        try:
-            runenv_path = Path(runenv_root).expanduser()
-            app_settings_mtime = Path(env.app_settings_file).stat().st_mtime if Path(env.app_settings_file).exists() else None
-            expected_suffix = f"_{env.app}.py"
-            for py_file in sorted(runenv_path.glob("AGI_*.py")):
-                if not py_file.name.endswith(expected_suffix):
-                    continue
-                if app_settings_mtime is not None:
-                    try:
-                        if py_file.stat().st_mtime < app_settings_mtime:
-                            continue
-                    except OSError:
-                        continue
-                _add_path(py_file)
-        except (OSError, RuntimeError, TypeError, ValueError):
-            pass
-
-    discovered.sort(key=lambda p: (p.name.lower(), str(p).lower()))
+    registry = discover_pipeline_snippets(
+        steps_file=steps_file,
+        app_name=str(getattr(env, "app", "")),
+        explicit_snippet=snippet_file,
+        safe_service_template=safe_service_template,
+        runenv_root=getattr(env, "runenv", None),
+        app_settings_file=getattr(env, "app_settings_file", None),
+    )
+    stale_snippets = list(registry.stale_snippets)
     if stale_snippets:
         try:
             cleanup_message = stale_snippet_cleanup_message(stale_snippets)
@@ -394,19 +346,7 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
         except AttributeError:
             pass
 
-    option_map: Dict[str, Path] = {}
-    for path in discovered:
-        base_label = path.name
-        label = base_label
-        if label in option_map:
-            parent_name = path.parent.name or str(path.parent)
-            label = f"{base_label} ({parent_name})"
-            idx = 2
-            while label in option_map:
-                label = f"{base_label} ({parent_name} #{idx})"
-                idx += 1
-        option_map[label] = path
-    return option_map
+    return registry.as_option_map()
 
 def display_lab_tab(
     lab_dir: Path,
