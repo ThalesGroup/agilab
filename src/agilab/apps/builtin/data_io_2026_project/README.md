@@ -20,6 +20,11 @@ The app turns a compact mission scenario into a repeatable decision loop:
 The app is intentionally deterministic so it can be used in public demos, automated tests,
 and Hugging Face Spaces without private datasets or external services.
 
+It also includes an offline FRED-shaped public macro-context fixture. That proves
+how an external public data source can feed the feature-evidence table without
+requiring a live network call, API key, or `fredapi` dependency. Custom demos can
+opt in to the public FRED CSV endpoint later through the app-local helper module.
+
 ## Quick Run
 
 From the AGILAB UI:
@@ -50,6 +55,10 @@ analysis-ready bundle under `export/data_io_2026/data_io_decision`:
 
 Open `view_data_io_decision` from the ANALYSIS page to inspect the selected strategy,
 the pre/post-failure metrics, and the adaptation timeline.
+
+The feature table includes deterministic FRED-compatible fixture rows under the
+`fred_fixture` source label. These rows are context evidence only; the default
+route-scoring policy remains fully deterministic and mission-scenario driven.
 
 ## Scope
 

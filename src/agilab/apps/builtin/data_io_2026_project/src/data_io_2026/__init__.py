@@ -17,6 +17,17 @@ from .artifacts import (
     score_routes,
 )
 from .data_io_2026 import DataIo2026, DataIo2026App
+from .fred_support import (
+    FRED_CSV_BASE_URL,
+    FRED_FIXTURE_CSV,
+    FRED_FIXTURE_SERIES_ID,
+    FRED_FIXTURE_SERIES_NAME,
+    fetch_fred_csv_rows,
+    fred_csv_url,
+    fred_fixture_feature_rows,
+    fred_fixture_rows,
+    parse_fred_csv,
+)
 from .reduction import (
     DATA_IO_2026_REDUCE_CONTRACT,
     REDUCE_ARTIFACT_FILENAME_TEMPLATE,
@@ -34,6 +45,10 @@ __all__ = [
     "DataIo2026App",
     "DataIo2026Args",
     "DataIo2026ArgsTD",
+    "FRED_CSV_BASE_URL",
+    "FRED_FIXTURE_CSV",
+    "FRED_FIXTURE_SERIES_ID",
+    "FRED_FIXTURE_SERIES_NAME",
     "MissionWeights",
     "REDUCE_ARTIFACT_FILENAME_TEMPLATE",
     "REDUCE_ARTIFACT_NAME",
@@ -45,9 +60,14 @@ __all__ = [
     "choose_route",
     "dump_args",
     "ensure_defaults",
+    "fetch_fred_csv_rows",
+    "fred_csv_url",
+    "fred_fixture_feature_rows",
+    "fred_fixture_rows",
     "load_args",
     "merge_args",
     "partial_from_decision_summary",
+    "parse_fred_csv",
     "reduce_artifact_path",
     "score_routes",
     "write_reduce_artifact",
