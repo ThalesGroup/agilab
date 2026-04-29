@@ -249,6 +249,57 @@ def test_build_service_operator_snapshot_and_path_are_compact_and_stable(tmp_pat
     assert snapshot["summary"]["tracked_workers"] == 1
 
 
+def test_build_orchestrate_service_state_blocks_actions_when_cluster_disabled():
+    state = orchestrate_services.build_orchestrate_service_state(
+        session_state={},
+        cluster_params={"cluster_enabled": False, "pool": True},
+        allow_idle=False,
+        max_unhealthy=0,
+        max_restart_rate=0.25,
+        heartbeat_timeout_sec=10.0,
+    )
+
+    assert state.enabled is False
+    assert state.mode == 1
+    assert state.status is orchestrate_services.ServiceWorkflowStatus.DISABLED
+    assert state.available_actions == ()
+    assert state.blocked_actions[orchestrate_services.OrchestrateServiceAction.START].startswith(
+        "Enable Cluster"
+    )
+    assert state.summary["tracked_workers"] == 0
+
+
+def test_build_orchestrate_service_state_classifies_running_degraded_and_snapshot():
+    state = orchestrate_services.build_orchestrate_service_state(
+        session_state={
+            "service_status_cache": "running",
+            "service_health_cache": [
+                {"worker": "w1", "healthy": True, "heartbeat_state": "fresh"},
+                {"worker": "w2", "healthy": False, "reason": "timeout", "heartbeat_state": "late"},
+                "bad-row",
+            ],
+            "service_snapshot_path_cache": "/tmp/service_operator_snapshot.json",
+        },
+        cluster_params={"cluster_enabled": True, "pool": True, "cython": True},
+        allow_idle=False,
+        max_unhealthy=0,
+        max_restart_rate=0.25,
+        heartbeat_timeout_sec=10.0,
+    )
+
+    assert state.enabled is True
+    assert state.mode == 7
+    assert state.status is orchestrate_services.ServiceWorkflowStatus.DEGRADED
+    assert state.worker_health == (
+        {"worker": "w1", "healthy": True, "heartbeat_state": "fresh"},
+        {"worker": "w2", "healthy": False, "reason": "timeout", "heartbeat_state": "late"},
+    )
+    assert orchestrate_services.OrchestrateServiceAction.HEALTH_GATE in state.available_actions
+    assert state.blocked_actions == {}
+    assert state.snapshot_path == "/tmp/service_operator_snapshot.json"
+    assert state.summary["unhealthy_workers"] == 1
+
+
 class _SessionState(dict):
     def __getattr__(self, name):
         try:
