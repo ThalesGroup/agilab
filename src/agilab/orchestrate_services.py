@@ -7,6 +7,7 @@ from typing import Any, Callable, Optional
 
 import pandas as pd
 import streamlit as st
+from agi_gui.ux_widgets import action_button
 
 SERVICE_MODE_POOL = 1
 SERVICE_MODE_CYTHON = 2
@@ -501,39 +502,39 @@ async def render_service_panel(
         )
 
         start_col, status_col, health_col, export_col, stop_col = st.columns(5)
-        start_service_clicked = start_col.button(
+        start_service_clicked = action_button(
+            start_col,
             "START service",
             key="service_start_btn",
-            type="primary",
-            width="stretch",
+            kind="run",
             disabled=not service_enabled,
         )
-        status_service_clicked = status_col.button(
+        status_service_clicked = action_button(
+            status_col,
             "STATUS service",
             key="service_status_btn",
-            type="secondary",
-            width="stretch",
+            kind="refresh",
             disabled=not service_enabled,
         )
-        health_gate_clicked = health_col.button(
+        health_gate_clicked = action_button(
+            health_col,
             "HEALTH gate",
             key="service_health_gate_btn",
-            type="secondary",
-            width="stretch",
+            kind="check",
             disabled=not service_enabled,
         )
-        export_snapshot_clicked = export_col.button(
+        export_snapshot_clicked = action_button(
+            export_col,
             "EXPORT snapshot",
             key="service_export_btn",
-            type="secondary",
-            width="stretch",
+            kind="download",
             disabled=not service_enabled,
         )
-        stop_service_clicked = stop_col.button(
+        stop_service_clicked = action_button(
+            stop_col,
             "STOP service",
             key="service_stop_btn",
-            type="secondary",
-            width="stretch",
+            kind="stop",
             disabled=not service_enabled,
         )
 
