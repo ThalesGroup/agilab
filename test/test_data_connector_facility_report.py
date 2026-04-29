@@ -152,6 +152,65 @@ def test_data_connector_facility_accepts_aws_azure_and_gcp_object_storage(tmp_pa
     assert any(connector.get("account") == "agilabstorage" for connector in object_rows)
 
 
+def test_data_connector_facility_accepts_elk_and_hawk_search(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_search_test_module")
+    catalog = {
+        "connectors": [
+            {
+                "id": "warehouse_sql",
+                "kind": "sql",
+                "label": "Warehouse SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+                "driver": "postgresql",
+                "query_mode": "read_only",
+            },
+            {
+                "id": "ops_elk",
+                "kind": "opensearch",
+                "label": "Operations ELK",
+                "provider": "elk",
+                "url": "https://elk.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env:ELK_TOKEN",
+            },
+            {
+                "id": "flight_hawk",
+                "kind": "opensearch",
+                "label": "Flight Hawk",
+                "provider": "hawk",
+                "cluster_uri": "hawk.cluster.local:9200",
+                "index": "hawk.user-admin.1",
+                "auth_ref": "env:HAWK_TOKEN",
+            },
+            {
+                "id": "artifact_object_store",
+                "kind": "object_storage",
+                "label": "Artifact Object Store",
+                "provider": "s3",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "env:AWS_PROFILE",
+            },
+        ]
+    }
+
+    state = core_module.build_data_connector_facility(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "validated"
+    search_rows = [
+        connector for connector in state["connectors"]
+        if connector["kind"] == "opensearch"
+    ]
+    assert {connector["provider"] for connector in search_rows} == {"elk", "hawk"}
+    assert any(
+        connector.get("cluster_uri") == "hawk.cluster.local:9200"
+        for connector in search_rows
+    )
+
+
 def test_data_connector_facility_rejects_unknown_object_storage_provider(tmp_path: Path) -> None:
     core_module = _load_module(CORE_PATH, "data_connector_facility_unknown_cloud_test_module")
     catalog = {
@@ -177,5 +236,37 @@ def test_data_connector_facility_rejects_unknown_object_storage_provider(tmp_pat
     assert any(
         issue["location"] == "unknown_object_store"
         and "unsupported object_storage provider" in issue["message"]
+        for issue in state["issues"]
+    )
+
+
+def test_data_connector_facility_rejects_unknown_search_provider(tmp_path: Path) -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "data_connector_facility_unknown_search_test_module",
+    )
+    catalog = {
+        "connectors": [
+            {
+                "id": "unknown_search",
+                "kind": "opensearch",
+                "label": "Unknown Search",
+                "provider": "solr",
+                "url": "https://search.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env:SEARCH_TOKEN",
+            }
+        ]
+    }
+
+    state = core_module.build_data_connector_facility(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "invalid"
+    assert any(
+        issue["location"] == "unknown_search"
+        and "unsupported opensearch provider" in issue["message"]
         for issue in state["issues"]
     )

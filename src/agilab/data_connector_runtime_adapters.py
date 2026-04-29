@@ -18,6 +18,11 @@ from agilab.data_connector_facility import (
     build_data_connector_facility,
     load_connector_catalog,
 )
+from agilab.data_connector_search import (
+    search_index_operation,
+    search_index_runtime_dependency,
+    search_index_target,
+)
 
 
 SCHEMA = "agilab.data_connector_runtime_adapters.v1"
@@ -31,7 +36,7 @@ def _connector_target(connector: Mapping[str, Any]) -> str:
     if kind == "sql":
         return str(connector.get("uri", "") or "")
     if kind == "opensearch":
-        return f"{connector.get('url', '')}/{connector.get('index', '')}"
+        return search_index_target(connector)
     if kind == "object_storage":
         return object_storage_target(connector)
     return ""
@@ -63,10 +68,11 @@ def _adapter_definition(connector: Mapping[str, Any]) -> dict[str, str]:
             "runtime_dependency": _sql_dependency(connector),
         }
     if kind == "opensearch":
+        provider = str(connector.get("provider", "") or "opensearch")
         return {
             "adapter_class": "OpenSearchRuntimeAdapter",
-            "operation": "opensearch_index_head",
-            "runtime_dependency": "python:urllib.request",
+            "operation": search_index_operation(provider),
+            "runtime_dependency": search_index_runtime_dependency(provider),
         }
     if kind == "object_storage":
         provider = str(connector.get("provider", "") or "")

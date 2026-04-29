@@ -163,3 +163,65 @@ def test_data_connector_runtime_adapters_accepts_aws_s3_alias(tmp_path: Path) ->
     assert adapter["target"] == "s3://agilab-artifacts/experiments/"
     assert adapter["runtime_dependency"] == "package:boto3"
     assert adapter["credential_env_name"] == "AWS_PROFILE"
+
+
+def test_data_connector_runtime_adapters_accepts_elk_and_hawk_search(tmp_path: Path) -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "data_connector_runtime_adapters_core_search_test_module",
+    )
+    catalog = {
+        "connectors": [
+            {
+                "id": "warehouse_sql",
+                "kind": "sql",
+                "label": "Warehouse SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+                "driver": "postgresql",
+                "query_mode": "read_only",
+            },
+            {
+                "id": "ops_elk",
+                "kind": "opensearch",
+                "label": "Operations ELK",
+                "provider": "elastic",
+                "url": "https://elk.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env:ELK_TOKEN",
+            },
+            {
+                "id": "flight_hawk",
+                "kind": "opensearch",
+                "label": "Flight Hawk",
+                "provider": "hawk",
+                "cluster_uri": "hawk.cluster.local:9200",
+                "index": "hawk.user-admin.1",
+                "auth_ref": "env:HAWK_TOKEN",
+            },
+            {
+                "id": "artifact_object_store",
+                "kind": "object_storage",
+                "label": "Artifact Object Store",
+                "provider": "s3",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "env:AWS_PROFILE",
+            },
+        ]
+    }
+
+    state = core_module.build_data_connector_runtime_adapters(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "ready_for_runtime_binding"
+    adapters = {row["connector_id"]: row for row in state["adapters"]}
+    assert adapters["ops_elk"]["target"] == "https://elk.example.invalid/agilab-runs-*"
+    assert adapters["ops_elk"]["operation"] == "elasticsearch_index_head"
+    assert adapters["ops_elk"]["runtime_dependency"] == "python:urllib.request"
+    assert adapters["flight_hawk"]["target"] == (
+        "https://hawk.cluster.local:9200/hawk.user-admin.1"
+    )
+    assert adapters["flight_hawk"]["operation"] == "hawk_cluster_index_head"
+    assert adapters["flight_hawk"]["credential_env_name"] == "HAWK_TOKEN"
