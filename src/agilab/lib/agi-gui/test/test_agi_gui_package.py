@@ -29,6 +29,8 @@ def test_agi_gui_exports_file_picker_helpers() -> None:
 
     assert module.ActionStyle.__name__ == "ActionStyle"
     assert module.ActionSpec.__name__ == "ActionSpec"
+    assert module.WidgetRegistry.__name__ == "WidgetRegistry"
+    assert module.WidgetSpec.__name__ == "WidgetSpec"
     assert callable(module.agi_file_picker)
     assert callable(module.action_button)
     assert callable(module.action_row)
@@ -36,13 +38,16 @@ def test_agi_gui_exports_file_picker_helpers() -> None:
     assert callable(module.list_file_picker_entries)
     assert callable(module.compact_choice)
     assert callable(module.confirm_button)
+    assert callable(module.default_widget_registry)
     assert callable(module.empty_state)
+    assert callable(module.get_widget)
     assert callable(module.normalize_action_kind)
     assert callable(module.normalize_message_state)
     assert callable(module.normalize_status_state)
     assert callable(module.notice)
     assert callable(module.status_container)
     assert callable(module.toast)
+    assert callable(module.widget_registry_rows)
 
 
 def test_compat_alias_exposes_source_module(monkeypatch) -> None:
