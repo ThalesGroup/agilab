@@ -42,6 +42,7 @@ COVERAGE_TOOLING_TESTS = {
 NON_GUI_ROOT_TESTS = {
     *COVERAGE_TOOLING_TESTS,
     "test/test_connector_registry.py",
+    "test/test_beta_readiness.py",
     "test/test_public_demo_links.py",
     "test/test_pypi_distribution_state.py",
     "test/test_pypi_publish.py",
