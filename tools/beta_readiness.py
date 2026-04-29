@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tomllib
 from dataclasses import asdict, dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable, Sequence
 
 
@@ -193,21 +193,91 @@ def check_release_preflight_profiles(repo_root: Path = REPO_ROOT) -> GateCheck:
     )
 
 
-def check_public_app_tree(repo_root: Path = REPO_ROOT) -> GateCheck:
+def _top_level_app_entry(rel_path: str) -> str | None:
+    parts = PurePosixPath(rel_path).parts
+    if len(parts) < 4 or parts[:3] != ("src", "agilab", "apps"):
+        return None
+    return parts[3]
+
+
+def _tracked_app_entry_names(repo_root: Path, runner: CommandRunner) -> list[str] | None:
+    result = runner(["git", "-C", str(repo_root), "ls-files", "-z", "--", "src/agilab/apps"])
+    if result.returncode != 0:
+        return None
+
+    names = {
+        name
+        for raw_path in result.stdout.split("\0")
+        if raw_path
+        for name in [_top_level_app_entry(raw_path)]
+        if name is not None
+    }
+    return sorted(names)
+
+
+def _filesystem_app_entry_names(repo_root: Path) -> list[str]:
     apps_dir = repo_root / "src/agilab/apps"
-    offenders: list[str] = []
+    if not apps_dir.is_dir():
+        return []
+    return sorted(entry.name for entry in apps_dir.iterdir())
+
+
+def _format_local_app_entry(entry: Path) -> str:
+    return f"{entry.name} -> {entry.readlink()}" if entry.is_symlink() else entry.name
+
+
+def _is_git_ignored(repo_root: Path, rel_path: str, runner: CommandRunner) -> bool:
+    result = runner(["git", "-C", str(repo_root), "check-ignore", "--quiet", rel_path])
+    return result.returncode == 0
+
+
+def _ignored_local_non_public_app_entries(
+    repo_root: Path,
+    tracked_names: set[str],
+    runner: CommandRunner,
+) -> list[str]:
+    apps_dir = repo_root / "src/agilab/apps"
+    if not apps_dir.is_dir():
+        return []
+
+    ignored: list[str] = []
     for entry in sorted(apps_dir.iterdir(), key=lambda item: item.name):
-        if entry.name not in ALLOWED_APP_ENTRIES:
-            target = f"{entry.name} -> {entry.readlink()}" if entry.is_symlink() else entry.name
-            offenders.append(target)
+        if entry.name in ALLOWED_APP_ENTRIES or entry.name in tracked_names:
+            continue
+        rel_path = str(entry.relative_to(repo_root))
+        if _is_git_ignored(repo_root, rel_path, runner):
+            ignored.append(_format_local_app_entry(entry))
+    return ignored
+
+
+def check_public_app_tree(
+    repo_root: Path = REPO_ROOT,
+    runner: CommandRunner = _run_command,
+) -> GateCheck:
+    tracked_names = _tracked_app_entry_names(repo_root, runner)
+    if tracked_names is None:
+        app_names = _filesystem_app_entry_names(repo_root)
+        source = "filesystem entries"
+    else:
+        app_names = tracked_names
+        source = "tracked release entries"
+
+    offenders = [name for name in app_names if name not in ALLOWED_APP_ENTRIES]
+    ignored = _ignored_local_non_public_app_entries(repo_root, set(tracked_names or []), runner)
+    if offenders:
+        detail = f"Non-public app entries found in {source}: " + ", ".join(offenders)
+    elif ignored:
+        detail = (
+            "src/agilab/apps tracked release entries are public-only. "
+            "Ignored local non-public app entries are present but not release-blocking: "
+            + ", ".join(ignored)
+        )
+    else:
+        detail = "src/agilab/apps contains only public deploy entries."
     return GateCheck(
         "public app tree",
         not offenders,
-        (
-            "src/agilab/apps contains only public deploy entries."
-            if not offenders
-            else "Non-public app entries found: " + ", ".join(offenders)
-        ),
+        detail,
         evidence=offenders,
     )
 
@@ -347,7 +417,7 @@ def run_gate(
         check_git_aligned(runner, final=final),
         check_package_classifiers(repo_root, final=final),
         check_release_preflight_profiles(repo_root),
-        check_public_app_tree(repo_root),
+        check_public_app_tree(repo_root, runner),
         check_docs_have_beta_readiness(repo_root, final=final),
     ]
     if include_network:

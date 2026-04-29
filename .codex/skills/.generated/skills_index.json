@@ -1,7 +1,7 @@
 {
-  "generated_at_utc": "2026-04-29T07:15:44Z",
+  "generated_at_utc": "2026-04-29T09:14:16Z",
   "tool": "tools/codex_skills.py",
-  "count": 23,
+  "count": 24,
   "skills": [
     {
       "name": "advanced-svg-system-design",
@@ -18,6 +18,14 @@
       "updated": "2026-04-28",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
+    },
+    {
+      "name": "agilab-example-maturity",
+      "description": "Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation.",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-04-29",
+      "path": ".codex/skills/agilab-example-maturity/SKILL.md",
+      "body_preview": "# AGILAB Example Maturity\n## Goal\nRaise AGILAB packaged examples from internal smoke snippets to external-beta\nexamples: readable, deterministic, copy/paste safe, aligned with docs, and"
     },
     {
       "name": "agilab-huggingface-spaces",

@@ -1841,6 +1841,31 @@ def test_git_commit_docs_repository_pushes_only_release_managed_docs_paths(monke
     ]
 
 
+def test_docs_repository_commit_required_for_release_link_updates() -> None:
+    module = _load_pypi_publish()
+
+    assert module.should_commit_docs_repository_after_release(
+        docs_repo_ready=True,
+        gen_docs=False,
+        release_tag="2026.04.29-4",
+    )
+    assert module.should_commit_docs_repository_after_release(
+        docs_repo_ready=True,
+        gen_docs=True,
+        release_tag=None,
+    )
+    assert not module.should_commit_docs_repository_after_release(
+        docs_repo_ready=False,
+        gen_docs=True,
+        release_tag="2026.04.29-4",
+    )
+    assert not module.should_commit_docs_repository_after_release(
+        docs_repo_ready=True,
+        gen_docs=False,
+        release_tag=None,
+    )
+
+
 def test_ensure_docs_repo_push_ready_allows_up_to_date_or_release_only_commits(monkeypatch, tmp_path) -> None:
     module = _load_pypi_publish()
     docs_repo = tmp_path / "thales_agilab"

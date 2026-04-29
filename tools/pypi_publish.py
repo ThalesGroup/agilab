@@ -1795,6 +1795,17 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
         print(f"[git] pushed docs repository changes on {branch}")
 
 
+def should_commit_docs_repository_after_release(
+    *,
+    docs_repo_ready: bool,
+    gen_docs: bool,
+    release_tag: str | None,
+) -> bool:
+    """Commit docs repo changes created by release reference updates or docs generation."""
+
+    return docs_repo_ready and (gen_docs or release_tag is not None)
+
+
 def git_paths_to_commit(include_docs: bool = False) -> list[str]:
     paths: list[str] = []
     for _, toml_path, project_dir in publishable_libs():
@@ -2135,7 +2146,11 @@ def main():
                     update_public_release_references(tag, chosen, version_targets)
                 if cfg.git_commit_version:
                     git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
-                    if cfg.gen_docs and docs_repo_ready:
+                    if should_commit_docs_repository_after_release(
+                        docs_repo_ready=docs_repo_ready,
+                        gen_docs=cfg.gen_docs,
+                        release_tag=tag,
+                    ):
                         git_commit_docs_repository(chosen, push=True)
                 if tag is not None:
                     create_and_push_tag(tag, include_docs_repo=bool(cfg.gen_docs and docs_repo_ready))
