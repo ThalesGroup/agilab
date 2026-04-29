@@ -44,6 +44,13 @@ Before configuring distributed workers, make sure the environment is ready:
   Do not let several users write into the same ``AGI_CLUSTER_SHARE`` tree.
 - ``uv`` and the required Python runtime are available on the manager and the
   remote workers.
+- Worker installation uses non-interactive SSH. AGILAB prepends
+  ``$HOME/.local/bin`` to remote commands, so user-local ``uv`` installs are
+  valid as long as ``$HOME/.local/bin/uv`` exists on each worker.
+- Dask is a cluster runtime dependency. When Dask mode is enabled, AGILAB adds
+  ``dask[distributed]`` to the generated worker environment before starting the
+  remote ``dask worker`` process. Do not duplicate it in an app worker manifest
+  unless the app code imports Dask directly.
 - The target app can be installed cleanly before you scale it to more nodes.
 
 Use :doc:`key-generation`, :doc:`environment`, and :doc:`troubleshooting` if
@@ -304,6 +311,10 @@ Common distributed setup failures usually fall into one of these categories:
 - **Remote import errors after a successful install**: verify the worker
   environment was rebuilt from the current app and that dependencies are
   declared in the correct ``pyproject.toml`` scope.
+- **Remote Dask worker never attaches and logs mention ``Failed to spawn:
+  dask``**: re-run **INSTALL** with the current AGILAB version so the generated
+  worker environment is recreated and receives ``dask[distributed]``. This is
+  part of AGILAB cluster deployment, not a dependency every app should carry.
 - **PIPELINE runs stale cluster code**: regenerate or re-import the snippet from
   ORCHESTRATE after changing worker or app settings.
 
