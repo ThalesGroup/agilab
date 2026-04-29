@@ -47,14 +47,16 @@ The current bit values are:
      - ``8``
      - RAPIDS / GPU path when supported.
 
-Examples:
+Prefer the public constants instead of typing numeric bitmasks:
 
-- ``13 = 4 + 8 + 1 = cluster + rapids + pool``
-- ``15 = 4 + 8 + 2 + 1 = cluster + rapids + cython + pool``
+- ``AGI.PYTHON_MODE | AGI.DASK_MODE`` for the MyCode docs example.
+- ``AGI.PYTHON_MODE | AGI.CYTHON_MODE | AGI.DASK_MODE`` for the Flight docs
+  example.
 
-This is why the install examples below use ``modes_enabled=13`` or
-``modes_enabled=15``, while the run examples use matching ``mode=13`` or
-``mode=15`` values.
+This is why the install examples below pass named constants through
+``modes_enabled=...`` and the run examples pass the same intent through a
+``RunRequest``. Older snippets may contain raw integers, but public examples
+should not teach those values directly.
 
 In normal usage, these values are generated from the UI toggles rather than
 typed manually.
@@ -95,10 +97,10 @@ Start with the simplest mental model first:
 
 .. code-block:: python
 
-   res = await AGI.run(
-       app_env,
-       mode=0,  # plain local Python execution
-   )
+   from agi_cluster.agi_distributor import AGI, RunRequest
+
+   request = RunRequest(mode=AGI.PYTHON_MODE)
+   res = await AGI.run(app_env, request=request)
 
 Then move to the generated examples that add install-time capabilities,
 distributed hosts, and app-specific arguments:

@@ -103,16 +103,16 @@ Cell 2: build ``AgiEnv`` and run the smallest local ``AGI.run(...)`` shape.
 
 .. code-block:: python
 
-   from agi_cluster.agi_distributor import AGI
+   from agi_cluster.agi_distributor import AGI, RunRequest
    from agi_env import AgiEnv
 
    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
-   result = await AGI.run(
-       app_env,
+   request = RunRequest(
        scheduler="127.0.0.1",
        workers={"127.0.0.1": 1},
-       mode=0,
+       mode=AGI.PYTHON_MODE,
    )
+   result = await AGI.run(app_env, request=request)
    result
 
 Cell 3: inspect the run artifacts.

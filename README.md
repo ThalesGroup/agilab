@@ -197,11 +197,14 @@ These are public experimentation-workbench scores, not production MLOps claims.
 The evidence and limits are maintained in the
 [compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 and [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html).
+The strategic score movement rule is tracked in the
+[strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html).
 
 ## Read Next
 
 - [Newcomer troubleshooting](https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html)
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
+- [Strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
 - [Adoption guide](ADOPTION.md)

@@ -144,14 +144,14 @@ Common examples:
      - ``cluster + pool + cython + rapids``
      - All currently enabled execution flags.
 
-This is why a generated ``AGI.install(...)`` snippet may show
-``modes_enabled=13`` and the matching ``AGI.run(...)`` snippet may show
-``mode=13``: they both reflect the same toggle combination, but one prepares
-the runtime capabilities and the other selects the concrete run mode.
+This is why generated snippets should express execution intent with public
+constants such as ``AGI.PYTHON_MODE | AGI.DASK_MODE`` and pass run settings
+through ``RunRequest``. One snippet prepares runtime capabilities through
+``AGI.install(..., modes_enabled=...)``; the other selects the concrete run
+shape through ``AGI.run(app_env, request=request)``.
 
-In normal usage, you do not type these integers manually. You set the toggles
-in ``System settings`` and AGILAB generates the matching numeric value for the
-snippet.
+In normal usage, you do not type bitmasks manually. You set the toggles in
+``System settings`` and AGILAB generates the matching snippet.
 
 From UI to Snippet Fields
 -------------------------
