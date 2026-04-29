@@ -56,6 +56,21 @@ with status_container(st, "Running pipeline...", state="running") as status:
 
 `compact_choice` uses `st.segmented_control` or `st.pills` when available and falls back to `selectbox` for long lists or older Streamlit versions.
 
+## Widget Registry
+
+`agi_gui.widget_registry` provides a typed registry for reusable widgets. It gives pages and docs a single discovery point without breaking direct imports from `agi_gui.file_picker` or `agi_gui.ux_widgets`.
+
+```python
+from agi_gui import default_widget_registry, get_widget
+
+registry = default_widget_registry()
+rows = registry.as_rows()
+file_picker = get_widget("file_picker")
+same_picker = get_widget("agi_file_picker")
+```
+
+The default registry includes file selection, compact choice, action buttons, confirmation, status, empty-state, notice, and toast widgets.
+
 ## Repository
 
 - Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-gui

@@ -16,6 +16,13 @@ from .file_picker import (
     safe_upload_target,
     selected_paths_from_dataframe_state,
 )
+from .widget_registry import (
+    WidgetRegistry,
+    WidgetSpec,
+    default_widget_registry,
+    get_widget,
+    widget_registry_rows,
+)
 from .ux_widgets import (
     ActionSpec,
     ActionStyle,
@@ -43,6 +50,8 @@ __all__ = [
     "FilePickerRoot",
     "ActionSpec",
     "ActionStyle",
+    "WidgetRegistry",
+    "WidgetSpec",
     "__version__",
     "agi_file_picker",
     "action_button",
@@ -50,7 +59,9 @@ __all__ = [
     "action_style",
     "compact_choice",
     "confirm_button",
+    "default_widget_registry",
     "empty_state",
+    "get_widget",
     "is_path_under_root",
     "list_file_picker_entries",
     "normalize_action_kind",
@@ -64,4 +75,5 @@ __all__ = [
     "selected_paths_from_dataframe_state",
     "status_container",
     "toast",
+    "widget_registry_rows",
 ]
