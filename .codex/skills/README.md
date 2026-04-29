@@ -22,6 +22,7 @@ canonical source can serve both agents.
 - `agilab-streamlit-pages`: Streamlit session-state patterns and page authoring rules.
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
+- `agilab-code-statistics`: Generate tracked-file LOC, language, file-count, and churn summaries without builds.
 - `agilab-example-maturity`: Improve packaged examples to external-beta quality with deterministic first-run behavior and newcomer-safe adaptation.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
