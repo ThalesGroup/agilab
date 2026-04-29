@@ -100,7 +100,8 @@ interactive exploration into a replayable, inspectable workflow:
   supervisor notebook path
 - the data connector facility report validates first-class SQL, OpenSearch,
   and object-storage connector definitions without opening live network
-  connections
+  connections; see :doc:`data-connectors` for supported provider names,
+  credential references, and runtime dependency boundaries
 - the data connector resolution report validates connector-aware app/page
   resolution and keeps ``legacy_path_fallback`` rows available during migration
 - the data connector health report plans opt-in connector health/status probes
@@ -167,7 +168,8 @@ history:
   explicit and prevents mixed environments from being flattened accidentally
 - the data connector facility report gives prototypes a plain-text connector
   catalog for external data systems while keeping credentials in environment
-  references
+  references; the current object-storage contract covers AWS S3/S3-compatible
+  stores, Azure Blob Storage, and Google Cloud Storage
 - connector-aware app/page resolution lets prototypes reference those
   connectors from app settings without dropping legacy raw path fallbacks
 - opt-in connector health planning gives prototypes a status boundary without

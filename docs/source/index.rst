@@ -37,6 +37,7 @@ references, and example projects.
 
    introduction
    features
+   data-connectors
    AGILAB Demo <agilab-demo>
    notebook-quickstart
    notebook-advanced
