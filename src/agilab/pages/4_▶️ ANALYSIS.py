@@ -66,6 +66,7 @@ from agi_gui.pagelib import (
 )
 from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv
+from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
@@ -1271,8 +1272,8 @@ def _write_config(path: Path, cfg: dict):
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
-            tomli_w.dump(cfg, f)
-    except OSError as e:
+            tomli_w.dump(prepare_app_settings_for_write(cfg), f)
+    except (OSError, ValueError) as e:
         st.error(f"Error updating configuration: {e}")
 
 async def main():
