@@ -22,6 +22,25 @@ DEFAULT_APPTEST_TIMEOUT = 20
 ENV_TEMPLATE_PATH = Path("src/agilab/core/agi-env/src/agi_env/resources/.agilab/.env")
 
 
+def _import_agilab_module(module_name: str):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = str(src_root / "agilab")
+    src_root_str = str(src_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root not in package_path:
+            pkg.__path__ = [package_root, *package_path]
+    importlib.invalidate_caches()
+    return importlib.import_module(module_name)
+
+
 def _widget_or_none(collections, key: str):
     for collection in collections:
         try:
@@ -299,7 +318,7 @@ def load_args_from_toml(path):
     env_file = tmp_path / ".agilab" / ".env"
     env_file.parent.mkdir(parents=True, exist_ok=True)
     env_file.write_text("CLUSTER_CREDENTIALS=\n", encoding="utf-8")
-    about_env_editor = importlib.import_module("agilab.about_page.env_editor")
+    about_env_editor = _import_agilab_module("agilab.about_page.env_editor")
     monkeypatch.setattr(about_env_editor, "ENV_FILE_PATH", env_file, raising=False)
 
 
@@ -789,15 +808,13 @@ def test_execute_page_cython_toggle(mock_ui_env):
 
     app_state_name = _current_app_state_name(at)
     cython_key = f"cluster_cython__{app_state_name}"
-    at.session_state[cython_key] = True
-    at.run()
+    at.checkbox(key=cython_key).set_value(True).run()
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     assert cluster_state.get("cython", at.session_state[cython_key]) is True
 
-    at.session_state[cython_key] = False
-    at.run()
+    at.checkbox(key=cython_key).set_value(False).run()
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
