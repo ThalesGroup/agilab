@@ -23,17 +23,17 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
 ]
 keywords = [
-    "asyncio",
+    "python",
+    "distributed-computing",
+    "distributed-execution",
+    "workflow-orchestration",
+    "cluster-computing",
+    "remote-execution",
+    "reproducibility",
     "dask",
     "rapids",
-    "distributed-execution",
-    "cluster",
-    "dataframe",
-    "dataset",
-    "loadbalancing",
     "job-scheduling",
-    "agi",
-    "datascience",
+    "mlops",
 ]
 dependencies = ["agi-env==2026.04.29.post5", "agi-node==2026.04.29.post5", "asyncssh", "dask[distributed]", "humanize", "numpy", "packaging", "polars", "psutil", "scikit-learn", "tomlkit"]
 

@@ -23,17 +23,17 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
 ]
 keywords = [
-    "asyncio",
-    "distributed",
-    "cluster",
-    "worker-orchestration",
-    "dispatch",
-    "remote-execution",
-    "dataframe",
-    "dataset",
-    "agi",
     "python",
-    "ai-operations",
+    "distributed-computing",
+    "distributed-execution",
+    "workflow-orchestration",
+    "worker-orchestration",
+    "remote-execution",
+    "reproducibility",
+    "cython",
+    "free-threaded-python",
+    "pandas",
+    "polars",
 ]
 dependencies = ["agi-env==2026.04.29.post5", "cython", "humanize", "numpy", "pandas", "parso", "polars", "psutil", "py7zr", "setuptools"]
 
