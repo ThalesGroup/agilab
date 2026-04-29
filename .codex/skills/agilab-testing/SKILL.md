@@ -98,6 +98,11 @@ Use this skill when validating changes.
     `uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
 - Service health smoke tests (CI parity on Python 3.13):
   - `COVERAGE_FILE=.coverage.service-health uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest --with pytest-asyncio --with pytest-cov python -m pytest -q -o addopts='' --cov=agi_cluster --cov=agi_env --cov-report=xml:coverage-service-health.xml src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json test/test_service_health_check.py`
+- Account-free cloud connector validation:
+  - Use this when AWS/Azure/GCP compatibility needs evidence but no cloud account or credentials are available.
+  - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile cloud-emulators`
+  - This proves connector schemas, local-emulator endpoint boundaries, runtime adapter mappings, and no credential materialization for MinIO/S3, Azurite/Azure Blob, fake-gcs-server/GCS, and local search endpoints.
+  - Do not claim real-cloud validation from this profile; IAM, private networking, region behavior, quota, and billing still require opt-in live smoke in a real cloud account.
 
 - Whole repo tests (if needed):
   - `uv --preview-features extra-build-dependencies run --no-sync pytest`

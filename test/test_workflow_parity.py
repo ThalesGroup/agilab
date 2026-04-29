@@ -40,6 +40,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
     dependency_policy = profiles["dependency-policy"][0]
+    cloud_emulators = profiles["cloud-emulators"]
 
     assert agi_env.timeout_seconds == 20 * 60
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
@@ -104,6 +105,15 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert dependency_policy.label == "dependency policy"
     assert dependency_policy.argv[-1] == "test/test_pyproject_dependency_hygiene.py"
     assert "addopts=" in dependency_policy.argv
+    assert [command.label for command in cloud_emulators] == [
+        "cloud emulator connector evidence",
+        "cloud emulator connector tests",
+    ]
+    assert cloud_emulators[0].argv[-2:] == [
+        "tools/data_connector_cloud_emulator_report.py",
+        "--compact",
+    ]
+    assert cloud_emulators[1].argv[-1] == "test/test_data_connector_cloud_emulator_report.py"
 
 
 def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
@@ -113,6 +123,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     selected = module._selected_profiles(args)
 
     assert "agi-core-combined" in selected
+    assert "cloud-emulators" in selected
     assert "agi-node" not in selected
     assert "agi-cluster" not in selected
 

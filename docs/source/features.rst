@@ -173,6 +173,12 @@ single notebook but less ceremony than a production MLOps platform:
   Cloud Storage. It runs in
   ``contract_validation_only`` mode, checks kind-specific fields, and requires
   environment references instead of embedded remote credentials
+- the data connector cloud emulator report validates
+  ``tools/data_connector_cloud_emulator_report.py --compact`` in
+  ``cloud_emulator_contract_only`` mode; it checks account-free MinIO/S3,
+  Azurite/Azure Blob, fake-gcs-server/GCS, and local search endpoints against
+  the same connector facility and runtime-adapter contracts without proving
+  real cloud IAM, networking, quota, or billing behavior
 - the data connector resolution report validates
   ``tools/data_connector_resolution_report.py --compact`` for
   connector-aware app/page resolution; it resolves app-settings connector IDs,
