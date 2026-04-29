@@ -140,6 +140,17 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 
 - Missing import: check both manager and worker `pyproject.toml` scopes (`src/agilab/apps/<app>/pyproject.toml` and `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml`).
 - Installer pip issue: run `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in the target venv.
+- Cluster inventory/status mismatch:
+  - If the UI shows a worker as unreachable but `ssh <user>@<ip> 'echo ok'` works,
+    reproduce the exact non-interactive probe path used by AGILAB before changing UI
+    display code.
+  - Check remote PATH and required tools with SSH, not an interactive shell:
+    `ssh <user>@<ip> 'printf "path=%s\n" "$PATH"; command -v python3; command -v nvidia-smi || true; uname -a'`.
+  - Validate the same account can reach the scheduler and shared storage from the worker:
+    `ssh <user>@<ip> 'ssh -o BatchMode=yes <scheduler_user>@<scheduler_ip> hostname'`
+    and the configured cluster-share mount/read-write sentinel.
+  - Treat a display of "+ 1 worker unreachable" as an inventory/probe failure until the
+    exact probe command succeeds; a bare SSH success only proves authentication.
 - For a reinstalled cluster node, separate host-key repair from auth repair:
   - host key changed:
     - `ssh-keygen -R <ip>`
