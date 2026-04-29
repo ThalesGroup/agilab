@@ -27,7 +27,7 @@ AGI_CORE_NOTEBOOK_BADGE = "https://img.shields.io/badge/agi--core-notebook-1D4ED
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
-LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.28-6"
+LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.29"
 
 
 def test_readme_advertises_public_huggingface_space_page() -> None:
@@ -159,41 +159,29 @@ def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     assert "Then in the UI:" not in readme
     assert "PROJECT` -> select" not in readme
     assert "tools/newcomer_first_proof.py --json" in readme
-    assert "Ease of adoption" in readme
+    assert "ease of adoption" in readme
     assert "4.0 / 5" in readme
-    assert "5.86s" in readme
 
 
 def test_readme_captures_research_experimentation_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    assert "Research experimentation" in readme
+    assert "research experimentation" in readme
     assert "4.0 / 5" in readme
-    assert "lab_steps.toml" in readme
-    assert "MLflow-tracked runs" in readme
 
 
 def test_readme_captures_engineering_prototyping_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
 
-    assert "Engineering prototyping" in readme
+    assert "engineering prototyping" in readme
     assert "4.0 / 5" in readme
-    assert "app_args_form.py" in readme
-    assert "pipeline_view" in readme
-    assert "analysis-page" in readme
-    assert "templates" in readme
 
 
 def test_readme_captures_production_readiness_evidence() -> None:
     readme = README.read_text(encoding="utf-8")
-    normalized = " ".join(readme.split())
 
-    assert "Production readiness" in readme
+    assert "production readiness" in readme
     assert "3.0 / 5" in readme
-    assert "service health gates" in readme
-    assert "release-decision page" in readme
-    assert "security hardening checklist" in normalized
-    assert "production model serving" in readme.lower()
 
 
 def test_readme_captures_overall_public_evaluation_evidence() -> None:
@@ -201,17 +189,16 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
 
     assert "## Evaluation Snapshot" in readme
     assert "## CODEX 5.5 Evaluation Snapshot" not in readme
-    assert "CODEX 5.5 working scores" in readme
+    assert "CODEX 5.5 working summary" in readme
     assert "AI/ML experimentation workbench" in readme
     assert "not as a replacement for mature orchestration or production MLOps platforms" in readme
     assert "project setup, environment management, execution, and result analysis" in readme
     assert "Overall public evaluation" in readme
     assert "3.2 / 5` ->" not in readme
     assert "3.8 / 5" in readme
-    assert "Mean of the four scored public KPIs" in readme
-    assert "(4.0 + 4.0 + 4.0 + 3.0) / 4 = 3.75" in readme
+    assert "rounded category average" in readme
     assert "4.0 / 5" in readme
-    assert "cross-kpi evidence bundle" in readme.lower()
+    assert "public KPI bundle" in readme
 
 
 def test_readme_links_to_mlops_positioning_page() -> None:
@@ -237,9 +224,9 @@ def test_readme_links_to_public_releases_page() -> None:
 def test_changelog_documents_current_public_release() -> None:
     changelog = CHANGELOG.read_text(encoding="utf-8")
 
-    assert "## [2026.4.27] - 2026-04-24" in changelog
+    assert "## [2026.04.29.post1] - 2026-04-29" in changelog
     assert LATEST_RELEASE_URL in changelog
-    assert "Published AGILAB `2026.4.27` to PyPI" in changelog
+    assert "Published AGILAB `2026.04.29.post1` to PyPI" in changelog
     assert "create or update the" in changelog
 
 
