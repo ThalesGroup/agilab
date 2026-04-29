@@ -33,7 +33,12 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
         name: f"{score:.1f} / 5"
         for name, score in module.KPI_COMPONENT_SCORES.items()
     }
+    assert bundle["summary"]["strategic_potential_score"] == module.STRATEGIC_POTENTIAL_SCORE
     assert bundle["summary"]["score_formula"] == module._score_formula()
+    assert (
+        f"Strategic potential is tracked separately at {module.STRATEGIC_POTENTIAL_SCORE}"
+        in bundle["rationale"]
+    )
     check_ids = {check["id"] for check in bundle["checks"]}
     assert check_ids == {
         "workflow_compatibility_report",
