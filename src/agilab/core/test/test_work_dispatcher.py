@@ -362,6 +362,35 @@ def test_make_chunks_uses_default_workers_and_builds_default_capacities(monkeypa
     assert captured["capacities"] == [1]
 
 
+def test_make_chunks_fastest_uses_float_capacity_normalized_lpt():
+    weights = [(f"job-{index}", 1.0) for index in range(10)]
+
+    chunks = WorkDispatcher._make_chunks_fastest(weights.copy(), (capacity for capacity in [1.0, 4.0]))
+
+    assert [len(chunk) for chunk in chunks] == [2, 8]
+    normalized_loads = [
+        sum(weight for _name, weight in chunk) / capacity
+        for chunk, capacity in zip(chunks, [1.0, 4.0])
+    ]
+    assert normalized_loads == pytest.approx([2.0, 2.0])
+
+
+@pytest.mark.parametrize("capacities", [[0], [-1], [float("inf")], [float("nan")]])
+def test_make_chunks_rejects_invalid_capacities(capacities):
+    with pytest.raises(ValueError, match="worker capacities must be finite positive values"):
+        WorkDispatcher.make_chunks(
+            2,
+            [("a", 2), ("b", 1)],
+            capacities=capacities,
+            workers={"127.0.0.1": 1},
+        )
+
+
+def test_make_chunks_rejects_invalid_work_item_weights():
+    with pytest.raises(ValueError, match="work item weights must be finite non-negative values"):
+        WorkDispatcher._make_chunks_fastest([("bad", -1)], [1.0])
+
+
 def test_make_chunks_single_weight_returns_nested_shape():
     chunks = WorkDispatcher.make_chunks(1, [("single", 1)], workers={"127.0.0.1": 1})
     assert chunks == [[[("single", 1)]]]
