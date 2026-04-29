@@ -33,34 +33,36 @@ def _hero_target_svg_data_uri() -> str:
       </feMerge>
     </filter>
     <linearGradient id="cardFill" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0" stop-color="rgba(255,255,255,.12)" />
-      <stop offset="1" stop-color="rgba(255,255,255,.045)" />
+      <stop offset="0" stop-color="#102334" stop-opacity=".98" />
+      <stop offset="1" stop-color="#1f2c24" stop-opacity=".94" />
     </linearGradient>
     <linearGradient id="twinFill" x1="0" x2="1" y1="0" y2="1">
-      <stop offset="0" stop-color="rgba(114,214,180,.24)" />
-      <stop offset="1" stop-color="rgba(255,210,138,.09)" />
+      <stop offset="0" stop-color="#123f3d" stop-opacity=".98" />
+      <stop offset="1" stop-color="#322a17" stop-opacity=".96" />
     </linearGradient>
   </defs>
   <style>
-    .title{fill:rgba(247,242,232,.82);font:850 14px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.1em;text-transform:uppercase}
-    .eyebrow{fill:rgba(255,210,138,.86);font:850 8.8px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.13em;text-transform:uppercase}
-    .main{fill:rgba(247,242,232,.9);font:850 12.5px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.04em}
-    .tiny{fill:rgba(247,242,232,.62);font:700 8.6px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.05em;text-transform:uppercase}
-    .note{fill:rgba(255,210,138,.9);font:850 10.5px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.08em}
-    .card{fill:url(#cardFill);stroke:rgba(247,242,232,.18);stroke-width:1}
-    .target{fill:rgba(255,255,255,.06);stroke:rgba(247,242,232,.28);stroke-width:1.4}
-    .twin-shell{fill:url(#twinFill);stroke:rgba(114,214,180,.42);stroke-width:1.2}
-    .twin-grid{fill:none;stroke:rgba(114,214,180,.38);stroke-width:.8}
-    .ring{fill:none;stroke:rgba(247,242,232,.22);stroke-width:1.1}
-    .core{fill:none;stroke:rgba(255,210,138,.44);stroke-width:1.2}
-    .axis{stroke:rgba(247,242,232,.16)}
-    .connector{fill:none;stroke:rgba(247,242,232,.24);stroke-width:1.1;stroke-linecap:round}
+    .title{fill:#f7f2e8;fill-opacity:.9;font:850 14px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.1em;text-transform:uppercase}
+    .eyebrow{fill:#ffd28a;font:850 8.8px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.13em;text-transform:uppercase}
+    .main{fill:#f7f2e8;font:850 12.5px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.04em}
+    .tiny{fill:#f7f2e8;fill-opacity:.72;font:700 8.6px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.05em;text-transform:uppercase}
+    .note{fill:#ffd28a;font:850 10.5px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.08em}
+    .card{fill:url(#cardFill);stroke:#f7f2e8;stroke-opacity:.22;stroke-width:1}
+    .target{fill:#f7f2e8;fill-opacity:.07;stroke:#f7f2e8;stroke-opacity:.32;stroke-width:1.4}
+    .twin-shell{fill:url(#twinFill);stroke:#72d6b4;stroke-opacity:.78;stroke-width:1.35}
+    .twin-grid{fill:none;stroke:#72d6b4;stroke-opacity:.26;stroke-width:.75}
+    .twin-divider{stroke:#f7f2e8;stroke-opacity:.2;stroke-width:1}
+    .ring{fill:none;stroke:#f7f2e8;stroke-opacity:.24;stroke-width:1.1}
+    .core{fill:none;stroke:#ffd28a;stroke-opacity:.58;stroke-width:1.2}
+    .axis{stroke:#f7f2e8;stroke-opacity:.18}
+    .connector{fill:none;stroke:#f7f2e8;stroke-opacity:.3;stroke-width:1.1;stroke-linecap:round}
     .flow{fill:none;stroke:#72d6b4;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
     .flow-warm{fill:none;stroke:#ffbe5e;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
-    .sim-orbit{fill:none;stroke:rgba(255,210,138,.64);stroke-width:1.7;stroke-linecap:round;stroke-dasharray:5 4}
-    .sim-line{fill:none;stroke:#72d6b4;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
-    .sim-warm{fill:none;stroke:#ffd28a;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .sim-orbit{fill:none;stroke:#ffd28a;stroke-opacity:.82;stroke-width:1.8;stroke-linecap:round;stroke-dasharray:5 4}
+    .sim-line{fill:none;stroke:#72d6b4;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+    .sim-warm{fill:none;stroke:#ffd28a;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
     .sim-dot{fill:#ffd28a}
+    .sim-label{fill:#f7f2e8;fill-opacity:.78;font:850 6.3px 'Aptos Display','Avenir Next',sans-serif;letter-spacing:.12em;text-transform:uppercase}
   </style>
   <text class="title" x="280" y="24" text-anchor="middle">Generalization + digital twin map</text>
   <text class="note" x="280" y="273" text-anchor="middle">simulate, run, diagnose, then tune the real workflow</text>
@@ -106,17 +108,21 @@ def _hero_target_svg_data_uri() -> str:
   <g aria-label="digital twin simulation symbol">
     <rect class="twin-shell" x="228" y="86" width="108" height="76" rx="14" />
     <path class="twin-grid" d="M238 105 H326 M238 124 H326 M238 143 H326 M256 94 V154 M282 94 V154 M308 94 V154" />
-    <path class="sim-orbit" d="M246 124 C250 101, 268 93, 291 96 C315 99, 329 116, 325 137 C322 155, 303 162, 281 159 C258 156, 243 144, 246 124" />
-    <path class="sim-warm" d="M318 132 L326 139 L316 143" />
+    <line class="twin-divider" x1="282" y1="96" x2="282" y2="152" />
+    <path class="sim-orbit" d="M246 123 C251 101, 270 94, 292 97 C316 100, 329 116, 325 137 C321 154, 302 160, 281 158 C257 155, 241 143, 246 123" />
+    <path class="sim-warm" d="M318 131 L326 138 L316 142" />
 
+    <text class="sim-label" x="253" y="101" text-anchor="middle">Real</text>
+    <text class="sim-label" x="313" y="101" text-anchor="middle">Sim</text>
     <path class="sim-line" d="M246 135 C253 126, 260 124, 267 131 C273 137, 279 137, 286 129" />
     <circle class="sim-dot" cx="253" cy="126" r="2.8" />
     <circle class="sim-dot" cx="279" cy="137" r="2.8" />
 
     <path class="sim-line" d="M298 113 L313 105 L327 113 L327 134 L313 143 L298 135 Z" />
     <path class="sim-line" d="M298 113 L313 122 L327 113 M313 122 V143" />
-    <path class="sim-warm" d="M286 118 H298 M293 114 L299 118 L293 122" />
-    <path class="sim-warm" d="M299 139 H286 M292 135 L286 139 L292 143" />
+    <circle cx="313" cy="122" r="3.6" fill="#0d1722" stroke="#ffd28a" stroke-width="1.4" />
+    <path class="sim-warm" d="M286 118 H300 M294 114 L300 118 L294 122" />
+    <path class="sim-warm" d="M300 139 H286 M292 135 L286 139 L292 143" />
   </g>
   <text class="eyebrow" x="282" y="181" text-anchor="middle">Digital twin</text>
   <text class="tiny" x="282" y="195" text-anchor="middle">simulate &#8596; reality</text>
