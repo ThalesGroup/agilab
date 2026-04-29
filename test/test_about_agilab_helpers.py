@@ -1974,10 +1974,13 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert "Open-source workbench" in body
     assert "Select a project, run it, and inspect the result" not in body
     assert "agilab-hero__top" in body
+    assert "agilab-hero__legal-mark" in body
+    assert "BSD 3-Clause</span>" in body
     assert "Thales SIX GTS France" in body
-    assert "BSD 3-Clause License" in body
+    assert "Licensed under the BSD 3-Clause License" not in body
     assert "margin: 1.55rem 0 0" not in body
     assert "text-align: right" in body
+    assert "white-space: nowrap" in body
     assert "Project" in body
     assert "Run" in body
     assert "Analyse" in body

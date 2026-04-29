@@ -223,12 +223,28 @@ def quick_logo(resources_path: Path) -> None:
                 display: block;
               }}
               .agilab-hero__legal {{
+                display: inline-flex;
+                align-items: center;
+                gap: 0.52rem;
                 margin: 0;
-                max-width: 25rem;
-                color: rgba(247, 242, 232, 0.58);
-                font-size: 0.78rem;
-                line-height: 1.35;
+                padding: 0.5rem 0.68rem;
+                border: 1px solid rgba(255,255,255,0.13);
+                border-radius: 999px;
+                background: rgba(6, 12, 20, 0.22);
+                color: rgba(247, 242, 232, 0.64);
+                font-size: 0.73rem;
+                line-height: 1.15;
                 text-align: right;
+                white-space: nowrap;
+              }}
+              .agilab-hero__legal-mark {{
+                color: #ffd28a;
+                font-weight: 850;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+              }}
+              .agilab-hero__legal-sep {{
+                color: rgba(247, 242, 232, 0.24);
               }}
               @media (max-width: 520px) {{
                 .agilab-hero__body {{
@@ -244,7 +260,15 @@ def quick_logo(resources_path: Path) -> None:
                   flex-direction: column;
                 }}
                 .agilab-hero__legal {{
+                  align-items: flex-start;
+                  border-radius: 16px;
+                  flex-direction: column;
+                  gap: 0.18rem;
                   text-align: left;
+                  white-space: normal;
+                }}
+                .agilab-hero__legal-sep {{
+                  display: none;
                 }}
               }}
             </style>
@@ -255,7 +279,9 @@ def quick_logo(resources_path: Path) -> None:
                   <span>Open-source workbench</span>
                 </div>
                 <p class="agilab-hero__legal">
-                  &copy; 2020-{current_year} Thales SIX GTS France. Licensed under the BSD 3-Clause License.
+                  <span class="agilab-hero__legal-mark">BSD 3-Clause</span>
+                  <span class="agilab-hero__legal-sep" aria-hidden="true">/</span>
+                  <span>&copy; 2020-{current_year} Thales SIX GTS France</span>
                 </p>
               </div>
               <div class="agilab-hero__body">
