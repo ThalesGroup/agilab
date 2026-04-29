@@ -97,6 +97,56 @@ def test_widget_registry_can_register_custom_widgets() -> None:
     assert updated.as_rows()[0]["qualified_name"] == "demo.widgets.action_button"
 
 
+def test_widget_registry_helpers_cover_lookup_and_call_edges() -> None:
+    calls = []
+
+    def custom_widget(*args, **kwargs):
+        calls.append((args, kwargs))
+        return "rendered"
+
+    spec = WidgetSpec(
+        key="custom",
+        label="Custom",
+        widget=custom_widget,
+        module="demo.widgets",
+        category="demo",
+        aliases=("Alias Name",),
+    )
+    registry = WidgetRegistry((spec,))
+
+    assert "alias-name" in registry
+    assert object() not in registry
+    assert tuple(registry) == (spec,)
+    assert registry.widgets == (spec,)
+    assert registry.get("missing", "fallback") == "fallback"
+    assert spec("value", enabled=True) == "rendered"
+    assert calls == [(("value",), {"enabled": True})]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error_type", "match"),
+    [
+        ({"key": "  "}, ValueError, "Widget key"),
+        ({"label": "  "}, ValueError, "Widget label"),
+        ({"widget": "not callable"}, TypeError, "must be callable"),
+        ({"module": "  "}, ValueError, "Widget module"),
+        ({"category": "  "}, ValueError, "Widget category"),
+    ],
+)
+def test_widget_spec_rejects_invalid_metadata(kwargs, error_type, match) -> None:
+    payload = {
+        "key": "custom",
+        "label": "Custom",
+        "widget": action_button,
+        "module": "demo.widgets",
+        "category": "demo",
+    }
+    payload.update(kwargs)
+
+    with pytest.raises(error_type, match=match):
+        WidgetSpec(**payload)
+
+
 def test_widget_registry_rejects_duplicate_aliases() -> None:
     first = WidgetSpec(
         key="first",
@@ -117,3 +167,17 @@ def test_widget_registry_rejects_duplicate_aliases() -> None:
 
     with pytest.raises(ValueError, match="already registered"):
         WidgetRegistry((first, second))
+
+
+def test_widget_registry_rejects_empty_alias() -> None:
+    spec = WidgetSpec(
+        key="custom",
+        label="Custom",
+        widget=action_button,
+        module="demo.widgets",
+        category="demo",
+        aliases=("",),
+    )
+
+    with pytest.raises(ValueError, match="empty alias"):
+        WidgetRegistry((spec,))
