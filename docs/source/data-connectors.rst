@@ -23,6 +23,7 @@ Catalog Shape
 The public sample catalog is:
 
 - :download:`data_connectors_sample.toml <data/data_connectors_sample.toml>`
+- :download:`cloud_emulator_connectors_sample.toml <data/cloud_emulator_connectors_sample.toml>`
 
 Each connector is a ``[[connectors]]`` TOML entry with a stable ``id``, a
 ``kind``, a human label, and kind-specific fields.
@@ -76,6 +77,50 @@ The ``s3`` provider also accepts the aliases ``aws_s3``, ``amazon_s3``, and
 ``s3_compatible``. The runtime dependency column describes what an operator
 environment needs for live probes; those packages are not required for the
 default public contract-validation evidence.
+
+Account-Free Cloud Emulator Validation
+--------------------------------------
+
+Use the ``cloud-emulators`` profile when you need AWS/Azure/GCP connector
+confidence without owning cloud accounts:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/data_connector_cloud_emulator_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile cloud-emulators
+
+The profile validates the sample emulator catalog against the same connector
+facility and runtime-adapter contracts used by real cloud targets. It covers:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 26 26 26
+
+   * - Cloud target
+     - Account-free emulator
+     - Local endpoint
+     - What is proven
+   * - AWS S3 / S3-compatible storage
+     - MinIO
+     - ``http://127.0.0.1:9000``
+     - provider aliasing, bucket/prefix target shape, ``boto3`` dependency
+   * - Azure Blob Storage
+     - Azurite
+     - ``http://127.0.0.1:10000/devstoreaccount1``
+     - account/container target shape, ``azure-storage-blob`` dependency
+   * - Google Cloud Storage
+     - fake-gcs-server
+     - ``http://127.0.0.1:4443``
+     - ``gs://`` target shape, ``google-cloud-storage`` dependency
+   * - Search-index wiring
+     - local OpenSearch or Elasticsearch
+     - ``http://127.0.0.1:9200``
+     - URL/index contract and explicit credential boundary
+
+This gives **API-contract and emulator-compatible validation** only. It does
+not prove real IAM, cloud firewall rules, private endpoints, regional behavior,
+quota, or billing. Those remain opt-in live smoke checks in a real operator
+environment with real credentials.
 
 Credential Rule
 ---------------
