@@ -10,6 +10,10 @@ from typing import Any, Callable, Optional
 
 import tomli_w
 
+APP_SETTINGS_META_KEY = "__meta__"
+APP_SETTINGS_SCHEMA = "agilab.app_settings.v1"
+APP_SETTINGS_SCHEMA_VERSION = 1
+
 
 def sanitize_for_toml(obj: Any) -> Any:
     """Recursively convert values into TOML-safe structures."""
@@ -36,9 +40,51 @@ def sanitize_for_toml(obj: Any) -> Any:
     return obj
 
 
+def ensure_app_settings_metadata(data: dict[str, Any]) -> dict[str, Any]:
+    """Stamp app settings with the current persisted artifact contract."""
+    meta = data.get(APP_SETTINGS_META_KEY)
+    if not isinstance(meta, dict):
+        meta = {}
+        data[APP_SETTINGS_META_KEY] = meta
+    meta.setdefault("schema", APP_SETTINGS_SCHEMA)
+    meta.setdefault("version", APP_SETTINGS_SCHEMA_VERSION)
+    return data
+
+
+def app_settings_contract_error(data: dict[str, Any]) -> str:
+    """Return a refusal reason when app settings metadata is unsupported."""
+    meta = data.get(APP_SETTINGS_META_KEY, {})
+    if meta in ({}, None):
+        return ""
+    if not isinstance(meta, dict):
+        return "app_settings.toml __meta__ must be a TOML table."
+    raw_version = meta.get("version")
+    if raw_version in (None, ""):
+        return ""
+    try:
+        version = int(raw_version)
+    except (TypeError, ValueError):
+        return f"Unsupported app_settings.toml schema version {raw_version!r}."
+    if version < 1 or version > APP_SETTINGS_SCHEMA_VERSION:
+        return (
+            f"Unsupported app_settings.toml schema version {version}; "
+            "upgrade AGILAB before editing this app settings file."
+        )
+    return ""
+
+
+def prepare_app_settings_for_write(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate and stamp app settings before persisting them."""
+    sanitized = sanitize_for_toml(payload)
+    error = app_settings_contract_error(sanitized)
+    if error:
+        raise ValueError(error)
+    return ensure_app_settings_metadata(sanitized)
+
+
 def write_app_settings_toml(settings_path: Path, payload: dict) -> dict:
     """Persist ``payload`` after converting it to a TOML-serializable object."""
-    sanitized = sanitize_for_toml(payload)
+    sanitized = prepare_app_settings_for_write(payload)
     with open(settings_path, "wb") as file:
         tomli_w.dump(sanitized, file)
     return sanitized
