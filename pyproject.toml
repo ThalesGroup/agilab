@@ -1,5 +1,5 @@
 [project]
-version = "2026.04.29.post1"
+version = "2026.04.29.post2"
 name = "agilab"
 description = "AGILAB is an end-to-end experimentation platform linking interactive development with scalable, reproducible execution orchestration."
 requires-python = ">=3.11"
@@ -36,7 +36,7 @@ keywords = [
     "jupyter",
     "ci-cd"
 ]
-dependencies = ["agi-core==2026.04.29.post1", "agi-gui==2026.04.29.post1", "astor>=0.8.1", "legacy-cgi>=2.6.4; python_version >= '3.13'", "mlflow>=3.11.1", "networkx>=3.6.1", "numpy>=1.14.1", "pandas>=2.3.0", "pathspec>=1.1.0", "pydantic>=2.13.3", "standard-imghdr>=3.13.0; python_version >= '3.13'", "streamlit>=1.56.0", "tomli_w>=1.2.0"]
+dependencies = ["agi-core==2026.04.29.post2", "agi-gui==2026.04.29.post2", "astor>=0.8.1", "legacy-cgi>=2.6.4; python_version >= '3.13'", "mlflow>=3.11.1", "networkx>=3.6.1", "numpy>=1.14.1", "pandas>=2.3.0", "pathspec>=1.1.0", "pydantic>=2.13.3", "standard-imghdr>=3.13.0; python_version >= '3.13'", "streamlit>=1.56.0", "tomli_w>=1.2.0"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"

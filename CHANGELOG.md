@@ -37,7 +37,7 @@ and adopters a versioned, repository-local upgrade trail.
 
 ## [2026.04.29.post2] - 2026-04-29
 
-GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.29-2
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.29-3
 
 ### Changed
 
@@ -276,4 +276,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.04.28.post4]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.28-5
 [2026.04.28.post5]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.28-6
 [2026.04.29.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.29
-[2026.04.29.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.29-2
+[2026.04.29.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.29-3
