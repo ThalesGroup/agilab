@@ -1,10 +1,14 @@
 import os
 from pathlib import Path
+import re
+import tempfile
 from typing import Any, Callable, Dict, Optional
 
 import streamlit as st
 
 from agi_env.defaults import get_default_openai_model
+
+_ENV_VAR_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def is_placeholder_api_key(key: Optional[str]) -> bool:
@@ -27,11 +31,28 @@ def is_placeholder_api_key(key: Optional[str]) -> bool:
     return False
 
 
+def _dotenv_quote(value: str) -> str:
+    escaped = (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\r", "\\r")
+        .replace("\n", "\\n")
+    )
+    return f'"{escaped}"'
+
+
 def persist_env_var(name: str, value: str) -> None:
     """Persist a key/value pair under ~/.agilab/.env, replacing prior entries."""
+    if not _ENV_VAR_NAME_RE.fullmatch(name):
+        raise ValueError(f"Invalid environment variable name: {name!r}")
+
     env_dir = Path.home() / ".agilab"
     env_dir.mkdir(parents=True, exist_ok=True)
+    env_dir.chmod(0o700)
     env_file = env_dir / ".env"
+    if env_file.is_symlink():
+        raise OSError(f"Refusing to write API credentials through symlink: {env_file}")
     lines: list[str] = []
     if env_file.exists():
         lines = [
@@ -39,8 +60,26 @@ def persist_env_var(name: str, value: str) -> None:
             for line in env_file.read_text(encoding="utf-8").splitlines()
             if not line.strip().startswith(f"{name}=")
         ]
-    lines.append(f'{name}="{value}"')
-    env_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    lines.append(f"{name}={_dotenv_quote(value)}")
+
+    tmp_path: Optional[Path] = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=env_dir,
+            prefix=".env.",
+            delete=False,
+        ) as handle:
+            tmp_path = Path(handle.name)
+            handle.write("\n".join(lines) + "\n")
+        tmp_path.chmod(0o600)
+        tmp_path.replace(env_file)
+        env_file.chmod(0o600)
+    except Exception:
+        if tmp_path is not None:
+            tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def prompt_for_openai_api_key(message: str) -> None:
@@ -54,7 +93,11 @@ def prompt_for_openai_api_key(message: str) -> None:
             type="password",
             help="Paste a valid OpenAI API token.",
         )
-        save_profile = st.checkbox("Save to ~/.agilab/.env", value=True)
+        save_profile = st.checkbox(
+            "Save to ~/.agilab/.env",
+            value=False,
+            help="Opt in only on a trusted single-user machine. The file is written with owner-only permissions.",
+        )
         submitted = st.form_submit_button("Update key")
 
     if submitted:

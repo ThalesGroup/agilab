@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import html
 import json
 import os
@@ -868,9 +869,75 @@ def _hardware_inventory_from_settings(cluster_params: dict[str, Any]) -> dict[st
     return inventory
 
 
+def _default_lan_discovery_cache_path() -> Path:
+    return Path.home() / ".agilab" / "lan_nodes.json"
+
+
+def _file_content_signature(path: Path | None) -> tuple[str, str]:
+    if path is None:
+        return ("", "")
+    try:
+        resolved = path.expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return (str(path), "")
+    try:
+        payload = resolved.read_bytes()
+    except OSError:
+        return (str(resolved), "")
+    return (str(resolved), hashlib.sha256(payload).hexdigest())
+
+
+def _payload_signature(payload: Any) -> str:
+    try:
+        encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    except (TypeError, ValueError):
+        encoded = repr(payload).encode("utf-8", errors="replace")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _active_app_settings_file_path(env: Any) -> Path | None:
+    settings_file = getattr(env, "app_settings_file", None)
+    if not settings_file:
+        return None
+    try:
+        return Path(settings_file).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _clear_cluster_probe_caches() -> None:
+    for cached_fn in (_remote_hardware_probe, _lan_discovery_hardware_inventory):
+        cache_clear = getattr(cached_fn, "cache_clear", None)
+        if callable(cache_clear):
+            cache_clear()
+
+
+def _cluster_sidebar_refresh_signature(env: Any, cluster_params: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        _safe_text(getattr(env, "app", "")),
+        _payload_signature(cluster_params),
+        _file_content_signature(_active_app_settings_file_path(env)),
+        _file_content_signature(_default_lan_discovery_cache_path()),
+    )
+
+
+def _refresh_cluster_probe_caches_if_needed(env: Any, cluster_params: dict[str, Any]) -> None:
+    try:
+        session_state = st.session_state
+    except (AttributeError, RuntimeError):
+        return
+    signature = _cluster_sidebar_refresh_signature(env, cluster_params)
+    app_name = _safe_text(getattr(env, "app", "")) or "default"
+    state_key = f"about_cluster_probe_signature__{app_name}"
+    if session_state.get(state_key) == signature:
+        return
+    _clear_cluster_probe_caches()
+    session_state[state_key] = signature
+
+
 @lru_cache(maxsize=8)
 def _lan_discovery_hardware_inventory(cache_path: str = "") -> dict[str, dict[str, str]]:
-    path = Path(cache_path).expanduser() if cache_path else Path.home() / ".agilab" / "lan_nodes.json"
+    path = Path(cache_path).expanduser() if cache_path else _default_lan_discovery_cache_path()
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -972,6 +1039,7 @@ def active_app_cluster_information_lines(env: Any) -> list[tuple[str, str]]:
     """Return active-app scheduler and cluster context for sidebar display."""
     settings = _active_app_settings(env)
     cluster_params = _cluster_params_from_settings(settings)
+    _refresh_cluster_probe_caches_if_needed(env, cluster_params)
     cluster_enabled = _format_bool_flag(cluster_params.get("cluster_enabled", False))
 
     app_name = _safe_text(getattr(env, "app", "")) or "not selected"

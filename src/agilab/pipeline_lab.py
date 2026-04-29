@@ -1,7 +1,6 @@
 import importlib.util
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -74,8 +73,11 @@ PipelinePageStateDeps = _pipeline_page_state_module.PipelinePageStateDeps
 PipelineAction = _pipeline_page_state_module.PipelineAction
 build_pipeline_page_state = _pipeline_page_state_module.build_pipeline_page_state
 clear_pipeline_run_logs = _pipeline_page_state_module.clear_pipeline_run_logs
+delete_all_pipeline_steps_command = _pipeline_page_state_module.delete_all_pipeline_steps_command
+delete_pipeline_step_command = _pipeline_page_state_module.delete_pipeline_step_command
 finish_pipeline_run_command = _pipeline_page_state_module.finish_pipeline_run_command
 start_pipeline_run_command = _pipeline_page_state_module.start_pipeline_run_command
+undo_pipeline_delete_command = _pipeline_page_state_module.undo_pipeline_delete_command
 
 _pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
@@ -727,13 +729,21 @@ def display_lab_tab(
                     st.session_state.pop(confirm_delete_key, None)
                     _rerun_fragment_or_app()
                 if delete_clicked:
-                    delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
-                    delete_snapshot["label"] = f"remove step {step + 1}"
-                    delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
-                    st.session_state[delete_undo_key] = delete_snapshot
-                    selected_map.pop(step, None)
-                    remove_step(lab_dir, str(step), steps_file, index_page_str)
-                    st.rerun()
+                    result = delete_pipeline_step_command(
+                        session_state=st.session_state,
+                        index_page=index_page_str,
+                        step_index=step,
+                        lab_dir=lab_dir,
+                        steps_file=steps_file,
+                        persisted_steps=persisted_steps,
+                        selected_map=selected_map,
+                        capture_pipeline_snapshot=_capture_pipeline_snapshot,
+                        remove_step=remove_step,
+                    )
+                    if not result.ok:
+                        st.warning(result.message)
+                    else:
+                        st.rerun()
                 return
 
             run_pressed = False
@@ -1199,13 +1209,21 @@ def display_lab_tab(
 
             if delete_clicked:
                 st.session_state.pop(confirm_delete_key, None)
-                delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
-                delete_snapshot["label"] = f"remove step {step + 1}"
-                delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
-                st.session_state[delete_undo_key] = delete_snapshot
-                selected_map.pop(step, None)
-                remove_step(lab_dir, str(step), steps_file, index_page_str)
-                st.rerun()
+                result = delete_pipeline_step_command(
+                    session_state=st.session_state,
+                    index_page=index_page_str,
+                    step_index=step,
+                    lab_dir=lab_dir,
+                    steps_file=steps_file,
+                    persisted_steps=persisted_steps,
+                    selected_map=selected_map,
+                    capture_pipeline_snapshot=_capture_pipeline_snapshot,
+                    remove_step=remove_step,
+                )
+                if not result.ok:
+                    st.warning(result.message)
+                else:
+                    st.rerun()
 
     _conceptual_source, conceptual_dot = load_pipeline_conceptual_dot(env, lab_dir)
     if conceptual_dot:
@@ -1568,18 +1586,18 @@ def display_lab_tab(
         )
 
     if undo_delete_clicked:
-        restore_error = _restore_pipeline_snapshot(
-            module_path,
-            steps_file,
-            index_page_str,
-            sequence_widget_key,
-            undo_payload,
+        result = undo_pipeline_delete_command(
+            session_state=st.session_state,
+            index_page=index_page_str,
+            module_path=module_path,
+            steps_file=steps_file,
+            sequence_widget_key=sequence_widget_key,
+            restore_pipeline_snapshot=_restore_pipeline_snapshot,
         )
-        if restore_error:
-            st.error(f"Undo failed: {restore_error}")
+        if not result.ok:
+            st.error(result.message)
         else:
-            st.session_state.pop(delete_undo_key, None)
-            st.success("Deleted steps restored.")
+            st.success(result.message)
             st.rerun()
 
     if run_all_clicked or force_run_clicked:
@@ -1636,26 +1654,24 @@ def display_lab_tab(
         st.rerun()
 
     if delete_all_clicked:
-        st.session_state.pop(delete_all_confirm_key, None)
-        delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
-        delete_snapshot["label"] = "delete pipeline"
-        delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
-        st.session_state[delete_undo_key] = delete_snapshot
-        total_steps = st.session_state[index_page_str][-1]
-        for idx_remove in reversed(range(total_steps)):
-            remove_step(lab_dir, str(idx_remove), steps_file, index_page_str)
-        st.session_state[index_page_str] = [0, "", "", "", "", "", 0]
-        st.session_state[f"{index_page_str}__details"] = {}
-        st.session_state[f"{index_page_str}__venv_map"] = {}
-        st.session_state[f"{index_page_str}__run_sequence"] = []
-        st.session_state.pop(sequence_widget_key, None)
-        st.session_state["lab_selected_venv"] = ""
-        st.session_state[f"{index_page_str}__clear_q"] = True
-        st.session_state[f"{index_page_str}__force_blank_q"] = True
-        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-        _bump_history_revision()
-        _persist_sequence_preferences(module_path, steps_file, [])
-        st.rerun()
+        result = delete_all_pipeline_steps_command(
+            session_state=st.session_state,
+            index_page=index_page_str,
+            lab_dir=lab_dir,
+            module_path=module_path,
+            steps_file=steps_file,
+            persisted_steps=persisted_steps,
+            sequence_widget_key=sequence_widget_key,
+            capture_pipeline_snapshot=_capture_pipeline_snapshot,
+            remove_step=remove_step,
+            bump_history_revision=_bump_history_revision,
+            persist_sequence_preferences=_persist_sequence_preferences,
+            confirm_key=delete_all_confirm_key,
+        )
+        if not result.ok:
+            st.warning(result.message)
+        else:
+            st.rerun()
 
     if st.session_state.pop("_experiment_reload_required", False):
         st.session_state.pop("loaded_df", None)
