@@ -2004,6 +2004,9 @@ def test_about_hero_target_svg_data_uri_keeps_svg_encoded():
     assert "Generalization + digital twin map" in decoded
     assert "Digital twin" in decoded
     assert "digital twin simulation symbol" in decoded
+    assert "twin-divider" in decoded
+    assert "sim-label" in decoded
+    assert "stop-opacity" in decoded
     assert "simulate &#8596; reality" in decoded
     assert "Bias &#8596; Variance" in decoded
     assert "Controls" in decoded
