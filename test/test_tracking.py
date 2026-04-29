@@ -1,9 +1,23 @@
 from __future__ import annotations
 
+import importlib
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-from agilab import tracking
+
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+package_root = str(SRC_ROOT / "agilab")
+pkg = sys.modules.get("agilab")
+if pkg is not None and hasattr(pkg, "__path__"):
+    package_path = list(pkg.__path__)
+    if package_root not in package_path:
+        pkg.__path__ = [package_root, *package_path]
+importlib.invalidate_caches()
+
+tracking = importlib.import_module("agilab.tracking")
 
 
 class FakeMlflow:

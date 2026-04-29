@@ -156,11 +156,18 @@ def test_list_entries_can_include_directories(tmp_path: Path) -> None:
 def test_list_entries_handles_limits_missing_roots_and_large_files(tmp_path: Path) -> None:
     (tmp_path / "big.bin").write_bytes(b"x" * 2048)
     (tmp_path / "small.txt").write_text("x\n", encoding="utf-8")
+    broken = tmp_path / "broken-link.csv"
+    try:
+        broken.symlink_to(tmp_path / "missing-target.csv")
+    except OSError:
+        broken = tmp_path / "uncreated-broken-link.csv"
 
     entries = list_file_picker_entries(tmp_path, recursive=False, max_entries=1)
+    all_entries = list_file_picker_entries(tmp_path, recursive=False, max_entries=10)
 
     assert len(entries) == 1
     assert entries[0].size == "2.0 KB"
+    assert broken.name not in {entry.name for entry in all_entries}
     assert list_file_picker_entries(tmp_path, allow_files=False, allow_dirs=False) == []
     assert list_file_picker_entries(tmp_path / "missing") == []
     with pytest.raises(ValueError, match="max_entries"):
@@ -181,6 +188,8 @@ def test_resolve_under_roots_rejects_escape_and_symlink(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="configured roots"):
         resolve_under_roots(outside, {"Project": root})
+    with pytest.raises(ValueError, match="configured roots"):
+        resolve_under_roots("missing.csv", {"Project": root})
     try:
         symlink.symlink_to(outside)
     except OSError:
@@ -200,6 +209,15 @@ def test_safe_upload_target_preserves_directory_uploads_and_blocks_traversal(tmp
         safe_upload_target(upload_dir, "../out.csv", {"Uploads": upload_dir})
     with pytest.raises(ValueError, match="Unsafe upload filename"):
         safe_upload_target(upload_dir, r"..\out.csv", {"Uploads": upload_dir})
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    symlink_dir = upload_dir / "link"
+    try:
+        symlink_dir.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        return
+    with pytest.raises(ValueError, match="Unsafe upload filename"):
+        safe_upload_target(upload_dir, "link/out.csv", {"Uploads": upload_dir})
 
 
 def test_selected_paths_from_dataframe_state_supports_object_and_dict_state() -> None:
@@ -227,6 +245,7 @@ def test_helper_edges_for_defaults_labels_and_relative_paths(tmp_path: Path) -> 
     assert resolve_under_roots("future.csv", roots, must_exist=False) == (root / "future.csv").resolve(strict=False)
     assert _initial_selection([inside, outside], roots, "multi") == [str(inside.resolve())]
     assert _validated_selection(str(inside), roots, "single") == [str(inside.resolve())]
+    assert _validated_selection([outside], roots, "multi") == []
     assert _validated_selection(object(), roots, "single") == []
     assert _safe_relative_posix(outside, root) == outside.as_posix()
     assert _button_label("Browse", [], "single") == "Browse"
