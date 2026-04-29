@@ -29,9 +29,9 @@ Use these patterns as the default direction for future workflow-page changes.
 - **Facade Boundary**: pages should depend on `agi_gui` and page-support
   helpers. If a low-level `agi_env` or worker dependency is unavoidable,
   isolate it behind a page-local port.
-- **Registry Pattern**: page bundles, widgets, snippet templates, and app
-  templates should move toward typed registries instead of repeated discovery
-  rules.
+- **Registry Pattern**: page bundles, widgets, app templates, and remaining
+  snippet-template discovery should move toward typed registries instead of
+  repeated discovery rules.
 
 ## Roadmap Item: Pattern-Gated Workflow Changes
 
@@ -59,19 +59,25 @@ The Pipeline-first slice is now the reference implementation:
 
 - Page State / ViewModel: partially done. Pipeline has a typed
   `PipelinePageState` / ViewModel for visible steps, selected lab, stale
-  snippets, lock/run status, logs, and available actions. Orchestrate still
-  needs the same level of consolidation.
+  snippets, lock/run status, logs, and available actions. Orchestrate service
+  mode now has typed service state for visible action/status/health/export
+  flows. Broader Orchestrate install/distribute/run views still need the same
+  level of consolidation.
 - Ports and Adapters: partially done. `BootstrapPorts`, `Orchestrate*Deps`, and
   support modules exist, but not every external dependency is behind an
   injected adapter yet.
 - Command Result: partially done. `ActionResult`, `ActionSpec`, and
   `run_streamlit_action` provide shared Streamlit command-result primitives.
   Pipeline run, clear-logs, delete, delete-all, and undo-delete flows now use
-  typed command results; remaining workflow actions should follow that shape.
+  typed command results. Orchestrate service start, status, health, export,
+  and stop controls also return typed command results. Remaining workflow
+  actions should follow that shape.
 - Explicit State Machine: partially done. Pipeline has a
   `PipelineWorkflowStatus` enum covering `empty`, `generated`, `stale`,
-  `runnable`, `running`, `failed`, and `complete`. Service mode still needs an
-  explicit workflow-state model.
+  `runnable`, `running`, `failed`, and `complete`. Orchestrate service mode has
+  a `ServiceWorkflowStatus` model for `disabled`, `idle`, `starting`,
+  `running`, `unhealthy`, `failed`, and `stopping`. Broader Orchestrate views
+  still need explicit workflow-state models.
 - Versioned Artifact Contracts: partially done. `AGILAB_SNIPPET_API`, run
   manifest schema support, `lab_steps.toml` v1 metadata/refusal support,
   exported notebook metadata v1 support, and `app_settings.toml` v1
@@ -81,17 +87,16 @@ The Pipeline-first slice is now the reference implementation:
 - Facade Boundary: improved but incomplete. The `agi-gui` split and shared
   page bootstrap reduce direct coupling, but pages still touch low-level
   internals and session state in places.
-- Registry Pattern: mostly not done. Connector registries exist, but page
-  bundles, widgets, snippet templates, and app templates still need typed
-  registries.
+- Registry Pattern: partially done. Connector registries, page bundles,
+  `agi_gui` widgets, and app templates have typed registries. Remaining
+  snippet-template discovery should move behind the same registry shape.
 
 ## Recommended Sequence
 
-1. Apply the same ViewModel, command-result, and workflow-state pattern to
-   Orchestrate service mode.
-2. Extend versioned contracts to remaining persisted UI artifacts.
-3. Convert snippet templates and page widgets into typed registries once state
-   and command boundaries are in place.
+1. Move remaining snippet-template discovery behind a typed registry.
+2. Apply the ViewModel, command-result, and workflow-state pattern to broader
+   Orchestrate install/distribute/run views.
+3. Extend versioned contracts to remaining persisted UI artifacts.
 
 ## First Slice Acceptance Criteria
 
