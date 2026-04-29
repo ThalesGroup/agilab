@@ -5,6 +5,7 @@ from shlex import quote
 from tempfile import gettempdir
 from typing import Any, Callable, Union
 
+from agi_cluster.agi_distributor import deployment_dask_support
 from agi_env import AgiEnv
 
 
@@ -196,6 +197,14 @@ async def deploy_remote_worker(
 
     cmd = f"{uv} --project {wenv_rel.as_posix()} add -p {pyvers} --upgrade {_pkg_ref(node_pck)}"
     await agi_cls.exec_ssh(ip, cmd)
+
+    if deployment_dask_support.dask_mode_enabled(agi_cls):
+        cmd = deployment_dask_support.dask_runtime_install_command(
+            uv,
+            PurePosixPath(wenv_rel.as_posix()),
+            pyvers=pyvers,
+        )
+        await agi_cls.exec_ssh(ip, cmd)
 
     remote_site_packages = worker_site_packages_dir_fn(
         PurePosixPath(wenv_rel.as_posix()),

@@ -1036,6 +1036,10 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
         and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
+    assert any(
+        f"--project {wenv_abs}" in cmd and "add 'dask[distributed]'" in cmd
+        for cmd, _ in commands
+    )
     assert not any(
         "uv sync" in cmd and str(wenv_abs) in cmd and "--extra pandas-worker" in cmd
         for cmd, _ in commands

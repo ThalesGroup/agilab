@@ -31,7 +31,7 @@ def test_data_connector_facility_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["schema"] == "agilab.data_connector_facility.v1"
     assert report["summary"]["run_status"] == "validated"
     assert report["summary"]["execution_mode"] == "contract_validation_only"
-    assert report["summary"]["connector_count"] == 3
+    assert report["summary"]["connector_count"] == 5
     assert report["summary"]["supported_kinds"] == [
         "object_storage",
         "opensearch",
@@ -79,3 +79,103 @@ def test_data_connector_facility_rejects_mixed_secret_and_missing_kind(tmp_path:
         issue["location"]
         for issue in state["issues"]
     } == {"bad_sql", "bad_sql.uri", "connectors"}
+
+
+def test_data_connector_facility_accepts_aws_azure_and_gcp_object_storage(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_cloud_test_module")
+    base_catalog = {
+        "connectors": [
+            {
+                "id": "warehouse_sql",
+                "kind": "sql",
+                "label": "Warehouse SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+                "driver": "postgresql",
+                "query_mode": "read_only",
+            },
+            {
+                "id": "ops_opensearch",
+                "kind": "opensearch",
+                "label": "Operations OpenSearch",
+                "url": "https://opensearch.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env:OPENSEARCH_TOKEN",
+            },
+            {
+                "id": "aws_artifact_store",
+                "kind": "object_storage",
+                "label": "AWS Artifact Store",
+                "provider": "aws_s3",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "region": "eu-west-3",
+                "auth_ref": "env:AWS_PROFILE",
+            },
+            {
+                "id": "azure_artifact_store",
+                "kind": "object_storage",
+                "label": "Azure Artifact Store",
+                "provider": "azure_blob",
+                "account": "agilabstorage",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "env:AZURE_STORAGE_CONNECTION_STRING",
+            },
+            {
+                "id": "gcp_artifact_store",
+                "kind": "object_storage",
+                "label": "GCP Artifact Store",
+                "provider": "gcs",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "env:GOOGLE_APPLICATION_CREDENTIALS",
+            },
+        ]
+    }
+
+    state = core_module.build_data_connector_facility(
+        base_catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "validated"
+    object_rows = [
+        connector for connector in state["connectors"]
+        if connector["kind"] == "object_storage"
+    ]
+    assert {connector["provider"] for connector in object_rows} == {
+        "aws_s3",
+        "azure_blob",
+        "gcs",
+    }
+    assert any(connector.get("region") == "eu-west-3" for connector in object_rows)
+    assert any(connector.get("account") == "agilabstorage" for connector in object_rows)
+
+
+def test_data_connector_facility_rejects_unknown_object_storage_provider(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_unknown_cloud_test_module")
+    catalog = {
+        "connectors": [
+            {
+                "id": "unknown_object_store",
+                "kind": "object_storage",
+                "label": "Unknown Object Store",
+                "provider": "ftp",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "env:FTP_TOKEN",
+            }
+        ]
+    }
+
+    state = core_module.build_data_connector_facility(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "invalid"
+    assert any(
+        issue["location"] == "unknown_object_store"
+        and "unsupported object_storage provider" in issue["message"]
+        for issue in state["issues"]
+    )

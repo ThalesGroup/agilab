@@ -184,7 +184,7 @@ def _build_report_with_path(
             "data_connector_view_surface_connector_state_provenance",
             "Data connector view surface connector state provenance",
             _surface_ready(state, "connector_state_provenance_panel")
-            and summary.get("connector_card_count") == 3
+            and summary.get("connector_card_count") == 5
             and summary.get("page_binding_count") == 2,
             "view surface exposes connector state, page bindings, fallbacks, and roots",
             evidence=surfaces.get("connector_state_provenance_panel", {}).get(
@@ -196,7 +196,7 @@ def _build_report_with_path(
             "data_connector_view_surface_health_status_panel",
             "Data connector view surface health status panel",
             _surface_ready(state, "connector_health_status_panel")
-            and summary.get("health_probe_status_count") == 3
+            and summary.get("health_probe_status_count") == 5
             and summary.get("network_probe_count") == 0,
             "view surface exposes planned connector health while keeping probes gated",
             evidence=surfaces.get("connector_health_status_panel", {}).get(

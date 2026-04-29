@@ -36,9 +36,9 @@ def test_data_connector_view_surface_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["release_decision_surface_count"] == 4
     assert report["summary"]["page_source_loaded"] is True
     assert report["summary"]["live_ui_run_status"] == "ready_for_live_ui"
-    assert report["summary"]["connector_card_count"] == 3
+    assert report["summary"]["connector_card_count"] == 5
     assert report["summary"]["page_binding_count"] == 2
-    assert report["summary"]["health_probe_status_count"] == 3
+    assert report["summary"]["health_probe_status_count"] == 5
     assert report["summary"]["external_artifact_traceability_ready"] is True
     assert report["summary"]["import_export_provenance_ready"] is True
     assert report["summary"]["network_probe_count"] == 0

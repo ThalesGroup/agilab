@@ -30,15 +30,15 @@ def test_data_connector_health_actions_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["schema"] == "agilab.data_connector_health_actions.v1"
     assert report["summary"]["run_status"] == "ready_for_operator_trigger"
     assert report["summary"]["execution_mode"] == "operator_trigger_contract_only"
-    assert report["summary"]["action_count"] == 3
-    assert report["summary"]["connector_count"] == 3
-    assert report["summary"]["operator_trigger_count"] == 3
-    assert report["summary"]["pending_action_count"] == 3
-    assert report["summary"]["pending_operator_trigger_count"] == 3
+    assert report["summary"]["action_count"] == 5
+    assert report["summary"]["connector_count"] == 5
+    assert report["summary"]["operator_trigger_count"] == 5
+    assert report["summary"]["pending_action_count"] == 5
+    assert report["summary"]["pending_operator_trigger_count"] == 5
     assert report["summary"]["executed_probe_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
-    assert report["summary"]["operator_context_required_count"] == 3
-    assert report["summary"]["credential_gated_count"] == 2
+    assert report["summary"]["operator_context_required_count"] == 5
+    assert report["summary"]["credential_gated_count"] == 4
     assert report["summary"]["no_credential_required_count"] == 1
     assert report["summary"]["probe_types"] == [
         "bucket_prefix_list",
@@ -74,7 +74,7 @@ def test_data_connector_health_actions_persist_trigger_rows(tmp_path: Path) -> N
     }
     assert {action["ui_control"] for action in actions} == {"button"}
     assert {action["default_status"] for action in actions} == {"unknown_not_probed"}
-    assert sum(1 for action in actions if action["requires_credentials"]) == 2
+    assert sum(1 for action in actions if action["requires_credentials"]) == 4
     assert sum(1 for action in actions if not action["requires_credentials"]) == 1
     assert all(action["network_probe_executed"] is False for action in actions)
     assert all(action["safe_for_public_evidence"] is True for action in actions)

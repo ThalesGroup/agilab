@@ -143,18 +143,18 @@ def _build_report_with_paths(
         _check_result(
             "data_connector_health_probe_plan",
             "Data connector health probe plan",
-            summary.get("connector_count") == 3
-            and summary.get("planned_probe_count") == 3
+            summary.get("connector_count") == 5
+            and summary.get("planned_probe_count") == 5
             and summary.get("probe_types")
             == ["bucket_prefix_list", "driver_connectivity", "index_head"],
-            "health probe plan covers SQL, OpenSearch, and object storage",
+            "health probe plan covers SQL, OpenSearch, and multi-cloud object storage",
             evidence=[proof["catalog_path"]],
             details={"summary": summary, "probes": probes},
         ),
         _check_result(
             "data_connector_health_opt_in_boundary",
             "Data connector health opt-in boundary",
-            summary.get("opt_in_required_count") == 3
+            summary.get("opt_in_required_count") == 5
             and all(
                 probe.get("operator_context_required") is True
                 for probe in probes
@@ -179,7 +179,7 @@ def _build_report_with_paths(
             "data_connector_health_status_values",
             "Data connector health status values",
             summary.get("status_values") == ["unknown_not_probed"]
-            and summary.get("unknown_status_count") == 3
+            and summary.get("unknown_status_count") == 5
             and summary.get("unhealthy_count") == 0,
             "planned probes remain unknown rather than claiming live health",
             evidence=[proof["catalog_path"]],

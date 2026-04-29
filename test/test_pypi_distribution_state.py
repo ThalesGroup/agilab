@@ -23,6 +23,7 @@ write_github_output = pypi_distribution_state.write_github_output
 def test_pypi_distribution_state_marks_existing_artifacts(tmp_path: Path) -> None:
     dist = tmp_path / "dist"
     dist.mkdir()
+    (dist / ".gitignore").write_text("*\n", encoding="utf-8")
     wheel = dist / "agi_env-2026.4.29.post2-py3-none-any.whl"
     wheel.write_bytes(b"")
 
