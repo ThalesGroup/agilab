@@ -217,7 +217,7 @@ def quick_logo(resources_path: Path) -> None:
                 display: block;
               }}
               .agilab-hero__legal {{
-                margin: 1.05rem 0 0;
+                margin: 1.55rem 0 0;
                 color: rgba(247, 242, 232, 0.58);
                 font-size: 0.78rem;
                 line-height: 1.35;

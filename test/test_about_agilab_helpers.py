@@ -1975,6 +1975,7 @@ def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
     assert "Select a project, run it, and inspect the result" not in body
     assert "Thales SIX GTS" in body
     assert "BSD 3-Clause License" in body
+    assert "margin: 1.55rem 0 0" in body
     assert "Project" in body
     assert "Run" in body
     assert "Analyse" in body
