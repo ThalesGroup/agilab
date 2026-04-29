@@ -10,6 +10,13 @@ from pathlib import Path
 README = Path("README.md")
 PYPI_README = Path("README.pypi.md")
 AGI_CORE_README = Path("src/agilab/core/agi-core/README.md")
+COMPONENT_READMES = (
+    Path("src/agilab/core/agi-core/README.md"),
+    Path("src/agilab/core/agi-env/README.md"),
+    Path("src/agilab/core/agi-node/README.md"),
+    Path("src/agilab/core/agi-cluster/README.md"),
+    Path("src/agilab/lib/agi-gui/README.md"),
+)
 CHANGELOG = Path("CHANGELOG.md")
 PUBLIC_DOC_PAGES = (
     Path("docs/source/agilab-demo.rst"),
@@ -111,26 +118,31 @@ def test_readme_uses_agi_core_notebook_badge_for_api_route() -> None:
     ) in readme
 
 
-def test_agi_core_component_demo_badges_match_root_readme() -> None:
-    readme = README.read_text(encoding="utf-8")
-    component_readme = AGI_CORE_README.read_text(encoding="utf-8")
-    demo_badges = (
-        (
-            f'<a href="{PUBLIC_HF_SPACE_URL}"><img src="{PUBLIC_HF_SPACE_BADGE}" '
-            'alt="AGILAB Space" /></a>'
-        ),
-        (
-            f'<a href="{AGI_CORE_NOTEBOOK_URL}"><img src="{AGI_CORE_NOTEBOOK_BADGE}" '
-            'alt="agi-core notebook" /></a>'
-        ),
+def test_component_readmes_do_not_embed_umbrella_demo_links() -> None:
+    forbidden = (
+        PUBLIC_HF_SPACE_URL,
+        PUBLIC_HF_SPACE_BADGE,
+        HF_RUNTIME_URL,
+        "AGILAB Space",
+        "public AGILAB Space",
+        "docs-agilab",
+        "open-in-kaggle.svg",
+        "colab-badge.svg",
     )
 
-    for badge in demo_badges:
-        assert badge in readme
-        assert badge in component_readme
+    for path in COMPONENT_READMES:
+        text = path.read_text(encoding="utf-8")
+        for marker in forbidden:
+            assert marker not in text, f"{path} should stay component-scoped; found {marker!r}"
 
-    assert "colab-badge.svg" not in component_readme
-    assert "open-in-kaggle.svg" not in component_readme
+
+def test_agi_core_component_readme_stays_package_scoped() -> None:
+    component_readme = AGI_CORE_README.read_text(encoding="utf-8")
+
+    assert "https://thalesgroup.github.io/agilab/agi-core-architecture.html" in component_readme
+    assert "https://thalesgroup.github.io/agilab/notebook-quickstart.html" not in component_readme
+    assert AGI_CORE_NOTEBOOK_URL not in component_readme
+    assert AGI_CORE_NOTEBOOK_BADGE not in component_readme
 
 
 def test_public_docs_link_to_hf_space_page_not_runtime_host() -> None:

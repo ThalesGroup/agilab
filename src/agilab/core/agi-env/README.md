@@ -5,10 +5,10 @@
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-env)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
 [![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-env.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-env)
-[![docs](https://img.shields.io/badge/docs-agilab-brightgreen.svg)](https://thalesgroup.github.io/agilab)
+[![API docs](https://img.shields.io/badge/docs-agi--env-brightgreen.svg)](https://thalesgroup.github.io/agilab/agi-env.html)
 
-`agi-env` provides environment bootstrap and runtime helpers used across the AGILAB stack (paths, credentials, virtualenvs,
-and application launch context).
+`agi-env` provides headless environment bootstrap and runtime helpers: paths, credentials, virtual environments,
+and launch context.
 
 ## Quick install
 
@@ -24,7 +24,7 @@ pip install agi-gui
 
 ## Typical usage
 
-- Create or update environment context for AGILAB sessions.
+- Create or update environment context for runtime sessions.
 - Resolve workspace paths consistently across local and shared installs.
 - Centralize small utilities used by managers and worker packaging.
 
@@ -32,5 +32,5 @@ pip install agi-gui
 
 - Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-env
 - UI package: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-gui
-- Docs: https://thalesgroup.github.io/agilab
+- Docs: https://thalesgroup.github.io/agilab/agi-env.html
 - Issues: https://github.com/ThalesGroup/agilab/issues
