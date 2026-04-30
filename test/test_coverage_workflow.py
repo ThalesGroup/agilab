@@ -99,6 +99,21 @@ def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
     assert "src/agilab/lib/agi-gui/test" in run_block
 
 
+def test_agi_gui_coverage_uses_chunked_append_profile() -> None:
+    run_block = _agi_gui_run_block()
+    junit_upload = _step_block("Upload JUnit results")
+
+    assert "run_gui_chunk support" in run_block
+    assert "run_gui_chunk pipeline" in run_block
+    assert "run_gui_chunk pages" in run_block
+    assert "run_gui_chunk views" in run_block
+    assert "run_gui_chunk reports" in run_block
+    assert "--append" in run_block
+    assert "python -m coverage xml" in run_block
+    assert "--cov=src/agilab" not in run_block
+    assert "test-results/junit-agi-gui-*.xml" in junit_upload
+
+
 def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
     run_block = _agi_gui_run_block()
 

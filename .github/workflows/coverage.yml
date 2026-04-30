@@ -237,14 +237,25 @@ jobs:
           start_coverage_heartbeat "agi-gui coverage" &
           HEARTBEAT_PID=$!
           trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
-          rm -f .coverage.agi-gui coverage-agi-gui.xml
-          AGILAB_DISABLE_BACKGROUND_SERVICES=1 \
-          timeout 12m uv --preview-features extra-build-dependencies run --group dev \
-            python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
-            -m "not integration" \
-            --cov=src/agilab --cov-config=.coveragerc.agi-gui --cov-report=xml:coverage-agi-gui.xml \
-            --junitxml=test-results/junit.xml \
-            --ignore=src/agilab/test/test_model_returns_code.py \
+          rm -f .coverage.agi-gui coverage-agi-gui.xml test-results/junit-agi-gui-*.xml
+          export AGILAB_DISABLE_BACKGROUND_SERVICES=1
+
+          run_gui_chunk() {
+            local label="$1"
+            shift
+            timeout 8m uv --preview-features extra-build-dependencies run --group dev \
+              python -m coverage run \
+              --rcfile=.coveragerc.agi-gui \
+              --data-file=.coverage.agi-gui \
+              --append \
+              -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
+              -m "not integration" \
+              --junitxml="test-results/junit-agi-gui-${label}.xml" \
+              --ignore=src/agilab/test/test_model_returns_code.py \
+              "$@"
+          }
+
+          run_gui_chunk support \
             src/agilab/test \
             src/agilab/lib/agi-gui/test \
             test/test_orchestrate_cluster.py \
@@ -257,7 +268,9 @@ jobs:
             test/test_analysis_page_helpers.py \
             test/test_about_agilab_helpers.py \
             test/test_cluster_flight_validation.py \
-            test/test_cluster_lan_discovery.py \
+            test/test_cluster_lan_discovery.py
+
+          run_gui_chunk pipeline \
             test/test_first_proof_cli.py \
             test/test_notebook_colab_support.py \
             test/test_page_docs.py \
@@ -271,17 +284,29 @@ jobs:
             test/test_pipeline_sidebar.py \
             test/test_pipeline_steps.py \
             test/test_pipeline_views.py \
-            test/test_tracking.py \
+            test/test_tracking.py
+
+          run_gui_chunk pages \
             test/test_ui_pages.py \
             test/test_apps_pages_launcher.py \
-            test/test_view*.py \
             test/test_app_args.py \
             test/test_streamlit_args.py \
             test/test_pagelib.py \
-            test/test_*_report.py \
-            test/test_*_workflow.py \
             test/test_connector_registry.py \
             test/test_run_manifest.py
+
+          run_gui_chunk views \
+            test/test_view*.py
+
+          run_gui_chunk reports \
+            test/test_*_report.py \
+            test/test_*_workflow.py
+
+          timeout 5m uv --preview-features extra-build-dependencies run --group dev \
+            python -m coverage xml \
+            --rcfile=.coveragerc.agi-gui \
+            --data-file=.coverage.agi-gui \
+            -o coverage-agi-gui.xml
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
 
@@ -290,7 +315,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-gui-junit
-          path: test-results/junit.xml
+          path: test-results/junit-agi-gui-*.xml
           if-no-files-found: ignore
 
       - name: Upload agi-gui coverage to Codecov
