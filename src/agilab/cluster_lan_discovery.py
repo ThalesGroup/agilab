@@ -480,6 +480,44 @@ def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
     if completed.returncode == 0:
         for match in re.finditer(r"\binet\s+(\d+\.\d+\.\d+\.\d+)\s+netmask\s+(0x[0-9a-fA-F]+)", completed.stdout):
             hosts.add(match.group(1))
+
+    route_hosts: set[str] = set()
+    try:
+        completed = runner(["ip", "route", "get", "1.1.1.1"], capture_output=True, text=True, timeout=2)
+    except Exception:
+        completed = subprocess.CompletedProcess(["ip"], 1, stdout="", stderr="")
+    if completed.returncode == 0:
+        for match in re.finditer(r"\bsrc\s+(\d+\.\d+\.\d+\.\d+)\b", completed.stdout):
+            route_hosts.add(match.group(1))
+    hosts.update(route_hosts)
+
+    try:
+        completed = runner(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True, timeout=2)
+    except Exception:
+        completed = subprocess.CompletedProcess(["ip"], 1, stdout="", stderr="")
+    if completed.returncode == 0:
+        for line in completed.stdout.splitlines():
+            fields = line.split()
+            interface = fields[1].rstrip(":") if len(fields) > 1 else ""
+            if interface.startswith(("br-", "docker", "veth", "virbr")) or interface in {"lo"}:
+                continue
+            match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)/\d+", line)
+            if match:
+                hosts.add(match.group(1))
+
+    if not hosts:
+        try:
+            completed = runner(["hostname", "-I"], capture_output=True, text=True, timeout=2)
+        except Exception:
+            completed = subprocess.CompletedProcess(["hostname"], 1, stdout="", stderr="")
+        if completed.returncode == 0:
+            for token in completed.stdout.split():
+                try:
+                    address = ipaddress.ip_address(token)
+                except ValueError:
+                    continue
+                if address.version == 4:
+                    hosts.add(str(address))
     return {host for host in hosts if not host.startswith("127.")}
 
 

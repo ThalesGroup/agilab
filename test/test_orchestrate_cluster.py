@@ -462,6 +462,37 @@ def test_clear_lan_discovery_cache_removes_cache_file(tmp_path):
     assert orchestrate_cluster._clear_lan_discovery_cache(cache_path) == (False, "missing")
 
 
+def test_refresh_lan_discovery_cache_runs_discovery_with_scheduler_ssh_target(monkeypatch, tmp_path):
+    cache_path = tmp_path / ".agilab" / "lan_nodes.json"
+    captured = {}
+
+    def fake_discover(options):
+        captured["options"] = options
+        return SimpleNamespace(
+            nodes=[
+                SimpleNamespace(status="ready"),
+                SimpleNamespace(status="sshfs-missing"),
+            ]
+        )
+
+    monkeypatch.setattr(orchestrate_cluster, "discover_lan_nodes", fake_discover)
+
+    refreshed, message = orchestrate_cluster._refresh_lan_discovery_cache(
+        cache_path,
+        remote_user="agi",
+        scheduler="192.168.20.111:8786",
+        manager_user="manager",
+    )
+
+    assert refreshed is True
+    assert message == "LAN discovery refreshed: 2 node(s), 1 ready."
+    options = captured["options"]
+    assert options.remote_user == "agi"
+    assert options.scheduler == "192.168.20.111"
+    assert options.manager_user == "manager"
+    assert options.cache_path == cache_path
+
+
 def _disable_lan_defaults(monkeypatch):
     monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_cluster_defaults", lambda *_, **__: {})
 
@@ -630,6 +661,7 @@ def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_d
 def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(monkeypatch, tmp_path):
     app_name = "demo_project"
     widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    refresh_calls = []
     fake_st = _FakeStreamlit(
         widget_values={
             widget_keys["cluster_enabled"]: True,
@@ -651,6 +683,7 @@ def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(m
                 }
             },
             widget_keys["scheduler"]: "10.0.0.10:8786",
+            widget_keys["user"]: "agi",
             widget_keys["workers"]: '{"10.0.0.11": 2}',
             widget_keys["workers_data_path"]: "/old/share",
             "benchmark": False,
@@ -664,6 +697,12 @@ def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(m
             "scheduler": "192.168.3.103:8786",
             "workers": {"192.168.3.35": 1},
         },
+    )
+    monkeypatch.setattr(
+        orchestrate_cluster,
+        "_refresh_lan_discovery_cache",
+        lambda cache_path, **kwargs: refresh_calls.append((cache_path, kwargs))
+        or (True, "LAN discovery refreshed: 1 node(s), 1 ready."),
     )
 
     share = tmp_path / "cluster-share"
@@ -697,6 +736,10 @@ def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(m
     assert fake_st.session_state[widget_keys["scheduler"]] == "192.168.3.103:8786"
     assert fake_st.session_state[widget_keys["workers"]] == '{\n  "192.168.3.35": 1\n}'
     assert fake_st.session_state[widget_keys["workers_data_path"]] == str(share)
+    assert refresh_calls
+    assert refresh_calls[0][1]["remote_user"] == "agi"
+    assert refresh_calls[0][1]["scheduler"] == "10.0.0.10:8786"
+    assert any("LAN discovery refreshed" in info for info in fake_st.infos)
 
 
 def test_render_cluster_settings_ui_clear_lan_cache_button_deletes_inventory(monkeypatch, tmp_path):
