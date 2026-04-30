@@ -32,6 +32,12 @@ Use this runbook whenever you:
   agilab`, run `uv --preview-features extra-build-dependencies tool upgrade agilab` to pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
   it from the source tree swaps in the published wheel and discards your local changes.
+- **Process ownership**: Treat existing terminals, Codex CLI sessions, dev servers, and
+  other long-running processes as user-owned unless this turn started them. Do not use
+  broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based
+  `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool
+  sessions created for the active task. If a port is busy, choose another port or ask
+  before stopping its owner; do not try to "pause" another Codex CLI session from here.
 - **Git footprint helper**: Use `uv run python tools/repo_footprint.py audit` to
   separate working-tree size from `.git` size before cleaning anything. Prefer
   `lfs-prune --dry-run` / `lfs-prune --apply` for local `.git/lfs` cleanup.

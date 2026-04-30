@@ -17,6 +17,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - `uv --preview-features extra-build-dependencies run python …`
   - `uv --preview-features extra-build-dependencies run streamlit …`
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
+- **Process ownership**: treat existing terminals, Codex CLI sessions, dev servers, and other long-running processes as user-owned unless this turn started them. Do not use broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool sessions created for the active task. If a port is busy, choose another port or ask before stopping its owner; do not try to "pause" another Codex CLI session from here.
 - **High-frequency shortcuts**: prefer `./dev <shortcut>` for repeated local validation loops. The
   top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`, `flow` for one
   or more workflow parity profiles, `badge` for the fresh coverage-badge guard, and `docs` for docs
