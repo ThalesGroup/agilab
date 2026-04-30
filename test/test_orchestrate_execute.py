@@ -330,6 +330,9 @@ class _FakeStreamlit:
     def caption(self, message):
         self.messages.append(("caption", str(message)))
 
+    def markdown(self, message):
+        self.messages.append(("markdown", str(message)))
+
     def pyplot(self, _fig, width=None):
         self.messages.append(("pyplot", str(width)))
 
@@ -476,6 +479,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     assert "__source__" in fake_st.session_state["loaded_df"].columns
     assert any(kind == "success" and "Loaded dataframe preview from 2 files" in msg for kind, msg in fake_st.messages)
     assert any(kind == "success" and "Dataframe exported successfully" in msg for kind, msg in fake_st.messages)
+    assert ("markdown", "#### 5. Execute and inspect outputs") in fake_st.messages
     assert any(kind == "preview" for kind, _ in fake_st.messages)
 
 

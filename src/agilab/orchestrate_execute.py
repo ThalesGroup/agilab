@@ -396,6 +396,8 @@ async def render_execute_section(
             st.session_state.pop(delete_confirm_key, None)
 
     if controls_visible:
+        st.markdown("#### 5. Execute and inspect outputs")
+        st.caption("Run the configured command, load the latest result, and export the dataframe used by analysis pages.")
         _render_run_panel_controls()
     else:
         consume_pending_execute_action(st.session_state)
