@@ -157,6 +157,11 @@ single notebook but less ceremony than a production MLOps platform:
   plus artifact references, writes a richer ``lab_steps.toml`` preview used by
   the existing ``PIPELINE`` upload path, and emits ``not_executed_import``
   metadata without running notebook cells
+- the notebook import preflight report validates the generic migration boundary
+  with ``tools/notebook_import_preflight.py --compact``; it reads an ``.ipynb``
+  without execution, flags cleanup risks such as runtime installs, shell calls,
+  network access, widgets, hidden notebook state, and absolute paths, and writes
+  an app-neutral ``notebook_import_contract.json`` sidecar when requested
 - the notebook round-trip report validates
   ``tools/notebook_roundtrip_report.py --compact`` across
   ``lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`` so
@@ -169,7 +174,7 @@ single notebook but less ceremony than a production MLOps platform:
   ``supervisor_notebook_required``
 - the data connector facility report validates
   ``tools/data_connector_facility_report.py --compact`` against
-  ``SQL, OpenSearch/ELK/Hawk, and object-storage connector definitions`` in
+  ``SQL, OpenSearch/Elasticsearch, and object-storage connector definitions`` in
   a plain-text TOML catalog; search-index contracts cover OpenSearch-compatible
   clusters, while object-storage contracts cover AWS S3/S3-compatible stores,
   Azure Blob Storage, and Google Cloud Storage. It runs in

@@ -18,6 +18,8 @@ import tomli_w
 
 
 SCHEMA = "agilab.notebook_pipeline_import.v1"
+PREFLIGHT_SCHEMA = "agilab.notebook_import_preflight.v1"
+CONTRACT_SCHEMA = "agilab.notebook_import_contract.v1"
 DEFAULT_RUN_ID = "notebook-pipeline-import-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:20Z"
@@ -34,6 +36,33 @@ ARTIFACT_SUFFIXES = (
     ".html",
     ".txt",
     ".toml",
+)
+
+INPUT_PATH_PREFIXES = ("data/", "input/", "inputs/", "raw/")
+OUTPUT_PATH_PREFIXES = ("artifact", "artifacts/", "output/", "outputs/", "result", "results/")
+READ_MARKERS = (
+    "read_csv",
+    "read_parquet",
+    "read_json",
+    "read_table",
+    "read_excel",
+    ".read_text",
+    ".read_bytes",
+    "json.load",
+    "tomllib.load",
+    "open(",
+)
+WRITE_MARKERS = (
+    ".to_csv",
+    ".to_parquet",
+    ".to_json",
+    ".to_excel",
+    ".write_text",
+    ".write_bytes",
+    "json.dump",
+    "tomli_w.dump",
+    "savefig",
+    ".save(",
 )
 
 
@@ -214,6 +243,188 @@ def extract_artifact_references(code: str, source_cell_index: int) -> list[dict[
             }
         )
     return references
+
+
+def _risk(
+    level: str,
+    rule: str,
+    location: str,
+    message: str,
+    *,
+    evidence: str = "",
+) -> dict[str, str]:
+    result = {
+        "level": level,
+        "rule": rule,
+        "location": location,
+        "message": message,
+    }
+    if evidence:
+        result["evidence"] = evidence
+    return result
+
+
+def _risk_counts(risks: Iterable[Mapping[str, Any]]) -> dict[str, int]:
+    counts = {"error": 0, "warning": 0, "info": 0}
+    for risk in risks:
+        level = str(risk.get("level", "") or "info")
+        counts[level] = counts.get(level, 0) + 1
+    return counts
+
+
+def _is_absolute_path_text(value: str) -> bool:
+    if not value:
+        return False
+    if re.match(r"^[A-Za-z]:[\\/]", value):
+        return True
+    try:
+        return Path(value).is_absolute()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return value.startswith("/")
+
+
+def _path_role_from_prefix(path: str) -> str:
+    normalized = path.strip().replace("\\", "/").lstrip("./").lower()
+    if normalized.startswith(INPUT_PATH_PREFIXES):
+        return "input"
+    if normalized.startswith(OUTPUT_PATH_PREFIXES):
+        return "output"
+    return "unknown"
+
+
+def _line_role_for_path(line: str, path: str) -> str:
+    if path not in line:
+        return "unknown"
+    lowered = line.lower()
+    read_seen = any(marker in lowered for marker in READ_MARKERS)
+    write_seen = any(marker in lowered for marker in WRITE_MARKERS)
+    if read_seen and write_seen:
+        return "input_output"
+    if write_seen:
+        return "output"
+    if read_seen:
+        return "input"
+    return "unknown"
+
+
+def _combine_artifact_roles(current: str, candidate: str) -> str:
+    if current == candidate or candidate == "unknown":
+        return current
+    if current == "unknown":
+        return candidate
+    roles = {current, candidate}
+    if "input_output" in roles or roles == {"input", "output"}:
+        return "input_output"
+    return current
+
+
+def _infer_artifact_role(path: str, source: str) -> str:
+    role = _path_role_from_prefix(path)
+    for line in source.splitlines():
+        role = _combine_artifact_roles(role, _line_role_for_path(line, path))
+    return role
+
+
+def _pipeline_step_sources(notebook_import: Mapping[str, Any]) -> list[tuple[str, int, str]]:
+    steps = notebook_import.get("pipeline_steps", [])
+    if not isinstance(steps, list):
+        return []
+    sources: list[tuple[str, int, str]] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        step_id = str(step.get("id", "") or "")
+        source_cell_index = int(step.get("source_cell_index", 0) or 0)
+        sources.append((step_id, source_cell_index, _source_from_step(step)))
+    return sources
+
+
+def _detect_line_risks(step_id: str, source: str) -> list[dict[str, str]]:
+    risks: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        stripped = line.strip()
+        lowered = stripped.lower()
+        location = f"{step_id}:line-{line_number}" if step_id else f"line-{line_number}"
+        candidates: list[dict[str, str]] = []
+        if re.search(r"(^[!%]\s*(pip|conda)\s+install\b|\bpip\s+install\b)", lowered):
+            candidates.append(
+                _risk(
+                    "warning",
+                    "dependency_install",
+                    location,
+                    "Notebook cell installs dependencies at runtime; move them to project metadata.",
+                    evidence=stripped,
+                )
+            )
+        if (
+            stripped.startswith("!")
+            or stripped.startswith("%%bash")
+            or stripped.startswith("%%sh")
+            or "subprocess." in lowered
+            or "os.system" in lowered
+        ):
+            candidates.append(
+                _risk(
+                    "warning",
+                    "shell_execution",
+                    location,
+                    "Notebook cell uses shell or subprocess execution; review before pipeline import.",
+                    evidence=stripped,
+                )
+            )
+        if (
+            "http://" in lowered
+            or "https://" in lowered
+            or "requests." in lowered
+            or "urllib." in lowered
+        ):
+            candidates.append(
+                _risk(
+                    "warning",
+                    "network_access",
+                    location,
+                    "Notebook cell references network access; keep credentials and remote availability explicit.",
+                    evidence=stripped,
+                )
+            )
+        if "ipywidgets" in lowered or "interact(" in lowered or ".observe(" in lowered:
+            candidates.append(
+                _risk(
+                    "warning",
+                    "interactive_widget",
+                    location,
+                    "Notebook cell depends on interactive widget state; replace with explicit parameters.",
+                    evidence=stripped,
+                )
+            )
+        if "get_ipython(" in lowered or "%store" in lowered or "globals()" in lowered:
+            candidates.append(
+                _risk(
+                    "warning",
+                    "hidden_notebook_state",
+                    location,
+                    "Notebook cell reaches notebook runtime state; make required inputs explicit.",
+                    evidence=stripped,
+                )
+            )
+        if re.search(r"['\"](/Users/|/home/|/tmp/|[A-Za-z]:[\\/])", stripped):
+            candidates.append(
+                _risk(
+                    "warning",
+                    "absolute_path",
+                    location,
+                    "Notebook cell contains an absolute path; use project or artifact-relative paths.",
+                    evidence=stripped,
+                )
+            )
+
+        for candidate in candidates:
+            key = (candidate["rule"], candidate["location"])
+            if key not in seen:
+                seen.add(key)
+                risks.append(candidate)
+    return risks
 
 
 def _notebook_cells(notebook: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -589,6 +800,220 @@ def build_lab_steps_preview(
             entry["E"] = env
         entries.append(entry)
     return {module_name: entries}
+
+
+def build_notebook_artifact_contract(notebook_import: Mapping[str, Any]) -> dict[str, Any]:
+    """Build an app-neutral input/output contract from imported notebook metadata."""
+    step_sources = {
+        source_cell_index: source
+        for _step_id, source_cell_index, source in _pipeline_step_sources(notebook_import)
+    }
+    references = notebook_import.get("artifact_references", [])
+    iterable_references = references if isinstance(references, list) else []
+    by_path: dict[str, dict[str, Any]] = {}
+
+    for reference in iterable_references:
+        if not isinstance(reference, dict):
+            continue
+        path = str(reference.get("path", "") or "")
+        if not path:
+            continue
+        source_cell_index = int(reference.get("source_cell_index", 0) or 0)
+        source = step_sources.get(source_cell_index, "")
+        inferred_role = _infer_artifact_role(path, source)
+        entry = by_path.setdefault(
+            path,
+            {
+                "path": path,
+                "suffix": str(reference.get("suffix", "") or Path(path).suffix.lower()),
+                "role": "unknown",
+                "source_cell_indices": [],
+            },
+        )
+        entry["role"] = _combine_artifact_roles(str(entry.get("role", "unknown")), inferred_role)
+        if source_cell_index and source_cell_index not in entry["source_cell_indices"]:
+            entry["source_cell_indices"].append(source_cell_index)
+
+    ordered = sorted(by_path.values(), key=lambda item: str(item.get("path", "")))
+    inputs = [str(item["path"]) for item in ordered if item.get("role") in {"input", "input_output"}]
+    outputs = [str(item["path"]) for item in ordered if item.get("role") in {"output", "input_output"}]
+    unknown = [str(item["path"]) for item in ordered if item.get("role") == "unknown"]
+    return {
+        "schema": "agilab.notebook_artifact_contract.v1",
+        "inputs": inputs,
+        "outputs": outputs,
+        "unknown": unknown,
+        "references": ordered,
+    }
+
+
+def build_notebook_import_preflight(notebook_import: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a generic, non-executing readiness report for a notebook import."""
+    summary = notebook_import.get("summary", {})
+    summary_map = summary if isinstance(summary, dict) else {}
+    artifact_contract = build_notebook_artifact_contract(notebook_import)
+    risks: list[dict[str, str]] = []
+
+    pipeline_step_count = int(summary_map.get("pipeline_step_count", 0) or 0)
+    markdown_cell_count = int(summary_map.get("markdown_cell_count", 0) or 0)
+    execution_count_present = int(summary_map.get("execution_count_present_count", 0) or 0)
+
+    if pipeline_step_count <= 0:
+        risks.append(
+            _risk(
+                "error",
+                "no_code_cells",
+                "notebook",
+                "Notebook import produced no runnable code cells.",
+            )
+        )
+    if markdown_cell_count <= 0 and pipeline_step_count > 0:
+        risks.append(
+            _risk(
+                "warning",
+                "missing_markdown_context",
+                "notebook",
+                "Notebook has code cells but no markdown context for step names.",
+            )
+        )
+    if execution_count_present > 0:
+        risks.append(
+            _risk(
+                "info",
+                "execution_history_present",
+                "notebook",
+                "Notebook includes execution counts; import remains non-executing.",
+            )
+        )
+
+    for step_id, _source_cell_index, source in _pipeline_step_sources(notebook_import):
+        risks.extend(_detect_line_risks(step_id, source))
+
+    for item in artifact_contract.get("references", []):
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path", "") or "")
+        if _is_absolute_path_text(path):
+            risks.append(
+                _risk(
+                    "warning",
+                    "absolute_artifact_path",
+                    "artifact_contract",
+                    "Artifact reference is absolute; prefer project-relative inputs and outputs.",
+                    evidence=path,
+                )
+            )
+
+    counts = _risk_counts(risks)
+    if counts.get("error", 0):
+        risk_status = "blocked"
+    elif counts.get("warning", 0):
+        risk_status = "review"
+    else:
+        risk_status = "ready"
+
+    return {
+        "schema": PREFLIGHT_SCHEMA,
+        "status": risk_status,
+        "safe_to_import": counts.get("error", 0) == 0 and pipeline_step_count > 0,
+        "cleanup_required": counts.get("warning", 0) > 0,
+        "risk_counts": counts,
+        "summary": {
+            "cell_count": int(summary_map.get("cell_count", 0) or 0),
+            "code_cell_count": int(summary_map.get("code_cell_count", 0) or 0),
+            "markdown_cell_count": markdown_cell_count,
+            "pipeline_step_count": pipeline_step_count,
+            "env_hint_count": int(summary_map.get("env_hint_count", 0) or 0),
+            "artifact_reference_count": int(summary_map.get("artifact_reference_count", 0) or 0),
+            "input_count": len(artifact_contract.get("inputs", [])),
+            "output_count": len(artifact_contract.get("outputs", [])),
+            "unknown_artifact_count": len(artifact_contract.get("unknown", [])),
+        },
+        "env_hints": list(notebook_import.get("env_hints", []) or []),
+        "artifact_contract": artifact_contract,
+        "risks": risks,
+    }
+
+
+def build_notebook_import_contract(
+    notebook_import: Mapping[str, Any],
+    *,
+    preflight: Mapping[str, Any] | None = None,
+    module_name: str = "notebook_import_project",
+) -> dict[str, Any]:
+    """Return a generic sidecar contract for a notebook-to-pipeline import."""
+    preflight_state = dict(preflight or build_notebook_import_preflight(notebook_import))
+    risks = preflight_state.get("risks", [])
+    iterable_risks = risks if isinstance(risks, list) else []
+    source = notebook_import.get("source", {})
+    summary = notebook_import.get("summary", {})
+    steps = notebook_import.get("pipeline_steps", [])
+    iterable_steps = steps if isinstance(steps, list) else []
+
+    contract_steps: list[dict[str, Any]] = []
+    for step in iterable_steps:
+        if not isinstance(step, dict):
+            continue
+        contract_steps.append(
+            {
+                "id": str(step.get("id", "") or ""),
+                "order": int(step.get("order", 0) or 0),
+                "source_cell_index": int(step.get("source_cell_index", 0) or 0),
+                "description": str(step.get("description", "") or ""),
+                "question": str(step.get("question", "") or ""),
+                "context_ids": list(step.get("context_ids", []) or []),
+                "env_hints": list(step.get("env_hints", []) or []),
+                "artifact_references": _artifact_paths(step),
+                "execution_count": step.get("execution_count"),
+            }
+        )
+
+    return {
+        "schema": CONTRACT_SCHEMA,
+        "module_name": str(module_name or "notebook_import_project"),
+        "source": source if isinstance(source, dict) else {},
+        "summary": summary if isinstance(summary, dict) else {},
+        "preflight": {
+            "schema": preflight_state.get("schema"),
+            "status": preflight_state.get("status"),
+            "safe_to_import": preflight_state.get("safe_to_import"),
+            "cleanup_required": preflight_state.get("cleanup_required"),
+            "risk_counts": preflight_state.get("risk_counts", {}),
+        },
+        "environment": {
+            "imports": list(notebook_import.get("env_hints", []) or []),
+        },
+        "artifact_contract": preflight_state.get("artifact_contract", {}),
+        "warnings": [
+            risk
+            for risk in iterable_risks
+            if isinstance(risk, dict) and risk.get("level") == "warning"
+        ],
+        "errors": [
+            risk
+            for risk in iterable_risks
+            if isinstance(risk, dict) and risk.get("level") == "error"
+        ],
+        "steps": contract_steps,
+    }
+
+
+def write_notebook_import_contract(
+    path: Path,
+    notebook_import: Mapping[str, Any],
+    *,
+    preflight: Mapping[str, Any] | None = None,
+    module_name: str = "notebook_import_project",
+) -> Path:
+    path = path.expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    contract = build_notebook_import_contract(
+        notebook_import,
+        preflight=preflight,
+        module_name=module_name,
+    )
+    path.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
 
 
 def write_lab_steps_preview(

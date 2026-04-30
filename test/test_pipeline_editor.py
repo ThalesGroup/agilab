@@ -2402,6 +2402,56 @@ def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_p
     assert stored["demo_project"][0]["NB_EXECUTION_MODE"] == "not_executed_import"
 
 
+def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    fake_st = SimpleNamespace(
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        info=lambda message, *args, **kwargs: messages.append(("info", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    uploaded = SimpleNamespace(
+        name="demo.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["# Import context\n"]},
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "!pip install requests\n",
+                            "import pandas as pd\n",
+                            "df = pd.read_csv('data/orders.csv')\n",
+                            "df.to_parquet('artifacts/orders.parquet')\n",
+                        ],
+                    },
+                ]
+            }
+        ).encode("utf-8"),
+    )
+
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
+
+    contract = json.loads((tmp_path / "demo_project" / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    assert count == 1
+    assert contract["schema"] == "agilab.notebook_import_contract.v1"
+    assert contract["preflight"]["status"] == "review"
+    assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
+    assert contract["artifact_contract"]["outputs"] == ["artifacts/orders.parquet"]
+    assert {warning["rule"] for warning in contract["warnings"]} >= {
+        "dependency_install",
+        "shell_execution",
+    }
+    assert messages == [
+        (
+            "warning",
+            "Notebook import preflight: review; 1 step(s), 1 input(s), 1 output(s). Contract: notebook_import_contract.json",
+        )
+    ]
+
+
 def test_notebook_to_toml_uses_lab_steps_key_when_module_dir_has_no_name(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(error=lambda *args, **kwargs: None)
     monkeypatch.setattr(pipeline_editor, "st", fake_st)

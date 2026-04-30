@@ -168,6 +168,7 @@ tools/global_pipeline_dependency_view_report.py --compact
 tools/global_pipeline_live_state_updates_report.py --compact
 tools/global_pipeline_operator_actions_report.py --compact
 tools/global_pipeline_operator_ui_report.py --compact
+tools/notebook_import_preflight.py --compact
 tools/notebook_pipeline_import_report.py --compact
 tools/notebook_roundtrip_report.py --compact
 tools/notebook_union_environment_report.py --compact

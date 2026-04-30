@@ -93,7 +93,9 @@ _notebook_pipeline_import_module = import_agilab_module(
     fallback_name="agilab_notebook_pipeline_import_fallback",
 )
 build_lab_steps_preview = _notebook_pipeline_import_module.build_lab_steps_preview
+build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
+write_notebook_import_contract = _notebook_pipeline_import_module.write_notebook_import_contract
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +142,27 @@ def _read_uploaded_text(uploaded_file: Any) -> str:
     if isinstance(raw, bytes):
         return raw.decode("utf-8")
     return str(raw)
+
+
+def _emit_notebook_preflight_result(preflight: Dict[str, Any], contract_path: Path) -> None:
+    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
+    risk_counts = preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
+    status = str(preflight.get("status", "ready") if isinstance(preflight, dict) else "ready")
+    warning_count = int(risk_counts.get("warning", 0) or 0)
+    error_count = int(risk_counts.get("error", 0) or 0)
+    message = (
+        f"Notebook import preflight: {status}; "
+        f"{int(summary.get('pipeline_step_count', 0) or 0)} step(s), "
+        f"{int(summary.get('input_count', 0) or 0)} input(s), "
+        f"{int(summary.get('output_count', 0) or 0)} output(s). "
+        f"Contract: {contract_path.name}"
+    )
+    if error_count:
+        _emit_streamlit_message("error", message)
+    elif warning_count:
+        _emit_streamlit_message("warning", message)
+    else:
+        _emit_streamlit_message("info", message)
 
 
 def convert_paths_to_strings(obj: Any) -> Any:
@@ -805,6 +828,7 @@ def notebook_to_toml(
         notebook=notebook_content,
         source_notebook=source_name,
     )
+    preflight = build_notebook_import_preflight(notebook_import)
     toml_content = build_lab_steps_preview(notebook_import, module_name=module)
     cell_count = int(notebook_import.get("summary", {}).get("pipeline_step_count", 0) or 0)
     try:
@@ -815,6 +839,22 @@ def notebook_to_toml(
         logger.error(
             "Error writing TOML in notebook_to_toml: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
+        )
+        return cell_count
+    contract_path = Path(module_dir) / "notebook_import_contract.json"
+    try:
+        write_notebook_import_contract(
+            contract_path,
+            notebook_import,
+            preflight=preflight,
+            module_name=module,
+        )
+        _emit_notebook_preflight_result(preflight, contract_path)
+    except (OSError, TypeError, ValueError) as exc:
+        _emit_streamlit_message("warning", f"Unable to save notebook import contract: {exc}")
+        logger.warning(
+            "Unable to save notebook import contract in notebook_to_toml: %s",
+            bound_log_value(exc, LOG_DETAIL_LIMIT),
         )
     return cell_count
 
