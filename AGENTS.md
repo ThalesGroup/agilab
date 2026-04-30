@@ -36,8 +36,12 @@ Use this runbook whenever you:
   other long-running processes as user-owned unless this turn started them. Do not use
   broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based
   `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool
-  sessions created for the active task. If a port is busy, choose another port or ask
-  before stopping its owner; do not try to "pause" another Codex CLI session from here.
+  sessions created for the active task. Do not use Codex CLI control shortcuts such as
+  `/stop`, Esc interruption, or terminal-close actions to manage background terminals
+  unless the terminal/session was created by this active task and its identity is
+  verified. A status banner that says a background terminal is running is not ownership
+  proof. If a port is busy, choose another port or ask before stopping its owner; do
+  not try to "pause" another Codex CLI session from here.
 - **Git footprint helper**: Use `uv run python tools/repo_footprint.py audit` to
   separate working-tree size from `.git` size before cleaning anything. Prefer
   `lfs-prune --dry-run` / `lfs-prune --apply` for local `.git/lfs` cleanup.
