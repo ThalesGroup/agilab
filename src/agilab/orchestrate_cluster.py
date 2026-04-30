@@ -300,7 +300,10 @@ def _is_lan_worker_autofill_candidate(node: dict[str, Any]) -> bool:
         return False
     if status in LAN_READY_STATUSES:
         return True
-    return bool(_lan_node_sources(node) & LAN_CONFIGURED_WORKER_SOURCES)
+    sources = _lan_node_sources(node)
+    if sources & LAN_CONFIGURED_WORKER_SOURCES:
+        return True
+    return status == "ssh-auth-needed" and "known-hosts" in sources and node.get("tcp_ssh_open") is True
 
 
 def _env_home_path(env: Any) -> Path | None:
