@@ -505,7 +505,44 @@ def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
             if match:
                 hosts.add(match.group(1))
 
-    if not hosts:
+    if not _has_usable_lan_ipv4(hosts):
+        try:
+            completed = runner(["ipconfig"], capture_output=True, text=True, timeout=2)
+        except Exception:
+            completed = subprocess.CompletedProcess(["ipconfig"], 1, stdout="", stderr="")
+        if completed.returncode == 0:
+            for match in re.finditer(r"\bIPv4[^\r\n:]*:\s*(\d+\.\d+\.\d+\.\d+)", completed.stdout, re.IGNORECASE):
+                hosts.add(match.group(1))
+
+    if not _has_usable_lan_ipv4(hosts):
+        powershell_cmd = (
+            "Get-NetIPAddress -AddressFamily IPv4 | "
+            "Where-Object { $_.IPAddress -and $_.IPAddress -notlike '169.254.*' } | "
+            "ForEach-Object { $_.IPAddress }"
+        )
+        for executable in ("powershell", "pwsh"):
+            try:
+                completed = runner(
+                    [executable, "-NoProfile", "-Command", powershell_cmd],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+            except Exception:
+                completed = subprocess.CompletedProcess([executable], 1, stdout="", stderr="")
+            if completed.returncode != 0:
+                continue
+            for token in completed.stdout.split():
+                try:
+                    address = ipaddress.ip_address(token)
+                except ValueError:
+                    continue
+                if address.version == 4:
+                    hosts.add(str(address))
+            if _has_usable_lan_ipv4(hosts):
+                break
+
+    if not _has_usable_lan_ipv4(hosts):
         try:
             completed = runner(["hostname", "-I"], capture_output=True, text=True, timeout=2)
         except Exception:
@@ -519,6 +556,24 @@ def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
                 if address.version == 4:
                     hosts.add(str(address))
     return {host for host in hosts if not host.startswith("127.")}
+
+
+def _has_usable_lan_ipv4(hosts: set[str]) -> bool:
+    for host in hosts:
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            continue
+        if address.version == 4 and not any(
+            (
+                address.is_loopback,
+                address.is_link_local,
+                address.is_multicast,
+                address.is_unspecified,
+            )
+        ):
+            return True
+    return False
 
 
 def _default_cidrs(local_hosts: set[str]) -> tuple[str, ...]:
@@ -587,13 +642,21 @@ def _known_hosts_candidates(home: Path) -> tuple[tuple[str, str], ...]:
 
 
 def _arp_candidates(runner: Runner) -> tuple[tuple[str, str], ...]:
-    try:
-        completed = runner(["arp", "-an"], capture_output=True, text=True, timeout=2)
-    except Exception:
-        return ()
-    if completed.returncode != 0:
-        return ()
-    return tuple((match.group(1), "arp") for match in re.finditer(r"\((\d+\.\d+\.\d+\.\d+)\)", completed.stdout))
+    candidates: dict[str, str] = {}
+    for command in (["arp", "-an"], ["arp", "-a"]):
+        try:
+            completed = runner(command, capture_output=True, text=True, timeout=2)
+        except Exception:
+            continue
+        if completed.returncode != 0:
+            continue
+        for match in re.finditer(r"\((\d+\.\d+\.\d+\.\d+)\)", completed.stdout):
+            candidates.setdefault(match.group(1), "arp")
+        for line in completed.stdout.splitlines():
+            match = re.match(r"\s+(\d+\.\d+\.\d+\.\d+)\s+", line)
+            if match:
+                candidates.setdefault(match.group(1), "arp")
+    return tuple(sorted(candidates.items(), key=lambda item: _host_sort_key(item[0])))
 
 
 def _cache_candidates(path: Path) -> tuple[tuple[str, str], ...]:
