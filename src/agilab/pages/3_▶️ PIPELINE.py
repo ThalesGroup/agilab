@@ -134,8 +134,9 @@ import_agilab_symbols(
         "_restore_pipeline_snapshot": "_restore_pipeline_snapshot",
         "build_notebook_export_context": "build_notebook_export_context",
         "get_steps_list": "get_steps_list",
-        "on_import_notebook": "on_import_notebook",
+        "on_preview_notebook_import": "on_preview_notebook_import",
         "refresh_notebook_export": "refresh_notebook_export",
+        "render_notebook_import_preview": "render_notebook_import_preview",
         "resolve_pycharm_notebook_path": "resolve_pycharm_notebook_path",
         "remove_step": "remove_step",
         "save_step": "save_step",
@@ -863,9 +864,10 @@ def sidebar_controls() -> None:
         "Import notebook",
         type="ipynb",
         key=key,
-        on_change=on_import_notebook,
-        args=(key, module_path, steps_file, index_page_str),
+        on_change=on_preview_notebook_import,
+        args=(key, module_path, index_page_str),
     )
+    render_notebook_import_preview(module_path, steps_file, index_page_str)
 
     export_context = build_notebook_export_context(
         env,
