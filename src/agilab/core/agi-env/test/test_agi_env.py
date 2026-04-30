@@ -22,6 +22,47 @@ from agi_env.defaults import get_default_openai_model
 logger = AgiLogger.get_logger(__name__)
 
 
+_AGIENV_PROCESS_ENV_KEYS = {
+    "AGI_CLUSTER_ENABLED",
+    "AGI_CLUSTER_SHARE",
+    "AGI_DEMO_FLAG",
+    "AGI_EXPORT_DIR",
+    "AGI_LOCAL_SHARE",
+    "AGI_LOG_DIR",
+    "AGI_SHARE_DIR",
+    "AGILAB_APPS_REPOSITORY",
+    "AGILAB_SHARE_USER",
+    "APP_DEFAULT",
+    "APPS_PATH",
+    "APPS_REPOSITORY",
+    "AZURE_OPENAI_API_KEY",
+    "CLUSTER_CREDENTIALS",
+    "IS_SOURCE_ENV",
+    "IS_WORKER_ENV",
+    "OPENAI_API_KEY",
+    "STREAMLIT_MAX_MESSAGE_SIZE",
+    "STREAMLIT_SERVER_MAX_MESSAGE_SIZE",
+    "UV_RUN_RECURSION_DEPTH",
+}
+
+
+@pytest.fixture(autouse=True)
+def isolate_agienv_process_state(monkeypatch):
+    saved = {key: os.environ.get(key) for key in _AGIENV_PROCESS_ENV_KEYS}
+    AgiEnv.reset()
+    AgiEnv.envars = {}
+    for key in _AGIENV_PROCESS_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    yield
+    AgiEnv.reset()
+    AgiEnv.envars = {}
+    for key, value in saved.items():
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
+
+
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
