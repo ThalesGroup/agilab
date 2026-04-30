@@ -1,8 +1,10 @@
 # AGILAB Packaged Examples
 
-These examples are small Python entry points copied by the app installer into
-`~/log/execute/<app>/`. They are meant to be readable first-run snippets for the
-public built-in apps, not a separate workflow engine.
+These examples are small Python entry points for public AGILAB workflows. The
+app-specific `AGI_*.py` scripts are copied by the app installer into
+`~/log/execute/<app>/`; the read-only previews stay in the package or source
+checkout because they teach orchestration concepts without launching long-lived
+or multi-app work.
 
 ## Learning Path
 
@@ -15,11 +17,17 @@ the command shape stable.
 | 2 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
 | 3 | `meteo_forecast` | `meteo_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
 | 4 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
+| 5 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Read-only DAG contract: app nodes, artifact handoff, and runner-state preview. |
+| 6 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
 
 ## What To Notice
 
 - `AGI_install_*.py` prepares the app environment and worker runtime.
 - `AGI_run_*.py` builds a `RunRequest` and calls `AGI.run`.
+- `inter_project_dag/preview_inter_project_dag.py` plans a cross-project
+  handoff without executing either app.
+- `service_mode/preview_service_mode.py` explains persistent-worker operations
+  and health gates without starting a service.
 - `data_in` and `data_out` are share-root relative paths, so examples stay
   portable across machines.
 - Run modes use named AGI constants instead of magic numbers.
@@ -44,4 +52,6 @@ python ~/log/execute/flight/AGI_run_flight.py
 
 Run `agilab first-proof --json` when you want the shortest packaged product
 proof. Use these scripts when you want to inspect or adapt the generated
-programmatic calls.
+programmatic calls. Use `inter_project_dag` when you want to understand how
+project-level app runs can be connected by explicit artifact contracts. Use
+`service_mode` before enabling persistent workers for an already-working app.

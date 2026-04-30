@@ -17,6 +17,10 @@ EXAMPLE_APPS = {
     "meteo_forecast": ("AGI_install_meteo_forecast.py", "AGI_run_meteo_forecast.py"),
     "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
 }
+EXAMPLE_PREVIEWS = {
+    "inter_project_dag": ("preview_inter_project_dag.py", "flight_to_meteo_dag.json"),
+    "service_mode": ("preview_service_mode.py", "sample_health_running.json"),
+}
 
 
 def _expected_script_paths() -> list[Path]:
@@ -76,6 +80,19 @@ def test_packaged_agi_example_scripts_are_compile_safe() -> None:
         py_compile.compile(str(script), doraise=True)
 
 
+def test_packaged_preview_example_scripts_are_compile_safe() -> None:
+    scripts = [
+        EXAMPLES_ROOT / example_name / script_name
+        for example_name, script_names in EXAMPLE_PREVIEWS.items()
+        for script_name in script_names
+        if script_name.endswith(".py")
+    ]
+
+    assert scripts
+    for script in scripts:
+        py_compile.compile(str(script), doraise=True)
+
+
 def test_packaged_agi_example_catalog_matches_seeded_scripts() -> None:
     scripts = sorted(EXAMPLES_ROOT.glob("*/AGI_*.py"))
 
@@ -112,6 +129,28 @@ def test_packaged_example_catalog_is_documented() -> None:
         ):
             assert heading in readme_text
 
+    for example_name, file_names in EXAMPLE_PREVIEWS.items():
+        example_dir = EXAMPLES_ROOT / example_name
+        readme = example_dir / "README.md"
+        assert readme.is_file()
+        readme_text = readme.read_text(encoding="utf-8")
+        assert example_name in catalog_text
+        for file_name in file_names:
+            assert (example_dir / file_name).is_file()
+            assert file_name in readme_text
+        for heading in (
+            "## Purpose",
+            "## What You Learn",
+            "## Install",
+            "## Run",
+            "## Expected Input",
+            "## Expected Output",
+            "## Read The Script",
+            "## Change One Thing",
+            "## Troubleshooting",
+        ):
+            assert heading in readme_text
+
 
 def test_packaged_example_readmes_teach_safe_adaptation() -> None:
     for example_name in EXAMPLE_APPS:
@@ -130,6 +169,141 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/README.md" in package_data
     assert "examples/*/README.md" in package_data
     assert "examples/*/AGI_*.py" in package_data
+    assert "examples/inter_project_dag/*.py" in package_data
+    assert "examples/inter_project_dag/*.json" in package_data
+    assert "examples/service_mode/*.py" in package_data
+    assert "examples/service_mode/*.json" in package_data
+
+
+def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "inter_project_dag" / "preview_inter_project_dag.py"
+    module_name = "agilab_inter_project_dag_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.build_preview(
+        repo_root=ROOT,
+        dag_path=EXAMPLES_ROOT / "inter_project_dag" / "flight_to_meteo_dag.json",
+        output_path=tmp_path / "runner_state.json",
+        now="2026-04-29T00:00:00Z",
+    )
+
+    assert summary["example"] == "inter_project_dag"
+    assert summary["dag"]["ok"] is True
+    assert summary["dag"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert summary["units"] == [
+        {
+            "app": "flight_project",
+            "depends_on": [],
+            "dispatch_status": "runnable",
+            "id": "flight_context",
+            "produces": ["flight_reduce_summary"],
+        },
+        {
+            "app": "meteo_forecast_project",
+            "depends_on": ["flight_context"],
+            "dispatch_status": "blocked",
+            "id": "meteo_forecast_review",
+            "produces": ["forecast_metrics"],
+        },
+    ]
+    assert summary["artifact_handoffs"] == [
+        {
+            "artifact": "flight_reduce_summary",
+            "from": "flight_context",
+            "from_app": "flight_project",
+            "handoff": "Use flight trajectory reduce summary as the forecast-review context.",
+            "producer_status": "runnable",
+            "source_path": "flight_analysis/reduce_summary_worker_0.json",
+            "to": "meteo_forecast_review",
+            "to_app": "meteo_forecast_project",
+        }
+    ]
+    assert summary["runner_state"]["round_trip_ok"] is True
+    assert summary["runner_state"]["summary"]["runnable_unit_ids"] == ["flight_context"]
+    assert summary["runner_state"]["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
+    assert summary["after_first_dispatch"]["run_status"] == "running"
+    assert summary["real_app_execution"] is False
+    assert (tmp_path / "runner_state.json").is_file()
+
+
+def test_service_mode_preview_builds_health_gate_operator_summary(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "service_mode" / "preview_service_mode.py"
+    module_name = "agilab_service_mode_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.build_preview(
+        health_payload_path=EXAMPLES_ROOT / "service_mode" / "sample_health_running.json",
+        output_path=tmp_path / "service_operator_preview.json",
+    )
+
+    assert summary["example"] == "service_mode"
+    assert summary["target_app"] == "mycode_project"
+    assert [step["action"] for step in summary["operator_sequence"]] == [
+        "start",
+        "status",
+        "health",
+        "stop",
+    ]
+    assert summary["health_gate"] == {
+        "details": {
+            "restart_rate": 0.0,
+            "status": "running",
+            "workers_restarted_count": 0,
+            "workers_running_count": 1,
+            "workers_unhealthy_count": 0,
+        },
+        "ok": True,
+        "reason": "ok",
+        "thresholds": {
+            "allow_idle": False,
+            "max_restart_rate": 0.25,
+            "max_unhealthy": 0,
+        },
+    }
+    assert summary["artifacts"]["health_json"] == "service/mycode/health.json"
+    assert summary["real_service_execution"] is False
+    assert (tmp_path / "service_operator_preview.json").is_file()
+
+
+def test_service_mode_health_gate_rejects_non_running_service() -> None:
+    script = EXAMPLES_ROOT / "service_mode" / "preview_service_mode.py"
+    module_name = "agilab_service_mode_preview_health_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    stopped = module.evaluate_health_gate({"status": "stopped", "workers_running_count": 0})
+    running_without_workers = module.evaluate_health_gate(
+        {"status": "running", "workers_running_count": 0}
+    )
+    unhealthy = module.evaluate_health_gate(
+        {
+            "status": "running",
+            "workers_running_count": 1,
+            "workers_unhealthy_count": 1,
+        }
+    )
+
+    assert stopped["ok"] is False
+    assert stopped["reason"] == "service status is stopped"
+    assert running_without_workers["ok"] is False
+    assert running_without_workers["reason"] == "service has no running workers"
+    assert unhealthy["ok"] is False
+    assert unhealthy["reason"] == "unhealthy workers 1 exceeds limit 0"
 
 
 def test_packaged_examples_avoid_magic_mode_literals() -> None:

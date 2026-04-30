@@ -56,6 +56,27 @@ def test_core_coverage_runs_shared_core_suite_once_for_node_and_cluster() -> Non
     assert "      - agi-cluster" not in workflow_text
 
 
+def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
+    workflow_text = _workflow_text()
+    trigger_block = workflow_text.split("workflow_dispatch:", 1)[0]
+
+    for path in (
+        '".coveragerc*"',
+        '".github/workflows/coverage.yml"',
+        '"pyproject.toml"',
+        '"src/**"',
+        '"test/**"',
+        '"tools/coverage_badge_guard.py"',
+        '"tools/generate_component_coverage_badges.py"',
+        '"tools/workflow_parity.py"',
+        '"uv.lock"',
+    ):
+        assert path in trigger_block
+    assert '"docs/**"' not in trigger_block
+    assert '"README.md"' not in trigger_block
+    assert '"badges/**"' not in trigger_block
+
+
 def test_agi_env_coverage_installs_streamlit_ui_dependency() -> None:
     run_block = _agi_env_run_block()
 
@@ -220,3 +241,17 @@ def test_codecov_uploads_are_external_reporting_not_blocking_gates() -> None:
         assert "uses: codecov/codecov-action@v6" in block
         assert "continue-on-error: true" in block
         assert "fail_ci_if_error: false" in block
+
+
+def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
+    for step_name in (
+        "Archive agi-env coverage XML",
+        "Archive agi-node coverage XML",
+        "Archive agi-cluster coverage XML",
+        "Upload JUnit results",
+        "Archive agi-gui coverage XML",
+    ):
+        block = _step_block(step_name)
+
+        assert "uses: actions/upload-artifact@v7" in block
+        assert "retention-days: 3" in block

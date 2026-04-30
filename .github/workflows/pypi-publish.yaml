@@ -90,6 +90,7 @@ jobs:
           name: public-evidence-sample
           path: ${{ runner.temp }}/public-evidence-sample
           if-no-files-found: error
+          retention-days: 7
 
       - name: Validate live GitHub Actions artifact harvest path
         env:
