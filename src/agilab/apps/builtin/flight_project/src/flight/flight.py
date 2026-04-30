@@ -12,22 +12,19 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import os
-import traceback
-import logging
 import shutil
 import warnings
 from pathlib import Path
 from typing import Any
 
-import py7zr
 import polars as pl
 from pydantic import ValidationError
 
-from agi_env import AgiEnv, normalize_path
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 from .flight_args import (
     FlightArgs,
     FlightArgsTD,
+    UNSUPPORTED_DATA_SOURCE_MESSAGE,
     dump_args_to_toml,
     load_args_from_toml,
     merge_args,
@@ -128,15 +125,8 @@ class Flight(BaseWorker):
         return self.args.model_dump(mode=mode)
 
     def build_distribution(self, workers):
-        """build_distrib: to provide the list of files per planes (level1) and per workers (level2)
-        the level 1 has been think to prevent that à job that requires all the output-data of a plane have to wait for another
-        flight_worker which would have collapse the overall performance
+        """Build worker -> aircraft -> file batches for file-based telemetry."""
 
-        Args:
-
-        Returns:
-
-        """
         workers_chunks: list | None = []
         workers_planes_dist: list | None = []
 
@@ -177,16 +167,16 @@ class Flight(BaseWorker):
                     for chunk in workers_chunks
                 ]
 
-            # tree: workers -> planes -> files
-        except Exception as e:
-            print(traceback.format_exc())
-            print(f"warning issue while trying to build distribution: {e}")
-        return workers_planes_dist or [], workers_chunks or [], "plane", "files", "ko"
+        except Exception as exc:
+            raise RuntimeError(
+                f"Unable to build flight distribution from {self.args.data_in}"
+            ) from exc
+        return workers_planes_dist or [], workers_chunks or [], "plane", "files", "KB"
 
     def get_data_from_hawk(self):
-        """get output-data from ELK/HAWK"""
-        # implement your hawk logic
-        pass
+        """Fail fast for legacy snippets that still select Hawk ingestion."""
+
+        raise NotImplementedError(UNSUPPORTED_DATA_SOURCE_MESSAGE)
 
     @staticmethod
     def extract_plane_from_file_name(file_path):
@@ -201,10 +191,20 @@ class Flight(BaseWorker):
         return int(file_path.split("/")[-1].split("_")[2][2:4])
 
     def get_data_from_files(self):
-        """get output-data slices from files or from ELK/HAWK"""
+        """Return file slices to distribute across workers."""
+
+        if self.args.data_source != "file":
+            self.get_data_from_hawk()
+
         if self.args.data_source == "file":
             data_in = Path(self.args.data_in)
             home_dir = Path.home()
+
+            def _display_path(path: Path) -> str:
+                try:
+                    return str(path.relative_to(home_dir))
+                except ValueError:
+                    return str(path)
 
             discovered_files = sorted(
                 (
@@ -212,10 +212,10 @@ class Flight(BaseWorker):
                     for f in data_in.rglob(self.args.files)
                     if f.is_file() and not f.name.startswith("._")
                 ),
-                key=lambda f: str(f.relative_to(home_dir)),
+                key=_display_path,
             )
             self.logs_ivq = {
-                str(f.relative_to(home_dir)): os.path.getsize(f) // 1000
+                _display_path(f): os.path.getsize(f) // 1000
                 for f in discovered_files
             }
 
@@ -232,10 +232,6 @@ class Flight(BaseWorker):
                 },
                 schema={"files": pl.String, "size": pl.Int64},
             )
-
-        elif self.args.data_source == "hawk":
-            # implement your HAWK logic
-            pass
 
         return df
 

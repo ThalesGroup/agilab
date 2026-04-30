@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import socket
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal, TypedDict
@@ -23,6 +22,11 @@ from agi_env.app_args import (
 ARGS_SECTION = "args"
 _DATEMIN_LOWER_BOUND = date(2020, 1, 1)
 _DATEMAX_UPPER_BOUND = date(2021, 6, 1)
+SUPPORTED_DATA_SOURCES = ("file",)
+UNSUPPORTED_DATA_SOURCE_MESSAGE = (
+    "flight_project public demo supports only file-based input. "
+    "Hawk/ELK ingestion is a platform connector pattern, not implemented in this built-in app."
+)
 
 
 class FlightArgs(BaseModel):
@@ -33,12 +37,18 @@ class FlightArgs(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _migrate_legacy_keys(cls, data: Any):
-        if isinstance(data, dict) and "data_uri" in data and "data_in" not in data:
+        if not isinstance(data, dict):
+            return data
+
+        if data.get("data_source") == "hawk":
+            raise ValueError(UNSUPPORTED_DATA_SOURCE_MESSAGE)
+
+        if "data_uri" in data and "data_in" not in data:
             data = dict(data)
             data["data_in"] = data.pop("data_uri")
         return data
 
-    data_source: Literal["file", "hawk"] = "file"
+    data_source: Literal["file"] = "file"
     data_in: Path = Field(default_factory=lambda: Path("flight/dataset"))
     data_out: Path | None = None
     files: str = "*"
@@ -160,26 +170,14 @@ def apply_source_defaults(
 ) -> FlightArgs:
     """Ensure source-specific defaults for missing values."""
 
+    if args.data_source != "file":
+        raise ValueError(UNSUPPORTED_DATA_SOURCE_MESSAGE)
+
     overrides: FlightArgsTD = {}
-    if args.data_source == "file":
-        if not str(args.data_in).strip():
-            overrides["data_in"] = "flight/dataset"
-        if not args.files:
-            overrides["files"] = "*"
-    else:
-        if host_ip:
-            host = host_ip
-        else:
-            try:
-                host = socket.gethostbyname(socket.gethostname())
-            except OSError:
-                host = "127.0.0.1"
-        default_uri = f"https://admin:admin@{host}:9200/"
-        current_uri = str(args.data_in)
-        if not current_uri.strip() or current_uri == "flight/dataset":
-            overrides["data_in"] = default_uri
-        if not args.files or args.files == "*":
-            overrides["files"] = "hawk.user-admin.1"
+    if not str(args.data_in).strip():
+        overrides["data_in"] = "flight/dataset"
+    if not args.files:
+        overrides["files"] = "*"
 
     return merge_args(args, overrides) if overrides else args
 

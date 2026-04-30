@@ -8,8 +8,6 @@ It does **not** change the AGILab source license; refer to the repository root `
 | annotated-types | MIT LICENSE |
 | backports-zstd | PSF-2.0 |
 | brotli | MIT |
-| geographiclib | MIT |
-| geopy | MIT LICENSE |
 | inflate64 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | multivolumefile | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | polars | MIT LICENSE |

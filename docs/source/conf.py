@@ -71,7 +71,9 @@ except Exception as e:
 # -- Path Setup --------------------------------------------------------------
 
 
-project_root = agi_path or repo_root
+# Autodoc should describe the checkout being built. Keep `.agilab-path` only as
+# an import fallback above; scanning it here can document stale generated apps.
+project_root = repo_root
 for proj in [
     "*project",
     "agilab/cluster",
