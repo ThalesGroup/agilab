@@ -79,6 +79,12 @@ is classified by SSH BatchMode auth, operating system, ``python3``, ``uv``,
 ``sshfs``, and reverse SSH back to the scheduler when ``--scheduler`` is
 provided.
 
+Windows managers can run discovery when the OpenSSH client is installed; AGILAB
+parses Windows ``ipconfig`` and ``arp -a`` output to find local LAN candidates.
+Windows remote workers are not covered by this cluster proof yet. Worker
+probing, SSHFS setup, and generated install/run commands currently assume a
+POSIX shell on Linux or macOS workers.
+
 Use ``--json`` or ``--summary-json`` when automation needs the machine-readable
 report:
 

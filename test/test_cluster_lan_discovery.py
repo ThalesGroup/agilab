@@ -222,6 +222,68 @@ def test_local_ipv4_hosts_supports_ubuntu_without_ifconfig(monkeypatch):
     assert hosts == {"192.168.20.15"}
 
 
+def test_local_ipv4_hosts_supports_windows_ipconfig(monkeypatch):
+    monkeypatch.setattr(discovery.socket, "gethostname", lambda: "windows-manager")
+    monkeypatch.setattr(
+        discovery.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [(None, None, None, None, ("127.0.0.1", 0))],
+    )
+    commands: list[tuple[str, ...]] = []
+
+    def fake_runner(argv, **kwargs):
+        command = tuple(argv)
+        commands.append(command)
+        if command[:1] in {("ifconfig",), ("ip",)}:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="not found")
+        if command[:1] == ("ipconfig",):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "Windows IP Configuration\r\n\r\n"
+                    "Ethernet adapter Ethernet:\r\n"
+                    "   IPv4 Address. . . . . . . . . . . : 192.168.20.111(Preferred)\r\n"
+                    "   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n"
+                    "   Default Gateway . . . . . . . . . : 192.168.20.1\r\n"
+                ),
+                stderr="",
+            )
+        if command[:1] in {("powershell",), ("pwsh",), ("hostname",)}:
+            raise AssertionError(f"unexpected fallback after ipconfig success: {command}")
+        raise AssertionError(f"unexpected command: {command}")
+
+    hosts = discovery._local_ipv4_hosts(runner=fake_runner)
+
+    assert hosts == {"192.168.20.111"}
+    assert ("ipconfig",) in commands
+
+
+def test_arp_candidates_supports_windows_arp_a():
+    def fake_runner(argv, **kwargs):
+        command = list(argv)
+        if command[:2] == ["arp", "-an"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="invalid option")
+        if command[:2] == ["arp", "-a"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "Interface: 192.168.20.111 --- 0x7\r\n"
+                    "  Internet Address      Physical Address      Type\r\n"
+                    "  192.168.20.15         aa-bb-cc-dd-ee-ff     dynamic\r\n"
+                    "  192.168.20.130        11-22-33-44-55-66     dynamic\r\n"
+                ),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    assert discovery._arp_candidates(fake_runner) == (
+        ("192.168.20.15", "arp"),
+        ("192.168.20.130", "arp"),
+    )
+
+
 def test_print_discovery_report_recommends_ready_workers(capsys):
     report = discovery.DiscoveryReport(
         generated_at=1.0,

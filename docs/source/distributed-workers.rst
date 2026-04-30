@@ -47,6 +47,12 @@ Before configuring distributed workers, make sure the environment is ready:
 - Worker installation uses non-interactive SSH. AGILAB prepends
   ``$HOME/.local/bin`` to remote commands, so user-local ``uv`` installs are
   valid as long as ``$HOME/.local/bin/uv`` exists on each worker.
+- A Windows machine can be used as the AGILAB UI/manager when the OpenSSH
+  client is available; LAN discovery reads Windows ``ipconfig`` / ARP output as
+  a convenience. Remote cluster workers are still expected to expose a POSIX
+  shell environment such as Linux or macOS. Native Windows workers are a
+  separate support target because worker probing, SSHFS setup, and generated
+  install/run commands currently assume POSIX tools.
 - Dask is a cluster runtime dependency. When Dask mode is enabled, AGILAB adds
   ``dask[distributed]`` to the generated worker environment before starting the
   remote ``dask worker`` process. Do not duplicate it in an app worker manifest
