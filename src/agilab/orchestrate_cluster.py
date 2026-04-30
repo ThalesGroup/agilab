@@ -35,7 +35,6 @@ LAN_WORKER_CANDIDATE_STATUSES = {
     "uv-missing",
     "python-missing",
     "ssh-auth-needed",
-    "no-ssh-port",
 }
 
 
@@ -306,6 +305,16 @@ def _is_lan_worker_autofill_candidate(node: dict[str, Any]) -> bool:
     return status == "ssh-auth-needed" and "known-hosts" in sources and node.get("tcp_ssh_open") is True
 
 
+def _clear_lan_discovery_cache(cache_path: Path) -> tuple[bool, str]:
+    try:
+        cache_path.expanduser().unlink()
+    except FileNotFoundError:
+        return False, "missing"
+    except OSError as exc:
+        return False, str(exc)
+    return True, ""
+
+
 def _env_home_path(env: Any) -> Path | None:
     raw_home = getattr(env, "home_abs", None)
     if not raw_home:
@@ -347,6 +356,8 @@ def _lan_discovery_cluster_defaults(
 
     nodes = payload.get("nodes")
     workers: dict[str, int] = {}
+    if scheduler_host and _is_lan_autofill_host(scheduler_host):
+        workers[scheduler_host] = 1
     if isinstance(nodes, list):
         for node in nodes:
             if not isinstance(node, dict):
@@ -405,6 +416,10 @@ def _apply_lan_discovery_defaults(
 
 def _lan_discovery_refresh_key(app_state_name: str) -> str:
     return f"cluster_lan_discovery_refresh__{app_state_name}"
+
+
+def _lan_discovery_clear_key(app_state_name: str) -> str:
+    return f"cluster_lan_discovery_clear__{app_state_name}"
 
 
 def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
@@ -469,8 +484,9 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
 
         scheduler_widget_key = widget_keys["scheduler"]
         cluster_share_candidate = _env_cluster_share_candidate(env)
+        lan_action_cols = st.columns(2)
         lan_refresh_clicked = bool(
-            st.button(
+            lan_action_cols[0].button(
                 "Refresh LAN discovery",
                 key=_lan_discovery_refresh_key(app_state_name),
                 help=(
@@ -480,7 +496,26 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
             )
         )
         env_home = _env_home_path(env)
-        lan_cache_defaults = _lan_discovery_cluster_defaults(home=env_home)
+        lan_cache_path = _default_lan_discovery_cache_path(env_home)
+        lan_clear_clicked = bool(
+            lan_action_cols[1].button(
+                "Clear LAN cache",
+                key=_lan_discovery_clear_key(app_state_name),
+                help=(
+                    "Delete the cached LAN discovery inventory. Run LAN discovery again "
+                    "before refreshing if the network changed."
+                ),
+            )
+        )
+        if lan_clear_clicked:
+            cleared, clear_error = _clear_lan_discovery_cache(lan_cache_path)
+            if cleared:
+                st.info(f"LAN discovery cache cleared: `{lan_cache_path}`.")
+            elif clear_error == "missing":
+                st.info("LAN discovery cache is already clear.")
+            else:
+                st.error(f"Could not clear LAN discovery cache `{lan_cache_path}`: {clear_error}")
+        lan_cache_defaults = {} if lan_clear_clicked else _lan_discovery_cluster_defaults(cache_path=lan_cache_path)
         lan_defaults = lan_cache_defaults
         if cluster_share_candidate is not None:
             lan_defaults = {**lan_defaults, "workers_data_path": str(cluster_share_candidate)}

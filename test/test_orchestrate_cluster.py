@@ -57,6 +57,9 @@ class _Context:
     def checkbox(self, *args, **kwargs):
         return self._st.checkbox(*args, **kwargs)
 
+    def button(self, *args, **kwargs):
+        return self._st.button(*args, **kwargs)
+
     def columns(self, spec, **kwargs):
         return self._st.columns(spec, **kwargs)
 
@@ -341,7 +344,7 @@ def test_lan_discovery_cluster_defaults_uses_ready_cache_nodes(tmp_path):
 
     assert defaults == {
         "scheduler": "192.168.3.103:8786",
-        "workers": {"192.168.3.35": 1},
+        "workers": {"192.168.3.103": 1, "192.168.3.35": 1},
     }
 
 
@@ -363,7 +366,7 @@ def test_lan_discovery_cluster_defaults_accepts_explicit_non_private_lan_cache(t
 
     assert defaults == {
         "scheduler": "192.128.20.111:8786",
-        "workers": {"192.128.20.130": 1},
+        "workers": {"192.128.20.111": 1, "192.128.20.130": 1},
     }
 
 
@@ -422,7 +425,7 @@ def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp
 
     assert defaults == {
         "scheduler": f"{scheduler}:8786",
-        "workers": {known_hosts_auth_host: 1, ssh_config_host: 1},
+        "workers": {scheduler: 1, known_hosts_auth_host: 1},
     }
 
 
@@ -446,8 +449,17 @@ def test_lan_discovery_cluster_defaults_reads_cache_from_env_home(tmp_path):
 
     assert defaults == {
         "scheduler": "192.168.50.10:8786",
-        "workers": {"192.168.50.20": 1},
+        "workers": {"192.168.50.10": 1, "192.168.50.20": 1},
     }
+
+
+def test_clear_lan_discovery_cache_removes_cache_file(tmp_path):
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text("{}", encoding="utf-8")
+
+    assert orchestrate_cluster._clear_lan_discovery_cache(cache_path) == (True, "")
+    assert not cache_path.exists()
+    assert orchestrate_cluster._clear_lan_discovery_cache(cache_path) == (False, "missing")
 
 
 def _disable_lan_defaults(monkeypatch):
@@ -685,6 +697,67 @@ def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(m
     assert fake_st.session_state[widget_keys["scheduler"]] == "192.168.3.103:8786"
     assert fake_st.session_state[widget_keys["workers"]] == '{\n  "192.168.3.35": 1\n}'
     assert fake_st.session_state[widget_keys["workers_data_path"]] == str(share)
+
+
+def test_render_cluster_settings_ui_clear_lan_cache_button_deletes_inventory(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    home = tmp_path / "agilab-home"
+    cache_path = home / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "local_hosts": ["192.168.3.103"],
+                "nodes": [{"host": "192.168.3.35", "status": "ready"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        button_values={
+            orchestrate_cluster._lan_discovery_clear_key(app_name): True,
+        },
+        session_state={"app_settings": {"cluster": {}}, "benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=home,
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert not cache_path.exists()
+    assert "scheduler" not in cluster
+    assert "workers" not in cluster
+    assert any("LAN discovery cache cleared" in info for info in fake_st.infos)
 
 
 def test_render_cluster_settings_ui_blocks_cluster_when_share_is_unusable(monkeypatch, tmp_path):
