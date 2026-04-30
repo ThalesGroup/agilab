@@ -189,14 +189,22 @@ def _load_flight_form_module(
     if inject_env:
         fake_st.session_state.setdefault("env", env)
     monkeypatch.setitem(sys.modules, "streamlit", fake_st)
-    monkeypatch.setitem(sys.modules, "flight", fake_flight)
+    missing = object()
+    previous_flight = sys.modules.get("flight", missing)
+    sys.modules["flight"] = fake_flight
 
     module_name = f"flight_form_test_{len(sys.modules)}"
     spec = importlib.util.spec_from_file_location(module_name, APP_ARGS_FORM)
     module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if previous_flight is missing:
+            sys.modules.pop("flight", None)
+        else:
+            sys.modules["flight"] = previous_flight
     return module, fake_st, calls
 
 
