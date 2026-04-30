@@ -16,9 +16,10 @@ the command shape stable.
 | 1 | `flight` | `flight_project` | First proof: install one app, run one file, inspect map-ready output. |
 | 2 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
 | 3 | `meteo_forecast` | `meteo_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
-| 4 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
-| 5 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Read-only DAG contract: app nodes, artifact handoff, and runner-state preview. |
-| 6 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
+| 4 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
+| 5 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
+| 6 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Read-only DAG contract: app nodes, artifact handoff, and runner-state preview. |
+| 7 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
 
 ## What To Notice
 
@@ -26,6 +27,8 @@ the command shape stable.
 - `AGI_run_*.py` builds a `RunRequest` and calls `AGI.run`.
 - `inter_project_dag/preview_inter_project_dag.py` plans a cross-project
   handoff without executing either app.
+- `notebook_to_dask/preview_notebook_to_dask.py` shows how notebook cells become
+  `lab_steps.toml`, a Dask solution slice, and an artifact contract.
 - `service_mode/preview_service_mode.py` explains persistent-worker operations
   and health gates without starting a service.
 - `data_in` and `data_out` are share-root relative paths, so examples stay
@@ -56,4 +59,6 @@ Run `agilab first-proof --json` when you want the shortest packaged product
 proof. Use these scripts when you want to inspect or adapt the generated
 programmatic calls. Use `inter_project_dag` when you want to understand how
 project-level app runs can be connected by explicit artifact contracts. Use
-`service_mode` before enabling persistent workers for an already-working app.
+`notebook_to_dask` when you want to evaluate a notebook migration before
+creating an app or running Dask. Use `service_mode` before enabling persistent
+workers for an already-working app.
