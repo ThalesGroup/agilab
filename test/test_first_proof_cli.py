@@ -100,6 +100,7 @@ def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, caps
     active_app = tmp_path / "custom_project"
     active_app.mkdir()
     (active_app / "pyproject.toml").write_text("[project]\nname = 'custom'\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
     def fake_run_proof(commands):
         return [
@@ -125,6 +126,9 @@ def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, caps
     assert payload["within_target"] is True
     assert "run_manifest" not in payload
     assert payload["results"][0]["stdout"] == "ok"
+    marker = tmp_path / "home" / ".local" / "share" / "agilab" / ".agilab-path"
+    assert payload["agilab_path_marker"] == str(marker)
+    assert marker.read_text(encoding="utf-8").strip() == str(ROOT / "src" / "agilab")
 
 
 def test_main_human_no_manifest_reports_failure(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -291,6 +295,16 @@ def test_resolve_active_app_rejects_missing_pyproject(tmp_path: Path) -> None:
 
     with pytest.raises(FileNotFoundError, match="pyproject.toml"):
         module.resolve_active_app(str(active_app))
+
+
+def test_write_agilab_path_marker_initializes_packaged_examples(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    marker = module.write_agilab_path_marker()
+
+    assert marker == tmp_path / ".local" / "share" / "agilab" / ".agilab-path"
+    assert marker.read_text(encoding="utf-8").strip() == str(ROOT / "src" / "agilab")
 
 
 def test_package_data_includes_app_installer_for_with_install() -> None:
