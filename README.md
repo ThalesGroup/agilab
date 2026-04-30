@@ -52,14 +52,15 @@ AGILAB is best evaluated as an AI/ML experimentation workbench, not as a replace
 </p>
 
 The public AGILAB Space is the fastest browser preview. It opens the lightweight
-`flight_project` path by default; advanced scenarios such as
-`uav_relay_queue_project` are documented in the demo guide.
+`flight_project` path by default and covers the core web journey from
+`PROJECT` through `ORCHESTRATE`, `PIPELINE`, and `ANALYSIS`. More specialized
+scenarios such as `uav_relay_queue_project` are documented in the demo guide.
 
 ## Choose Your Path
 
 | If you want to... | Start here | Stop when... |
 |---|---|---|
-| Preview before installing | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | The hosted UI opens the `flight_project` path. |
+| Preview before installing | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | The hosted UI opens the `flight_project` path and bundled analysis views. |
 | Prove the local product flow | [First Run](#first-run) | `agilab first-proof --json` exits 0 and reports `"success": true`. |
 | Check the package entry point | [Published Package](#published-package) | `agilab` starts from a clean package install. |
 | Update external apps | [App Repository Updates](#app-repository-updates) | Installed apps resolve to the repository copy. |
@@ -78,8 +79,8 @@ cd agilab
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```
 
-Follow the in-app pages from `PROJECT` to `ANALYSIS`. To collect the same check
-as JSON:
+Follow the in-app pages from `PROJECT` to `ORCHESTRATE`, `PIPELINE`, and
+`ANALYSIS`. To collect the same check as JSON:
 
 ```bash
 uv --preview-features extra-build-dependencies run agilab first-proof --json

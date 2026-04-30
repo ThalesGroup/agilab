@@ -57,63 +57,52 @@ The Pipeline-first slice is now the reference implementation:
 
 ## Current Status
 
-Maintenance baseline complete as of 2026-04-30. The original long-term
-workflow-page rework has a tested support-module baseline for Pipeline,
-Orchestrate one-shot execution, Orchestrate service mode, persisted artifacts,
-and reusable registries.
-
-- Page State / ViewModel: baseline complete. Pipeline has a typed
+- Page State / ViewModel: partially done. Pipeline has a typed
   `PipelinePageState` / ViewModel for visible steps, selected lab, stale
   snippets, lock/run status, logs, and available actions. Orchestrate service
-  mode has typed service state for visible action/status/health/export flows.
-  Broader Orchestrate now has typed run-mode state, INSTALL readiness, CHECK
-  distribute readiness, EXECUTE/combo readiness, run-artifact state, and a
-  combined INSTALL/CHECK/RUN phase model.
-- Ports and Adapters: baseline complete for the workflow pages covered by this
-  backlog. `BootstrapPorts`, `Orchestrate*Deps`, action helpers, support
-  modules, and page-local ports keep the tested business decisions outside the
-  Streamlit rendering path. Further extraction of incidental file or runtime
-  calls is normal hardening, not a blocking roadmap item.
-- Command Result: baseline complete. `ActionResult`, `ActionSpec`, and
+  mode now has typed service state for visible action/status/health/export
+  flows. Broader Orchestrate has started the same consolidation with typed
+  EXECUTE/combo action readiness for no-command, serve-mode, and incomplete
+  installation states. INSTALL/DISTRIBUTE controls and remaining run artifacts
+  still need the same treatment.
+- Ports and Adapters: partially done. `BootstrapPorts`, `Orchestrate*Deps`, and
+  support modules exist, but not every external dependency is behind an
+  injected adapter yet.
+- Command Result: partially done. `ActionResult`, `ActionSpec`, and
   `run_streamlit_action` provide shared Streamlit command-result primitives.
-  Pipeline run, clear-logs, delete, delete-all, and undo-delete flows use typed
-  command results. Orchestrate install, check-distribute, apply-distribution,
-  service start/status/health/export/stop, and run gating now route through
-  typed readiness or typed action results.
-- Explicit State Machine: baseline complete. Pipeline has a
+  Pipeline run, clear-logs, delete, delete-all, and undo-delete flows now use
+  typed command results. Orchestrate service start, status, health, export,
+  and stop controls also return typed command results. Remaining workflow
+  actions should follow that shape.
+- Explicit State Machine: partially done. Pipeline has a
   `PipelineWorkflowStatus` enum covering `empty`, `generated`, `stale`,
   `runnable`, `running`, `failed`, and `complete`. Orchestrate service mode has
   a `ServiceWorkflowStatus` model for `disabled`, `idle`, `starting`,
   `running`, `unhealthy`, `failed`, and `stopping`. Broader Orchestrate now has
-  explicit execute/combo, run-artifact, and combined install/distribute/run
-  workflow state.
-- Versioned Artifact Contracts: baseline complete. `AGILAB_SNIPPET_API`, run
+  a first execute/combo workflow-state slice; the full install/distribute/run
+  workflow still needs explicit state models.
+- Versioned Artifact Contracts: partially done. `AGILAB_SNIPPET_API`, run
   manifest schema support, `lab_steps.toml` v1 metadata/refusal support,
-  exported notebook metadata v1 support, `app_settings.toml` v1 write-time
-  metadata/refusal support, Pipeline step-template metadata preservation in
-  editor snapshot/restore flows, and screenshot evidence via
-  `screenshot_manifest.json` v1 are in place. The maintained Playwright robot
-  refreshes the screenshot manifest when it writes failure screenshots.
-- Facade Boundary: baseline complete for the tested workflow decisions. The
-  `agi-gui` split, shared page bootstrap, support modules, and injected deps
-  keep low-level decisions testable without moving page behaviour into
-  `agi-env` or worker internals.
-- Registry Pattern: baseline complete. Connector registries, page bundles,
-  `agi_gui` widgets, app templates, Pipeline reusable snippet candidates, and
-  Pipeline step templates now have typed registries or classification helpers.
-  The editor preserves those metadata fields instead of reducing steps back to
-  raw Python-only records during undo/restore.
+  exported notebook metadata v1 support, and `app_settings.toml` v1
+  write-time metadata/refusal support exist. Screenshot evidence now has a v1
+  `screenshot_manifest.json` helper/CLI, and the maintained Playwright robot
+  refreshes the manifest when it writes failure screenshots.
+- Facade Boundary: improved but incomplete. The `agi-gui` split and shared
+  page bootstrap reduce direct coupling, but pages still touch low-level
+  internals and session state in places.
+- Registry Pattern: partially done. Connector registries, page bundles,
+  `agi_gui` widgets, app templates, and Pipeline reusable snippet candidates
+  have typed registries. A future structured pipeline-step template registry
+  remains part of the versioned pipeline-step proposal.
 
-## Ongoing Discipline
+## Recommended Sequence
 
-These patterns are now the default guardrails for future workflow-page changes.
-New non-trivial work should keep adding support-module tests, avoid silent
-snippet rewrites, and preserve explicit artifact/schema refusal paths.
-
-The structured pipeline-step template registry is now present. Replacing every
-raw generated snippet with a fully structured `kind = "template"` runtime
-representation remains a product evolution path, not a blocker for this
-maintenance baseline.
+1. Continue applying the ViewModel, command-result, and workflow-state pattern
+   to broader Orchestrate install/distribute/run views, starting with
+   INSTALL/DISTRIBUTE readiness and command results.
+2. Extend versioned contracts to remaining persisted UI artifacts.
+3. Introduce a versioned pipeline-step template registry when raw generated
+   snippets are replaced with structured `template` steps.
 
 ## First Slice Acceptance Criteria
 
