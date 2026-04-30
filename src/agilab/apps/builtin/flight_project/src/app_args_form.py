@@ -9,7 +9,6 @@ import streamlit as st
 from pydantic import ValidationError
 
 from flight import (
-    SUPPORTED_DATA_SOURCES,
     FlightArgs,
     apply_source_defaults,
     dump_args_to_toml,
@@ -18,6 +17,7 @@ from flight import (
 
 
 PAGE_ID = "flight_project:app_args_form"
+SUPPORTED_DATA_SOURCES = ("file",)
 
 
 def _k(name: str) -> str:
