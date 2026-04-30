@@ -161,50 +161,61 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
 
 
 def _agi_gui_profile() -> list[CommandSpec]:
-    test_targets = _expand_repo_globs(
-        [
-            "src/agilab/test",
-            "src/agilab/lib/agi-gui/test",
-            "test/test_orchestrate_cluster.py",
-            "test/test_orchestrate_distribution.py",
-            "test/test_orchestrate_execute.py",
-            "test/test_orchestrate_page_helpers.py",
-            "test/test_orchestrate_page_state.py",
-            "test/test_orchestrate_services.py",
-            "test/test_orchestrate_support.py",
-            "test/test_analysis_page_helpers.py",
-            "test/test_about_agilab_helpers.py",
-            "test/test_cluster_flight_validation.py",
-            "test/test_cluster_lan_discovery.py",
-            "test/test_first_proof_cli.py",
-            "test/test_notebook_colab_support.py",
-            "test/test_page_docs.py",
-            "test/test_pipeline_ai.py",
-            "test/test_pipeline_editor.py",
-            "test/test_pipeline_lab.py",
-            "test/test_pipeline_openai.py",
-            "test/test_pipeline_run_controls.py",
-            "test/test_pipeline_runtime.py",
-            "test/test_pipeline_service_guard.py",
-            "test/test_pipeline_sidebar.py",
-            "test/test_pipeline_steps.py",
-            "test/test_pipeline_views.py",
-            "test/test_tracking.py",
-            "test/test_ui_pages.py",
-            "test/test_apps_pages_launcher.py",
-            "test/test_view*.py",
-            "test/test_app_args.py",
-            "test/test_streamlit_args.py",
-            "test/test_pagelib.py",
-            "test/test_*_report.py",
-            "test/test_*_workflow.py",
-            "test/test_connector_registry.py",
-            "test/test_run_manifest.py",
-        ]
-    )
-    return [
+    commands = [
+        _agi_gui_coverage_chunk(
+            "support",
+            [
+                "src/agilab/test",
+                "src/agilab/lib/agi-gui/test",
+                "test/test_orchestrate_cluster.py",
+                "test/test_orchestrate_distribution.py",
+                "test/test_orchestrate_execute.py",
+                "test/test_orchestrate_page_helpers.py",
+                "test/test_orchestrate_page_state.py",
+                "test/test_orchestrate_services.py",
+                "test/test_orchestrate_support.py",
+                "test/test_analysis_page_helpers.py",
+                "test/test_about_agilab_helpers.py",
+                "test/test_cluster_flight_validation.py",
+                "test/test_cluster_lan_discovery.py",
+            ],
+            clean=True,
+        ),
+        _agi_gui_coverage_chunk(
+            "pipeline",
+            [
+                "test/test_first_proof_cli.py",
+                "test/test_notebook_colab_support.py",
+                "test/test_page_docs.py",
+                "test/test_pipeline_ai.py",
+                "test/test_pipeline_editor.py",
+                "test/test_pipeline_lab.py",
+                "test/test_pipeline_openai.py",
+                "test/test_pipeline_run_controls.py",
+                "test/test_pipeline_runtime.py",
+                "test/test_pipeline_service_guard.py",
+                "test/test_pipeline_sidebar.py",
+                "test/test_pipeline_steps.py",
+                "test/test_pipeline_views.py",
+                "test/test_tracking.py",
+            ],
+        ),
+        _agi_gui_coverage_chunk(
+            "pages",
+            [
+                "test/test_ui_pages.py",
+                "test/test_apps_pages_launcher.py",
+                "test/test_app_args.py",
+                "test/test_streamlit_args.py",
+                "test/test_pagelib.py",
+                "test/test_connector_registry.py",
+                "test/test_run_manifest.py",
+            ],
+        ),
+        _agi_gui_coverage_chunk("views", ["test/test_view*.py"]),
+        _agi_gui_coverage_chunk("reports", ["test/test_*_report.py", "test/test_*_workflow.py"]),
         CommandSpec(
-            label="agi-gui coverage",
+            label="agi-gui coverage xml",
             argv=[
                 "uv",
                 "--preview-features",
@@ -214,27 +225,62 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "dev",
                 "python",
                 "-m",
-                "pytest",
-                "-q",
-                "--maxfail=1",
-                "--disable-warnings",
+                "coverage",
+                "xml",
+                "--rcfile=.coveragerc.agi-gui",
+                "--data-file=.coverage.agi-gui",
                 "-o",
-                "addopts=",
-                "-m",
-                "not integration",
-                "--cov=src/agilab",
-                "--cov-config=.coveragerc.agi-gui",
-                "--cov-report=xml:coverage-agi-gui.xml",
-                "--junitxml=test-results/junit.xml",
-                "--ignore=src/agilab/test/test_model_returns_code.py",
-                *test_targets,
+                "coverage-agi-gui.xml",
             ],
-            env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1", "COVERAGE_FILE": ".coverage.agi-gui"},
-            timeout_seconds=12 * 60,
+            env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+            timeout_seconds=5 * 60,
             ensure_dirs=["test-results"],
-            remove_paths=[".coverage.agi-gui", "coverage-agi-gui.xml"],
-        )
+        ),
     ]
+    return commands
+
+
+def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool = False) -> CommandSpec:
+    expanded_targets = _expand_repo_globs(targets)
+    junit_path = f"test-results/junit-agi-gui-{label}.xml"
+    return CommandSpec(
+        label=f"agi-gui coverage ({label})",
+        argv=[
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--group",
+            "dev",
+            "python",
+            "-m",
+            "coverage",
+            "run",
+            "--rcfile=.coveragerc.agi-gui",
+            "--data-file=.coverage.agi-gui",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "--maxfail=1",
+            "--disable-warnings",
+            "-o",
+            "addopts=",
+            "-m",
+            "not integration",
+            f"--junitxml={junit_path}",
+            "--ignore=src/agilab/test/test_model_returns_code.py",
+            *expanded_targets,
+        ],
+        env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+        timeout_seconds=8 * 60,
+        ensure_dirs=["test-results"],
+        remove_paths=(
+            [".coverage.agi-gui", "coverage-agi-gui.xml", junit_path]
+            if clean
+            else [junit_path]
+        ),
+    )
 
 
 def _agi_env_profile() -> list[CommandSpec]:

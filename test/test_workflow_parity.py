@@ -35,7 +35,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_core_combined = profiles["agi-core-combined"]
     agi_node = profiles["agi-node"][0]
     agi_cluster = profiles["agi-cluster"][0]
-    agi_gui = profiles["agi-gui"][0]
+    agi_gui_commands = profiles["agi-gui"]
+    agi_gui_chunks = agi_gui_commands[:-1]
+    agi_gui_xml = agi_gui_commands[-1]
+    agi_gui_argv = [arg for command in agi_gui_commands for arg in command.argv]
     docs = profiles["docs"][0]
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
@@ -86,17 +89,29 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(agi_cluster.argv, "fastparquet")
     assert agi_cluster.argv[-1] == "src/agilab/core/test"
 
-    assert agi_gui.timeout_seconds == 12 * 60
-    assert agi_gui.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
-    assert "coverage-agi-gui.xml" in " ".join(agi_gui.argv)
-    assert "src/agilab/lib/agi-gui/test" in agi_gui.argv
-    assert "test/test_about_agilab_helpers.py" in agi_gui.argv
-    assert "test/test_cluster_flight_validation.py" in agi_gui.argv
-    assert "test/test_cluster_lan_discovery.py" in agi_gui.argv
-    assert "test/test_notebook_colab_support.py" in agi_gui.argv
-    assert "test/test_ui_pages.py" in agi_gui.argv
-    assert "test/test_view*.py" not in agi_gui.argv
-    assert "test/test_view_maps.py" in agi_gui.argv
+    assert [command.label for command in agi_gui_commands] == [
+        "agi-gui coverage (support)",
+        "agi-gui coverage (pipeline)",
+        "agi-gui coverage (pages)",
+        "agi-gui coverage (views)",
+        "agi-gui coverage (reports)",
+        "agi-gui coverage xml",
+    ]
+    assert all(command.timeout_seconds == 8 * 60 for command in agi_gui_chunks)
+    assert all(command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1" for command in agi_gui_commands)
+    assert agi_gui_commands[0].remove_paths[:2] == [".coverage.agi-gui", "coverage-agi-gui.xml"]
+    assert all("coverage" in command.argv for command in agi_gui_chunks)
+    assert "--append" in agi_gui_commands[0].argv
+    assert "coverage-agi-gui.xml" in agi_gui_xml.argv
+    assert "src/agilab/lib/agi-gui/test" in agi_gui_argv
+    assert "test/test_about_agilab_helpers.py" in agi_gui_argv
+    assert "test/test_cluster_flight_validation.py" in agi_gui_argv
+    assert "test/test_cluster_lan_discovery.py" in agi_gui_argv
+    assert "test/test_notebook_colab_support.py" in agi_gui_argv
+    assert "test/test_ui_pages.py" in agi_gui_argv
+    assert "test/test_view*.py" not in agi_gui_argv
+    assert "test/test_view_maps.py" in agi_gui_argv
+    assert "test/test_ci_artifact_harvest_report.py" in agi_gui_argv
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
     assert docs.remove_paths == ["docs/html"]
     assert badges[-1].label == "badge drift guard"
