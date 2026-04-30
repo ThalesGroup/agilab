@@ -30,7 +30,9 @@ the command shape stable.
   and health gates without starting a service.
 - `data_in` and `data_out` are share-root relative paths, so examples stay
   portable across machines.
-- Run modes use named AGI constants instead of magic numbers.
+- Run modes use named AGI constants instead of magic numbers, and keep Cython
+  off in packaged first-run examples so the demo is not tied to a compiled
+  extension for a specific Python ABI.
 - The examples are intentionally local-first: one scheduler, one worker, and
   deterministic public inputs.
 

@@ -5,7 +5,7 @@ from agi_cluster.agi_distributor import AGI, RunRequest
 from agi_env import AgiEnv
 
 APP = "flight_project"
-LOCAL_RUN_MODES = AGI.PYTHON_MODE | AGI.CYTHON_MODE | AGI.DASK_MODE
+LOCAL_RUN_MODES = AGI.PYTHON_MODE | AGI.DASK_MODE
 
 
 def agilab_apps_path() -> Path:

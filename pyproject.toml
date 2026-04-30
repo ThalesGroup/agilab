@@ -296,6 +296,7 @@ agilab = [
     "apps/builtin/*/src/**/*.toml",
     "apps/builtin/*/src/**/*.csv",
     "apps/builtin/*/src/**/*.dot",
+    "apps/builtin/*/src/*/*.7z",
     "apps/builtin/*/src/*/sample_data/*.json",
     "apps-pages/README.md",
     "apps-pages/*/pyproject.toml",
@@ -320,7 +321,6 @@ agilab = [
     "apps/builtin/*/src/*.egg-info/*",
     "apps/builtin/*/src/*/*.egg-info/*",
     "apps/builtin/*/src/*/*.c",
-    "apps/builtin/*/src/*/*.7z",
 ]
 
 [tool.mypy]

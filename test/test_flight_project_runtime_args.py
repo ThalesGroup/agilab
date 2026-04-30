@@ -283,6 +283,8 @@ def test_flight_worker_emits_reduce_artifact(monkeypatch, tmp_path):
 
     result = worker.work_pool(str(source.relative_to(tmp_path)))
     assert "source_file" in result.columns
+    absolute_result = worker.work_pool(str(source))
+    assert absolute_result.select("source_file").unique().to_series().to_list() == ["01_track.csv"]
 
     worker.work_done(result)
 
