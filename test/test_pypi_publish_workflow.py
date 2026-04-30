@@ -18,6 +18,7 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
     assert "tools/compatibility_report.py" in text
     assert "--artifact-index \"$RUNNER_TEMP/artifact_index.json\"" in text
     assert "public-evidence-sample" in text
+    assert "retention-days: 7" in text
     assert "publish-library-packages:\n    needs:\n      - test\n      - release-evidence" in text
 
 

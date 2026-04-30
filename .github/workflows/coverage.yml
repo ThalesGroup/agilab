@@ -3,6 +3,16 @@ name: coverage
 on:
   push:
     branches: ["main"]
+    paths:
+      - ".coveragerc*"
+      - ".github/workflows/coverage.yml"
+      - "pyproject.toml"
+      - "src/**"
+      - "test/**"
+      - "tools/coverage_badge_guard.py"
+      - "tools/generate_component_coverage_badges.py"
+      - "tools/workflow_parity.py"
+      - "uv.lock"
   workflow_dispatch:
 
 permissions:
@@ -79,6 +89,7 @@ jobs:
           name: coverage-agi-env-xml
           path: coverage-agi-env.xml
           if-no-files-found: error
+          retention-days: 3
 
   agi-core:
     runs-on: ubuntu-latest
@@ -188,6 +199,7 @@ jobs:
           name: coverage-agi-node-xml
           path: coverage-agi-node.xml
           if-no-files-found: error
+          retention-days: 3
 
       - name: Archive agi-cluster coverage XML
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
@@ -196,6 +208,7 @@ jobs:
           name: coverage-agi-cluster-xml
           path: coverage-agi-cluster.xml
           if-no-files-found: error
+          retention-days: 3
 
   agi-gui:
     runs-on: ubuntu-latest
@@ -317,6 +330,7 @@ jobs:
           name: coverage-gui-junit
           path: test-results/junit-agi-gui-*.xml
           if-no-files-found: ignore
+          retention-days: 3
 
       - name: Upload agi-gui coverage to Codecov
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
@@ -336,6 +350,7 @@ jobs:
           name: coverage-agi-gui-xml
           path: coverage-agi-gui.xml
           if-no-files-found: error
+          retention-days: 3
 
   agilab:
     runs-on: ubuntu-latest

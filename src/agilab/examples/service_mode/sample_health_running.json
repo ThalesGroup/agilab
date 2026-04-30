@@ -1,0 +1,38 @@
+{
+  "schema": "agi.service.health.v1",
+  "timestamp": 1777383600.0,
+  "app": "mycode_project",
+  "target": "mycode",
+  "status": "running",
+  "workers_running": [
+    "127.0.0.1:0"
+  ],
+  "workers_pending": [],
+  "workers_restarted": [],
+  "workers_healthy": [
+    "127.0.0.1:0"
+  ],
+  "workers_unhealthy": [],
+  "workers_running_count": 1,
+  "workers_pending_count": 0,
+  "workers_restarted_count": 0,
+  "workers_healthy_count": 1,
+  "workers_unhealthy_count": 0,
+  "heartbeat_timeout_sec": 30.0,
+  "queue": {
+    "pending": 0,
+    "running": 0,
+    "done": 0,
+    "failed": 0
+  },
+  "worker_health": [
+    {
+      "worker": "127.0.0.1:0",
+      "status": "healthy",
+      "heartbeat_age_sec": 2.4,
+      "queue_running": 0,
+      "queue_failed": 0
+    }
+  ],
+  "path": "service/mycode/health.json"
+}
