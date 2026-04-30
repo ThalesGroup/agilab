@@ -39,6 +39,7 @@ _orchestrate_page_state = import_agilab_module(
     fallback_name="agilab_orchestrate_page_state_fallback",
 )
 build_orchestrate_execute_workflow_state = _orchestrate_page_state.build_orchestrate_execute_workflow_state
+build_orchestrate_run_artifact_state = _orchestrate_page_state.build_orchestrate_run_artifact_state
 
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
 PREVIEW_FILE_PATTERNS = ("*.parquet", "*.csv", "*.json", "*.gml")
@@ -269,35 +270,38 @@ async def render_execute_section(
         queue_pending_execute_action(st.session_state, action)
         st.rerun()
 
+    def _current_artifact_state():
+        return build_orchestrate_run_artifact_state(
+            show_run_panel=show_run_panel,
+            loaded_dataframe=st.session_state.get("loaded_df"),
+            loaded_graph=st.session_state.get("loaded_graph"),
+            loaded_source_path=st.session_state.get("loaded_source_path"),
+            dataframe_deleted=bool(st.session_state.get("dataframe_deleted")),
+        )
+
     @st.fragment
     def _render_run_panel_controls() -> None:
+        artifact_state = _current_artifact_state()
         if show_run_panel:
             run_col, load_col, delete_col = st.columns(3)
             run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
-            if execute_state.command_configured:
-                if run_col.button(
-                    run_label,
-                    key="run_btn",
-                    type="primary",
-                    width="stretch",
-                ):
-                    _queue_execute_action("run")
-            else:
-                run_col.button(
-                    run_label,
-                    key="run_btn_disabled",
-                    type="primary",
-                    disabled=True,
-                    help="Configure the run snippet to enable execution",
-                    width="stretch",
-                )
+            if run_col.button(
+                run_label,
+                key="run_btn",
+                type="primary",
+                disabled=not execute_state.run_action.enabled,
+                help=execute_state.run_action.disabled_reason or "Run the configured AGILAB command.",
+                width="stretch",
+            ):
+                _queue_execute_action("run")
 
             if load_col.button(
                 "LOAD dataframe",
                 key="load_data_main",
                 type="primary",
+                disabled=not artifact_state.load_action.enabled,
                 width="stretch",
-                help="Fetch the latest dataframe preview for export",
+                help=artifact_state.load_action.disabled_reason or "Fetch the latest dataframe preview for export",
             ):
                 _queue_execute_action("load")
 
@@ -323,8 +327,10 @@ async def render_execute_section(
                     "DELETE dataframe",
                     key="delete_data_main",
                     type="secondary",
+                    disabled=not artifact_state.delete_action.enabled,
                     width="stretch",
-                    help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
+                    help=artifact_state.delete_action.disabled_reason
+                    or "Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
                 )
 
             if _update_delete_confirm_state(
@@ -380,17 +386,18 @@ async def render_execute_section(
                     st.success("Dataframe preview restore completed.")
                 _rerun_fragment_or_app()
 
-            if execute_state.command_configured:
-                if st.button(
-                    "EXECUTE → LOAD → EXPORT",
-                    key="combo_exec_load_export",
-                    type="primary",
-                    help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
-                    width="stretch",
-                ):
-                    _queue_execute_action("combo")
+            if st.button(
+                "EXECUTE → LOAD → EXPORT",
+                key="combo_exec_load_export",
+                type="primary",
+                disabled=not execute_state.combo_action.enabled,
+                help=execute_state.combo_action.disabled_reason
+                or "Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
+                width="stretch",
+            ):
+                _queue_execute_action("combo")
         else:
-            st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.")
+            st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD actions.")
             st.session_state.pop("_combo_load_trigger", None)
             st.session_state.pop("_combo_export_trigger", None)
             st.session_state.pop(delete_confirm_key, None)
@@ -409,8 +416,9 @@ async def render_execute_section(
     combo_clicked = pending_action == "combo"
 
     if show_run_panel and load_clicked:
-        if st.session_state.get("dataframe_deleted"):
-            st.info("Dataframe preview was deleted. Run EXECUTE again before loading a new export.")
+        load_action = _current_artifact_state().load_action
+        if not load_action.enabled:
+            st.info(load_action.disabled_reason)
         else:
             active_args = st.session_state.app_settings.get("args", {})
             candidate_roots = collect_candidate_roots(env, active_args if isinstance(active_args, dict) else {})
@@ -509,6 +517,12 @@ async def render_execute_section(
                     st.error(f"Unable to load {target_file.name}: {exc}")
 
     if show_run_panel and delete_clicked:
+        delete_action = _current_artifact_state().delete_action
+        if not delete_action.enabled:
+            st.info(delete_action.disabled_reason)
+            delete_clicked = False
+
+    if show_run_panel and delete_clicked:
         st.session_state.pop(delete_confirm_key, None)
         undo_payload = _capture_dataframe_preview_state()
         undo_payload["deleted_at"] = datetime.now().isoformat(timespec="seconds")
@@ -568,12 +582,11 @@ async def render_execute_section(
         combo_action = execute_state.combo_action
         if combo_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
+            st.session_state["_combo_load_trigger"] = True
+            st.session_state["_combo_export_trigger"] = True
+            st.rerun()
         else:
             st.error(combo_action.disabled_reason)
-
-        st.session_state["_combo_load_trigger"] = True
-        st.session_state["_combo_export_trigger"] = True
-        st.rerun()
 
     if show_run_panel and existing_run_log and run_log_expander is None:
         expander = _ensure_run_log_expander(expanded=False)
@@ -605,8 +618,9 @@ async def render_execute_section(
 
     export_expanded = st.session_state.pop("_force_export_open", False)
     loaded_df = st.session_state.get("loaded_df")
+    artifact_state = _current_artifact_state()
 
-    if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+    if artifact_state.export_action.enabled and isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         expander = st.expander("Prepare data for experiment and exploration", expanded=export_expanded)
         with expander:
             loaded_df.columns = [
@@ -677,6 +691,7 @@ async def render_execute_section(
                     "STATS report",
                     key="stats_report_main",
                     type="primary",
+                    disabled=not artifact_state.stats_action.enabled,
                     width="stretch",
                 )
             with action_col_export:
@@ -684,8 +699,10 @@ async def render_execute_section(
                     "EXPORT dataframe",
                     key="export_df_main",
                     type="primary",
+                    disabled=not artifact_state.export_action.enabled,
                     width="stretch",
-                    help="Save the current run output to export/export.csv so Experiment/Explore can load it.",
+                    help=artifact_state.export_action.disabled_reason
+                    or "Save the current run output to export/export.csv so Experiment/Explore can load it.",
                 )
             combo_export_trigger = st.session_state.pop("_combo_export_trigger", False)
             export_clicked = export_clicked_manual or combo_export_trigger

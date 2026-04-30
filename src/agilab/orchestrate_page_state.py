@@ -24,6 +24,28 @@ class OrchestrateSetupAction(str, Enum):
     DISTRIBUTE = "distribute"
 
 
+class OrchestrateRunArtifactStatus(str, Enum):
+    MISSING = "missing"
+    LOADED = "loaded"
+    DELETED = "deleted"
+
+
+class OrchestrateRunArtifactAction(str, Enum):
+    LOAD = "load"
+    DELETE = "delete"
+    EXPORT = "export"
+    STATS = "stats"
+
+
+class OrchestrateWorkflowPhase(str, Enum):
+    NOT_INSTALLED = "not_installed"
+    INSTALL_READY = "install_ready"
+    INSTALLED = "installed"
+    DISTRIBUTE_READY = "distribute_ready"
+    DISTRIBUTION_GENERATED = "distribution_generated"
+    RUNNABLE = "runnable"
+
+
 @dataclass(frozen=True)
 class OrchestratePageStateDeps:
     available_benchmark_modes: Callable[..., Sequence[int]]
@@ -106,6 +128,56 @@ class OrchestrateDistributionWorkflowState:
     command_configured: bool
     distribution_path: Path | None
     action: OrchestrateSetupActionReadiness
+
+
+@dataclass(frozen=True)
+class OrchestrateRunArtifactReadiness:
+    action: OrchestrateRunArtifactAction
+    enabled: bool
+    disabled_reason: str
+
+
+@dataclass(frozen=True)
+class OrchestrateRunArtifactState:
+    status: OrchestrateRunArtifactStatus
+    show_run_panel: bool
+    deleted: bool
+    has_loaded_dataframe: bool
+    has_loaded_graph: bool
+    loaded_source_path: Path | None
+    actions: Mapping[OrchestrateRunArtifactAction, OrchestrateRunArtifactReadiness]
+    blocked_actions: Mapping[OrchestrateRunArtifactAction, str]
+
+    @property
+    def has_loaded_artifact(self) -> bool:
+        return self.has_loaded_dataframe or self.has_loaded_graph
+
+    @property
+    def load_action(self) -> OrchestrateRunArtifactReadiness:
+        return self.actions[OrchestrateRunArtifactAction.LOAD]
+
+    @property
+    def delete_action(self) -> OrchestrateRunArtifactReadiness:
+        return self.actions[OrchestrateRunArtifactAction.DELETE]
+
+    @property
+    def export_action(self) -> OrchestrateRunArtifactReadiness:
+        return self.actions[OrchestrateRunArtifactAction.EXPORT]
+
+    @property
+    def stats_action(self) -> OrchestrateRunArtifactReadiness:
+        return self.actions[OrchestrateRunArtifactAction.STATS]
+
+
+@dataclass(frozen=True)
+class OrchestrateCombinedWorkflowState:
+    phase: OrchestrateWorkflowPhase
+    install_ready: bool
+    installed: bool
+    distribute_ready: bool
+    distribution_generated: bool
+    runnable: bool
+    blocked_reason: str
 
 
 def _coerce_int_tuple(values: Sequence[Any]) -> tuple[int, ...]:
@@ -352,6 +424,153 @@ def build_orchestrate_execute_workflow_state(
         missing_install_paths=missing_paths,
         actions=MappingProxyType(actions),
         blocked_actions=MappingProxyType(blocked_actions),
+    )
+
+
+def _run_artifact_readiness(
+    *,
+    action: OrchestrateRunArtifactAction,
+    show_run_panel: bool,
+    status: OrchestrateRunArtifactStatus,
+    has_loaded_dataframe: bool,
+    has_loaded_artifact: bool,
+) -> OrchestrateRunArtifactReadiness:
+    if not show_run_panel:
+        if action not in (OrchestrateRunArtifactAction.LOAD, OrchestrateRunArtifactAction.DELETE):
+            if has_loaded_dataframe:
+                return OrchestrateRunArtifactReadiness(action=action, enabled=True, disabled_reason="")
+            return OrchestrateRunArtifactReadiness(
+                action=action,
+                enabled=False,
+                disabled_reason="No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export.",
+            )
+        return OrchestrateRunArtifactReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason="`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD actions.",
+        )
+    if action is OrchestrateRunArtifactAction.LOAD:
+        if status is OrchestrateRunArtifactStatus.DELETED:
+            return OrchestrateRunArtifactReadiness(
+                action=action,
+                enabled=False,
+                disabled_reason="Dataframe preview was deleted. Run EXECUTE again before loading a new export.",
+            )
+        return OrchestrateRunArtifactReadiness(action=action, enabled=True, disabled_reason="")
+    if action is OrchestrateRunArtifactAction.DELETE:
+        if not has_loaded_artifact:
+            reason = (
+                "Dataframe preview was deleted. Run EXECUTE then LOAD to refresh with new output."
+                if status is OrchestrateRunArtifactStatus.DELETED
+                else "No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export."
+            )
+            return OrchestrateRunArtifactReadiness(action=action, enabled=False, disabled_reason=reason)
+        return OrchestrateRunArtifactReadiness(action=action, enabled=True, disabled_reason="")
+    if not has_loaded_dataframe:
+        return OrchestrateRunArtifactReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason="No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export.",
+        )
+    return OrchestrateRunArtifactReadiness(action=action, enabled=True, disabled_reason="")
+
+
+def build_orchestrate_run_artifact_state(
+    *,
+    show_run_panel: bool,
+    loaded_dataframe: Any = None,
+    loaded_graph: Any = None,
+    loaded_source_path: Path | str | None = None,
+    dataframe_deleted: bool = False,
+) -> OrchestrateRunArtifactState:
+    """Build the pure state for loaded/deleted/missing run output artifacts."""
+    has_loaded_dataframe = bool(getattr(loaded_dataframe, "empty", True) is False)
+    has_loaded_graph = loaded_graph is not None
+    status = (
+        OrchestrateRunArtifactStatus.DELETED
+        if dataframe_deleted
+        else OrchestrateRunArtifactStatus.LOADED
+        if has_loaded_dataframe or has_loaded_graph
+        else OrchestrateRunArtifactStatus.MISSING
+    )
+    try:
+        source_path = Path(loaded_source_path) if loaded_source_path else None
+    except (OSError, RuntimeError, TypeError, ValueError):
+        source_path = None
+    actions = {
+        action: _run_artifact_readiness(
+            action=action,
+            show_run_panel=show_run_panel,
+            status=status,
+            has_loaded_dataframe=has_loaded_dataframe,
+            has_loaded_artifact=has_loaded_dataframe or has_loaded_graph,
+        )
+        for action in OrchestrateRunArtifactAction
+    }
+    blocked_actions = {
+        action: readiness.disabled_reason
+        for action, readiness in actions.items()
+        if not readiness.enabled
+    }
+    return OrchestrateRunArtifactState(
+        status=status,
+        show_run_panel=show_run_panel,
+        deleted=dataframe_deleted,
+        has_loaded_dataframe=has_loaded_dataframe,
+        has_loaded_graph=has_loaded_graph,
+        loaded_source_path=source_path,
+        actions=MappingProxyType(actions),
+        blocked_actions=MappingProxyType(blocked_actions),
+    )
+
+
+def build_orchestrate_combined_workflow_state(
+    *,
+    install_state: OrchestrateInstallWorkflowState,
+    distribution_state: OrchestrateDistributionWorkflowState,
+    execute_state: OrchestrateExecuteWorkflowState,
+    distribution_generated: bool = False,
+) -> OrchestrateCombinedWorkflowState:
+    """Build a pure high-level INSTALL/CHECK/RUN phase model for ORCHESTRATE."""
+    installed = not execute_state.missing_install_paths
+    install_ready = install_state.action.enabled and not installed
+    distribution_required = distribution_state.show_distribute
+    distribution_satisfied = distribution_generated or not distribution_required
+    distribute_ready = (
+        installed
+        and distribution_required
+        and distribution_state.action.enabled
+        and not distribution_generated
+    )
+    runnable = execute_state.run_action.enabled and distribution_satisfied
+
+    if runnable:
+        phase = OrchestrateWorkflowPhase.RUNNABLE
+        blocked_reason = ""
+    elif distribution_generated:
+        phase = OrchestrateWorkflowPhase.DISTRIBUTION_GENERATED
+        blocked_reason = execute_state.run_action.disabled_reason
+    elif distribute_ready:
+        phase = OrchestrateWorkflowPhase.DISTRIBUTE_READY
+        blocked_reason = ""
+    elif installed:
+        phase = OrchestrateWorkflowPhase.INSTALLED
+        blocked_reason = distribution_state.action.disabled_reason or execute_state.run_action.disabled_reason
+    elif install_ready:
+        phase = OrchestrateWorkflowPhase.INSTALL_READY
+        blocked_reason = ""
+    else:
+        phase = OrchestrateWorkflowPhase.NOT_INSTALLED
+        blocked_reason = install_state.action.disabled_reason or execute_state.run_action.disabled_reason
+
+    return OrchestrateCombinedWorkflowState(
+        phase=phase,
+        install_ready=install_ready,
+        installed=installed,
+        distribute_ready=distribute_ready,
+        distribution_generated=distribution_generated,
+        runnable=runnable,
+        blocked_reason=blocked_reason,
     )
 
 

@@ -323,6 +323,7 @@ class _FakeStreamlit:
         self.session_state = _State(session_state or {})
         self._buttons = buttons or {}
         self.messages: list[tuple[str, str]] = []
+        self.button_calls: list[tuple[str, dict[str, object]]] = []
 
     def fragment(self, func):
         return func
@@ -364,6 +365,9 @@ class _FakeStreamlit:
         return str(self.session_state.get(key, value))
 
     def button(self, _label, key=None, **_kwargs):
+        self.button_calls.append((str(key or _label), dict(_kwargs)))
+        if _kwargs.get("disabled"):
+            return False
         button_key = key or _label
         return bool(self._buttons.get(button_key, False))
 
@@ -583,7 +587,10 @@ async def test_render_execute_section_run_requires_installed_venvs(monkeypatch, 
         deps=deps,
     )
 
-    assert any(kind == "error" and "installation is incomplete" in msg for kind, msg in fake_st.messages)
+    run_call = next(kwargs for key, kwargs in fake_st.button_calls if key == "run_btn")
+    assert run_call["disabled"] is True
+    assert "installation is incomplete" in str(run_call["help"])
+    assert not any(kind == "error" and "installation is incomplete" in msg for kind, msg in fake_st.messages)
 
 
 @pytest.mark.asyncio
@@ -953,8 +960,75 @@ async def test_render_execute_section_load_deleted_and_combo_without_cmd(monkeyp
     )
 
     assert any(kind == "error" and "No EXECUTE command configured" in msg for kind, msg in combo_st.messages)
-    assert combo_st.session_state["_combo_load_trigger"] is True
-    assert combo_st.session_state["_combo_export_trigger"] is True
+    assert "_combo_load_trigger" not in combo_st.session_state
+    assert "_combo_export_trigger" not in combo_st.session_state
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_uses_artifact_state_for_load_and_delete_buttons(monkeypatch, tmp_path):
+    deleted_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "dataframe_deleted": True,
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"load_data_main": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", deleted_st)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(deleted_st.messages, deleted_st.session_state),
+    )
+
+    load_call = next(kwargs for key, kwargs in deleted_st.button_calls if key == "load_data_main")
+    delete_call = next(kwargs for key, kwargs in deleted_st.button_calls if key == "delete_data_main")
+    assert load_call["disabled"] is True
+    assert "Run EXECUTE again" in str(load_call["help"])
+    assert delete_call["disabled"] is True
+
+    loaded_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "loaded_df": pd.DataFrame({"value": [1]}),
+            "loaded_source_path": str(tmp_path / "result.csv"),
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", loaded_st)
+    monkeypatch.setattr(orchestrate_execute, "render_dataframe_preview", lambda *_args, **_kwargs: None)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(loaded_st.messages, loaded_st.session_state),
+    )
+
+    loaded_delete_call = next(kwargs for key, kwargs in loaded_st.button_calls if key == "delete_data_main")
+    stats_call = next(kwargs for key, kwargs in loaded_st.button_calls if key == "stats_report_main")
+    export_call = next(kwargs for key, kwargs in loaded_st.button_calls if key == "export_df_main")
+    assert loaded_delete_call["disabled"] is False
+    assert stats_call["disabled"] is False
+    assert export_call["disabled"] is False
 
 
 @pytest.mark.asyncio
@@ -987,10 +1061,12 @@ async def test_render_execute_section_combo_button_queues_action(monkeypatch, tm
         deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
     )
 
-    assert any(kind == "rerun" and msg == "called" for kind, msg in fake_st.messages)
-    assert any(kind == "error" and "installation is incomplete" in msg for kind, msg in fake_st.messages)
-    assert fake_st.session_state["_combo_load_trigger"] is True
-    assert fake_st.session_state["_combo_export_trigger"] is True
+    combo_call = next(kwargs for key, kwargs in fake_st.button_calls if key == "combo_exec_load_export")
+    assert combo_call["disabled"] is True
+    assert "installation is incomplete" in str(combo_call["help"])
+    assert not any(kind == "rerun" and msg == "called" for kind, msg in fake_st.messages)
+    assert "_combo_load_trigger" not in fake_st.session_state
+    assert "_combo_export_trigger" not in fake_st.session_state
 
 
 @pytest.mark.asyncio
@@ -1672,8 +1748,8 @@ async def test_render_execute_section_export_checkbox_callbacks_update_selection
         project_path=tmp_path / "project",
         app_state_name="flight_project",
         controls_visible=True,
-        show_run_panel=False,
-        cmd=None,
+        show_run_panel=True,
+        cmd="print('run')",
         deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
     )
 

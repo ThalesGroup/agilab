@@ -90,9 +90,10 @@ machine-readable proof record.
    If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
    installer with the model families you want::
 
-      ./install.sh --install-apps --install-local-models qwen,deepseek,gpt-oss
+      ./install.sh --install-apps --install-local-models gpt-oss,qwen3-coder,ministral,phi4-mini
 
-   Supported values are ``mistral``, ``qwen``, ``deepseek``, and ``gpt-oss``.
+   Supported values are ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``,
+   ``qwen3-coder``, ``ministral``, and ``phi4-mini``.
 
 2. **Run the first-proof CLI**::
 
@@ -200,7 +201,8 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
     uv run agilab
 
 Optional feature stacks stay out of the base package install. Add
-``agilab[ai]`` for OpenAI-backed AI features and ``agilab[viz]`` for optional
+``agilab[ai]`` for AI assistant features such as OpenAI, Mistral, and
+OpenAI-compatible endpoints like vLLM, and ``agilab[viz]`` for optional
 Plotly/matplotlib visualizations::
 
     uv pip install "agilab[ai,viz]"

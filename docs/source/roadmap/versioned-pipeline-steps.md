@@ -7,14 +7,19 @@ orchestrator knows much more structure than the saved text reveals.
 AGILab previously relied on targeted snippet migrations to keep some older labs
 running. That approach has since been retired because it was too fragile and too
 opaque: a saved step could change behaviour simply because the loader rewrote it.
-The current product direction is better, but still incomplete:
+The current product direction is better, and AGILAB now has the first typed
+registry baseline for this transition:
 
 - saved Python now remains exactly as written
 - stale generated snippets must be regenerated or re-imported explicitly
-- AGILab still lacks a structured, version-aware representation for generated
-  pipeline steps
+- `pipeline_step_templates` defines generic template ids, versions, saved-step
+  metadata keys, and current/stale/raw-Python classification helpers
+- Pipeline editor write, delete, and undo flows preserve template metadata
+  instead of flattening steps back to Python-only records
+- the remaining product transition is to make structured template steps the
+  default persisted representation for newly generated steps
 
-The proposed feature is to replace raw generated snippets with explicit,
+The next product feature is to replace raw generated snippets with explicit,
 versioned pipeline step templates whose identity belongs to the orchestration
 layer rather than to any single application.
 
@@ -42,8 +47,10 @@ The intended behaviour remains:
 - no hidden repair pass during execution
 - explicit regeneration or refresh whenever a generated snippet becomes stale
 
-The missing piece is a better representation for generated steps, so AGILab can
-detect and explain drift without mutating saved Python behind the user's back.
+The registry and classification baseline now lets AGILAB detect and explain
+template drift without mutating saved Python behind the user's back. The
+remaining product work is to make those structured records the normal
+generation format.
 
 ## Proposal
 
@@ -136,10 +143,19 @@ For ``raw_python`` steps:
 Add the structured fields for newly created steps while keeping support for
 legacy code steps.
 
+Status: registry baseline complete. `template_id`, `template_version`, current
+template rows, stale-template classification, and raw-Python classification are
+available for page/support code. Newly generated steps can opt into those fields
+without changing existing raw snippets. Pipeline editor snapshot/restore and
+write paths preserve those fields when steps are deleted or restored.
+
 ### Phase 2
 
 Replace ad-hoc legacy repair logic with explicit stale-step detection for
 structured steps. Existing raw Python remains untouched.
+
+Status: detection baseline complete for template metadata; broader page refresh
+actions can now build on the same classification result.
 
 ### Phase 3
 
