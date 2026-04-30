@@ -789,6 +789,10 @@ def test_summarize_counts_interactions_and_failures() -> None:
             url="http://demo",
             failures=[failure],
             skips=[],
+            combination_space_count=4,
+            combination_count=4,
+            combination_failed_count=1,
+            combination_skipped_count=0,
         )
     ]
 
@@ -801,6 +805,9 @@ def test_summarize_counts_interactions_and_failures() -> None:
     assert summary.interacted_count == 1
     assert summary.probed_count == 1
     assert summary.failed_count == 1
+    assert summary.combination_space_count == 4
+    assert summary.combination_count == 4
+    assert summary.combination_failed_count == 1
     assert summary.within_target is False
 
 
@@ -885,6 +892,104 @@ def test_page_watchdog_helper_raises_when_deadline_expired() -> None:
         assert "expired" in str(exc)
     else:
         raise AssertionError("expected PageWatchdogTimeout")
+
+
+def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> None:
+    module = _load_module()
+    widgets = [
+        {
+            "id": "show-advanced",
+            "kind": "checkbox",
+            "label": "Show advanced",
+            "checked": False,
+            "testid": "stCheckbox",
+            "path": "input:nth-of-type(1)",
+            "scope": "main",
+        },
+        {
+            "id": "cluster",
+            "kind": "toggle",
+            "label": "Cluster mode",
+            "checked": True,
+            "testid": "stToggle",
+            "path": "input:nth-of-type(2)",
+            "scope": "sidebar",
+        },
+        {
+            "id": "local-radio",
+            "kind": "radio",
+            "label": "Execution backend",
+            "name": "backend",
+            "value": "local",
+            "checked": True,
+            "testid": "stRadio",
+            "path": "input:nth-of-type(3)",
+            "scope": "main",
+        },
+        {
+            "id": "cluster-radio",
+            "kind": "radio",
+            "label": "Execution backend",
+            "name": "backend",
+            "value": "cluster",
+            "checked": False,
+            "testid": "stRadio",
+            "path": "input:nth-of-type(4)",
+            "scope": "main",
+        },
+    ]
+
+    controls = module.collect_static_widget_combination_controls(widgets)
+
+    assert [control.kind for control in controls] == ["checkbox", "toggle", "radio"]
+    assert [choice.checked for choice in controls[0].choices] == [False, True]
+    assert [choice.default for choice in controls[1].choices] == [False, True]
+    assert [choice.value for choice in controls[2].choices] == ["local", "cluster"]
+    assert [choice.default for choice in controls[2].choices] == [True, False]
+
+
+def test_build_widget_combination_plan_is_exhaustive_and_reports_truncation() -> None:
+    module = _load_module()
+    checkbox = module.WidgetControl(
+        "advanced",
+        "checkbox",
+        "Show advanced",
+        (
+            module.WidgetChoice("advanced", "checkbox", "Show advanced", "off", {}, checked=False),
+            module.WidgetChoice("advanced", "checkbox", "Show advanced", "on", {}, checked=True),
+        ),
+    )
+    backend = module.WidgetControl(
+        "backend",
+        "radio",
+        "Backend",
+        (
+            module.WidgetChoice("backend", "radio", "Backend", "local", {}, checked=True),
+            module.WidgetChoice("backend", "radio", "Backend", "cluster", {}, checked=True),
+            module.WidgetChoice("backend", "radio", "Backend", "remote", {}, checked=True),
+        ),
+    )
+
+    plan = module.build_widget_combination_plan((checkbox, backend), max_combinations=10)
+    truncated = module.build_widget_combination_plan((checkbox, backend), max_combinations=4)
+
+    assert plan.total_count == 6
+    assert len(plan.combinations) == 6
+    assert plan.truncated is False
+    assert [choice.value for choice in plan.combinations[0]] == ["off", "local"]
+    assert truncated.total_count == 6
+    assert len(truncated.combinations) == 4
+    assert truncated.truncated is True
+
+
+def test_widget_robot_parser_enables_exhaustive_combinations_by_default() -> None:
+    module = _load_module()
+
+    args = module.build_parser().parse_args([])
+
+    assert args.combination_mode == "exhaustive"
+    assert args.max_combinations > 0
+    assert args.max_options_per_widget > 0
 
 
 def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
@@ -2102,13 +2207,17 @@ def test_render_human_reports_sidebar_widget_counts() -> None:
         url="http://demo",
         failures=[],
         skips=[],
+        combination_space_count=2,
+        combination_count=2,
     )
     summary = module.summarize([page], app_count=1, target_seconds=10.0)
 
     report = module.render_human(summary)
 
     assert "widgets=3 main=2 sidebar=1" in report
+    assert "combinations: space=2 executed=2" in report
     assert "flight_project/PROJECT: OK status=passed widgets=3 main=2 sidebar=1" in report
+    assert "combinations=2/2" in report
 
 
 def test_action_buttons_are_probed_by_default(tmp_path) -> None:
