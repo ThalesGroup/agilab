@@ -538,10 +538,40 @@ def release_preflight_profiles(cfg: Cfg) -> list[str]:
     ]
 
 
+RELEASE_PREFLIGHT_COVERAGE_ARTIFACTS = (
+    ".coverage",
+    ".coverage.agi-env",
+    ".coverage.agi-core-combined",
+    ".coverage.agi-gui",
+    ".coverage.agi-node",
+    ".coverage.agi-cluster",
+    "coverage-agi-env.xml",
+    "coverage-agi-node.xml",
+    "coverage-agi-cluster.xml",
+    "coverage-agi-gui.xml",
+    "coverage-agi-core.xml",
+    "coverage-agilab.xml",
+)
+
+
+def clean_release_preflight_coverage_artifacts() -> None:
+    """Remove stale local coverage artifacts before release workflow parity."""
+    for rel_path in RELEASE_PREFLIGHT_COVERAGE_ARTIFACTS:
+        path = REPO_ROOT / rel_path
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def run_release_preflight(cfg: Cfg) -> None:
     profiles = release_preflight_profiles(cfg)
     if not profiles:
         return
+    clean_release_preflight_coverage_artifacts()
     cmd = [
         "uv",
         "--preview-features",

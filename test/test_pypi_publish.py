@@ -368,6 +368,39 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
     ]
 
 
+def test_run_release_preflight_cleans_stale_coverage_before_workflow(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    stale_paths = [
+        tmp_path / ".coverage.agi-gui",
+        tmp_path / ".coverage.agi-core-combined",
+        tmp_path / "coverage-agi-gui.xml",
+    ]
+    for path in stale_paths:
+        path.write_text("stale", encoding="utf-8")
+    calls = []
+
+    def fake_run(cmd, *, cwd=None, **_kwargs):
+        calls.append((cmd, cwd, [path.exists() for path in stale_paths]))
+
+    monkeypatch.setattr(module, "run", fake_run)
+
+    module.run_release_preflight(
+        _base_cfg(
+            module,
+            repo="pypi",
+            git_tag=True,
+            git_commit_version=True,
+            git_reset_on_failure=True,
+        )
+    )
+
+    assert calls
+    assert calls[0][1] == tmp_path
+    assert calls[0][2] == [False, False, False]
+    assert "tools/workflow_parity.py" in calls[0][0]
+
+
 def test_compute_unified_version_rejects_auto_post_when_latest_release_is_newer_on_pypi(monkeypatch) -> None:
     module = _load_pypi_publish()
 
