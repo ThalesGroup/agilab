@@ -183,6 +183,11 @@ def test_page_helpers_fallback_loader_handles_missing_support_imports(monkeypatc
     resolved = module.resolve_share_candidate("clustershare", "/home/agi")
     assert resolved.name == "clustershare"
     assert str(resolved).endswith("/home/agi/clustershare")
+    assert module.configured_cluster_share_matches(
+        resolved,
+        cluster_share_path="clustershare",
+        home_abs="/home/agi",
+    )
     assert module.looks_like_shared_path(Path("/mnt/share"), Path("/repo")) is True
 
 
@@ -313,6 +318,11 @@ def test_page_helpers_delegate_state_log_and_install_wrappers(monkeypatch, tmp_p
     assert calls == {"distribution": 1, "mount": 1}
 
     assert module.resolve_share_candidate("clustershare", "/home/agi") == Path("/home/agi/clustershare")
+    assert module.configured_cluster_share_matches(
+        Path("/home/agi/clustershare"),
+        cluster_share_path="clustershare",
+        home_abs="/home/agi",
+    )
     assert module.benchmark_display_date(tmp_path / "missing", "already-set") == "already-set"
 
     module.display_log(

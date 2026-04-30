@@ -120,6 +120,7 @@ import_agilab_symbols(
         "clear_cached_distribution": "_orchestrate_clear_cached_distribution",
         "clear_mount_table_cache": "_orchestrate_clear_mount_table_cache",
         "resolve_share_candidate": "_orchestrate_resolve_share_candidate",
+        "configured_cluster_share_matches": "_configured_cluster_share_matches",
         "benchmark_display_date": "_orchestrate_benchmark_display_date",
         "display_log": "_orchestrate_display_log",
         "safe_eval": "_orchestrate_safe_eval",
@@ -941,14 +942,26 @@ async def _render_distribution_panel(
             is_symlink = share_candidate.is_symlink()
             share_resolved = _resolve_share_candidate(env.agi_share_path, env.home_abs)
             looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(share_resolved)
-            if not is_symlink and not looks_shared:
+            cluster_share_path = getattr(env, "AGI_CLUSTER_SHARE", None)
+            env_vars = getattr(env, "envars", None)
+            if not cluster_share_path and isinstance(env_vars, dict):
+                cluster_share_path = env_vars.get("AGI_CLUSTER_SHARE")
+            workers_data_path = str(cluster_params.get("workers_data_path") or "").strip().lower()
+            has_worker_share_path = workers_data_path not in {"", "none", "local", "localshare"}
+            configured_cluster_share = _configured_cluster_share_matches(
+                share_resolved,
+                cluster_share_path=cluster_share_path,
+                home_abs=env.home_abs,
+            )
+            if not is_symlink and not looks_shared and not (configured_cluster_share and has_worker_share_path):
                 fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
                 hint = _macos_autofs_hint(share_candidate)
                 extra = f"\n\n{hint}" if hint else ""
                 st.warning(
                     f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
                     f"(detected fstype: `{fstype}`) "
-                    "Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
+                    "Set `AGI_CLUSTER_SHARE` and `Workers Data Path` to the shared mount used by workers, "
+                    "or set `AGI_SHARE_DIR` to a shared mount/symlink when not using the cluster-share contract."
                     f"{extra}",
                     icon="⚠️",
                 )

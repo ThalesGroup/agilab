@@ -765,7 +765,7 @@ def _remote_hardware_probe(host: str, user: str, ssh_key_path: str) -> str:
         "-o",
         "BatchMode=yes",
         "-o",
-        "ConnectTimeout=1",
+        "ConnectTimeout=3",
         "-o",
         "StrictHostKeyChecking=accept-new",
     ]
@@ -907,7 +907,7 @@ def _worker_issue_label(status: str) -> str:
     if normalized == "ssh-auth-needed":
         return "SSH auth needed"
     if normalized == "no-ssh-port":
-        return "SSH port unavailable"
+        return "unreachable"
     if normalized == "reverse-ssh-needed":
         return "reverse SSH needed"
     if normalized == "sshfs-missing":

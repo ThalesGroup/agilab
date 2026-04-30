@@ -308,6 +308,33 @@ def test_run_mode_helpers_cover_label_generation():
     )
 
 
+def test_configured_cluster_share_matches_resolved_paths(tmp_path):
+    home = tmp_path / "home"
+    cluster_share = home / "clustershare" / "agi"
+    cluster_share.mkdir(parents=True)
+
+    assert orchestrate_page_support.configured_cluster_share_matches(
+        cluster_share,
+        cluster_share_path="clustershare/agi",
+        home_abs=home,
+    )
+    assert orchestrate_page_support.configured_cluster_share_matches(
+        "clustershare/agi",
+        cluster_share_path=cluster_share,
+        home_abs=home,
+    )
+    assert not orchestrate_page_support.configured_cluster_share_matches(
+        home / "localshare" / "agi",
+        cluster_share_path="clustershare/agi",
+        home_abs=home,
+    )
+    assert not orchestrate_page_support.configured_cluster_share_matches(
+        cluster_share,
+        cluster_share_path="",
+        home_abs=home,
+    )
+
+
 def test_reassign_distribution_plan_uses_stable_selection_keys_and_preserves_defaults():
     workers = ["10.0.0.1-1", "10.0.0.2-1"]
     work_plan_metadata = [[("A", 2)], [("B", 3)]]
