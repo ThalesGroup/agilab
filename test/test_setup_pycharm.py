@@ -109,3 +109,38 @@ def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> N
 
     manager_test = _read_generated_config(tmp_path, "_flight_test_manager.xml")
     assert _option(manager_test, "SCRIPT_NAME").endswith("/test/test_flight_manager.py")
+
+
+def test_tracked_run_configs_use_explicit_uv_sdks() -> None:
+    if Path(".git").exists():
+        tracked = subprocess.run(
+            ["git", "ls-files", "--", ".idea/runConfigurations/*.xml"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+    else:
+        tracked = [
+            str(path)
+            for path in sorted(Path(".idea/runConfigurations").glob("*.xml"))
+            if not path.name.startswith("_")
+        ]
+
+    problems: list[str] = []
+    for rel_path in tracked:
+        path = Path(rel_path)
+        if path.name == "folders.xml":
+            continue
+        config = ET.parse(path).getroot().find("configuration")
+        if config is None:
+            continue
+        options = {opt.get("name"): opt.get("value", "") for opt in config.findall("option")}
+        option_values = "\n".join(options.values())
+        if not options.get("SDK_NAME"):
+            problems.append(f"{path.name}: missing SDK_NAME")
+        if options.get("IS_MODULE_SDK") != "false":
+            problems.append(f"{path.name}: IS_MODULE_SDK={options.get('IS_MODULE_SDK')!r}")
+        if "wenv/builtin" in option_values:
+            problems.append(f"{path.name}: stale builtin worker path")
+
+    assert problems == []
