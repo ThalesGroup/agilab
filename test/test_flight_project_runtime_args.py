@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +16,9 @@ def _import_flight_modules(monkeypatch):
     repo_root = Path(__file__).resolve().parents[1]
     app_src = repo_root / "src" / "agilab" / "apps" / "builtin" / "flight_project" / "src"
     monkeypatch.syspath_prepend(str(app_src))
+    existing = sys.modules.get("flight")
+    if existing is not None and not hasattr(existing, "__path__"):
+        monkeypatch.delitem(sys.modules, "flight", raising=False)
     from flight.flight import Flight
     from flight_worker.flight_worker import FlightWorker
 
