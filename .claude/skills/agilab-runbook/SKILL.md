@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-04-29
+  updated: 2026-04-30
 ---
 
 # AGILab runbook (Agent Skill)
@@ -51,6 +51,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
 - **Streamlit API**: do not add `st.experimental_rerun()`; use `st.rerun`.
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
+- **Repository update requests**: when the user asks to "update repos", "sync repos", or similar,
+  first show the exact command plan before executing it. The plan should be a fenced `bash` block
+  with concrete `git -C <repo>` commands for each targeted checkout, including status/fetch/pull
+  order and any validation or push commands. Use non-destructive checks first; if a checkout is dirty,
+  do not pull it until the dirty paths are reported and the update plan is adjusted.
 
 ## Git footprint maintenance
 

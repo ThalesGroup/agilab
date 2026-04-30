@@ -38,6 +38,11 @@ Use this runbook whenever you:
   confirmation after local validation). When a change maps cleanly to one of the repo workflow
   profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
   over handwritten command variants.
+- **Repository update command plan**: When the user asks to "update repos", "sync repos", or similar,
+  first show the exact command plan as a fenced `bash` block with concrete `git -C <repo>` commands
+  for each checkout. Start with non-destructive `status`/`fetch` checks, include the intended pull,
+  validation, and push commands, then execute the same plan. If a checkout is dirty, stop before
+  pulling it and report the dirty paths so the plan can be adjusted.
 - **Shared-core strict typing**: Use `uv --preview-features extra-build-dependencies run --with mypy python tools/shared_core_strict_typing.py`
   for the curated extracted support-module strict slice. The same check is also available through
   `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile shared-core-typing`.
