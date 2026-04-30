@@ -19,6 +19,11 @@ class OrchestrateExecuteAction(str, Enum):
     COMBO = "combo"
 
 
+class OrchestrateSetupAction(str, Enum):
+    INSTALL = "install"
+    DISTRIBUTE = "distribute"
+
+
 @dataclass(frozen=True)
 class OrchestratePageStateDeps:
     available_benchmark_modes: Callable[..., Sequence[int]]
@@ -77,6 +82,32 @@ class OrchestrateExecuteWorkflowState:
         return self.actions[OrchestrateExecuteAction.COMBO]
 
 
+@dataclass(frozen=True)
+class OrchestrateSetupActionReadiness:
+    action: OrchestrateSetupAction
+    enabled: bool
+    disabled_reason: str
+
+
+@dataclass(frozen=True)
+class OrchestrateInstallWorkflowState:
+    show_install: bool
+    command_configured: bool
+    cluster_enabled: bool
+    runtime_root: Path | None
+    install_command: str | None
+    context_lines: tuple[str, ...]
+    action: OrchestrateSetupActionReadiness
+
+
+@dataclass(frozen=True)
+class OrchestrateDistributionWorkflowState:
+    show_distribute: bool
+    command_configured: bool
+    distribution_path: Path | None
+    action: OrchestrateSetupActionReadiness
+
+
 def _coerce_int_tuple(values: Sequence[Any]) -> tuple[int, ...]:
     result: list[int] = []
     for value in values:
@@ -112,6 +143,141 @@ def _install_gap_reason(action_label: str, missing_install_paths: tuple[str, ...
     return (
         f"{action_label} is unavailable because the installation is incomplete. "
         "Run INSTALL first to create: " + ", ".join(missing_install_paths)
+    )
+
+
+def _setup_readiness(
+    *,
+    action: OrchestrateSetupAction,
+    visible: bool,
+    command_configured: bool,
+    runtime_ready: bool = True,
+    hidden_reason: str,
+    missing_command_reason: str,
+    runtime_reason: str,
+) -> OrchestrateSetupActionReadiness:
+    if not visible:
+        return OrchestrateSetupActionReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason=hidden_reason,
+        )
+    if not command_configured:
+        return OrchestrateSetupActionReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason=missing_command_reason,
+        )
+    if not runtime_ready:
+        return OrchestrateSetupActionReadiness(
+            action=action,
+            enabled=False,
+            disabled_reason=runtime_reason,
+        )
+    return OrchestrateSetupActionReadiness(action=action, enabled=True, disabled_reason="")
+
+
+def _optional_path(value: Path | str | None) -> Path | None:
+    return Path(value) if value else None
+
+
+def _install_runtime_root(
+    *,
+    active_app_path: Path | str | None,
+    agi_cluster_path: Path | str | None,
+    is_source_env: bool,
+    is_worker_env: bool,
+) -> Path | None:
+    if (is_source_env or is_worker_env) and agi_cluster_path:
+        return Path(agi_cluster_path)
+    active_app = _optional_path(active_app_path)
+    if active_app is None or len(active_app.parents) < 2:
+        return None
+    return active_app.parents[1]
+
+
+def build_orchestrate_install_workflow_state(
+    *,
+    show_install: bool,
+    cmd: str | None,
+    active_app_path: Path | str | None,
+    agi_cluster_path: Path | str | None,
+    is_source_env: bool,
+    is_worker_env: bool,
+    snippet_tail: str,
+    app: Any,
+    cluster_enabled: bool,
+    verbose: Any,
+    mode: Any,
+    raw_scheduler: Any,
+    raw_workers: Any,
+    timestamp: str,
+) -> OrchestrateInstallWorkflowState:
+    """Build the pure ORCHESTRATE INSTALL request state."""
+    runtime_root = _install_runtime_root(
+        active_app_path=active_app_path,
+        agi_cluster_path=agi_cluster_path,
+        is_source_env=is_source_env,
+        is_worker_env=is_worker_env,
+    )
+    command_configured = bool(cmd)
+    install_command = cmd.replace("asyncio.run(main())", snippet_tail) if cmd else None
+    action = _setup_readiness(
+        action=OrchestrateSetupAction.INSTALL,
+        visible=show_install,
+        command_configured=command_configured,
+        runtime_ready=runtime_root is not None,
+        hidden_reason="INSTALL controls are hidden.",
+        missing_command_reason="No INSTALL command configured; check deployment settings first.",
+        runtime_reason="Unable to resolve the INSTALL runtime root; reload the app and retry.",
+    )
+    context_lines = (
+        "=== Install request ===",
+        f"timestamp: {timestamp}",
+        f"app: {app}",
+        f"env_flags: source={is_source_env}, worker={is_worker_env}",
+        f"cluster_enabled: {cluster_enabled}",
+        f"verbose: {verbose}",
+        f"modes_enabled: {mode}",
+        f"scheduler: {raw_scheduler if cluster_enabled and raw_scheduler else 'None'}",
+        f"workers: {raw_workers if cluster_enabled and raw_workers else 'None'}",
+        f"venv: {runtime_root}",
+        "=== Streaming install logs ===",
+    )
+    return OrchestrateInstallWorkflowState(
+        show_install=show_install,
+        command_configured=command_configured,
+        cluster_enabled=cluster_enabled,
+        runtime_root=runtime_root,
+        install_command=install_command,
+        context_lines=context_lines,
+        action=action,
+    )
+
+
+def build_orchestrate_distribution_workflow_state(
+    *,
+    show_distribute: bool,
+    cmd: str | None,
+    worker_env_path: Path | str | None,
+) -> OrchestrateDistributionWorkflowState:
+    """Build the pure ORCHESTRATE CHECK distribute state."""
+    distribution_path = Path(worker_env_path) / "distribution.json" if worker_env_path else None
+    command_configured = bool(cmd)
+    action = _setup_readiness(
+        action=OrchestrateSetupAction.DISTRIBUTE,
+        visible=show_distribute,
+        command_configured=command_configured,
+        runtime_ready=distribution_path is not None,
+        hidden_reason="CHECK distribute controls are hidden.",
+        missing_command_reason="No CHECK distribute command configured; check orchestration settings first.",
+        runtime_reason="Unable to resolve the worker environment path; run INSTALL, then retry CHECK distribute.",
+    )
+    return OrchestrateDistributionWorkflowState(
+        show_distribute=show_distribute,
+        command_configured=command_configured,
+        distribution_path=distribution_path,
+        action=action,
     )
 
 

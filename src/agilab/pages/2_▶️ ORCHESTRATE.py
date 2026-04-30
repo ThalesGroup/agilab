@@ -71,6 +71,8 @@ import_agilab_symbols(
     "agilab.orchestrate_page_state",
     {
         "OrchestratePageStateDeps": "OrchestratePageStateDeps",
+        "build_orchestrate_distribution_workflow_state": "build_orchestrate_distribution_workflow_state",
+        "build_orchestrate_install_workflow_state": "build_orchestrate_install_workflow_state",
         "build_orchestrate_page_state": "build_orchestrate_page_state",
     },
     current_file=__file__,
@@ -818,7 +820,25 @@ async def _render_deployment_panel(
             workers=workers,
             workers_data_path=workers_data_path,
         )
+        install_state = build_orchestrate_install_workflow_state(
+            show_install=show_install,
+            cmd=cmd,
+            active_app_path=getattr(env, "active_app", None),
+            agi_cluster_path=getattr(env, "agi_cluster", None),
+            is_source_env=bool(getattr(env, "is_source_env", False)),
+            is_worker_env=bool(getattr(env, "is_worker_env", False)),
+            snippet_tail=getattr(env, "snippet_tail", "asyncio.run(main())"),
+            app=getattr(env, "app", ""),
+            cluster_enabled=bool(enabled),
+            verbose=verbose,
+            mode=st.session_state.get("mode", "N/A"),
+            raw_scheduler=raw_scheduler,
+            raw_workers=raw_workers,
+            timestamp=datetime.now().isoformat(timespec="seconds"),
+        )
         st.code(cmd, language="python")
+        if not install_state.action.enabled:
+            st.caption(install_state.action.disabled_reason)
 
         install_expanded = st.session_state.get("_install_logs_expanded", True)
         log_expander = st.expander("Install logs", expanded=install_expanded)
@@ -827,25 +847,16 @@ async def _render_deployment_panel(
             existing_log = st.session_state.get("log_text", "").strip()
             if existing_log:
                 log_placeholder.code(existing_log, language="python")
-        if st.button("INSTALL", key="install_btn", type="primary"):
+        if st.button("INSTALL", key="install_btn", type="primary", disabled=not install_state.action.enabled):
+            if install_state.runtime_root is None or install_state.install_command is None:
+                st.warning(install_state.action.disabled_reason)
+                return verbose
             st.session_state["_install_logs_expanded"] = True
             _reset_traceback_skip()
             clear_log()
-            venv = env.agi_cluster if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
-            install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
-            context_lines = [
-                "=== Install request ===",
-                f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
-                f"app: {env.app}",
-                f"env_flags: source={env.is_source_env}, worker={env.is_worker_env}",
-                f"cluster_enabled: {enabled}",
-                f"verbose: {verbose}",
-                f"modes_enabled: {st.session_state.get('mode', 'N/A')}",
-                f"scheduler: {raw_scheduler if enabled and raw_scheduler else 'None'}",
-                f"workers: {raw_workers if enabled and raw_workers else 'None'}",
-                f"venv: {venv}",
-                "=== Streaming install logs ===",
-            ]
+            venv = install_state.runtime_root
+            install_command = install_state.install_command
+            context_lines = install_state.context_lines
             local_log: list[str] = []
             with log_expander:
                 log_placeholder.empty()
@@ -962,8 +973,20 @@ async def _render_distribution_panel(
             workers=workers,
             args_serialized=st.session_state.args_serialized,
         )
+        distribution_state = build_orchestrate_distribution_workflow_state(
+            show_distribute=show_distribute,
+            cmd=cmd,
+            worker_env_path=getattr(env, "wenv_abs", None),
+        )
         st.code(cmd, language="python")
-        if st.button("CHECK distribute", key="preview_btn", type="primary"):
+        if not distribution_state.action.enabled:
+            st.caption(distribution_state.action.disabled_reason)
+        if st.button(
+            "CHECK distribute",
+            key="preview_btn",
+            type="primary",
+            disabled=not distribution_state.action.enabled,
+        ):
             with st.expander("Orchestration log", expanded=False):
                 live_log_placeholder = st.empty()
                 _reset_traceback_skip()
@@ -985,8 +1008,8 @@ async def _render_distribution_panel(
 
         with st.expander("Workplan", expanded=False):
             if st.session_state.get("preview_tree"):
-                dist_tree_path = env.wenv_abs / "distribution.json"
-                if dist_tree_path.exists():
+                dist_tree_path = distribution_state.distribution_path
+                if dist_tree_path is not None and dist_tree_path.exists():
                     workers, work_plan_metadata, work_plan = load_distribution(dist_tree_path)
                     partition_key = "Partition"
                     weights_key = "Units"

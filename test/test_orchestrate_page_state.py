@@ -128,6 +128,171 @@ def test_orchestrate_page_state_blocks_remote_dask_without_shared_workers_path(t
     assert "local share" in state.run_disabled_reason
 
 
+def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
+    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_project"
+    cmd = "asyncio.run(main())"
+
+    state = orchestrate_page_state.build_orchestrate_install_workflow_state(
+        show_install=True,
+        cmd=cmd,
+        active_app_path=active_app,
+        agi_cluster_path=None,
+        is_source_env=False,
+        is_worker_env=False,
+        snippet_tail="await main()",
+        app="flight_project",
+        cluster_enabled=False,
+        verbose=1,
+        mode=1,
+        raw_scheduler="tcp://ignored:8786",
+        raw_workers={"ignored": 1},
+        timestamp="2026-04-30T07:00:00",
+    )
+
+    assert state.action.enabled is True
+    assert state.command_configured is True
+    assert state.runtime_root == active_app.parents[1]
+    assert state.install_command == "await main()"
+    assert "cluster_enabled: False" in state.context_lines
+    assert "scheduler: None" in state.context_lines
+    assert f"venv: {active_app.parents[1]}" in state.context_lines
+
+
+def test_orchestrate_install_workflow_state_uses_core_runtime_root_for_source_env(tmp_path):
+    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_project"
+    agi_cluster = tmp_path / "src" / "agilab" / "core" / "agi-cluster"
+
+    state = orchestrate_page_state.build_orchestrate_install_workflow_state(
+        show_install=True,
+        cmd="asyncio.run(main())",
+        active_app_path=active_app,
+        agi_cluster_path=agi_cluster,
+        is_source_env=True,
+        is_worker_env=False,
+        snippet_tail="asyncio.run(main())",
+        app="flight_project",
+        cluster_enabled=True,
+        verbose=2,
+        mode=15,
+        raw_scheduler="tcp://scheduler:8786",
+        raw_workers={"127.0.0.1": 2},
+        timestamp="2026-04-30T07:05:00",
+    )
+
+    assert state.action.enabled is True
+    assert state.runtime_root == agi_cluster
+    assert "cluster_enabled: True" in state.context_lines
+    assert "scheduler: tcp://scheduler:8786" in state.context_lines
+    assert "workers: {'127.0.0.1': 2}" in state.context_lines
+
+
+def test_orchestrate_install_workflow_state_blocks_missing_runtime_root():
+    state = orchestrate_page_state.build_orchestrate_install_workflow_state(
+        show_install=True,
+        cmd="asyncio.run(main())",
+        active_app_path=None,
+        agi_cluster_path=None,
+        is_source_env=False,
+        is_worker_env=False,
+        snippet_tail="asyncio.run(main())",
+        app="flight_project",
+        cluster_enabled=False,
+        verbose=1,
+        mode=1,
+        raw_scheduler="",
+        raw_workers={},
+        timestamp="2026-04-30T07:10:00",
+    )
+
+    assert state.action.enabled is False
+    assert state.runtime_root is None
+    assert "Unable to resolve the INSTALL runtime root" in state.action.disabled_reason
+
+
+def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp_path):
+    active_app = tmp_path / "apps" / "flight_project"
+
+    hidden = orchestrate_page_state.build_orchestrate_install_workflow_state(
+        show_install=False,
+        cmd="asyncio.run(main())",
+        active_app_path=active_app,
+        agi_cluster_path=None,
+        is_source_env=False,
+        is_worker_env=False,
+        snippet_tail="asyncio.run(main())",
+        app="flight_project",
+        cluster_enabled=False,
+        verbose=1,
+        mode=1,
+        raw_scheduler="",
+        raw_workers={},
+        timestamp="2026-04-30T07:15:00",
+    )
+    missing_command = orchestrate_page_state.build_orchestrate_install_workflow_state(
+        show_install=True,
+        cmd=None,
+        active_app_path=active_app,
+        agi_cluster_path=None,
+        is_source_env=False,
+        is_worker_env=False,
+        snippet_tail="asyncio.run(main())",
+        app="flight_project",
+        cluster_enabled=False,
+        verbose=1,
+        mode=1,
+        raw_scheduler="",
+        raw_workers={},
+        timestamp="2026-04-30T07:15:00",
+    )
+
+    assert hidden.action.enabled is False
+    assert hidden.action.disabled_reason == "INSTALL controls are hidden."
+    assert missing_command.action.enabled is False
+    assert "No INSTALL command configured" in missing_command.action.disabled_reason
+
+
+def test_orchestrate_distribution_workflow_state_is_ready(tmp_path):
+    worker_env_path = tmp_path / "wenv" / "flight_worker"
+
+    state = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
+        show_distribute=True,
+        cmd="print('distribute')",
+        worker_env_path=worker_env_path,
+    )
+
+    assert state.action.enabled is True
+    assert state.command_configured is True
+    assert state.distribution_path == worker_env_path / "distribution.json"
+
+
+def test_orchestrate_distribution_workflow_state_blocks_hidden_missing_command_or_runtime(tmp_path):
+    worker_env_path = tmp_path / "wenv" / "flight_worker"
+
+    hidden = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
+        show_distribute=False,
+        cmd="print('distribute')",
+        worker_env_path=worker_env_path,
+    )
+    missing_command = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
+        show_distribute=True,
+        cmd=None,
+        worker_env_path=worker_env_path,
+    )
+    missing_runtime = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
+        show_distribute=True,
+        cmd="print('distribute')",
+        worker_env_path=None,
+    )
+
+    assert hidden.action.enabled is False
+    assert hidden.action.disabled_reason == "CHECK distribute controls are hidden."
+    assert missing_command.action.enabled is False
+    assert "No CHECK distribute command configured" in missing_command.action.disabled_reason
+    assert missing_runtime.action.enabled is False
+    assert missing_runtime.distribution_path is None
+    assert "Unable to resolve the worker environment path" in missing_runtime.action.disabled_reason
+
+
 def test_orchestrate_execute_workflow_state_is_ready_when_installed(tmp_path):
     project_path = tmp_path / "project"
     worker_env_path = tmp_path / "wenv"
