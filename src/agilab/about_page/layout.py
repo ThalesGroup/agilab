@@ -992,8 +992,27 @@ def _hardware_summary_has_detected_resources(summary: dict[str, str] | None) -> 
     )
 
 
-def _default_lan_discovery_cache_path() -> Path:
-    return Path.home() / ".agilab" / "lan_nodes.json"
+def _env_home_path(env: Any) -> Path | None:
+    raw_home = getattr(env, "home_abs", None)
+    if not raw_home:
+        return None
+    try:
+        return Path(raw_home).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _default_lan_discovery_cache_path(home: Path | str | None = None) -> Path:
+    if home is None:
+        return Path.home() / ".agilab" / "lan_nodes.json"
+    try:
+        return Path(home).expanduser() / ".agilab" / "lan_nodes.json"
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return Path.home() / ".agilab" / "lan_nodes.json"
+
+
+def _lan_discovery_cache_path_for_env(env: Any) -> Path:
+    return _default_lan_discovery_cache_path(_env_home_path(env))
 
 
 def _file_content_signature(path: Path | None) -> tuple[str, str]:
@@ -1035,23 +1054,37 @@ def _clear_cluster_probe_caches() -> None:
             cache_clear()
 
 
-def _cluster_sidebar_refresh_signature(env: Any, cluster_params: dict[str, Any]) -> tuple[Any, ...]:
+def _cluster_sidebar_refresh_signature(
+    env: Any,
+    cluster_params: dict[str, Any],
+    *,
+    lan_cache_path: Path | None = None,
+) -> tuple[Any, ...]:
     return (
         _safe_text(getattr(env, "app", "")),
         _payload_signature(cluster_params),
         _file_content_signature(_active_app_settings_file_path(env)),
-        _file_content_signature(_default_lan_discovery_cache_path()),
+        _file_content_signature(lan_cache_path or _lan_discovery_cache_path_for_env(env)),
     )
 
 
-def _refresh_cluster_probe_caches_if_needed(env: Any, cluster_params: dict[str, Any]) -> None:
+def _cluster_probe_signature_state_key(env: Any) -> str:
+    app_name = _safe_text(getattr(env, "app", "")) or "default"
+    return f"about_cluster_probe_signature__{app_name}"
+
+
+def _refresh_cluster_probe_caches_if_needed(
+    env: Any,
+    cluster_params: dict[str, Any],
+    *,
+    lan_cache_path: Path | None = None,
+) -> None:
     try:
         session_state = st.session_state
     except (AttributeError, RuntimeError):
         return
-    signature = _cluster_sidebar_refresh_signature(env, cluster_params)
-    app_name = _safe_text(getattr(env, "app", "")) or "default"
-    state_key = f"about_cluster_probe_signature__{app_name}"
+    signature = _cluster_sidebar_refresh_signature(env, cluster_params, lan_cache_path=lan_cache_path)
+    state_key = _cluster_probe_signature_state_key(env)
     if session_state.get(state_key) == signature:
         return
     _clear_cluster_probe_caches()
@@ -1170,7 +1203,8 @@ def active_app_cluster_information_lines(env: Any) -> list[tuple[str, str]]:
     """Return active-app scheduler and cluster context for sidebar display."""
     settings = _active_app_settings(env)
     cluster_params = _cluster_params_from_settings(settings)
-    _refresh_cluster_probe_caches_if_needed(env, cluster_params)
+    lan_cache_path = _lan_discovery_cache_path_for_env(env)
+    _refresh_cluster_probe_caches_if_needed(env, cluster_params, lan_cache_path=lan_cache_path)
     cluster_enabled = _format_bool_flag(cluster_params.get("cluster_enabled", False))
 
     app_name = _safe_text(getattr(env, "app", "")) or "not selected"
@@ -1180,7 +1214,7 @@ def active_app_cluster_information_lines(env: Any) -> list[tuple[str, str]]:
     ssh_key_path = _safe_text(cluster_params.get("ssh_key_path")) or _safe_text(getattr(env, "ssh_key_path", ""))
     worker_items = _workers_items(cluster_params.get("workers", {}))
     hardware_inventory = {
-        **_lan_discovery_hardware_inventory(),
+        **_lan_discovery_hardware_inventory(str(lan_cache_path)),
         **_hardware_inventory_from_settings(cluster_params),
     }
     resource_totals = _cluster_resource_totals(
@@ -1259,8 +1293,30 @@ def _sidebar_system_information_html(lines: list[tuple[str, str]]) -> str:
     )
 
 
+def _sidebar_cluster_refresh_requested(env: Any) -> bool:
+    button = getattr(st.sidebar, "button", None)
+    if not callable(button):
+        return False
+    try:
+        return bool(
+            button(
+                "Refresh cluster info",
+                key=f"about_cluster_info_refresh__{_safe_text(getattr(env, 'app', '')) or 'default'}",
+                help="Clear cached cluster probes and reload the LAN discovery inventory.",
+            )
+        )
+    except TypeError:
+        return bool(button("Refresh cluster info"))
+
+
 def render_sidebar_system_information(env: Any) -> None:
     """Render active-app scheduler and cluster context in the sidebar."""
+    if _sidebar_cluster_refresh_requested(env):
+        _clear_cluster_probe_caches()
+        try:
+            st.session_state.pop(_cluster_probe_signature_state_key(env), None)
+        except (AttributeError, RuntimeError):
+            pass
     lines = active_app_cluster_information_lines(env)
     markdown = getattr(st.sidebar, "markdown", None)
     if callable(markdown):
