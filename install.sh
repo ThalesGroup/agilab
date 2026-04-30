@@ -293,12 +293,15 @@ normalize_local_model_name() {
     normalized="$(printf '%s' "$raw" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
     case "$normalized" in
         "" ) return 1 ;;
-        mistral|mistral:instruct) echo "mistral" ;;
+        gpt-oss|gpt_oss|gptoss|gpt-oss:20b) echo "gpt-oss" ;;
         qwen|qwen2.5|qwen2.5-coder|qwen2.5-coder:latest) echo "qwen" ;;
         deepseek|deepseek-coder|deepseek-coder:latest) echo "deepseek" ;;
-        gpt-oss|gpt_oss|gptoss|gpt-oss:20b) echo "gpt-oss" ;;
+        qwen3|qwen3-30b|qwen3-30b-a3b|qwen3:30b-a3b|qwen3:30b-a3b-instruct|qwen3:30b-a3b-instruct-2507-q4_k_m) echo "qwen3" ;;
+        qwen3-coder|qwen3-coder-30b|qwen3-coder-30b-a3b|qwen3-coder:30b|qwen3-coder:30b-a3b|qwen3-coder:30b-a3b-q4_k_m) echo "qwen3-coder" ;;
+        ministral|ministral3|ministral-3|ministral-3-14b|ministral-3:14b|ministral-3:14b-instruct|ministral-3:14b-instruct-2512-q4_k_m) echo "ministral" ;;
+        phi4-mini|phi-4-mini|phi4mini|phi4-mini:3.8b|phi4-mini:3.8b-q4_k_m) echo "phi4-mini" ;;
         * )
-            warn "Ignoring unsupported local model '${raw}'. Supported values: mistral, qwen, deepseek, gpt-oss."
+            warn "Ignoring unsupported local model '${raw}'. Supported values: gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini."
             return 1
             ;;
     esac
@@ -341,10 +344,13 @@ remove_local_model_from_list() {
 ollama_tag_for_family() {
     local family="${1:-}"
     case "$family" in
-        mistral) echo "mistral:instruct" ;;
+        gpt-oss) echo "gpt-oss:20b" ;;
         qwen) echo "qwen2.5-coder:latest" ;;
         deepseek) echo "deepseek-coder:latest" ;;
-        gpt-oss) echo "gpt-oss:20b" ;;
+        qwen3) echo "qwen3:30b-a3b-instruct-2507-q4_K_M" ;;
+        qwen3-coder) echo "qwen3-coder:30b-a3b-q4_K_M" ;;
+        ministral) echo "ministral-3:14b-instruct-2512-q4_K_M" ;;
+        phi4-mini) echo "phi4-mini:3.8b-q4_K_M" ;;
         *)
             warn "No Ollama tag mapping defined for local model family '${family}'."
             return 1
@@ -438,7 +444,7 @@ install_offline_extra() {
     fi
 
     if (( major > 3 || (major == 3 && minor >= 12) )); then
-        echo -e "${BLUE}Installing offline assistant dependencies (GPT-OSS + mistral:instruct)...${NC}"
+        echo -e "${BLUE}Installing offline assistant dependencies (GPT-OSS + Universal Offline AI Chatbot)...${NC}"
         if $UV pip install ".[offline]" >/dev/null 2>&1; then
             echo -e "${GREEN}Offline assistant packages installed.${NC}"
         else
@@ -461,16 +467,15 @@ install_offline_extra() {
 }
 
 setup_default_offline_models() {
-    echo -e "${BLUE}Configuring default local offline assistant models (Ollama)...${NC}"
+    echo -e "${BLUE}Configuring default local GPT-OSS model (Ollama)...${NC}"
     ensure_ollama_runtime || return 1
-    start_ollama_pull "mistral:instruct" "mistral"
     if [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
         start_ollama_pull "gpt-oss:20b" "gpt_oss"
     fi
 }
 
-seed_mistral_pdfs() {
-    echo -e "${BLUE}Seeding sample PDFs for mistral:instruct (optional)...${NC}"
+seed_uoaic_pdfs() {
+    echo -e "${BLUE}Seeding sample PDFs for Universal Offline AI Chatbot (optional)...${NC}"
     local dest="$HOME/.agilab/mistral_offline/data"
     mkdir -p "$dest"
 
@@ -1089,7 +1094,7 @@ install_pycharm_script() {
 usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
-  echo "       [--install-local-models mistral,qwen,deepseek,gpt-oss]"
+  echo "       [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
     exit 1
 }
 
@@ -1259,9 +1264,8 @@ if $run_extras; then
     echo -e "${BLUE}[info] Skipping offline assistant installation (--skip-offline flag set)${NC}"
   else
     install_offline_extra
-    seed_mistral_pdfs
+    seed_uoaic_pdfs
     setup_default_offline_models
-    requested_local_models="$(remove_local_model_from_list "$requested_local_models" "mistral")"
   fi
 fi
 

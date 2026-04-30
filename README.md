@@ -107,7 +107,8 @@ path above because it exercises the same app installation, execution, and
 analysis flow documented in the web UI.
 
 Optional feature stacks stay out of the base package install. Add
-`agilab[ai]` for OpenAI-backed AI features and `agilab[viz]` for optional
+`agilab[ai]` for AI assistant features such as OpenAI, Mistral, and
+OpenAI-compatible endpoints like vLLM, and `agilab[viz]` for optional
 Plotly/matplotlib visualizations:
 
 ```bash

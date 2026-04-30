@@ -347,10 +347,23 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
 
     steps = [
-        {"D": "d0", "Q": "q0", "M": "m0", "C": "c0", "E": str(tmp_path / "venv0"), "R": "runpy"},
+        {
+            "D": "d0",
+            "Q": "q0",
+            "M": "m0",
+            "C": "c0",
+            "E": str(tmp_path / "venv0"),
+            "R": "runpy",
+            "template_id": "generic.execute",
+            "template_version": 1,
+            "custom_contract": {"schema_version": 1},
+        },
         {"D": "d1", "Q": "q1", "M": "m1", "C": "c1", "E": str(tmp_path / "venv1"), "R": "agi.run"},
     ]
     snapshot = pipeline_editor._capture_pipeline_snapshot("idx", steps)
+    assert snapshot["steps"][0]["template_id"] == "generic.execute"
+    assert snapshot["steps"][0]["template_version"] == 1
+    assert snapshot["steps"][0]["custom_contract"] == {"schema_version": 1}
 
     writes = {}
     def _write_steps(module, steps_file, module_steps):
@@ -383,6 +396,38 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
     assert fake_st.session_state["idx"][-1] == 2
     assert "idx_sequence_widget" not in fake_st.session_state
     assert writes["bumped"] is True
+    assert writes["steps"][0]["template_id"] == "generic.execute"
+    assert writes["steps"][0]["template_version"] == 1
+    assert writes["steps"][0]["custom_contract"] == {"schema_version": 1}
+
+
+def test_write_steps_for_module_preserves_step_contract_metadata(monkeypatch, tmp_path):
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(pipeline_editor, "get_steps_dict", lambda *_args, **_kwargs: {"flight_project": []})
+    monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
+
+    steps_file = tmp_path / "lab_steps.toml"
+    count = pipeline_editor._write_steps_for_module(
+        tmp_path / "flight_project",
+        steps_file,
+        [
+            {
+                "Q": "Run template",
+                "C": "print('run')",
+                "R": "runpy",
+                "template_id": "generic.execute",
+                "template_version": 1,
+                "custom_contract": {"schema_version": 1},
+            }
+        ],
+    )
+
+    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert count == 1
+    assert stored["flight_project"][0]["template_id"] == "generic.execute"
+    assert stored["flight_project"][0]["template_version"] == 1
+    assert stored["flight_project"][0]["custom_contract"] == {"schema_version": 1}
 
 
 def test_capture_pipeline_snapshot_falls_back_to_default_sequence_and_active_step(monkeypatch, tmp_path):
