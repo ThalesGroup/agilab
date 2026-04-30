@@ -335,8 +335,11 @@ def test_widget_robot_parser_enables_exhaustive_combinations_by_default() -> Non
     args = module.build_parser().parse_args([])
 
     assert args.combination_mode == "exhaustive"
+    assert args.action_button_policy == "safe-click"
     assert args.max_combinations > 0
     assert args.max_options_per_widget > 0
+    assert args.discovery_passes == 2
+    assert args.max_action_clicks_per_page > 0
 
 
 def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
@@ -433,6 +436,167 @@ def test_action_buttons_are_probed_by_default(tmp_path) -> None:
     assert status == "probed"
     assert "callback not fired" in detail
     assert clicks == [{"timeout": 100, "trial": True}]
+
+
+def test_safe_action_click_classifier_allows_navigation_and_denies_risky_actions() -> None:
+    module = _load_module()
+
+    assert module.safe_action_click_reason({"kind": "button", "label": "View maps"})
+    assert module.safe_action_click_reason({"kind": "button", "label": "view_forecast_analysis"})
+    assert module.safe_action_click_reason({"kind": "download_button", "label": "Download CSV"})
+    assert module.safe_action_click_reason({"kind": "button", "label": "RUN pipeline"}) is None
+    assert module.safe_action_click_reason({"kind": "form_submit_button", "label": "Create project"}) is None
+
+
+def test_safe_click_policy_clicks_guarded_buttons_and_trials_risky_buttons(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        url = "http://demo"
+
+        def locator(self, selector):
+            return _Locator()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    budget = [1]
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "safe", "kind": "button", "label": "View maps"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="safe-click",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+        action_click_budget=budget,
+    )
+
+    assert status == "interacted"
+    assert "guarded safe action" in detail
+    assert budget == [0]
+    assert clicks == [{"timeout": 100}]
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "risky", "kind": "button", "label": "RUN pipeline"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="safe-click",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+        action_click_budget=[1],
+    )
+
+    assert status == "probed"
+    assert "guarded safe-click policy" in detail
+    assert clicks[-1] == {"timeout": 100, "trial": True}
+
+
+def test_collect_current_view_repeats_discovery_after_safe_callback(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[str] = []
+
+    class _Locator:
+        def __init__(self, widget_id: str):
+            self.widget_id = widget_id
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 0 if self.widget_id == "exception" else 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(self.widget_id)
+
+        def input_value(self, timeout):
+            return ""
+
+        def fill(self, value, timeout):
+            pass
+
+    class _Page:
+        url = "http://demo"
+
+        def __init__(self):
+            self.evaluate_count = 0
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            self.evaluate_count += 1
+            widgets = [
+                {"id": "view", "kind": "button", "label": "View details", "testid": "stButton", "path": "button:nth-of-type(1)", "scope": "main"},
+            ]
+            if clicks:
+                widgets.append({"id": "name", "kind": "text_input", "label": "Name", "testid": "stTextInput", "path": "input:nth-of-type(1)", "scope": "main"})
+            return widgets
+
+        def locator(self, selector):
+            if selector == "[data-testid='stException']":
+                return _Locator("exception")
+            if "name" in selector:
+                return _Locator("name")
+            return _Locator("view")
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    probes = module._collect_and_probe_current_view(
+        _Page(),
+        app_name="flight_project",
+        page_name="PROJECT",
+        widget_timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="safe-click",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+        known=set(),
+        discovery_passes=2,
+        action_click_budget=[2],
+    )
+
+    assert [probe.kind for probe in probes] == ["button", "text_input"]
+    assert probes[0].status == "interacted"
+    assert probes[1].status == "interacted"
 
 
 def test_text_inputs_are_filled_and_restored(tmp_path) -> None:

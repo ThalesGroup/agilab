@@ -46,6 +46,37 @@ DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
 DEFAULT_TARGET_SECONDS = 1800.0
 ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
+SAFE_ACTION_LABEL_PREFIXES = ("view", "open", "show", "select", "choose", "browse", "back", "cancel", "close", "refresh", "reload")
+RISKY_ACTION_LABEL_TOKENS = {
+    "add",
+    "apply",
+    "build",
+    "clear",
+    "clone",
+    "create",
+    "delete",
+    "deploy",
+    "distribute",
+    "execute",
+    "export",
+    "generate",
+    "import",
+    "install",
+    "kill",
+    "launch",
+    "remove",
+    "rename",
+    "reset",
+    "run",
+    "save",
+    "start",
+    "stop",
+    "submit",
+    "sync",
+    "train",
+    "update",
+    "upload",
+}
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
 PAGE_EXPECTED_TEXT = {
     "": ("AGILAB", "Start here"),
@@ -671,6 +702,32 @@ def _normalized_label(label: str) -> str:
     return label.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip().lower()
 
 
+def _action_label_tokens(label: str) -> set[str]:
+    cleaned = "".join(character if character.isalnum() else " " for character in _normalized_label(label))
+    return {token for token in cleaned.split() if token}
+
+
+def _action_label_has_safe_prefix(label: str) -> bool:
+    normalized = _normalized_label(label).replace("_", " ").replace("-", " ")
+    return any(normalized == prefix or normalized.startswith(f"{prefix} ") for prefix in SAFE_ACTION_LABEL_PREFIXES)
+
+
+def safe_action_click_reason(widget: dict[str, Any]) -> str | None:
+    kind = str(widget.get("kind", ""))
+    label = str(widget.get("label", ""))
+    if kind == "download_button":
+        return "download buttons are read-only browser actions"
+    tokens = _action_label_tokens(label)
+    risky_tokens = tokens & RISKY_ACTION_LABEL_TOKENS
+    if risky_tokens:
+        return None
+    if _action_label_has_safe_prefix(label):
+        return "label matches guarded safe navigation/action prefix"
+    if _normalized_label(label).startswith("view_"):
+        return "label matches configured analysis view launcher"
+    return None
+
+
 def widget_scope(widget: dict[str, Any] | WidgetProbe) -> str:
     scope = getattr(widget, "scope", "") if isinstance(widget, WidgetProbe) else str(widget.get("scope", ""))
     return "sidebar" if scope == "sidebar" else "main"
@@ -1001,6 +1058,23 @@ def _combination_probe(
     return WidgetProbe(app_name, page_label(page_name), kind, label, status, _short_detail(detail), url)
 
 
+def _consume_action_click_budget(action_click_budget: list[int] | None) -> bool:
+    if action_click_budget is None:
+        return True
+    if not action_click_budget or action_click_budget[0] <= 0:
+        return False
+    action_click_budget[0] -= 1
+    return True
+
+
+def _probe_action_button_trial(locator: Any, *, timeout_ms: float, detail: str) -> tuple[str, str]:
+    try:
+        locator.click(timeout=timeout_ms, trial=True)
+        return "probed", detail
+    except Exception as exc:
+        return "probed", _short_detail(f"{detail}; trial click layout-intercepted: {exc}")
+
+
 def _probe_widget(
     page: Any,
     widget: dict[str, Any],
@@ -1010,6 +1084,7 @@ def _probe_widget(
     action_button_policy: str,
     upload_file: Path,
     restore_view: Any | None,
+    action_click_budget: list[int] | None = None,
 ) -> tuple[str, str]:
     if widget.get("disabled"):
         return "probed", "disabled state verified"
@@ -1030,18 +1105,22 @@ def _probe_widget(
                     pass
             return "probed", f"visible/enabled ok ({kind})"
         if kind in ACTION_BUTTON_KINDS:
-            if action_button_policy == "click":
+            safe_click_reason = safe_action_click_reason(widget)
+            should_click = action_button_policy == "click" or (action_button_policy == "safe-click" and safe_click_reason is not None)
+            if should_click:
+                if not _consume_action_click_budget(action_click_budget):
+                    return _probe_action_button_trial(locator, timeout_ms=timeout_ms, detail="action button browser-clickable; callback not fired because action click budget is exhausted")
                 _click_with_force_fallback(locator, timeout_ms=timeout_ms)
                 page.wait_for_timeout(250)
                 error = _visible_exception_detail(page)
                 if error:
                     return "failed", f"button click rendered exception: {error}"
+                if action_button_policy == "safe-click":
+                    return "interacted", f"clicked guarded safe action button: {safe_click_reason}"
                 return "interacted", "clicked action button"
-            try:
-                locator.click(timeout=timeout_ms, trial=True)
-                return "probed", "action button browser-clickable; callback not fired by default"
-            except Exception as exc:
-                return "probed", _short_detail(f"action button visible/enabled; trial click layout-intercepted: {exc}")
+            if action_button_policy == "safe-click":
+                return _probe_action_button_trial(locator, timeout_ms=timeout_ms, detail="action button browser-clickable; callback not fired by guarded safe-click policy")
+            return _probe_action_button_trial(locator, timeout_ms=timeout_ms, detail="action button browser-clickable; callback not fired by default")
         if kind in {"checkbox", "toggle"}:
             was_checked = locator.is_checked(timeout=timeout_ms) if kind == "checkbox" else None
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
@@ -1106,53 +1185,62 @@ def _collect_and_probe_current_view(
     upload_file: Path,
     restore_view: Any | None,
     known: set[tuple[str, str, str, str, str]],
+    discovery_passes: int = 1,
+    action_click_budget: list[int] | None = None,
 ) -> list[WidgetProbe]:
-    page.evaluate(OPEN_EXPANDERS_JS)
-    widgets = page.evaluate(WIDGET_COLLECTOR_JS)
     probes: list[WidgetProbe] = []
-    for widget in widgets:
-        fingerprint = _widget_fingerprint(widget)
-        if fingerprint in known:
-            continue
-        known.add(fingerprint)
-        status, detail = _probe_widget(
-            page,
-            widget,
-            timeout_ms=widget_timeout_ms,
-            interaction_mode=interaction_mode,
-            action_button_policy=action_button_policy,
-            upload_file=upload_file,
-            restore_view=restore_view,
-        )
-        if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
-            try:
-                restore_view()
-                status, detail = _probe_widget(
-                    page,
-                    widget,
-                    timeout_ms=widget_timeout_ms,
-                    interaction_mode=interaction_mode,
-                    action_button_policy=action_button_policy,
-                    upload_file=upload_file,
-                    restore_view=restore_view,
-                )
-            except Exception as exc:
-                status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
-        error = _visible_exception_detail(page)
-        if error and status != "failed":
-            status, detail = "failed", f"interaction rendered Streamlit exception: {error}"
-        probes.append(
-            WidgetProbe(
-                app_name,
-                page_label(page_name),
-                str(widget.get("kind", "")),
-                str(widget.get("label", "")),
-                status,
-                detail,
-                page.url,
-                widget_scope(widget),
+    for _ in range(max(1, discovery_passes)):
+        page.evaluate(OPEN_EXPANDERS_JS)
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+        discovered_count = 0
+        for widget in widgets:
+            fingerprint = _widget_fingerprint(widget)
+            if fingerprint in known:
+                continue
+            known.add(fingerprint)
+            discovered_count += 1
+            status, detail = _probe_widget(
+                page,
+                widget,
+                timeout_ms=widget_timeout_ms,
+                interaction_mode=interaction_mode,
+                action_button_policy=action_button_policy,
+                upload_file=upload_file,
+                restore_view=restore_view,
+                action_click_budget=action_click_budget,
             )
-        )
+            if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
+                try:
+                    restore_view()
+                    status, detail = _probe_widget(
+                        page,
+                        widget,
+                        timeout_ms=widget_timeout_ms,
+                        interaction_mode=interaction_mode,
+                        action_button_policy=action_button_policy,
+                        upload_file=upload_file,
+                        restore_view=restore_view,
+                        action_click_budget=action_click_budget,
+                    )
+                except Exception as exc:
+                    status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
+            error = _visible_exception_detail(page)
+            if error and status != "failed":
+                status, detail = "failed", f"interaction rendered Streamlit exception: {error}"
+            probes.append(
+                WidgetProbe(
+                    app_name,
+                    page_label(page_name),
+                    str(widget.get("kind", "")),
+                    str(widget.get("label", "")),
+                    status,
+                    detail,
+                    page.url,
+                    widget_scope(widget),
+                )
+            )
+        if discovered_count == 0:
+            break
     return probes
 
 
@@ -1169,6 +1257,8 @@ def _exercise_widget_combinations(
     known: set[tuple[str, str, str, str, str]],
     max_combinations: int,
     max_options_per_widget: int,
+    discovery_passes: int,
+    action_click_budget: list[int] | None,
 ) -> tuple[int, int, int, int, list[WidgetProbe]]:
     probes: list[WidgetProbe] = []
     try:
@@ -1260,6 +1350,8 @@ def _exercise_widget_combinations(
                     upload_file=upload_file,
                     restore_view=restore_view,
                     known=known,
+                    discovery_passes=discovery_passes,
+                    action_click_budget=action_click_budget,
                 )
             )
             executed_count += 1
@@ -1299,6 +1391,8 @@ def sweep_page(
     combination_mode: str = "exhaustive",
     max_combinations: int = 512,
     max_options_per_widget: int = 8,
+    discovery_passes: int = 2,
+    max_action_clicks_per_page: int = 25,
     screenshot_dir: Path | None = None,
 ) -> PageSweep:
     started = time.perf_counter()
@@ -1312,6 +1406,7 @@ def sweep_page(
     combination_count = 0
     combination_failed_count = 0
     combination_skipped_count = 0
+    action_click_budget = [max_action_clicks_per_page]
 
     def restore_view() -> None:
         page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
@@ -1341,6 +1436,8 @@ def sweep_page(
                     upload_file=upload_file,
                     restore_view=restore_view,
                     known=known,
+                    discovery_passes=discovery_passes,
+                    action_click_budget=action_click_budget,
                 )
             )
             if combination_mode == "exhaustive":
@@ -1356,6 +1453,8 @@ def sweep_page(
                     known=known,
                     max_combinations=max_combinations,
                     max_options_per_widget=max_options_per_widget,
+                    discovery_passes=discovery_passes,
+                    action_click_budget=action_click_budget,
                 )
                 combination_space_count += space
                 combination_count += count
@@ -1383,6 +1482,8 @@ def sweep_page(
                                 upload_file=upload_file,
                                 restore_view=restore_view,
                                 known=known,
+                                discovery_passes=discovery_passes,
+                                action_click_budget=action_click_budget,
                             )
                         )
                         if combination_mode == "exhaustive":
@@ -1406,6 +1507,8 @@ def sweep_page(
                                 known=known,
                                 max_combinations=max_combinations,
                                 max_options_per_widget=max_options_per_widget,
+                                discovery_passes=discovery_passes,
+                                action_click_budget=action_click_budget,
                             )
                             combination_space_count += space
                             combination_count += count
@@ -1465,6 +1568,8 @@ def sweep_direct_apps_page(
     combination_mode: str,
     max_combinations: int,
     max_options_per_widget: int,
+    discovery_passes: int,
+    max_action_clicks_per_page: int,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -1526,6 +1631,8 @@ def sweep_direct_apps_page(
                         combination_mode=combination_mode,
                         max_combinations=max_combinations,
                         max_options_per_widget=max_options_per_widget,
+                        discovery_passes=discovery_passes,
+                        max_action_clicks_per_page=max_action_clicks_per_page,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                     )
@@ -1546,6 +1653,8 @@ def sweep_app(
     combination_mode: str,
     max_combinations: int,
     max_options_per_widget: int,
+    discovery_passes: int,
+    max_action_clicks_per_page: int,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -1589,6 +1698,8 @@ def sweep_app(
                                     combination_mode=combination_mode,
                                     max_combinations=max_combinations,
                                     max_options_per_widget=max_options_per_widget,
+                                    discovery_passes=discovery_passes,
+                                    max_action_clicks_per_page=max_action_clicks_per_page,
                                     upload_file=upload_file,
                                     screenshot_dir=screenshot_dir,
                                 )
@@ -1610,6 +1721,8 @@ def sweep_app(
                     combination_mode=combination_mode,
                     max_combinations=max_combinations,
                     max_options_per_widget=max_options_per_widget,
+                    discovery_passes=discovery_passes,
+                    max_action_clicks_per_page=max_action_clicks_per_page,
                     browser_name=browser_name,
                     headless=headless,
                     screenshot_dir=screenshot_dir,
@@ -1634,6 +1747,8 @@ def sweep_remote_app(
     combination_mode: str,
     max_combinations: int,
     max_options_per_widget: int,
+    discovery_passes: int,
+    max_action_clicks_per_page: int,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -1686,6 +1801,8 @@ def sweep_remote_app(
                             combination_mode=combination_mode,
                             max_combinations=max_combinations,
                             max_options_per_widget=max_options_per_widget,
+                            discovery_passes=discovery_passes,
+                            max_action_clicks_per_page=max_action_clicks_per_page,
                             upload_file=upload_file,
                             screenshot_dir=screenshot_dir,
                         )
@@ -1710,6 +1827,8 @@ def sweep_remote_app(
                             combination_mode=combination_mode,
                             max_combinations=max_combinations,
                             max_options_per_widget=max_options_per_widget,
+                            discovery_passes=discovery_passes,
+                            max_action_clicks_per_page=max_action_clicks_per_page,
                             upload_file=upload_file,
                             screenshot_dir=screenshot_dir,
                         )
@@ -1760,10 +1879,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--widget-timeout", type=float, default=DEFAULT_WIDGET_TIMEOUT_SECONDS)
     parser.add_argument("--interaction-mode", choices=("actionability", "full"), default="full")
-    parser.add_argument("--action-button-policy", choices=("trial", "click"), default="trial")
+    parser.add_argument("--action-button-policy", choices=("trial", "safe-click", "click"), default="safe-click", help="Action button behavior: trial probes layout only, safe-click fires guarded read-only/navigation callbacks, click fires every visible action callback.")
     parser.add_argument("--combination-mode", choices=("off", "exhaustive"), default="exhaustive", help="Explore finite checkbox/toggle/radio/selectbox state combinations. Default: exhaustive.")
     parser.add_argument("--max-combinations", type=int, default=512, help="Maximum widget state combinations to execute per page view before failing the sweep as capped.")
     parser.add_argument("--max-options-per-widget", type=int, default=8, help="Maximum selectbox options included in combination coverage per widget.")
+    parser.add_argument("--discovery-passes", type=int, default=2, help="Number of repeated widget-discovery passes per page state, used to catch widgets revealed by safe callbacks.")
+    parser.add_argument("--max-action-clicks-per-page", type=int, default=25, help="Maximum real action-button clicks per page sweep. Use 0 to trial-probe all action buttons without firing callbacks.")
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -1799,6 +1920,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--max-combinations must be greater than 0")
     if args.max_options_per_widget <= 0:
         parser.error("--max-options-per-widget must be greater than 0")
+    if args.discovery_passes <= 0:
+        parser.error("--discovery-passes must be greater than 0")
+    if args.max_action_clicks_per_page < 0:
+        parser.error("--max-action-clicks-per-page must be greater than or equal to 0")
     if args.interaction_mode == "actionability" and args.action_button_policy == "click":
         parser.error("--action-button-policy click only applies with --interaction-mode full")
     apps = resolve_apps(args.apps)
@@ -1825,6 +1950,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     combination_mode=args.combination_mode,
                     max_combinations=args.max_combinations,
                     max_options_per_widget=args.max_options_per_widget,
+                    discovery_passes=args.discovery_passes,
+                    max_action_clicks_per_page=args.max_action_clicks_per_page,
                     browser_name=args.browser,
                     headless=not args.headful,
                     screenshot_dir=screenshot_dir,
@@ -1843,6 +1970,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     combination_mode=args.combination_mode,
                     max_combinations=args.max_combinations,
                     max_options_per_widget=args.max_options_per_widget,
+                    discovery_passes=args.discovery_passes,
+                    max_action_clicks_per_page=args.max_action_clicks_per_page,
                     browser_name=args.browser,
                     headless=not args.headful,
                     screenshot_dir=screenshot_dir,
