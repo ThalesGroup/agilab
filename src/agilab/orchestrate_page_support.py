@@ -787,6 +787,29 @@ def resolve_share_candidate(path_value: Any, home_abs: str | Path, *, path_type=
         return share_candidate
 
 
+def configured_cluster_share_matches(
+    path_value: Any,
+    *,
+    cluster_share_path: Any,
+    home_abs: str | Path,
+    path_type=Path,
+) -> bool:
+    """Return whether a path is the configured cluster-share root.
+
+    The scheduler-side source of a remote share may still report as a local
+    filesystem such as APFS. In that case the explicit AGI_CLUSTER_SHARE
+    contract is a stronger signal than the local filesystem type.
+    """
+    if cluster_share_path in (None, ""):
+        return False
+    try:
+        candidate = resolve_share_candidate(path_value, home_abs, path_type=path_type)
+        configured = resolve_share_candidate(cluster_share_path, home_abs, path_type=path_type)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return False
+    return candidate == configured
+
+
 def benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
     """Return the benchmark date string, using file mtime when no date is provided."""
     if date_value:
