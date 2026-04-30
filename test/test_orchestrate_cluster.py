@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib
+import ipaddress
+import json
 from pathlib import Path
 import sys
 import types
@@ -367,25 +369,60 @@ def test_lan_discovery_cluster_defaults_accepts_explicit_non_private_lan_cache(t
 
 def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp_path):
     cache_path = tmp_path / "lan_nodes.json"
+    test_net_base = int(ipaddress.IPv4Address(0xC6336400))
+
+    def host(offset: int) -> str:
+        return str(ipaddress.IPv4Address(test_net_base + offset))
+
+    scheduler = host(111)
+    unconfigured_auth_host = host(1)
+    known_hosts_auth_host = host(15)
+    ssh_config_host = host(130)
+    stale_known_hosts_host = host(84)
+    arp_only_host = host(254)
     cache_path.write_text(
-        """
-{
-  "local_hosts": ["192.168.20.111"],
-  "nodes": [
-    {"host": "192.168.20.1", "status": "ssh-auth-needed", "sources": ["arp", "tcp-scan"]},
-    {"host": "192.168.20.130", "status": "no-ssh-port", "sources": ["ssh-config"]},
-    {"host": "192.168.20.255", "status": "no-ssh-port", "sources": ["arp"]}
-  ]
-}
-""",
+        json.dumps(
+            {
+                "local_hosts": [scheduler],
+                "nodes": [
+                    {
+                        "host": unconfigured_auth_host,
+                        "status": "ssh-auth-needed",
+                        "sources": ["arp", "tcp-scan"],
+                    },
+                    {
+                        "host": known_hosts_auth_host,
+                        "status": "ssh-auth-needed",
+                        "sources": ["arp", "known-hosts", "tcp-scan"],
+                        "tcp_ssh_open": True,
+                    },
+                    {
+                        "host": ssh_config_host,
+                        "status": "no-ssh-port",
+                        "sources": ["ssh-config"],
+                    },
+                    {
+                        "host": stale_known_hosts_host,
+                        "status": "no-ssh-port",
+                        "sources": ["known-hosts"],
+                        "tcp_ssh_open": False,
+                    },
+                    {
+                        "host": arp_only_host,
+                        "status": "no-ssh-port",
+                        "sources": ["arp"],
+                    },
+                ],
+            }
+        ),
         encoding="utf-8",
     )
 
     defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
 
     assert defaults == {
-        "scheduler": "192.168.20.111:8786",
-        "workers": {"192.168.20.130": 1},
+        "scheduler": f"{scheduler}:8786",
+        "workers": {known_hosts_auth_host: 1, ssh_config_host: 1},
     }
 
 
