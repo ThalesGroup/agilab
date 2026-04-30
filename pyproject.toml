@@ -297,6 +297,8 @@ agilab = [
     "apps/builtin/*/README.md",
     "apps/builtin/*/lab_steps.toml",
     "apps/builtin/*/pipeline_view.dot",
+    "apps/builtin/*/notebook_export.toml",
+    "apps/builtin/*/notebook_import_views.toml",
     "apps/builtin/*/src/**/*.py",
     "apps/builtin/*/src/**/*.pyx",
     "apps/builtin/*/src/**/*.toml",

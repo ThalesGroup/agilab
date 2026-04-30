@@ -30,7 +30,8 @@ the command shape stable.
 - `notebook_to_dask/preview_notebook_to_dask.py` shows how notebook cells become
   `lab_steps.toml`, a Dask solution slice, and an artifact contract.
 - `tools/notebook_import_preflight.py` gives the same notebook import path a
-  generic cleanup report before you turn a notebook into a project.
+  generic cleanup report plus artifact, pipeline-view, and app view-plan
+  sidecars before you turn a notebook into a project.
 - `service_mode/preview_service_mode.py` explains persistent-worker operations
   and health gates without starting a service.
 - `data_in` and `data_out` are share-root relative paths, so examples stay

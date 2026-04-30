@@ -36,10 +36,13 @@ from agilab.notebook_pipeline_import import (  # noqa: E402
     build_notebook_import_contract,
     build_notebook_import_preflight,
     build_notebook_import_pipeline_view,
+    build_notebook_import_view_plan,
     build_notebook_pipeline_import,
+    load_notebook_import_view_manifest,
     load_notebook,
     write_notebook_import_contract,
     write_notebook_import_pipeline_view,
+    write_notebook_import_view_plan,
 )
 
 
@@ -98,6 +101,8 @@ def build_report(
     notebook_path: Path | None = None,
     output_path: Path | None = None,
     pipeline_view_output_path: Path | None = None,
+    view_manifest_path: Path | None = None,
+    view_plan_output_path: Path | None = None,
     module_name: str = "notebook_import_project",
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
@@ -106,6 +111,8 @@ def build_report(
         resolved_notebook = repo_root / resolved_notebook
     if output_path is not None and pipeline_view_output_path is None:
         pipeline_view_output_path = output_path.with_name("notebook_import_pipeline_view.json")
+    if output_path is not None and view_plan_output_path is None:
+        view_plan_output_path = output_path.with_name("notebook_import_view_plan.json")
 
     try:
         notebook = load_notebook(resolved_notebook)
@@ -125,6 +132,18 @@ def build_report(
             preflight=preflight,
             module_name=module_name,
         )
+        view_manifest = (
+            load_notebook_import_view_manifest(view_manifest_path)
+            if view_manifest_path
+            else None
+        )
+        view_plan = build_notebook_import_view_plan(
+            notebook_import,
+            preflight=preflight,
+            module_name=module_name,
+            manifest=view_manifest,
+            manifest_path=view_manifest_path,
+        )
         written_contract = (
             write_notebook_import_contract(
                 output_path,
@@ -143,6 +162,18 @@ def build_report(
                 module_name=module_name,
             )
             if pipeline_view_output_path
+            else None
+        )
+        written_view_plan = (
+            write_notebook_import_view_plan(
+                view_plan_output_path,
+                notebook_import,
+                preflight=preflight,
+                module_name=module_name,
+                manifest=view_manifest,
+                manifest_path=view_manifest_path,
+            )
+            if view_plan_output_path
             else None
         )
     except Exception as exc:
@@ -210,6 +241,23 @@ def build_report(
                 "schema": pipeline_view.get("schema"),
             },
         ),
+        _check_result(
+            "notebook_import_preflight_view_plan",
+            "Notebook import app view plan",
+            view_plan.get("schema") == "agilab.notebook_import_view_plan.v1",
+            "preflight builds an app-manifest-only view plan without inferring UI from cells",
+            evidence=[
+                str(view_manifest_path)
+                if view_manifest_path
+                else "no app-specific manifest provided"
+            ],
+            details={
+                "status": view_plan.get("status"),
+                "matching_policy": view_plan.get("matching_policy"),
+                "ready_view_count": view_plan.get("summary", {}).get("ready_view_count"),
+                "declared_view_count": view_plan.get("summary", {}).get("declared_view_count"),
+            },
+        ),
     ]
     if output_path:
         checks.append(
@@ -231,6 +279,17 @@ def build_report(
                 "preflight writes a generic notebook import pipeline view sidecar",
                 evidence=[str(pipeline_view_output_path)],
                 details={"path": str(written_pipeline_view) if written_pipeline_view else ""},
+            )
+        )
+    if view_plan_output_path:
+        checks.append(
+            _check_result(
+                "notebook_import_preflight_view_plan_write",
+                "Notebook import view plan write",
+                bool(written_view_plan and written_view_plan.is_file()),
+                "preflight writes an app-manifest-only notebook import view plan sidecar",
+                evidence=[str(view_plan_output_path)],
+                details={"path": str(written_view_plan) if written_view_plan else ""},
             )
         )
 
@@ -262,12 +321,16 @@ def build_report(
             "unknown_artifact_count": summary.get("unknown_artifact_count"),
             "contract_path": str(written_contract) if written_contract else "",
             "pipeline_view_path": str(written_pipeline_view) if written_pipeline_view else "",
+            "view_plan_path": str(written_view_plan) if written_view_plan else "",
             "pipeline_view_node_count": pipeline_view.get("summary", {}).get("node_count"),
             "pipeline_view_edge_count": pipeline_view.get("summary", {}).get("edge_count"),
+            "view_plan_status": view_plan.get("status"),
+            "view_plan_ready_view_count": view_plan.get("summary", {}).get("ready_view_count"),
         },
         "preflight": preflight,
         "contract": contract,
         "pipeline_view": pipeline_view,
+        "view_plan": view_plan,
         "checks": checks,
     }
 
@@ -298,6 +361,18 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional JSON pipeline view output path.",
     )
     parser.add_argument(
+        "--view-manifest",
+        type=Path,
+        default=None,
+        help="Optional app-owned TOML manifest declaring notebook-import views.",
+    )
+    parser.add_argument(
+        "--view-plan-output",
+        type=Path,
+        default=None,
+        help="Optional JSON app view plan output path.",
+    )
+    parser.add_argument(
         "--module-name",
         default="notebook_import_project",
         help="Module key to use in the generated lab_steps preview.",
@@ -316,6 +391,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         notebook_path=args.notebook,
         output_path=args.output,
         pipeline_view_output_path=args.pipeline_view_output,
+        view_manifest_path=args.view_manifest,
+        view_plan_output_path=args.view_plan_output,
         module_name=args.module_name,
     )
     if args.compact:

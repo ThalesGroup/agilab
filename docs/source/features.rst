@@ -162,7 +162,10 @@ single notebook but less ceremony than a production MLOps platform:
   without execution, flags cleanup risks such as runtime installs, shell calls,
   network access, widgets, hidden notebook state, and absolute paths, and writes
   app-neutral ``notebook_import_contract.json`` and
-  ``notebook_import_pipeline_view.json`` sidecars when requested; the
+  ``notebook_import_pipeline_view.json`` sidecars when requested; when an app
+  owns a ``notebook_import_views.toml`` manifest it also writes a
+  ``notebook_import_view_plan.json`` sidecar that matches declared views to
+  artifact paths without inferring UI intent from notebook cells; the
   ``PIPELINE`` upload path now prepares that preview first and only replaces
   ``lab_steps.toml`` after explicit confirmation
 - the notebook round-trip report validates

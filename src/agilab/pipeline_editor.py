@@ -96,8 +96,10 @@ build_lab_steps_preview = _notebook_pipeline_import_module.build_lab_steps_previ
 build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook_import_contract
 build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
+discover_notebook_import_view_manifest = _notebook_pipeline_import_module.discover_notebook_import_view_manifest
 write_notebook_import_contract = _notebook_pipeline_import_module.write_notebook_import_contract
 write_notebook_import_pipeline_view = _notebook_pipeline_import_module.write_notebook_import_pipeline_view
+write_notebook_import_view_plan = _notebook_pipeline_import_module.write_notebook_import_view_plan
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +148,11 @@ def _read_uploaded_text(uploaded_file: Any) -> str:
     return str(raw)
 
 
-def _emit_notebook_preflight_result(preflight: Dict[str, Any], contract_path: Path) -> None:
+def _emit_notebook_preflight_result(
+    preflight: Dict[str, Any],
+    contract_path: Path,
+    view_plan_path: Path | None = None,
+) -> None:
     summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
     risk_counts = preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
     status = str(preflight.get("status", "ready") if isinstance(preflight, dict) else "ready")
@@ -159,6 +165,8 @@ def _emit_notebook_preflight_result(preflight: Dict[str, Any], contract_path: Pa
         f"{int(summary.get('output_count', 0) or 0)} output(s). "
         f"Contract: {contract_path.name}"
     )
+    if view_plan_path is not None:
+        message = f"{message}; View plan: {view_plan_path.name}"
     if error_count:
         _emit_streamlit_message("error", message)
     elif warning_count:
@@ -241,6 +249,8 @@ def write_notebook_import_preview(
 
     contract_path = module_dir / "notebook_import_contract.json"
     pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
+    view_plan_path = module_dir / "notebook_import_view_plan.json"
+    view_manifest_path = discover_notebook_import_view_manifest(module_dir)
     write_notebook_import_contract(
         contract_path,
         notebook_import,
@@ -253,7 +263,14 @@ def write_notebook_import_preview(
         preflight=preflight,
         module_name=module,
     )
-    _emit_notebook_preflight_result(preflight, contract_path)
+    write_notebook_import_view_plan(
+        view_plan_path,
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+        manifest_path=view_manifest_path,
+    )
+    _emit_notebook_preflight_result(preflight, contract_path, view_plan_path=view_plan_path)
     return cell_count
 
 

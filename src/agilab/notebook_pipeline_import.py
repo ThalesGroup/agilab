@@ -8,10 +8,12 @@ from __future__ import annotations
 import ast
 from collections.abc import Iterable
 from dataclasses import dataclass
+import fnmatch
 import hashlib
 import json
 from pathlib import Path
 import re
+import tomllib
 from typing import Any, Mapping
 
 import tomli_w
@@ -21,6 +23,9 @@ SCHEMA = "agilab.notebook_pipeline_import.v1"
 PREFLIGHT_SCHEMA = "agilab.notebook_import_preflight.v1"
 CONTRACT_SCHEMA = "agilab.notebook_import_contract.v1"
 PIPELINE_VIEW_SCHEMA = "agilab.notebook_import_pipeline_view.v1"
+VIEW_PLAN_SCHEMA = "agilab.notebook_import_view_plan.v1"
+VIEW_MANIFEST_SCHEMA = "agilab.notebook_import_views.v1"
+VIEW_MANIFEST_NAME = "notebook_import_views.toml"
 DEFAULT_RUN_ID = "notebook-pipeline-import-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:20Z"
@@ -1209,6 +1214,324 @@ def build_notebook_import_pipeline_view(
     }
 
 
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        raw_items: Iterable[Any] = [value]
+    elif isinstance(value, Mapping) or value is None:
+        raw_items = []
+    elif isinstance(value, Iterable):
+        raw_items = value
+    else:
+        raw_items = [value]
+
+    items: list[str] = []
+    seen: set[str] = set()
+    for raw_item in raw_items:
+        item = str(raw_item or "").strip()
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        items.append(item)
+    return items
+
+
+def _safe_mapping(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): item
+        for key, item in value.items()
+        if str(key or "").strip()
+    }
+
+
+def _normalize_view_manifest_record(raw_view: Mapping[str, Any], index: int) -> dict[str, Any]:
+    module = str(raw_view.get("module") or raw_view.get("page") or raw_view.get("id") or "").strip()
+    view_id = str(raw_view.get("id") or module or f"view_{index + 1}").strip()
+    try:
+        priority = int(raw_view.get("priority", index) or index)
+    except (TypeError, ValueError):
+        priority = index
+
+    required = _string_list(raw_view.get("required_artifacts") or raw_view.get("required"))
+    required_any = _string_list(
+        raw_view.get("required_artifacts_any")
+        or raw_view.get("required_any_artifacts")
+        or raw_view.get("required_any")
+    )
+    optional = _string_list(raw_view.get("optional_artifacts") or raw_view.get("optional"))
+    if not required and not required_any:
+        required_any = _string_list(raw_view.get("artifacts"))
+
+    return {
+        "id": view_id,
+        "module": module,
+        "label": str(raw_view.get("label") or module or view_id),
+        "description": str(raw_view.get("description") or ""),
+        "priority": priority,
+        "required_artifacts": required,
+        "required_artifacts_any": required_any,
+        "optional_artifacts": optional,
+        "settings_hints": _safe_mapping(raw_view.get("settings_hints")),
+        "query_params": _safe_mapping(raw_view.get("query_params")),
+        "launch_note": str(raw_view.get("launch_note") or ""),
+    }
+
+
+def _normalize_import_view_manifest(payload: Mapping[str, Any]) -> dict[str, Any]:
+    import_cfg = payload.get("notebook_import_views", {})
+    cfg = import_cfg if isinstance(import_cfg, Mapping) else payload
+    raw_views = cfg.get("views", payload.get("views", [])) if isinstance(cfg, Mapping) else []
+    source_schema = str(payload.get("schema") or VIEW_MANIFEST_SCHEMA)
+
+    if not raw_views and isinstance(payload.get("notebook_export"), Mapping):
+        source_schema = "agilab.notebook_export.v1"
+        export_cfg = payload["notebook_export"]
+        raw_views = export_cfg.get("related_pages", [])
+        normalized_export_views: list[dict[str, Any]] = []
+        for index, raw_page in enumerate(raw_views if isinstance(raw_views, list) else []):
+            if not isinstance(raw_page, Mapping):
+                continue
+            normalized_export_views.append(
+                _normalize_view_manifest_record(
+                    {
+                        "id": raw_page.get("module", ""),
+                        "module": raw_page.get("module", ""),
+                        "label": raw_page.get("label", ""),
+                        "description": raw_page.get("description", ""),
+                        "required_artifacts_any": raw_page.get("artifacts", []),
+                        "launch_note": raw_page.get("launch_note", ""),
+                    },
+                    index,
+                )
+            )
+        return {
+            "schema": VIEW_MANIFEST_SCHEMA,
+            "source_schema": source_schema,
+            "app": str(payload.get("app") or ""),
+            "description": "",
+            "views": sorted(normalized_export_views, key=lambda view: (view["priority"], view["id"])),
+        }
+
+    normalized_views = [
+        _normalize_view_manifest_record(raw_view, index)
+        for index, raw_view in enumerate(raw_views if isinstance(raw_views, list) else [])
+        if isinstance(raw_view, Mapping)
+    ]
+    return {
+        "schema": VIEW_MANIFEST_SCHEMA,
+        "source_schema": source_schema,
+        "app": str(cfg.get("app") or payload.get("app") or "") if isinstance(cfg, Mapping) else "",
+        "description": str(cfg.get("description") or payload.get("description") or "") if isinstance(cfg, Mapping) else "",
+        "views": sorted(normalized_views, key=lambda view: (view["priority"], view["id"])),
+    }
+
+
+def load_notebook_import_view_manifest(path: Path) -> dict[str, Any]:
+    """Load an app-owned notebook import view manifest."""
+    manifest_path = Path(path).expanduser()
+    with open(manifest_path, "rb") as stream:
+        payload = tomllib.load(stream)
+    return _normalize_import_view_manifest(payload)
+
+
+def discover_notebook_import_view_manifest(module_dir: str | Path | None) -> Path | None:
+    """Return the first app-owned notebook import view manifest for a module."""
+    if not module_dir:
+        return None
+    try:
+        root = Path(module_dir).expanduser()
+    except (OSError, TypeError, ValueError):
+        return None
+    candidates = (
+        root / VIEW_MANIFEST_NAME,
+        root / "src" / VIEW_MANIFEST_NAME,
+        root / "notebook_export.toml",
+        root / "src" / "notebook_export.toml",
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _artifact_entries_for_view_plan(artifact_contract: Mapping[str, Any]) -> tuple[list[str], dict[str, str]]:
+    references = artifact_contract.get("references", [])
+    paths: list[str] = []
+    roles: dict[str, str] = {}
+    if isinstance(references, list):
+        for reference in references:
+            if not isinstance(reference, Mapping):
+                continue
+            path = str(reference.get("path", "") or "").strip()
+            if not path:
+                continue
+            paths.append(path)
+            roles[path] = str(reference.get("role", "unknown") or "unknown")
+    for role_key, role_name in (
+        ("inputs", "input"),
+        ("outputs", "output"),
+        ("unknown", "unknown"),
+    ):
+        for path in _string_list(artifact_contract.get(role_key, [])):
+            paths.append(path)
+            roles.setdefault(path, role_name)
+    unique_paths = sorted(dict.fromkeys(paths))
+    return unique_paths, roles
+
+
+def _normalize_artifact_match_value(value: str) -> str:
+    return str(value or "").strip().replace("\\", "/").lstrip("./")
+
+
+def _match_artifact_patterns(patterns: list[str], artifact_paths: list[str]) -> dict[str, list[str]]:
+    matches: dict[str, list[str]] = {}
+    normalized_paths = {
+        path: _normalize_artifact_match_value(path)
+        for path in artifact_paths
+    }
+    for pattern in patterns:
+        normalized_pattern = _normalize_artifact_match_value(pattern)
+        matches[pattern] = [
+            path
+            for path, normalized_path in normalized_paths.items()
+            if fnmatch.fnmatchcase(normalized_path, normalized_pattern)
+        ]
+    return matches
+
+
+def _flatten_match_paths(match_map: Mapping[str, list[str]]) -> list[str]:
+    paths: list[str] = []
+    for matched_paths in match_map.values():
+        paths.extend(matched_paths)
+    return sorted(dict.fromkeys(paths))
+
+
+def _build_single_view_plan(view: Mapping[str, Any], artifact_paths: list[str]) -> dict[str, Any]:
+    required_patterns = _string_list(view.get("required_artifacts", []))
+    required_any_patterns = _string_list(view.get("required_artifacts_any", []))
+    optional_patterns = _string_list(view.get("optional_artifacts", []))
+
+    required_matches = _match_artifact_patterns(required_patterns, artifact_paths)
+    required_any_matches = _match_artifact_patterns(required_any_patterns, artifact_paths)
+    optional_matches = _match_artifact_patterns(optional_patterns, artifact_paths)
+
+    missing_required = [
+        pattern for pattern, matched_paths in required_matches.items() if not matched_paths
+    ]
+    required_any_artifacts = _flatten_match_paths(required_any_matches)
+    missing_required_any = required_any_patterns if required_any_patterns and not required_any_artifacts else []
+    matched_artifacts = sorted(
+        dict.fromkeys(
+            [
+                *_flatten_match_paths(required_matches),
+                *required_any_artifacts,
+                *_flatten_match_paths(optional_matches),
+            ]
+        )
+    )
+    status = "ready" if not missing_required and not missing_required_any else "incomplete"
+    return {
+        "id": str(view.get("id", "") or ""),
+        "module": str(view.get("module", "") or ""),
+        "label": str(view.get("label", "") or ""),
+        "description": str(view.get("description", "") or ""),
+        "priority": int(view.get("priority", 0) or 0),
+        "status": status,
+        "matched_artifacts": matched_artifacts,
+        "matched_required": required_matches,
+        "matched_required_any": required_any_matches,
+        "matched_optional": optional_matches,
+        "missing_required": missing_required,
+        "missing_required_any": missing_required_any,
+        "settings_hints": _safe_mapping(view.get("settings_hints")),
+        "query_params": _safe_mapping(view.get("query_params")),
+        "launch_note": str(view.get("launch_note") or ""),
+    }
+
+
+def build_notebook_import_view_plan(
+    notebook_import: Mapping[str, Any],
+    *,
+    preflight: Mapping[str, Any] | None = None,
+    module_name: str = "notebook_import_project",
+    manifest: Mapping[str, Any] | None = None,
+    manifest_path: str | Path | None = None,
+    warnings: Iterable[str] = (),
+) -> dict[str, Any]:
+    """Match notebook artifacts against app-owned view declarations.
+
+    The matcher is intentionally app-manifest-only: it does not infer views from
+    cell text, imports, markdown, or dataframe variable names.
+    """
+    preflight_state = dict(preflight or build_notebook_import_preflight(notebook_import))
+    artifact_contract = preflight_state.get("artifact_contract", {})
+    artifact_contract = artifact_contract if isinstance(artifact_contract, Mapping) else {}
+    artifact_paths, artifact_roles = _artifact_entries_for_view_plan(artifact_contract)
+    source = notebook_import.get("source", {})
+    source_notebook = str(source.get("source_notebook", "") or "") if isinstance(source, Mapping) else ""
+
+    normalized_manifest = _normalize_import_view_manifest(manifest) if isinstance(manifest, Mapping) else None
+    view_records = (
+        [
+            _build_single_view_plan(view, artifact_paths)
+            for view in normalized_manifest.get("views", [])
+            if isinstance(view, Mapping)
+        ]
+        if normalized_manifest
+        else []
+    )
+    ready_views = [view for view in view_records if view.get("status") == "ready"]
+    ready_artifacts = {
+        artifact
+        for view in ready_views
+        for artifact in view.get("matched_artifacts", [])
+        if isinstance(artifact, str)
+    }
+    plan_warnings = list(warnings)
+    if normalized_manifest is None:
+        plan_warnings.append(
+            "No app-owned notebook import view manifest was provided; no UI view was inferred."
+        )
+    elif not view_records:
+        plan_warnings.append("Notebook import view manifest declares no views.")
+    if not artifact_paths:
+        plan_warnings.append("Notebook import artifact contract does not declare artifacts to match.")
+
+    status = "matched" if ready_views else "incomplete" if view_records else "unmatched"
+    return {
+        "schema": VIEW_PLAN_SCHEMA,
+        "module_name": str(module_name or "notebook_import_project"),
+        "status": status,
+        "matching_policy": "app_manifest_only",
+        "note": (
+            "View suggestions come only from app-owned manifests matched against "
+            "artifact paths; notebook cells are not inspected for UI semantics."
+        ),
+        "source_notebook": source_notebook,
+        "manifest": {
+            "path": str(manifest_path or ""),
+            "schema": normalized_manifest.get("schema", "") if normalized_manifest else "",
+            "source_schema": normalized_manifest.get("source_schema", "") if normalized_manifest else "",
+            "app": normalized_manifest.get("app", "") if normalized_manifest else "",
+            "description": normalized_manifest.get("description", "") if normalized_manifest else "",
+        },
+        "summary": {
+            "artifact_count": len(artifact_paths),
+            "declared_view_count": len(view_records),
+            "ready_view_count": len(ready_views),
+            "incomplete_view_count": len(view_records) - len(ready_views),
+            "unmatched_artifact_count": len([path for path in artifact_paths if path not in ready_artifacts]),
+        },
+        "artifact_paths": artifact_paths,
+        "artifact_roles": artifact_roles,
+        "matched_views": ready_views,
+        "views": view_records,
+        "unmatched_artifacts": [path for path in artifact_paths if path not in ready_artifacts],
+        "warnings": plan_warnings,
+    }
+
+
 def write_notebook_import_contract(
     path: Path,
     notebook_import: Mapping[str, Any],
@@ -1242,6 +1565,40 @@ def write_notebook_import_pipeline_view(
         module_name=module_name,
     )
     path.write_text(json.dumps(view, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def write_notebook_import_view_plan(
+    path: Path,
+    notebook_import: Mapping[str, Any],
+    *,
+    preflight: Mapping[str, Any] | None = None,
+    module_name: str = "notebook_import_project",
+    manifest: Mapping[str, Any] | None = None,
+    manifest_path: str | Path | None = None,
+) -> Path:
+    path = path.expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    plan_warnings: list[str] = []
+    loaded_manifest = manifest
+    if loaded_manifest is None and manifest_path:
+        candidate = Path(manifest_path).expanduser()
+        if candidate.is_file():
+            try:
+                loaded_manifest = load_notebook_import_view_manifest(candidate)
+            except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
+                plan_warnings.append(f"Unable to load notebook import view manifest {candidate}: {exc}")
+        else:
+            plan_warnings.append(f"Notebook import view manifest not found: {candidate}")
+    view_plan = build_notebook_import_view_plan(
+        notebook_import,
+        preflight=preflight,
+        module_name=module_name,
+        manifest=loaded_manifest,
+        manifest_path=manifest_path,
+        warnings=plan_warnings,
+    )
+    path.write_text(json.dumps(view_plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
 
 

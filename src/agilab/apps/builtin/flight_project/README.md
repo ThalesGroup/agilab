@@ -43,6 +43,11 @@ fields so Release Decision can surface the flight run as first-class evidence.
 3. Run the ingestion step.
 4. Explore the resulting dataset in `view_maps`.
 
+Notebook imports do not try to infer flight UI intent from arbitrary code cells.
+The app declares compatible import views in `notebook_import_views.toml`, so the
+generic notebook importer can write a `notebook_import_view_plan.json` sidecar
+that matches declared flight views to produced artifacts.
+
 ## What this teases in AGILAB
 
 This public example is only the entry point. The same framework can also support:

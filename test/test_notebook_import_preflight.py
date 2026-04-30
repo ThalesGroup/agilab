@@ -68,6 +68,25 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
         module_name="demo_project",
     )
     view = json.loads(view_path.read_text(encoding="utf-8"))
+    view_plan_path = core_module.write_notebook_import_view_plan(
+        tmp_path / "notebook_import_view_plan.json",
+        imported,
+        preflight=preflight,
+        module_name="demo_project",
+        manifest={
+            "app": "demo_project",
+            "views": [
+                {
+                    "id": "orders_dataframe",
+                    "module": "view_dataframe",
+                    "label": "Orders dataframe",
+                    "required_artifacts_any": ["artifacts/*.parquet"],
+                    "optional_artifacts": ["data/*.csv"],
+                }
+            ],
+        },
+    )
+    view_plan = json.loads(view_plan_path.read_text(encoding="utf-8"))
 
     assert preflight["schema"] == "agilab.notebook_import_preflight.v1"
     assert preflight["status"] == "review"
@@ -105,6 +124,11 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     assert any(edge["kind"] == "artifact_input" for edge in view["edges"])
     assert any(edge["kind"] == "artifact_output" for edge in view["edges"])
     assert any(edge["kind"] == "analysis_consumes" for edge in view["edges"])
+    assert view_plan["schema"] == "agilab.notebook_import_view_plan.v1"
+    assert view_plan["matching_policy"] == "app_manifest_only"
+    assert view_plan["status"] == "matched"
+    assert view_plan["matched_views"][0]["module"] == "view_dataframe"
+    assert "artifacts/orders.parquet" in view_plan["matched_views"][0]["matched_artifacts"]
 
 
 def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> None:
@@ -112,12 +136,29 @@ def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> Non
     notebook_path = tmp_path / "risky.ipynb"
     output_path = tmp_path / "contract.json"
     pipeline_view_path = tmp_path / "notebook_import_pipeline_view.json"
+    view_plan_path = tmp_path / "notebook_import_view_plan.json"
+    view_manifest_path = tmp_path / "notebook_import_views.toml"
     notebook_path.write_text(json.dumps(_risky_notebook()), encoding="utf-8")
+    view_manifest_path.write_text(
+        """
+schema = "agilab.notebook_import_views.v1"
+app = "demo_project"
+
+[[views]]
+id = "orders_dataframe"
+module = "view_dataframe"
+required_artifacts_any = ["artifacts/*.parquet"]
+optional_artifacts = ["data/*.csv"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
 
     report = module.build_report(
         repo_root=Path.cwd(),
         notebook_path=notebook_path,
         output_path=output_path,
+        view_manifest_path=view_manifest_path,
         module_name="demo_project",
     )
 
@@ -127,16 +168,21 @@ def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> Non
     assert report["summary"]["safe_to_import"] is True
     assert report["summary"]["contract_path"] == str(output_path)
     assert report["summary"]["pipeline_view_path"] == str(pipeline_view_path)
+    assert report["summary"]["view_plan_path"] == str(view_plan_path)
+    assert report["summary"]["view_plan_status"] == "matched"
     assert output_path.is_file()
     assert pipeline_view_path.is_file()
+    assert view_plan_path.is_file()
     assert {check["id"] for check in report["checks"]} == {
         "notebook_import_preflight_importable",
         "notebook_import_preflight_risks",
         "notebook_import_preflight_artifacts",
         "notebook_import_preflight_lab_steps_preview",
         "notebook_import_preflight_pipeline_view",
+        "notebook_import_preflight_view_plan",
         "notebook_import_preflight_contract_write",
         "notebook_import_preflight_pipeline_view_write",
+        "notebook_import_preflight_view_plan_write",
     }
 
 

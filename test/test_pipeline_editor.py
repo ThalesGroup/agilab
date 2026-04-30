@@ -1031,18 +1031,36 @@ def test_confirm_notebook_import_preview_writes_steps_contract_and_marks_page_br
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
     monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: messages.append(("revision", "bump")))
 
-    preview = pipeline_editor.build_notebook_import_preview(uploaded, tmp_path / "demo_project")
+    module_dir = tmp_path / "demo_project"
+    module_dir.mkdir()
+    (module_dir / "notebook_import_views.toml").write_text(
+        """
+schema = "agilab.notebook_import_views.v1"
+app = "demo_project"
+
+[[views]]
+id = "orders_dataframe"
+module = "view_dataframe"
+required_artifacts_any = ["artifacts/*.parquet"]
+optional_artifacts = ["data/*.csv"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, module_dir)
     fake_st.session_state["idx__notebook_import_preview"] = preview
 
     count = pipeline_editor.confirm_notebook_import_preview(
-        tmp_path / "demo_project",
-        tmp_path / "demo_project" / "lab_steps.toml",
+        module_dir,
+        module_dir / "lab_steps.toml",
         "idx",
     )
 
-    stored = tomllib.loads((tmp_path / "demo_project" / "lab_steps.toml").read_text(encoding="utf-8"))
-    contract = json.loads((tmp_path / "demo_project" / "notebook_import_contract.json").read_text(encoding="utf-8"))
-    pipeline_view = json.loads((tmp_path / "demo_project" / "notebook_import_pipeline_view.json").read_text(encoding="utf-8"))
+    stored = tomllib.loads((module_dir / "lab_steps.toml").read_text(encoding="utf-8"))
+    contract = json.loads((module_dir / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    pipeline_view = json.loads((module_dir / "notebook_import_pipeline_view.json").read_text(encoding="utf-8"))
+    view_plan = json.loads((module_dir / "notebook_import_view_plan.json").read_text(encoding="utf-8"))
     assert count == 1
     assert stored["demo_project"][0]["D"] == "Import context"
     assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
@@ -1050,6 +1068,9 @@ def test_confirm_notebook_import_preview_writes_steps_contract_and_marks_page_br
     assert pipeline_view["schema"] == "agilab.notebook_import_pipeline_view.v1"
     assert any(node["kind"] == "analysis_consumer" for node in pipeline_view["nodes"])
     assert any(edge["kind"] == "analysis_consumes" for edge in pipeline_view["edges"])
+    assert view_plan["schema"] == "agilab.notebook_import_view_plan.v1"
+    assert view_plan["status"] == "matched"
+    assert view_plan["matched_views"][0]["module"] == "view_dataframe"
     assert "idx__notebook_import_preview" not in fake_st.session_state
     assert fake_st.session_state["idx"][-1] == 1
     assert fake_st.session_state["page_broken"] is True
@@ -2524,8 +2545,11 @@ def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeyp
     count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
 
     contract = json.loads((tmp_path / "demo_project" / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    view_plan = json.loads((tmp_path / "demo_project" / "notebook_import_view_plan.json").read_text(encoding="utf-8"))
     assert count == 1
     assert contract["schema"] == "agilab.notebook_import_contract.v1"
+    assert view_plan["schema"] == "agilab.notebook_import_view_plan.v1"
+    assert view_plan["status"] == "unmatched"
     assert contract["preflight"]["status"] == "review"
     assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
     assert contract["artifact_contract"]["outputs"] == ["artifacts/orders.parquet"]
@@ -2536,7 +2560,8 @@ def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeyp
     assert messages == [
         (
             "warning",
-            "Notebook import preflight: review; 1 step(s), 1 input(s), 1 output(s). Contract: notebook_import_contract.json",
+            "Notebook import preflight: review; 1 step(s), 1 input(s), 1 output(s). "
+            "Contract: notebook_import_contract.json; View plan: notebook_import_view_plan.json",
         )
     ]
 
