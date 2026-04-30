@@ -2227,7 +2227,7 @@ def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_pat
 
 
 def test_pycharm_notebook_sitecustomize_patches_debugpy_values_policy(tmp_path):
-    pytest.importorskip("debugpy")
+    debugpy = pytest.importorskip("debugpy")
 
     shim_dir = tmp_path / "notebook_dir"
     shim_dir.mkdir(parents=True, exist_ok=True)
@@ -2239,7 +2239,10 @@ def test_pycharm_notebook_sitecustomize_patches_debugpy_values_policy(tmp_path):
     import subprocess
 
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(shim_dir)
+    pythonpath_entries = [str(shim_dir), str(Path(debugpy.__file__).resolve().parents[1])]
+    if env.get("PYTHONPATH"):
+        pythonpath_entries.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
 
     result = subprocess.run(
         [

@@ -44,8 +44,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     group.addoption(
         "--index-url",
         dest="index_url",
-        default="https://test.pypi.org",
-        help="Base index URL to read metadata from (default: TestPyPI).",
+        default="https://pypi.org",
+        help="Base index URL to read metadata from (default: PyPI).",
     )
     group.addoption(
         "--allow-mismatch",
@@ -60,7 +60,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def settings(pytestconfig) -> Dict[str, Optional[str]]:
     return {
         "target_version": pytestconfig.getoption("target_version", default=None),  # None => use latest
-        "index_url": pytestconfig.getoption("index_url", default="https://test.pypi.org"),
+        "index_url": pytestconfig.getoption("index_url", default="https://pypi.org"),
         "allow_mismatch": pytestconfig.getoption("allow_mismatch", default=False),
     }
 
