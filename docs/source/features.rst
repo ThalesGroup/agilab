@@ -100,7 +100,12 @@ agilab
 
 - **Multi-provider coding assistant:**
 
-  - Integrates with OpenAI, Mistral, and OpenAI-compatible endpoints such as vLLM to offer real-time code suggestions across preferred providers.
+  - Integrates with OpenAI, Mistral, OpenAI-compatible endpoints such as vLLM,
+    GPT-OSS, and Ollama-backed local model families to offer code suggestions
+    across preferred providers.
+  - Uses local verified recipe memory so previous validated ``lab_steps.toml``
+    and supervisor-notebook snippets become retrieval examples for future
+    PIPELINE prompts without fine-tuning or locking the workflow to one model.
 
 - **Embedded Dataframe Export:**
 

@@ -99,7 +99,30 @@ summarises the supported keys.
      - ``ollama``
      - Local assistant mode. ``ollama`` uses direct local generation; ``rag``
        enables the Universal Offline AI Chatbot document RAG path.
-   * - ``AGI_CLUSTER_SHARE``
+   * - ``AGILAB_PIPELINE_RECIPE_MEMORY``
+     - ``1``
+     - Enables local PIPELINE recipe-memory retrieval. When enabled, the code
+       assistant mines validated ``lab_steps.toml`` entries, supervisor
+       notebooks, and the local recipe-card store, then adds matching examples
+       to the model-facing prompt. Saved lab questions remain unchanged.
+   * - ``AGILAB_PIPELINE_RECIPE_MEMORY_PATH``
+     - ``~/.agilab/pipeline_recipe_memory/cards.jsonl``
+     - Local JSONL recipe-card store used for snippets that AGILAB validates
+       during the dataframe auto-fix loop. The store is provider-neutral and can
+       be reused with OpenAI, Mistral, OpenAI-compatible gateways, GPT-OSS, or
+       Ollama-backed models.
+   * - ``AGILAB_PIPELINE_RECIPE_MEMORY_ROOTS``
+     - unset
+     - Optional ``os.pathsep``-separated list of extra directories or files to
+       mine for recipe cards. AGILAB already considers the selected
+       ``lab_steps.toml``, active app, dataframe directory, and built-in app
+       examples.
+   * - ``AGILAB_PIPELINE_RECIPE_MEMORY_INCLUDE_CANDIDATES``
+     - ``0``
+     - Includes unvalidated candidate snippets in retrieval when set to a
+       truthy value. Leave disabled for normal use so only validated or executed
+       recipes influence generation.
+   * - ``AGI_SHARE_DIR``
      - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
      - User-facing knob for the shared datasets/outputs root. Prefer the relative
        user-scoped form so mixed macOS/Linux/Windows nodes can resolve it under
