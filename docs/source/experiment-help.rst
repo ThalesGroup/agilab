@@ -64,6 +64,28 @@ The assistant automatically reloads the most recent dataframe and shows it below
 the editor. If nothing has been saved yet, you will see a reminder to run a
 snippet first.
 
+Verified recipe memory
+~~~~~~~~~~~~~~~~~~~~~~
+PIPELINE also has a local, provider-neutral recipe-memory layer. Before the
+assistant calls the selected model, AGILAB searches validated examples from the
+current ``lab_steps.toml``, exported supervisor notebooks, built-in app labs,
+and ``~/.agilab/pipeline_recipe_memory/cards.jsonl``. Matching recipe cards are
+added only to the model-facing prompt as implementation patterns; the saved
+``Q`` field remains the original user request.
+
+Recipe cards store the intent, redacted code, dataframe/schema hints,
+dependencies, output columns, operation names, validation status, and source
+provenance. Local paths, home directories, email addresses, bearer tokens, and
+OpenAI-style keys are redacted before a card is reused or written.
+
+AGILAB promotes new cards only after validation. In the current UI path that
+means the dataframe auto-fix loop executed the generated snippet successfully.
+Unvalidated saved snippets stay as candidates and are ignored by retrieval
+unless ``AGILAB_PIPELINE_RECIPE_MEMORY_INCLUDE_CANDIDATES=1`` is set. Set
+``AGILAB_PIPELINE_RECIPE_MEMORY=0`` to disable retrieval for a session, or
+``AGILAB_PIPELINE_RECIPE_MEMORY_ROOTS`` to add more local lab or notebook
+sources.
+
 When your lab step is based on app execution, use the **Pipeline** add flow:
 
 - Generate the target snippet in **ORCHESTRATE** (typically ``AGI.run``).
