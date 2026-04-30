@@ -47,6 +47,10 @@ class _FakeSidebar:
     def __init__(self, streamlit):
         self._streamlit = streamlit
 
+    def button(self, label: str, **_kwargs):
+        self._streamlit.events.append(("sidebar.button", label))
+        return bool(self._streamlit.sidebar_button_values.get(label, False))
+
     def caption(self, body: object):
         self._streamlit.events.append(("sidebar.caption", str(body)))
 
@@ -55,10 +59,11 @@ class _FakeSidebar:
 
 
 class _FakeStreamlit:
-    def __init__(self):
+    def __init__(self, *, sidebar_button_values=None):
         self.events: list[tuple[str, str]] = []
         self.session_state: dict[str, object] = {}
         self.query_params: dict[str, object] = {}
+        self.sidebar_button_values = sidebar_button_values or {}
         self.stopped = False
         self.sidebar = _FakeSidebar(self)
 
@@ -1874,6 +1879,72 @@ def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_wor
     assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 
+def test_active_app_cluster_information_reads_lan_inventory_from_env_home(monkeypatch, tmp_path):
+    layout = about_agilab._about_layout
+    env_home = tmp_path / "agilab-home"
+    wrong_home = tmp_path / "process-home"
+    cache_path = env_home / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir(parents=True)
+    wrong_home.mkdir()
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "host": "192.168.60.20",
+                        "cpu": "AMD EPYC; cores: 32",
+                        "ram": "128 GB",
+                        "gpu": "NVIDIA L40S (142 SMs)",
+                        "npu": "Not detected",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_hardware(host, **_kwargs):
+        if layout._node_identity(host) == "192.168.60.20":
+            return {
+                "CPU": "unreachable",
+                "RAM": "unreachable",
+                "GPU": "unreachable",
+                "NPU": "unreachable",
+            }
+        return {
+            "CPU": "Apple M4 Max; cores: 16",
+            "RAM": "48 GB",
+            "GPU": "Apple M4 Max",
+            "NPU": "Apple Neural Engine (16 cores)",
+        }
+
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "127.0.0.1",
+            "workers": {"192.168.60.20": 1},
+            "workers_data_path": "/Users/agi/clustershare/agi",
+        }
+    }
+    monkeypatch.setattr(layout, "st", fake_st)
+    monkeypatch.setattr(layout.Path, "home", classmethod(lambda _cls: wrong_home))
+    monkeypatch.setattr(layout, "_node_hardware_summary", fake_hardware)
+    layout._lan_discovery_hardware_inventory.cache_clear()
+    layout._remote_hardware_probe.cache_clear()
+
+    lines = dict(
+        layout.active_app_cluster_information_lines(
+            SimpleNamespace(app="flight_project", home_abs=env_home)
+        )
+    )
+
+    assert lines["CPU"] == "48 cores"
+    assert lines["RAM"] == "176 GB"
+    assert lines["GPU"] == "Apple M4 Max; NVIDIA L40S (142 SMs)"
+    assert lines["NPU"] == "Apple Neural Engine (16 cores)"
+
+
 def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypatch, tmp_path):
     layout = about_agilab._about_layout
     cache_path = tmp_path / ".agilab" / "lan_nodes.json"
@@ -1949,6 +2020,29 @@ def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypa
     assert second_lines["CPU"] == "80 cores"
     assert second_lines["RAM"] == "304 GB"
     assert second_lines["GPU"] == "Apple M4 Max; NVIDIA B200 (132 SMs)"
+
+
+def test_render_sidebar_system_information_refresh_button_clears_probe_caches(monkeypatch):
+    layout = about_agilab._about_layout
+    fake_st = _FakeStreamlit(sidebar_button_values={"Refresh cluster info": True})
+    cleared: list[bool] = []
+    monkeypatch.setattr(layout, "st", fake_st)
+    monkeypatch.setattr(layout, "_clear_cluster_probe_caches", lambda: cleared.append(True))
+    monkeypatch.setattr(
+        layout,
+        "active_app_cluster_information_lines",
+        lambda _env: [("Active app", "flight_project")],
+    )
+
+    layout.render_sidebar_system_information(SimpleNamespace(app="flight_project"))
+
+    assert cleared == [True]
+    assert ("sidebar.button", "Refresh cluster info") in fake_st.events
+    assert "Active app: flight_project" in _event_body(
+        fake_st.events,
+        "sidebar.markdown",
+        "agilab-sidebar-system",
+    )
 
 
 def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):

@@ -303,13 +303,32 @@ def _is_lan_worker_autofill_candidate(node: dict[str, Any]) -> bool:
     return bool(_lan_node_sources(node) & LAN_CONFIGURED_WORKER_SOURCES)
 
 
-def _default_lan_discovery_cache_path() -> Path:
-    return Path.home() / LAN_DISCOVERY_CACHE
+def _env_home_path(env: Any) -> Path | None:
+    raw_home = getattr(env, "home_abs", None)
+    if not raw_home:
+        return None
+    try:
+        return Path(raw_home).expanduser()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
 
 
-def _lan_discovery_cluster_defaults(cache_path: Path | None = None) -> dict[str, Any]:
+def _default_lan_discovery_cache_path(home: Path | str | None = None) -> Path:
+    if home is None:
+        return Path.home() / LAN_DISCOVERY_CACHE
+    try:
+        return Path(home).expanduser() / LAN_DISCOVERY_CACHE
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return Path.home() / LAN_DISCOVERY_CACHE
+
+
+def _lan_discovery_cluster_defaults(
+    cache_path: Path | None = None,
+    *,
+    home: Path | str | None = None,
+) -> dict[str, Any]:
     """Return scheduler/workers defaults from the last LAN discovery cache."""
-    cache_file = cache_path or _default_lan_discovery_cache_path()
+    cache_file = cache_path or _default_lan_discovery_cache_path(home)
     try:
         payload = json.loads(cache_file.expanduser().read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -343,23 +362,29 @@ def _apply_lan_discovery_defaults(
     widget_keys: dict[str, str],
     *,
     defaults: dict[str, Any],
+    force: bool = False,
 ) -> None:
     """Populate empty cluster fields before widgets are created."""
     if not defaults:
         return
     scheduler_key = widget_keys["scheduler"]
     workers_key = widget_keys["workers"]
-    should_fill_scheduler = _is_empty_scheduler(cluster_params.get("scheduler"))
-    should_fill_workers = _is_empty_workers(cluster_params.get("workers"))
+    should_fill_scheduler = force or _is_empty_scheduler(cluster_params.get("scheduler"))
+    should_fill_workers = force or _is_empty_workers(cluster_params.get("workers"))
 
     scheduler = defaults.get("scheduler")
-    if scheduler and should_fill_scheduler and _is_empty_scheduler(session_state.get(scheduler_key)):
+    if scheduler and should_fill_scheduler and (force or _is_empty_scheduler(session_state.get(scheduler_key))):
         scheduler_value = str(scheduler)
         cluster_params["scheduler"] = scheduler_value
         session_state[scheduler_key] = scheduler_value
 
     workers = defaults.get("workers")
-    if isinstance(workers, dict) and workers and should_fill_workers and _is_empty_workers(session_state.get(workers_key)):
+    if (
+        isinstance(workers, dict)
+        and workers
+        and should_fill_workers
+        and (force or _is_empty_workers(session_state.get(workers_key)))
+    ):
         cluster_params["workers"] = workers
         session_state[workers_key] = json.dumps(workers, indent=2)
 
@@ -367,12 +392,16 @@ def _apply_lan_discovery_defaults(
     workers_data_path = defaults.get("workers_data_path")
     if (
         workers_data_path
-        and _is_empty_workers_data_path(cluster_params.get("workers_data_path"))
-        and _is_empty_workers_data_path(session_state.get(workers_data_path_key))
+        and (force or _is_empty_workers_data_path(cluster_params.get("workers_data_path")))
+        and (force or _is_empty_workers_data_path(session_state.get(workers_data_path_key)))
     ):
         workers_data_path_value = str(workers_data_path)
         cluster_params["workers_data_path"] = workers_data_path_value
         session_state[workers_data_path_key] = workers_data_path_value
+
+
+def _lan_discovery_refresh_key(app_state_name: str) -> str:
+    return f"cluster_lan_discovery_refresh__{app_state_name}"
 
 
 def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
@@ -437,7 +466,19 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
 
         scheduler_widget_key = widget_keys["scheduler"]
         cluster_share_candidate = _env_cluster_share_candidate(env)
-        lan_defaults = _lan_discovery_cluster_defaults()
+        lan_refresh_clicked = bool(
+            st.button(
+                "Refresh LAN discovery",
+                key=_lan_discovery_refresh_key(app_state_name),
+                help=(
+                    "Reload scheduler and worker defaults from the latest "
+                    f"`{LAN_DISCOVERY_CACHE.as_posix()}` cache."
+                ),
+            )
+        )
+        env_home = _env_home_path(env)
+        lan_cache_defaults = _lan_discovery_cluster_defaults(home=env_home)
+        lan_defaults = lan_cache_defaults
         if cluster_share_candidate is not None:
             lan_defaults = {**lan_defaults, "workers_data_path": str(cluster_share_candidate)}
         _apply_lan_discovery_defaults(
@@ -445,7 +486,13 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
             st.session_state,
             widget_keys,
             defaults=lan_defaults,
+            force=lan_refresh_clicked,
         )
+        if lan_refresh_clicked:
+            if lan_cache_defaults:
+                st.info("LAN discovery defaults refreshed.")
+            else:
+                st.info("No LAN discovery cache is available yet. Run LAN discovery, then refresh again.")
         if scheduler_widget_key not in st.session_state:
             st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
         user_widget_key = widget_keys["user"]

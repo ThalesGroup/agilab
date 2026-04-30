@@ -60,12 +60,14 @@ class _Context:
 
 
 class _FakeStreamlit:
-    def __init__(self, *, widget_values=None, session_state=None):
+    def __init__(self, *, widget_values=None, session_state=None, button_values=None):
         self.widget_values = widget_values or {}
+        self.button_values = button_values or {}
         self.session_state = _State(session_state or {})
         self.markdowns: list[str] = []
         self.infos: list[str] = []
         self.errors: list[str] = []
+        self.buttons: list[str] = []
 
     def _value(self, key, default=""):
         if key in self.widget_values:
@@ -102,6 +104,12 @@ class _FakeStreamlit:
         if key is not None:
             self.session_state[key] = result
         return result
+
+    def button(self, label, *, key=None, **_kwargs):
+        self.buttons.append(label)
+        if key in self.button_values:
+            return self.button_values[key]
+        return self.button_values.get(label, False)
 
     def markdown(self, text):
         self.markdowns.append(text)
@@ -381,8 +389,32 @@ def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp
     }
 
 
+def test_lan_discovery_cluster_defaults_reads_cache_from_env_home(tmp_path):
+    home = tmp_path / "agilab-home"
+    cache_path = home / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        """
+{
+  "local_hosts": ["192.168.50.10"],
+  "nodes": [
+    {"host": "192.168.50.20", "status": "ready"}
+  ]
+}
+""",
+        encoding="utf-8",
+    )
+
+    defaults = orchestrate_cluster._lan_discovery_cluster_defaults(home=home)
+
+    assert defaults == {
+        "scheduler": "192.168.50.10:8786",
+        "workers": {"192.168.50.20": 1},
+    }
+
+
 def _disable_lan_defaults(monkeypatch):
-    monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_cluster_defaults", lambda: {})
+    monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_cluster_defaults", lambda *_, **__: {})
 
 
 def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(monkeypatch, tmp_path):
@@ -449,7 +481,7 @@ def test_render_cluster_settings_ui_populates_empty_cluster_from_lan_discovery(m
     monkeypatch.setattr(
         orchestrate_cluster,
         "_lan_discovery_cluster_defaults",
-        lambda: {
+        lambda *_, **__: {
             "scheduler": "192.168.3.103:8786",
             "workers": {"192.168.3.35": 1},
         },
@@ -512,7 +544,7 @@ def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_d
     monkeypatch.setattr(
         orchestrate_cluster,
         "_lan_discovery_cluster_defaults",
-        lambda: {
+        lambda *_, **__: {
             "scheduler": "192.168.3.103:8786",
             "workers": {"192.168.3.35": 1},
         },
@@ -544,6 +576,78 @@ def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_d
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["scheduler"] == "10.0.0.10:8786"
     assert cluster["workers"] == {"10.0.0.11": 2}
+
+
+def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        button_values={
+            orchestrate_cluster._lan_discovery_refresh_key(app_name): True,
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "scheduler": "10.0.0.10:8786",
+                    "workers": {"10.0.0.11": 2},
+                    "workers_data_path": "/old/share",
+                }
+            },
+            widget_keys["scheduler"]: "10.0.0.10:8786",
+            widget_keys["workers"]: '{"10.0.0.11": 2}',
+            widget_keys["workers_data_path"]: "/old/share",
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    monkeypatch.setattr(
+        orchestrate_cluster,
+        "_lan_discovery_cluster_defaults",
+        lambda *_, **__: {
+            "scheduler": "192.168.3.103:8786",
+            "workers": {"192.168.3.35": 1},
+        },
+    )
+
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"192.168.3.35": 1} if "192.168.3.35" in raw else None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=tmp_path / "agilab-home",
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["scheduler"] == "192.168.3.103:8786"
+    assert cluster["workers"] == {"192.168.3.35": 1}
+    assert cluster["workers_data_path"] == str(share)
+    assert fake_st.session_state[widget_keys["scheduler"]] == "192.168.3.103:8786"
+    assert fake_st.session_state[widget_keys["workers"]] == '{\n  "192.168.3.35": 1\n}'
+    assert fake_st.session_state[widget_keys["workers_data_path"]] == str(share)
 
 
 def test_render_cluster_settings_ui_blocks_cluster_when_share_is_unusable(monkeypatch, tmp_path):
