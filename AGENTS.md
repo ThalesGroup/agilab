@@ -21,10 +21,10 @@ Use this runbook whenever you:
 - **uv everywhere**: Invoke Python entry points through `uv` (`uv --preview-features extra-build-dependencies run python …`,
   `uv --preview-features extra-build-dependencies run streamlit …`) so dependencies resolve inside the managed environments that
   ship with AGILab.
-- **High-frequency command shortcuts**: Use `python3 tools/agilab_dev.py <shortcut>` for repeated local
-  validation loops. The top shortcuts are `iv` for impact validation, `pt` for targeted `pytest -q`,
-  `wp` for one or more workflow parity profiles, `bg` for the fresh coverage-badge guard, and `ds`
-  for docs mirror sync plus stamp verification. Use `--print-only` to audit the expanded commands.
+- **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated local validation loops.
+  The shortest top shortcuts are `i` for impact validation, `t` for targeted `pytest -q`, `w` for
+  one or more workflow parity profiles, `b` for the fresh coverage-badge guard, and `d` for docs
+  mirror sync plus stamp verification. Use `--print-only` to audit the expanded commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool upgrade agilab` to pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching

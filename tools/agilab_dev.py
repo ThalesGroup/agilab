@@ -35,30 +35,30 @@ def _split_leading_values(args: Sequence[str], *, command_name: str) -> tuple[li
 
 def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if not argv or argv[0] in {"help", "-h", "--help"}:
-        return [["python3", "tools/agilab_dev.py", "help"]]
+        return [["./dev", "help"]]
 
     command = argv[0]
     args = list(argv[1:])
 
-    if command in {"impact", "iv"}:
+    if command in {"impact", "iv", "i"}:
         forwarded = args or ["--staged"]
         return [_uv_python("tools/impact_validate.py", *forwarded)]
 
-    if command in {"test", "pt"}:
+    if command in {"test", "pt", "t"}:
         return [[*UV_RUN, "pytest", "-q", *args]]
 
-    if command in {"profile", "wp"}:
+    if command in {"profile", "wp", "w"}:
         profiles, extras = _split_leading_values(args, command_name=command)
         profile_args: list[str] = []
         for profile in profiles:
             profile_args.extend(["--profile", profile])
         return [_uv_python("tools/workflow_parity.py", *profile_args, *extras)]
 
-    if command in {"guard", "bg"}:
+    if command in {"guard", "bg", "b"}:
         defaults = ["--changed-only", "--require-fresh-xml"]
         return [_uv_python("tools/coverage_badge_guard.py", *defaults, *args)]
 
-    if command in {"docs", "ds"}:
+    if command in {"docs", "ds", "d"}:
         return [
             _uv_python("tools/sync_docs_source.py", "--apply", "--delete"),
             _uv_python("tools/sync_docs_source.py", "--verify-stamp"),
@@ -77,19 +77,19 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
 
 def _usage() -> str:
     return """Usage:
-  python3 tools/agilab_dev.py [--print-only] impact|iv [impact_validate args]
-  python3 tools/agilab_dev.py [--print-only] test|pt [pytest args]
-  python3 tools/agilab_dev.py [--print-only] profile|wp <profile> [profile...] [workflow args]
-  python3 tools/agilab_dev.py [--print-only] guard|bg [coverage_badge_guard args]
-  python3 tools/agilab_dev.py [--print-only] docs|ds
-  python3 tools/agilab_dev.py [--print-only] skills|sk <skill> [skill...]
+  ./dev [--print-only] impact|iv|i [impact_validate args]
+  ./dev [--print-only] test|pt|t [pytest args]
+  ./dev [--print-only] profile|wp|w <profile> [profile...] [workflow args]
+  ./dev [--print-only] guard|bg|b [coverage_badge_guard args]
+  ./dev [--print-only] docs|ds|d
+  ./dev [--print-only] skills|sk <skill> [skill...]
 
 High-frequency mappings:
-  iv        -> impact_validate.py, defaulting to --staged
-  pt        -> pytest -q
-  wp        -> workflow_parity.py with repeated --profile flags
-  bg        -> coverage_badge_guard.py --changed-only --require-fresh-xml
-  ds        -> sync_docs_source.py --apply --delete, then --verify-stamp
+  i         -> impact_validate.py, defaulting to --staged
+  t         -> pytest -q
+  w         -> workflow_parity.py with repeated --profile flags
+  b         -> coverage_badge_guard.py --changed-only --require-fresh-xml
+  d         -> sync_docs_source.py --apply --delete, then --verify-stamp
   sk        -> sync_agent_skills.py, then Codex skill validate/generate
 """
 
