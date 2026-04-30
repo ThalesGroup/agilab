@@ -16,7 +16,7 @@ The project focuses on a simple but useful workflow:
 ## What is not implemented in the public version
 
 This public built-in example is intentionally narrow. It does **not** implement:
-- Hawk/ELK ingestion inside this app; use a custom/private app for that connector path
+- search-index ingestion inside this app; use an external app for that connector path
 - richer trajectory-centric study workflows
 - multi-stage trajectory reconstruction or scenario stitching
 - dedicated cross-run comparison views for complex flight studies

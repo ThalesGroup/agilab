@@ -34,7 +34,6 @@
 <text xml:space="preserve" text-anchor="start" x="8" y="-73.75" font-family="Helvetica,sans-Serif" font-size="10.00">+to_toml()</text>
 <text xml:space="preserve" text-anchor="start" x="8" y="-62.5" font-family="Helvetica,sans-Serif" font-size="10.00">+as_dict()</text>
 <text xml:space="preserve" text-anchor="start" x="8" y="-51.25" font-family="Helvetica,sans-Serif" font-size="10.00">+build_distribution()</text>
-<text xml:space="preserve" text-anchor="start" x="8" y="-40" font-family="Helvetica,sans-Serif" font-size="10.00">+get_data_from_hawk()</text>
 <text xml:space="preserve" text-anchor="start" x="8" y="-28.75" font-family="Helvetica,sans-Serif" font-size="10.00">+extract_plane_from_file_name()</text>
 <text xml:space="preserve" text-anchor="start" x="8" y="-17.5" font-family="Helvetica,sans-Serif" font-size="10.00">+get_data_from_files()</text>
 <text xml:space="preserve" text-anchor="start" x="8" y="-6.25" font-family="Helvetica,sans-Serif" font-size="10.00">+get_partition_by_planes()</text>
