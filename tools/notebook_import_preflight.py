@@ -35,9 +35,11 @@ from agilab.notebook_pipeline_import import (  # noqa: E402
     build_lab_steps_preview,
     build_notebook_import_contract,
     build_notebook_import_preflight,
+    build_notebook_import_pipeline_view,
     build_notebook_pipeline_import,
     load_notebook,
     write_notebook_import_contract,
+    write_notebook_import_pipeline_view,
 )
 
 
@@ -95,12 +97,15 @@ def build_report(
     repo_root: Path = REPO_ROOT,
     notebook_path: Path | None = None,
     output_path: Path | None = None,
+    pipeline_view_output_path: Path | None = None,
     module_name: str = "notebook_import_project",
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     resolved_notebook = notebook_path or repo_root / DEFAULT_NOTEBOOK_RELATIVE_PATH
     if not resolved_notebook.is_absolute():
         resolved_notebook = repo_root / resolved_notebook
+    if output_path is not None and pipeline_view_output_path is None:
+        pipeline_view_output_path = output_path.with_name("notebook_import_pipeline_view.json")
 
     try:
         notebook = load_notebook(resolved_notebook)
@@ -115,6 +120,11 @@ def build_report(
             preflight=preflight,
             module_name=module_name,
         )
+        pipeline_view = build_notebook_import_pipeline_view(
+            notebook_import,
+            preflight=preflight,
+            module_name=module_name,
+        )
         written_contract = (
             write_notebook_import_contract(
                 output_path,
@@ -123,6 +133,16 @@ def build_report(
                 module_name=module_name,
             )
             if output_path
+            else None
+        )
+        written_pipeline_view = (
+            write_notebook_import_pipeline_view(
+                pipeline_view_output_path,
+                notebook_import,
+                preflight=preflight,
+                module_name=module_name,
+            )
+            if pipeline_view_output_path
             else None
         )
     except Exception as exc:
@@ -174,6 +194,22 @@ def build_report(
             evidence=["src/agilab/notebook_pipeline_import.py"],
             details={"module_name": module_name, "step_count": len(lab_steps_preview.get(module_name, []))},
         ),
+        _check_result(
+            "notebook_import_preflight_pipeline_view",
+            "Notebook import pipeline view",
+            bool(pipeline_view.get("nodes")) and any(
+                node.get("kind") == "analysis_consumer"
+                for node in pipeline_view.get("nodes", [])
+                if isinstance(node, dict)
+            ),
+            "preflight builds an app-neutral notebook import pipeline view",
+            evidence=["src/agilab/notebook_pipeline_import.py"],
+            details={
+                "node_count": pipeline_view.get("summary", {}).get("node_count"),
+                "edge_count": pipeline_view.get("summary", {}).get("edge_count"),
+                "schema": pipeline_view.get("schema"),
+            },
+        ),
     ]
     if output_path:
         checks.append(
@@ -184,6 +220,17 @@ def build_report(
                 "preflight writes a generic notebook import contract sidecar",
                 evidence=[str(output_path)],
                 details={"path": str(written_contract) if written_contract else ""},
+            )
+        )
+    if pipeline_view_output_path:
+        checks.append(
+            _check_result(
+                "notebook_import_preflight_pipeline_view_write",
+                "Notebook import pipeline view write",
+                bool(written_pipeline_view and written_pipeline_view.is_file()),
+                "preflight writes a generic notebook import pipeline view sidecar",
+                evidence=[str(pipeline_view_output_path)],
+                details={"path": str(written_pipeline_view) if written_pipeline_view else ""},
             )
         )
 
@@ -214,9 +261,13 @@ def build_report(
             "output_count": summary.get("output_count"),
             "unknown_artifact_count": summary.get("unknown_artifact_count"),
             "contract_path": str(written_contract) if written_contract else "",
+            "pipeline_view_path": str(written_pipeline_view) if written_pipeline_view else "",
+            "pipeline_view_node_count": pipeline_view.get("summary", {}).get("node_count"),
+            "pipeline_view_edge_count": pipeline_view.get("summary", {}).get("edge_count"),
         },
         "preflight": preflight,
         "contract": contract,
+        "pipeline_view": pipeline_view,
         "checks": checks,
     }
 
@@ -241,6 +292,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional JSON contract output path.",
     )
     parser.add_argument(
+        "--pipeline-view-output",
+        type=Path,
+        default=None,
+        help="Optional JSON pipeline view output path.",
+    )
+    parser.add_argument(
         "--module-name",
         default="notebook_import_project",
         help="Module key to use in the generated lab_steps preview.",
@@ -258,6 +315,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = build_report(
         notebook_path=args.notebook,
         output_path=args.output,
+        pipeline_view_output_path=args.pipeline_view_output,
         module_name=args.module_name,
     )
     if args.compact:

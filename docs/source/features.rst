@@ -161,7 +161,8 @@ single notebook but less ceremony than a production MLOps platform:
   with ``tools/notebook_import_preflight.py --compact``; it reads an ``.ipynb``
   without execution, flags cleanup risks such as runtime installs, shell calls,
   network access, widgets, hidden notebook state, and absolute paths, and writes
-  an app-neutral ``notebook_import_contract.json`` sidecar when requested; the
+  app-neutral ``notebook_import_contract.json`` and
+  ``notebook_import_pipeline_view.json`` sidecars when requested; the
   ``PIPELINE`` upload path now prepares that preview first and only replaces
   ``lab_steps.toml`` after explicit confirmation
 - the notebook round-trip report validates

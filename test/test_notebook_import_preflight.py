@@ -61,6 +61,13 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
         module_name="demo_project",
     )
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    view_path = core_module.write_notebook_import_pipeline_view(
+        tmp_path / "notebook_import_pipeline_view.json",
+        imported,
+        preflight=preflight,
+        module_name="demo_project",
+    )
+    view = json.loads(view_path.read_text(encoding="utf-8"))
 
     assert preflight["schema"] == "agilab.notebook_import_preflight.v1"
     assert preflight["status"] == "review"
@@ -87,12 +94,24 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     assert contract["artifact_contract"] == preflight["artifact_contract"]
     assert contract["warnings"]
     assert contract["steps"][0]["id"] == "cell-2"
+    assert view["schema"] == "agilab.notebook_import_pipeline_view.v1"
+    assert view["module_name"] == "demo_project"
+    assert {node["kind"] for node in view["nodes"]} >= {
+        "markdown_context",
+        "notebook_code_cell",
+        "artifact",
+        "analysis_consumer",
+    }
+    assert any(edge["kind"] == "artifact_input" for edge in view["edges"])
+    assert any(edge["kind"] == "artifact_output" for edge in view["edges"])
+    assert any(edge["kind"] == "analysis_consumes" for edge in view["edges"])
 
 
 def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> None:
     module = _load_module(REPORT_PATH, "notebook_import_preflight_report_test_module")
     notebook_path = tmp_path / "risky.ipynb"
     output_path = tmp_path / "contract.json"
+    pipeline_view_path = tmp_path / "notebook_import_pipeline_view.json"
     notebook_path.write_text(json.dumps(_risky_notebook()), encoding="utf-8")
 
     report = module.build_report(
@@ -107,13 +126,17 @@ def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> Non
     assert report["summary"]["risk_status"] == "review"
     assert report["summary"]["safe_to_import"] is True
     assert report["summary"]["contract_path"] == str(output_path)
+    assert report["summary"]["pipeline_view_path"] == str(pipeline_view_path)
     assert output_path.is_file()
+    assert pipeline_view_path.is_file()
     assert {check["id"] for check in report["checks"]} == {
         "notebook_import_preflight_importable",
         "notebook_import_preflight_risks",
         "notebook_import_preflight_artifacts",
         "notebook_import_preflight_lab_steps_preview",
+        "notebook_import_preflight_pipeline_view",
         "notebook_import_preflight_contract_write",
+        "notebook_import_preflight_pipeline_view_write",
     }
 
 

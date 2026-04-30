@@ -1042,10 +1042,14 @@ def test_confirm_notebook_import_preview_writes_steps_contract_and_marks_page_br
 
     stored = tomllib.loads((tmp_path / "demo_project" / "lab_steps.toml").read_text(encoding="utf-8"))
     contract = json.loads((tmp_path / "demo_project" / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    pipeline_view = json.loads((tmp_path / "demo_project" / "notebook_import_pipeline_view.json").read_text(encoding="utf-8"))
     assert count == 1
     assert stored["demo_project"][0]["D"] == "Import context"
     assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
     assert contract["artifact_contract"]["outputs"] == ["artifacts/orders.parquet"]
+    assert pipeline_view["schema"] == "agilab.notebook_import_pipeline_view.v1"
+    assert any(node["kind"] == "analysis_consumer" for node in pipeline_view["nodes"])
+    assert any(edge["kind"] == "analysis_consumes" for edge in pipeline_view["edges"])
     assert "idx__notebook_import_preview" not in fake_st.session_state
     assert fake_st.session_state["idx"][-1] == 1
     assert fake_st.session_state["page_broken"] is True

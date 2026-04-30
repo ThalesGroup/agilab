@@ -20,6 +20,7 @@ import tomli_w
 SCHEMA = "agilab.notebook_pipeline_import.v1"
 PREFLIGHT_SCHEMA = "agilab.notebook_import_preflight.v1"
 CONTRACT_SCHEMA = "agilab.notebook_import_contract.v1"
+PIPELINE_VIEW_SCHEMA = "agilab.notebook_import_pipeline_view.v1"
 DEFAULT_RUN_ID = "notebook-pipeline-import-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:20Z"
@@ -337,6 +338,14 @@ def _pipeline_step_sources(notebook_import: Mapping[str, Any]) -> list[tuple[str
         source_cell_index = int(step.get("source_cell_index", 0) or 0)
         sources.append((step_id, source_cell_index, _source_from_step(step)))
     return sources
+
+
+def _safe_node_id(prefix: str, value: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9_]+", "_", value.strip()).strip("_").lower()
+    if not stem:
+        stem = "node"
+    digest = _hash_source(value)[:8]
+    return f"{prefix}_{stem}_{digest}"
 
 
 def _detect_line_risks(step_id: str, source: str) -> list[dict[str, str]]:
@@ -998,6 +1007,208 @@ def build_notebook_import_contract(
     }
 
 
+def build_notebook_import_pipeline_view(
+    notebook_import: Mapping[str, Any],
+    *,
+    preflight: Mapping[str, Any] | None = None,
+    module_name: str = "notebook_import_project",
+) -> dict[str, Any]:
+    """Build an app-neutral conceptual pipeline view for a notebook import."""
+    preflight_state = dict(preflight or build_notebook_import_preflight(notebook_import))
+    artifact_contract = preflight_state.get("artifact_contract", {})
+    references = artifact_contract.get("references", []) if isinstance(artifact_contract, dict) else []
+    reference_roles = {
+        str(reference.get("path", "") or ""): str(reference.get("role", "unknown") or "unknown")
+        for reference in references
+        if isinstance(reference, dict) and str(reference.get("path", "") or "")
+    }
+    source = notebook_import.get("source", {})
+    source_notebook = str(source.get("source_notebook", "") or "") if isinstance(source, dict) else ""
+
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, Any]] = []
+    node_ids: set[str] = set()
+    edge_keys: set[tuple[str, str, str, str]] = set()
+
+    def add_node(node: dict[str, Any]) -> None:
+        node_id = str(node.get("id", "") or "")
+        if not node_id or node_id in node_ids:
+            return
+        node_ids.add(node_id)
+        nodes.append(node)
+
+    def add_edge(source_id: str, target_id: str, kind: str, *, artifact: str = "") -> None:
+        if not source_id or not target_id:
+            return
+        key = (source_id, target_id, kind, artifact)
+        if key in edge_keys:
+            return
+        edge_keys.add(key)
+        edge: dict[str, Any] = {"from": source_id, "to": target_id, "kind": kind}
+        if artifact:
+            edge["artifact"] = artifact
+        edges.append(edge)
+
+    artifact_node_ids: dict[str, str] = {}
+    for reference in references if isinstance(references, list) else []:
+        if not isinstance(reference, dict):
+            continue
+        path = str(reference.get("path", "") or "")
+        if not path:
+            continue
+        role = str(reference.get("role", "unknown") or "unknown")
+        node_id = _safe_node_id("artifact", path)
+        artifact_node_ids[path] = node_id
+        add_node(
+            {
+                "id": node_id,
+                "label": path,
+                "kind": "artifact",
+                "role": role,
+                "path": path,
+                "suffix": str(reference.get("suffix", "") or Path(path).suffix.lower()),
+                "source_cell_indices": list(reference.get("source_cell_indices", []) or []),
+            }
+        )
+
+    context_node_ids: dict[str, str] = {}
+    context_texts: dict[str, str] = {}
+    context_blocks = notebook_import.get("context_blocks", [])
+    for block in context_blocks if isinstance(context_blocks, list) else []:
+        if not isinstance(block, dict):
+            continue
+        context_id = str(block.get("id", "") or "")
+        if not context_id:
+            continue
+        node_id = _safe_node_id("context", context_id)
+        context_node_ids[context_id] = node_id
+        text = str(block.get("text", "") or "")
+        context_texts[context_id] = text
+        label = _context_summary([context_id], {context_id: text}) or context_id
+        add_node(
+            {
+                "id": node_id,
+                "label": label,
+                "kind": "markdown_context",
+                "role": "context",
+                "source_cell_index": int(block.get("source_cell_index", 0) or 0),
+                "context_id": context_id,
+            }
+        )
+
+    step_node_ids: list[str] = []
+    steps = notebook_import.get("pipeline_steps", [])
+    for step in steps if isinstance(steps, list) else []:
+        if not isinstance(step, dict):
+            continue
+        step_id = str(step.get("id", "") or "")
+        if not step_id:
+            continue
+        node_id = _safe_node_id("cell", step_id)
+        step_node_ids.append(node_id)
+        context_ids = [str(context_id) for context_id in step.get("context_ids", []) if str(context_id)]
+        label = (
+            str(step.get("description", "") or "")
+            or str(step.get("question", "") or "")
+            or _context_summary(context_ids, context_texts)
+            or f"Notebook cell {step_id}"
+        )
+        artifact_paths = _artifact_paths(step)
+        add_node(
+            {
+                "id": node_id,
+                "label": label,
+                "kind": "notebook_code_cell",
+                "role": "pipeline_step",
+                "source_cell_index": int(step.get("source_cell_index", 0) or 0),
+                "source_cell_id": step_id,
+                "context_ids": context_ids,
+                "env_hints": _step_env_hints(step),
+                "artifact_references": artifact_paths,
+            }
+        )
+        for context_id in context_ids:
+            context_node_id = context_node_ids.get(context_id)
+            if context_node_id:
+                add_edge(context_node_id, node_id, "context_for")
+
+        for path in artifact_paths:
+            artifact_node_id = artifact_node_ids.get(path)
+            if not artifact_node_id:
+                artifact_node_id = _safe_node_id("artifact", path)
+                artifact_node_ids[path] = artifact_node_id
+                add_node(
+                    {
+                        "id": artifact_node_id,
+                        "label": path,
+                        "kind": "artifact",
+                        "role": reference_roles.get(path, "unknown"),
+                        "path": path,
+                        "suffix": Path(path).suffix.lower(),
+                        "source_cell_indices": [int(step.get("source_cell_index", 0) or 0)],
+                    }
+                )
+            role = reference_roles.get(path, "unknown")
+            if role in {"input", "input_output", "unknown"}:
+                add_edge(artifact_node_id, node_id, "artifact_input", artifact=path)
+            if role in {"output", "input_output", "unknown"}:
+                add_edge(node_id, artifact_node_id, "artifact_output", artifact=path)
+
+    analysis_consumes: list[str] = []
+    if isinstance(artifact_contract, dict):
+        analysis_consumes = [
+            str(path)
+            for path in [
+                *list(artifact_contract.get("outputs", []) or []),
+                *list(artifact_contract.get("unknown", []) or []),
+            ]
+        ]
+
+    analysis_node_id = "analysis_consumer"
+    add_node(
+        {
+            "id": analysis_node_id,
+            "label": "Generic ANALYSIS artifact consumer",
+            "kind": "analysis_consumer",
+            "role": "analysis_placeholder",
+            "consumes": analysis_consumes,
+            "note": "Placeholder for a generic artifact viewer; no app-specific analysis is generated.",
+        }
+    )
+    for path in analysis_consumes:
+        artifact_node_id = artifact_node_ids.get(path)
+        if artifact_node_id:
+            add_edge(artifact_node_id, analysis_node_id, "analysis_consumes", artifact=path)
+    if not edges and step_node_ids:
+        add_edge(step_node_ids[-1], analysis_node_id, "analysis_candidate")
+
+    return {
+        "schema": PIPELINE_VIEW_SCHEMA,
+        "direction": "LR",
+        "module_name": str(module_name or "notebook_import_project"),
+        "source_notebook": source_notebook,
+        "graph": {
+            "label": "Notebook import pipeline view",
+        },
+        "node": {
+            "shape": "box",
+        },
+        "edge": {
+            "arrowsize": 0.8,
+        },
+        "summary": {
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "context_node_count": sum(1 for node in nodes if node.get("kind") == "markdown_context"),
+            "code_cell_node_count": sum(1 for node in nodes if node.get("kind") == "notebook_code_cell"),
+            "artifact_node_count": sum(1 for node in nodes if node.get("kind") == "artifact"),
+        },
+        "artifact_contract": artifact_contract,
+        "nodes": nodes,
+        "edges": edges,
+    }
+
+
 def write_notebook_import_contract(
     path: Path,
     notebook_import: Mapping[str, Any],
@@ -1013,6 +1224,24 @@ def write_notebook_import_contract(
         module_name=module_name,
     )
     path.write_text(json.dumps(contract, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def write_notebook_import_pipeline_view(
+    path: Path,
+    notebook_import: Mapping[str, Any],
+    *,
+    preflight: Mapping[str, Any] | None = None,
+    module_name: str = "notebook_import_project",
+) -> Path:
+    path = path.expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    view = build_notebook_import_pipeline_view(
+        notebook_import,
+        preflight=preflight,
+        module_name=module_name,
+    )
+    path.write_text(json.dumps(view, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path
 
 

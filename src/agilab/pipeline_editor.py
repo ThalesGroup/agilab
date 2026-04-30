@@ -97,6 +97,7 @@ build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook
 build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
 write_notebook_import_contract = _notebook_pipeline_import_module.write_notebook_import_contract
+write_notebook_import_pipeline_view = _notebook_pipeline_import_module.write_notebook_import_pipeline_view
 
 logger = logging.getLogger(__name__)
 
@@ -239,8 +240,15 @@ def write_notebook_import_preview(
         tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(toml_content)), toml_file)
 
     contract_path = module_dir / "notebook_import_contract.json"
+    pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
     write_notebook_import_contract(
         contract_path,
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+    )
+    write_notebook_import_pipeline_view(
+        pipeline_view_path,
         notebook_import,
         preflight=preflight,
         module_name=module,
