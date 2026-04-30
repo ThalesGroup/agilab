@@ -17,6 +17,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - `uv --preview-features extra-build-dependencies run python …`
   - `uv --preview-features extra-build-dependencies run streamlit …`
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
+- **High-frequency shortcuts**: prefer `python3 tools/agilab_dev.py <shortcut>` for repeated local
+  validation loops. The top shortcuts are `iv` for impact validation, `pt` for targeted `pytest -q`,
+  `wp` for one or more workflow parity profiles, `bg` for the fresh coverage-badge guard, and `ds`
+  for docs mirror sync plus stamp verification. Add `--print-only` to inspect the expanded commands.
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 - **Local-first validation**: do not jump to GitHub Actions when the same check can be run locally.
