@@ -7,6 +7,8 @@ from typing import Any, Callable, Optional
 
 import streamlit as st
 
+from .cluster_lan_discovery import DiscoveryOptions, discover_lan_nodes
+
 RUN_MODE_LABELS: tuple[str, ...] = (
     "0: python",
     "1: pool of process",
@@ -315,6 +317,45 @@ def _clear_lan_discovery_cache(cache_path: Path) -> tuple[bool, str]:
     return True, ""
 
 
+def _scheduler_ssh_target_from_cluster_value(value: Any) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+    user_prefix = ""
+    host = cleaned
+    if "@" in host:
+        user_prefix, host = host.rsplit("@", 1)
+        user_prefix = f"{user_prefix}@"
+    if host.startswith("[") and "]:" in host:
+        host = host[1:].split("]:", 1)[0]
+    elif host.count(":") == 1:
+        host = host.rsplit(":", 1)[0]
+    return f"{user_prefix}{host}".strip()
+
+
+def _refresh_lan_discovery_cache(
+    cache_path: Path,
+    *,
+    remote_user: str = "",
+    scheduler: str = "",
+    manager_user: str = "",
+) -> tuple[bool, str]:
+    try:
+        report = discover_lan_nodes(
+            DiscoveryOptions(
+                remote_user=str(remote_user or "").strip(),
+                scheduler=_scheduler_ssh_target_from_cluster_value(scheduler),
+                manager_user=str(manager_user or "").strip(),
+                use_cache=True,
+                cache_path=cache_path,
+            )
+        )
+    except Exception as exc:
+        return False, str(exc)
+    ready_count = sum(1 for node in report.nodes if node.status == "ready")
+    return True, f"LAN discovery refreshed: {len(report.nodes)} node(s), {ready_count} ready."
+
+
 def _env_home_path(env: Any) -> Path | None:
     raw_home = getattr(env, "home_abs", None)
     if not raw_home:
@@ -490,8 +531,8 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
                 "Refresh LAN discovery",
                 key=_lan_discovery_refresh_key(app_state_name),
                 help=(
-                    "Reload scheduler and worker defaults from the latest "
-                    f"`{LAN_DISCOVERY_CACHE.as_posix()}` cache."
+                    "Run LAN discovery, refresh "
+                    f"`{LAN_DISCOVERY_CACHE.as_posix()}`, and reload scheduler/worker defaults."
                 ),
             )
         )
@@ -515,6 +556,24 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
                 st.info("LAN discovery cache is already clear.")
             else:
                 st.error(f"Could not clear LAN discovery cache `{lan_cache_path}`: {clear_error}")
+        lan_refresh_failed = False
+        if lan_refresh_clicked and not lan_clear_clicked:
+            remote_user = (
+                str(st.session_state.get(widget_keys["user"]) or cluster_params.get("user") or getattr(env, "user", "") or "")
+                .strip()
+            )
+            scheduler_value = st.session_state.get(scheduler_widget_key) or cluster_params.get("scheduler") or ""
+            refreshed, refresh_message = _refresh_lan_discovery_cache(
+                lan_cache_path,
+                remote_user=remote_user,
+                scheduler=str(scheduler_value or ""),
+                manager_user=str(getattr(env, "user", "") or ""),
+            )
+            if refreshed:
+                st.info(refresh_message)
+            else:
+                lan_refresh_failed = True
+                st.error(f"LAN discovery refresh failed: {refresh_message}")
         lan_cache_defaults = {} if lan_clear_clicked else _lan_discovery_cluster_defaults(cache_path=lan_cache_path)
         lan_defaults = lan_cache_defaults
         if cluster_share_candidate is not None:
@@ -528,9 +587,9 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
         )
         if lan_refresh_clicked:
             if lan_cache_defaults:
-                st.info("LAN discovery defaults refreshed.")
-            else:
-                st.info("No LAN discovery cache is available yet. Run LAN discovery, then refresh again.")
+                st.info("LAN discovery defaults applied.")
+            elif not lan_refresh_failed:
+                st.info("LAN discovery produced no usable scheduler/worker defaults. Check local IP/CIDR and SSH prerequisites.")
         if scheduler_widget_key not in st.session_state:
             st.session_state[scheduler_widget_key] = cluster_params.get("scheduler", "")
         user_widget_key = widget_keys["user"]

@@ -188,6 +188,40 @@ def test_passive_cache_only_discovery_does_not_tcp_probe(tmp_path: Path):
     assert report.nodes[0].gpu == "NVIDIA L40S (142 SMs)"
 
 
+def test_local_ipv4_hosts_supports_ubuntu_without_ifconfig(monkeypatch):
+    monkeypatch.setattr(discovery.socket, "gethostname", lambda: "ubuntu-worker")
+    monkeypatch.setattr(discovery.socket, "getaddrinfo", lambda *_args, **_kwargs: [])
+
+    def fake_runner(argv, **kwargs):
+        command = list(argv)
+        if command[:1] == ["ifconfig"]:
+            return subprocess.CompletedProcess(command, 127, stdout="", stderr="ifconfig: not found")
+        if command[:4] == ["ip", "route", "get", "1.1.1.1"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="1.1.1.1 via 192.168.20.1 dev eno1 src 192.168.20.15 uid 1000\n",
+                stderr="",
+            )
+        if command[:6] == ["ip", "-4", "-o", "addr", "show", "scope"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "2: eno1    inet 192.168.20.15/24 brd 192.168.20.255 scope global dynamic eno1\n"
+                    "3: docker0 inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\n"
+                ),
+                stderr="",
+            )
+        if command[:2] == ["hostname", "-I"]:
+            return subprocess.CompletedProcess(command, 0, stdout="192.168.20.15 10.42.0.5\n", stderr="")
+        raise AssertionError(f"unexpected command: {command}")
+
+    hosts = discovery._local_ipv4_hosts(runner=fake_runner)
+
+    assert hosts == {"192.168.20.15"}
+
+
 def test_print_discovery_report_recommends_ready_workers(capsys):
     report = discovery.DiscoveryReport(
         generated_at=1.0,
