@@ -53,9 +53,12 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
 - **Repository update requests**: when the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan before executing it. The plan should be a fenced `bash` block
-  with concrete `git -C <repo>` commands for each targeted checkout, including status/fetch/pull
-  order and any validation or push commands. Use non-destructive checks first; if a checkout is dirty,
-  do not pull it until the dirty paths are reported and the update plan is adjusted.
+  with concrete `git -C <repo>` commands for each targeted checkout. Use the fast path by default:
+  `status --porcelain=v1 --untracked-files=no`, `fetch --prune`, `rev-list --left-right --count
+  HEAD...@{u}`, then `merge --ff-only @{u}` only for repos that are actually behind. This avoids a
+  redundant fetch from `git pull` and avoids slow untracked scans. Group independent repo checks and
+  fetches in parallel when the tooling allows it. If a checkout has tracked dirty paths, do not
+  merge it until the dirty paths are reported and the update plan is adjusted.
 
 ## Git footprint maintenance
 
