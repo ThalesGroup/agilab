@@ -363,10 +363,10 @@ def test_ollama_available_models_deduplicates_and_handles_invalid_payloads(monke
         pipeline_ai.urllib.request,
         "urlopen",
         lambda *_args, **_kwargs: FakeResponse(
-            '{"models":[{"name":"mistral:instruct"},{"name":"deepseek-coder"},{"name":"mistral:instruct"}]}'
+            '{"models":[{"name":"qwen2.5-coder:latest"},{"name":"deepseek-coder"},{"name":"qwen2.5-coder:latest"}]}'
         ),
     )
-    assert available("http://127.0.0.1:11434") == ["mistral:instruct", "deepseek-coder"]
+    assert available("http://127.0.0.1:11434") == ["qwen2.5-coder:latest", "deepseek-coder"]
 
     monkeypatch.setattr(
         pipeline_ai.urllib.request,
@@ -380,10 +380,10 @@ def test_default_ollama_model_prefers_code_model_and_fallbacks(monkeypatch):
     monkeypatch.setattr(
         pipeline_ai,
         "_ollama_available_models",
-        lambda _endpoint: ["mistral:instruct", "codestral:latest"],
+        lambda _endpoint: ["qwen2.5-coder:latest", "codestral:latest"],
     )
     assert pipeline_ai._default_ollama_model("http://ollama", prefer_code=True) == "codestral:latest"
-    assert pipeline_ai._default_ollama_model("http://ollama", preferred="mistral:instruct") == "mistral:instruct"
+    assert pipeline_ai._default_ollama_model("http://ollama") == "qwen2.5-coder:latest"
 
     monkeypatch.setattr(pipeline_ai, "_ollama_available_models", lambda _endpoint: [])
     assert pipeline_ai._default_ollama_model("http://ollama", preferred="fallback-model") == "fallback-model"
@@ -1560,6 +1560,59 @@ def test_chat_online_reports_missing_optional_ai_extra(monkeypatch):
     assert any("agilab[ai]" in message for message in errors)
 
 
+def test_chat_mistral_online_handles_missing_key_and_success(monkeypatch):
+    prompts: list[str] = []
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={},
+        error=lambda message: errors.append(str(message)),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(pipeline_ai, "_load_env_file_map", lambda _path: {})
+    monkeypatch.setattr(pipeline_ai, "ensure_cached_mistral_api_key", lambda _envars: "")
+    monkeypatch.setattr(pipeline_ai, "is_placeholder_api_key", lambda key: not key)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "prompt_for_mistral_api_key",
+        lambda message: prompts.append(str(message)),
+    )
+
+    with pytest.raises(RuntimeError, match="Mistral API key unavailable"):
+        pipeline_ai.chat_mistral_online("question", [], {})
+    assert any("Mistral API key appears missing" in message for message in prompts)
+
+    captured: dict[str, object] = {}
+
+    def _fake_call(messages, envars, api_key):
+        captured["messages"] = messages
+        captured["envars"] = dict(envars)
+        captured["api_key"] = api_key
+        return "```python\nprint(7)\n```", "mistral-medium-3.5"
+
+    monkeypatch.setattr(
+        pipeline_ai,
+        "ensure_cached_mistral_api_key",
+        lambda _envars: "mistral-secret-value-123456",
+    )
+    monkeypatch.setattr(pipeline_ai, "is_placeholder_api_key", lambda _key: False)
+    monkeypatch.setattr(pipeline_ai, "_call_mistral_chat_completion_impl", _fake_call)
+
+    text, model = pipeline_ai.chat_mistral_online(
+        "question",
+        [{"role": "assistant", "content": "previous"}],
+        {},
+    )
+
+    assert "print(7)" in text
+    assert model == "mistral-medium-3.5"
+    assert captured["api_key"] == "mistral-secret-value-123456"
+    messages = captured["messages"]
+    assert isinstance(messages, list)
+    assert messages[0]["role"] == "system"
+    assert messages[-1] == {"role": "user", "content": "question"}
+    assert fake_st.session_state["mistral_api_key"] == "mistral-secret-value-123456"
+
+
 def test_configure_assistant_engine_and_gpt_oss_controls(monkeypatch):
     messages: list[tuple[str, str]] = []
 
@@ -1665,6 +1718,44 @@ def test_configure_assistant_engine_selects_qwen_and_seeds_local_family_model(mo
     assert env.envars[pipeline_ai.UOAIC_MODE_ENV] == pipeline_ai.UOAIC_MODE_OLLAMA
     assert env.envars[pipeline_ai.UOAIC_MODEL_ENV] == "qwen2.5-coder:7b"
     assert fake_st.session_state["uoaic_model"] == "qwen2.5-coder:7b"
+    assert fake_st.session_state["page"][3] == ""
+
+
+def test_configure_assistant_engine_selects_mistral_medium(monkeypatch):
+    class MistralSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            if label == "Assistant engine":
+                return "Mistral Medium 3.5 (online)"
+            if label == "Mistral reasoning":
+                return "high"
+            raise AssertionError(label)
+
+        def text_input(self, label, value="", help=None):
+            if label == "Mistral model":
+                return value
+            if label == "Mistral temperature":
+                return "0.7"
+            return value
+
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": "openai",
+            "index_page": "page",
+            "page": [0, 0, 0, "stale-model"],
+        },
+        sidebar=MistralSidebar(),
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    env = SimpleNamespace(envars={"OPENAI_MODEL": "gpt-5"})
+
+    provider = pipeline_ai.configure_assistant_engine(env)
+
+    assert provider == pipeline_ai.MISTRAL_PROVIDER
+    assert env.envars["LAB_LLM_PROVIDER"] == pipeline_ai.MISTRAL_PROVIDER
+    assert env.envars["MISTRAL_MODEL"] == "mistral-medium-3.5"
+    assert env.envars["MISTRAL_REASONING_EFFORT"] == "high"
+    assert env.envars["MISTRAL_TEMPERATURE"] == "0.7"
+    assert "OPENAI_MODEL" not in env.envars
     assert fake_st.session_state["page"][3] == ""
 
 
@@ -2136,8 +2227,8 @@ def test_ollama_model_helpers_cover_error_empty_names_and_first_available(monkey
                 {
                     "models": [
                         {"name": ""},
-                        {"name": "mistral:7b"},
-                        {"name": "mistral:7b"},
+                        {"name": "llama3:8b"},
+                        {"name": "llama3:8b"},
                         {"name": "codegemma:latest"},
                     ]
                 }
@@ -2146,7 +2237,7 @@ def test_ollama_model_helpers_cover_error_empty_names_and_first_available(monkey
     monkeypatch.setattr(pipeline_ai.urllib.request, "urlopen", lambda *_args, **_kwargs: _Resp())
     pipeline_ai._ollama_available_models.clear()
     assert pipeline_ai._ollama_available_models("http://127.0.0.1:11434") == [
-        "mistral:7b",
+        "llama3:8b",
         "codegemma:latest",
     ]
     monkeypatch.setattr(
@@ -2611,6 +2702,25 @@ def test_ask_gpt_routes_qwen_and_deepseek_through_local_ollama(monkeypatch):
     assert calls == [pipeline_ai.OLLAMA_QWEN_PROVIDER, pipeline_ai.OLLAMA_DEEPSEEK_PROVIDER]
     assert qwen_result[2:] == [pipeline_ai.OLLAMA_QWEN_PROVIDER, "print('ok')", ""]
     assert deepseek_result[2:] == [pipeline_ai.OLLAMA_DEEPSEEK_PROVIDER, "print('ok')", ""]
+
+
+def test_ask_gpt_routes_mistral_provider(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": pipeline_ai.MISTRAL_PROVIDER,
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "chat_mistral_online",
+        lambda question, prompt, envars: ("```python\nprint('mistral')\n```", "mistral-medium-3.5"),
+    )
+
+    result = pipeline_ai.ask_gpt("q", Path("df.csv"), "page", {})
+
+    assert result[2:] == ["mistral-medium-3.5", "print('mistral')", ""]
 
 
 def test_autofix_and_provider_switch_cover_remaining_error_paths(monkeypatch):

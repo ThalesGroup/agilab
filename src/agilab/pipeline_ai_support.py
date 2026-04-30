@@ -133,7 +133,7 @@ def _ollama_available_models(endpoint: str) -> List[str]:
 def _default_ollama_model(
     endpoint: str,
     *,
-    preferred: str = "mistral:instruct",
+    preferred: str = "qwen2.5-coder:latest",
     prefer_code: bool = False,
 ) -> str:
     models = _ollama_available_models(endpoint)

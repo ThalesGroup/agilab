@@ -39,6 +39,24 @@ summarises the supported keys.
    * - ``OPENAI_API_KEY``
      - unset
      - API key surfaced to features that rely on OpenAI endpoints.
+   * - ``MISTRAL_API_KEY``
+     - unset
+     - API key used by the PIPELINE assistant when ``Mistral Medium 3.5 (online)``
+       is selected.
+   * - ``MISTRAL_MODEL``
+     - ``mistral-medium-3.5``
+     - Mistral chat model used by the online Mistral assistant provider.
+   * - ``MISTRAL_REASONING_EFFORT``
+     - ``high``
+     - Reasoning mode passed to Mistral chat completions. Supported values are
+       ``high`` and ``none``.
+   * - ``MISTRAL_TEMPERATURE``
+     - ``0.7`` for ``high``, ``0.1`` for ``none``
+     - Sampling temperature for the online Mistral assistant provider.
+   * - ``MISTRAL_BASE_URL``
+     - ``https://api.mistral.ai/v1``
+     - Optional Mistral-compatible API base URL, for example when routing through
+       a gateway.
    * - ``AGI_SHARE_DIR``
      - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
      - User-facing knob for the shared datasets/outputs root. When cluster mode is enabled, this value is applied to ``AGI_CLUSTER_SHARE`` and must resolve to a mounted, writable shared path on every node. The implicit default is user-scoped so datasets and cluster-visible outputs stay isolated per workspace. Operators can still override it with an explicit mounted path.
@@ -104,5 +122,5 @@ Security note
 -------------
 
 Prefer environment variables or ``$HOME/.agilab/.env`` for secrets such as
-``OPENAI_API_KEY`` and ``CLUSTER_CREDENTIALS``. Avoid passing them on the
+``OPENAI_API_KEY``, ``MISTRAL_API_KEY``, and ``CLUSTER_CREDENTIALS``. Avoid passing them on the
 command line because shell history and process listings can expose them.

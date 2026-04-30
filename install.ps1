@@ -858,11 +858,11 @@ function Install-OfflineExtra {
         return
     }
     if ($versionObj.Major -gt 3 -or ($versionObj.Major -eq 3 -and $versionObj.Minor -ge 12)) {
-        if (-not (Prompt-YesNo "Install offline assistant dependencies (GPT-OSS + mistral:instruct)?")) {
+        if (-not (Prompt-YesNo "Install offline assistant dependencies (GPT-OSS + Universal Offline AI Chatbot)?")) {
             Write-Warn "Skipping offline assistant packages."
             return
         }
-        Write-Info "Installing offline assistant dependencies (GPT-OSS + mistral:instruct)..."
+        Write-Info "Installing offline assistant dependencies (GPT-OSS + Universal Offline AI Chatbot)..."
         Push-Location $InstallPathFull
         try {
             Invoke-UvPreview @("pip", "install", ".[offline]") | Out-Null
@@ -897,8 +897,8 @@ function Install-OfflineExtra {
     }
 }
 
-function Seed-MistralPdfs {
-    Write-Info "Seeding sample PDFs for mistral:instruct (optional)..."
+function Seed-UoaicPdfs {
+    Write-Info "Seeding sample PDFs for Universal Offline AI Chatbot (optional)..."
     $dest = Join-Path $env:USERPROFILE ".agilab\mistral_offline\data"
     Ensure-Directory $dest
 
@@ -922,8 +922,8 @@ function Seed-MistralPdfs {
     }
 }
 
-function Setup-MistralOffline {
-    Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull 'mistral:instruct' if needed."
+function Setup-OfflineModels {
+    Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull 'gpt-oss:20b' if needed."
 }
 
 function Invoke-RepositoryCoverage {
@@ -1064,8 +1064,8 @@ try {
             Refresh-LaunchMatrix
             Install-Enduser
             Install-OfflineExtra
-            Seed-MistralPdfs
-            Setup-MistralOffline
+            Seed-UoaicPdfs
+            Setup-OfflineModels
             Write-Success "Installation complete!"
         }
     } else {
@@ -1074,8 +1074,8 @@ try {
         Refresh-LaunchMatrix
         Install-Enduser
         Install-OfflineExtra
-        Seed-MistralPdfs
-        Setup-MistralOffline
+        Seed-UoaicPdfs
+        Setup-OfflineModels
         Write-Success "Installation complete (apps skipped)."
     }
 

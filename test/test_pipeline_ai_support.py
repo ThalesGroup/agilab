@@ -79,8 +79,8 @@ class _FakeURLOpenResponse:
 def test_ollama_available_models_parses_models_and_removes_duplicates(monkeypatch):
     models_payload = {
         "models": [
-            {"name": "mistral"},
-            {"name": "mistral"},
+            {"name": "qwen2.5-coder:latest"},
+            {"name": "qwen2.5-coder:latest"},
             {"name": "llama"},
         ]
     }
@@ -93,12 +93,12 @@ def test_ollama_available_models_parses_models_and_removes_duplicates(monkeypatc
 
     models = pipeline_ai_support._ollama_available_models("http://127.0.0.1:11434")
 
-    assert models == ["mistral", "llama"]
+    assert models == ["qwen2.5-coder:latest", "llama"]
 
 
 def test_default_ollama_model_prefers_code_model_when_requested():
     def _fake_available(_endpoint: str):
-        return ["mistral", "codestral:latest", "llama"]
+        return ["qwen2.5-coder:latest", "codestral:latest", "llama"]
 
     original = pipeline_ai_support._ollama_available_models
     pipeline_ai_support._ollama_available_models = _fake_available
@@ -115,7 +115,6 @@ def test_default_ollama_model_prefers_code_model_when_requested():
 def test_default_ollama_family_model_and_matchers_cover_qwen_and_deepseek():
     def _fake_available(_endpoint: str):
         return [
-            "mistral",
             "qwen2.5-coder:7b",
             "qwen2.5:14b",
             "deepseek-r1:8b",
@@ -155,7 +154,7 @@ def test_ollama_generate_parses_generate_response_and_forwards_payload(monkeypat
 
     text = pipeline_ai_support._ollama_generate(
         endpoint="http://127.0.0.1:11434",
-        model="mistral",
+        model="qwen2.5-coder:latest",
         prompt="hello",
         num_ctx=256,
         num_predict=128,
@@ -165,7 +164,7 @@ def test_ollama_generate_parses_generate_response_and_forwards_payload(monkeypat
     assert text == "ok"
     assert "/api/generate" in captured["url"]
     payload = json.loads(captured["data"])
-    assert payload["model"] == "mistral"
+    assert payload["model"] == "qwen2.5-coder:latest"
     assert payload["options"]["num_ctx"] == 256
     assert payload["options"]["num_predict"] == 128
 def test_prompt_to_plaintext_flattens_list_content_and_unknown_roles():

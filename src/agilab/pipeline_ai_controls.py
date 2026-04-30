@@ -34,6 +34,19 @@ UOAIC_OLLAMA_ENDPOINT_ENV = _pipeline_ai_uoaic_module.UOAIC_OLLAMA_ENDPOINT_ENV
 UOAIC_PROVIDER = _pipeline_ai_uoaic_module.UOAIC_PROVIDER
 UOAIC_RUNTIME_KEY = _pipeline_ai_uoaic_module.UOAIC_RUNTIME_KEY
 
+_pipeline_mistral_module = import_agilab_module(
+    "agilab.pipeline_mistral",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_mistral.py",
+    fallback_name="agilab_pipeline_mistral_fallback",
+)
+MISTRAL_DEFAULT_MODEL = _pipeline_mistral_module.MISTRAL_DEFAULT_MODEL
+MISTRAL_DEFAULT_REASONING_EFFORT = _pipeline_mistral_module.MISTRAL_DEFAULT_REASONING_EFFORT
+MISTRAL_MODEL_ENV = _pipeline_mistral_module.MISTRAL_MODEL_ENV
+MISTRAL_PROVIDER = _pipeline_mistral_module.MISTRAL_PROVIDER
+MISTRAL_REASONING_EFFORT_ENV = _pipeline_mistral_module.MISTRAL_REASONING_EFFORT_ENV
+MISTRAL_TEMPERATURE_ENV = _pipeline_mistral_module.MISTRAL_TEMPERATURE_ENV
+
 _pipeline_ai_support_module = import_agilab_module(
     "agilab.pipeline_ai_support",
     current_file=__file__,
@@ -76,6 +89,7 @@ def configure_assistant_engine(
     }
     provider_options = {
         "OpenAI (online)": "openai",
+        "Mistral Medium 3.5 (online)": MISTRAL_PROVIDER,
         "GPT-OSS (local)": "gpt-oss",
         **local_family_providers,
         "Ollama (local)": uoaic_provider,
@@ -112,6 +126,16 @@ def configure_assistant_engine(
 
         if selected_provider == "openai":
             env.envars["OPENAI_MODEL"] = deps.get_default_openai_model_fn()
+        elif selected_provider == MISTRAL_PROVIDER:
+            env.envars.pop("OPENAI_MODEL", None)
+            model = str(
+                deps.session_state.get("mistral_model")
+                or env.envars.get(MISTRAL_MODEL_ENV)
+                or os.getenv(MISTRAL_MODEL_ENV, MISTRAL_DEFAULT_MODEL)
+            ).strip() or MISTRAL_DEFAULT_MODEL
+            deps.session_state["mistral_model"] = model
+            env.envars[MISTRAL_MODEL_ENV] = model
+            env.envars.setdefault(MISTRAL_REASONING_EFFORT_ENV, MISTRAL_DEFAULT_REASONING_EFFORT)
         elif selected_provider == "gpt-oss":
             oss_model = (
                 deps.session_state.get("gpt_oss_model")
@@ -162,6 +186,52 @@ def configure_assistant_engine(
         env.envars["GPT_OSS_ENDPOINT"] = endpoint
     else:
         deps.session_state.pop("gpt_oss_endpoint", None)
+
+    if selected_provider == MISTRAL_PROVIDER:
+        default_model = str(
+            deps.session_state.get("mistral_model")
+            or env.envars.get(MISTRAL_MODEL_ENV)
+            or os.getenv(MISTRAL_MODEL_ENV, MISTRAL_DEFAULT_MODEL)
+        ).strip() or MISTRAL_DEFAULT_MODEL
+        model = deps.sidebar.text_input(
+            "Mistral model",
+            value=default_model,
+        ).strip() or MISTRAL_DEFAULT_MODEL
+        deps.session_state["mistral_model"] = model
+        env.envars[MISTRAL_MODEL_ENV] = model
+
+        reasoning_options = ["high", "none"]
+        default_reasoning = str(
+            deps.session_state.get("mistral_reasoning_effort")
+            or env.envars.get(MISTRAL_REASONING_EFFORT_ENV)
+            or os.getenv(MISTRAL_REASONING_EFFORT_ENV, MISTRAL_DEFAULT_REASONING_EFFORT)
+        ).strip().lower()
+        if default_reasoning not in reasoning_options:
+            default_reasoning = MISTRAL_DEFAULT_REASONING_EFFORT
+        reasoning = deps.sidebar.selectbox(
+            "Mistral reasoning",
+            reasoning_options,
+            index=reasoning_options.index(default_reasoning),
+        )
+        deps.session_state["mistral_reasoning_effort"] = reasoning
+        env.envars[MISTRAL_REASONING_EFFORT_ENV] = reasoning
+
+        default_temperature = str(
+            deps.session_state.get("mistral_temperature")
+            or env.envars.get(MISTRAL_TEMPERATURE_ENV)
+            or os.getenv(MISTRAL_TEMPERATURE_ENV)
+            or ("0.7" if reasoning == "high" else "0.1")
+        )
+        temperature = deps.sidebar.text_input(
+            "Mistral temperature",
+            value=default_temperature,
+        ).strip()
+        if temperature:
+            deps.session_state["mistral_temperature"] = temperature
+            env.envars[MISTRAL_TEMPERATURE_ENV] = temperature
+        else:
+            deps.session_state.pop("mistral_temperature", None)
+            env.envars.pop(MISTRAL_TEMPERATURE_ENV, None)
 
     return selected_provider
 

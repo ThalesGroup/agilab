@@ -62,6 +62,20 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.pipeline_mistral",
+    {
+        "MISTRAL_PROVIDER": "MISTRAL_PROVIDER",
+        "MistralApiError": "MistralApiError",
+        "call_mistral_chat_completion": "_call_mistral_chat_completion_impl",
+        "ensure_cached_mistral_api_key": "ensure_cached_mistral_api_key",
+        "prompt_for_mistral_api_key": "prompt_for_mistral_api_key",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_mistral.py",
+    fallback_name="agilab_pipeline_mistral_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_steps",
     {"pipeline_export_root": "_pipeline_export_root"},
     current_file=__file__,
@@ -171,7 +185,7 @@ def _ollama_available_models(endpoint: str) -> List[str]:
 def _default_ollama_model(
     endpoint: str,
     *,
-    preferred: str = "mistral:instruct",
+    preferred: str = "qwen2.5-coder:latest",
     prefer_code: bool = False,
 ) -> str:
     models = _ollama_available_models(endpoint)
@@ -543,6 +557,51 @@ def chat_online(
         raise JumpToMain(e)
 
 
+def chat_mistral_online(
+    input_request: str,
+    prompt: List[Dict[str, str]],
+    envars: Dict[str, str],
+) -> Tuple[str, str]:
+    """Call Mistral's chat completion API for code generation."""
+
+    env_file_map = _load_env_file_map(ENV_FILE_PATH)
+    if env_file_map:
+        envars.update(env_file_map)
+
+    api_key = ensure_cached_mistral_api_key(envars)
+    if not api_key or is_placeholder_api_key(api_key):
+        prompt_for_mistral_api_key(
+            "Mistral API key appears missing or redacted. Supply a valid key to continue."
+        )
+        raise JumpToMain(ValueError("Mistral API key unavailable"))
+
+    st.session_state["mistral_api_key"] = api_key
+    envars["MISTRAL_API_KEY"] = api_key
+
+    system_msg = {
+        "role": "system",
+        "content": (
+            "Return ONLY Python code wrapped in ```python ... ``` with no explanations. "
+            "Assume there is a pandas DataFrame df and pandas is imported as pd."
+        ),
+    }
+    messages: List[Dict[str, str]] = [system_msg]
+    for item in prompt:
+        role = item.get("role", "assistant")
+        content = str(item.get("content", ""))
+        if content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": input_request})
+
+    try:
+        return _call_mistral_chat_completion_impl(messages, envars, api_key)
+    except (MistralApiError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        msg = _redact_sensitive(str(exc))
+        st.error(f"Mistral API error: {msg}")
+        logger.error("Mistral API error: %s", bound_log_value(msg, LOG_DETAIL_LIMIT))
+        raise JumpToMain(exc) from exc
+
+
 def ask_gpt(
     question: str,
     df_file: Path,
@@ -558,6 +617,8 @@ def ask_gpt(
     model_label = ""
     if provider == "gpt-oss":
         result, model_label = chat_offline(question, prompt, envars)
+    elif provider == MISTRAL_PROVIDER:
+        result, model_label = chat_mistral_online(question, prompt, envars)
     elif provider in {OLLAMA_QWEN_PROVIDER, OLLAMA_DEEPSEEK_PROVIDER}:
         result, model_label = chat_ollama_local(question, prompt, envars)
     elif provider == UOAIC_PROVIDER:

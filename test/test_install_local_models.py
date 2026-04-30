@@ -61,10 +61,10 @@ def test_root_installer_normalizes_requested_local_models_and_deduplicates_alias
         "normalize_local_model_name",
         "local_model_requested",
         "normalize_local_models_csv",
-        " qwen2.5-coder ; deepseek-coder:latest, gpt-oss:20b, qwen , mistral:instruct ",
+        " qwen2.5-coder ; deepseek-coder:latest, gpt-oss:20b, qwen , mistral ",
     )
 
-    assert normalized == "qwen deepseek gpt-oss mistral"
+    assert normalized == "qwen deepseek gpt-oss"
 
 
 def test_installers_normalize_empty_local_model_list_under_nounset() -> None:
@@ -146,7 +146,7 @@ def test_installers_map_supported_local_model_families_to_expected_ollama_tags()
     enduser_text = INSTALL_ENDUSER_SH.read_text(encoding="utf-8")
 
     for script_text in (root_text, enduser_text):
-        assert 'mistral) echo "mistral:instruct" ;;' in script_text
+        assert "mistral) echo" not in script_text
         assert 'qwen) echo "qwen2.5-coder:latest" ;;' in script_text
         assert 'deepseek) echo "deepseek-coder:latest" ;;' in script_text
         assert 'gpt-oss) echo "gpt-oss:20b" ;;' in script_text
@@ -156,7 +156,7 @@ def test_installers_expose_and_wire_install_local_models_flag() -> None:
     root_text = INSTALL_SH.read_text(encoding="utf-8")
     enduser_text = INSTALL_ENDUSER_SH.read_text(encoding="utf-8")
 
-    assert "--install-local-models mistral,qwen,deepseek,gpt-oss" in root_text
-    assert "--install-local-models mistral,qwen,deepseek,gpt-oss" in enduser_text
+    assert "--install-local-models qwen,deepseek,gpt-oss" in root_text
+    assert "--install-local-models qwen,deepseek,gpt-oss" in enduser_text
     assert 'setup_requested_local_models "$requested_local_models" "requested local models"' in root_text
     assert 'install_requested_local_models "${INSTALL_LOCAL_MODELS}"' in enduser_text

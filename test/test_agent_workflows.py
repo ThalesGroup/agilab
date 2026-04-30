@@ -25,7 +25,7 @@ def test_aider_repo_config_exposes_local_aliases_and_repo_reads() -> None:
     assert "AGENT_CONVENTIONS.md" in cfg["read"]
     assert "qwen-local:ollama_chat/qwen2.5-coder:latest" in cfg["alias"]
     assert "deepseek-local:ollama_chat/deepseek-coder:latest" in cfg["alias"]
-    assert "mistral-local:ollama_chat/mistral:instruct" in cfg["alias"]
+    assert not any("mistral-local" in alias for alias in cfg["alias"])
 
 
 def test_opencode_project_config_and_agents_use_agilab_defaults() -> None:

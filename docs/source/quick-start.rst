@@ -92,7 +92,7 @@ machine-readable proof record.
 
       ./install.sh --install-apps --install-local-models qwen,deepseek,gpt-oss
 
-   Supported values are ``mistral``, ``qwen``, ``deepseek``, and ``gpt-oss``.
+   Supported values are ``qwen``, ``deepseek``, and ``gpt-oss``.
 
 2. **Run the first-proof CLI**::
 
@@ -200,8 +200,8 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
     uv run agilab
 
 Optional feature stacks stay out of the base package install. Add
-``agilab[ai]`` for OpenAI-backed AI features and ``agilab[viz]`` for optional
-Plotly/matplotlib visualizations::
+``agilab[ai]`` for online AI assistant features such as OpenAI and Mistral, and
+``agilab[viz]`` for optional Plotly/matplotlib visualizations::
 
     uv pip install "agilab[ai,viz]"
 

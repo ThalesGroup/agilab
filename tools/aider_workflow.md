@@ -36,7 +36,6 @@ The repo ships:
 
 - `qwen-local`
 - `deepseek-local`
-- `mistral-local`
 
 Override the default model with:
 

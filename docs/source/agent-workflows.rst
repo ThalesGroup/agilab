@@ -102,7 +102,7 @@ In practice this means:
   variables
 
 The prepared local families are the same ones already documented elsewhere in
-AGILAB: ``mistral``, ``qwen``, and ``deepseek``.
+AGILAB: ``qwen`` and ``deepseek``.
 
 Where to read the repo-local files
 ----------------------------------

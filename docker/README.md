@@ -52,9 +52,9 @@ sshfs-mount `/root/clustershare` from the scheduler to share datasets.
 
 3. **Pull an LLM model** (first time only — persisted in `ollama-models` volume):
    ```bash
-   docker exec agilab-ollama ollama pull mistral:instruct
+   docker exec agilab-ollama ollama pull qwen2.5-coder:latest
    ```
-   Other models: `llama3`, `gemma3`, `phi4`, `qwen2.5-coder` — see [ollama.com/library](https://ollama.com/library).
+   Other models: `deepseek-coder`, `llama3`, `gemma3`, `phi4` — see [ollama.com/library](https://ollama.com/library).
 
 4. **Access the UI**: http://localhost:8501
 

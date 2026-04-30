@@ -73,7 +73,7 @@ checkout, rerun the installer with the families you want::
 
    ./install.sh --install-apps --install-local-models qwen,deepseek,gpt-oss
 
-Supported values are ``mistral``, ``qwen``, ``deepseek``, and ``gpt-oss``.
+Supported values are ``qwen``, ``deepseek``, and ``gpt-oss``.
 
 The notebook file lives in the repository at
 ``examples/notebook_quickstart/agi_core_first_run.ipynb``.
