@@ -777,7 +777,8 @@ async def _render_deployment_panel(
 ) -> int:
     """Render the deployment expander and return the effective verbose level."""
     verbose = initial_verbose
-    with st.expander("Do deployment", expanded=True):
+    with st.expander("1. Runtime setup and install", expanded=True):
+        st.caption("Choose local or cluster capabilities, then install the manager and worker environments.")
         if install_status["manager_ready"] and not install_status["worker_ready"]:
             st.warning(
                 "Manager environment detected, but the worker environment is missing. "
@@ -901,7 +902,8 @@ async def _render_distribution_panel(
 
     module = env.target
 
-    with st.expander(f"{module} args", expanded=True):
+    with st.expander(f"2. Configure {module} arguments", expanded=True):
+        st.caption("Set the input, output, and app-specific parameters that will be passed to the run.")
         app_args_form = env.app_args_form
 
         snippet_exists = app_args_form.exists()
@@ -972,7 +974,8 @@ async def _render_distribution_panel(
             del st.session_state["app_settings"]
             st.rerun()
 
-    with st.expander("Check orchestration", expanded=False):
+    with st.expander("3. Verify distribution workplan", expanded=False):
+        st.caption("Preview how the current arguments will be partitioned across available workers.")
         cluster_params = st.session_state.app_settings["cluster"]
         enabled = cluster_params.get("cluster_enabled", False)
         scheduler = cluster_params.get("scheduler", "")
@@ -1135,7 +1138,9 @@ async def _render_run_panels(
     workers = optional_python_expr(enabled, cluster_params.get("workers"))
 
     if show_run_panel:
-        with st.expander("Optimize execution"):
+        st.markdown("#### 4. Choose execution strategy")
+        st.caption("Select one-shot execution or service mode, then tune benchmark and runtime options.")
+        with st.expander("Execution options", expanded=True):
             cluster_params = st.session_state.app_settings["cluster"]
             try:
                 local_share_path = env.share_root_path()
