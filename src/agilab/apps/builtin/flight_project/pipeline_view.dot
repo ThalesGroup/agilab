@@ -6,7 +6,7 @@ digraph flight_pipeline {
 
   dataset [label="Flight telemetry input\nCSV trajectories"];
   decode [label="Trajectory parsing\nlat/lon/time normalization"];
-  enrich [label="Route enrichment\ngeodesic distance + timing"];
+  enrich [label="Route enrichment\nsegment distance + timing"];
   reduce [label="Reduce summary\nworker trajectory metrics"];
   artifacts [label="Map-ready artifacts\ntrajectory CSV + summaries"];
   analysis [label="ANALYSIS views\nmaps + barycentric review"];

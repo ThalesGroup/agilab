@@ -140,9 +140,11 @@ def _load_flight_form_module(
         reset_target: bool = False
 
         @model_validator(mode="after")
-        def _validate_hawk(self):
-            if self.data_source == "hawk" and not self.data_in.strip():
-                raise ValueError("hawk data_in is required")
+        def _validate_public_file_source(self):
+            if self.data_source != "file":
+                raise ValueError("flight_project public demo supports only file-based input")
+            if self.files == "[":
+                raise ValueError("invalid files filter")
             return self
 
         def to_toml_payload(self):
@@ -165,6 +167,7 @@ def _load_flight_form_module(
 
     fake_flight = types.ModuleType("flight")
     fake_flight.FlightArgs = FlightArgs
+    fake_flight.SUPPORTED_DATA_SOURCES = ("file",)
     fake_flight.apply_source_defaults = apply_source_defaults
     fake_flight.dump_args_to_toml = dump_args_to_toml
     fake_flight.load_args_from_toml = load_args_from_toml
@@ -519,7 +522,7 @@ def test_flight_project_app_args_form_render(mock_ui_env):
             sys.path.remove(project_src)
 
 def test_flight_project_app_args_form(mock_ui_env):
-    """Test the flight_project UI data source form interactions."""
+    """Test the flight_project file-based public UI data source form interactions."""
     project_src = str(mock_ui_env["project_dir"] / "src")
     sys.path.insert(0, project_src)
     try:
@@ -532,21 +535,17 @@ def test_flight_project_app_args_form(mock_ui_env):
         at.run()
         assert not at.exception
 
-        # The default data source is 'file', we switch it to 'hawk'
-        at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
+        source_select = at.selectbox(key="flight_project:app_args_form:data_source")
+        assert source_select.options == ["file"]
 
-        # Check if the text input labels changed
-        # Text input for "Hawk cluster URI" should exist (it replaces "Data directory")
-        # Actually, AppTest exposes text inputs but their labels might vary. Let's find it by key
         data_in_input = at.text_input(key="flight_project:app_args_form:data_in")
-        assert data_in_input.label == "Hawk cluster URI"
+        assert data_in_input.label == "Data directory"
 
         files_input = at.text_input(key="flight_project:app_args_form:files")
-        assert files_input.label == "Pipeline name"
+        assert files_input.label == "Files filter"
 
-        # Let's set some values
-        data_in_input.set_value("hawk.cluster.local:9200")
-        files_input.set_value("test_pipeline")
+        data_in_input.set_value("flight/custom_dataset")
+        files_input.set_value("*.csv")
         at.number_input(key="flight_project:app_args_form:nfile").set_value(5)
 
         at.run()
@@ -561,12 +560,10 @@ def test_flight_project_app_args_form(mock_ui_env):
 
         assert not at.exception
 
-        # The current parameters are collected in the session state payload or validated structure
-        # The UI saves to `settings_path` and updates `app_settings`
         assert "app_settings" in at.session_state, "app_settings was not saved!"
-        assert at.session_state["app_settings"]["args"]["data_source"] == "hawk"
-        assert at.session_state["app_settings"]["args"]["data_in"] == "hawk.cluster.local:9200"
-        assert at.session_state["app_settings"]["args"]["files"] == "test_pipeline"
+        assert at.session_state["app_settings"]["args"]["data_source"] == "file"
+        assert at.session_state["app_settings"]["args"]["data_in"] == "flight/custom_dataset"
+        assert at.session_state["app_settings"]["args"]["files"] == "*.csv"
         assert at.session_state["app_settings"]["args"]["nfile"] == 5
 
         # Look for the success message containing "Saved to"
@@ -604,8 +601,8 @@ def test_flight_app_args_form_import_validation_branches(monkeypatch, tmp_path):
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_project:app_args_form:data_source": "hawk",
-            "flight_project:app_args_form:data_in": "",
+            "flight_project:app_args_form:data_source": "file",
+            "flight_project:app_args_form:files": "[",
         },
         with_humanized_errors=True,
     )
@@ -617,8 +614,8 @@ def test_flight_app_args_form_import_validation_branches(monkeypatch, tmp_path):
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_project:app_args_form:data_source": "hawk",
-            "flight_project:app_args_form:data_in": "",
+            "flight_project:app_args_form:data_source": "file",
+            "flight_project:app_args_form:files": "[",
         },
         with_humanized_errors=False,
     )
@@ -924,8 +921,8 @@ def test_app_args_form_no_changes(mock_ui_env):
             sys.path.remove(project_src)
 
 
-def test_app_args_form_switch_back_to_file(mock_ui_env):
-    """Test switching data source from file -> hawk -> file and verifying labels revert."""
+def test_app_args_form_exposes_only_file_source(mock_ui_env):
+    """Test the public built-in form exposes only the implemented file source."""
     project_src = str(mock_ui_env["project_dir"] / "src")
     sys.path.insert(0, project_src)
     try:
@@ -935,14 +932,8 @@ def test_app_args_form_switch_back_to_file(mock_ui_env):
         at.run()
         assert not at.exception
 
-        # Switch to hawk
-        at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
-        assert not at.exception
-        assert at.text_input(key="flight_project:app_args_form:data_in").label == "Hawk cluster URI"
-
-        # Switch back to file
-        at.selectbox(key="flight_project:app_args_form:data_source").set_value("file").run()
-        assert not at.exception
+        source_select = at.selectbox(key="flight_project:app_args_form:data_source")
+        assert source_select.options == ["file"]
         assert at.text_input(key="flight_project:app_args_form:data_in").label == "Data directory"
         assert at.text_input(key="flight_project:app_args_form:files").label == "Files filter"
     finally:

@@ -3,7 +3,7 @@
 `flight_project` is the AGILAB install id for this built-in public flight example.
 
 The project focuses on a simple but useful workflow:
-- ingest flight data from files or a Hawk source
+- ingest flight data from files under shared storage
 - turn that input into a dataframe dataset under shared storage
 - inspect the result in the default AGILAB `view_maps` page
 
@@ -16,6 +16,7 @@ The project focuses on a simple but useful workflow:
 ## What is not implemented in the public version
 
 This public built-in example is intentionally narrow. It does **not** implement:
+- Hawk/ELK ingestion inside this app; use a custom/private app for that connector path
 - richer trajectory-centric study workflows
 - multi-stage trajectory reconstruction or scenario stitching
 - dedicated cross-run comparison views for complex flight studies
@@ -32,7 +33,7 @@ analysis pages and downstream pipeline steps.
 
 Workers also emit a `reduce_summary_worker_<id>.json` `ReduceArtifact` beside
 the dataframe outputs. That summary records the reducer name, row count,
-aircraft/source-file counts, written output files, and trajectory speed/time-span
+aircraft/source-file counts, written output files, and trajectory distance/time-span
 fields so Release Decision can surface the flight run as first-class evidence.
 
 ## Typical flow

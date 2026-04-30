@@ -6,6 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import polars as pl
+import pytest
 from agi_node import MutableNamespace
 from agi_node.reduction import ReduceArtifact
 
@@ -34,6 +35,7 @@ def test_flight_project_declares_polars_runtime_compat():
     project = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
 
     assert "polars[rtcompat]" in project["dependencies"]
+    assert "geopy" not in project["dependencies"]
 
 
 class _FakeEnv:
@@ -75,6 +77,17 @@ def test_flight_manager_ignores_agi_step_list_args(monkeypatch, tmp_path):
     assert flight.args.data_out == tmp_path / "share" / "uav_graph_routing" / "pipeline"
 
 
+def test_flight_manager_rejects_unsupported_hawk_source(monkeypatch, tmp_path):
+    Flight, _ = _import_flight_modules(monkeypatch)
+
+    with pytest.raises(ValueError, match="file-based input"):
+        Flight(
+            _FakeEnv(tmp_path / "share"),
+            data_source="hawk",
+            data_in="hawk.cluster.local:9200",
+        )
+
+
 def test_flight_manager_builds_typed_file_inventory(monkeypatch, tmp_path):
     Flight, _ = _import_flight_modules(monkeypatch)
     monkeypatch.setenv("HOME", str(tmp_path))
@@ -105,6 +118,21 @@ def test_flight_manager_builds_typed_file_inventory(monkeypatch, tmp_path):
         "size": [3, 2],
     }
 
+    work_plan, metadata, partition_key, weights_key, weights_unit = flight.build_distribution(
+        {"127.0.0.1": 1}
+    )
+
+    assert work_plan == [
+        [
+            ["localshare/flight_cluster_validation/dataset/csv/60_5984.csv"],
+            ["localshare/flight_cluster_validation/dataset/csv/61_6101.csv"],
+        ]
+    ]
+    assert metadata == [[(60, 0.003), (61, 0.002)]]
+    assert partition_key == "plane"
+    assert weights_key == "files"
+    assert weights_unit == "KB"
+
 
 def test_flight_worker_defaults_missing_data_source(monkeypatch, tmp_path):
     _, FlightWorker = _import_flight_modules(monkeypatch)
@@ -129,6 +157,29 @@ def test_flight_worker_defaults_missing_data_source(monkeypatch, tmp_path):
     assert worker.args.data_source == "file"
     assert worker.args.output_format == "parquet"
     assert worker.pool_vars["args"] is worker.args
+
+
+def test_flight_worker_rejects_unsupported_hawk_source(monkeypatch, tmp_path):
+    _, FlightWorker = _import_flight_modules(monkeypatch)
+    worker = object.__new__(FlightWorker)
+    worker.args = MutableNamespace(
+        data_source="hawk",
+        data_in="hawk.cluster.local:9200",
+        data_out="flight/dataframe",
+        reset_target=False,
+    )
+    worker.verbose = 0
+    worker._worker_id = 0
+    worker.env = _FakeEnv(tmp_path / "share")
+    worker.pool_vars = {}
+
+    def fake_setup_data_directories(**_kwargs):
+        return SimpleNamespace(normalized_input="hawk.cluster.local:9200")
+
+    worker.setup_data_directories = fake_setup_data_directories
+
+    with pytest.raises(NotImplementedError, match="file-based input"):
+        worker.start()
 
 
 def test_flight_reduce_contract_merges_trajectory_partials(monkeypatch):
