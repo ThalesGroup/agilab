@@ -1014,45 +1014,62 @@ def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool
         cfg["pages"] = pages = {}
 
     raw_modules = pages.get("view_module")
-    has_legacy_module = isinstance(raw_modules, list) and any(
-        value == "view_maps_network" for value in raw_modules if isinstance(value, str)
+    raw_excluded = pages.get("excluded_views")
+    has_network_module = isinstance(raw_modules, list) and any(
+        value.strip() == "view_maps_network" for value in raw_modules if isinstance(value, str)
+    )
+    has_network_exclusion = isinstance(raw_excluded, list) and any(
+        value.strip() == "view_maps_network" for value in raw_excluded if isinstance(value, str)
     )
     has_legacy_default = pages.get("default_view") == "view_maps_network"
-    if not has_legacy_default and not has_legacy_module:
+    if not has_legacy_default and not has_network_module and not has_network_exclusion:
         return False
 
     changed = False
-    if pages.get("default_view") != "view_maps":
+    if has_legacy_default:
         pages["default_view"] = "view_maps"
         changed = True
 
     if not isinstance(raw_modules, list):
-        modules = ["view_maps"]
+        modules = ["view_maps", "view_maps_network"]
     else:
         modules = [
-            str(value)
+            value.strip()
             for value in raw_modules
-            if isinstance(value, str) and value.strip() and value != "view_maps_network"
+            if isinstance(value, str) and value.strip()
         ]
         if "view_maps" not in modules:
             modules.insert(0, "view_maps")
+        if "view_maps_network" not in modules:
+            insert_at = (
+                modules.index("view_maps") + 1
+                if "view_maps" in modules
+                else len(modules)
+            )
+            modules.insert(insert_at, "view_maps_network")
         modules = _dedupe_preserve_order(modules)
 
     if raw_modules != modules:
         pages["view_module"] = modules
         changed = True
 
-    raw_excluded = pages.get("excluded_views")
     excluded = (
-        [str(value) for value in raw_excluded if isinstance(value, str) and value.strip()]
+        [
+            value.strip()
+            for value in raw_excluded
+            if isinstance(value, str)
+            and value.strip()
+            and value.strip() != "view_maps_network"
+        ]
         if isinstance(raw_excluded, list)
         else []
     )
-    if "view_maps_network" not in excluded:
-        excluded.append("view_maps_network")
     excluded = _dedupe_preserve_order(excluded)
     if raw_excluded != excluded:
-        pages["excluded_views"] = excluded
+        if excluded:
+            pages["excluded_views"] = excluded
+        else:
+            pages.pop("excluded_views", None)
         changed = True
     return changed
 

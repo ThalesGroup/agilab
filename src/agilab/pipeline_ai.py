@@ -97,6 +97,17 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.pipeline_recipe_memory",
+    {
+        "augment_question_with_recipe_memory": "_augment_question_with_recipe_memory",
+        "promote_validated_recipe": "_promote_validated_recipe",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_recipe_memory.py",
+    fallback_name="agilab_pipeline_recipe_memory_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_ai_support",
     {
         "CODE_STRICT_INSTRUCTIONS": "CODE_STRICT_INSTRUCTIONS",
@@ -693,19 +704,26 @@ def ask_gpt(
 ) -> List[Any]:
     """Send a question to GPT and get the response."""
     prompt = st.session_state.get("lab_prompt", [])
+    original_question = question
+    model_question = _augment_question_with_recipe_memory(
+        question,
+        session_state=st.session_state,
+        envars=envars,
+        df_file=df_file,
+    )
     provider = st.session_state.get(
         "lab_llm_provider",
         envars.get("LAB_LLM_PROVIDER", "openai"),
     )
     model_label = ""
     if provider == "gpt-oss":
-        result, model_label = chat_offline(question, prompt, envars)
+        result, model_label = chat_offline(model_question, prompt, envars)
     elif provider == OPENAI_COMPAT_PROVIDER:
-        result, model_label = chat_openai_compatible(question, prompt, envars)
+        result, model_label = chat_openai_compatible(model_question, prompt, envars)
     elif provider == MISTRAL_PROVIDER:
-        result, model_label = chat_mistral_online(question, prompt, envars)
+        result, model_label = chat_mistral_online(model_question, prompt, envars)
     elif provider in OLLAMA_LOCAL_PROVIDER_FAMILIES:
-        result, model_label = chat_ollama_local(question, prompt, envars)
+        result, model_label = chat_ollama_local(model_question, prompt, envars)
     elif provider == UOAIC_PROVIDER:
         mode = (
             st.session_state.get(UOAIC_MODE_STATE_KEY)
@@ -714,21 +732,21 @@ def ask_gpt(
             or UOAIC_MODE_OLLAMA
         )
         if mode == UOAIC_MODE_RAG:
-            result, model_label = chat_universal_offline(question, prompt, envars)
+            result, model_label = chat_universal_offline(model_question, prompt, envars)
         else:
-            result, model_label = chat_ollama_local(question, prompt, envars)
+            result, model_label = chat_ollama_local(model_question, prompt, envars)
     else:
-        result, model_label = chat_online(question, prompt, envars)
+        result, model_label = chat_online(model_question, prompt, envars)
 
     model_label = str(model_label or "")
     if not result:
-        return [df_file, question, model_label, "", ""]
+        return [df_file, original_question, model_label, "", ""]
 
     code, detail = extract_code(result)
     detail = detail or ("" if code else result.strip())
     return [
         df_file,
-        question,
+        original_question,
         model_label,
         code.strip() if code else "",
         detail,
@@ -781,6 +799,15 @@ def _maybe_autofix_generated_code(
     _, err = _exec_code_on_df(merged_code, df)
     if not err:
         push_run_log(index_page, "Auto-fix: generated code validated successfully.", placeholder)
+        _promote_validated_recipe(
+            question=original_request,
+            code=merged_code,
+            model=model_label,
+            df_columns=[str(column) for column in df.columns],
+            source_path=df_path,
+            source_ref=f"{index_page}:autofix-initial",
+            envars=env.envars,
+        )
         return merged_code, model_label, detail
 
     push_run_log(index_page, f"Auto-fix: initial execution failed.\n{err}", placeholder)
@@ -808,6 +835,15 @@ def _maybe_autofix_generated_code(
         _, candidate_err = _exec_code_on_df(candidate, df)
         if not candidate_err:
             push_run_log(index_page, f"Auto-fix: success on attempt {attempt}.", placeholder)
+            _promote_validated_recipe(
+                question=original_request,
+                code=candidate,
+                model=fix_model,
+                df_columns=[str(column) for column in df.columns],
+                source_path=df_path,
+                source_ref=f"{index_page}:autofix-attempt-{attempt}",
+                envars=env.envars,
+            )
             return candidate, fix_model, fix_detail
 
         summary = candidate_err.strip().splitlines()[-1] if candidate_err.strip() else "Unknown error"

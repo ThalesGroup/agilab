@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import itertools
 import importlib.util
 import json
 import sys
@@ -45,6 +46,37 @@ DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
 DEFAULT_TARGET_SECONDS = 1800.0
 ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
+SAFE_ACTION_LABEL_PREFIXES = ("view", "open", "show", "select", "choose", "browse", "back", "cancel", "close", "refresh", "reload")
+RISKY_ACTION_LABEL_TOKENS = {
+    "add",
+    "apply",
+    "build",
+    "clear",
+    "clone",
+    "create",
+    "delete",
+    "deploy",
+    "distribute",
+    "execute",
+    "export",
+    "generate",
+    "import",
+    "install",
+    "kill",
+    "launch",
+    "remove",
+    "rename",
+    "reset",
+    "run",
+    "save",
+    "start",
+    "stop",
+    "submit",
+    "sync",
+    "train",
+    "update",
+    "upload",
+}
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
 PAGE_EXPECTED_TEXT = {
     "": ("AGILAB", "Start here"),
@@ -132,6 +164,9 @@ WIDGET_COLLECTOR_JS = r"""
         role: el.getAttribute("role") || "",
         tag: el.tagName.toLowerCase(),
         type: el.getAttribute("type") || "",
+        checked: Boolean(el.checked || el.getAttribute("aria-checked") === "true"),
+        name: el.getAttribute("name") || "",
+        value: el.getAttribute("value") || "",
         testid: testIdFor(el),
         path: pathFor(el),
         scope: scopeFor(el),
@@ -190,6 +225,10 @@ class PageSweep:
     skips: list[WidgetProbe]
     main_widget_count: int = 0
     sidebar_widget_count: int = 0
+    combination_space_count: int = 0
+    combination_count: int = 0
+    combination_failed_count: int = 0
+    combination_skipped_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -208,6 +247,10 @@ class WidgetSweepSummary:
     pages: list[PageSweep]
     main_widget_count: int = 0
     sidebar_widget_count: int = 0
+    combination_space_count: int = 0
+    combination_count: int = 0
+    combination_failed_count: int = 0
+    combination_skipped_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -217,6 +260,34 @@ class SeededRuntime:
     export_root: Path
     share_root: Path
     cluster_share_root: Path
+
+
+@dataclass(frozen=True)
+class WidgetChoice:
+    control_id: str
+    kind: str
+    label: str
+    value: str
+    widget: dict[str, Any]
+    checked: bool | None = None
+    option_index: int | None = None
+    default: bool = False
+
+
+@dataclass(frozen=True)
+class WidgetControl:
+    control_id: str
+    kind: str
+    label: str
+    choices: tuple[WidgetChoice, ...]
+
+
+@dataclass(frozen=True)
+class WidgetCombinationPlan:
+    controls: tuple[WidgetControl, ...]
+    total_count: int
+    combinations: tuple[tuple[WidgetChoice, ...], ...]
+    truncated: bool = False
 
 
 def _load_web_robot() -> Any:
@@ -631,6 +702,32 @@ def _normalized_label(label: str) -> str:
     return label.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip().lower()
 
 
+def _action_label_tokens(label: str) -> set[str]:
+    cleaned = "".join(character if character.isalnum() else " " for character in _normalized_label(label))
+    return {token for token in cleaned.split() if token}
+
+
+def _action_label_has_safe_prefix(label: str) -> bool:
+    normalized = _normalized_label(label).replace("_", " ").replace("-", " ")
+    return any(normalized == prefix or normalized.startswith(f"{prefix} ") for prefix in SAFE_ACTION_LABEL_PREFIXES)
+
+
+def safe_action_click_reason(widget: dict[str, Any]) -> str | None:
+    kind = str(widget.get("kind", ""))
+    label = str(widget.get("label", ""))
+    if kind == "download_button":
+        return "download buttons are read-only browser actions"
+    tokens = _action_label_tokens(label)
+    risky_tokens = tokens & RISKY_ACTION_LABEL_TOKENS
+    if risky_tokens:
+        return None
+    if _action_label_has_safe_prefix(label):
+        return "label matches guarded safe navigation/action prefix"
+    if _normalized_label(label).startswith("view_"):
+        return "label matches configured analysis view launcher"
+    return None
+
+
 def widget_scope(widget: dict[str, Any] | WidgetProbe) -> str:
     scope = getattr(widget, "scope", "") if isinstance(widget, WidgetProbe) else str(widget.get("scope", ""))
     return "sidebar" if scope == "sidebar" else "main"
@@ -650,6 +747,211 @@ def _same_widget(widget: dict[str, Any], candidate: dict[str, Any]) -> bool:
     if label and candidate_label and (label == candidate_label or label in candidate_label or candidate_label in label):
         return True
     return bool(widget.get("testid") and widget.get("testid") == candidate.get("testid") and widget.get("path") == candidate.get("path"))
+
+
+def _control_id_for_widget(widget: dict[str, Any], *, suffix: str = "") -> str:
+    parts = [
+        widget_scope(widget),
+        str(widget.get("kind", "")),
+        _normalized_label(str(widget.get("label", ""))) or str(widget.get("name", "")),
+        str(widget.get("testid", "")),
+        str(widget.get("path", "")),
+        suffix,
+    ]
+    return ":".join(part for part in parts if part)
+
+
+def _choice_label(widget: dict[str, Any], index: int) -> str:
+    label = str(widget.get("label", "")).strip()
+    value = str(widget.get("value", "")).strip()
+    if label and value and value not in label:
+        return f"{label}: {value}"
+    if label:
+        return label
+    if value:
+        return value
+    return f"option {index + 1}"
+
+
+def _choice_description(choice: WidgetChoice) -> str:
+    if choice.kind in {"checkbox", "toggle"}:
+        return f"{choice.label}={'on' if choice.checked else 'off'}"
+    if choice.kind == "selectbox":
+        return f"{choice.label}={choice.value}"
+    return f"{choice.label}={choice.value or choice.kind}"
+
+
+def _combination_description(combination: Sequence[WidgetChoice]) -> str:
+    return ", ".join(_choice_description(choice) for choice in combination)
+
+
+def _binary_widget_control(widget: dict[str, Any]) -> WidgetControl | None:
+    kind = str(widget.get("kind", ""))
+    if kind not in {"checkbox", "toggle"} or widget.get("disabled"):
+        return None
+    checked = bool(widget.get("checked"))
+    control_id = _control_id_for_widget(widget)
+    label = str(widget.get("label", "")) or control_id
+    choices = (
+        WidgetChoice(control_id, kind, label, "off", dict(widget), checked=False, default=not checked),
+        WidgetChoice(control_id, kind, label, "on", dict(widget), checked=True, default=checked),
+    )
+    return WidgetControl(control_id, kind, label, choices)
+
+
+def _radio_group_key(widget: dict[str, Any]) -> tuple[str, str, str]:
+    name = str(widget.get("name", "")).strip()
+    if name:
+        return (widget_scope(widget), "name", name)
+    return (widget_scope(widget), "label", _normalized_label(str(widget.get("label", ""))))
+
+
+def collect_static_widget_combination_controls(widgets: Sequence[dict[str, Any]]) -> list[WidgetControl]:
+    controls: list[WidgetControl] = []
+    radio_groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for widget in widgets:
+        kind = str(widget.get("kind", ""))
+        if kind in {"checkbox", "toggle"}:
+            control = _binary_widget_control(widget)
+            if control is not None:
+                controls.append(control)
+        elif kind == "radio" and not widget.get("disabled"):
+            radio_groups.setdefault(_radio_group_key(widget), []).append(widget)
+
+    for key, group in radio_groups.items():
+        if len(group) < 2:
+            continue
+        checked_present = any(bool(widget.get("checked")) for widget in group)
+        control_id = ":".join(("main" if key[0] != "sidebar" else "sidebar", "radio", key[1], key[2]))
+        label = str(group[0].get("label", "")) or key[2] or control_id
+        choices = tuple(
+            WidgetChoice(
+                control_id,
+                "radio",
+                label,
+                str(widget.get("value", "")) or _choice_label(widget, index),
+                dict(widget),
+                checked=True,
+                default=bool(widget.get("checked")) or (not checked_present and index == 0),
+            )
+            for index, widget in enumerate(group)
+        )
+        controls.append(WidgetControl(control_id, "radio", label, choices))
+    return controls
+
+
+def build_widget_combination_plan(controls: Sequence[WidgetControl], *, max_combinations: int) -> WidgetCombinationPlan:
+    if max_combinations <= 0:
+        raise ValueError("max_combinations must be greater than 0")
+    valid_controls = tuple(control for control in controls if control.choices)
+    if not valid_controls:
+        return WidgetCombinationPlan((), 0, ())
+    total_count = 1
+    for control in valid_controls:
+        total_count *= len(control.choices)
+    combinations = tuple(tuple(combo) for combo in itertools.islice(itertools.product(*(control.choices for control in valid_controls)), max_combinations))
+    return WidgetCombinationPlan(valid_controls, total_count, combinations, truncated=total_count > max_combinations)
+
+
+def _option_locator(page: Any) -> Any:
+    return page.locator("[role='option']")
+
+
+def _selectbox_option_labels(
+    page: Any,
+    widget: dict[str, Any],
+    *,
+    timeout_ms: float,
+    max_options_per_widget: int,
+) -> tuple[list[str], str | None]:
+    locator = _widget_locator(page, widget)
+    try:
+        locator.scroll_into_view_if_needed(timeout=timeout_ms)
+        _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+        page.wait_for_timeout(150)
+        options = _option_locator(page)
+        count = options.count()
+        if count <= 0:
+            page.keyboard.press("Escape")
+            return [], "no selectbox options found after opening"
+        labels: list[str] = []
+        for index in range(min(count, max_options_per_widget)):
+            text = options.nth(index).inner_text(timeout=timeout_ms).strip()
+            labels.append(text or f"option {index + 1}")
+        page.keyboard.press("Escape")
+        if count > max_options_per_widget:
+            return labels, f"selectbox has {count} options; capped at --max-options-per-widget {max_options_per_widget}"
+        return labels, None
+    except Exception as exc:
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+        return [], _short_detail(f"could not enumerate selectbox options: {exc}")
+
+
+def _selectbox_widget_control(
+    page: Any,
+    widget: dict[str, Any],
+    *,
+    app_name: str,
+    page_name: str,
+    timeout_ms: float,
+    max_options_per_widget: int,
+) -> tuple[WidgetControl | None, WidgetProbe | None]:
+    if widget.get("disabled"):
+        return None, None
+    labels, issue = _selectbox_option_labels(page, widget, timeout_ms=timeout_ms, max_options_per_widget=max_options_per_widget)
+    issue_probe = None
+    if issue is not None:
+        status = "skipped" if labels else "failed"
+        issue_probe = WidgetProbe(app_name, page_label(page_name), "selectbox_options", str(widget.get("label", "")), status, issue, page.url, widget_scope(widget))
+    if not labels:
+        return None, issue_probe
+    control_id = _control_id_for_widget(widget)
+    label = str(widget.get("label", "")) or control_id
+    choices = tuple(
+        WidgetChoice(
+            control_id,
+            "selectbox",
+            label,
+            option_label,
+            dict(widget),
+            option_index=index,
+            default=index == 0,
+        )
+        for index, option_label in enumerate(labels)
+    )
+    return WidgetControl(control_id, "selectbox", label, choices), issue_probe
+
+
+def collect_widget_combination_controls(
+    page: Any,
+    widgets: Sequence[dict[str, Any]],
+    *,
+    app_name: str,
+    page_name: str,
+    timeout_ms: float,
+    max_options_per_widget: int,
+) -> tuple[list[WidgetControl], list[WidgetProbe]]:
+    controls = collect_static_widget_combination_controls(widgets)
+    probes: list[WidgetProbe] = []
+    for widget in widgets:
+        if str(widget.get("kind", "")) != "selectbox":
+            continue
+        control, probe = _selectbox_widget_control(
+            page,
+            widget,
+            app_name=app_name,
+            page_name=page_name,
+            timeout_ms=timeout_ms,
+            max_options_per_widget=max_options_per_widget,
+        )
+        if probe is not None:
+            probes.append(probe)
+        if control is not None:
+            controls.append(control)
+    return controls, probes
 
 
 def _short_detail(detail: str, *, limit: int = 500) -> str:
@@ -694,6 +996,85 @@ def _click_with_force_fallback(locator: Any, *, timeout_ms: float) -> None:
         locator.click(timeout=timeout_ms, force=True)
 
 
+def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:
+    try:
+        return bool(locator.is_checked(timeout=timeout_ms))
+    except Exception:
+        pass
+    try:
+        aria_checked = locator.get_attribute("aria-checked", timeout=timeout_ms)
+    except Exception:
+        return None
+    if aria_checked == "true":
+        return True
+    if aria_checked == "false":
+        return False
+    return None
+
+
+def _apply_widget_choice(page: Any, choice: WidgetChoice, *, timeout_ms: float) -> None:
+    locator = _widget_locator(page, dict(choice.widget))
+    locator.scroll_into_view_if_needed(timeout=timeout_ms)
+    if not locator.is_visible(timeout=timeout_ms):
+        raise RuntimeError(f"{choice.kind} {choice.label!r} is not visible")
+    if not locator.is_enabled(timeout=timeout_ms):
+        raise RuntimeError(f"{choice.kind} {choice.label!r} is not enabled")
+    if choice.kind in {"checkbox", "toggle"}:
+        current = _locator_checked(locator, timeout_ms=timeout_ms)
+        if current is None or current != choice.checked:
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            page.wait_for_timeout(150)
+        return
+    if choice.kind == "radio":
+        current = _locator_checked(locator, timeout_ms=timeout_ms)
+        if current is not True:
+            _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+            page.wait_for_timeout(150)
+        return
+    if choice.kind == "selectbox":
+        if choice.option_index is None:
+            raise RuntimeError(f"selectbox {choice.label!r} has no option index")
+        _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+        page.wait_for_timeout(150)
+        options = _option_locator(page)
+        if options.count() <= choice.option_index:
+            raise RuntimeError(f"selectbox {choice.label!r} option {choice.option_index + 1} is not available")
+        options.nth(choice.option_index).click(timeout=timeout_ms)
+        page.wait_for_timeout(250)
+        return
+    raise RuntimeError(f"unsupported combination widget kind: {choice.kind}")
+
+
+def _combination_probe(
+    *,
+    app_name: str,
+    page_name: str,
+    kind: str,
+    label: str,
+    status: str,
+    detail: str,
+    url: str,
+) -> WidgetProbe:
+    return WidgetProbe(app_name, page_label(page_name), kind, label, status, _short_detail(detail), url)
+
+
+def _consume_action_click_budget(action_click_budget: list[int] | None) -> bool:
+    if action_click_budget is None:
+        return True
+    if not action_click_budget or action_click_budget[0] <= 0:
+        return False
+    action_click_budget[0] -= 1
+    return True
+
+
+def _probe_action_button_trial(locator: Any, *, timeout_ms: float, detail: str) -> tuple[str, str]:
+    try:
+        locator.click(timeout=timeout_ms, trial=True)
+        return "probed", detail
+    except Exception as exc:
+        return "probed", _short_detail(f"{detail}; trial click layout-intercepted: {exc}")
+
+
 def _probe_widget(
     page: Any,
     widget: dict[str, Any],
@@ -703,6 +1084,7 @@ def _probe_widget(
     action_button_policy: str,
     upload_file: Path,
     restore_view: Any | None,
+    action_click_budget: list[int] | None = None,
 ) -> tuple[str, str]:
     if widget.get("disabled"):
         return "probed", "disabled state verified"
@@ -723,18 +1105,22 @@ def _probe_widget(
                     pass
             return "probed", f"visible/enabled ok ({kind})"
         if kind in ACTION_BUTTON_KINDS:
-            if action_button_policy == "click":
+            safe_click_reason = safe_action_click_reason(widget)
+            should_click = action_button_policy == "click" or (action_button_policy == "safe-click" and safe_click_reason is not None)
+            if should_click:
+                if not _consume_action_click_budget(action_click_budget):
+                    return _probe_action_button_trial(locator, timeout_ms=timeout_ms, detail="action button browser-clickable; callback not fired because action click budget is exhausted")
                 _click_with_force_fallback(locator, timeout_ms=timeout_ms)
                 page.wait_for_timeout(250)
                 error = _visible_exception_detail(page)
                 if error:
                     return "failed", f"button click rendered exception: {error}"
+                if action_button_policy == "safe-click":
+                    return "interacted", f"clicked guarded safe action button: {safe_click_reason}"
                 return "interacted", "clicked action button"
-            try:
-                locator.click(timeout=timeout_ms, trial=True)
-                return "probed", "action button browser-clickable; callback not fired by default"
-            except Exception as exc:
-                return "probed", _short_detail(f"action button visible/enabled; trial click layout-intercepted: {exc}")
+            if action_button_policy == "safe-click":
+                return _probe_action_button_trial(locator, timeout_ms=timeout_ms, detail="action button browser-clickable; callback not fired by guarded safe-click policy")
+            return _probe_action_button_trial(locator, timeout_ms=timeout_ms, detail="action button browser-clickable; callback not fired by default")
         if kind in {"checkbox", "toggle"}:
             was_checked = locator.is_checked(timeout=timeout_ms) if kind == "checkbox" else None
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
@@ -799,54 +1185,190 @@ def _collect_and_probe_current_view(
     upload_file: Path,
     restore_view: Any | None,
     known: set[tuple[str, str, str, str, str]],
+    discovery_passes: int = 1,
+    action_click_budget: list[int] | None = None,
 ) -> list[WidgetProbe]:
-    page.evaluate(OPEN_EXPANDERS_JS)
-    widgets = page.evaluate(WIDGET_COLLECTOR_JS)
     probes: list[WidgetProbe] = []
-    for widget in widgets:
-        fingerprint = _widget_fingerprint(widget)
-        if fingerprint in known:
-            continue
-        known.add(fingerprint)
-        status, detail = _probe_widget(
+    for _ in range(max(1, discovery_passes)):
+        page.evaluate(OPEN_EXPANDERS_JS)
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+        discovered_count = 0
+        for widget in widgets:
+            fingerprint = _widget_fingerprint(widget)
+            if fingerprint in known:
+                continue
+            known.add(fingerprint)
+            discovered_count += 1
+            status, detail = _probe_widget(
+                page,
+                widget,
+                timeout_ms=widget_timeout_ms,
+                interaction_mode=interaction_mode,
+                action_button_policy=action_button_policy,
+                upload_file=upload_file,
+                restore_view=restore_view,
+                action_click_budget=action_click_budget,
+            )
+            if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
+                try:
+                    restore_view()
+                    status, detail = _probe_widget(
+                        page,
+                        widget,
+                        timeout_ms=widget_timeout_ms,
+                        interaction_mode=interaction_mode,
+                        action_button_policy=action_button_policy,
+                        upload_file=upload_file,
+                        restore_view=restore_view,
+                        action_click_budget=action_click_budget,
+                    )
+                except Exception as exc:
+                    status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
+            error = _visible_exception_detail(page)
+            if error and status != "failed":
+                status, detail = "failed", f"interaction rendered Streamlit exception: {error}"
+            probes.append(
+                WidgetProbe(
+                    app_name,
+                    page_label(page_name),
+                    str(widget.get("kind", "")),
+                    str(widget.get("label", "")),
+                    status,
+                    detail,
+                    page.url,
+                    widget_scope(widget),
+                )
+            )
+        if discovered_count == 0:
+            break
+    return probes
+
+
+def _exercise_widget_combinations(
+    page: Any,
+    *,
+    app_name: str,
+    page_name: str,
+    widget_timeout_ms: float,
+    interaction_mode: str,
+    action_button_policy: str,
+    upload_file: Path,
+    restore_view: Any,
+    known: set[tuple[str, str, str, str, str]],
+    max_combinations: int,
+    max_options_per_widget: int,
+    discovery_passes: int,
+    action_click_budget: list[int] | None,
+) -> tuple[int, int, int, int, list[WidgetProbe]]:
+    probes: list[WidgetProbe] = []
+    try:
+        restore_view()
+        page.evaluate(OPEN_EXPANDERS_JS)
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+        controls, setup_probes = collect_widget_combination_controls(
             page,
-            widget,
+            widgets,
+            app_name=app_name,
+            page_name=page_name,
             timeout_ms=widget_timeout_ms,
-            interaction_mode=interaction_mode,
-            action_button_policy=action_button_policy,
-            upload_file=upload_file,
-            restore_view=restore_view,
+            max_options_per_widget=max_options_per_widget,
         )
-        if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
-            try:
-                restore_view()
-                status, detail = _probe_widget(
+        probes.extend(setup_probes)
+        plan = build_widget_combination_plan(controls, max_combinations=max_combinations)
+    except Exception as exc:
+        return (
+            0,
+            0,
+            1,
+            0,
+            [
+                _combination_probe(
+                    app_name=app_name,
+                    page_name=page_name,
+                    kind="combination_setup",
+                    label="widget state model",
+                    status="failed",
+                    detail=f"could not build widget combination plan: {exc}",
+                    url=page.url,
+                )
+            ],
+        )
+
+    setup_failed = sum(1 for probe in probes if probe.status == "failed")
+    setup_skipped = sum(1 for probe in probes if probe.status == "skipped")
+    if plan.total_count == 0:
+        return 0, 0, setup_failed, setup_skipped, probes
+
+    failed_count = setup_failed
+    skipped_count = setup_skipped
+    if plan.truncated:
+        failed_count += 1
+        probes.append(
+            _combination_probe(
+                app_name=app_name,
+                page_name=page_name,
+                kind="combination_space",
+                label="finite widget state grid",
+                status="failed",
+                detail=f"combination space {plan.total_count} exceeds --max-combinations {max_combinations}; first {len(plan.combinations)} combinations were attempted",
+                url=page.url,
+            )
+        )
+
+    executed_count = 0
+    for index, combination in enumerate(plan.combinations, start=1):
+        detail = _combination_description(combination)
+        try:
+            restore_view()
+            for choice in combination:
+                _apply_widget_choice(page, choice, timeout_ms=widget_timeout_ms)
+            page.wait_for_timeout(250)
+            error = _visible_exception_detail(page)
+            if error:
+                failed_count += 1
+                probes.append(
+                    _combination_probe(
+                        app_name=app_name,
+                        page_name=page_name,
+                        kind="combination",
+                        label=f"combination #{index}",
+                        status="failed",
+                        detail=f"{detail} rendered Streamlit exception: {error}",
+                        url=page.url,
+                    )
+                )
+                executed_count += 1
+                continue
+            probes.extend(
+                _collect_and_probe_current_view(
                     page,
-                    widget,
-                    timeout_ms=widget_timeout_ms,
+                    app_name=app_name,
+                    page_name=page_name,
+                    widget_timeout_ms=widget_timeout_ms,
                     interaction_mode=interaction_mode,
                     action_button_policy=action_button_policy,
                     upload_file=upload_file,
                     restore_view=restore_view,
+                    known=known,
+                    discovery_passes=discovery_passes,
+                    action_click_budget=action_click_budget,
                 )
-            except Exception as exc:
-                status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
-        error = _visible_exception_detail(page)
-        if error and status != "failed":
-            status, detail = "failed", f"interaction rendered Streamlit exception: {error}"
-        probes.append(
-            WidgetProbe(
-                app_name,
-                page_label(page_name),
-                str(widget.get("kind", "")),
-                str(widget.get("label", "")),
-                status,
-                detail,
-                page.url,
-                widget_scope(widget),
             )
-        )
-    return probes
+            executed_count += 1
+        except Exception as exc:
+            failed_count += 1
+            probes.append(
+                _combination_probe(
+                    app_name=app_name,
+                    page_name=page_name,
+                    kind="combination",
+                    label=f"combination #{index}",
+                    status="failed",
+                    detail=f"{detail}: {exc}",
+                    url=page.url,
+                )
+            )
+    return plan.total_count, executed_count, failed_count, skipped_count, probes
 
 
 def sweep_page(
@@ -866,6 +1388,11 @@ def sweep_page(
     interaction_mode: str,
     action_button_policy: str,
     upload_file: Path,
+    combination_mode: str = "exhaustive",
+    max_combinations: int = 512,
+    max_options_per_widget: int = 8,
+    discovery_passes: int = 2,
+    max_action_clicks_per_page: int = 25,
     screenshot_dir: Path | None = None,
 ) -> PageSweep:
     started = time.perf_counter()
@@ -875,6 +1402,11 @@ def sweep_page(
     display = display_page or page_label(page_name)
     expect_any = tuple(expected_text) if expected_text is not None else (("View:",) if current_page else PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)))
     probes: list[WidgetProbe] = []
+    combination_space_count = 0
+    combination_count = 0
+    combination_failed_count = 0
+    combination_skipped_count = 0
+    action_click_budget = [max_action_clicks_per_page]
 
     def restore_view() -> None:
         page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
@@ -904,15 +1436,41 @@ def sweep_page(
                     upload_file=upload_file,
                     restore_view=restore_view,
                     known=known,
+                    discovery_passes=discovery_passes,
+                    action_click_budget=action_click_budget,
                 )
             )
+            if combination_mode == "exhaustive":
+                space, count, combo_failed, combo_skipped, combo_probes = _exercise_widget_combinations(
+                    page,
+                    app_name=app_name,
+                    page_name=display,
+                    widget_timeout_ms=widget_timeout_ms,
+                    interaction_mode=interaction_mode,
+                    action_button_policy=action_button_policy,
+                    upload_file=upload_file,
+                    restore_view=restore_view,
+                    known=known,
+                    max_combinations=max_combinations,
+                    max_options_per_widget=max_options_per_widget,
+                    discovery_passes=discovery_passes,
+                    action_click_budget=action_click_budget,
+                )
+                combination_space_count += space
+                combination_count += count
+                combination_failed_count += combo_failed
+                combination_skipped_count += combo_skipped
+                probes.extend(combo_probes)
+            restore_view()
             tab_count = page.locator("[role='tab']").count()
             for index in range(tab_count):
-                tab = page.locator("[role='tab']").nth(index)
                 try:
+                    restore_view()
+                    tab = page.locator("[role='tab']").nth(index)
                     if tab.is_visible(timeout=widget_timeout_ms) and tab.is_enabled(timeout=widget_timeout_ms):
                         _click_with_force_fallback(tab, timeout_ms=widget_timeout_ms)
                         page.wait_for_timeout(250)
+                        page.evaluate(OPEN_EXPANDERS_JS)
                         probes.extend(
                             _collect_and_probe_current_view(
                                 page,
@@ -924,8 +1482,39 @@ def sweep_page(
                                 upload_file=upload_file,
                                 restore_view=restore_view,
                                 known=known,
+                                discovery_passes=discovery_passes,
+                                action_click_budget=action_click_budget,
                             )
                         )
+                        if combination_mode == "exhaustive":
+                            def restore_tab_view(tab_index: int = index) -> None:
+                                restore_view()
+                                active_tab = page.locator("[role='tab']").nth(tab_index)
+                                if active_tab.is_visible(timeout=widget_timeout_ms) and active_tab.is_enabled(timeout=widget_timeout_ms):
+                                    _click_with_force_fallback(active_tab, timeout_ms=widget_timeout_ms)
+                                    page.wait_for_timeout(250)
+                                page.evaluate(OPEN_EXPANDERS_JS)
+
+                            space, count, combo_failed, combo_skipped, combo_probes = _exercise_widget_combinations(
+                                page,
+                                app_name=app_name,
+                                page_name=display,
+                                widget_timeout_ms=widget_timeout_ms,
+                                interaction_mode=interaction_mode,
+                                action_button_policy=action_button_policy,
+                                upload_file=upload_file,
+                                restore_view=restore_tab_view,
+                                known=known,
+                                max_combinations=max_combinations,
+                                max_options_per_widget=max_options_per_widget,
+                                discovery_passes=discovery_passes,
+                                action_click_budget=action_click_budget,
+                            )
+                            combination_space_count += space
+                            combination_count += count
+                            combination_failed_count += combo_failed
+                            combination_skipped_count += combo_skipped
+                            probes.extend(combo_probes)
                 except Exception as exc:
                     probes.append(WidgetProbe(app_name, display, "tab", f"tab #{index + 1}", "failed", _short_detail(str(exc)), page.url))
     except Exception as exc:
@@ -952,6 +1541,10 @@ def sweep_page(
         url=getattr(page, "url", target_url),
         failures=failed[:20],
         skips=skipped[:20],
+        combination_space_count=combination_space_count,
+        combination_count=combination_count,
+        combination_failed_count=combination_failed_count,
+        combination_skipped_count=combination_skipped_count,
     )
 
 
@@ -972,6 +1565,11 @@ def sweep_direct_apps_page(
     widget_timeout: float,
     interaction_mode: str,
     action_button_policy: str,
+    combination_mode: str,
+    max_combinations: int,
+    max_options_per_widget: int,
+    discovery_passes: int,
+    max_action_clicks_per_page: int,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -1030,6 +1628,11 @@ def sweep_direct_apps_page(
                         widget_timeout=widget_timeout,
                         interaction_mode=interaction_mode,
                         action_button_policy=action_button_policy,
+                        combination_mode=combination_mode,
+                        max_combinations=max_combinations,
+                        max_options_per_widget=max_options_per_widget,
+                        discovery_passes=discovery_passes,
+                        max_action_clicks_per_page=max_action_clicks_per_page,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                     )
@@ -1047,6 +1650,11 @@ def sweep_app(
     widget_timeout: float,
     interaction_mode: str,
     action_button_policy: str,
+    combination_mode: str,
+    max_combinations: int,
+    max_options_per_widget: int,
+    discovery_passes: int,
+    max_action_clicks_per_page: int,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -1087,6 +1695,11 @@ def sweep_app(
                                     widget_timeout=widget_timeout,
                                     interaction_mode=interaction_mode,
                                     action_button_policy=action_button_policy,
+                                    combination_mode=combination_mode,
+                                    max_combinations=max_combinations,
+                                    max_options_per_widget=max_options_per_widget,
+                                    discovery_passes=discovery_passes,
+                                    max_action_clicks_per_page=max_action_clicks_per_page,
                                     upload_file=upload_file,
                                     screenshot_dir=screenshot_dir,
                                 )
@@ -1105,6 +1718,11 @@ def sweep_app(
                     widget_timeout=widget_timeout,
                     interaction_mode=interaction_mode,
                     action_button_policy=action_button_policy,
+                    combination_mode=combination_mode,
+                    max_combinations=max_combinations,
+                    max_options_per_widget=max_options_per_widget,
+                    discovery_passes=discovery_passes,
+                    max_action_clicks_per_page=max_action_clicks_per_page,
                     browser_name=browser_name,
                     headless=headless,
                     screenshot_dir=screenshot_dir,
@@ -1126,6 +1744,11 @@ def sweep_remote_app(
     widget_timeout: float,
     interaction_mode: str,
     action_button_policy: str,
+    combination_mode: str,
+    max_combinations: int,
+    max_options_per_widget: int,
+    discovery_passes: int,
+    max_action_clicks_per_page: int,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -1175,6 +1798,11 @@ def sweep_remote_app(
                             widget_timeout=widget_timeout,
                             interaction_mode=interaction_mode,
                             action_button_policy=action_button_policy,
+                            combination_mode=combination_mode,
+                            max_combinations=max_combinations,
+                            max_options_per_widget=max_options_per_widget,
+                            discovery_passes=discovery_passes,
+                            max_action_clicks_per_page=max_action_clicks_per_page,
                             upload_file=upload_file,
                             screenshot_dir=screenshot_dir,
                         )
@@ -1196,6 +1824,11 @@ def sweep_remote_app(
                             widget_timeout=widget_timeout,
                             interaction_mode=interaction_mode,
                             action_button_policy=action_button_policy,
+                            combination_mode=combination_mode,
+                            max_combinations=max_combinations,
+                            max_options_per_widget=max_options_per_widget,
+                            discovery_passes=discovery_passes,
+                            max_action_clicks_per_page=max_action_clicks_per_page,
                             upload_file=upload_file,
                             screenshot_dir=screenshot_dir,
                         )
@@ -1226,6 +1859,10 @@ def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: flo
         skipped_count=skipped_count,
         failed_count=failed_count,
         pages=list(pages),
+        combination_space_count=sum(page.combination_space_count for page in pages),
+        combination_count=sum(page.combination_count for page in pages),
+        combination_failed_count=sum(page.combination_failed_count for page in pages),
+        combination_skipped_count=sum(page.combination_skipped_count for page in pages),
     )
 
 
@@ -1242,7 +1879,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--widget-timeout", type=float, default=DEFAULT_WIDGET_TIMEOUT_SECONDS)
     parser.add_argument("--interaction-mode", choices=("actionability", "full"), default="full")
-    parser.add_argument("--action-button-policy", choices=("trial", "click"), default="trial")
+    parser.add_argument("--action-button-policy", choices=("trial", "safe-click", "click"), default="safe-click", help="Action button behavior: trial probes layout only, safe-click fires guarded read-only/navigation callbacks, click fires every visible action callback.")
+    parser.add_argument("--combination-mode", choices=("off", "exhaustive"), default="exhaustive", help="Explore finite checkbox/toggle/radio/selectbox state combinations. Default: exhaustive.")
+    parser.add_argument("--max-combinations", type=int, default=512, help="Maximum widget state combinations to execute per page view before failing the sweep as capped.")
+    parser.add_argument("--max-options-per-widget", type=int, default=8, help="Maximum selectbox options included in combination coverage per widget.")
+    parser.add_argument("--discovery-passes", type=int, default=2, help="Number of repeated widget-discovery passes per page state, used to catch widgets revealed by safe callbacks.")
+    parser.add_argument("--max-action-clicks-per-page", type=int, default=25, help="Maximum real action-button clicks per page sweep. Use 0 to trial-probe all action buttons without firing callbacks.")
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -1256,9 +1898,10 @@ def render_human(summary: WidgetSweepSummary) -> str:
         f"verdict: {'PASS' if summary.success else 'FAIL'}",
         f"kpi: total={summary.total_duration_seconds:.2f}s target<={summary.target_seconds:.2f}s within_target={'yes' if summary.within_target else 'no'}",
         f"apps={summary.app_count} pages={summary.page_count} widgets={summary.widget_count} main={summary.main_widget_count} sidebar={summary.sidebar_widget_count} interacted={summary.interacted_count} probed={summary.probed_count} skipped={summary.skipped_count} failed={summary.failed_count}",
+        f"combinations: space={summary.combination_space_count} executed={summary.combination_count} failed={summary.combination_failed_count} skipped={summary.combination_skipped_count}",
     ]
     for page in summary.pages:
-        lines.append(f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} widgets={page.widget_count} main={page.main_widget_count} sidebar={page.sidebar_widget_count} interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} failed={page.failed_count}")
+        lines.append(f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} widgets={page.widget_count} main={page.main_widget_count} sidebar={page.sidebar_widget_count} interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} failed={page.failed_count} combinations={page.combination_count}/{page.combination_space_count} combo_failed={page.combination_failed_count} combo_skipped={page.combination_skipped_count}")
         for failure in page.failures[:3]:
             lines.append(f"  failure: {failure.kind} {failure.label!r} - {failure.detail}")
         for skip in page.skips[:3]:
@@ -1273,6 +1916,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--timeout must be greater than 0")
     if args.widget_timeout <= 0:
         parser.error("--widget-timeout must be greater than 0")
+    if args.max_combinations <= 0:
+        parser.error("--max-combinations must be greater than 0")
+    if args.max_options_per_widget <= 0:
+        parser.error("--max-options-per-widget must be greater than 0")
+    if args.discovery_passes <= 0:
+        parser.error("--discovery-passes must be greater than 0")
+    if args.max_action_clicks_per_page < 0:
+        parser.error("--max-action-clicks-per-page must be greater than or equal to 0")
     if args.interaction_mode == "actionability" and args.action_button_policy == "click":
         parser.error("--action-button-policy click only applies with --interaction-mode full")
     apps = resolve_apps(args.apps)
@@ -1296,6 +1947,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     widget_timeout=args.widget_timeout,
                     interaction_mode=args.interaction_mode,
                     action_button_policy=args.action_button_policy,
+                    combination_mode=args.combination_mode,
+                    max_combinations=args.max_combinations,
+                    max_options_per_widget=args.max_options_per_widget,
+                    discovery_passes=args.discovery_passes,
+                    max_action_clicks_per_page=args.max_action_clicks_per_page,
                     browser_name=args.browser,
                     headless=not args.headful,
                     screenshot_dir=screenshot_dir,
@@ -1311,6 +1967,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     widget_timeout=args.widget_timeout,
                     interaction_mode=args.interaction_mode,
                     action_button_policy=args.action_button_policy,
+                    combination_mode=args.combination_mode,
+                    max_combinations=args.max_combinations,
+                    max_options_per_widget=args.max_options_per_widget,
+                    discovery_passes=args.discovery_passes,
+                    max_action_clicks_per_page=args.max_action_clicks_per_page,
                     browser_name=args.browser,
                     headless=not args.headful,
                     screenshot_dir=screenshot_dir,

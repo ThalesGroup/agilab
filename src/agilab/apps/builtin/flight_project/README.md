@@ -5,19 +5,21 @@
 The project focuses on a simple but useful workflow:
 - ingest flight data from files under shared storage
 - turn that input into a dataframe dataset under shared storage
-- inspect the result in the default AGILAB `view_maps` page
+- inspect the result in the default AGILAB `view_maps` page and the optional
+  `view_maps_network` page
 
 ## What it is good for
 
 - a compact end-to-end AGILAB demo around real-world flight data
-- validating the `PROJECT -> ORCHESTRATE` flow and then opening compatible analysis pages when needed
+- validating the `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` flow in one
+  packaged public app
 - showing how a raw data source becomes a reusable dataset for visual exploration
 
 ## What is not implemented in the public version
 
 This public built-in example is intentionally narrow. It does **not** implement:
 - Hawk/ELK ingestion inside this app; use a custom/private app for that connector path
-- richer trajectory-centric study workflows
+- specialized trajectory-centric study workflows
 - multi-stage trajectory reconstruction or scenario stitching
 - dedicated cross-run comparison views for complex flight studies
 - advanced trajectory replay, alignment, or domain-specific experiment dashboards
@@ -41,13 +43,15 @@ fields so Release Decision can surface the flight run as first-class evidence.
 1. Select `flight_project` in `PROJECT`.
 2. Configure the input source in `ORCHESTRATE`.
 3. Run the ingestion step.
-4. Explore the resulting dataset in `view_maps`.
+4. Inspect or extend the generated recipe in `PIPELINE`.
+5. Explore the resulting dataset in `view_maps`, then open `view_maps_network`
+   when you want the network-style analysis route.
 
 ## What this teases in AGILAB
 
 This public example is only the entry point. The same framework can also support:
 - trajectory-focused studies with custom app logic and dedicated pages
 - replayable experiment pipelines built from generated or saved steps
-- richer geospatial and network overlays on top of processed flight artifacts
+- richer domain-specific overlays on top of processed flight artifacts
 - distributed preprocessing and repeatable multi-run comparisons
 - domain-specific workflows that go beyond a generic dataframe export
