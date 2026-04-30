@@ -122,6 +122,17 @@ GENERATED_CODE_SANDBOX_MODES = frozenset({"process", "container", "vm"})
 
 import_agilab_symbols(
     globals(),
+    "agilab.pipeline_recipe_memory",
+    {
+        "augment_question_with_recipe_memory": "_augment_question_with_recipe_memory",
+        "promote_validated_recipe": "_promote_validated_recipe",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_recipe_memory.py",
+    fallback_name="agilab_pipeline_recipe_memory_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_ai_support",
     {
         "CODE_STRICT_INSTRUCTIONS": "CODE_STRICT_INSTRUCTIONS",
@@ -844,17 +855,24 @@ def ask_gpt(
                 stage_generation_extra_fields(None, mode=mode),
             ]
 
-    result, model_label = _call_selected_provider(question, prompt, envars)
+    original_question = question
+    model_question = _augment_question_with_recipe_memory(
+        question,
+        session_state=st.session_state,
+        envars=envars,
+        df_file=df_file,
+    )
+    result, model_label = _call_selected_provider(model_question, prompt, envars)
 
     model_label = str(model_label or "")
     if not result:
-        return [df_file, question, model_label, "", ""]
+        return [df_file, original_question, model_label, "", ""]
 
     code, detail = extract_code(result)
     detail = detail or ("" if code else result.strip())
     return [
         df_file,
-        question,
+        original_question,
         model_label,
         code.strip() if code else "",
         detail,
@@ -921,6 +939,15 @@ def _maybe_autofix_generated_code(
     _, err = _exec_code_on_df(merged_code, df)
     if not err:
         push_run_log(index_page, "Auto-fix: generated code validated successfully.", placeholder)
+        _promote_validated_recipe(
+            question=original_request,
+            code=merged_code,
+            model=model_label,
+            df_columns=[str(column) for column in df.columns],
+            source_path=df_path,
+            source_ref=f"{index_page}:autofix-initial",
+            envars=env.envars,
+        )
         return merged_code, model_label, detail
 
     push_run_log(index_page, f"Auto-fix: initial execution failed.\n{err}", placeholder)
@@ -948,6 +975,15 @@ def _maybe_autofix_generated_code(
         _, candidate_err = _exec_code_on_df(candidate, df)
         if not candidate_err:
             push_run_log(index_page, f"Auto-fix: success on attempt {attempt}.", placeholder)
+            _promote_validated_recipe(
+                question=original_request,
+                code=candidate,
+                model=fix_model,
+                df_columns=[str(column) for column in df.columns],
+                source_path=df_path,
+                source_ref=f"{index_page}:autofix-attempt-{attempt}",
+                envars=env.envars,
+            )
             return candidate, fix_model, fix_detail
 
         summary = candidate_err.strip().splitlines()[-1] if candidate_err.strip() else "Unknown error"

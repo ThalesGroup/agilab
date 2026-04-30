@@ -61,6 +61,10 @@ pipeline_openai_compatible_direct = _load_module(
     "agilab.pipeline_openai_compatible_direct",
     "src/agilab/pipeline_openai_compatible.py",
 )
+pipeline_recipe_memory_direct = _load_module(
+    "agilab.pipeline_recipe_memory_direct",
+    "src/agilab/pipeline_recipe_memory.py",
+)
 pipeline_ai_uoaic_direct = _load_module(
     "agilab.pipeline_ai_uoaic_direct",
     "src/agilab/pipeline_ai_uoaic.py",
@@ -77,6 +81,7 @@ def reload_pipeline_ai_modules(isolate_home_for_root_tests):
     global pipeline_ai
     _load_module("agilab.pipeline_ai_support", "src/agilab/pipeline_ai_support.py")
     _load_module("agilab.pipeline_openai_compatible", "src/agilab/pipeline_openai_compatible.py")
+    _load_module("agilab.pipeline_recipe_memory", "src/agilab/pipeline_recipe_memory.py")
     _load_module("agilab.pipeline_ai_uoaic", "src/agilab/pipeline_ai_uoaic.py")
     _load_module("agilab.pipeline_ai_controls", "src/agilab/pipeline_ai_controls.py")
     pipeline_ai = _load_module("agilab.pipeline_ai", "src/agilab/pipeline_ai.py")
@@ -2202,6 +2207,46 @@ def test_ask_gpt_routes_to_selected_provider(monkeypatch):
     assert result[2:] == ["gpt-5", "print(2)", ""]
 
 
+def test_ask_gpt_augments_model_prompt_with_recipe_memory_but_preserves_question(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        """
+demo_project = [
+  { Q = "Calculate packet loss rate", C = "df['loss_rate'] = df['packet_loss'] / df['traffic_volume']", validation_status = "validated" }
+]
+""",
+        encoding="utf-8",
+    )
+    captured: dict[str, str] = {}
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": "openai",
+            "steps_file": str(steps_file),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    def _chat_online(question, prompt, envars):
+        captured["question"] = question
+        return "```python\nprint('ok')\n```", "gpt-5"
+
+    monkeypatch.setattr(pipeline_ai, "chat_online", _chat_online)
+
+    result = pipeline_ai.ask_gpt(
+        "Compute packet loss rate",
+        Path("df.csv"),
+        "page",
+        {pipeline_recipe_memory_direct.RECIPE_MEMORY_PATH_ENV: str(tmp_path / "missing.jsonl")},
+    )
+
+    assert result[1] == "Compute packet loss rate"
+    assert result[2:] == ["gpt-5", "print('ok')", ""]
+    assert captured["question"].startswith("Compute packet loss rate")
+    assert "Relevant validated AGILAB recipe memory" in captured["question"]
+    assert "loss_rate" in captured["question"]
+
+
 def test_ask_gpt_safe_actions_returns_validated_contract_and_code(monkeypatch):
     captured: dict[str, object] = {}
     fake_st = SimpleNamespace(
@@ -2432,6 +2477,42 @@ def test_maybe_autofix_generated_code_paths(monkeypatch):
     )
     assert code == "raise ValueError('boom')"
     assert any("no dataframe is loaded" in entry for entry in logs)
+
+
+def test_maybe_autofix_promotes_validated_recipe_memory(monkeypatch, tmp_path):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": pipeline_ai.UOAIC_PROVIDER,
+            pipeline_ai.UOAIC_AUTOFIX_STATE_KEY: True,
+            pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY: 1,
+            "loaded_df": pd.DataFrame({"x": [1]}),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    memory_path = tmp_path / "cards.jsonl"
+    env = SimpleNamespace(
+        envars={pipeline_recipe_memory_direct.RECIPE_MEMORY_PATH_ENV: str(memory_path)}
+    )
+
+    code, model, detail = pipeline_ai._maybe_autofix_generated_code(
+        original_request="Create doubled x",
+        df_path=tmp_path / "df.csv",
+        index_page="page",
+        env=env,
+        merged_code="df['double_x'] = df['x'] * 2",
+        model_label="qwen3-coder",
+        detail="",
+        load_df_cached=lambda path: pd.DataFrame({"x": [1]}),
+        push_run_log=lambda *_args, **_kwargs: None,
+        get_run_placeholder=lambda _page: "placeholder",
+    )
+
+    assert (code, model, detail) == ("df['double_x'] = df['x'] * 2", "qwen3-coder", "")
+    cards = pipeline_recipe_memory_direct.load_recipe_cards_from_memory(memory_path)
+    assert len(cards) == 1
+    assert cards[0].intent == "Create doubled x"
+    assert cards[0].validation_status == "validated"
+    assert cards[0].output_columns == ("double_x",)
 
 
 def test_maybe_autofix_generated_code_short_circuits_for_provider_attempts_and_df_reload(monkeypatch):
