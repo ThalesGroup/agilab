@@ -81,6 +81,8 @@ Advanced scenarios such as `data_io_2026_project`,
 `execution_pandas_project`, `execution_polars_project`, and
 `uav_relay_queue_project` are collected in the
 [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
+The default hosted flight journey covers `PROJECT`, `ORCHESTRATE`, `WORKFLOW`,
+and `ANALYSIS`, including bundled flight analysis views.
 
 ### Maturity snapshot
 
@@ -122,8 +124,8 @@ cd "$CHECKOUT"
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 ```
 
-Follow the in-app pages from `PROJECT` to `ANALYSIS`. To collect the same check
-as JSON:
+Follow the in-app pages from `PROJECT` to `ORCHESTRATE`, `PIPELINE`, and
+`ANALYSIS`. To collect the same check as JSON:
 
 ```bash
 uv --preview-features extra-build-dependencies run agilab first-proof --json

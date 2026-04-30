@@ -222,7 +222,7 @@ def test_resolve_default_view_returns_none_when_missing():
     assert resolved is None
 
 
-def test_migrate_legacy_flight_analysis_page_config_replaces_network_default():
+def test_migrate_legacy_flight_analysis_page_config_keeps_network_available():
     module = _load_analysis_module()
     cfg = {
         "pages": {
@@ -235,8 +235,30 @@ def test_migrate_legacy_flight_analysis_page_config_replaces_network_default():
 
     assert changed is True
     assert cfg["pages"]["default_view"] == "view_maps"
-    assert cfg["pages"]["view_module"] == ["view_maps", "custom_view"]
-    assert cfg["pages"]["excluded_views"] == ["view_maps_network"]
+    assert cfg["pages"]["view_module"] == [
+        "view_maps",
+        "view_maps_network",
+        "custom_view",
+    ]
+    assert "excluded_views" not in cfg["pages"]
+
+
+def test_migrate_legacy_flight_analysis_page_config_unhides_network_page():
+    module = _load_analysis_module()
+    cfg = {
+        "pages": {
+            "default_view": "view_maps",
+            "view_module": ["view_maps"],
+            "excluded_views": ["view_maps_network", "custom_hidden"],
+        }
+    }
+
+    changed = module._migrate_legacy_analysis_page_config("flight_project", cfg)
+
+    assert changed is True
+    assert cfg["pages"]["default_view"] == "view_maps"
+    assert cfg["pages"]["view_module"] == ["view_maps", "view_maps_network"]
+    assert cfg["pages"]["excluded_views"] == ["custom_hidden"]
 
 
 def test_migrate_legacy_analysis_page_config_leaves_network_apps_unchanged():
@@ -400,16 +422,16 @@ def test_initialize_analysis_env_defaults_to_builtin_flight_project(
     assert env.app == "flight_project"
 
 
-def test_builtin_flight_project_defaults_to_view_maps_and_excludes_network_page():
+def test_builtin_flight_project_defaults_to_view_maps_and_enables_network_page():
     settings_path = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
     cfg = _load_analysis_module()._read_config(settings_path)
 
     assert cfg["pages"]["default_view"] == "view_maps"
-    assert cfg["pages"]["view_module"] == ["view_maps"]
-    assert cfg["pages"]["excluded_views"] == ["view_maps_network"]
+    assert cfg["pages"]["view_module"] == ["view_maps", "view_maps_network"]
+    assert cfg["pages"].get("excluded_views", []) == []
 
 
-def test_analysis_page_state_defaults_flight_to_view_maps_and_excludes_network(tmp_path: Path):
+def test_analysis_page_state_defaults_flight_to_view_maps_and_enables_network(tmp_path: Path):
     state_module = _load_analysis_state_module()
     view_maps = tmp_path / "view_maps.py"
     view_maps_network = tmp_path / "view_maps_network.py"
@@ -418,11 +440,10 @@ def test_analysis_page_state_defaults_flight_to_view_maps_and_excludes_network(t
     state = state_module.build_analysis_view_selection_state(
         pages_cfg={
             "default_view": "view_maps",
-            "view_module": ["view_maps"],
-            "excluded_views": ["view_maps_network"],
+            "view_module": ["view_maps", "view_maps_network"],
         },
         current_page=None,
-        configured_views=["view_maps"],
+        configured_views=["view_maps", "view_maps_network"],
         resolved_pages={
             "view_maps": view_maps,
             "view_maps_network": view_maps_network,
@@ -431,12 +452,12 @@ def test_analysis_page_state_defaults_flight_to_view_maps_and_excludes_network(t
         custom_view_lookup={},
     )
 
-    assert "view_maps_network" not in state.view_names
+    assert state.view_names == ("view_barycentric", "view_maps", "view_maps_network")
     assert state.default_view_name == "view_maps"
     assert state.default_view_names == ("view_maps",)
-    assert state.widget_selection == ("view_maps",)
-    assert state.selected_views == ("view_maps",)
-    assert state.config_view_module == ("view_maps",)
+    assert state.widget_selection == ("view_maps", "view_maps_network")
+    assert state.selected_views == ("view_maps", "view_maps_network")
+    assert state.config_view_module == ("view_maps", "view_maps_network")
     assert state.default_route_path is None
 
 
