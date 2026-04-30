@@ -14,7 +14,7 @@ spec.loader.exec_module(agilab_dev)
 
 
 def test_impact_shortcut_defaults_to_staged():
-    assert agilab_dev.planned_commands(["i"]) == [
+    assert agilab_dev.planned_commands(["impact"]) == [
         [
             "uv",
             "--preview-features",
@@ -28,7 +28,7 @@ def test_impact_shortcut_defaults_to_staged():
 
 
 def test_test_shortcut_keeps_pytest_arguments():
-    assert agilab_dev.planned_commands(["t", "test/test_cluster_lan_discovery.py", "-k", "windows"]) == [
+    assert agilab_dev.planned_commands(["test", "test/test_cluster_lan_discovery.py", "-k", "windows"]) == [
         [
             "uv",
             "--preview-features",
@@ -44,7 +44,7 @@ def test_test_shortcut_keeps_pytest_arguments():
 
 
 def test_workflow_profile_shortcut_repeats_profile_flags_and_keeps_options():
-    assert agilab_dev.planned_commands(["w", "agi-gui", "docs", "--keep-going"]) == [
+    assert agilab_dev.planned_commands(["flow", "agi-gui", "docs", "--keep-going"]) == [
         [
             "uv",
             "--preview-features",
@@ -62,7 +62,7 @@ def test_workflow_profile_shortcut_repeats_profile_flags_and_keeps_options():
 
 
 def test_badge_guard_shortcut_uses_changed_only_fresh_xml_defaults():
-    assert agilab_dev.planned_commands(["b"]) == [
+    assert agilab_dev.planned_commands(["badge"]) == [
         [
             "uv",
             "--preview-features",
@@ -77,7 +77,7 @@ def test_badge_guard_shortcut_uses_changed_only_fresh_xml_defaults():
 
 
 def test_docs_shortcut_syncs_and_verifies_mirror():
-    assert agilab_dev.planned_commands(["d"]) == [
+    assert agilab_dev.planned_commands(["docs"]) == [
         [
             "uv",
             "--preview-features",
@@ -101,16 +101,18 @@ def test_docs_shortcut_syncs_and_verifies_mirror():
 
 
 def test_skills_shortcut_syncs_then_validates_and_generates():
-    assert agilab_dev.planned_commands(["sk", "agilab-runbook"]) == [
+    assert agilab_dev.planned_commands(["skills", "agilab-runbook"]) == [
         ["python3", "tools/sync_agent_skills.py", "--skills", "agilab-runbook"],
         ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "validate", "--strict"],
         ["python3", "tools/codex_skills.py", "--root", ".codex/skills", "generate"],
     ]
 
 
-def test_legacy_mnemonic_aliases_stay_supported():
-    assert agilab_dev.planned_commands(["iv"]) == agilab_dev.planned_commands(["i"])
-    assert agilab_dev.planned_commands(["pt"]) == agilab_dev.planned_commands(["t"])
-    assert agilab_dev.planned_commands(["wp", "docs"]) == agilab_dev.planned_commands(["w", "docs"])
-    assert agilab_dev.planned_commands(["bg"]) == agilab_dev.planned_commands(["b"])
-    assert agilab_dev.planned_commands(["ds"]) == agilab_dev.planned_commands(["d"])
+def test_legacy_mnemonic_aliases_are_removed():
+    for alias in ("iv", "pt", "wp", "bg", "ds", "sk"):
+        try:
+            agilab_dev.planned_commands([alias])
+        except SystemExit as exc:
+            assert str(exc) == f"unknown shortcut: {alias}"
+        else:
+            raise AssertionError(f"{alias} should not be accepted")

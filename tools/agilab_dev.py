@@ -40,31 +40,31 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     command = argv[0]
     args = list(argv[1:])
 
-    if command in {"impact", "iv", "i"}:
+    if command == "impact":
         forwarded = args or ["--staged"]
         return [_uv_python("tools/impact_validate.py", *forwarded)]
 
-    if command in {"test", "pt", "t"}:
+    if command == "test":
         return [[*UV_RUN, "pytest", "-q", *args]]
 
-    if command in {"profile", "wp", "w"}:
+    if command in {"flow", "profile"}:
         profiles, extras = _split_leading_values(args, command_name=command)
         profile_args: list[str] = []
         for profile in profiles:
             profile_args.extend(["--profile", profile])
         return [_uv_python("tools/workflow_parity.py", *profile_args, *extras)]
 
-    if command in {"guard", "bg", "b"}:
+    if command in {"badge", "guard"}:
         defaults = ["--changed-only", "--require-fresh-xml"]
         return [_uv_python("tools/coverage_badge_guard.py", *defaults, *args)]
 
-    if command in {"docs", "ds", "d"}:
+    if command == "docs":
         return [
             _uv_python("tools/sync_docs_source.py", "--apply", "--delete"),
             _uv_python("tools/sync_docs_source.py", "--verify-stamp"),
         ]
 
-    if command in {"skills", "sk"}:
+    if command == "skills":
         skills, extras = _split_leading_values(args, command_name=command)
         return [
             ["python3", "tools/sync_agent_skills.py", "--skills", *skills, *extras],
@@ -77,20 +77,20 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
 
 def _usage() -> str:
     return """Usage:
-  ./dev [--print-only] impact|iv|i [impact_validate args]
-  ./dev [--print-only] test|pt|t [pytest args]
-  ./dev [--print-only] profile|wp|w <profile> [profile...] [workflow args]
-  ./dev [--print-only] guard|bg|b [coverage_badge_guard args]
-  ./dev [--print-only] docs|ds|d
-  ./dev [--print-only] skills|sk <skill> [skill...]
+  ./dev [--print-only] impact [impact_validate args]
+  ./dev [--print-only] test [pytest args]
+  ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
+  ./dev [--print-only] badge|guard [coverage_badge_guard args]
+  ./dev [--print-only] docs
+  ./dev [--print-only] skills <skill> [skill...]
 
 High-frequency mappings:
-  i         -> impact_validate.py, defaulting to --staged
-  t         -> pytest -q
-  w         -> workflow_parity.py with repeated --profile flags
-  b         -> coverage_badge_guard.py --changed-only --require-fresh-xml
-  d         -> sync_docs_source.py --apply --delete, then --verify-stamp
-  sk        -> sync_agent_skills.py, then Codex skill validate/generate
+  impact    -> Analyze changed files and list the required local validations; defaults to --staged.
+  test      -> Run targeted pytest with -q while keeping all extra pytest arguments.
+  flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
+  badge     -> Check that coverage badge inputs are fresh for the files changed locally.
+  docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
+  skills    -> Sync repo skills from Claude to Codex, then validate and regenerate indexes.
 """
 
 

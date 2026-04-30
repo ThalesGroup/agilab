@@ -22,9 +22,12 @@ Use this runbook whenever you:
   `uv --preview-features extra-build-dependencies run streamlit …`) so dependencies resolve inside the managed environments that
   ship with AGILab.
 - **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated local validation loops.
-  The shortest top shortcuts are `i` for impact validation, `t` for targeted `pytest -q`, `w` for
-  one or more workflow parity profiles, `b` for the fresh coverage-badge guard, and `d` for docs
-  mirror sync plus stamp verification. Use `--print-only` to audit the expanded commands.
+  The top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`, `flow` for
+  one or more workflow parity profiles, `badge` for the fresh coverage-badge guard, and `docs` for
+  docs mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs
+  the narrow pytest slice, `flow` matches local GitHub workflow profiles, `badge` catches stale
+  coverage badges, and `docs` keeps the public mirror aligned. Use `--print-only` to audit the
+  expanded commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool upgrade agilab` to pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
