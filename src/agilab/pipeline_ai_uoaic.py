@@ -24,6 +24,7 @@ _pipeline_ai_support_module = import_agilab_module(
     fallback_name="agilab_pipeline_ai_support_fallback",
 )
 OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+OLLAMA_LOCAL_PROVIDER_FAMILIES = _pipeline_ai_support_module.OLLAMA_LOCAL_PROVIDER_FAMILIES
 OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
 _ensure_uoaic_runtime_impl = _pipeline_ai_support_module._ensure_uoaic_runtime
 default_ollama_family_model = _pipeline_ai_support_module.default_ollama_family_model
@@ -214,11 +215,8 @@ def render_universal_offline_controls(
     deps: UoaicControlDeps,
 ) -> None:
     selected_provider = deps.session_state.get("lab_llm_provider")
-    provider_family = {
-        OLLAMA_QWEN_PROVIDER: "qwen",
-        OLLAMA_DEEPSEEK_PROVIDER: "deepseek",
-    }.get(str(selected_provider or ""))
-    if selected_provider not in {UOAIC_PROVIDER, OLLAMA_QWEN_PROVIDER, OLLAMA_DEEPSEEK_PROVIDER}:
+    provider_family = OLLAMA_LOCAL_PROVIDER_FAMILIES.get(str(selected_provider or ""))
+    if selected_provider not in {UOAIC_PROVIDER, *OLLAMA_LOCAL_PROVIDER_FAMILIES}:
         return
 
     if provider_family is None:

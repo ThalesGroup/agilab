@@ -923,7 +923,7 @@ function Seed-UoaicPdfs {
 }
 
 function Setup-OfflineModels {
-    Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull 'gpt-oss:20b' if needed."
+    Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull models such as 'gpt-oss:20b', 'qwen3-coder:30b-a3b-q4_K_M', 'qwen3:30b-a3b-instruct-2507-q4_K_M', 'ministral-3:14b-instruct-2512-q4_K_M', or 'phi4-mini:3.8b-q4_K_M' if needed."
 }
 
 function Invoke-RepositoryCoverage {

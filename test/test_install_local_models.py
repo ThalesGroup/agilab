@@ -61,10 +61,10 @@ def test_root_installer_normalizes_requested_local_models_and_deduplicates_alias
         "normalize_local_model_name",
         "local_model_requested",
         "normalize_local_models_csv",
-        " qwen2.5-coder ; deepseek-coder:latest, gpt-oss:20b, qwen , mistral ",
+        " qwen2.5-coder ; deepseek-coder:latest, gpt-oss:20b, qwen , qwen3-coder:30b-a3b-q4_K_M, qwen3:30b-a3b-instruct-2507-q4_K_M, ministral-3:14b, phi4-mini:3.8b-q4_K_M, mistral ",
     )
 
-    assert normalized == "qwen deepseek gpt-oss"
+    assert normalized == "qwen deepseek gpt-oss qwen3-coder qwen3 ministral phi4-mini"
 
 
 def test_installers_normalize_empty_local_model_list_under_nounset() -> None:
@@ -135,10 +135,10 @@ def test_enduser_installer_normalizes_requested_local_models_and_deduplicates_al
         "normalize_local_model_name",
         "ollama_tag_for_family",
         "normalize_local_models_csv",
-        " deepseek, foo , gpt_oss, qwen2.5 , deepseek-coder ",
+        " deepseek, foo , gpt_oss, qwen2.5 , deepseek-coder, qwen3, qwen3-coder, ministral3, phi-4-mini ",
     )
 
-    assert normalized == "deepseek gpt-oss qwen"
+    assert normalized == "deepseek gpt-oss qwen qwen3 qwen3-coder ministral phi4-mini"
 
 
 def test_installers_map_supported_local_model_families_to_expected_ollama_tags() -> None:
@@ -150,13 +150,17 @@ def test_installers_map_supported_local_model_families_to_expected_ollama_tags()
         assert 'qwen) echo "qwen2.5-coder:latest" ;;' in script_text
         assert 'deepseek) echo "deepseek-coder:latest" ;;' in script_text
         assert 'gpt-oss) echo "gpt-oss:20b" ;;' in script_text
+        assert 'qwen3) echo "qwen3:30b-a3b-instruct-2507-q4_K_M" ;;' in script_text
+        assert 'qwen3-coder) echo "qwen3-coder:30b-a3b-q4_K_M" ;;' in script_text
+        assert 'ministral) echo "ministral-3:14b-instruct-2512-q4_K_M" ;;' in script_text
+        assert 'phi4-mini) echo "phi4-mini:3.8b-q4_K_M" ;;' in script_text
 
 
 def test_installers_expose_and_wire_install_local_models_flag() -> None:
     root_text = INSTALL_SH.read_text(encoding="utf-8")
     enduser_text = INSTALL_ENDUSER_SH.read_text(encoding="utf-8")
 
-    assert "--install-local-models qwen,deepseek,gpt-oss" in root_text
-    assert "--install-local-models qwen,deepseek,gpt-oss" in enduser_text
+    assert "--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini" in root_text
+    assert "--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini" in enduser_text
     assert 'setup_requested_local_models "$requested_local_models" "requested local models"' in root_text
     assert 'install_requested_local_models "${INSTALL_LOCAL_MODELS}"' in enduser_text

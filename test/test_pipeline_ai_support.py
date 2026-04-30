@@ -119,6 +119,10 @@ def test_default_ollama_family_model_and_matchers_cover_qwen_and_deepseek():
             "qwen2.5:14b",
             "deepseek-r1:8b",
             "deepseek-coder:latest",
+            "qwen3:30b-a3b-instruct-2507-q4_K_M",
+            "qwen3-coder:30b-a3b-q4_K_M",
+            "ministral-3:14b-instruct-2512-q4_K_M",
+            "phi4-mini:3.8b-q4_K_M",
         ]
 
     original = pipeline_ai_support._ollama_available_models
@@ -136,7 +140,36 @@ def test_default_ollama_family_model_and_matchers_cover_qwen_and_deepseek():
         ) == "deepseek-r1:8b"
         assert pipeline_ai_support.ollama_model_matches_family("qwen2.5-coder:7b", "qwen") is True
         assert pipeline_ai_support.ollama_model_matches_family("deepseek-coder:latest", "deepseek") is True
+        assert pipeline_ai_support.ollama_model_matches_family("qwen3:30b-a3b-instruct-2507-q4_K_M", "qwen3") is True
+        assert pipeline_ai_support.ollama_model_matches_family("qwen3-coder:30b-a3b-q4_K_M", "qwen3-coder") is True
+        assert pipeline_ai_support.ollama_model_matches_family("ministral-3:14b-instruct-2512-q4_K_M", "ministral") is True
+        assert pipeline_ai_support.ollama_model_matches_family("phi4-mini:3.8b-q4_K_M", "phi4-mini") is True
         assert pipeline_ai_support.ollama_model_matches_family("codestral:latest", "qwen") is False
+        assert pipeline_ai_support.ollama_model_matches_family("qwen3-coder:30b", "qwen3") is False
+    finally:
+        pipeline_ai_support._ollama_available_models = original
+
+
+def test_default_ollama_family_model_returns_efficient_profile_defaults_when_missing():
+    original = pipeline_ai_support._ollama_available_models
+    pipeline_ai_support._ollama_available_models = lambda _endpoint: []
+    try:
+        assert (
+            pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="qwen3")
+            == "qwen3:30b-a3b-instruct-2507-q4_K_M"
+        )
+        assert (
+            pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="qwen3-coder")
+            == "qwen3-coder:30b-a3b-q4_K_M"
+        )
+        assert (
+            pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="ministral")
+            == "ministral-3:14b-instruct-2512-q4_K_M"
+        )
+        assert (
+            pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="phi4-mini")
+            == "phi4-mini:3.8b-q4_K_M"
+        )
     finally:
         pipeline_ai_support._ollama_available_models = original
 

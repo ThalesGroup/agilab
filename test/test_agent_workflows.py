@@ -25,6 +25,11 @@ def test_aider_repo_config_exposes_local_aliases_and_repo_reads() -> None:
     assert "AGENT_CONVENTIONS.md" in cfg["read"]
     assert "qwen-local:ollama_chat/qwen2.5-coder:latest" in cfg["alias"]
     assert "deepseek-local:ollama_chat/deepseek-coder:latest" in cfg["alias"]
+    assert "gpt-oss-local:ollama_chat/gpt-oss:20b" in cfg["alias"]
+    assert "qwen3-local:ollama_chat/qwen3:30b-a3b-instruct-2507-q4_K_M" in cfg["alias"]
+    assert "qwen3-coder-local:ollama_chat/qwen3-coder:30b-a3b-q4_K_M" in cfg["alias"]
+    assert "ministral-local:ollama_chat/ministral-3:14b-instruct-2512-q4_K_M" in cfg["alias"]
+    assert "phi4-mini-local:ollama_chat/phi4-mini:3.8b-q4_K_M" in cfg["alias"]
     assert not any("mistral-local" in alias for alias in cfg["alias"])
 
 

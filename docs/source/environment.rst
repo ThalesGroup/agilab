@@ -57,6 +57,29 @@ summarises the supported keys.
      - ``https://api.mistral.ai/v1``
      - Optional Mistral-compatible API base URL, for example when routing through
        a gateway.
+   * - ``AGILAB_LLM_BASE_URL``
+     - ``http://127.0.0.1:8000/v1``
+     - OpenAI-compatible Chat Completions base URL used by the PIPELINE assistant
+       when ``vLLM / OpenAI-compatible (self-hosted)`` is selected. Point this at
+       a vLLM, LM Studio, OpenRouter, or gateway endpoint.
+   * - ``AGILAB_LLM_MODEL``
+     - ``Qwen/Qwen2.5-Coder-7B-Instruct``
+     - Model name passed to the OpenAI-compatible endpoint. For vLLM this should
+       match the model served by ``vllm serve <model>``.
+   * - ``AGILAB_LLM_API_KEY``
+     - ``EMPTY``
+     - Bearer token for the OpenAI-compatible endpoint. Local vLLM commonly
+       accepts any value; gateways may require a real key.
+   * - ``AGILAB_LLM_TEMPERATURE``
+     - ``0.1``
+     - Sampling temperature for the OpenAI-compatible assistant provider.
+   * - ``AGILAB_LLM_MAX_TOKENS``
+     - unset
+     - Optional maximum number of generated tokens for the OpenAI-compatible
+       assistant provider.
+   * - ``AGILAB_LLM_TIMEOUT``
+     - ``120``
+     - Request timeout in seconds for the OpenAI-compatible assistant provider.
    * - ``AGI_SHARE_DIR``
      - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
      - User-facing knob for the shared datasets/outputs root. When cluster mode is enabled, this value is applied to ``AGI_CLUSTER_SHARE`` and must resolve to a mounted, writable shared path on every node. The implicit default is user-scoped so datasets and cluster-visible outputs stay isolated per workspace. Operators can still override it with an explicit mounted path.
@@ -122,5 +145,6 @@ Security note
 -------------
 
 Prefer environment variables or ``$HOME/.agilab/.env`` for secrets such as
-``OPENAI_API_KEY``, ``MISTRAL_API_KEY``, and ``CLUSTER_CREDENTIALS``. Avoid passing them on the
-command line because shell history and process listings can expose them.
+``OPENAI_API_KEY``, ``MISTRAL_API_KEY``, ``AGILAB_LLM_API_KEY``, and
+``CLUSTER_CREDENTIALS``. Avoid passing them on the command line because shell
+history and process listings can expose them.

@@ -62,6 +62,19 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.pipeline_openai_compatible",
+    {
+        "DEFAULT_OPENAI_COMPAT_API_KEY": "DEFAULT_OPENAI_COMPAT_API_KEY",
+        "OPENAI_COMPAT_PROVIDER": "OPENAI_COMPAT_PROVIDER",
+        "OpenAICompatibleSettings": "OpenAICompatibleSettings",
+        "build_openai_compatible_completion_kwargs": "_build_openai_compatible_completion_kwargs_impl",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_openai_compatible.py",
+    fallback_name="agilab_pipeline_openai_compatible_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_mistral",
     {
         "MISTRAL_PROVIDER": "MISTRAL_PROVIDER",
@@ -89,6 +102,11 @@ import_agilab_symbols(
         "CODE_STRICT_INSTRUCTIONS": "CODE_STRICT_INSTRUCTIONS",
         "DEFAULT_GPT_OSS_ENDPOINT": "DEFAULT_GPT_OSS_ENDPOINT",
         "OLLAMA_DEEPSEEK_PROVIDER": "OLLAMA_DEEPSEEK_PROVIDER",
+        "OLLAMA_LOCAL_PROVIDER_FAMILIES": "OLLAMA_LOCAL_PROVIDER_FAMILIES",
+        "OLLAMA_MINISTRAL_PROVIDER": "OLLAMA_MINISTRAL_PROVIDER",
+        "OLLAMA_PHI4_MINI_PROVIDER": "OLLAMA_PHI4_MINI_PROVIDER",
+        "OLLAMA_QWEN3_CODER_PROVIDER": "OLLAMA_QWEN3_CODER_PROVIDER",
+        "OLLAMA_QWEN3_PROVIDER": "OLLAMA_QWEN3_PROVIDER",
         "OLLAMA_QWEN_PROVIDER": "OLLAMA_QWEN_PROVIDER",
         "_API_KEY_PATTERNS": "_API_KEY_PATTERNS",
         "normalize_user_path": "_normalize_user_path",
@@ -557,6 +575,71 @@ def chat_online(
         raise JumpToMain(e)
 
 
+def _openai_compatible_safe_error(message: str, settings: OpenAICompatibleSettings) -> str:
+    msg = _redact_sensitive(str(message))
+    api_key = getattr(settings, "api_key", "")
+    if api_key and api_key != DEFAULT_OPENAI_COMPAT_API_KEY:
+        msg = msg.replace(api_key, "<redacted>")
+    return msg
+
+
+def chat_openai_compatible(
+    input_request: str,
+    prompt: List[Dict[str, str]],
+    envars: Dict[str, str],
+) -> Tuple[str, str]:
+    """Call a vLLM/OpenAI-compatible Chat Completions endpoint for code generation."""
+    try:
+        import openai
+        from openai import OpenAI as OpenAIClient
+    except ImportError as exc:
+        st.error(
+            "OpenAI-compatible endpoints require the optional AI dependency. "
+            "Install with `pip install 'agilab[ai]'` or switch to another provider."
+        )
+        raise JumpToMain(exc) from exc
+
+    env_file_map = _load_env_file_map(ENV_FILE_PATH)
+    if env_file_map:
+        envars.update(env_file_map)
+
+    system_msg = {
+        "role": "system",
+        "content": (
+            "Return ONLY Python code wrapped in ```python ... ``` with no explanations. "
+            "Assume there is a pandas DataFrame df and pandas is imported as pd."
+        ),
+    }
+    messages: List[Dict[str, str]] = [system_msg]
+    for item in prompt:
+        role = item.get("role", "assistant")
+        content = str(item.get("content", ""))
+        if content:
+            messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": input_request})
+
+    try:
+        payload, settings = _build_openai_compatible_completion_kwargs_impl(messages, envars)
+        client = OpenAIClient(
+            api_key=settings.api_key or DEFAULT_OPENAI_COMPAT_API_KEY,
+            base_url=settings.base_url,
+            timeout=settings.timeout_s,
+        )
+        response = client.chat.completions.create(**payload)
+        content = response.choices[0].message.content
+        return content or "", settings.model
+    except openai.OpenAIError as exc:
+        msg = _openai_compatible_safe_error(str(exc), settings)
+        st.error(f"OpenAI-compatible endpoint error at {settings.base_url}: {msg}")
+        logger.error("OpenAI-compatible endpoint error: %s", bound_log_value(msg, LOG_DETAIL_LIMIT))
+        raise JumpToMain(exc) from exc
+    except (RuntimeError, TypeError, ValueError, AttributeError, KeyError, IndexError) as exc:
+        msg = _redact_sensitive(str(exc))
+        st.error(f"OpenAI-compatible endpoint failed: {msg}")
+        logger.error("OpenAI-compatible endpoint failed: %s", bound_log_value(msg, LOG_DETAIL_LIMIT))
+        raise JumpToMain(exc) from exc
+
+
 def chat_mistral_online(
     input_request: str,
     prompt: List[Dict[str, str]],
@@ -617,9 +700,11 @@ def ask_gpt(
     model_label = ""
     if provider == "gpt-oss":
         result, model_label = chat_offline(question, prompt, envars)
+    elif provider == OPENAI_COMPAT_PROVIDER:
+        result, model_label = chat_openai_compatible(question, prompt, envars)
     elif provider == MISTRAL_PROVIDER:
         result, model_label = chat_mistral_online(question, prompt, envars)
-    elif provider in {OLLAMA_QWEN_PROVIDER, OLLAMA_DEEPSEEK_PROVIDER}:
+    elif provider in OLLAMA_LOCAL_PROVIDER_FAMILIES:
         result, model_label = chat_ollama_local(question, prompt, envars)
     elif provider == UOAIC_PROVIDER:
         mode = (
@@ -665,7 +750,7 @@ def _maybe_autofix_generated_code(
 ) -> Tuple[str, str, str]:
     """Optionally run + repair generated code using the active assistant."""
     provider = st.session_state.get("lab_llm_provider") or env.envars.get("LAB_LLM_PROVIDER", "openai")
-    if provider not in {UOAIC_PROVIDER, OLLAMA_QWEN_PROVIDER, OLLAMA_DEEPSEEK_PROVIDER}:
+    if provider not in {UOAIC_PROVIDER, *OLLAMA_LOCAL_PROVIDER_FAMILIES}:
         return merged_code, model_label, detail
 
     enabled = bool(st.session_state.get(UOAIC_AUTOFIX_STATE_KEY, False))

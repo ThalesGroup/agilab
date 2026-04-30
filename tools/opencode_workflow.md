@@ -38,6 +38,9 @@ The repo ships:
 
 ```bash
 AGILAB_OPENCODE_MODEL=ollama/deepseek-coder:latest ./tools/opencode_workflow.sh chat
+AGILAB_OPENCODE_MODEL=ollama/qwen3-coder:30b-a3b-q4_K_M ./tools/opencode_workflow.sh chat
+AGILAB_OPENCODE_MODEL=ollama/ministral-3:14b-instruct-2512-q4_K_M ./tools/opencode_workflow.sh chat
+AGILAB_OPENCODE_MODEL=ollama/phi4-mini:3.8b-q4_K_M ./tools/opencode_workflow.sh chat
 AGILAB_OPENCODE_AGENT=agilab-build ./tools/opencode_workflow.sh exec "Add a regression test"
 ```
 
