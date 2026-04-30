@@ -5,6 +5,8 @@ import sys
 import types
 from pathlib import Path
 
+import pandas as pd
+
 
 def _import_agilab_module(module_name: str):
     src_root = Path(__file__).resolve().parents[1] / "src"
@@ -370,3 +372,149 @@ def test_orchestrate_execute_workflow_state_blocks_serve_mode(tmp_path):
     assert state.combo_action.enabled is False
     assert "`Serve` mode selected" in state.run_action.disabled_reason
     assert "`Serve` mode selected" in state.blocked_actions[orchestrate_page_state.OrchestrateExecuteAction.RUN]
+
+
+def test_orchestrate_run_artifact_state_reports_loaded_dataframe(tmp_path):
+    source_path = tmp_path / "result.csv"
+    state = orchestrate_page_state.build_orchestrate_run_artifact_state(
+        show_run_panel=True,
+        loaded_dataframe=pd.DataFrame({"value": [1]}),
+        loaded_source_path=source_path,
+    )
+
+    assert state.status is orchestrate_page_state.OrchestrateRunArtifactStatus.LOADED
+    assert state.loaded_source_path == source_path
+    assert state.has_loaded_artifact is True
+    assert state.load_action.enabled is True
+    assert state.delete_action.enabled is True
+    assert state.export_action.enabled is True
+    assert state.stats_action.enabled is True
+    assert state.blocked_actions == {}
+
+
+def test_orchestrate_run_artifact_state_blocks_deleted_or_missing_outputs():
+    deleted = orchestrate_page_state.build_orchestrate_run_artifact_state(
+        show_run_panel=True,
+        loaded_dataframe=None,
+        dataframe_deleted=True,
+    )
+    missing = orchestrate_page_state.build_orchestrate_run_artifact_state(
+        show_run_panel=True,
+        loaded_dataframe=pd.DataFrame(),
+    )
+
+    assert deleted.status is orchestrate_page_state.OrchestrateRunArtifactStatus.DELETED
+    assert deleted.load_action.enabled is False
+    assert "Run EXECUTE again" in deleted.load_action.disabled_reason
+    assert deleted.delete_action.enabled is False
+    assert deleted.export_action.enabled is False
+    assert missing.status is orchestrate_page_state.OrchestrateRunArtifactStatus.MISSING
+    assert missing.load_action.enabled is True
+    assert missing.delete_action.enabled is False
+    assert missing.stats_action.enabled is False
+
+
+def test_orchestrate_run_artifact_state_allows_graph_delete_but_not_export():
+    graph = object()
+
+    state = orchestrate_page_state.build_orchestrate_run_artifact_state(
+        show_run_panel=True,
+        loaded_graph=graph,
+    )
+
+    assert state.status is orchestrate_page_state.OrchestrateRunArtifactStatus.LOADED
+    assert state.has_loaded_graph is True
+    assert state.delete_action.enabled is True
+    assert state.export_action.enabled is False
+    assert state.stats_action.enabled is False
+
+
+def _install_state(tmp_path, *, show_install=True, cmd="asyncio.run(main())"):
+    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_project"
+    return orchestrate_page_state.build_orchestrate_install_workflow_state(
+        show_install=show_install,
+        cmd=cmd,
+        active_app_path=active_app,
+        agi_cluster_path=None,
+        is_source_env=False,
+        is_worker_env=False,
+        snippet_tail="asyncio.run(main())",
+        app="flight_project",
+        cluster_enabled=False,
+        verbose=1,
+        mode=1,
+        raw_scheduler="",
+        raw_workers={},
+        timestamp="2026-04-30T08:00:00",
+    )
+
+
+def _distribution_state(*, show_distribute=True, cmd="print('distribute')", worker_env_path=None):
+    return orchestrate_page_state.build_orchestrate_distribution_workflow_state(
+        show_distribute=show_distribute,
+        cmd=cmd,
+        worker_env_path=worker_env_path,
+    )
+
+
+def _execute_state(tmp_path, *, installed: bool, show_run_panel=True, cmd="print('run')"):
+    project_path = tmp_path / "project"
+    worker_env_path = tmp_path / "wenv"
+    if installed:
+        (project_path / ".venv").mkdir(parents=True, exist_ok=True)
+        (worker_env_path / ".venv").mkdir(parents=True, exist_ok=True)
+    return orchestrate_page_state.build_orchestrate_execute_workflow_state(
+        show_run_panel=show_run_panel,
+        cmd=cmd,
+        project_path=project_path,
+        worker_env_path=worker_env_path,
+    )
+
+
+def test_orchestrate_combined_workflow_state_reports_install_ready(tmp_path):
+    state = orchestrate_page_state.build_orchestrate_combined_workflow_state(
+        install_state=_install_state(tmp_path),
+        distribution_state=_distribution_state(worker_env_path=tmp_path / "wenv"),
+        execute_state=_execute_state(tmp_path, installed=False),
+    )
+
+    assert state.phase is orchestrate_page_state.OrchestrateWorkflowPhase.INSTALL_READY
+    assert state.install_ready is True
+    assert state.installed is False
+    assert state.runnable is False
+
+
+def test_orchestrate_combined_workflow_state_reports_distribute_ready_and_generated(tmp_path):
+    distribute_ready = orchestrate_page_state.build_orchestrate_combined_workflow_state(
+        install_state=_install_state(tmp_path),
+        distribution_state=_distribution_state(worker_env_path=tmp_path / "wenv"),
+        execute_state=_execute_state(tmp_path, installed=True),
+    )
+    generated = orchestrate_page_state.build_orchestrate_combined_workflow_state(
+        install_state=_install_state(tmp_path),
+        distribution_state=_distribution_state(worker_env_path=tmp_path / "wenv"),
+        execute_state=_execute_state(tmp_path, installed=True, cmd=None),
+        distribution_generated=True,
+    )
+
+    assert distribute_ready.phase is orchestrate_page_state.OrchestrateWorkflowPhase.DISTRIBUTE_READY
+    assert distribute_ready.distribute_ready is True
+    assert distribute_ready.runnable is False
+    assert generated.phase is orchestrate_page_state.OrchestrateWorkflowPhase.DISTRIBUTION_GENERATED
+    assert generated.distribution_generated is True
+    assert "No EXECUTE command configured" in generated.blocked_reason
+
+
+def test_orchestrate_combined_workflow_state_reports_runnable(tmp_path):
+    state = orchestrate_page_state.build_orchestrate_combined_workflow_state(
+        install_state=_install_state(tmp_path),
+        distribution_state=_distribution_state(worker_env_path=tmp_path / "wenv"),
+        execute_state=_execute_state(tmp_path, installed=True),
+        distribution_generated=True,
+    )
+
+    assert state.phase is orchestrate_page_state.OrchestrateWorkflowPhase.RUNNABLE
+    assert state.installed is True
+    assert state.distribution_generated is True
+    assert state.runnable is True
+    assert state.blocked_reason == ""

@@ -66,6 +66,15 @@ normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
 _persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
 _prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
 
+_pipeline_step_templates_module = import_agilab_module(
+    "agilab.pipeline_step_templates",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_step_templates.py",
+    fallback_name="agilab_pipeline_step_templates_fallback",
+)
+PIPELINE_STEP_TEMPLATE_ID_KEY = _pipeline_step_templates_module.PIPELINE_STEP_TEMPLATE_ID_KEY
+PIPELINE_STEP_TEMPLATE_VERSION_KEY = _pipeline_step_templates_module.PIPELINE_STEP_TEMPLATE_VERSION_KEY
+
 _notebook_export_support_module = import_agilab_module(
     "agilab.notebook_export_support",
     current_file=__file__,
@@ -266,6 +275,25 @@ def remove_step(
     return nsteps
 
 
+def _normalize_pipeline_step_entry(raw_entry: Any) -> Dict[str, Any] | None:
+    """Normalize core editor fields while preserving versioned step metadata."""
+    if not isinstance(raw_entry, dict):
+        return None
+
+    normalized = dict(raw_entry)
+    normalized["D"] = raw_entry.get("D", "")
+    normalized["Q"] = raw_entry.get("Q", "")
+    normalized["M"] = raw_entry.get("M", "")
+    normalized["C"] = raw_entry.get("C", "")
+    normalized["E"] = normalize_runtime_path(raw_entry.get("E", "")) if raw_entry.get("E") else ""
+    normalized["R"] = str(raw_entry.get("R", "") or "")
+
+    for key in (PIPELINE_STEP_TEMPLATE_ID_KEY, PIPELINE_STEP_TEMPLATE_VERSION_KEY):
+        if key in raw_entry:
+            normalized[key] = raw_entry[key]
+    return normalized
+
+
 def _write_steps_for_module(
     module: Path,
     steps_file: Path,
@@ -278,18 +306,9 @@ def _write_steps_for_module(
 
     normalized_steps: List[Dict[str, Any]] = []
     for raw_entry in module_steps:
-        if not isinstance(raw_entry, dict):
-            continue
-        normalized_steps.append(
-            {
-                "D": raw_entry.get("D", ""),
-                "Q": raw_entry.get("Q", ""),
-                "M": raw_entry.get("M", ""),
-                "C": raw_entry.get("C", ""),
-                "E": normalize_runtime_path(raw_entry.get("E", "")) if raw_entry.get("E") else "",
-                "R": str(raw_entry.get("R", "") or ""),
-            }
-        )
+        normalized_entry = _normalize_pipeline_step_entry(raw_entry)
+        if normalized_entry is not None:
+            normalized_steps.append(normalized_entry)
 
     steps[module_key] = _prune_invalid_entries(normalized_steps)
     serializable_steps = convert_paths_to_strings(_prepare_lab_steps_for_write(steps))
@@ -303,18 +322,9 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
     """Capture the current pipeline state so delete actions can be undone."""
     steps_snapshot: List[Dict[str, Any]] = []
     for raw_entry in steps:
-        if not isinstance(raw_entry, dict):
-            continue
-        steps_snapshot.append(
-            {
-                "D": raw_entry.get("D", ""),
-                "Q": raw_entry.get("Q", ""),
-                "M": raw_entry.get("M", ""),
-                "C": raw_entry.get("C", ""),
-                "E": normalize_runtime_path(raw_entry.get("E", "")) if raw_entry.get("E") else "",
-                "R": str(raw_entry.get("R", "") or ""),
-            }
-        )
+        normalized_entry = _normalize_pipeline_step_entry(raw_entry)
+        if normalized_entry is not None:
+            steps_snapshot.append(normalized_entry)
 
     details_key = f"{index_page}__details"
     venv_key = f"{index_page}__venv_map"
