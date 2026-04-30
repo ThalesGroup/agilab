@@ -40,9 +40,12 @@ Use this runbook whenever you:
   over handwritten command variants.
 - **Repository update command plan**: When the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan as a fenced `bash` block with concrete `git -C <repo>` commands
-  for each checkout. Start with non-destructive `status`/`fetch` checks, include the intended pull,
-  validation, and push commands, then execute the same plan. If a checkout is dirty, stop before
-  pulling it and report the dirty paths so the plan can be adjusted.
+  for each checkout. Use the fast path by default: `status --porcelain=v1 --untracked-files=no`,
+  `fetch --prune`, `rev-list --left-right --count HEAD...@{u}`, then `merge --ff-only @{u}` only
+  for repos that are actually behind. This avoids a redundant fetch from `git pull` and avoids slow
+  untracked scans. Group independent repo checks and fetches in parallel when the tooling allows it.
+  If a checkout has tracked dirty paths, do not merge it until the dirty paths are reported and the
+  update plan is adjusted.
 - **Shared-core strict typing**: Use `uv --preview-features extra-build-dependencies run --with mypy python tools/shared_core_strict_typing.py`
   for the curated extracted support-module strict slice. The same check is also available through
   `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile shared-core-typing`.
