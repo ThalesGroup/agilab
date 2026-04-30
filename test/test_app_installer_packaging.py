@@ -80,6 +80,15 @@ def test_packaged_agi_example_scripts_are_compile_safe() -> None:
         py_compile.compile(str(script), doraise=True)
 
 
+def test_packaged_agi_example_scripts_avoid_cython_first_run_mode() -> None:
+    scripts = sorted(EXAMPLES_ROOT.glob("*/AGI_*.py"))
+
+    assert scripts
+    for script in scripts:
+        text = script.read_text(encoding="utf-8")
+        assert "AGI.CYTHON_MODE" not in text
+
+
 def test_packaged_preview_example_scripts_are_compile_safe() -> None:
     scripts = [
         EXAMPLES_ROOT / example_name / script_name

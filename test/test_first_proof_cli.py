@@ -316,6 +316,17 @@ def test_package_data_includes_app_installer_for_with_install() -> None:
     assert "examples/*/AGI_*.py" in package_data
 
 
+def test_package_data_includes_flight_dataset_archive_for_execute() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+    excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agilab", [])
+
+    assert (ROOT / "src/agilab/apps/builtin/flight_project/src/flight_worker/dataset.7z").is_file()
+    assert "apps/builtin/*/src/*/*.7z" in package_data
+    assert "apps/builtin/*/src/*/*.7z" not in excluded_data
+
+
 def test_package_discovery_includes_about_page_helpers() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 

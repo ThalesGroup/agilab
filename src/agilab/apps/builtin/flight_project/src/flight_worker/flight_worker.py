@@ -166,14 +166,14 @@ class FlightWorker(PolarsWorker):
         if not data_source:
             data_source = "file"
 
-        prefix = "~/"
         if data_source == "file":
+            file_path = Path(os.path.expanduser(str(file)))
+            if not file_path.is_absolute():
+                file_path = Path(os.path.expanduser(f"~/{file}"))
             if os.name != "nt":
-                file = os.path.normpath(os.path.expanduser(prefix + file)).replace(
-                    "\\", "/"
-                )
+                file = os.path.normpath(str(file_path)).replace("\\", "/")
             else:
-                file = normalize_path(os.path.expanduser(prefix + file))
+                file = normalize_path(str(file_path))
 
             if not Path(file).is_file():
                 raise FileNotFoundError(file)
