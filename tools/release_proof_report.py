@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from datetime import UTC, datetime
 import json
 from pathlib import Path
 import re
@@ -20,6 +21,37 @@ DEFAULT_DOCS_SOURCE = REPO_ROOT / "docs" / "source"
 MANIFEST_RELATIVE_PATH = Path("data/release_proof.toml")
 OUTPUT_RELATIVE_PATH = Path("release-proof.rst")
 SCHEMA = "agilab.release_proof.v1"
+GITHUB_RUN_FIELDS = (
+    "databaseId",
+    "workflowName",
+    "headSha",
+    "status",
+    "conclusion",
+    "url",
+    "createdAt",
+    "event",
+)
+DEFAULT_GITHUB_BRANCH = "main"
+DEFAULT_GITHUB_RUN_LIMIT = 50
+DEFAULT_GITHUB_MAX_AGE_DAYS = 45
+DEFAULT_GITHUB_WORKFLOWS = (
+    "repo-guardrails",
+    "docs-source-guard",
+    "docs-publish",
+    "coverage",
+)
+GITHUB_WORKFLOW_SUMMARIES = {
+    "repo-guardrails": "passed repository guardrails and clean package first-proof jobs",
+    "docs-source-guard": "passed docs mirror and release-proof consistency checks",
+    "docs-publish": "built the public documentation from the managed docs mirror",
+    "coverage": "passed component coverage and badge freshness checks",
+}
+GITHUB_WORKFLOW_IDS = {
+    "repo-guardrails": "release-guardrails",
+    "docs-source-guard": "docs-source-guard",
+    "docs-publish": "docs-publish",
+    "coverage": "coverage",
+}
 
 
 class _SafeFormatDict(dict[str, Any]):
@@ -357,6 +389,179 @@ def _github_repo_base_url(repo_root: Path) -> str | None:
     return None
 
 
+def _github_repo_name(repo_root: Path) -> str | None:
+    base_url = _github_repo_base_url(repo_root)
+    if not base_url:
+        return None
+    prefix = "https://github.com/"
+    if not base_url.startswith(prefix):
+        return None
+    return base_url.removeprefix(prefix)
+
+
+def _run_gh_json(args: Sequence[str]) -> Any:
+    completed = subprocess.run(
+        ["gh", *args],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout).strip()
+        raise RuntimeError(f"gh {' '.join(args)} failed: {detail}")
+    try:
+        return json.loads(completed.stdout or "null")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"gh {' '.join(args)} returned invalid JSON: {exc}") from exc
+
+
+def _github_json_fields() -> str:
+    return ",".join(GITHUB_RUN_FIELDS)
+
+
+def _normalize_github_run(row: Mapping[str, Any]) -> dict[str, str]:
+    return {field: str(row.get(field, "") or "") for field in GITHUB_RUN_FIELDS}
+
+
+def _github_run_id(row: Mapping[str, Any]) -> str:
+    value = row.get("databaseId", "")
+    return str(value or "")
+
+
+def _github_run_is_success(row: Mapping[str, Any]) -> bool:
+    return (
+        str(row.get("status", "")) == "completed"
+        and str(row.get("conclusion", "")) == "success"
+        and bool(_github_run_id(row))
+        and bool(row.get("url"))
+    )
+
+
+def _github_created_at(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+    except ValueError:
+        return None
+
+
+def _resolve_github_repo(repo_root: Path, explicit_repo: str | None) -> str:
+    repo = explicit_repo or _github_repo_name(repo_root)
+    if not repo:
+        raise RuntimeError("unable to infer GitHub repository from origin; pass --github-repo OWNER/REPO")
+    return repo
+
+
+def _latest_successful_github_runs(
+    *,
+    repo: str,
+    workflows: Sequence[str],
+    branch: str | None,
+    head_sha: str | None,
+    limit: int,
+) -> dict[str, dict[str, str]]:
+    args = [
+        "run",
+        "list",
+        "--repo",
+        repo,
+        "--limit",
+        str(limit),
+        "--json",
+        _github_json_fields(),
+    ]
+    if branch:
+        args.extend(["--branch", branch])
+    rows = _run_gh_json(args)
+    if not isinstance(rows, list):
+        raise RuntimeError("gh run list did not return a JSON list")
+
+    wanted = set(workflows)
+    found: dict[str, dict[str, str]] = {}
+    for raw_row in rows:
+        if not isinstance(raw_row, Mapping):
+            continue
+        workflow = str(raw_row.get("workflowName", "") or "")
+        if workflow not in wanted or workflow in found:
+            continue
+        if head_sha and str(raw_row.get("headSha", "") or "") != head_sha:
+            continue
+        if not _github_run_is_success(raw_row):
+            continue
+        found[workflow] = _normalize_github_run(raw_row)
+
+    missing = [workflow for workflow in workflows if workflow not in found]
+    if missing:
+        qualifier = f" for head {head_sha}" if head_sha else ""
+        raise RuntimeError(
+            "missing successful GitHub workflow runs"
+            f"{qualifier}: {', '.join(missing)}"
+        )
+    return found
+
+
+def refresh_manifest_from_github(
+    manifest: Mapping[str, Any],
+    *,
+    repo_root: Path = REPO_ROOT,
+    github_repo: str | None = None,
+    github_branch: str | None = DEFAULT_GITHUB_BRANCH,
+    github_head_sha: str | None = None,
+    workflows: Sequence[str] = DEFAULT_GITHUB_WORKFLOWS,
+    run_limit: int = DEFAULT_GITHUB_RUN_LIMIT,
+) -> dict[str, Any]:
+    repo = _resolve_github_repo(repo_root, github_repo)
+    runs = _latest_successful_github_runs(
+        repo=repo,
+        workflows=workflows,
+        branch=github_branch,
+        head_sha=github_head_sha,
+        limit=run_limit,
+    )
+
+    refreshed = copy.deepcopy(dict(manifest))
+    ci_runs = refreshed.get("ci_runs", [])
+    if not isinstance(ci_runs, list):
+        raise TypeError("ci_runs must be a list")
+
+    managed_workflows = set(workflows)
+    by_workflow: dict[str, dict[str, Any]] = {}
+    normalized_runs: list[dict[str, Any]] = []
+    for entry in ci_runs:
+        if not isinstance(entry, Mapping):
+            raise TypeError("each [[ci_runs]] entry must be a table")
+        copied = dict(entry)
+        workflow = str(copied.get("workflow", "") or "")
+        if workflow in managed_workflows and workflow in by_workflow:
+            continue
+        normalized_runs.append(copied)
+        if workflow and workflow not in by_workflow:
+            by_workflow[workflow] = copied
+
+    for workflow in workflows:
+        run = runs[workflow]
+        entry = by_workflow.get(workflow)
+        if entry is None:
+            entry = {
+                "id": GITHUB_WORKFLOW_IDS.get(workflow, workflow),
+                "label": workflow,
+                "workflow": workflow,
+            }
+            normalized_runs.append(entry)
+            by_workflow[workflow] = entry
+        entry["run_id"] = _github_run_id(run)
+        entry["url"] = str(run["url"])
+        entry["summary"] = GITHUB_WORKFLOW_SUMMARIES.get(
+            workflow,
+            "passed the public release proof workflow gate",
+        )
+
+    refreshed["ci_runs"] = normalized_runs
+    return refreshed
+
+
 def refresh_manifest_from_local(
     manifest: Mapping[str, Any],
     *,
@@ -407,11 +612,121 @@ def _ci_run_urls_are_consistent(ci_runs: Sequence[Any]) -> bool:
     return True
 
 
+def _github_ci_runs_check(
+    ci_runs: Sequence[Any],
+    *,
+    repo_root: Path,
+    github_repo: str | None,
+    max_age_days: int,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    checked_at = now or datetime.now(UTC)
+    try:
+        repo = _resolve_github_repo(repo_root, github_repo)
+    except RuntimeError as exc:
+        return _check_result(
+            "github_ci_runs",
+            False,
+            "manifest CI runs could not be checked against GitHub",
+            evidence=[],
+            details={"error": str(exc)},
+        )
+
+    details: list[dict[str, Any]] = []
+    failures: list[str] = []
+    for run in ci_runs:
+        if not isinstance(run, Mapping):
+            failures.append("malformed ci_runs entry")
+            continue
+        run_id = str(run.get("run_id", "") or "")
+        workflow = str(run.get("workflow", "") or "")
+        if not run_id:
+            failures.append(f"{workflow or '<unknown>'}: missing run_id")
+            continue
+        try:
+            raw = _run_gh_json(
+                [
+                    "run",
+                    "view",
+                    run_id,
+                    "--repo",
+                    repo,
+                    "--json",
+                    _github_json_fields(),
+                ]
+            )
+        except RuntimeError as exc:
+            failures.append(f"{workflow or run_id}: {exc}")
+            continue
+        if not isinstance(raw, Mapping):
+            failures.append(f"{workflow or run_id}: gh run view did not return an object")
+            continue
+
+        github_run = _normalize_github_run(raw)
+        github_workflow = github_run["workflowName"]
+        created_at = _github_created_at(github_run["createdAt"])
+        age_days = None
+        if created_at is not None:
+            age_days = max((checked_at - created_at).total_seconds() / 86400, 0.0)
+        run_failures: list[str] = []
+        if github_workflow != workflow:
+            run_failures.append(f"workflow mismatch: expected {workflow}, got {github_workflow}")
+        if not _github_run_is_success(raw):
+            run_failures.append(
+                "run is not successful: "
+                f"status={github_run['status']} conclusion={github_run['conclusion']}"
+            )
+        expected_url = str(run.get("url", "") or "")
+        if expected_url and github_run["url"] and expected_url != github_run["url"]:
+            run_failures.append("manifest URL differs from GitHub run URL")
+        if age_days is None:
+            run_failures.append("run createdAt timestamp is missing or invalid")
+        elif age_days > max_age_days:
+            run_failures.append(f"run is stale: {age_days:.1f} days old > {max_age_days}")
+
+        details.append(
+            {
+                "workflow": workflow,
+                "run_id": run_id,
+                "github_workflow": github_workflow,
+                "status": github_run["status"],
+                "conclusion": github_run["conclusion"],
+                "head_sha": github_run["headSha"],
+                "created_at": github_run["createdAt"],
+                "age_days": age_days,
+                "url": github_run["url"],
+                "failures": run_failures,
+            }
+        )
+        failures.extend(f"{workflow or run_id}: {failure}" for failure in run_failures)
+
+    return _check_result(
+        "github_ci_runs",
+        not failures,
+        (
+            "manifest CI runs exist on GitHub, succeeded, and are fresh"
+            if not failures
+            else "manifest CI runs are missing, failed, or stale on GitHub"
+        ),
+        evidence=[str(MANIFEST_RELATIVE_PATH)],
+        details={
+            "repo": repo,
+            "max_age_days": max_age_days,
+            "checked_at": checked_at.isoformat(),
+            "runs": details,
+            "failures": failures,
+        },
+    )
+
+
 def build_report(
     *,
     manifest_path: Path,
     output_path: Path,
     repo_root: Path = REPO_ROOT,
+    check_github_runs: bool = False,
+    github_repo: str | None = None,
+    github_max_age_days: int = DEFAULT_GITHUB_MAX_AGE_DAYS,
 ) -> dict[str, Any]:
     manifest = load_manifest(manifest_path)
     rendered = render_release_proof(manifest)
@@ -492,6 +807,15 @@ def build_report(
             evidence=[str(manifest_path)],
         )
     )
+    if check_github_runs:
+        checks.append(
+            _github_ci_runs_check(
+                ci_runs,
+                repo_root=repo_root,
+                github_repo=github_repo,
+                max_age_days=github_max_age_days,
+            )
+        )
     output_matches = output_path.exists() and output_path.read_text(encoding="utf-8") == rendered
     checks.append(
         _check_result(
@@ -544,9 +868,59 @@ def _build_parser() -> argparse.ArgumentParser:
             "local git release tag, and the GitHub origin URL."
         ),
     )
+    parser.add_argument(
+        "--refresh-from-github",
+        action="store_true",
+        help=(
+            "Update [[ci_runs]] from the latest successful GitHub Actions runs for the "
+            "selected workflows."
+        ),
+    )
     parser.add_argument("--github-release-tag", default=None, help="Override refreshed GitHub release tag.")
     parser.add_argument("--github-release-url", default=None, help="Override refreshed GitHub release URL.")
     parser.add_argument("--hf-space-commit", default=None, help="Override refreshed Hugging Face Space commit.")
+    parser.add_argument(
+        "--github-repo",
+        default=None,
+        help="GitHub repository for run evidence as OWNER/REPO. Defaults to origin.",
+    )
+    parser.add_argument(
+        "--github-branch",
+        default=DEFAULT_GITHUB_BRANCH,
+        help="Branch used when refreshing GitHub run evidence. Use an empty value to disable branch filtering.",
+    )
+    parser.add_argument(
+        "--github-head-sha",
+        default=None,
+        help="Optional commit SHA that refreshed GitHub run evidence must match.",
+    )
+    parser.add_argument(
+        "--github-workflow",
+        action="append",
+        dest="github_workflows",
+        default=None,
+        help=(
+            "Workflow display name to refresh from GitHub. May be repeated. "
+            "Defaults to repo-guardrails, docs-source-guard, docs-publish, and coverage."
+        ),
+    )
+    parser.add_argument(
+        "--github-run-limit",
+        type=int,
+        default=DEFAULT_GITHUB_RUN_LIMIT,
+        help="Maximum GitHub Actions runs to inspect when refreshing run evidence.",
+    )
+    parser.add_argument(
+        "--github-max-age-days",
+        type=int,
+        default=DEFAULT_GITHUB_MAX_AGE_DAYS,
+        help="Maximum allowed age for CI runs when --check-github-runs is used.",
+    )
+    parser.add_argument(
+        "--check-github-runs",
+        action="store_true",
+        help="Fail if manifest CI run IDs are missing, failed, mismatched, or stale on GitHub.",
+    )
     parser.add_argument("--render", action="store_true", help="Write the rendered RST page.")
     parser.add_argument("--check", action="store_true", help="Fail if manifest checks or rendered page drift.")
     parser.add_argument("--compact", action="store_true", help="Emit compact JSON.")
@@ -570,6 +944,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             hf_space_commit=args.hf_space_commit,
         )
         write_manifest(manifest_path, manifest)
+    if args.refresh_from_github:
+        manifest = refresh_manifest_from_github(
+            manifest,
+            repo_root=REPO_ROOT,
+            github_repo=args.github_repo,
+            github_branch=args.github_branch or None,
+            github_head_sha=args.github_head_sha,
+            workflows=tuple(args.github_workflows or DEFAULT_GITHUB_WORKFLOWS),
+            run_limit=args.github_run_limit,
+        )
+        write_manifest(manifest_path, manifest)
 
     rendered = render_release_proof(manifest)
     if args.render:
@@ -580,6 +965,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest_path=manifest_path,
         output_path=output_path,
         repo_root=REPO_ROOT,
+        check_github_runs=args.check_github_runs,
+        github_repo=args.github_repo,
+        github_max_age_days=args.github_max_age_days,
     )
     if not args.quiet:
         if args.compact:

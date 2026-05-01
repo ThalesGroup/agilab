@@ -1,17 +1,14 @@
 schema = "agilab.release_proof.v1"
 title = "Release Proof"
-
 intro = [
   "This page is the public verification index for the current AGILAB release. It records install, CI, demo, and scope evidence in one place so reviewers can check the release without inferring status from scattered badges.",
 ]
-
 proof_bullets = [
   "The public GitHub Actions matrix validated the packaged first proof on Ubuntu, macOS, and Windows runners.",
   "The hosted Hugging Face Space opened the public AGILAB demo route during the release guardrail run.",
   "The public demo scope includes the lightweight ``flight_project`` and ``meteo_forecast_project`` routes documented in :doc:`agilab-demo`.",
   "The release tag, PyPI package, public documentation, and hosted demo point to the same public product story: browser preview, local first proof, then source-checkout expansion.",
 ]
-
 related_pages = [
   "quick-start",
   "demos",
@@ -34,17 +31,33 @@ hf_space_commit = "bd6b51281025f7c7f4ae5e8a7f864165e8f8247e"
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "25210998552"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25210998552"
-summary = "passed hosted demo smoke, local-only policy, and clean package install jobs on macOS, Ubuntu, and Windows"
+run_id = "25212640933"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25212640933"
+summary = "passed repository guardrails and clean package first-proof jobs"
 
 [[ci_runs]]
-id = "ci-maintenance-guardrails"
-label = "CI maintenance confirmation"
-workflow = "repo-guardrails"
-run_id = "25211182797"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25211182797"
-summary = "passed after the artifact upload action maintenance update"
+id = "docs-source-guard"
+label = "Docs source guard"
+workflow = "docs-source-guard"
+run_id = "25212640942"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25212640942"
+summary = "passed docs mirror and release-proof consistency checks"
+
+[[ci_runs]]
+id = "docs-publish"
+label = "Docs publish"
+workflow = "docs-publish"
+run_id = "25212640936"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25212640936"
+summary = "built the public documentation from the managed docs mirror"
+
+[[ci_runs]]
+id = "coverage"
+label = "Coverage"
+workflow = "coverage"
+run_id = "25212640937"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25212640937"
+summary = "passed component coverage and badge freshness checks"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"
@@ -65,11 +78,11 @@ commands = [
 follow_up = "Use :doc:`quick-start` when you want the fuller source-checkout path with the built-in app installation and Streamlit UI."
 
 [maintenance]
-intro = "Maintainers can refresh the manifest from local release evidence, render the page, and run the same consistency checks with one command:"
+intro = "Maintainers can refresh the manifest from local release evidence and GitHub Actions evidence, render the page, and run the same consistency checks with one command:"
 commands = [
-  "uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --refresh-from-local --render --check --compact",
+  "uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --refresh-from-local --refresh-from-github --render --check --check-github-runs --compact",
 ]
-follow_up = "Pass ``--github-release-tag``, ``--github-release-url``, or ``--hf-space-commit`` only when public evidence changes outside the local repository state."
+follow_up = "Pass ``--github-release-tag``, ``--github-release-url``, ``--hf-space-commit``, or ``--github-head-sha`` only when public evidence changes outside the default local repository and latest successful ``main`` workflow state."
 
 [scope]
 paragraph = "This evidence proves the public package smoke, hosted demo availability at the time of validation, and documented first-proof routes. It does not certify every remote cluster topology, every GPU stack, private app repositories, cloud accounts, security posture, or long-running production operations. Those areas remain environment-dependent and are tracked in :doc:`compatibility-matrix`."

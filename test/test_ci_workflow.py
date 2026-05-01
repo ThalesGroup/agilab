@@ -2,12 +2,19 @@ from pathlib import Path
 
 
 WORKFLOW_PATH = Path(".github/workflows/ci.yml")
+DOCS_SOURCE_GUARD_WORKFLOW_PATH = Path(".github/workflows/docs-source-guard.yaml")
+DOCS_PUBLISH_WORKFLOW_PATH = Path(".github/workflows/docs-publish.yaml")
 
 
 def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "Compile critical Python entrypoints" in text
+    assert "Validate release proof manifest" in text
+    assert "python tools/release_proof_report.py --check --compact" in text
+    assert "Validate release proof GitHub run evidence" in text
+    assert "GH_TOKEN: ${{ github.token }}" in text
+    assert "python tools/release_proof_report.py --check --check-github-runs --compact" in text
     assert "Validate first-proof command contract" in text
     assert "python src/agilab/first_proof_cli.py --print-only --json" in text
     assert "Validate public proof scenarios" in text
@@ -36,3 +43,13 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "--hf-smoke-json hf-space-smoke.json" in text
     assert "Upload hosted proof artifacts" in text
     assert "Repository tests are intentionally local-only" not in text
+
+
+def test_docs_workflows_block_stale_release_proof_github_runs() -> None:
+    for path in (DOCS_SOURCE_GUARD_WORKFLOW_PATH, DOCS_PUBLISH_WORKFLOW_PATH):
+        text = path.read_text(encoding="utf-8")
+        assert "GH_TOKEN: ${{ github.token }}" in text
+        assert "tools/release_proof_report.py --check --check-github-runs --compact" in text
+
+    guard_text = DOCS_SOURCE_GUARD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert "actions: read" in guard_text
