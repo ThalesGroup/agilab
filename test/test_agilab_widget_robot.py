@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -49,6 +50,18 @@ def test_resolve_pages_accepts_all_csv_and_home_alias() -> None:
     assert module.resolve_pages("HOME,PROJECT") == ["", "PROJECT"]
     assert module.page_label("") == "HOME"
     assert module.DEFAULT_WIDGET_TIMEOUT_SECONDS < module.DEFAULT_TIMEOUT_SECONDS
+
+
+def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
+    module = _load_module()
+
+    args = module.build_parser().parse_args([])
+
+    assert args.page_timeout == module.DEFAULT_PAGE_TIMEOUT_SECONDS
+    assert args.progress_log is None
+    assert args.resume_from_progress is None
+    assert args.json_output is None
+    assert args.quiet_progress is False
 
 
 def test_public_apps_pages_discovers_view_entrypoints() -> None:
@@ -234,6 +247,89 @@ def test_summarize_counts_interactions_and_failures() -> None:
     assert summary.within_target is False
 
 
+def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
+    module = _load_module()
+    passed = module.PageSweep(
+        app="flight_project",
+        page="PROJECT",
+        success=True,
+        duration_seconds=1.0,
+        widget_count=1,
+        interacted_count=1,
+        probed_count=0,
+        skipped_count=0,
+        failed_count=0,
+        url="http://demo",
+        failures=[],
+        skips=[],
+        status="passed",
+    )
+    failed = module.PageSweep(
+        app="flight_project",
+        page="PIPELINE",
+        success=False,
+        duration_seconds=1.0,
+        widget_count=1,
+        interacted_count=0,
+        probed_count=0,
+        skipped_count=0,
+        failed_count=1,
+        url="http://demo",
+        failures=[module.WidgetProbe("flight_project", "PIPELINE", "page", "", "failed", "boom", "http://demo")],
+        skips=[],
+        status="failed",
+    )
+    reported = []
+    progress_log = tmp_path / "progress.ndjson"
+    progress = module.ProgressReporter(progress_log, stderr=False)
+
+    module._emit_page_result(passed, progress=progress, on_page_result=reported.append)
+    module._emit_page_result(failed, progress=progress, on_page_result=reported.append)
+
+    resumed = module.load_completed_page_results(progress_log)
+    assert reported == [passed, failed]
+    assert resumed[module.page_result_key("flight_project", "PROJECT")] == passed
+    assert module.page_result_key("flight_project", "PIPELINE") not in resumed
+
+
+def test_write_summary_json_includes_page_status(tmp_path) -> None:
+    module = _load_module()
+    page = module.PageSweep(
+        app="flight_project",
+        page="PROJECT",
+        success=True,
+        duration_seconds=1.0,
+        widget_count=1,
+        interacted_count=1,
+        probed_count=0,
+        skipped_count=0,
+        failed_count=0,
+        url="http://demo",
+        failures=[],
+        skips=[],
+        status="passed",
+    )
+    output = tmp_path / "summary.json"
+
+    module.write_summary_json(output, [page], app_count=1, target_seconds=10.0)
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["success"] is True
+    assert payload["pages"][0]["status"] == "passed"
+
+
+def test_page_watchdog_helper_raises_when_deadline_expired() -> None:
+    module = _load_module()
+
+    module._enforce_page_deadline(None, "disabled")
+    try:
+        module._enforce_page_deadline(0.0, "expired")
+    except module.PageWatchdogTimeout as exc:
+        assert "expired" in str(exc)
+    else:
+        raise AssertionError("expected PageWatchdogTimeout")
+
+
 def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     module = _load_module()
     main_widget = {
@@ -277,7 +373,7 @@ def test_render_human_reports_sidebar_widget_counts() -> None:
     report = module.render_human(summary)
 
     assert "widgets=3 main=2 sidebar=1" in report
-    assert "flight_project/PROJECT: OK widgets=3 main=2 sidebar=1" in report
+    assert "flight_project/PROJECT: OK status=passed widgets=3 main=2 sidebar=1" in report
 
 
 def test_action_buttons_are_probed_by_default(tmp_path) -> None:

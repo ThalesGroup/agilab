@@ -180,10 +180,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             and active_app.name == "flight_project"
             and wizard_content["recommended_path_id"] == "source-checkout-first-proof"
             and wizard_content["actionable_route_ids"] == ["source-checkout-first-proof"]
-            and wizard_content["documented_route_ids"] == [
-                "notebook-quickstart",
-                "published-package-route",
-            ]
+            and wizard_content["documented_route_ids"] == ["notebook-quickstart"]
             and wizard_content["compatibility_status"] == "validated"
             and wizard_content["compatibility_report_status"] == "pass"
             and wizard_content["proof_command_labels"] == labels
@@ -378,9 +375,9 @@ def _check_public_certification_profile_report(repo_root: Path) -> dict[str, Any
             and summary.get("schema") == "agilab.public_certification_profile.v1"
             and summary.get("certification_profile") == "bounded_public_evidence"
             and summary.get("path_count") == 6
-            and summary.get("certified_public_evidence_count") == 4
-            and summary.get("documented_not_certified_count") == 2
-            and summary.get("certified_beyond_newcomer_operator_count") == 2
+            and summary.get("certified_public_evidence_count") == 5
+            and summary.get("documented_not_certified_count") == 1
+            and summary.get("certified_beyond_newcomer_operator_count") == 3
             and summary.get("production_certification_claimed") is False
             and summary.get("formal_third_party_certification") is False
             and summary.get("command_execution_count") == 0
@@ -430,7 +427,18 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("license_present") is True
             and summary.get("core_component_count") == 4
             and summary.get("aligned_core_versions") is True
+            and summary.get("aligned_internal_dependency_pins") is True
+            and summary.get("mismatched_internal_dependency_pin_count") == 0
             and summary.get("builtin_app_pyproject_count") == 8
+            and summary.get("aligned_builtin_app_versions") is True
+            and summary.get("mismatched_builtin_app_version_count") == 0
+            and summary.get("aligned_builtin_app_internal_dependency_bounds") is True
+            and summary.get("mismatched_builtin_app_internal_dependency_bound_count") == 0
+            and summary.get("package_data_pattern_count", 0) >= 1
+            and summary.get("builtin_payload_file_count", 0) >= 1
+            and summary.get("builtin_payload_bytes", 0) >= 1
+            and summary.get("builtin_archive_file_count", 0) >= 0
+            and summary.get("builtin_notebook_file_count", 0) >= 0
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("formal_supply_chain_attestation") is False
@@ -449,7 +457,8 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
         ok,
         (
             "supply-chain attestation report fingerprints package metadata, "
-            "lockfile, core versions, and app manifests without formal claims"
+            "lockfile, core versions, app manifests, and package payload "
+            "inventory without formal claims"
             if ok
             else "supply-chain attestation report is failing or disconnected"
         ),

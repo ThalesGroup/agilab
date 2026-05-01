@@ -1272,7 +1272,7 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     assert "built-in flight demo locally" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert content["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert content["documented_route_ids"] == ["notebook-quickstart"]
     assert [label for label, _ in content["steps"]] == [
         "PROJECT",
         "ORCHESTRATE",

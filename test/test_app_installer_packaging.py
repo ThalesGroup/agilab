@@ -19,6 +19,12 @@ EXAMPLE_APPS = {
 }
 EXAMPLE_PREVIEWS = {
     "inter_project_dag": ("preview_inter_project_dag.py", "flight_to_meteo_dag.json"),
+    "notebook_to_dask": (
+        "preview_notebook_to_dask.py",
+        "notebook_to_dask_sample.ipynb",
+        "lab_steps.toml",
+        "pipeline_view.json",
+    ),
     "service_mode": ("preview_service_mode.py", "sample_health_running.json"),
 }
 
@@ -180,6 +186,10 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/*/AGI_*.py" in package_data
     assert "examples/inter_project_dag/*.py" in package_data
     assert "examples/inter_project_dag/*.json" in package_data
+    assert "examples/notebook_to_dask/*.py" in package_data
+    assert "examples/notebook_to_dask/*.json" in package_data
+    assert "examples/notebook_to_dask/*.toml" in package_data
+    assert "examples/notebook_to_dask/*.ipynb" in package_data
     assert "examples/service_mode/*.py" in package_data
     assert "examples/service_mode/*.json" in package_data
 
@@ -283,6 +293,41 @@ def test_service_mode_preview_builds_health_gate_operator_summary(tmp_path: Path
     assert summary["artifacts"]["health_json"] == "service/mycode/health.json"
     assert summary["real_service_execution"] is False
     assert (tmp_path / "service_operator_preview.json").is_file()
+
+
+def test_notebook_to_dask_preview_builds_migration_contract(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "notebook_to_dask" / "preview_notebook_to_dask.py"
+    module_name = "agilab_notebook_to_dask_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.build_preview(output_path=tmp_path / "notebook_to_dask_preview.json")
+
+    assert summary["example"] == "notebook_to_dask"
+    assert summary["notebook_import"]["execution_mode"] == "not_executed_import"
+    assert summary["notebook_import"]["summary"]["pipeline_step_count"] == 3
+    assert summary["notebook_import"]["env_hints"] == ["dask", "json", "pandas", "pathlib"]
+    assert summary["artifact_contract"] == {
+        "analysis_consumes": [
+            "artifacts/daily_orders.parquet",
+            "artifacts/dask_summary.json",
+        ],
+        "inputs": ["data/orders.csv"],
+        "outputs": [
+            "artifacts/daily_orders.parquet",
+            "artifacts/dask_summary.json",
+        ],
+    }
+    assert summary["dask_solution"]["engine"] == "dask.dataframe"
+    assert summary["dask_solution"]["step_ids"] == ["cell-4", "cell-6"]
+    assert summary["dask_solution"]["real_execution"] is False
+    assert summary["lab_steps_preview"]["matches_generated"] is True
+    assert summary["pipeline_view"]["node_count"] == 4
+    assert (tmp_path / "notebook_to_dask_preview.json").is_file()
 
 
 def test_service_mode_health_gate_rejects_non_running_service() -> None:

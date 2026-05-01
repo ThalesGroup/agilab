@@ -80,9 +80,8 @@ If a generated step becomes stale after an app or orchestration change, the
 saved code remains unchanged until you explicitly regenerate or replace it.
 This avoids hidden behaviour changes, but it also means stale generated steps
 must be refreshed deliberately.
-One concrete example is ``sat_trajectory_project``: generated snippets now use
-``total_satellites_wanted``, so older saved snippets using ``number_of_sat`` or
-``number_of_tle_satellites`` must be regenerated before they can run.
+For example, if an app renames a runtime argument, older saved snippets that
+still pass the removed name must be regenerated or replaced before they can run.
 
 Notebook export
 ~~~~~~~~~~~~~~~

@@ -13,8 +13,9 @@ import time
 import tomllib
 import urllib.parse
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +44,7 @@ DEFAULT_APPS_PAGES_ROOT = REPO_ROOT / "src/agilab/apps-pages"
 DEFAULT_PAGES = ("", "PROJECT", "ORCHESTRATE", "PIPELINE", "ANALYSIS")
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
+DEFAULT_PAGE_TIMEOUT_SECONDS = 300.0
 DEFAULT_TARGET_SECONDS = 1800.0
 ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
@@ -190,6 +192,7 @@ class PageSweep:
     skips: list[WidgetProbe]
     main_widget_count: int = 0
     sidebar_widget_count: int = 0
+    status: str = "passed"
 
 
 @dataclass(frozen=True)
@@ -217,6 +220,154 @@ class SeededRuntime:
     export_root: Path
     share_root: Path
     cluster_share_root: Path
+
+
+class PageWatchdogTimeout(TimeoutError):
+    """Raised when one page sweep exceeds the whole-page watchdog."""
+
+
+PageResultCallback = Callable[[PageSweep], None]
+
+
+class ProgressReporter:
+    def __init__(self, path: Path | None, *, stderr: bool = True) -> None:
+        self.path = path
+        self.stderr = stderr
+        if self.path is not None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+
+    def emit(self, event: str, **payload: Any) -> dict[str, Any]:
+        record = {"ts": datetime.now(UTC).isoformat(), "event": event, **payload}
+        if self.path is not None:
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, sort_keys=True) + "\n")
+        if self.stderr:
+            self._emit_stderr(record)
+        return record
+
+    def _emit_stderr(self, record: dict[str, Any]) -> None:
+        event = str(record.get("event", "progress"))
+        app = str(record.get("app", ""))
+        page = str(record.get("page", ""))
+        label = f"{app}/{page}".strip("/")
+        if event == "page_start":
+            print(f"[widget-robot] start {label}", file=sys.stderr)
+        elif event == "page_done":
+            print(
+                f"[widget-robot] done {label} status={record.get('status')} "
+                f"duration={float(record.get('duration_seconds', 0.0)):.2f}s",
+                file=sys.stderr,
+            )
+        elif event == "page_resume":
+            print(f"[widget-robot] resume {label} status={record.get('status')}", file=sys.stderr)
+        elif event == "run_start":
+            print(f"[widget-robot] run start apps={record.get('app_count')} pages={record.get('page_count')}", file=sys.stderr)
+        elif event == "run_done":
+            print(f"[widget-robot] run done status={record.get('status')} duration={float(record.get('duration_seconds', 0.0)):.2f}s", file=sys.stderr)
+
+
+def page_result_key(app: str, page: str) -> str:
+    return f"{app}::{page}"
+
+
+def _widget_probe_from_dict(data: dict[str, Any]) -> WidgetProbe:
+    return WidgetProbe(
+        app=str(data.get("app", "")),
+        page=str(data.get("page", "")),
+        kind=str(data.get("kind", "")),
+        label=str(data.get("label", "")),
+        status=str(data.get("status", "")),
+        detail=str(data.get("detail", "")),
+        url=str(data.get("url", "")),
+        scope=str(data.get("scope", "main")),
+    )
+
+
+def page_sweep_from_dict(data: dict[str, Any]) -> PageSweep:
+    return PageSweep(
+        app=str(data.get("app", "")),
+        page=str(data.get("page", "")),
+        success=bool(data.get("success", False)),
+        duration_seconds=float(data.get("duration_seconds", 0.0)),
+        widget_count=int(data.get("widget_count", 0)),
+        interacted_count=int(data.get("interacted_count", 0)),
+        probed_count=int(data.get("probed_count", 0)),
+        skipped_count=int(data.get("skipped_count", 0)),
+        failed_count=int(data.get("failed_count", 0)),
+        url=str(data.get("url", "")),
+        failures=[_widget_probe_from_dict(item) for item in data.get("failures", [])],
+        skips=[_widget_probe_from_dict(item) for item in data.get("skips", [])],
+        main_widget_count=int(data.get("main_widget_count", 0)),
+        sidebar_widget_count=int(data.get("sidebar_widget_count", 0)),
+        status=str(data.get("status", "passed")),
+    )
+
+
+def load_completed_page_results(progress_log: Path) -> dict[str, PageSweep]:
+    if not progress_log.exists():
+        return {}
+    completed: dict[str, PageSweep] = {}
+    for line in progress_log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if record.get("event") != "page_done" or not isinstance(record.get("result"), dict):
+            continue
+        page = page_sweep_from_dict(record["result"])
+        if page.status == "passed" and page.success:
+            completed[page_result_key(page.app, page.page)] = page
+    return completed
+
+
+def write_summary_json(path: Path, pages: Sequence[PageSweep], *, app_count: int, target_seconds: float) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.tmp")
+    summary = summarize(pages, app_count=app_count, target_seconds=target_seconds)
+    tmp_path.write_text(json.dumps(asdict(summary), indent=2) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _emit_page_result(page: PageSweep, *, progress: ProgressReporter | None, on_page_result: PageResultCallback | None) -> None:
+    if progress is not None:
+        progress.emit(
+            "page_done",
+            app=page.app,
+            page=page.page,
+            status=page.status,
+            success=page.success,
+            duration_seconds=page.duration_seconds,
+            result=asdict(page),
+        )
+    if on_page_result is not None:
+        on_page_result(page)
+
+
+def _resume_page_if_available(
+    *,
+    app_name: str,
+    page_name: str,
+    resume_page_results: dict[str, PageSweep] | None,
+    progress: ProgressReporter | None,
+    on_page_result: PageResultCallback | None,
+) -> PageSweep | None:
+    if not resume_page_results:
+        return None
+    page = resume_page_results.get(page_result_key(app_name, page_name))
+    if page is None:
+        return None
+    if progress is not None:
+        progress.emit("page_resume", app=page.app, page=page.page, status=page.status)
+    if on_page_result is not None:
+        on_page_result(page)
+    return page
+
+
+def _enforce_page_deadline(page_deadline: float | None, detail: str) -> None:
+    if page_deadline is not None and time.perf_counter() > page_deadline:
+        raise PageWatchdogTimeout(detail)
 
 
 def _load_web_robot() -> Any:
@@ -799,11 +950,14 @@ def _collect_and_probe_current_view(
     upload_file: Path,
     restore_view: Any | None,
     known: set[tuple[str, str, str, str, str]],
+    page_deadline: float | None = None,
 ) -> list[WidgetProbe]:
+    _enforce_page_deadline(page_deadline, "page watchdog expired before widget discovery")
     page.evaluate(OPEN_EXPANDERS_JS)
     widgets = page.evaluate(WIDGET_COLLECTOR_JS)
     probes: list[WidgetProbe] = []
     for widget in widgets:
+        _enforce_page_deadline(page_deadline, "page watchdog expired while probing widgets")
         fingerprint = _widget_fingerprint(widget)
         if fingerprint in known:
             continue
@@ -819,6 +973,7 @@ def _collect_and_probe_current_view(
         )
         if status == "skipped" and "volatile after collection" in detail and restore_view is not None:
             try:
+                _enforce_page_deadline(page_deadline, "page watchdog expired before restore retry")
                 restore_view()
                 status, detail = _probe_widget(
                     page,
@@ -867,27 +1022,36 @@ def sweep_page(
     action_button_policy: str,
     upload_file: Path,
     screenshot_dir: Path | None = None,
+    page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
 ) -> PageSweep:
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
     widget_timeout_ms = widget_timeout * 1000.0
+    page_deadline = None if page_timeout is None or page_timeout <= 0 else started + page_timeout
     target_url = web_robot.build_url(base_url, active_app=active_app_query) if not page_name else web_robot.build_page_url(base_url, page_name, active_app=active_app_query, current_page=str(current_page) if current_page else None)
     display = display_page or page_label(page_name)
     expect_any = tuple(expected_text) if expected_text is not None else (("View:",) if current_page else PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)))
     probes: list[WidgetProbe] = []
+    page_status = "passed"
 
     def restore_view() -> None:
+        _enforce_page_deadline(page_deadline, "page watchdog expired before navigation")
         page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
+        _enforce_page_deadline(page_deadline, "page watchdog expired before health check")
         health = web_robot.assert_page_healthy(page, label=f"{app_name}:{display}:restore", expect_any=expect_any, timeout_ms=timeout_ms, screenshot_dir=screenshot_dir)
         if not health.success:
             raise RuntimeError(health.detail)
         page.wait_for_timeout(1000)
+        _enforce_page_deadline(page_deadline, "page watchdog expired before readiness wait")
         wait_for_page_ready(page, timeout_ms=timeout_ms)
+        _enforce_page_deadline(page_deadline, "page watchdog expired before widget readiness wait")
         wait_for_widgets_ready(page, page_name=page_name, timeout_ms=timeout_ms)
+        _enforce_page_deadline(page_deadline, "page watchdog expired before expander open")
         page.evaluate(OPEN_EXPANDERS_JS)
 
     try:
         restore_view()
+        _enforce_page_deadline(page_deadline, "page watchdog expired before active-app check")
         if check_active_app_route and not active_app_route_matches(page.url, active_app_query):
             detail = f"active_app routed to {routed_active_app_slug(page.url)!r}, expected {sorted(active_app_aliases(active_app_query))!r}"
             probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
@@ -904,10 +1068,13 @@ def sweep_page(
                     upload_file=upload_file,
                     restore_view=restore_view,
                     known=known,
+                    page_deadline=page_deadline,
                 )
             )
+            _enforce_page_deadline(page_deadline, "page watchdog expired before tab sweep")
             tab_count = page.locator("[role='tab']").count()
             for index in range(tab_count):
+                _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping tabs")
                 tab = page.locator("[role='tab']").nth(index)
                 try:
                     if tab.is_visible(timeout=widget_timeout_ms) and tab.is_enabled(timeout=widget_timeout_ms):
@@ -924,11 +1091,16 @@ def sweep_page(
                                 upload_file=upload_file,
                                 restore_view=restore_view,
                                 known=known,
+                                page_deadline=page_deadline,
                             )
                         )
                 except Exception as exc:
                     probes.append(WidgetProbe(app_name, display, "tab", f"tab #{index + 1}", "failed", _short_detail(str(exc)), page.url))
+    except PageWatchdogTimeout as exc:
+        page_status = "timed_out"
+        probes.append(WidgetProbe(app_name, display, "page_watchdog", "", "failed", _short_detail(str(exc)), getattr(page, "url", target_url)))
     except Exception as exc:
+        page_status = "failed"
         probes.append(WidgetProbe(app_name, display, "page", "", "failed", str(exc), target_url))
 
     failed = [probe for probe in probes if probe.status == "failed"]
@@ -937,10 +1109,15 @@ def sweep_page(
     interacted = [probe for probe in probes if probe.status == "interacted"]
     main_widgets = [probe for probe in probes if widget_scope(probe) == "main"]
     sidebar_widgets = [probe for probe in probes if widget_scope(probe) == "sidebar"]
+    if page_status == "passed":
+        if failed:
+            page_status = "failed"
+        elif skipped:
+            page_status = "skipped"
     return PageSweep(
         app=app_name,
         page=display,
-        success=not failed and not skipped,
+        success=page_status == "passed",
         duration_seconds=time.perf_counter() - started,
         widget_count=len(probes),
         main_widget_count=len(main_widgets),
@@ -952,6 +1129,7 @@ def sweep_page(
         url=getattr(page, "url", target_url),
         failures=failed[:20],
         skips=skipped[:20],
+        status=page_status,
     )
 
 
@@ -976,7 +1154,23 @@ def sweep_direct_apps_page(
     headless: bool,
     screenshot_dir: Path | None,
     server_env: dict[str, str],
+    page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
+    progress: ProgressReporter | None = None,
+    resume_page_results: dict[str, PageSweep] | None = None,
+    on_page_result: PageResultCallback | None = None,
 ) -> PageSweep:
+    display = f"APPS_PAGE:{route.name}"
+    resumed = _resume_page_if_available(
+        app_name=app_name,
+        page_name=display,
+        resume_page_results=resume_page_results,
+        progress=progress,
+        on_page_result=on_page_result,
+    )
+    if resumed is not None:
+        return resumed
+    if progress is not None:
+        progress.emit("page_start", app=app_name, page=display)
     port = web_robot._free_port()
     base_url = f"http://127.0.0.1:{port}"
     command = [
@@ -1006,7 +1200,23 @@ def sweep_direct_apps_page(
     with web_robot.StreamlitServer(command, env=server_env, url=base_url):
         health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
         if not health.success:
-            return PageSweep(app_name, f"APPS_PAGE:{route.name}", False, health.duration_seconds, 1, 0, 0, 0, 1, health.url or base_url, [WidgetProbe(app_name, f"APPS_PAGE:{route.name}", "streamlit", "", "failed", health.detail, health.url or base_url)], [])
+            result = PageSweep(
+                app_name,
+                display,
+                False,
+                health.duration_seconds,
+                1,
+                0,
+                0,
+                0,
+                1,
+                health.url or base_url,
+                [WidgetProbe(app_name, display, "streamlit", "", "failed", health.detail, health.url or base_url)],
+                [],
+                status="failed",
+            )
+            _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+            return result
         _, _, sync_playwright = web_robot._load_playwright()
         with sync_playwright() as playwright:
             browser = getattr(playwright, browser_name).launch(headless=headless)
@@ -1016,14 +1226,14 @@ def sweep_direct_apps_page(
                 with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
                     upload_file = Path(tmp_dir) / "upload-fixture.txt"
                     upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
-                    return sweep_page(
+                    result = sweep_page(
                         page,
                         web_robot=web_robot,
                         base_url=base_url,
                         active_app_query=str(active_app),
                         app_name=app_name,
                         page_name="",
-                        display_page=f"APPS_PAGE:{route.name}",
+                        display_page=display,
                         expected_text=(),
                         check_active_app_route=False,
                         timeout=timeout,
@@ -1032,7 +1242,10 @@ def sweep_direct_apps_page(
                         action_button_policy=action_button_policy,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
+                        page_timeout=page_timeout,
                     )
+                    _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                    return result
             finally:
                 context.close()
                 browser.close()
@@ -1051,6 +1264,10 @@ def sweep_app(
     headless: bool,
     screenshot_dir: Path | None,
     seed_demo_artifacts: bool,
+    page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
+    progress: ProgressReporter | None = None,
+    resume_page_results: dict[str, PageSweep] | None = None,
+    on_page_result: PageResultCallback | None = None,
 ) -> list[PageSweep]:
     web_robot = _load_web_robot()
     app_name = active_app_slug(str(app))
@@ -1064,7 +1281,23 @@ def sweep_app(
         with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url):
             health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
             if not health.success:
-                return [PageSweep(app_name, "SERVER", False, health.duration_seconds, 1, 0, 0, 0, 1, health.url or base_url, [WidgetProbe(app_name, "SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)], [])]
+                result = PageSweep(
+                    app_name,
+                    "SERVER",
+                    False,
+                    health.duration_seconds,
+                    1,
+                    0,
+                    0,
+                    0,
+                    1,
+                    health.url or base_url,
+                    [WidgetProbe(app_name, "SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)],
+                    [],
+                    status="failed",
+                )
+                _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+                return [result]
             _, _, sync_playwright = web_robot._load_playwright()
             with sync_playwright() as playwright:
                 browser = getattr(playwright, browser_name).launch(headless=headless)
@@ -1075,22 +1308,36 @@ def sweep_app(
                         upload_file = Path(tmp_dir) / "upload-fixture.txt"
                         upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
                         for page_name in pages:
-                            results.append(
-                                sweep_page(
-                                    page,
-                                    web_robot=web_robot,
-                                    base_url=base_url,
-                                    active_app_query=str(local_active_app),
-                                    app_name=app_name,
-                                    page_name=page_name,
-                                    timeout=timeout,
-                                    widget_timeout=widget_timeout,
-                                    interaction_mode=interaction_mode,
-                                    action_button_policy=action_button_policy,
-                                    upload_file=upload_file,
-                                    screenshot_dir=screenshot_dir,
-                                )
+                            display = page_label(page_name)
+                            resumed = _resume_page_if_available(
+                                app_name=app_name,
+                                page_name=display,
+                                resume_page_results=resume_page_results,
+                                progress=progress,
+                                on_page_result=on_page_result,
                             )
+                            if resumed is not None:
+                                results.append(resumed)
+                                continue
+                            if progress is not None:
+                                progress.emit("page_start", app=app_name, page=display)
+                            result = sweep_page(
+                                page,
+                                web_robot=web_robot,
+                                base_url=base_url,
+                                active_app_query=str(local_active_app),
+                                app_name=app_name,
+                                page_name=page_name,
+                                timeout=timeout,
+                                widget_timeout=widget_timeout,
+                                interaction_mode=interaction_mode,
+                                action_button_policy=action_button_policy,
+                                upload_file=upload_file,
+                                screenshot_dir=screenshot_dir,
+                                page_timeout=page_timeout,
+                            )
+                            results.append(result)
+                            _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                 finally:
                     context.close()
                     browser.close()
@@ -1109,6 +1356,10 @@ def sweep_app(
                     headless=headless,
                     screenshot_dir=screenshot_dir,
                     server_env=seeded_runtime.env,
+                    page_timeout=page_timeout,
+                    progress=progress,
+                    resume_page_results=resume_page_results,
+                    on_page_result=on_page_result,
                 )
             )
     return results
@@ -1129,28 +1380,33 @@ def sweep_remote_app(
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
+    page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
+    progress: ProgressReporter | None = None,
+    resume_page_results: dict[str, PageSweep] | None = None,
+    on_page_result: PageResultCallback | None = None,
 ) -> list[PageSweep]:
     web_robot = _load_web_robot()
     app_name = active_app_slug(str(app))
     base_url = normalize_remote_url(base_url)
     health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
     if not health.success:
-        return [
-            PageSweep(
-                app_name,
-                "REMOTE_SERVER",
-                False,
-                health.duration_seconds,
-                1,
-                0,
-                0,
-                0,
-                1,
-                health.url or base_url,
-                [WidgetProbe(app_name, "REMOTE_SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)],
-                [],
-            )
-        ]
+        result = PageSweep(
+            app_name,
+            "REMOTE_SERVER",
+            False,
+            health.duration_seconds,
+            1,
+            0,
+            0,
+            0,
+            1,
+            health.url or base_url,
+            [WidgetProbe(app_name, "REMOTE_SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)],
+            [],
+            status="failed",
+        )
+        _emit_page_result(result, progress=progress, on_page_result=on_page_result)
+        return [result]
 
     _, _, sync_playwright = web_robot._load_playwright()
     results: list[PageSweep] = []
@@ -1163,43 +1419,71 @@ def sweep_remote_app(
                 upload_file = Path(tmp_dir) / "upload-fixture.txt"
                 upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
                 for page_name in pages:
-                    results.append(
-                        sweep_page(
-                            page,
-                            web_robot=web_robot,
-                            base_url=base_url,
-                            active_app_query=active_app_query,
-                            app_name=app_name,
-                            page_name=page_name,
-                            timeout=timeout,
-                            widget_timeout=widget_timeout,
-                            interaction_mode=interaction_mode,
-                            action_button_policy=action_button_policy,
-                            upload_file=upload_file,
-                            screenshot_dir=screenshot_dir,
-                        )
+                    display = page_label(page_name)
+                    resumed = _resume_page_if_available(
+                        app_name=app_name,
+                        page_name=display,
+                        resume_page_results=resume_page_results,
+                        progress=progress,
+                        on_page_result=on_page_result,
                     )
+                    if resumed is not None:
+                        results.append(resumed)
+                        continue
+                    if progress is not None:
+                        progress.emit("page_start", app=app_name, page=display)
+                    result = sweep_page(
+                        page,
+                        web_robot=web_robot,
+                        base_url=base_url,
+                        active_app_query=active_app_query,
+                        app_name=app_name,
+                        page_name=page_name,
+                        timeout=timeout,
+                        widget_timeout=widget_timeout,
+                        interaction_mode=interaction_mode,
+                        action_button_policy=action_button_policy,
+                        upload_file=upload_file,
+                        screenshot_dir=screenshot_dir,
+                        page_timeout=page_timeout,
+                    )
+                    results.append(result)
+                    _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                 for route in apps_pages:
-                    results.append(
-                        sweep_page(
-                            page,
-                            web_robot=web_robot,
-                            base_url=base_url,
-                            active_app_query=active_app_query,
-                            app_name=app_name,
-                            page_name="ANALYSIS",
-                            display_page=f"REMOTE_APPS_PAGE:{route.name}",
-                            current_page=remote_apps_page_path(route, remote_app_root=remote_app_root),
-                            expected_text=(),
-                            check_active_app_route=False,
-                            timeout=timeout,
-                            widget_timeout=widget_timeout,
-                            interaction_mode=interaction_mode,
-                            action_button_policy=action_button_policy,
-                            upload_file=upload_file,
-                            screenshot_dir=screenshot_dir,
-                        )
+                    display = f"REMOTE_APPS_PAGE:{route.name}"
+                    resumed = _resume_page_if_available(
+                        app_name=app_name,
+                        page_name=display,
+                        resume_page_results=resume_page_results,
+                        progress=progress,
+                        on_page_result=on_page_result,
                     )
+                    if resumed is not None:
+                        results.append(resumed)
+                        continue
+                    if progress is not None:
+                        progress.emit("page_start", app=app_name, page=display)
+                    result = sweep_page(
+                        page,
+                        web_robot=web_robot,
+                        base_url=base_url,
+                        active_app_query=active_app_query,
+                        app_name=app_name,
+                        page_name="ANALYSIS",
+                        display_page=display,
+                        current_page=remote_apps_page_path(route, remote_app_root=remote_app_root),
+                        expected_text=(),
+                        check_active_app_route=False,
+                        timeout=timeout,
+                        widget_timeout=widget_timeout,
+                        interaction_mode=interaction_mode,
+                        action_button_policy=action_button_policy,
+                        upload_file=upload_file,
+                        screenshot_dir=screenshot_dir,
+                        page_timeout=page_timeout,
+                    )
+                    results.append(result)
+                    _emit_page_result(result, progress=progress, on_page_result=on_page_result)
         finally:
             context.close()
             browser.close()
@@ -1210,7 +1494,7 @@ def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: flo
     total = sum(page.duration_seconds for page in pages)
     failed_count = sum(page.failed_count for page in pages)
     skipped_count = sum(page.skipped_count for page in pages)
-    success = bool(pages) and failed_count == 0 and skipped_count == 0
+    success = bool(pages) and failed_count == 0 and skipped_count == 0 and all(page.success and page.status == "passed" for page in pages)
     return WidgetSweepSummary(
         success=success,
         total_duration_seconds=total,
@@ -1241,11 +1525,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--headful", action="store_true")
     parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
     parser.add_argument("--widget-timeout", type=float, default=DEFAULT_WIDGET_TIMEOUT_SECONDS)
+    parser.add_argument("--page-timeout", type=float, default=DEFAULT_PAGE_TIMEOUT_SECONDS, help="Whole-page watchdog timeout in seconds. Use 0 to disable.")
     parser.add_argument("--interaction-mode", choices=("actionability", "full"), default="full")
     parser.add_argument("--action-button-policy", choices=("trial", "click"), default="trial")
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
+    parser.add_argument("--progress-log", help="Append NDJSON progress records for resumable long UI sweeps.")
+    parser.add_argument("--resume-from-progress", help="Resume already passed pages from an NDJSON progress log.")
+    parser.add_argument("--json-output", help="Write and refresh the JSON summary after every completed page.")
+    parser.add_argument("--quiet-progress", action="store_true", help="Disable one-line progress updates on stderr.")
     parser.add_argument("--json", action="store_true")
     return parser
 
@@ -1258,7 +1547,7 @@ def render_human(summary: WidgetSweepSummary) -> str:
         f"apps={summary.app_count} pages={summary.page_count} widgets={summary.widget_count} main={summary.main_widget_count} sidebar={summary.sidebar_widget_count} interacted={summary.interacted_count} probed={summary.probed_count} skipped={summary.skipped_count} failed={summary.failed_count}",
     ]
     for page in summary.pages:
-        lines.append(f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} widgets={page.widget_count} main={page.main_widget_count} sidebar={page.sidebar_widget_count} interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} failed={page.failed_count}")
+        lines.append(f"- {page.app}/{page.page}: {'OK' if page.success else 'FAIL'} status={page.status} widgets={page.widget_count} main={page.main_widget_count} sidebar={page.sidebar_widget_count} interacted={page.interacted_count} probed={page.probed_count} skipped={page.skipped_count} failed={page.failed_count}")
         for failure in page.failures[:3]:
             lines.append(f"  failure: {failure.kind} {failure.label!r} - {failure.detail}")
         for skip in page.skips[:3]:
@@ -1273,51 +1562,80 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--timeout must be greater than 0")
     if args.widget_timeout <= 0:
         parser.error("--widget-timeout must be greater than 0")
+    if args.page_timeout < 0:
+        parser.error("--page-timeout must be greater than or equal to 0")
     if args.interaction_mode == "actionability" and args.action_button_policy == "click":
         parser.error("--action-button-policy click only applies with --interaction-mode full")
     apps = resolve_apps(args.apps)
     pages = resolve_pages(args.pages)
     global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
     screenshot_dir = Path(args.screenshot_dir).expanduser().resolve() if args.screenshot_dir else None
+    progress_log = Path(args.progress_log).expanduser().resolve() if args.progress_log else None
+    resume_progress_log = Path(args.resume_from_progress).expanduser().resolve() if args.resume_from_progress else None
+    json_output = Path(args.json_output).expanduser().resolve() if args.json_output else None
+    progress = ProgressReporter(progress_log, stderr=not args.quiet_progress)
+    resume_page_results = load_completed_page_results(resume_progress_log) if resume_progress_log is not None else None
+    app_specs = [(app, configured_apps_pages_for_app(app) if global_apps_pages is None else global_apps_pages) for app in apps]
+    expected_page_count = sum(len(pages) + len(app_pages) for _, app_pages in app_specs)
     results: list[PageSweep] = []
     remote_url = normalize_remote_url(args.url) if args.url else None
-    for app in apps:
-        app_pages = configured_apps_pages_for_app(app) if global_apps_pages is None else global_apps_pages
+
+    def on_page_result(page: PageSweep) -> None:
+        results.append(page)
+        if json_output is not None:
+            write_summary_json(json_output, results, app_count=len(apps), target_seconds=args.target_seconds)
+
+    progress.emit("run_start", app_count=len(apps), page_count=expected_page_count)
+    for app, app_pages in app_specs:
         if remote_url:
-            results.extend(
-                sweep_remote_app(
-                    app=app,
-                    base_url=remote_url,
-                    active_app_query=args.active_app or active_app_slug(str(app)),
-                    pages=pages,
-                    apps_pages=app_pages,
-                    remote_app_root=args.remote_app_root,
-                    timeout=args.timeout,
-                    widget_timeout=args.widget_timeout,
-                    interaction_mode=args.interaction_mode,
-                    action_button_policy=args.action_button_policy,
-                    browser_name=args.browser,
-                    headless=not args.headful,
-                    screenshot_dir=screenshot_dir,
-                )
+            sweep_remote_app(
+                app=app,
+                base_url=remote_url,
+                active_app_query=args.active_app or active_app_slug(str(app)),
+                pages=pages,
+                apps_pages=app_pages,
+                remote_app_root=args.remote_app_root,
+                timeout=args.timeout,
+                widget_timeout=args.widget_timeout,
+                interaction_mode=args.interaction_mode,
+                action_button_policy=args.action_button_policy,
+                browser_name=args.browser,
+                headless=not args.headful,
+                screenshot_dir=screenshot_dir,
+                page_timeout=args.page_timeout,
+                progress=progress,
+                resume_page_results=resume_page_results,
+                on_page_result=on_page_result,
             )
         else:
-            results.extend(
-                sweep_app(
-                    app=app,
-                    pages=pages,
-                    apps_pages=app_pages,
-                    timeout=args.timeout,
-                    widget_timeout=args.widget_timeout,
-                    interaction_mode=args.interaction_mode,
-                    action_button_policy=args.action_button_policy,
-                    browser_name=args.browser,
-                    headless=not args.headful,
-                    screenshot_dir=screenshot_dir,
-                    seed_demo_artifacts=not args.no_seed_demo_artifacts,
-                )
+            sweep_app(
+                app=app,
+                pages=pages,
+                apps_pages=app_pages,
+                timeout=args.timeout,
+                widget_timeout=args.widget_timeout,
+                interaction_mode=args.interaction_mode,
+                action_button_policy=args.action_button_policy,
+                browser_name=args.browser,
+                headless=not args.headful,
+                screenshot_dir=screenshot_dir,
+                seed_demo_artifacts=not args.no_seed_demo_artifacts,
+                page_timeout=args.page_timeout,
+                progress=progress,
+                resume_page_results=resume_page_results,
+                on_page_result=on_page_result,
             )
     summary = summarize(results, app_count=len(apps), target_seconds=args.target_seconds)
+    if json_output is not None:
+        write_summary_json(json_output, results, app_count=len(apps), target_seconds=args.target_seconds)
+    progress.emit(
+        "run_done",
+        status="passed" if summary.success else "failed",
+        duration_seconds=summary.total_duration_seconds,
+        page_count=summary.page_count,
+        failed_count=summary.failed_count,
+        skipped_count=summary.skipped_count,
+    )
     print(json.dumps(asdict(summary), indent=2) if args.json else render_human(summary))
     return 0 if summary.success else 1
 

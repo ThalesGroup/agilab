@@ -59,6 +59,19 @@ def test_force_remove_falls_back_to_subprocess_when_path_survives(monkeypatch, t
     assert env_logger.warn.called
 
 
+def test_force_remove_unlinks_symlink_without_touching_target(tmp_path):
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    target = tmp_path / "linked"
+    target.symlink_to(canonical, target_is_directory=True)
+
+    deployment_local_support._force_remove(target)
+
+    assert not target.exists()
+    assert not target.is_symlink()
+    assert canonical.exists()
+
+
 def test_force_remove_propagates_non_filesystem_errors(monkeypatch, tmp_path):
     target = tmp_path / "stubborn"
     target.mkdir(parents=True, exist_ok=True)

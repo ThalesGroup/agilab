@@ -2198,7 +2198,7 @@ else:
     st.dataframe(metric_df, width="stretch", hide_index=True)
 
 decision_path = candidate_path.parent / "promotion_decision.json"
-if st.button("Export promotion decision", type="primary", use_container_width=True):
+if st.button("Export promotion decision", type="primary", width="stretch"):
     written = _write_decision(decision_path, payload)
     written_index = _write_manifest_index(manifest_index_path, manifest_index_payload)
     st.success(f"Promotion decision exported to {written}; manifest index exported to {written_index}")
@@ -2208,5 +2208,5 @@ st.download_button(
     data=json.dumps(payload, indent=2, sort_keys=True),
     file_name="promotion_decision.json",
     mime="application/json",
-    use_container_width=True,
+    width="stretch",
 )

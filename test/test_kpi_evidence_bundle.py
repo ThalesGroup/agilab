@@ -166,7 +166,7 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     wizard = check["details"]["wizard"]
     assert wizard["recommended_path_id"] == "source-checkout-first-proof"
     assert wizard["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert wizard["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert wizard["documented_route_ids"] == ["notebook-quickstart"]
     assert wizard["compatibility_status"] == "validated"
     assert wizard["compatibility_report_status"] == "pass"
     assert wizard["run_manifest_filename"] == "run_manifest.json"
@@ -219,9 +219,9 @@ def test_public_certification_profile_report_contract_bounds_scope() -> None:
     )
     assert check["details"]["summary"]["certification_profile"] == "bounded_public_evidence"
     assert check["details"]["summary"]["path_count"] == 6
-    assert check["details"]["summary"]["certified_public_evidence_count"] == 4
-    assert check["details"]["summary"]["documented_not_certified_count"] == 2
-    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 2
+    assert check["details"]["summary"]["certified_public_evidence_count"] == 5
+    assert check["details"]["summary"]["documented_not_certified_count"] == 1
+    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 3
     assert check["details"]["summary"]["production_certification_claimed"] is False
     assert check["details"]["summary"]["formal_third_party_certification"] is False
     assert check["details"]["summary"]["command_execution_count"] == 0
@@ -244,11 +244,23 @@ def test_supply_chain_attestation_report_contract_fingerprints_package() -> None
     assert check["details"]["summary"]["license_present"] is True
     assert check["details"]["summary"]["core_component_count"] == 4
     assert check["details"]["summary"]["aligned_core_versions"] is True
+    assert check["details"]["summary"]["aligned_internal_dependency_pins"] is True
+    assert check["details"]["summary"]["mismatched_internal_dependency_pin_count"] == 0
     assert check["details"]["summary"]["builtin_app_pyproject_count"] == 8
+    assert check["details"]["summary"]["aligned_builtin_app_versions"] is True
+    assert check["details"]["summary"]["mismatched_builtin_app_version_count"] == 0
+    assert check["details"]["summary"]["aligned_builtin_app_internal_dependency_bounds"] is True
+    assert check["details"]["summary"]["mismatched_builtin_app_internal_dependency_bound_count"] == 0
+    assert check["details"]["summary"]["package_data_pattern_count"] >= 1
+    assert check["details"]["summary"]["builtin_payload_file_count"] >= 1
+    assert check["details"]["summary"]["builtin_payload_bytes"] >= 1
+    assert check["details"]["summary"]["builtin_archive_file_count"] >= 0
+    assert check["details"]["summary"]["builtin_notebook_file_count"] >= 0
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["formal_supply_chain_attestation"] is False
     assert "supply_chain_attestation_core_alignment" in check["details"]["check_ids"]
+    assert "supply_chain_attestation_payload_inventory" in check["details"]["check_ids"]
 
 
 def test_repository_knowledge_report_contract_indexes_repo_context() -> None:

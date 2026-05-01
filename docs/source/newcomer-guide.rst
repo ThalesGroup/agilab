@@ -2,7 +2,8 @@ Newcomer Guide
 ==============
 
 If you are new to AGILab, optimize for one outcome only: one successful local
-run of the built-in ``flight_project`` from the web UI.
+run of the built-in ``flight_project`` from the web UI, including the core
+``PROJECT`` -> ``ORCHESTRATE`` -> ``PIPELINE`` -> ``ANALYSIS`` route.
 
 This page gives the mental model only. :doc:`quick-start` owns the exact
 commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
@@ -57,7 +58,8 @@ Choose one route
 
 The first proof is deliberately narrow:
 use a source checkout, run the built-in ``flight_project`` locally from the
-web UI, and confirm a visible result under ``~/log/execute/flight/``.
+web UI, inspect the pipeline recipe, and confirm a visible result under
+``~/log/execute/flight/``.
 The landing page first-proof wizard now enforces that same single actionable
 route, reads ``run_manifest.json``, and shows a recovery checklist with exact
 evidence commands before you branch out.
@@ -121,11 +123,12 @@ Skip these until the local ``flight_project`` proof works once:
 - full installer test suites unless you explicitly want validation instead of
   the fastest first proof
 
-The four words you need
+The five words you need
 -----------------------
 
 - **PROJECT**: where you choose the app you want to run.
 - **ORCHESTRATE**: where you install and execute it.
+- **PIPELINE**: where you inspect, generate, or replay run steps.
 - **ANALYSIS**: where you look at the result.
 - **Worker**: the isolated runtime that actually executes the app.
 

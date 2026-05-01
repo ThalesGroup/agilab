@@ -856,8 +856,8 @@ Purpose:
 
 Recommended scope:
 
-- internal deployment first
-- index `agilab` and private app repositories separately
+- start with controlled local deployments before publishing hosted search
+- index each repository separately
 - include code, docs source, runbooks, and `pyproject.toml`
 - exclude generated artefacts, virtualenvs, `build/`, `dist/`, and runtime shares
 
@@ -883,8 +883,9 @@ Current shipped baseline:
 
 Remaining scope:
 
-- connect this static index to an internal generated wiki or Q&A service
-- extend indexing to private app repositories under the same source-of-truth
+- connect this static index to a generated wiki or Q&A service in controlled
+  deployments
+- extend indexing to external app repositories under the same source-of-truth
   guardrail
 
 Why it matters:

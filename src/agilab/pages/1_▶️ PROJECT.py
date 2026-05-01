@@ -68,6 +68,25 @@ _page_bootstrap_module = import_agilab_module(
 )
 ensure_page_env = _page_bootstrap_module.ensure_page_env
 
+_pinned_expander_module = import_agilab_module(
+    "agilab.pinned_expander",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+render_pinned_expanders = _pinned_expander_module.render_pinned_expanders
+is_pinned_expander = _pinned_expander_module.is_pinned_expander
+remove_pinned_expander = _pinned_expander_module.remove_pinned_expander
+upsert_pinned_expander = _pinned_expander_module.upsert_pinned_expander
+
+_workflow_ui_module = import_agilab_module(
+    "agilab.workflow_ui",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+render_page_context = _workflow_ui_module.render_page_context
+
 _action_execution_module = import_agilab_module(
     "agilab.action_execution",
     current_file=__file__,
@@ -96,6 +115,8 @@ CLONE_ENV_STRATEGY_CAPTIONS = {
         "so run INSTALL before EXECUTE."
     ),
 }
+EDITOR_PIN_RESPONSE = "editor_pin"
+EDITOR_UNPIN_RESPONSE = "editor_unpin"
 
 
 # -------------------- Source Extractor Class -------------------- #
@@ -1326,7 +1347,99 @@ class ContentRenamer(ast.NodeTransformer):
 # -------------------- Code Editor Display -------------------- #
 
 
-def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
+def _project_editor_panel_id(file: Path, tab: str, fct: str | None = None) -> str:
+    path = Path(file).resolve()
+    scope = str(fct or "file")
+    return f"project-editor:{path}:{tab}:{scope}"
+
+
+def _project_editor_pin_title(file: Path, fct: str | None = None) -> str:
+    path = Path(file)
+    parent = path.parent.name
+    title = f"{parent}/{path.name}" if parent else path.name
+    if fct:
+        title = f"{title}:{fct}"
+    return title
+
+
+def _project_editor_body_format(lang: str) -> str:
+    return "markdown" if str(lang).lower() in {"markdown", "md"} else "code"
+
+
+def _project_editor_toolbar_buttons(base_buttons, *, pinned: bool):
+    try:
+        buttons_payload = json.loads(json.dumps(base_buttons or []))
+    except (TypeError, ValueError):
+        buttons_payload = []
+    if isinstance(buttons_payload, dict):
+        buttons = buttons_payload
+        toolbar_buttons = buttons.setdefault("buttons", [])
+        if not isinstance(toolbar_buttons, list):
+            toolbar_buttons = []
+            buttons["buttons"] = toolbar_buttons
+    elif isinstance(buttons_payload, list):
+        toolbar_buttons = buttons_payload
+        buttons = {"buttons": toolbar_buttons}
+    else:
+        toolbar_buttons = []
+        buttons = {"buttons": toolbar_buttons}
+    response_type = EDITOR_UNPIN_RESPONSE if pinned else EDITOR_PIN_RESPONSE
+    pin_button = {
+        "name": "Unpin" if pinned else "Pin",
+        "feather": "Bookmark",
+        "hasText": True,
+        "alwaysOn": True,
+        "commands": [
+            "save-state",
+            [
+                "response",
+                response_type,
+            ],
+        ],
+        "style": {
+            "top": "-0.25rem",
+            "right": "6.8rem",
+            "backgroundColor": "#ffffff",
+            "borderColor": "#4A90E2",
+            "color": "#4A90E2",
+        },
+    }
+    insert_at = 1 if toolbar_buttons else 0
+    toolbar_buttons.insert(insert_at, pin_button)
+    return buttons
+
+
+def _upsert_project_editor_pin(
+    file: Path,
+    body: str,
+    lang: str,
+    tab: str,
+    fct: str | None = None,
+) -> None:
+    path = Path(file)
+    upsert_pinned_expander(
+        st.session_state,
+        _project_editor_panel_id(path, tab, fct),
+        title=_project_editor_pin_title(path, fct),
+        body=body,
+        body_format=_project_editor_body_format(lang),
+        language="" if _project_editor_body_format(lang) == "markdown" else lang,
+        source=str(path),
+        caption="Pinned editor content.",
+    )
+
+
+def _pin_project_editor(file: Path, body: str, lang: str, tab: str, fct: str | None = None) -> None:
+    _upsert_project_editor_pin(file, body, lang, tab, fct)
+    st.rerun()
+
+
+def _unpin_project_editor(file: Path, tab: str, fct: str | None = None) -> None:
+    remove_pinned_expander(st.session_state, _project_editor_panel_id(Path(file), tab, fct))
+    st.rerun()
+
+
+def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None, buttons=None):
     """
     Display a code editor component with the given code.
 
@@ -1342,17 +1455,25 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
     Returns:
         dict or None: The response from the code_editor component, if any.
     """
+    path = Path(file)
     target_class = st.session_state.get("selected_class", "module-level")
-    if os.access(file, os.W_OK):
+    if os.access(path, os.W_OK):
+        panel_id = _project_editor_panel_id(path, tab, fct)
+        pinned = is_pinned_expander(st.session_state, panel_id)
+        if pinned:
+            _upsert_project_editor_pin(path, code, lang, tab, fct)
         info_bar = json.loads(json.dumps(INFO_BAR))
-        info_bar["info"][0]["name"] = file.name
+        info_bar["info"][0]["name"] = path.name
         # Incorporate the file name, class name, tab, and function/item name into the key to ensure uniqueness
-        editor_key = f"{file}_{target_class}_{tab}_{fct}"
+        editor_key = f"{path}_{target_class}_{tab}_{fct}"
         response = code_editor(
             code,
             height=min(30, len(code)),
             theme="contrast",
-            buttons=CUSTOM_BUTTONS,
+            buttons=_project_editor_toolbar_buttons(
+                buttons if buttons is not None else CUSTOM_BUTTONS,
+                pinned=pinned,
+            ),
             lang=lang,
             info=info_bar,
             component_props=comp_props,
@@ -1361,11 +1482,16 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
         )
         # Ensure response has the expected structure
         if isinstance(response, dict):
-            if response.get("type") == "save" and code != response.get("text", ""):
+            response_type = response.get("type")
+            if response_type == EDITOR_PIN_RESPONSE:
+                _pin_project_editor(path, response.get("text", code), lang, tab, fct)
+            elif response_type == EDITOR_UNPIN_RESPONSE:
+                _unpin_project_editor(path, tab, fct)
+            elif response_type == "save" and code != response.get("text", ""):
                 updated_text = response["text"]
                 if fct is not None:
                     return response
-                result = _save_code_editor_file_action(Path(file), updated_text, lang)
+                result = _save_code_editor_file_action(path, updated_text, lang)
                 render_action_result(st, result)
                 if result.status == "success" and lang == "json":
                     time.sleep(1)
@@ -1698,9 +1824,10 @@ def _render_app_args_module(env):
 def _render_readme(env):
     readme_file = env.active_app / "README.md"
     if readme_file.exists():
+        readme_text = readme_file.read_text(encoding="utf-8")
         render_code_editor(
             readme_file,
-            readme_file.read_text(),
+            readme_text,
             "markdown",
             "readme",
             comp_props,
@@ -2252,6 +2379,8 @@ def page():
     inject_theme(env.st_resources)
 
     render_logo()
+    render_pinned_expanders(st)
+    render_page_context(st, page_label="PROJECT", env=env)
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)

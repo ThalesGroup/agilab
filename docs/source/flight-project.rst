@@ -32,9 +32,9 @@ compatible.
 Public scope
 ------------
 ``flight_project`` is intentionally file-only. The wider AGILab connector
-catalog supports SQL, object-storage, ELK, and Hawk-style connector definitions,
-but this built-in app rejects ``data_source = "hawk"`` instead of exposing a
-partially implemented path.
+catalog supports SQL, object-storage, and OpenSearch-compatible connector
+definitions, but this built-in app rejects search-index data sources instead of
+exposing a partially implemented path.
 
 Manager (`flight.flight`)
 -------------------------

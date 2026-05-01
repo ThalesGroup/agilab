@@ -93,7 +93,13 @@ _notebook_pipeline_import_module = import_agilab_module(
     fallback_name="agilab_notebook_pipeline_import_fallback",
 )
 build_lab_steps_preview = _notebook_pipeline_import_module.build_lab_steps_preview
+build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook_import_contract
+build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
+discover_notebook_import_view_manifest = _notebook_pipeline_import_module.discover_notebook_import_view_manifest
+write_notebook_import_contract = _notebook_pipeline_import_module.write_notebook_import_contract
+write_notebook_import_pipeline_view = _notebook_pipeline_import_module.write_notebook_import_pipeline_view
+write_notebook_import_view_plan = _notebook_pipeline_import_module.write_notebook_import_view_plan
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +146,132 @@ def _read_uploaded_text(uploaded_file: Any) -> str:
     if isinstance(raw, bytes):
         return raw.decode("utf-8")
     return str(raw)
+
+
+def _emit_notebook_preflight_result(
+    preflight: Dict[str, Any],
+    contract_path: Path,
+    view_plan_path: Path | None = None,
+) -> None:
+    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
+    risk_counts = preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
+    status = str(preflight.get("status", "ready") if isinstance(preflight, dict) else "ready")
+    warning_count = int(risk_counts.get("warning", 0) or 0)
+    error_count = int(risk_counts.get("error", 0) or 0)
+    message = (
+        f"Notebook import preflight: {status}; "
+        f"{int(summary.get('pipeline_step_count', 0) or 0)} step(s), "
+        f"{int(summary.get('input_count', 0) or 0)} input(s), "
+        f"{int(summary.get('output_count', 0) or 0)} output(s). "
+        f"Contract: {contract_path.name}"
+    )
+    if view_plan_path is not None:
+        message = f"{message}; View plan: {view_plan_path.name}"
+    if error_count:
+        _emit_streamlit_message("error", message)
+    elif warning_count:
+        _emit_streamlit_message("warning", message)
+    else:
+        _emit_streamlit_message("info", message)
+
+
+def _notebook_import_preview_key(index_page: str) -> str:
+    return f"{index_page}__notebook_import_preview"
+
+
+def _notebook_import_module_name(module_dir: Path) -> str:
+    module = Path(module_dir).name
+    return module or "lab_steps"
+
+
+def build_notebook_import_preview(
+    uploaded_file: Any,
+    module_dir: Path,
+) -> Dict[str, Any] | None:
+    """Build notebook import preview data without writing lab_steps.toml."""
+    if not uploaded_file:
+        _emit_streamlit_message("error", "No uploaded notebook provided.")
+        return None
+    if not _is_uploaded_notebook(uploaded_file):
+        _emit_streamlit_message("error", "Please upload a .ipynb file.")
+        return None
+    try:
+        file_content = _read_uploaded_text(uploaded_file)
+        notebook_content = json.loads(file_content)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        _emit_streamlit_message("error", f"Unable to parse notebook: {exc}")
+        return None
+    if not isinstance(notebook_content, dict):
+        _emit_streamlit_message("error", "Invalid notebook format: expected a JSON object.")
+        return None
+
+    module = _notebook_import_module_name(module_dir)
+    source_name = str(getattr(uploaded_file, "name", "") or "uploaded.ipynb")
+    notebook_import = build_notebook_pipeline_import(
+        notebook=notebook_content,
+        source_notebook=source_name,
+    )
+    preflight = build_notebook_import_preflight(notebook_import)
+    toml_content = build_lab_steps_preview(notebook_import, module_name=module)
+    contract = build_notebook_import_contract(
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+    )
+    return {
+        "source_name": source_name,
+        "module": module,
+        "cell_count": int(notebook_import.get("summary", {}).get("pipeline_step_count", 0) or 0),
+        "toml_content": toml_content,
+        "notebook_import": notebook_import,
+        "preflight": preflight,
+        "contract": contract,
+    }
+
+
+def write_notebook_import_preview(
+    preview: Dict[str, Any],
+    module_dir: Path,
+    steps_file: Path,
+) -> int:
+    """Persist a previously built notebook import preview."""
+    module_dir = Path(module_dir)
+    steps_file = Path(steps_file)
+    toml_content = preview.get("toml_content", {})
+    preflight = preview.get("preflight", {})
+    notebook_import = preview.get("notebook_import", {})
+    module = str(preview.get("module", "") or _notebook_import_module_name(module_dir))
+    cell_count = int(preview.get("cell_count", 0) or 0)
+
+    steps_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(steps_file, "wb") as toml_file:
+        tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(toml_content)), toml_file)
+
+    contract_path = module_dir / "notebook_import_contract.json"
+    pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
+    view_plan_path = module_dir / "notebook_import_view_plan.json"
+    view_manifest_path = discover_notebook_import_view_manifest(module_dir)
+    write_notebook_import_contract(
+        contract_path,
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+    )
+    write_notebook_import_pipeline_view(
+        pipeline_view_path,
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+    )
+    write_notebook_import_view_plan(
+        view_plan_path,
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+        manifest_path=view_manifest_path,
+    )
+    _emit_notebook_preflight_result(preflight, contract_path, view_plan_path=view_plan_path)
+    return cell_count
 
 
 def convert_paths_to_strings(obj: Any) -> Any:
@@ -780,43 +912,122 @@ def notebook_to_toml(
     module_dir: Path,
 ) -> int:
     """Convert uploaded Jupyter notebook file to a TOML file."""
-    if not uploaded_file:
-        _emit_streamlit_message("error", "No uploaded notebook provided.")
+    preview = build_notebook_import_preview(uploaded_file, module_dir)
+    if preview is None:
         return 0
-    if not _is_uploaded_notebook(uploaded_file):
-        _emit_streamlit_message("error", "Please upload a .ipynb file.")
-        return 0
-    toml_path = Path(module_dir) / toml_file_name
-    toml_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        file_content = _read_uploaded_text(uploaded_file)
-        notebook_content = json.loads(file_content)
-    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        _emit_streamlit_message("error", f"Unable to parse notebook: {exc}")
-        return 0
-    if not isinstance(notebook_content, dict):
-        _emit_streamlit_message("error", "Invalid notebook format: expected a JSON object.")
-        return 0
-    module = module_dir.name
-    if not module:
-        module = "lab_steps"
-    source_name = str(getattr(uploaded_file, "name", "") or "uploaded.ipynb")
-    notebook_import = build_notebook_pipeline_import(
-        notebook=notebook_content,
-        source_notebook=source_name,
-    )
-    toml_content = build_lab_steps_preview(notebook_import, module_name=module)
-    cell_count = int(notebook_import.get("summary", {}).get("pipeline_step_count", 0) or 0)
-    try:
-        with open(toml_path, "wb") as toml_file:
-            tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(toml_content)), toml_file)
+        steps_file = Path(module_dir) / toml_file_name
+        return write_notebook_import_preview(preview, module_dir, steps_file)
     except (OSError, TypeError, ValueError) as e:
         _emit_streamlit_message("error", f"Failed to save TOML file: {e}")
         logger.error(
             "Error writing TOML in notebook_to_toml: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
         )
+        return int(preview.get("cell_count", 0) or 0)
+
+
+def on_preview_notebook_import(
+    key: str,
+    module_dir: Path,
+    index_page: str,
+) -> None:
+    """Build a notebook import preview from the sidebar uploader without writing files."""
+    uploaded_file = st.session_state.get(key)
+    preview_key = _notebook_import_preview_key(index_page)
+    if not uploaded_file:
+        st.session_state.pop(preview_key, None)
+        _emit_streamlit_message("error", "No notebook file was uploaded.")
+        return
+    if not _is_uploaded_notebook(uploaded_file):
+        st.session_state.pop(preview_key, None)
+        return
+
+    preview = build_notebook_import_preview(uploaded_file, module_dir)
+    if preview is None:
+        st.session_state.pop(preview_key, None)
+        return
+    st.session_state[preview_key] = preview
+    preflight = preview.get("preflight", {})
+    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
+    _emit_streamlit_message(
+        "info",
+        (
+            "Notebook import preview ready: "
+            f"{int(summary.get('pipeline_step_count', 0) or 0)} step(s), "
+            f"{int(summary.get('input_count', 0) or 0)} input(s), "
+            f"{int(summary.get('output_count', 0) or 0)} output(s)."
+        ),
+    )
+
+
+def confirm_notebook_import_preview(
+    module_dir: Path,
+    steps_file: Path,
+    index_page: str,
+) -> int:
+    """Persist the current notebook import preview and update editor state."""
+    preview_key = _notebook_import_preview_key(index_page)
+    preview = st.session_state.get(preview_key)
+    if not isinstance(preview, dict):
+        _emit_streamlit_message("error", "No notebook import preview is available.")
+        return 0
+    try:
+        cell_count = write_notebook_import_preview(preview, module_dir, steps_file)
+    except (OSError, TypeError, ValueError) as exc:
+        _emit_streamlit_message("error", f"Failed to save notebook import preview: {exc}")
+        logger.error(
+            "Error writing notebook import preview: %s",
+            bound_log_value(exc, LOG_DETAIL_LIMIT),
+        )
+        return int(preview.get("cell_count", 0) or 0)
+
+    if cell_count > 0:
+        _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
+    else:
+        _emit_streamlit_message("warning", "Notebook imported, but no code cells were found.")
+    if index_page in st.session_state and isinstance(st.session_state[index_page], list):
+        st.session_state[index_page][-1] = cell_count
+    st.session_state.page_broken = True
+    st.session_state.pop(preview_key, None)
+    _bump_history_revision()
     return cell_count
+
+
+def cancel_notebook_import_preview(index_page: str) -> None:
+    """Discard the current notebook import preview."""
+    st.session_state.pop(_notebook_import_preview_key(index_page), None)
+
+
+def render_notebook_import_preview(
+    module_dir: Path,
+    steps_file: Path,
+    index_page: str,
+) -> None:
+    """Render confirm/cancel controls for the current notebook import preview."""
+    preview = st.session_state.get(_notebook_import_preview_key(index_page))
+    if not isinstance(preview, dict):
+        return
+    preflight = preview.get("preflight", {})
+    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
+    risk_counts = preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
+    sidebar = getattr(st, "sidebar", st)
+    caption = getattr(sidebar, "caption", None)
+    if callable(caption):
+        caption(
+            "Notebook preview: "
+            f"{int(summary.get('pipeline_step_count', 0) or 0)} step(s), "
+            f"{int(summary.get('input_count', 0) or 0)} input(s), "
+            f"{int(summary.get('output_count', 0) or 0)} output(s), "
+            f"{int(risk_counts.get('warning', 0) or 0)} warning(s)."
+        )
+    button = getattr(sidebar, "button", None)
+    if not callable(button):
+        return
+    if button("Import preview", key=f"{index_page}__confirm_notebook_import"):
+        confirm_notebook_import_preview(module_dir, steps_file, index_page)
+    if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
+        cancel_notebook_import_preview(index_page)
 
 
 def refresh_notebook_export(

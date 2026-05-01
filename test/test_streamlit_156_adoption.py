@@ -34,3 +34,14 @@ def test_new_choice_widgets_use_agilab_blue_theme() -> None:
     assert "var(--agilab-primary)" in theme_css
     assert "#ff4b4b" not in theme_css.lower()
     assert "255, 75, 75" not in theme_css
+
+
+def test_first_party_streamlit_code_uses_width_api() -> None:
+    offenders = []
+    for path in sorted(Path("src/agilab").rglob("*.py")):
+        if ".venv" in path.parts or "build" in path.parts:
+            continue
+        if b"use_container_width" in path.read_bytes():
+            offenders.append(str(path))
+
+    assert offenders == []

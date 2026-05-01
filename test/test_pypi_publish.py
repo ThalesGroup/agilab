@@ -1494,6 +1494,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "next_free_post_for_all", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not auto-post for pypi")))
+    monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "git_reset_pyprojects", lambda: order.append("reset"))
 
     try:
@@ -1503,7 +1504,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     else:
         raise AssertionError("main() should reject real PyPI upload collisions")
 
-    assert order == ["badge", "build", "reset"]
+    assert order == ["badge", "build", "commit", "reset"]
 
 
 def test_twine_upload_reports_summary_and_skip_existing(monkeypatch, capsys) -> None:
@@ -1595,7 +1596,7 @@ def test_main_does_not_reset_release_files_after_success(tmp_path, monkeypatch) 
     assert reset_calls == []
 
 
-def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
+def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
     project_dir = tmp_path / "agi-env"
@@ -1645,7 +1646,7 @@ def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
     monkeypatch.setattr(module, "twine_check", lambda _files: None)
-    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: order.append("upload"))
     monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
@@ -1662,7 +1663,15 @@ def test_main_commits_before_tagging(tmp_path, monkeypatch) -> None:
 
     module.main()
 
-    assert order == ["preflight", "pre-upload-guard", "release-refs", "commit", "tag", "github-release"]
+    assert order == [
+        "preflight",
+        "pre-upload-guard",
+        "release-refs",
+        "commit",
+        "upload",
+        "tag",
+        "github-release",
+    ]
 
 
 def test_main_deletes_former_github_release_after_current_release(tmp_path, monkeypatch) -> None:
@@ -2072,11 +2081,11 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
     assert order == [
         "preflight",
         "pre-upload-guard",
-        "upload",
         "gen-docs",
         "release-refs",
         "commit",
         "commit-docs",
+        "upload",
         "tag",
         "github-release",
     ]

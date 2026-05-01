@@ -62,6 +62,7 @@ class _FakeStreamlit:
         self._selectboxes = selectboxes or {}
         self._multiselects = multiselects or {}
         self.messages: list[tuple[str, str]] = []
+        self.button_calls: list[tuple[str, dict[str, object]]] = []
 
     def fragment(self, func):
         return func
@@ -129,7 +130,12 @@ class _FakeStreamlit:
         return self.session_state[key]
 
     def button(self, _label, key=None, **_kwargs):
+        self.button_calls.append((str(key or _label), dict(_kwargs)))
         return bool(self._buttons.get(key or _label, False))
+
+    def download_button(self, _label, *, key=None, **_kwargs):
+        self.messages.append(("download_button", str(key or _label)))
+        return False
 
 
 def _load_pipeline_lab_with_missing(*missing_modules: str):
@@ -718,7 +724,11 @@ def test_display_lab_tab_recovers_steps_from_toml_when_loader_returns_empty(monk
         multiselects={"demo_run_sequence_widget": [0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_lab,
+        "code_editor",
+        lambda body, **_kwargs: fake_st.messages.append(("code", str(body))),
+    )
     monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
     monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
     monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
@@ -1448,7 +1458,11 @@ def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monk
         multiselects={"demo_run_sequence_widget": [0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_lab,
+        "code_editor",
+        lambda body, **_kwargs: fake_st.messages.append(("code", str(body))),
+    )
     monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
     monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
@@ -2149,6 +2163,58 @@ def test_display_lab_tab_preview_and_logs_cover_clear_and_last_log(monkeypatch, 
     assert fake_st.session_state["demo__run_logs"] == []
     assert any(kind == "caption" and "No runs recorded yet." in message for kind, message in fake_st.messages)
     assert any(kind == "caption" and "Most recent run log" in message for kind, message in fake_st.messages)
+    assert all(
+        key != "pinned_expander:toggle:pipeline_run_logs:demo"
+        for key, _kwargs in fake_st.button_calls
+    )
+
+
+def test_display_lab_tab_can_pin_run_logs(monkeypatch, tmp_path):
+    log_file = tmp_path / "pipeline.log"
+    editor_calls: list[dict[str, object]] = []
+
+    def _code_editor(body, **kwargs):
+        editor_calls.append({"body": body, **kwargs})
+        return {"type": "pin_to_sidebar", "text": body}
+
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "demo__run_logs": ["line 1", "line 2"],
+            "demo__last_run_log_file": str(log_file),
+            "loaded_df": pipeline_lab.pd.DataFrame({"value": [1]}),
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", _code_editor)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "render_dataframe_preview", lambda *_args, **_kwargs: None)
+
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('a')", "E": ""}],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    panels = fake_st.session_state["agilab:pinned_expanders"]
+    buttons = editor_calls[-1]["buttons"]["buttons"]
+    assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
+    assert panels["pipeline_run_logs:demo"]["title"] == "Pipeline logs: flight_project"
+    assert panels["pipeline_run_logs:demo"]["body"] == "line 1\nline 2"
+    assert panels["pipeline_run_logs:demo"]["source"] == f"PIPELINE {log_file}"
+    assert ("rerun", "called") in fake_st.messages
 
 
 def test_display_lab_tab_locked_step_delete_paths(monkeypatch, tmp_path):
@@ -2399,7 +2465,11 @@ def test_display_lab_tab_stale_lock_run_logs_without_file(monkeypatch, tmp_path)
         multiselects={"demo_run_sequence_widget": [0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        pipeline_lab,
+        "code_editor",
+        lambda body, **_kwargs: fake_st.messages.append(("code", str(body))),
+    )
     monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
     monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))

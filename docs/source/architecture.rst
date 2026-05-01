@@ -5,8 +5,9 @@ This page gives a single place to understand how the repository is organised,
 which services collaborate at runtime, and where to hook in when building a new
 app or extending the platform.
 
-New to AGILab? Start with :doc:`quick-start` for a five-minute run-through, then
-return here when you need the big picture of how the layers fit together.
+New to AGILab? Start with :doc:`quick-start` for a first run, use
+:doc:`architecture-five-minutes` for the compact layer map, then return here
+when you need the big picture of how the layers fit together.
 
 .. figure:: Agilab-Overview.svg
    :alt: High-level view of AGILab runtime

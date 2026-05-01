@@ -151,6 +151,7 @@ def _run_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
 def _check_compatibility_matrix(repo_root: Path) -> dict[str, Any]:
     matrix_path = repo_root / "docs" / "source" / "data" / "compatibility_matrix.toml"
     required_validated_ids = {
+        "published-package-route",
         "source-checkout-first-proof",
         "web-ui-local-first-proof",
         "service-mode-operator-surface",
