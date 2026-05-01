@@ -24,10 +24,11 @@ What each route is for
 ----------------------
 
 - **AGILAB demo**: use :doc:`agilab-demo` for the self-serve public Hugging Face
-  Spaces route for the AGILAB web UI. It opens the lightweight built-in
-  ``flight_project`` path by default, so use it as the public first proof for
-  ``PROJECT`` -> ``ORCHESTRATE`` -> ``PIPELINE`` -> ``ANALYSIS``, including
-  ``view_maps`` and the optional ``view_maps_network`` route.
+  Spaces route for the AGILAB web UI. It publishes the lightweight
+  ``flight_project`` and ``meteo_forecast_project`` paths, so use it as the
+  public first proof for ``PROJECT`` -> ``ORCHESTRATE`` -> ``PIPELINE`` ->
+  ``ANALYSIS``, including ``view_maps``, ``view_forecast_analysis``, and
+  ``view_release_decision``.
 - **agi-core demo**: notebook-first runtime path. Use this if you want the
   smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the web UI.
 - **Quick start**: the safest truthful first proof of the full product path.
@@ -42,6 +43,8 @@ Keep the two public AGILAB demo lanes separate:
 - ``flight_project`` is the default hosted/newcomer demo. It is a lightweight
   data-generation path used to prove the core UI and local execution flow
   quickly.
+- ``meteo_forecast_project`` is the second hosted demo. It is a lightweight
+  notebook-migration path with forecast artifacts and release-decision views.
 - ``uav_relay_queue_project`` is the UAV Relay Queue RL demo. It is the
   advanced domain scenario and should not be described as the default hosted
   app.

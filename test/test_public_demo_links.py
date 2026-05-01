@@ -168,20 +168,25 @@ def test_docs_sidebar_exposes_both_public_demo_lanes() -> None:
     assert "sidebar-visible counterpart" in agilab_demo
 
 
-def test_public_demo_docs_define_single_flight_view_maps_route() -> None:
+def test_public_demo_docs_define_flight_and_meteo_routes() -> None:
     demos = Path("docs/source/demos.rst").read_text(encoding="utf-8")
     agilab_demo = Path("docs/source/agilab-demo.rst").read_text(encoding="utf-8")
     normalized_agilab_demo = " ".join(agilab_demo.split())
 
     assert "``flight_project``" in demos
-    assert "``view_maps`` analysis" in demos
+    assert "``meteo_forecast_project``" in demos
+    assert "``view_maps``" in demos
+    assert "``view_forecast_analysis``" in demos
+    assert "``view_release_decision``" in demos
     assert "``uav_relay_queue_project`` is the UAV Relay Queue RL demo" in demos
 
     for phrase in (
         "confirm ``flight_project`` is selected in ``PROJECT``",
         "inspect the generated execution snippet in ``ORCHESTRATE``",
         "open ``ANALYSIS`` and finish on the ``view_maps`` operator view",
-        "``ANALYSIS`` opens the ``view_maps`` route without a startup error",
+        "switch to ``meteo_forecast_project``",
+        "open ``view_forecast_analysis`` or ``view_release_decision``",
+        "``ANALYSIS`` opens the ``view_maps`` and ``view_forecast_analysis`` routes without a startup error",
     ):
         assert phrase in normalized_agilab_demo
 

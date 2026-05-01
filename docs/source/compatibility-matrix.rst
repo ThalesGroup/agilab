@@ -56,7 +56,7 @@ Current public matrix
      - validated
      - ``uv run python tools/hf_space_smoke.py --json``
      - Self-serve AGILAB web UI demo hosted on Hugging Face Spaces, including
-       route smoke and a public app-tree guardrail
+       flight and meteo route smoke plus a public app-tree guardrail
      - Hosted demo environment; availability depends on Hugging Face Spaces uptime; not a remote cluster proof
    * - Service-mode operator surface
      - validated
