@@ -600,23 +600,10 @@ def run_pre_upload_release_guard(
         update_public_demo_release_test(planned_tag)
     print(f"[preflight] Running pre-upload release metadata guard for {chosen_version}")
     run_release_preflight(cfg)
-    run(
-        [
-            sys.executable,
-            "tools/generate_component_coverage_badges.py",
-            "--components",
-            "agi-env",
-            "agi-node",
-            "agi-cluster",
-            "agi-gui",
-            "agi-core",
-            "agilab",
-        ],
-        cwd=REPO_ROOT,
-    )
-    # Release preflight above regenerates coverage XML after metadata edits.
-    # The generic freshness check is too strict here because release-only
-    # pyproject rewrites can be newer than the already-regenerated XML.
+    # Do not regenerate coverage badges here. Release-only metadata edits can
+    # produce local coverage XML that differs from the CI artifact source of
+    # truth, so the guard only verifies that no coverage-sensitive files were
+    # accidentally changed by the release metadata update.
     run(
         [
             sys.executable,
