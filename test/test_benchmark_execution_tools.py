@@ -56,6 +56,34 @@ def test_cython_kernel_benchmark_csv_rows_report_speedup() -> None:
     assert rows[1]["rows_per_second"] == "200"
 
 
+def test_cython_kernel_benchmark_writes_lf_csv(tmp_path) -> None:
+    results = {
+        "environment": {"rows": 100},
+        "runtimes": {
+            "python": {
+                "median_seconds": 2.0,
+                "min_seconds": 2.0,
+                "max_seconds": 2.0,
+                "checksum": 1.0,
+            },
+            "cython": {
+                "median_seconds": 0.5,
+                "min_seconds": 0.5,
+                "max_seconds": 0.5,
+                "checksum": 1.0,
+            },
+        },
+        "speedup_vs_python": 4.0,
+    }
+    csv_path = tmp_path / "benchmark.csv"
+
+    cython_kernel._write_csv(csv_path, results)
+
+    data = csv_path.read_bytes()
+    assert b"\r\n" not in data
+    assert b"\n" in data
+
+
 def test_ssh_target_defaults_to_agi_and_preserves_explicit_user() -> None:
     assert matrix._ssh_target("192.168.20.130") == "agi@192.168.20.130"
     assert matrix._ssh_target("bench@192.168.20.130") == "bench@192.168.20.130"
