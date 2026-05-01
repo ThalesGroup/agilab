@@ -111,7 +111,7 @@ def _visible_dataset_files(datadir: Path, files: list[Path]) -> list[Path]:
         visible_files.append(file_path)
     return visible_files
 
-st.title(":world_map: Cartography Visualisation")
+st.title(":world_map: Cartography Visualization")
 
 
 def continuous():

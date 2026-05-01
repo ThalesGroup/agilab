@@ -173,3 +173,178 @@ def test_main_print_only_json_has_no_playwright_requirement(capsys) -> None:
     assert payload["analysis_view"] == "view_maps"
     assert payload["analysis_view_path"] == str(module.ANALYSIS_VIEW_PATHS["view_maps"].resolve())
     assert payload["launch_command"][0] == "uv"
+
+
+def test_build_parser_has_expected_defaults() -> None:
+    module = _load_module()
+
+    parser = module._build_parser()
+    args = parser.parse_args([])
+
+    assert args.url is None
+    assert args.active_app == str(module.DEFAULT_ACTIVE_APP)
+    assert args.apps_path == str(module.DEFAULT_APPS_PATH)
+    assert args.port is None
+    assert args.browser == "chromium"
+    assert args.headful is False
+    assert args.timeout == module.DEFAULT_TIMEOUT_SECONDS
+    assert args.target_seconds == module.DEFAULT_TARGET_SECONDS
+    assert args.analysis_view is None
+    assert args.screenshot_dir is None
+
+
+def test_wait_for_streamlit_health_can_timeout_without_success() -> None:
+    module = _load_module()
+
+    timeline = iter([0.0, 0.1, 0.2, 0.3, 0.45, 0.6])
+
+    def _clock() -> float:
+        return next(timeline)
+
+    calls: list[str] = []
+
+    def _opener(url: str) -> None:
+        calls.append(url)
+        raise RuntimeError("cannot connect")
+
+    step = module.wait_for_streamlit_health(
+        "http://127.0.0.1:9999",
+        timeout=0.4,
+        opener=_opener,
+        clock=_clock,
+        sleeper=lambda _seconds: None,
+    )
+
+    assert step.success is False
+    assert step.label == "streamlit health"
+    assert step.url == "http://127.0.0.1:9999/_stcore/health"
+    assert step.duration_seconds >= 0.4
+    assert step.detail.startswith("not ready:")
+    assert calls == ["http://127.0.0.1:9999/_stcore/health"] * 4
+
+
+def test_assert_page_healthy_reports_streamlit_exception_block() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def count(self) -> int:
+            return 2
+
+    class _Page:
+        url = "http://127.0.0.1:8501"
+
+        def wait_for_selector(self, *_args, **_kwargs) -> None:
+            return None
+
+        def locator(self, selector: str) -> _Locator:
+            return _Locator()
+
+    page = _Page()
+
+    step = module.assert_page_healthy(
+        page,
+        label="landing page",
+        expect_any=("AGILAB",),
+        timeout_ms=500,
+        screenshot_dir=None,
+    )
+
+    assert step.success is False
+    assert step.label == "landing page"
+    assert step.detail.startswith("Streamlit exception block found")
+    assert step.url == page.url
+
+
+def test_main_print_only_with_remote_url_targets_remote_analysis_view(capsys) -> None:
+    module = _load_module()
+
+    code = module.main(
+        [
+            "--print-only",
+            "--json",
+            "--url",
+            "https://huggingface.co/spaces/owner/flight_space",
+            "--analysis-view",
+            "view_maps",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["base_url"] == "https://huggingface.co/spaces/owner/flight_space"
+    assert payload["launch_command"] is None
+    assert payload["analysis_view"] == "view_maps"
+    assert payload["analysis_view_path"] == "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
+
+
+def test_main_rejects_zero_timeout() -> None:
+    module = _load_module()
+
+    try:
+        module.main(["--timeout", "0", "--print-only"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser exit for non-positive timeout")
+
+
+def test_main_rejects_non_positive_target_seconds() -> None:
+    module = _load_module()
+
+    try:
+        module.main(["--target-seconds", "0", "--print-only"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser exit for non-positive target seconds")
+
+
+def test_assert_page_healthy_can_succeed_without_expected_text() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def count(self) -> int:
+            return 0
+
+    class _Page:
+        url = "http://127.0.0.1:8501"
+
+        def wait_for_selector(self, *_args, **_kwargs) -> None:
+            return None
+
+        def locator(self, selector: str) -> _Locator:
+            return _Locator()
+
+    page = _Page()
+
+    step = module.assert_page_healthy(
+        page,
+        label="orchestrate page",
+        expect_any=(),
+        timeout_ms=500,
+        screenshot_dir=None,
+    )
+
+    assert step.success is True
+    assert step.label == "orchestrate page"
+
+
+def test_main_print_only_returns_analysis_view_path_for_remote_app_with_custom_root(capsys) -> None:
+    module = _load_module()
+
+    code = module.main(
+        [
+            "--print-only",
+            "--json",
+            "--url",
+            "https://huggingface.co/spaces/owner/flight_space",
+            "--analysis-view",
+            "view_maps_network",
+            "--remote-app-root",
+            "/custom",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["analysis_view_path"] == "/custom/src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py"

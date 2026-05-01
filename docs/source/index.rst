@@ -1,13 +1,20 @@
 AGILab Documentation
 =====================
 
-If you are new to AGILab, choose one route first:
+AGILab is a reproducible AI/ML workbench for engineering teams. It is designed to
+bridge notebook experimentation and AI scripts into auditable, app-shaped
+reproducible workflows.
+
+Recommended quick path:
 
 - **See the UI now**: open :doc:`agilab-demo` for the public Hugging Face Space.
 - **Prove it locally**: follow :doc:`quick-start` with the built-in
   ``flight_project``. Target: pass the first proof in 10 minutes.
 - **Use the API/notebook**: follow :doc:`notebook-quickstart` for the smaller
   ``AgiEnv`` / ``AGI.run(...)`` surface.
+
+AGILAB is interfacing with MLflow; it complements it with execution control,
+environment packaging, worker isolation, and reproducible evidence flow.
 
 The fastest adoption ladder is browser preview, local first proof, evidence
 manifest, then expansion into notebooks, package mode, external apps, or

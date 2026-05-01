@@ -154,6 +154,7 @@ class _FakeStreamlit:
             "sidebar.markdown": [],
             "sidebar.download_button": [],
             "sidebar.expander": [],
+            "page_link": [],
             "code": [],
         }
 
@@ -222,6 +223,9 @@ class _FakeStreamlit:
     def code(self, message, *args, **kwargs):
         self.calls["code"].append(message)
 
+    def page_link(self, page, *args, **kwargs):
+        self.calls["page_link"].append(page)
+
     def stop(self):
         raise _StopExecution()
 
@@ -258,7 +262,7 @@ def test_view_maps_3d_warns_when_no_dataset_exists(tmp_path, create_temp_app_pro
     )
 
     assert not at.exception
-    assert any("Cartography-3D Visualisation" in title.value for title in at.title)
+    assert any("Cartography-3D Visualization" in title.value for title in at.title)
     assert any("No dataset found" in warning.value for warning in at.warning)
     assert any(widget.label == "Data Directory" for widget in at.text_input)
 
@@ -434,7 +438,7 @@ def test_view_maps_3d_generates_palette_maps_and_basic_state_updates(monkeypatch
     module.update_var("saved_value", "input_value")
     module.continious()
     assert state["saved_value"] == "fresh"
-    assert state["coltype"] == "continious"
+    assert state["coltype"] == "continuous"
     module.discrete()
     assert state["coltype"] == "discrete"
     assert module._vm3d_key("dataset") == "view_maps_3d:dataset"
@@ -455,6 +459,15 @@ def test_view_maps_3d_category_color_map_repeats_short_palettes(monkeypatch) -> 
         "B": (1, 2, 3),
         "C": (1, 2, 3),
     }
+
+
+def test_view_maps_3d_coerces_legacy_continuous_coltype() -> None:
+    module = _load_view_maps_3d_module()
+
+    assert module._coerce_coltype("continious", "discrete") == "continuous"
+    assert module._coerce_coltype("continuous", "discrete") == "continuous"
+    assert module._coerce_coltype("discrete", "continuous") == "discrete"
+    assert module._coerce_coltype("unsupported", "discrete") == "discrete"
 
 
 def test_view_maps_3d_moves_data_and_downsamples_deterministically(monkeypatch, tmp_path) -> None:
@@ -490,24 +503,66 @@ def test_view_maps_3d_lists_multiple_extensions_and_preserves_existing_dataset_c
     module = _load_view_maps_3d_module()
     datadir = tmp_path / "datasets"
     csv_file = datadir / "b.csv"
+    duplicated_csv = datadir / "a.csv"
+    hidden_csv = datadir / ".hidden" / "ignored.csv"
     parquet_file = datadir / "a.parquet"
     json_file = datadir / "c.json"
+    cross_extension_duplicate = datadir / "shared.csv"
 
     def fake_find_files(base, ext=None):
         mapping = {
-            ".csv": [csv_file, csv_file],
+            ".csv": [csv_file, hidden_csv, csv_file, duplicated_csv, cross_extension_duplicate],
             ".parquet": [parquet_file],
-            ".json": [json_file],
+            ".json": [cross_extension_duplicate, json_file],
         }
         return mapping.get(ext, [])
 
     monkeypatch.setattr(module, "find_files", fake_find_files)
-    assert module._list_dataset_files(datadir, "all") == [parquet_file, csv_file, json_file]
+    assert module._list_dataset_files(datadir, "all") == [
+        duplicated_csv,
+        csv_file,
+        cross_extension_duplicate,
+        parquet_file,
+        json_file,
+    ]
 
     state = _State(datadir=datadir, dataset_files=[csv_file], csv_files=[csv_file], df_file="already.csv")
     monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
     module.initialize_csv_files()
     assert state["df_file"] == "already.csv"
+
+
+def test_view_maps_3d_list_dataset_files_is_deterministic_across_discovery_order(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    datadir = tmp_path / "datasets"
+    csv = [datadir / "c.csv", datadir / "a.csv", datadir / "b.csv"]
+    json = [datadir / "a.json"]
+    parquet = [datadir / "b.parquet"]
+
+    expected = [
+        datadir / "a.csv",
+        datadir / "a.json",
+        datadir / "b.csv",
+        datadir / "b.parquet",
+        datadir / "c.csv",
+    ]
+    permutations = [
+        [csv[0], csv[1], csv[2]],
+        [csv[1], csv[2], csv[0]],
+        [csv[2], csv[1], csv[0]],
+    ]
+
+    for csv_order in permutations:
+        monkeypatch.setattr(
+            module,
+            "find_files",
+            lambda base, ext=None, candidates=csv_order: {
+                ".csv": candidates,
+                ".json": json,
+                ".parquet": parquet,
+            }.get(ext, []),
+        )
+        assert module._list_dataset_files(datadir, "all") == expected
 
 
 def test_view_maps_3d_page_requires_env(monkeypatch, tmp_path) -> None:
@@ -531,8 +586,55 @@ def test_view_maps_3d_page_requires_env(monkeypatch, tmp_path) -> None:
     with pytest.raises(_StopCalled):
         module.page()
 
-    assert any("not initialized" in message for message in messages)
+    assert any("application environment is not initialized" in message for message in messages)
     assert stop_calls == ["stop"]
+
+
+def test_view_maps_3d_page_bootstrap_reuses_active_app_argument(monkeypatch, tmp_path) -> None:
+    module = _load_view_maps_3d_module()
+    active_app = tmp_path / "apps" / "demo_project"
+    active_app.mkdir(parents=True)
+
+    class _StopCalled(RuntimeError):
+        pass
+
+    fake_state = _State()
+    fake_env = SimpleNamespace(
+        is_source_env=True,
+        is_worker_env=False,
+        app_settings_file=tmp_path / "app_settings.toml",
+        AGILAB_EXPORT_ABS=tmp_path / "export",
+        target="demo_project",
+        projects=["demo_project"],
+        TABLE_MAX_ROWS=17,
+        GUI_SAMPLING=4,
+    )
+
+    def _fake_agi_env(apps_path, app, verbose):
+        return fake_env
+
+    monkeypatch.setattr(module, "AgiEnv", _fake_agi_env)
+    monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app", str(active_app)])
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=fake_state,
+            error=lambda message: None,
+            warning=lambda message: None,
+            stop=lambda: (_ for _ in ()).throw(_StopCalled()),
+            render_logo=lambda *_args, **_kwargs: None,
+        ),
+    )
+    monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [])
+    (fake_env.AGILAB_EXPORT_ABS / fake_env.target).mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(_StopCalled):
+        module.page()
+
+    assert fake_state["env"] is fake_env
+    assert fake_state["TABLE_MAX_ROWS"] == 17
+    assert fake_state["GUI_SAMPLING"] == 4
 
 
 def test_view_maps_3d_page_rejects_invalid_datadir(monkeypatch, tmp_path) -> None:
@@ -791,7 +893,7 @@ def test_view_maps_3d_renders_valid_dataset_without_beams(
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=export_root)
 
     assert not at.exception
-    assert any("Cartography-3D Visualisation" in title.value for title in at.title)
+    assert any("Cartography-3D Visualization" in title.value for title in at.title)
 
 
 def test_view_maps_3d_default_app_and_initializer_fallbacks(monkeypatch, tmp_path) -> None:

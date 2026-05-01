@@ -371,12 +371,17 @@ def _enforce_page_deadline(page_deadline: float | None, detail: str) -> None:
 
 
 def _load_web_robot() -> Any:
+    if not WEB_ROBOT_PATH.exists():
+        raise RuntimeError(f"Could not load {WEB_ROBOT_PATH}")
     spec = importlib.util.spec_from_file_location("agilab_web_robot_for_widget_sweep", WEB_ROBOT_PATH)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Could not load {WEB_ROBOT_PATH}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"Could not load {WEB_ROBOT_PATH}") from exc
     return module
 
 
@@ -395,7 +400,28 @@ def public_apps_pages(pages_root: Path = DEFAULT_APPS_PAGES_ROOT) -> list[AppsPa
 
 
 def parse_csv(value: str) -> list[str]:
-    return [item.strip() for item in value.split(",") if item.strip()]
+    aliases: tuple[str, ...] = ("_project", "_worker")
+    items: list[str] = []
+    seen: set[str] = set()
+    for item in value.split(","):
+        cleaned = item.strip()
+        if not cleaned:
+            continue
+        variants = {cleaned}
+        for suffix in aliases:
+            if cleaned.endswith(suffix):
+                variants.add(cleaned[: -len(suffix)])
+        if any(variant in seen for variant in variants):
+            continue
+        items.append(cleaned)
+        seen.update(variants)
+    return items
+
+
+def _wait_for_timeout(page: Any, timeout_ms: float) -> None:
+    wait = getattr(page, "wait_for_timeout", None)
+    if callable(wait):
+        wait(timeout_ms)
 
 
 def resolve_apps(apps: str, *, apps_root: Path = DEFAULT_APPS_ROOT) -> list[Path | str]:
@@ -876,7 +902,7 @@ def _probe_widget(
         if kind in ACTION_BUTTON_KINDS:
             if action_button_policy == "click":
                 _click_with_force_fallback(locator, timeout_ms=timeout_ms)
-                page.wait_for_timeout(250)
+                _wait_for_timeout(page, 250)
                 error = _visible_exception_detail(page)
                 if error:
                     return "failed", f"button click rendered exception: {error}"
@@ -889,7 +915,7 @@ def _probe_widget(
         if kind in {"checkbox", "toggle"}:
             was_checked = locator.is_checked(timeout=timeout_ms) if kind == "checkbox" else None
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
-            page.wait_for_timeout(250)
+            _wait_for_timeout(page, 250)
             if was_checked is not None:
                 locator = _widget_locator(page, widget)
                 if locator.is_checked(timeout=timeout_ms) != was_checked:
@@ -897,7 +923,7 @@ def _probe_widget(
             return "interacted", f"clicked and restored {kind}"
         if kind == "radio":
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
-            page.wait_for_timeout(250)
+            _wait_for_timeout(page, 250)
             if restore_view is not None:
                 restore_view()
             return "interacted", "clicked radio option and restored page"
@@ -919,19 +945,19 @@ def _probe_widget(
             return "interacted", "exercised slider keyboard controls"
         if kind in {"selectbox", "multiselect"}:
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
-            page.wait_for_timeout(150)
+            _wait_for_timeout(page, 150)
             page.keyboard.press("Escape")
             return "interacted", f"opened and closed {kind}"
         if kind == "file_uploader":
             locator.locator("input[type='file']").first.set_input_files(str(upload_file), timeout=timeout_ms)
-            page.wait_for_timeout(250)
+            _wait_for_timeout(page, 250)
             return "interacted", "uploaded temporary robot fixture"
         if kind == "data_editor":
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
             return "interacted", "focused data editor/dataframe region"
         if kind in {"tab", "expander"}:
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
-            page.wait_for_timeout(250)
+            _wait_for_timeout(page, 250)
             return "interacted", f"clicked {kind}"
         locator.click(timeout=timeout_ms, trial=True)
         return "probed", f"unknown widget kind actionability verified ({kind})"

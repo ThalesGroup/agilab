@@ -47,7 +47,7 @@
   <text class="t" x="190" y="446" text-anchor="middle">tests, invariants</text>
 
   <rect class="box" x="660" y="392" rx="14" ry="14" width="220" height="84"/>
-  <text class="h" x="770" y="422" text-anchor="middle">Visualisation</text>
+  <text class="h" x="770" y="422" text-anchor="middle">Visualization</text>
   <text class="t" x="770" y="446" text-anchor="middle">maps, KPIs, reports</text>
 
   <line class="arrow" x1="300" y1="162" x2="330" y2="240"/>

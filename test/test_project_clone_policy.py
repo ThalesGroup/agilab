@@ -887,8 +887,12 @@ def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monk
     )
     list_toolbar = _extract_toolbar_buttons(list_buttons)
     assert [button["name"] for button in list_toolbar[:2]] == ["Copy", "Pin"]
-    assert calls["editor"] == (readme_text, "markdown", f"{readme_path}_module-level_readme_None")
-    panel_id = module._project_editor_panel_id(readme_path, "readme")
+    assert calls["editor"] == (
+        readme_text,
+        "markdown",
+        f"readme:{readme_path}:module-level:readme:None",
+    )
+    panel_id = module._project_editor_panel_id(readme_path, "readme", "file", "readme")
     panel = fake_st.session_state["agilab:pinned_expanders"][panel_id]
     assert panel["title"] == "demo_project/README.md"
     assert panel["body"] == readme_text
@@ -905,8 +909,12 @@ def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monk
 
     toml_buttons = calls["buttons"]
     assert [button["name"] for button in _extract_toolbar_buttons(toml_buttons)[:2]] == ["Copy", "Pin"]
-    assert calls["editor"] == (toml_text, "toml", f"{toml_path}_module-level_pyproject_None")
-    toml_panel_id = module._project_editor_panel_id(toml_path, "pyproject")
+    assert calls["editor"] == (
+        toml_text,
+        "toml",
+        f"pyproject:{toml_path}:module-level:pyproject:None",
+    )
+    toml_panel_id = module._project_editor_panel_id(toml_path, "pyproject", "file", "pyproject")
     toml_panel = fake_st.session_state["agilab:pinned_expanders"][toml_panel_id]
     assert toml_panel["title"] == "demo_project/pyproject.toml"
     assert toml_panel["body"] == toml_text
@@ -923,7 +931,7 @@ def test_project_editor_toolbar_buttons_preserves_dict_payload_shape():
         {"buttons": base_buttons},
         pinned=False,
     )
-    assert isinstance(dict_payload, dict)
+    assert isinstance(dict_payload, list)
     dict_buttons = _extract_toolbar_buttons(dict_payload)
     assert dict_buttons[0]["name"] == "Copy"
     assert dict_buttons[1]["name"] == "Pin"
@@ -933,14 +941,14 @@ def test_project_editor_toolbar_buttons_preserves_dict_payload_shape():
         base_buttons,
         pinned=True,
     )
-    assert isinstance(list_payload, dict)
+    assert isinstance(list_payload, list)
     list_buttons = _extract_toolbar_buttons(list_payload)
     assert list_buttons[0]["name"] == "Copy"
     assert list_buttons[1]["name"] == "Unpin"
     assert list_buttons[1]["commands"][-1] == ["response", module.EDITOR_UNPIN_RESPONSE]
 
     empty_payload = module._project_editor_toolbar_buttons(None, pinned=False)
-    assert isinstance(empty_payload, dict)
+    assert isinstance(empty_payload, list)
     empty_buttons = _extract_toolbar_buttons(empty_payload)
     assert len(empty_buttons) == 1
     assert empty_buttons[0]["name"] == "Pin"

@@ -29,12 +29,12 @@ Pipeline example
 ----------------
 
 .. figure:: diagrams/pipeline_example.svg
-   :alt: Pipeline example from trajectories and environment maps to visualisation
+   :alt: Pipeline example from trajectories and environment maps to visualization
    :class: diagram-panel diagram-hero
 
    Data flows from trajectory generators and environment maps into simulation
    stages, decision engines (learned and/or optimization baselines), and finally
-   visualisation and KPI reporting.
+   visualization and KPI reporting.
 
 agilab.py navigation
 --------------------
