@@ -1,9 +1,9 @@
 [project]
 name = "meteo_forecast_project"
-version = "2026.04.30.post4"
+version = "2026.05.01"
 description = "Built-in AGILab weather forecasting example migrated from notebooks"
 requires-python = ">=3.13"
-dependencies = ["agi-env>=2026.04.30.post4", "agi-node>=2026.04.30.post4", "pandas>=2.3.0", "pydantic", "scikit-learn", "skforecast>=0.19,<0.20", "streamlit>=1.56.0"]
+dependencies = ["agi-env>=2026.05.01", "agi-node>=2026.05.01", "pandas>=2.3.0", "pydantic", "scikit-learn", "skforecast>=0.19,<0.20", "streamlit>=1.56.0"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }
