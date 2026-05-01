@@ -1820,14 +1820,14 @@ def test_on_project_change_resets_state_and_reports_env_errors(monkeypatch, tmp_
     assert "view_checkbox_beta" not in session_state
     assert "sample:app_args_form:field" not in session_state
     for label in (
-        "PYTHON‑ENV",
+        "PYTHON-ENV",
         "PYTHON-ENV-EXTRA",
         "MANAGER",
         "WORKER",
-        "EXPORT‑APP‑FILTER",
-        "APP‑SETTINGS",
-        "ARGS‑UI",
-        "PRE‑PROMPT",
+        "EXPORT-APP-FILTER",
+        "APP-SETTINGS",
+        "ARGS-UI",
+        "PRE-PROMPT",
     ):
         assert session_state[label] is False
 

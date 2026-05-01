@@ -2,49 +2,38 @@
   <a href="https://pypi.org/project/agilab/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg" alt="PyPI version" /></a>
   <a href="https://opensource.org/licenses/BSD-3-Clause"><img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" alt="License: BSD 3-Clause" /></a>
   <a href="https://thalesgroup.github.io/agilab"><img src="https://img.shields.io/badge/Documentation-online-brightgreen.svg" alt="Documentation" /></a>
-  <a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/stars/ThalesGroup/agilab.svg" alt="GitHub stars" /></a>
-</p>
-
-<details>
-<summary>More project badges</summary>
-
-<p>
-  <a href="https://pypi.org/project/agilab/"><img src="https://img.shields.io/pypi/pyversions/agilab.svg" alt="Supported Python Versions" /></a>
-  <a href="https://pypi.org/project/agilab/"><img src="https://img.shields.io/pypi/dm/agilab" alt="PyPI downloads" /></a>
   <a href="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
-  <a href="https://github.com/ThalesGroup/agilab/issues"><img src="https://img.shields.io/github/issues/ThalesGroup/agilab" alt="Open issues" /></a>
-  <a href="https://github.com/ThalesGroup/agilab/pulse"><img src="https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg" alt="Commit activity" /></a>
-  <a href="tools/agent_workflows.md"><img src="https://img.shields.io/badge/Agents-codex%20%26%20claude%20%26%20aider%20%26%20opencode-0F766E" alt="Agents Codex Claude Aider and OpenCode" /></a>
-  <a href=".codex/skills/README.md"><img src="badges/skills-codex.svg" alt="Codex skills" /></a>
-  <a href=".claude/skills/README.md"><img src="badges/skills-claude.svg" alt="Claude skills" /></a>
-  <a href="docs/source/environment.rst"><img src="https://img.shields.io/badge/Language-python%20free--threaded%20%26%20cythonized-5B6CFF" alt="Language Python free-threaded and Cythonized" /></a>
-  <a href="https://github.com/ThalesGroup/agilab/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome" /></a>
-  <a href="https://pypi.org/project/agilab/"><img src="https://img.shields.io/pypi/format/agilab" alt="PyPI format" /></a>
-  <a href="https://github.com/ThalesGroup/agilab"><img src="https://img.shields.io/github/repo-size/ThalesGroup/agilab" alt="Repo size" /></a>
-  <a href="https://github.com/psf/black"><img src="https://img.shields.io/badge/code%20style-black-000000.svg" alt="Black code style" /></a>
-  <a href="https://orcid.org/0009-0003-5375-368X"><img src="https://img.shields.io/badge/ORCID-0009--0003--5375--368X-A6CE39?logo=orcid" alt="ORCID" /></a>
 </p>
-<p>
-  <a href="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main" alt="Coverage workflow" /></a>
-  <a href="https://codecov.io/gh/ThalesGroup/agilab"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg" alt="agilab coverage" /></a>
-  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-gui"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-gui.svg" alt="agi-gui coverage" /></a>
-  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-env"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-env.svg" alt="agi-env coverage" /></a>
-  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-node"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-node.svg" alt="agi-node coverage" /></a>
-  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-cluster"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-cluster.svg" alt="agi-cluster coverage" /></a>
-  <a href="https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-core"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-core.svg" alt="agi-core coverage" /></a>
-</p>
-
-</details>
 
 # AGILAB
 
-AGILAB is an open-source platform for reproducible AI and ML workflows.
+AGILAB is a reproducible AI/ML workbench for engineering teams.
 
-The core idea is simple: keep one app on one control path from setup to run to visible analysis instead of splitting the workflow across ad hoc scripts, environments, and notebooks.
+It turns notebooks and scripts into reproducible apps with:
 
-In one line: AGILAB is a reproducible AI/ML experimentation workbench for engineering teams, bridging local interactive development, distributed execution, and result analysis.
+- **one-command setup**
+- **controlled environments**
+- **local or distributed execution**
+- **visible experiment evidence**
+- **optional MLflow integration**
 
-AGILAB is best evaluated as an AI/ML experimentation workbench, not as a replacement for mature orchestration or production MLOps platforms. Its value is keeping project setup, environment management, execution, and result analysis on one coherent path before hardened assets move to deployment-focused systems.
+AGILAB complements MLflow. It is not a replacement for MLflow or production
+MLOps platforms.
+
+It owns the execution and reproducibility layer around tracking, packaging, and
+analysis.
+
+## Central demo
+
+Notebook/script → AGILAB app → execution (local/distributed) → MLflow →
+Streamlit UI
+
+Start with the public browser preview or the demo chooser:
+
+- [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
+- [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
+- [Local quick start](https://thalesgroup.github.io/agilab/quick-start.html)
+- [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
 
 ## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
 
@@ -53,26 +42,50 @@ AGILAB is best evaluated as an AI/ML experimentation workbench, not as a replace
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
 </p>
 
-The public AGILAB Space is the fastest browser preview. It opens the lightweight
-`flight_project` path by default and also exposes the
+### Recommended positioning
+
+- **AGILAB = environment + execution + reproducibility**
+- **MLflow = experiment tracking + model registry + deployment metadata**
+
+### Try this first
+
+```bash
+pip install agilab
+agilab first-proof --json
+agilab
+```
+
+The public AGILAB Space is the fastest browser preview. It opens the
+lightweight `flight_project` path by default and also exposes the
 `meteo_forecast_project` notebook-migration demo with forecast analysis views.
 Advanced scenarios such as `data_io_2026_project`,
 `execution_pandas_project`, `execution_polars_project`, and
 `uav_relay_queue_project` are collected in the
 [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
 
+### Maturity snapshot
+
+| Capability | Status |
+|---|---|
+| Local run | Stable |
+| UI Streamlit | Stable |
+| Distributed (Dask) | Beta |
+| MLflow | Beta |
+| Production | Experimental |
+| Agents RL | Roadmap |
+
+AGILAB is most mature in the bridge between notebook experimentation and
+reproducible AI applications: local execution, environment control, and
+analysis. Production-grade MLOps features are delivered through integrations
+and are not yet a packaged platform claim.
+
 ## Choose Your Path
 
-| If you want to... | Start here | Stop when... |
-|---|---|---|
-| Preview before installing | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | The hosted UI opens the `flight_project` path. |
-| Understand notebook-to-app migration | [Notebook Migration Demo](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html) | The notebooks, `lab_steps.toml`, `pipeline_view.dot`, artifacts, and `meteo_forecast_project` analysis view line up. |
-| Evaluate deeper packaged proofs | [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html) | Mission decisions, execution-model benchmarks, UAV queue analysis, service health, connector reports, and release evidence are visible as separate routes. |
-| Prove the local product flow | [First Run](#first-run) | `agilab first-proof --json` exits 0 and reports `"success": true`. |
-| Check the package entry point | [Published Package](#published-package) | `agilab` starts from a clean package install. |
-| Audit the current release | [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html) | PyPI, GitHub release, CI guardrails, and hosted demo evidence line up. |
-| Update external apps | [App Repository Updates](#app-repository-updates) | Installed apps resolve to the repository copy. |
-| Contribute changes | [CONTRIBUTING.md](CONTRIBUTING.md) | A focused local check passes before PR. |
+1. Preview the product quickly: [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
+2. Learn notebook migration: [Notebook Migration Demo](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html)
+3. Prove local flow: [First Run](#first-run)
+4. Verify package installation: [Published Package](#published-package)
+5. Audit external apps and evidence: [App Repository Updates](#app-repository-updates) and [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html)
 
 For a single-page adoption checklist, use [ADOPTION.md](ADOPTION.md).
 

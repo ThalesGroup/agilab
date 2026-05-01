@@ -1378,17 +1378,13 @@ def _project_editor_toolbar_buttons(base_buttons, *, pinned: bool):
     except (TypeError, ValueError):
         buttons_payload = []
     if isinstance(buttons_payload, dict):
-        buttons = buttons_payload
-        toolbar_buttons = buttons.setdefault("buttons", [])
+        toolbar_buttons = buttons_payload.get("buttons", [])
         if not isinstance(toolbar_buttons, list):
             toolbar_buttons = []
-            buttons["buttons"] = toolbar_buttons
     elif isinstance(buttons_payload, list):
         toolbar_buttons = buttons_payload
-        buttons = {"buttons": toolbar_buttons}
     else:
         toolbar_buttons = []
-        buttons = {"buttons": toolbar_buttons}
     response_type = EDITOR_UNPIN_RESPONSE if pinned else EDITOR_PIN_RESPONSE
     pin_button = {
         "name": "Unpin" if pinned else "Pin",
@@ -1412,7 +1408,7 @@ def _project_editor_toolbar_buttons(base_buttons, *, pinned: bool):
     }
     insert_at = 1 if toolbar_buttons else 0
     toolbar_buttons.insert(insert_at, pin_button)
-    return buttons
+    return toolbar_buttons
 
 
 def _upsert_project_editor_pin(
@@ -1704,19 +1700,19 @@ def handle_project_selection():
     ):
         handle_export_project()
 
-    # Define each section as (label, render-fn)
+    # Keep all sections visible; each renderer handles its own absence checks.
     sections = [
         ("README", lambda: _render_readme(env)),
         ("PYTHON-ENV", lambda: _render_python_env(env)),
         ("PYTHON-ENV-WORKER", lambda: _render_worker_python_env(env)),
         ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
         ("EXPORT-APP-FILTER", lambda: _render_gitignore(env)),
-        ("PRE-PROMPT",        lambda: _render_pre_prompt(env)),
+        ("PRE-PROMPT", lambda: _render_pre_prompt(env)),
         ("APP-SETTINGS", lambda: _render_app_settings(env)),
         ("APP-ARGS", lambda: _render_app_args_module(env)),
         ("APP-ARGS-FORM", lambda: _render_args_ui(env)),
-        ("MANAGER",           lambda: _render_manager(env)),
-        ("WORKER",            lambda: _render_worker(env)),
+        ("MANAGER", lambda: _render_manager(env)),
+        ("WORKER", lambda: _render_worker(env)),
     ]
 
     for label, render_fn in sections:
@@ -1771,7 +1767,12 @@ def _render_python_env(env):
 
 def _render_worker_python_env(env):
     worker_pyproject = getattr(env, "worker_pyproject", None)
-    if worker_pyproject and worker_pyproject.exists():
+    manager_pyproject = env.active_app / "pyproject.toml"
+    if (
+        isinstance(worker_pyproject, Path)
+        and worker_pyproject.exists()
+        and worker_pyproject != manager_pyproject
+    ):
         render_code_editor(
             worker_pyproject,
             worker_pyproject.read_text(),

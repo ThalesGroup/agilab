@@ -264,7 +264,7 @@ if "TABLE_MAX_ROWS" not in st.session_state:
     st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
 if "GUI_SAMPLING" not in st.session_state:
     st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
-render_logo("Cartography Visualisation")
+render_logo("Cartography Visualization")
 
 # Map imagery token must come from runtime env/secrets, never from source code.
 _mapbox_secret = ""

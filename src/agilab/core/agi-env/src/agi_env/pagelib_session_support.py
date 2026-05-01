@@ -34,14 +34,14 @@ PROJECT_SESSION_STATE_KEYS_TO_CLEAR = (
 )
 PROJECT_SESSION_STATE_PREFIXES = ("arg_name", "arg_value", "view_checkbox")
 PROJECT_SECTION_LABELS = (
-    "PYTHON‑ENV",
+    "PYTHON-ENV",
     "PYTHON-ENV-EXTRA",
     "MANAGER",
     "WORKER",
-    "EXPORT‑APP‑FILTER",
-    "APP‑SETTINGS",
-    "ARGS‑UI",
-    "PRE‑PROMPT",
+    "EXPORT-APP-FILTER",
+    "APP-SETTINGS",
+    "ARGS-UI",
+    "PRE-PROMPT",
 )
 
 

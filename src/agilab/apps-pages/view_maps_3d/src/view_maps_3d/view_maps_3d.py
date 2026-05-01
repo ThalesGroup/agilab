@@ -97,9 +97,85 @@ def _list_dataset_files(base_dir: Path, ext_choice: str = "all") -> list[Path]:
     for ext in extensions:
         files.extend(find_files(base_dir, ext=ext))
     # De-duplicate while keeping deterministic ordering for widget defaults.
-    return sorted(set(files))
+    visible: list[Path] = []
+    seen: set[Path] = set()
+    for file in sorted(files, key=lambda path: Path(path).relative_to(base_dir).as_posix()):
+        if not isinstance(file, Path):
+            continue
+        try:
+            parts = file.relative_to(base_dir).parts
+        except Exception:
+            parts = file.parts
+        if any(part.startswith(".") for part in parts):
+            continue
+        if file in seen:
+            continue
+        seen.add(file)
+        visible.append(file)
+    return visible
 
-st.title(":world_map: Cartography-3D Visualisation")
+
+st.title(":world_map: Cartography-3D Visualization")
+
+
+def _normalize_legacy_coltype(raw: str) -> str:
+    normalized = str(raw).strip().lower() if raw is not None else ""
+    if normalized == "continious":
+        return "continuous"
+    return normalized
+
+
+def _coerce_coltype(value: object, fallback: str) -> str:
+    normalized = _normalize_legacy_coltype(value)
+    if normalized not in ("continuous", "discrete", "lat", "long", "alt"):
+        return fallback
+    return normalized
+
+
+def _bootstrap_env_from_active_app() -> bool:
+    """
+    Try a minimal CLI-level bootstrap path when env is missing.
+
+    Returns True when an environment has been restored.
+    """
+
+    argv = list(getattr(sys, "argv", []))
+    for index, arg in enumerate(argv):
+        if arg == "--active-app":
+            if index + 1 >= len(argv):
+                continue
+            candidate_expr = argv[index + 1]
+        elif arg.startswith("--active-app="):
+            candidate_expr = arg.split("=", 1)[1]
+        else:
+            continue
+        if not candidate_expr:
+            continue
+        candidate = Path(candidate_expr).expanduser()
+        if not candidate.exists() or not candidate.is_dir():
+            continue
+        try:
+            env = AgiEnv(
+                apps_path=candidate.parent,
+                app=candidate.name,
+                verbose=1,
+            )
+        except Exception:
+            continue
+        env.init_done = True
+        st.session_state["env"] = env
+        st.session_state["IS_SOURCE_ENV"] = env.is_source_env
+        st.session_state["IS_WORKER_ENV"] = env.is_worker_env
+        st.session_state["apps_path"] = str(candidate.parent)
+        st.session_state["app"] = candidate.name
+        if "TABLE_MAX_ROWS" not in st.session_state:
+            st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
+        if "GUI_SAMPLING" not in st.session_state:
+            st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+        if "datadir" not in st.session_state:
+            st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
+        return True
+    return False
 
 
 @st.cache_data
@@ -193,9 +269,9 @@ def initialize_beam_files():
         )
 
 
-def continious():
+def continuous():
     """
-    Update the column type to 'continious' in the session state.
+    Update the column type to 'continuous' in the session state.
 
     Args:
         None
@@ -204,7 +280,13 @@ def continious():
         None
     """
     """ """
-    st.session_state["coltype"] = "continious"
+    st.session_state["coltype"] = "continuous"
+
+
+def continious():
+    """Backward-compatible alias for typo-legacy sessions."""
+
+    continuous()
 
 
 def discrete():
@@ -439,13 +521,25 @@ def page():
     render_logo("3D Maps and Network Topology Visualization")
 
     if 'env' not in st.session_state:
-        st.error("The application environment is not initialized. Please click on  AGILAB.")
-        st.stop()
+        restored = _bootstrap_env_from_active_app()
+        if not restored:
+            st.error(
+                "The application environment is not initialized. Open the PROJECT page from AGILAB "
+                "or launch with --active-app <active_app>."
+            )
+            if hasattr(st, "page_link"):
+                st.page_link("1_▶️ PROJECT.py", label="Open PROJECT page")
+            elif hasattr(st, "info"):
+                st.info(
+                    "Open PROJECT from the AGILAB left panel, then return here from ANALYSIS."
+                )
+            st.stop()
+        env = st.session_state["env"]
     else:
         env = st.session_state['env']
 
     # Define variable types and their default indices
-    var = ["discrete", "continious", "lat", "long", "alt"]
+    var = ["discrete", "continuous", "lat", "long", "alt"]
     var_default = [0, None]
 
     # Load persisted settings
@@ -476,6 +570,7 @@ def page():
         st.session_state["beamdir"] = Path(view_settings.get("beamdir") or (base_share / env.target.replace("_project", "")))
     if "coltype" not in st.session_state:
         st.session_state["coltype"] = view_settings.get("coltype", var[0])
+    st.session_state["coltype"] = _coerce_coltype(st.session_state["coltype"], var[0])
 
     datadir_widget_key = _vm3d_key("input_datadir")
     datadir_str = str(st.session_state.datadir)
@@ -911,7 +1006,7 @@ def page():
             # Select numeric columns
             numeric_cols = st.session_state.loaded_df.select_dtypes(include=["number"]).columns.tolist()
             # Define lists to store continuous and discrete numeric variables
-            continious_cols = []
+            continuous_cols = []
             discrete_cols = []
 
             # Define a threshold: if a numeric column has fewer unique values than this threshold,
@@ -923,7 +1018,7 @@ def page():
                 if st.session_state.loaded_df[col].nunique() < unique_threshold:
                     discrete_cols.append(col)
                 else:
-                    continious_cols.append(col)
+                    continuous_cols.append(col)
 
             # Identify and reassign date-like columns from discrete to continuous.
             date_format = "%Y-%m-%d %H:%M:%S"
@@ -931,7 +1026,7 @@ def page():
                 try:
                     pd.to_datetime(st.session_state.loaded_df[col], format=date_format, errors="raise")
                     discrete_cols.remove(col)
-                    continious_cols.append(col)
+                    continuous_cols.append(col)
                 except (ValueError, TypeError):
                     pass
 
@@ -943,7 +1038,7 @@ def page():
             opacity_key = _vm3d_key("opacity_slider")
             opacity_value = st.session_state.get(opacity_key, 0.8)
 
-            for i, cols in enumerate([discrete_cols, continious_cols]):
+            for i, cols in enumerate([discrete_cols, continuous_cols]):
                 if cols:
                     colsn = (
                         pd.DataFrame(

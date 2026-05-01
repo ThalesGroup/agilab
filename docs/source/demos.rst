@@ -9,6 +9,14 @@ Demos
 Use this page to choose a public AGILAB demo route. It is a router, not a
 quick-start guide.
 
+Central demo flow
+-----------------
+
+Notebook/script → AGILAB app → execution (local/distributed) → MLflow →
+Streamlit UI
+
+Use the router below to pick the shortest route that demonstrates that flow.
+
 Choose a demo
 -------------
 
@@ -144,3 +152,4 @@ See also
 - :doc:`advanced-proof-pack`
 - :doc:`newcomer-guide`
 - :doc:`compatibility-matrix`
+- :doc:`demo_capture_script` for the explainer GIF/MP4/poster recipe

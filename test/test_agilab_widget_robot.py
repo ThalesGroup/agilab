@@ -64,6 +64,28 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.quiet_progress is False
 
 
+def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
+    module = _load_module()
+
+    try:
+        module.main(["--interaction-mode", "actionability", "--action-button-policy", "click"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser rejection for invalid action-button mode")
+
+
+def test_widget_robot_main_rejects_non_positive_timeout() -> None:
+    module = _load_module()
+
+    try:
+        module.main(["--timeout", "0"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser rejection for non-positive timeout")
+
+
 def test_public_apps_pages_discovers_view_entrypoints() -> None:
     module = _load_module()
 
@@ -350,6 +372,211 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert "scope: scopeFor(el)" in module.WIDGET_COLLECTOR_JS
 
 
+def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, count_value: int = 0):
+            self._count_value = count_value
+
+        def nth(self, _index):
+            return self
+
+        @property
+        def first(self):
+            return self
+
+        def count(self) -> int:
+            return self._count_value
+
+    class _Page:
+        def __init__(self) -> None:
+            self.url = "http://127.0.0.1:8501/PROJECT?active_app=other_project"
+
+        def goto(self, *_args, **_kwargs):
+            return None
+
+        def wait_for_timeout(self, _ms) -> None:
+            return None
+
+        def locator(self, selector):
+            if selector == "[role='tab']":
+                return _Locator(0)
+            return _Locator(0)
+
+        def evaluate(self, _script):
+            return []
+
+    web_robot = module._load_web_robot()
+    original_web_robot_assert = web_robot.assert_page_healthy
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    web_robot.assert_page_healthy = lambda *args, **_kwargs: web_robot.RobotStep(
+        "health",
+        True,
+        0.0,
+        "ok",
+        "http://127.0.0.1:8501",
+    )
+
+    def fake_wait_for_page_ready(page, timeout_ms: float) -> None:
+        return None
+
+    def fake_wait_for_widgets_ready(page: object, page_name: str, timeout_ms: float) -> int:
+        return 1
+
+    try:
+        module.wait_for_page_ready = fake_wait_for_page_ready
+        module.wait_for_widgets_ready = fake_wait_for_widgets_ready
+        result = module.sweep_page(
+            _Page(),
+            web_robot=web_robot,
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_project",
+            app_name="flight_project",
+            page_name="PROJECT",
+            timeout=module.DEFAULT_TIMEOUT_SECONDS,
+            widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
+            interaction_mode="full",
+            action_button_policy="trial",
+            upload_file=Path("does-not-exist.txt"),
+            screenshot_dir=None,
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+        )
+    finally:
+        web_robot.assert_page_healthy = original_web_robot_assert
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert result.success is False
+    assert result.status == "failed"
+    assert result.failed_count == 1
+    assert any(probe.kind == "active_app" for probe in result.failures)
+
+
+def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
+    module = _load_module()
+    results: list[module.PageSweep] = []
+
+    class _FakeHealthStep:
+        success = False
+        duration_seconds = 2.0
+        detail = "not ready"
+        url = "http://remote"
+
+    class _FakeWebRobot:
+        @staticmethod
+        def wait_for_streamlit_health(base_url: str, timeout: float):
+            return _FakeHealthStep()
+
+        @staticmethod
+        def _free_port() -> int:
+            return 8501
+
+    original_load_web_robot = module._load_web_robot
+    original_normalize = module.normalize_remote_url
+
+    module._load_web_robot = lambda: _FakeWebRobot()
+    module.normalize_remote_url = lambda _value: _value
+    try:
+        pages = module.sweep_remote_app(
+            app="flight_project",
+            base_url="http://remote",
+            active_app_query="flight_project",
+            pages=[],
+            apps_pages=[],
+            remote_app_root="/app",
+            timeout=30.0,
+            widget_timeout=1.0,
+            interaction_mode="full",
+            action_button_policy="trial",
+            browser_name="chromium",
+            headless=True,
+            screenshot_dir=None,
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+            progress=None,
+            resume_page_results=None,
+            on_page_result=results.append,
+        )
+    finally:
+        module._load_web_robot = original_load_web_robot
+        module.normalize_remote_url = original_normalize
+
+    assert len(pages) == 1
+    page = pages[0]
+    assert page.status == "failed"
+    assert page.success is False
+    assert page.failed_count == 1
+    assert page.page == "REMOTE_SERVER"
+    assert len(results) == 1
+
+
+def test_sweep_direct_apps_page_returns_failed_result_on_health_timeout() -> None:
+    module = _load_module()
+    progress_log: list[dict] = []
+
+    class _HealthStep:
+        success = False
+        duration_seconds = 3.0
+        detail = "not ready"
+        url = "http://127.0.0.1:8551"
+
+    class _FakeServer:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc: object) -> None:
+            return None
+
+    class _FakeWebRobot:
+        @staticmethod
+        def _free_port() -> int:
+            return 8551
+
+        @staticmethod
+        def wait_for_streamlit_health(base_url: str, timeout: float):
+            return _HealthStep()
+
+        StreamlitServer = _FakeServer
+
+    class _Progress:
+        def emit(self, event: str, **payload: object) -> None:
+            progress_log.append({"event": event, **payload})
+
+    route = module.AppsPageRoute("view_maps", Path("/tmp/view_maps.py"))
+    original_load_web_robot = module._load_web_robot
+
+    module._load_web_robot = lambda: _FakeWebRobot()
+    try:
+        result = module.sweep_direct_apps_page(
+            web_robot=_FakeWebRobot(),
+            app_name="flight_project",
+            active_app="flight_project",
+            route=route,
+            timeout=10.0,
+            widget_timeout=1.0,
+            interaction_mode="full",
+            action_button_policy="trial",
+            browser_name="chromium",
+            headless=True,
+            screenshot_dir=None,
+            server_env={},
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+            progress=_Progress(),
+            resume_page_results=None,
+            on_page_result=None,
+        )
+    finally:
+        module._load_web_robot = original_load_web_robot
+
+    assert result.success is False
+    assert result.status == "failed"
+    assert result.failed_count == 1
+    assert result.page == "APPS_PAGE:view_maps"
+    assert progress_log and progress_log[0]["event"] == "page_start"
 def test_render_human_reports_sidebar_widget_counts() -> None:
     module = _load_module()
     page = module.PageSweep(
@@ -469,3 +696,188 @@ def test_text_inputs_are_filled_and_restored(tmp_path) -> None:
     assert status == "interacted"
     assert "restored" in detail
     assert fills == ["original robot", "original"]
+
+
+def test_parse_csv_splits_and_strips_values() -> None:
+    module = _load_module()
+
+    assert module.parse_csv(" flight_project, ,uav_queue_project,,flight\n") == [
+        "flight_project",
+        "uav_queue_project",
+    ]
+
+
+def test_resolve_apps_pages_rejects_configured_mode() -> None:
+    module = _load_module()
+
+    try:
+        module.resolve_apps_pages("configured")
+    except ValueError as exc:
+        assert "configured" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_resolve_apps_resolves_project_name_within_app_root(tmp_path) -> None:
+    module = _load_module()
+    app = tmp_path / "custom_project"
+    app.mkdir()
+
+    resolved = module.resolve_apps("custom_project", apps_root=tmp_path)
+
+    assert resolved == [app.resolve()]
+
+
+def test_active_app_slug_and_route_aliases() -> None:
+    module = _load_module()
+
+    assert module.active_app_slug("/tmp%2Fflight_project") == "flight_project"
+    assert module.routed_active_app_slug("/foo?active_app=flight_project&x=1") == "flight_project"
+    assert module.routed_active_app_slug("/foo?x=1") is None
+    assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
+
+
+def test_configured_apps_pages_for_app_with_invalid_settings_returns_empty(tmp_path) -> None:
+    module = _load_module()
+    app = tmp_path / "broken_project"
+    settings = app / "src" / "app_settings.toml"
+    settings.parent.mkdir(parents=True, exist_ok=True)
+    settings.write_text("not = [ valid", encoding="utf-8")
+
+    assert module.configured_apps_pages_for_app(app) == []
+
+
+def test_load_web_robot_raises_for_missing_robot_script(tmp_path) -> None:
+    module = _load_module()
+    original = module.WEB_ROBOT_PATH
+    module.WEB_ROBOT_PATH = tmp_path / "does-not-exist.py"
+    try:
+        module._load_web_robot()
+        raise AssertionError("expected RuntimeError")
+    except RuntimeError as exc:
+        assert "Could not load" in str(exc)
+    finally:
+        module.WEB_ROBOT_PATH = original
+
+
+def test_remote_apps_page_path_errors_for_external_route() -> None:
+    module = _load_module()
+
+    route = module.AppsPageRoute("external", Path("/tmp/not-in-repo.py"))
+
+    try:
+        module.remote_apps_page_path(route)
+    except ValueError as exc:
+        assert "Cannot map apps-page outside repository" in str(exc)
+    else:
+        raise AssertionError("expected ValueError")
+
+
+def test_write_csv_and_json_helpers(tmp_path) -> None:
+    module = _load_module()
+
+    csv_path = tmp_path / "values.csv"
+    rows = [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
+    module._write_csv(csv_path, rows)
+
+    contents = csv_path.read_text(encoding="utf-8").splitlines()
+    assert contents[0] == "a,b"
+    assert contents[1].startswith("1,x")
+
+    module._write_csv(tmp_path / "empty.csv", [])
+    assert (tmp_path / "empty.csv").read_text(encoding="utf-8") == ""
+
+    json_path = tmp_path / "payload.json"
+    payload = {"b": 2, "a": 1}
+    module._write_json(json_path, payload)
+    loaded = json.loads(json_path.read_text(encoding="utf-8"))
+    assert loaded == payload
+
+
+def test_resume_page_if_available_returns_and_reports_match() -> None:
+    module = _load_module()
+    passed = module.PageSweep(
+        app="flight_project",
+        page="PROJECT",
+        success=True,
+        duration_seconds=1.0,
+        widget_count=1,
+        interacted_count=1,
+        probed_count=0,
+        skipped_count=0,
+        failed_count=0,
+        url="http://demo",
+        failures=[],
+        skips=[],
+    )
+    emitted: list[dict] = []
+
+    class _Progress:
+        def emit(self, event, **payload):
+            emitted.append({"event": event, **payload})
+
+    on_result: list[module.PageSweep] = []
+
+    resumed = module._resume_page_if_available(
+        app_name="flight_project",
+        page_name="PROJECT",
+        resume_page_results={module.page_result_key("flight_project", "PROJECT"): passed},
+        progress=_Progress(),
+        on_page_result=on_result.append,
+    )
+
+    assert resumed == passed
+    assert on_result == [passed]
+    assert any(record.get("event") == "page_resume" for record in emitted)
+
+
+def test_probe_widget_reports_checkbox_toggle(tmp_path) -> None:
+    module = _load_module()
+    clicked: list[bool] = []
+
+    class _Locator:
+        def __init__(self) -> None:
+            self._checked = False
+
+        @property
+        def first(self):
+            return self
+
+        def count(self) -> int:
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def is_checked(self, timeout):
+            return self._checked
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicked.append(True)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "cb", "kind": "checkbox", "label": "Use advanced mode", "disabled": False},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "interacted"
+    assert "clicked and restored" in detail
+    assert clicked
