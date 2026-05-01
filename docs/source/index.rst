@@ -16,8 +16,10 @@ cluster work.
 If the local first proof fails, use :doc:`newcomer-troubleshooting` before
 branching into cluster mode, external app repositories, or broader workflows.
 
-For release-level evidence, inspect the `latest public GitHub release
-<https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.01-2>`__.
+For release-level evidence, use :doc:`release-proof`; it points to the
+`latest public GitHub release
+<https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.01-2>`__,
+package proof, CI guardrails, and hosted demo status.
 
 This documentation then expands into architecture, service mode, API
 references, and example projects.
@@ -28,6 +30,7 @@ references, and example projects.
 
    newcomer-guide
    quick-start
+   release-proof
    newcomer-troubleshooting
    architecture-five-minutes
    compatibility-matrix
