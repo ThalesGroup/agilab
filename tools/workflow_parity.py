@@ -176,6 +176,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_orchestrate_support.py",
                 "test/test_analysis_page_helpers.py",
                 "test/test_about_agilab_helpers.py",
+                "test/test_app_template_registry.py",
                 "test/test_cluster_flight_validation.py",
                 "test/test_cluster_lan_discovery.py",
                 "test/test_venv_linker.py",
@@ -200,6 +201,15 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_pipeline_steps.py",
                 "test/test_pipeline_views.py",
                 "test/test_tracking.py",
+            ],
+        ),
+        _agi_gui_coverage_chunk(
+            "robots",
+            [
+                "test/test_agilab_web_robot.py",
+                "test/test_agilab_widget_robot.py",
+                "test/test_first_launch_robot.py",
+                "test/test_screenshot_manifest.py",
             ],
         ),
         _agi_gui_coverage_chunk(
