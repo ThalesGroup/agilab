@@ -35,7 +35,9 @@ ALLOWED_PAGE_ENTRIES = {
     "README.md",
     "__init__.py",
     "__pycache__",
+    "view_forecast_analysis",
     "view_maps",
+    "view_release_decision",
 }
 BAD_BODY_PATTERNS = (
     "127.0.0.1",
@@ -85,6 +87,14 @@ def route_specs() -> list[RouteSpec]:
             query={
                 "active_app": "flight_project",
                 "current_page": "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
+            },
+        ),
+        RouteSpec("meteo forecast project", query={"active_app": "meteo_forecast_project"}),
+        RouteSpec(
+            "meteo forecast view",
+            query={
+                "active_app": "meteo_forecast_project",
+                "current_page": "/app/src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py",
             },
         ),
     ]

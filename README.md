@@ -42,6 +42,8 @@ AGILAB is an open-source platform for reproducible AI and ML workflows.
 
 The core idea is simple: keep one app on one control path from setup to run to visible analysis instead of splitting the workflow across ad hoc scripts, environments, and notebooks.
 
+In one line: AGILAB is a reproducible AI/ML experimentation workbench for engineering teams, bridging local interactive development, distributed execution, and result analysis.
+
 AGILAB is best evaluated as an AI/ML experimentation workbench, not as a replacement for mature orchestration or production MLOps platforms. Its value is keeping project setup, environment management, execution, and result analysis on one coherent path before hardened assets move to deployment-focused systems.
 
 ## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
@@ -168,6 +170,7 @@ tools/global_pipeline_dependency_view_report.py --compact
 tools/global_pipeline_live_state_updates_report.py --compact
 tools/global_pipeline_operator_actions_report.py --compact
 tools/global_pipeline_operator_ui_report.py --compact
+tools/notebook_import_preflight.py --compact
 tools/notebook_pipeline_import_report.py --compact
 tools/notebook_roundtrip_report.py --compact
 tools/notebook_union_environment_report.py --compact

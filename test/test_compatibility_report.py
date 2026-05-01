@@ -81,10 +81,10 @@ def test_build_report_passes_public_compatibility_contracts() -> None:
     assert report["report"] == "Compatibility report"
     assert report["status"] == "pass"
     assert report["summary"]["status_counts"] == {
-        "documented": 2,
-        "validated": 4,
+        "documented": 1,
+        "validated": 5,
     }
-    assert report["summary"]["workflow_backed_validated_paths"] == 4
+    assert report["summary"]["workflow_backed_validated_paths"] == 5
     assert report["summary"]["manifest_evidence"] == {
         "loaded": 0,
         "path_ids": [],
@@ -112,6 +112,7 @@ def test_required_public_statuses_include_hf_demo_and_documented_routes() -> Non
     statuses = check["details"]["actual_statuses"]
     assert statuses["agilab-hf-demo"] == "validated"
     assert statuses["notebook-quickstart"] == "documented"
+    assert statuses["published-package-route"] == "validated"
     assert check["details"]["mismatched"] == {}
 
 
@@ -127,6 +128,10 @@ def test_workflow_evidence_commands_resolve_public_proof_tools() -> None:
         "tools/newcomer_first_proof.py",
         "--json",
         "run_manifest.json",
+    )
+    assert check["details"]["required_evidence"]["published-package-route"] == (
+        "pip install agilab",
+        "agilab first-proof --json",
     )
 
 

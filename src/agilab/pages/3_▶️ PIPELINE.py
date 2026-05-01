@@ -68,6 +68,26 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.pinned_expander",
+    {
+        "render_pinned_expanders": "render_pinned_expanders",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.workflow_ui",
+    {
+        "render_page_context": "render_page_context",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_steps",
     {
         "ORCHESTRATE_LOCKED_SOURCE_KEY": "ORCHESTRATE_LOCKED_SOURCE_KEY",
@@ -134,8 +154,9 @@ import_agilab_symbols(
         "_restore_pipeline_snapshot": "_restore_pipeline_snapshot",
         "build_notebook_export_context": "build_notebook_export_context",
         "get_steps_list": "get_steps_list",
-        "on_import_notebook": "on_import_notebook",
+        "on_preview_notebook_import": "on_preview_notebook_import",
         "refresh_notebook_export": "refresh_notebook_export",
+        "render_notebook_import_preview": "render_notebook_import_preview",
         "resolve_pycharm_notebook_path": "resolve_pycharm_notebook_path",
         "remove_step": "remove_step",
         "save_step": "save_step",
@@ -863,9 +884,10 @@ def sidebar_controls() -> None:
         "Import notebook",
         type="ipynb",
         key=key,
-        on_change=on_import_notebook,
-        args=(key, module_path, steps_file, index_page_str),
+        on_change=on_preview_notebook_import,
+        args=(key, module_path, index_page_str),
     )
+    render_notebook_import_preview(module_path, steps_file, index_page_str)
 
     export_context = build_notebook_export_context(
         env,
@@ -1083,6 +1105,8 @@ def main() -> None:
             render_logo()
         else:
             render_logo()
+        render_pinned_expanders(st)
+        render_page_context(st, page_label="PIPELINE", env=env)
 
         if background_services_enabled() and not st.session_state.get("server_started", False):
             activate_mlflow(env)

@@ -178,6 +178,8 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_about_agilab_helpers.py",
                 "test/test_cluster_flight_validation.py",
                 "test/test_cluster_lan_discovery.py",
+                "test/test_venv_linker.py",
+                "test/test_workflow_ui.py",
             ],
             clean=True,
         ),
@@ -611,6 +613,7 @@ def _installer_profile(app_path: str | None, worker_copy: str | None) -> list[Co
                 "addopts=",
                 "test/test_install_apps_discovery.py",
                 "test/test_install_contract_check.py",
+                "test/test_venv_linker.py",
             ],
         ),
     ]

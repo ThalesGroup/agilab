@@ -52,6 +52,26 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "analysis_page_state.py",
     fallback_name="agilab_analysis_page_state_fallback",
 )
+import_agilab_symbols(
+    globals(),
+    "agilab.pinned_expander",
+    {
+        "render_pinned_expanders": "render_pinned_expanders",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.workflow_ui",
+    {
+        "render_page_context": "render_page_context",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
 
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
@@ -1292,6 +1312,8 @@ async def main():
 
     # Sidebar header/logo
     render_logo()
+    render_pinned_expanders(st)
+    render_page_context(st, page_label="ANALYSIS", env=env)
 
     # Sidebar: project selection
     projects = env.projects

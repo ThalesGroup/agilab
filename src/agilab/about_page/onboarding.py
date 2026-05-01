@@ -503,7 +503,7 @@ def _render_first_proof_next_action(
             action["cta_label"],
             key="first_proof:activate",
             type="primary",
-            use_container_width=True,
+            width="stretch",
         ):
             if activate_project is not None and activate_project(env, state["project_path"]):
                 st.session_state["first_proof_feedback"] = "`flight_project` selected."

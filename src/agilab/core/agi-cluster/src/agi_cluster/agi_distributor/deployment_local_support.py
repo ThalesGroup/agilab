@@ -33,6 +33,9 @@ def _latest_glob_match(root: Path, pattern: str) -> Path | None:
 
 def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
     """Delete a path robustly, falling back to Windows `rmdir` when needed."""
+    if path.is_symlink():
+        path.unlink()
+        return
     if not path.exists():
         return
 

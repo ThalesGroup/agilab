@@ -28,7 +28,7 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["recommended_path_label"] == "Source checkout first proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert content["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert content["documented_route_ids"] == ["notebook-quickstart"]
     assert content["compatibility_status"] == "validated"
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
@@ -68,7 +68,7 @@ def test_first_proof_state_routes_only_to_flight_project(tmp_path: Path) -> None
     assert state["current_app_matches"] is False
     assert state["recommended_path_id"] == "source-checkout-first-proof"
     assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert state["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert state["documented_route_ids"] == ["notebook-quickstart"]
     assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight" / "run_manifest.json"
     assert state["run_manifest_loaded"] is False
     assert state["run_manifest_status"] == "missing"

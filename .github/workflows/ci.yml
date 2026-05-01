@@ -64,3 +64,25 @@ jobs:
         run: |
           echo "GitHub Actions CI runs repository guardrails plus a minimal first-proof command contract."
           echo "Run local workflow parity profiles before push for full test coverage."
+
+  clean-public-install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install released AGILAB package
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install agilab
+
+      - name: Validate clean package first proof
+        env:
+          AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+          OPENAI_API_KEY: "sk-test-first-proof-000000000000"
+        run: |
+          set -euo pipefail
+          agilab first-proof --json

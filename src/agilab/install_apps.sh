@@ -76,12 +76,14 @@ START_TIME=$(date +%s)
 UV_PREVIEW=(uv --preview-features extra-build-dependencies)
 
 DO_TEST_APPS=0
+LINK_COMPATIBLE_VENVS="${AGILAB_LINK_COMPATIBLE_VENVS:-1}"
 
 BUILTIN_PAGES_FROM_ENV="${BUILTIN_PAGES-}"
 BUILTIN_APPS_FROM_ENV="${BUILTIN_APPS_ENV-}"
 
 AGI_PYTHON_VERSION=$(echo "${AGI_PYTHON_VERSION:-}" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+(\+freethreaded)?).*/\1/')
 AGILAB_REPO="$(cat "$HOME/.local/share/agilab/.agilab-path")"
+VENV_LINK_REPORT="${AGILAB_VENV_LINK_REPORT:-$HOME/.local/share/agilab/venv_link_report.json}"
 APPS_REPOSITORY="${APPS_REPOSITORY:-}"
 CORE_EDITABLE_PACKAGES=(
   --with-editable "$AGILAB_REPO/core/agi-env"
@@ -269,6 +271,10 @@ usage() {
   cat <<'EOF'
 Usage: install_apps.sh [--test-apps]
   --test-apps      Run pytest for each app after installation (implies --install-apps)
+  --link-compatible-venvs
+                   Link app/page/worker venvs to compatible larger envs after install (default)
+  --no-link-compatible-venvs
+                   Disable compatible venv linking
   --help           Show this message and exit
 EOF
 }
@@ -277,6 +283,8 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --test-apps) DO_TEST_APPS=1;;
+    --link-compatible-venvs) LINK_COMPATIBLE_VENVS=1;;
+    --no-link-compatible-venvs) LINK_COMPATIBLE_VENVS=0;;
     --help|-h) usage; exit 0;;
     *)
       echo -e "${RED}Error:${NC} Unknown option '$1'" >&2
@@ -371,6 +379,59 @@ refresh_repository_link() {
     backup="$(backup_existing_path "$dest")"
     echo -e "${YELLOW}${kind} '$dest' exists and is not a symlink. Moved to '$backup' and linking -> '$target'.${NC}"
     ln -s -- "$target" "$dest"
+  fi
+}
+
+unlink_linked_venv() {
+  local venv_path="$1"
+  local label="${2:-$1}"
+  if [[ -L "$venv_path" ]]; then
+    echo -e "${BLUE}Refreshing linked venv for ${label}: unlinking ${venv_path}.${NC}"
+    rm -f -- "$venv_path"
+  fi
+}
+
+link_compatible_venvs() {
+  case "$LINK_COMPATIBLE_VENVS" in
+    0|false|False|FALSE|no|No|NO)
+      echo -e "${BLUE}Compatible venv linking disabled.${NC}"
+      return 0
+      ;;
+  esac
+
+  local linker="$AGILAB_REPO/venv_linker.py"
+  if [[ ! -f "$linker" ]]; then
+    echo -e "${YELLOW}Warning:${NC} compatible venv linker not found at $linker; keeping isolated venvs."
+    return 0
+  fi
+
+  local -a root_paths=()
+  local -a root_args=()
+  local root existing duplicate
+  for root in "$AGILAB_REPO/apps" "$AGILAB_REPO/apps-pages" "$APPS_TARGET_BASE" "$PAGES_TARGET_BASE" "$HOME/wenv"; do
+    [[ -n "$root" && -d "$root" ]] || continue
+    duplicate=0
+    for existing in "${root_paths[@]}"; do
+      [[ "$existing" == "$root" ]] && duplicate=1 && break
+    done
+    (( duplicate )) && continue
+    root_paths+=("$root")
+    root_args+=(--root "$root")
+  done
+
+  if (( ${#root_args[@]} == 0 )); then
+    return 0
+  fi
+
+  mkdir -p -- "$(dirname "$VENV_LINK_REPORT")"
+  echo -e "${BLUE}Linking compatible virtual environments...${NC}"
+  if "${UV_PREVIEW[@]}" run -p "$AGI_PYTHON_VERSION" --no-project --with packaging python "$linker" \
+    --apply \
+    --report "$VENV_LINK_REPORT" \
+    "${root_args[@]}"; then
+    echo -e "${GREEN}Compatible venv link report:${NC} $VENV_LINK_REPORT"
+  else
+    echo -e "${YELLOW}Warning:${NC} compatible venv linking failed; keeping installed venvs."
   fi
 }
 
@@ -858,6 +919,7 @@ pushd -- "$AGILAB_REPO/apps-pages" >/dev/null
 for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
     echo -e "${BLUE}Installing $page...${NC}"
     pushd "$page" >/dev/null
+    unlink_linked_venv ".venv" "$page"
     ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade
     status=$?
     if (( status != 0 )); then
@@ -900,6 +962,7 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   fi
 
 	  echo -e "${BLUE}Installing $app_name...${NC}"
+	  unlink_linked_venv "${AGILAB_REPO}/apps/$app_dir_rel/.venv" "$app_name"
 	  worker_env_name="$app_name"
 	  if [[ "$worker_env_name" == *_project ]]; then
 	    worker_env_name="${worker_env_name%_project}_worker"
@@ -996,6 +1059,8 @@ for app in ${INCLUDED_APPS+"${INCLUDED_APPS[@]}"}; do
   done
   popd >/dev/null
 fi
+
+link_compatible_venvs
 
 # --- Final Message -----------------------------------------------------------
 if (( status == 0 )); then

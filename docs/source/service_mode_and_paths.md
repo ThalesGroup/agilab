@@ -70,6 +70,36 @@ the repository copy becomes the active app/page. Any existing real directory at
 the target path is renamed to `.previous` first, so it is preserved but no
 longer used by AGILAB.
 
+## Compatible Venv Linking
+
+After app/page installation, `install_apps.sh` can reduce duplicate virtual
+environments by replacing compatible project `.venv` directories with symlinks
+to an existing canonical environment. This is not an exact-match deduplication:
+the candidate environment may be larger than the target as long as it uses the
+same Python ABI and its installed distributions satisfy the target project's
+`pyproject.toml` requirements, including version constraints, environment
+markers, and requested extras.
+
+When a target `.venv` is linked, the target project is registered into the
+canonical environment with `uv pip install --no-deps -e <project>`, then the
+target `.venv` becomes a symlink to the canonical `.venv`. Dynamic project
+dependencies are left isolated because their requirements cannot be proven from
+static metadata.
+
+The linker runs by default from `install_apps.sh` and scans app, page, repository,
+and worker environments. Disable it with either:
+
+```bash
+AGILAB_LINK_COMPATIBLE_VENVS=0 ./install_apps.sh
+./install_apps.sh --no-link-compatible-venvs
+```
+
+The install report is written to
+`~/.local/share/agilab/venv_link_report.json` unless
+`AGILAB_VENV_LINK_REPORT` points somewhere else. On a later reinstall, AGILAB
+unlinks a linked target `.venv` before rebuilding it so `uv sync` cannot prune
+the canonical environment through the symlink.
+
 ## Practical Checklist
 
 1. Point `APPS_REPOSITORY` at the root of the apps repository (when used).

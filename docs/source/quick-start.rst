@@ -21,7 +21,8 @@ Fast adoption path:
      - The Space opens the lightweight ``flight_project`` path.
    * - 2. Prove locally
      - Run the source-checkout commands below and stay on the built-in demo.
-     - ``PROJECT`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` works locally.
+     - ``PROJECT`` -> ``ORCHESTRATE`` -> ``PIPELINE`` -> ``ANALYSIS`` works
+       locally.
    * - 3. Record evidence
      - Run ``uv --preview-features extra-build-dependencies run agilab first-proof --json``.
      - ``~/log/execute/flight/run_manifest.json`` reports ``status: pass``.
@@ -117,7 +118,9 @@ machine-readable proof record.
 
    - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
    - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``
-   - ``ANALYSIS`` -> open the default built-in view
+   - ``PIPELINE`` -> inspect the packaged recipe context
+   - ``ANALYSIS`` -> open the default built-in view and, when output exists,
+     the optional ``view_maps_network`` route
 
 5. **Check the first proof outcome**
 
@@ -125,7 +128,8 @@ machine-readable proof record.
 
    - ``~/log/execute/flight/run_manifest.json`` has ``status: pass``
    - fresh output exists under ``~/log/execute/flight/``
-   - you can open the default ``ANALYSIS`` view for ``flight_project``
+   - you can open the default ``ANALYSIS`` view for ``flight_project`` and see
+     the bundled network view as an available route
 
 6. **Only after that, branch into alternative paths**
 
@@ -222,8 +226,7 @@ For public built-in apps plus installer-managed root, app/page, and core tests::
 
     ./install.sh --non-interactive --install-apps builtin --test-root --test-apps --test-core
 
-For an external apps repository, including private app repositories available on
-your machine::
+For an external apps repository available on your machine::
 
     ./install.sh --non-interactive \
       --apps-repository /path/to/apps-repository \

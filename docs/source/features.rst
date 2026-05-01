@@ -157,6 +157,17 @@ single notebook but less ceremony than a production MLOps platform:
   plus artifact references, writes a richer ``lab_steps.toml`` preview used by
   the existing ``PIPELINE`` upload path, and emits ``not_executed_import``
   metadata without running notebook cells
+- the notebook import preflight report validates the generic migration boundary
+  with ``tools/notebook_import_preflight.py --compact``; it reads an ``.ipynb``
+  without execution, flags cleanup risks such as runtime installs, shell calls,
+  network access, widgets, hidden notebook state, and absolute paths, and writes
+  app-neutral ``notebook_import_contract.json`` and
+  ``notebook_import_pipeline_view.json`` sidecars when requested; when an app
+  owns a ``notebook_import_views.toml`` manifest it also writes a
+  ``notebook_import_view_plan.json`` sidecar that matches declared views to
+  artifact paths without inferring UI intent from notebook cells; the
+  ``PIPELINE`` upload path now prepares that preview first and only replaces
+  ``lab_steps.toml`` after explicit confirmation
 - the notebook round-trip report validates
   ``tools/notebook_roundtrip_report.py --compact`` across
   ``lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`` so
@@ -169,11 +180,10 @@ single notebook but less ceremony than a production MLOps platform:
   ``supervisor_notebook_required``
 - the data connector facility report validates
   ``tools/data_connector_facility_report.py --compact`` against
-  ``SQL, OpenSearch/ELK/Hawk, and object-storage connector definitions`` in a
-  plain-text TOML catalog; search-index contracts cover OpenSearch,
-  Elasticsearch/ELK, and Hawk-compatible clusters, while object-storage
-  contracts cover AWS S3/S3-compatible stores, Azure Blob Storage, and Google
-  Cloud Storage. It runs in
+  ``SQL, OpenSearch/Elasticsearch, and object-storage connector definitions`` in
+  a plain-text TOML catalog; search-index contracts cover OpenSearch-compatible
+  clusters, while object-storage contracts cover AWS S3/S3-compatible stores,
+  Azure Blob Storage, and Google Cloud Storage. It runs in
   ``contract_validation_only`` mode, checks kind-specific fields, and requires
   environment references instead of embedded remote credentials
 - the data connector cloud emulator report validates
@@ -256,8 +266,10 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/supply_chain_attestation_report.py --compact`` in
   ``supply_chain_static_attestation`` mode against
   ``agilab.supply_chain_attestation.v1``; it fingerprints package metadata,
-  lockfile, license, bundled AGI core versions, and built-in app manifests
-  without formal supply-chain attestation claims
+  lockfile, license, bundled AGI core versions, exact internal dependency pins,
+  built-in app versions, built-in app internal dependency lower bounds, and
+  built-in app manifests plus package payload inventory without formal
+  supply-chain attestation claims
 - the repository knowledge index report validates
   ``tools/repository_knowledge_report.py --compact`` in
   ``repository_knowledge_static_index`` mode against

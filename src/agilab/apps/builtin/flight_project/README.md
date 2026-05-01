@@ -16,7 +16,7 @@ The project focuses on a simple but useful workflow:
 ## What is not implemented in the public version
 
 This public built-in example is intentionally narrow. It does **not** implement:
-- Hawk/ELK ingestion inside this app; use a custom/private app for that connector path
+- search-index ingestion inside this app; use an external app for that connector path
 - richer trajectory-centric study workflows
 - multi-stage trajectory reconstruction or scenario stitching
 - dedicated cross-run comparison views for complex flight studies
@@ -42,6 +42,11 @@ fields so Release Decision can surface the flight run as first-class evidence.
 2. Configure the input source in `ORCHESTRATE`.
 3. Run the ingestion step.
 4. Explore the resulting dataset in `view_maps`.
+
+Notebook imports do not try to infer flight UI intent from arbitrary code cells.
+The app declares compatible import views in `notebook_import_views.toml`, so the
+generic notebook importer can write a `notebook_import_view_plan.json` sidecar
+that matches declared flight views to produced artifacts.
 
 ## What this teases in AGILAB
 

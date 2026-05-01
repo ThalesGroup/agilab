@@ -142,8 +142,8 @@ def _build_report_with_path(
             "Public certification profile scope",
             summary.get("certification_profile") == "bounded_public_evidence"
             and summary.get("path_count") == 6
-            and summary.get("certified_public_evidence_count") == 4
-            and summary.get("documented_not_certified_count") == 2,
+            and summary.get("certified_public_evidence_count") == 5
+            and summary.get("documented_not_certified_count") == 1,
             "certification profile covers all public compatibility paths",
             evidence=["docs/source/data/compatibility_matrix.toml"],
             details={"summary": summary},
@@ -151,9 +151,13 @@ def _build_report_with_path(
         _check_result(
             "public_certification_profile_broader_slices",
             "Public certification profile broader slices",
-            summary.get("certified_beyond_newcomer_operator_count") == 2
+            summary.get("certified_beyond_newcomer_operator_count") == 3
             and summary.get("certified_beyond_newcomer_operator_paths")
-            == ["web-ui-local-first-proof", "agilab-hf-demo"],
+            == [
+                "web-ui-local-first-proof",
+                "agilab-hf-demo",
+                "published-package-route",
+            ],
             "validated certification rows include public slices beyond newcomer/operator",
             evidence=["docs/source/data/compatibility_matrix.toml"],
             details={

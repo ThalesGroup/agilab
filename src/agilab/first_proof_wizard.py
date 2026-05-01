@@ -32,7 +32,7 @@ FIRST_PROOF_REQUIRED_VALIDATIONS = (
     "target_seconds",
     "recommended_project",
 )
-DOCUMENTED_ROUTE_IDS = ("notebook-quickstart", "published-package-route")
+DOCUMENTED_ROUTE_IDS = ("notebook-quickstart",)
 REMEDIATION_LINKS = (
     ("Troubleshooting", "https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html"),
     ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
