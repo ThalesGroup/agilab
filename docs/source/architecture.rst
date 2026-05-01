@@ -29,12 +29,12 @@ Pipeline example
 ----------------
 
 .. figure:: diagrams/pipeline_example.svg
-   :alt: Pipeline example from trajectories and environment maps to visualization
+   :alt: Pipeline example from trajectories and environment maps to visualisation
    :class: diagram-panel diagram-hero
 
    Data flows from trajectory generators and environment maps into simulation
    stages, decision engines (learned and/or optimization baselines), and finally
-   visualization and KPI reporting.
+   visualisation and KPI reporting.
 
 agilab.py navigation
 --------------------
@@ -55,6 +55,10 @@ Manager vs worker responsibilities
 
    An app manager prepares arguments and submits plans via ``AGI.run``; workers
    (BaseWorker subclasses) execute the distributed tasks.
+
+   Why setup.py exists: Dask serialises and ships worker code as .egg archives.
+   setup.py is the build hook that generates those archives when the cluster is initialised.
+   It has no role in the PyPI release pipeline — that is handled entirely by pyproject.toml and uv.
 
 Layers at a glance
 ------------------

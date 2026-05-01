@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="700" viewBox="0 0 1280 700" role="img" aria-labelledby="title desc">
   <title id="title">Pipeline example</title>
-  <desc id="desc">Example analysis pipeline where air trajectories, space trajectories, and environment maps feed a simulation stage, then learned and optimization decision engines, then visualization and KPI reporting.</desc>
+  <desc id="desc">Example analysis pipeline where air trajectories, space trajectories, and environment maps feed a simulation stage, then learned and optimization decision engines, then visualisation and KPI reporting.</desc>
   <defs>
     <style>
       text {
@@ -154,7 +154,7 @@
 
   <g transform="translate(1090,252)">
     <rect class="card" width="150" height="148" fill="#ffd7ea" />
-    <text class="card-title" x="75" y="44" text-anchor="middle">Visualization</text>
+    <text class="card-title" x="75" y="44" text-anchor="middle">Visualisation</text>
     <text class="card-body" x="75" y="86" text-anchor="middle">Maps</text>
     <text class="card-body" x="75" y="112" text-anchor="middle">Charts</text>
   </g>

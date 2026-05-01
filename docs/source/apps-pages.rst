@@ -97,7 +97,7 @@ Autoencoder-powered dimensionality reduction.
 view_barycentric
 ^^^^^^^^^^^^^^^^
 
-Barycentric simplex visualization for KPI-style features that sum to 1.
+Barycentric simplex visualisation for KPI-style features that sum to 1.
 
 - Input: dataframe with aggregated proportion columns.
 - Output: interactive simplex plot for relative contributions.
