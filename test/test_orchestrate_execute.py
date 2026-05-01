@@ -371,6 +371,10 @@ class _FakeStreamlit:
         button_key = key or _label
         return bool(self._buttons.get(button_key, False))
 
+    def download_button(self, _label, *, key=None, **_kwargs):
+        self.messages.append(("download_button", str(key or _label)))
+        return False
+
     def spinner(self, _label):
         return _Ctx()
 
@@ -700,6 +704,108 @@ async def test_render_execute_section_run_executes_and_records_logs(monkeypatch,
 
 
 @pytest.mark.asyncio
+async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp_path):
+    manager_venv = tmp_path / "project" / ".venv"
+    worker_venv = tmp_path / "wenv" / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+
+    editor_calls: list[dict[str, object]] = []
+
+    def _code_editor(body, **kwargs):
+        editor_calls.append({"body": body, **kwargs})
+        return {"type": "pin_to_sidebar", "text": body}
+
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+            "run_log_cache": "existing log",
+            "last_run_log_path": str(tmp_path / "run.log"),
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    monkeypatch.setattr(orchestrate_execute, "code_editor", _code_editor)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+        snippet_tail="pass",
+    )
+    deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=deps,
+    )
+
+    panels = fake_st.session_state["agilab:pinned_expanders"]
+    buttons = editor_calls[-1]["buttons"]["buttons"]
+    assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
+    assert panels["orchestrate_run_logs"]["title"] == "Run logs: flight_project"
+    assert panels["orchestrate_run_logs"]["body"] == "existing log"
+    assert panels["orchestrate_run_logs"]["source"] == f"ORCHESTRATE {tmp_path / 'run.log'}"
+    assert ("rerun", "called") in fake_st.messages
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_skips_log_pin_editor_without_run_logs(monkeypatch, tmp_path):
+    manager_venv = tmp_path / "project" / ".venv"
+    worker_venv = tmp_path / "wenv" / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    monkeypatch.setattr(
+        orchestrate_execute,
+        "code_editor",
+        lambda *_args, **_kwargs: pytest.fail("empty logs should not render code editor"),
+    )
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+        snippet_tail="pass",
+    )
+    deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=deps,
+    )
+
+    assert all(
+        key != "pinned_expander:toggle:orchestrate_run_logs"
+        for key, _kwargs in fake_st.button_calls
+    )
+    assert ("caption", "No run logs yet.") in fake_st.messages
+
+
+@pytest.mark.asyncio
 async def test_render_execute_section_source_env_uses_controller_runtime(monkeypatch, tmp_path):
     manager_venv = tmp_path / "project" / ".venv"
     worker_venv = tmp_path / "wenv" / ".venv"
@@ -840,6 +946,11 @@ async def test_render_execute_section_handles_existing_logs_graph_errors_and_sta
     )
     fake_st.session_state["loaded_graph"].add_node("n1")
     monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    monkeypatch.setattr(
+        orchestrate_execute,
+        "code_editor",
+        lambda body, **_kwargs: fake_st.messages.append(("code", str(body))),
+    )
     monkeypatch.setattr(
         orchestrate_execute,
         "render_dataframe_preview",

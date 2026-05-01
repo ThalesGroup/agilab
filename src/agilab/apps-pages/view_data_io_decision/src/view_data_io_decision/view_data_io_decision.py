@@ -183,14 +183,14 @@ with left:
     st.subheader("Generated pipeline")
     stages = pipeline.get("stages", []) if isinstance(pipeline, dict) else []
     if stages:
-        st.dataframe(pd.DataFrame(stages), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(stages), width="stretch", hide_index=True)
     else:
         st.info("No generated pipeline artifact found for this run.")
 with right:
     st.subheader("Mission event")
     events = decision.get("applied_events", []) if isinstance(decision, dict) else []
     if events:
-        st.dataframe(pd.DataFrame(events), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(events), width="stretch", hide_index=True)
     else:
         st.info("No selected failure event was applied.")
 
@@ -199,23 +199,23 @@ routes_df = _read_csv_if_present(_peer_path(summary_path, "candidate_routes", "c
 if routes_df.empty:
     st.info("No candidate route table found.")
 else:
-    st.dataframe(routes_df, use_container_width=True, hide_index=True)
+    st.dataframe(routes_df, width="stretch", hide_index=True)
 
 st.subheader("Decision timeline")
 timeline_df = _read_csv_if_present(_peer_path(summary_path, "decision_timeline", "csv"))
 if timeline_df.empty:
     st.info("No decision timeline found.")
 else:
-    st.dataframe(timeline_df, use_container_width=True, hide_index=True)
+    st.dataframe(timeline_df, width="stretch", hide_index=True)
 
 with st.expander("Input stream and feature evidence", expanded=False):
     sensor_df = _read_csv_if_present(_peer_path(summary_path, "sensor_stream", "csv"))
     feature_df = _read_csv_if_present(_peer_path(summary_path, "feature_table", "csv"))
     if not sensor_df.empty:
         st.markdown("Sensor and event stream")
-        st.dataframe(sensor_df, use_container_width=True, hide_index=True)
+        st.dataframe(sensor_df, width="stretch", hide_index=True)
     if not feature_df.empty:
         st.markdown("Feature table")
-        st.dataframe(feature_df, use_container_width=True, hide_index=True)
+        st.dataframe(feature_df, width="stretch", hide_index=True)
     if sensor_df.empty and feature_df.empty:
         st.info("No stream or feature evidence artifacts found.")

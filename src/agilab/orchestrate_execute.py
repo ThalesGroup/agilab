@@ -12,6 +12,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 import pandas as pd
 import streamlit as st
+from code_editor import code_editor
 
 try:
     import matplotlib.pyplot as plt
@@ -41,7 +42,26 @@ _orchestrate_page_state = import_agilab_module(
 build_orchestrate_execute_workflow_state = _orchestrate_page_state.build_orchestrate_execute_workflow_state
 build_orchestrate_run_artifact_state = _orchestrate_page_state.build_orchestrate_run_artifact_state
 
+_pinned_expander = import_agilab_module(
+    "agilab.pinned_expander",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+render_pinnable_code_editor = _pinned_expander.render_pinnable_code_editor
+
+_workflow_ui = import_agilab_module(
+    "agilab.workflow_ui",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+render_action_readiness = _workflow_ui.render_action_readiness
+render_latest_outputs = _workflow_ui.render_latest_outputs
+render_log_actions = _workflow_ui.render_log_actions
+
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
+RUN_LOGS_PIN_ID = "orchestrate_run_logs"
 PREVIEW_FILE_PATTERNS = ("*.parquet", "*.csv", "*.json", "*.gml")
 PREVIEW_MAX_SEARCH_FILES = int(os.environ.get("AGILAB_PREVIEW_MAX_SEARCH_FILES", "1000"))
 PREVIEW_MAX_FILE_BYTES = int(os.environ.get("AGILAB_PREVIEW_MAX_FILE_BYTES", str(25 * 1024 * 1024)))
@@ -209,6 +229,29 @@ async def render_execute_section(
     run_log_expander = None
     log_container = None
 
+    def _run_log_pin_title() -> str:
+        app_name = str(getattr(env, "app", "") or "project")
+        return f"Run logs: {app_name}"
+
+    def _run_log_source() -> str:
+        log_path = str(st.session_state.get("last_run_log_path") or "").strip()
+        return f"ORCHESTRATE {log_path}" if log_path else "ORCHESTRATE"
+
+    def _render_run_log_viewer(log_text: str, *, key: str) -> None:
+        render_pinnable_code_editor(
+            st,
+            code_editor,
+            RUN_LOGS_PIN_ID,
+            title=_run_log_pin_title(),
+            body=log_text,
+            key=key,
+            body_format="code",
+            language="text",
+            source=_run_log_source(),
+            empty_message="No run logs yet.",
+            info_name="Run logs",
+        )
+
     def _ensure_run_log_expander(*, expanded: bool):
         nonlocal run_log_expander, log_container
         if run_log_expander is None:
@@ -259,8 +302,22 @@ async def render_execute_section(
             st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
         with target_expander:
             log_placeholder.empty()
-            display_log(st.session_state["run_log_cache"], stderr)
+            log_body = st.session_state["run_log_cache"]
+            if str(stderr or "").strip():
+                display_log(log_body, stderr)
+            else:
+                _render_run_log_viewer(log_body, key="orchestrate_run_logs_editor")
             st.caption(f"Logs saved to {log_file_path}")
+            if render_log_actions(
+                st,
+                body=log_body,
+                download_key="orchestrate_run_logs_download",
+                file_name=f"{getattr(env, 'app', 'agilab')}_run.log",
+                clear_key="orchestrate_run_logs_clear",
+            ):
+                st.session_state["run_log_cache"] = ""
+                st.session_state["log_text"] = ""
+                st.rerun()
         st.session_state["dataframe_deleted"] = False
         return target_expander
 
@@ -283,8 +340,20 @@ async def render_execute_section(
     def _render_run_panel_controls() -> None:
         artifact_state = _current_artifact_state()
         if show_run_panel:
+            render_action_readiness(
+                st,
+                actions=(
+                    (
+                        "Run benchmark" if st.session_state.get("benchmark") else "Run",
+                        execute_state.run_action.enabled,
+                        execute_state.run_action.disabled_reason,
+                    ),
+                    ("Load output", artifact_state.load_action.enabled, artifact_state.load_action.disabled_reason),
+                    ("Export dataframe", artifact_state.export_action.enabled, artifact_state.export_action.disabled_reason),
+                ),
+            )
             run_col, load_col, delete_col = st.columns(3)
-            run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
+            run_label = "Run benchmark" if st.session_state.get("benchmark") else "Run"
             if run_col.button(
                 run_label,
                 key="run_btn",
@@ -296,7 +365,7 @@ async def render_execute_section(
                 _queue_execute_action("run")
 
             if load_col.button(
-                "LOAD dataframe",
+                "Load output",
                 key="load_data_main",
                 type="primary",
                 disabled=not artifact_state.load_action.enabled,
@@ -324,7 +393,7 @@ async def render_execute_section(
                 )
             else:
                 delete_armed_clicked = delete_col.button(
-                    "DELETE dataframe",
+                    "Delete output",
                     key="delete_data_main",
                     type="secondary",
                     disabled=not artifact_state.delete_action.enabled,
@@ -344,7 +413,7 @@ async def render_execute_section(
             undo_payload = st.session_state.get(delete_undo_key)
             if isinstance(undo_payload, dict):
                 undo_delete_clicked = st.button(
-                    "UNDO last delete dataframe",
+                    "Undo last delete",
                     key="delete_data_main_undo_btn",
                     type="secondary",
                     width="stretch",
@@ -387,7 +456,7 @@ async def render_execute_section(
                 _rerun_fragment_or_app()
 
             if st.button(
-                "EXECUTE → LOAD → EXPORT",
+                "Run -> Load -> Export",
                 key="combo_exec_load_export",
                 type="primary",
                 disabled=not execute_state.combo_action.enabled,
@@ -588,10 +657,23 @@ async def render_execute_section(
         else:
             st.error(combo_action.disabled_reason)
 
-    if show_run_panel and existing_run_log and run_log_expander is None:
+    if show_run_panel and run_log_expander is None:
         expander = _ensure_run_log_expander(expanded=False)
         with expander:
-            st.code(existing_run_log, language="python")
+            _render_run_log_viewer(
+                existing_run_log,
+                key="orchestrate_run_logs_editor_existing",
+            )
+            if render_log_actions(
+                st,
+                body=existing_run_log,
+                download_key="orchestrate_run_logs_download_existing",
+                file_name=f"{getattr(env, 'app', 'agilab')}_run.log",
+                clear_key="orchestrate_run_logs_clear_existing",
+            ):
+                st.session_state["run_log_cache"] = ""
+                st.session_state["log_text"] = ""
+                st.rerun()
 
     df_preview = st.session_state.get("loaded_df")
     graph_preview = st.session_state.get("loaded_graph")
@@ -602,6 +684,14 @@ async def render_execute_section(
             source_preview_name = Path(source_preview_path).name
         except (OSError, RuntimeError, TypeError, ValueError):
             source_preview_name = str(source_preview_path)
+
+    render_latest_outputs(
+        st,
+        source_path=source_preview_path,
+        dataframe=df_preview,
+        graph=graph_preview,
+        key_prefix=f"orchestrate:{app_state_name}",
+    )
 
     if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
         render_dataframe_preview(

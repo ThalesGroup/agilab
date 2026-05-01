@@ -68,6 +68,22 @@ _page_docs_module = import_agilab_module(
 )
 render_page_docs_access = _page_docs_module.render_page_docs_access
 
+_pinned_expander_module = import_agilab_module(
+    "agilab.pinned_expander",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+render_pinned_expanders = _pinned_expander_module.render_pinned_expanders
+
+_workflow_ui_module = import_agilab_module(
+    "agilab.workflow_ui",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+render_page_context = _workflow_ui_module.render_page_context
+
 # --- minimal session-state safety (add this block) ---
 def _pre_render_reset() -> None:
     # If last run asked for a reset, clear BEFORE widgets are created this run
@@ -390,6 +406,8 @@ def page(env: Any) -> None:
         _about_layout.render_sidebar_system_information(env)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
+    render_pinned_expanders(st)
+    render_page_context(st, page_label="ABOUT", env=env)
 
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env)

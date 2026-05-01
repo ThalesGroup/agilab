@@ -78,6 +78,23 @@ finish_pipeline_run_command = _pipeline_page_state_module.finish_pipeline_run_co
 start_pipeline_run_command = _pipeline_page_state_module.start_pipeline_run_command
 undo_pipeline_delete_command = _pipeline_page_state_module.undo_pipeline_delete_command
 
+_pinned_expander_module = import_agilab_module(
+    "agilab.pinned_expander",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+render_pinnable_code_editor = _pinned_expander_module.render_pinnable_code_editor
+
+_workflow_ui_module = import_agilab_module(
+    "agilab.workflow_ui",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+render_log_actions = _workflow_ui_module.render_log_actions
+render_latest_outputs = _workflow_ui_module.render_latest_outputs
+
 _pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
     current_file=__file__,
@@ -245,7 +262,7 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
 
         rows = _state_units_for_display(state)
         if rows:
-            st.dataframe(rows, hide_index=True, use_container_width=True)
+            st.dataframe(rows, hide_index=True, width="stretch")
         else:
             st.caption("No global DAG units are available.")
 
@@ -1759,6 +1776,12 @@ def display_lab_tab(
             load_df_cached(Path(df_source)) if df_source else None
         )
     loaded_df = st.session_state["loaded_df"]
+    render_latest_outputs(
+        st,
+        source_path=st.session_state.get("df_file"),
+        dataframe=loaded_df,
+        key_prefix=f"pipeline:{index_page_str}",
+    )
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         render_dataframe_preview(
             loaded_df,
@@ -1773,11 +1796,14 @@ def display_lab_tab(
 
     with st.expander("Run logs", expanded=True):
         log_page_state = _build_page_state()
-        clear_logs = action_button(
+        logs = list(log_page_state.run_logs)
+        log_body = "\n".join(logs)
+        clear_logs = render_log_actions(
             st,
-            "Clear logs",
-            key=f"{index_page_str}__clear_logs_global",
-            kind="clear",
+            body=log_body,
+            download_key=f"{index_page_str}__download_logs_global",
+            file_name=f"{index_page_str}_pipeline.log",
+            clear_key=f"{index_page_str}__clear_logs_global",
         )
         if clear_logs:
             result = clear_pipeline_run_logs(st.session_state, index_page_str)
@@ -1786,13 +1812,24 @@ def display_lab_tab(
             else:
                 st.warning(result.message)
             log_page_state = _build_page_state()
+            logs = list(log_page_state.run_logs)
+            log_body = "\n".join(logs)
         log_placeholder = st.empty()
         st.session_state[run_placeholder_key] = log_placeholder
-        logs = list(log_page_state.run_logs)
-        if logs:
-            log_placeholder.code("\n".join(logs))
-        else:
-            log_placeholder.caption("No runs recorded yet.")
         last_log_file = log_page_state.last_run_log_file
         if last_log_file:
             st.caption(f"Most recent run log: {last_log_file}")
+        source = f"PIPELINE {last_log_file}" if last_log_file else "PIPELINE"
+        render_pinnable_code_editor(
+            st,
+            code_editor,
+            f"pipeline_run_logs:{index_page_str}",
+            title=f"Pipeline logs: {getattr(env, 'app', None) or index_page_str}",
+            body=log_body,
+            key=f"{index_page_str}__run_logs_editor",
+            body_format="code",
+            language="text",
+            source=source,
+            empty_message="No runs recorded yet.",
+            info_name="Run logs",
+        )

@@ -259,7 +259,7 @@ def agi_file_picker(
     st.session_state[state_key] = current_selection
 
     button_label = _button_label(label, current_selection, selection_mode)
-    with target.popover(button_label, icon=":material/folder_open:", help=help, use_container_width=True):
+    with target.popover(button_label, icon=":material/folder_open:", help=help, width="stretch"):
         if len(root_labels) > 1:
             selected_root = st.pills(
                 "Root",

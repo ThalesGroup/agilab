@@ -833,6 +833,75 @@ def test_save_code_editor_file_action_writes_valid_text(tmp_path: Path):
     assert target.read_text(encoding="utf-8") == "# Demo\n"
 
 
+def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    project_root = tmp_path / "demo_project"
+    project_root.mkdir()
+    readme_text = "# Demo\n\nKeep this visible while navigating.\n"
+    readme_path = project_root / "README.md"
+    readme_path.write_text(readme_text, encoding="utf-8")
+    env = SimpleNamespace(app="demo_project", active_app=project_root)
+    calls: dict[str, object] = {}
+
+    def fake_code_editor(body, **kwargs):
+        calls["editor"] = (body, kwargs["lang"], kwargs["key"])
+        calls["buttons"] = kwargs["buttons"]
+        return {"type": module.EDITOR_PIN_RESPONSE, "text": body}
+
+    class FakeStreamlit:
+        def __init__(self):
+            self.session_state = {}
+            self.rerun_called = False
+
+        def rerun(self):
+            self.rerun_called = True
+
+    fake_st = FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "code_editor", fake_code_editor)
+    monkeypatch.setattr(module, "CUSTOM_BUTTONS", {"buttons": [{"name": "Copy"}]}, raising=False)
+    monkeypatch.setattr(module, "INFO_BAR", {"info": [{"name": ""}]}, raising=False)
+    monkeypatch.setattr(module, "comp_props", {}, raising=False)
+    monkeypatch.setattr(module, "ace_props", {}, raising=False)
+
+    module._render_readme(env)
+
+    buttons = calls["buttons"]["buttons"]
+    assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
+    pinned_buttons = module._project_editor_toolbar_buttons(
+        {"buttons": [{"name": "Copy"}]},
+        pinned=True,
+    )["buttons"]
+    assert [button["name"] for button in pinned_buttons[:2]] == ["Copy", "Unpin"]
+    assert pinned_buttons[1]["commands"][-1] == ["response", module.EDITOR_UNPIN_RESPONSE]
+    assert calls["editor"] == (readme_text, "markdown", f"{readme_path}_module-level_readme_None")
+    panel_id = module._project_editor_panel_id(readme_path, "readme")
+    panel = fake_st.session_state["agilab:pinned_expanders"][panel_id]
+    assert panel["title"] == "demo_project/README.md"
+    assert panel["body"] == readme_text
+    assert panel["body_format"] == "markdown"
+    assert panel["source"] == str(readme_path)
+    assert fake_st.rerun_called is True
+
+    toml_text = "[project]\nname = \"demo\"\n"
+    toml_path = project_root / "pyproject.toml"
+    toml_path.write_text(toml_text, encoding="utf-8")
+    calls.clear()
+
+    module.render_code_editor(toml_path, toml_text, "toml", "pyproject", {}, {})
+
+    toml_buttons = calls["buttons"]["buttons"]
+    assert [button["name"] for button in toml_buttons[:2]] == ["Copy", "Pin"]
+    assert calls["editor"] == (toml_text, "toml", f"{toml_path}_module-level_pyproject_None")
+    toml_panel_id = module._project_editor_panel_id(toml_path, "pyproject")
+    toml_panel = fake_st.session_state["agilab:pinned_expanders"][toml_panel_id]
+    assert toml_panel["title"] == "demo_project/pyproject.toml"
+    assert toml_panel["body"] == toml_text
+    assert toml_panel["body_format"] == "code"
+    assert toml_panel["language"] == "toml"
+    assert toml_panel["source"] == str(toml_path)
+
+
 def test_update_function_source_action_preserves_module_context(tmp_path: Path):
     module = _load_project_module()
     target = tmp_path / "demo.py"
