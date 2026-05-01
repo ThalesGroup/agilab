@@ -57,8 +57,13 @@ _workflow_ui = import_agilab_module(
     fallback_name="agilab_workflow_ui_fallback",
 )
 render_action_readiness = _workflow_ui.render_action_readiness
+record_action_history = _workflow_ui.record_action_history
+render_action_history = _workflow_ui.render_action_history
+render_artifact_drawer = _workflow_ui.render_artifact_drawer
 render_latest_outputs = _workflow_ui.render_latest_outputs
+render_latest_run_card = _workflow_ui.render_latest_run_card
 render_log_actions = _workflow_ui.render_log_actions
+render_workflow_timeline = _workflow_ui.render_workflow_timeline
 
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
 RUN_LOGS_PIN_ID = "orchestrate_run_logs"
@@ -315,9 +320,25 @@ async def render_execute_section(
                 file_name=f"{getattr(env, 'app', 'agilab')}_run.log",
                 clear_key="orchestrate_run_logs_clear",
             ):
+                record_action_history(
+                    st.session_state,
+                    page_label="ORCHESTRATE",
+                    env=env,
+                    title="Run logs cleared",
+                    status="info",
+                )
                 st.session_state["run_log_cache"] = ""
                 st.session_state["log_text"] = ""
                 st.rerun()
+        record_action_history(
+            st.session_state,
+            page_label="ORCHESTRATE",
+            env=env,
+            title="Run finished",
+            status="done",
+            detail=f"Logs saved to {log_file_path}",
+            artifact=log_file_path,
+        )
         st.session_state["dataframe_deleted"] = False
         return target_expander
 
@@ -671,6 +692,13 @@ async def render_execute_section(
                 file_name=f"{getattr(env, 'app', 'agilab')}_run.log",
                 clear_key="orchestrate_run_logs_clear_existing",
             ):
+                record_action_history(
+                    st.session_state,
+                    page_label="ORCHESTRATE",
+                    env=env,
+                    title="Run logs cleared",
+                    status="info",
+                )
                 st.session_state["run_log_cache"] = ""
                 st.session_state["log_text"] = ""
                 st.rerun()
@@ -685,6 +713,65 @@ async def render_execute_section(
         except (OSError, RuntimeError, TypeError, ValueError):
             source_preview_name = str(source_preview_path)
 
+    latest_log_path = st.session_state.get("last_run_log_path")
+    current_artifact_state = _current_artifact_state()
+    render_workflow_timeline(
+        st,
+        steps=(
+            {
+                "label": "Configure",
+                "state": "done" if cmd else "blocked",
+                "detail": str(project_path),
+            },
+            {
+                "label": "Run",
+                "state": "done" if latest_log_path or existing_run_log else (
+                    "ready" if execute_state.run_action.enabled else "blocked"
+                ),
+                "detail": execute_state.run_action.disabled_reason or "",
+            },
+            {
+                "label": "Load output",
+                "state": "done" if source_preview_path else (
+                    "ready" if current_artifact_state.load_action.enabled else "waiting"
+                ),
+                "detail": current_artifact_state.load_action.disabled_reason or "",
+            },
+            {
+                "label": "Export",
+                "state": "ready" if current_artifact_state.export_action.enabled else "waiting",
+                "detail": current_artifact_state.export_action.disabled_reason or "",
+            },
+        ),
+    )
+    render_latest_run_card(
+        st,
+        status="done" if latest_log_path or existing_run_log else "waiting",
+        output_path=source_preview_path,
+        log_path=latest_log_path,
+        key_prefix=f"orchestrate:{app_state_name}",
+    )
+    render_artifact_drawer(
+        st,
+        artifacts=(
+            {"label": "Loaded output", "path": source_preview_path, "kind": "output", "preview": False},
+            {"label": "Run log", "path": latest_log_path, "kind": "log"},
+            {"label": "Export target", "path": st.session_state.get("df_export_file"), "kind": "csv", "preview": False},
+            {
+                "label": "Profile report",
+                "path": st.session_state.get("profile_report_file"),
+                "kind": "html",
+                "preview": False,
+            },
+        ),
+        key_prefix=f"orchestrate:{app_state_name}",
+    )
+    render_action_history(
+        st,
+        session_state=st.session_state,
+        page_label="ORCHESTRATE",
+        env=env,
+    )
     render_latest_outputs(
         st,
         source_path=source_preview_path,
@@ -815,6 +902,15 @@ async def render_execute_section(
                     exported_df = loaded_df[st.session_state.selected_cols]
                     if save_csv(exported_df, target_path):
                         st.success(f"Dataframe exported successfully to {target_path}.")
+                        record_action_history(
+                            st.session_state,
+                            page_label="ORCHESTRATE",
+                            env=env,
+                            title="Dataframe exported",
+                            status="done",
+                            detail=f"{len(exported_df)} row(s), {len(exported_df.columns)} column(s)",
+                            artifact=target_path,
+                        )
                         st.session_state["_reset_export_checkboxes"] = True
                         st.session_state["_experiment_reload_required"] = True
 

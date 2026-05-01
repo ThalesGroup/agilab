@@ -35,15 +35,16 @@ REQUIRED_PUBLIC_STATUSES = {
     "agilab-hf-demo": "validated",
     "service-mode-operator-surface": "validated",
     "notebook-quickstart": "documented",
-    "published-package-route": "documented",
+    "published-package-route": "validated",
 }
 REQUIRED_VALIDATED_EVIDENCE = {
     "source-checkout-first-proof": ("tools/newcomer_first_proof.py", "--json", "run_manifest.json"),
     "web-ui-local-first-proof": ("streamlit run", "src/agilab/About_agilab.py"),
     "agilab-hf-demo": ("tools/hf_space_smoke.py", "--json"),
     "service-mode-operator-surface": ("tools/service_health_check.py", "health"),
+    "published-package-route": ("pip install agilab", "agilab first-proof --json"),
 }
-DOCUMENTED_BOUNDARY_IDS = {"notebook-quickstart", "published-package-route"}
+DOCUMENTED_BOUNDARY_IDS = {"notebook-quickstart"}
 
 
 def _load_run_manifest_module(repo_root: Path) -> Any:

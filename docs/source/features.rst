@@ -266,8 +266,10 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/supply_chain_attestation_report.py --compact`` in
   ``supply_chain_static_attestation`` mode against
   ``agilab.supply_chain_attestation.v1``; it fingerprints package metadata,
-  lockfile, license, bundled AGI core versions, and built-in app manifests
-  without formal supply-chain attestation claims
+  lockfile, license, bundled AGI core versions, exact internal dependency pins,
+  built-in app versions, built-in app internal dependency lower bounds, and
+  built-in app manifests plus package payload inventory without formal
+  supply-chain attestation claims
 - the repository knowledge index report validates
   ``tools/repository_knowledge_report.py --compact`` in
   ``repository_knowledge_static_index`` mode against

@@ -70,10 +70,48 @@ Current public matrix
        ``agi-core``
      - Not the recommended first proof path
    * - Published package route
+     - validated
+     - ``python -m pip install agilab`` then ``agilab first-proof --json``
+     - Clean public package install outside the source checkout, followed by
+       the packaged first-proof smoke
+     - Validates the released package, not unmerged branch contents; less
+       representative than the source-checkout first proof
+
+Platform coverage snapshot
+--------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 18 34 28
+
+   * - Platform / route
+     - Public status
+     - Evidence
+     - Limit
+   * - macOS local
+     - validated for source/web UI paths
+     - source-checkout first proof, web UI local first proof, and local
+       workflow-parity profiles
+     - not a cloud or SSH-cluster certification
+   * - Linux package
+     - validated
+     - GitHub Actions clean install: ``python -m pip install agilab`` then
+       ``agilab first-proof --json``
+     - validates the latest released package
+   * - Windows / WSL2
      - documented
-     - ``uv pip install agilab`` then ``uv run agilab``
-     - Fast packaged install for public evaluation outside the source checkout
-     - Less representative of the full source workflow than the built-in first proof
+     - installer and quick-start instructions cover WSL2 and Windows-oriented
+       paths
+     - native Windows CI remains a roadmap item
+   * - VM / SSH cluster
+     - documented with validated operator surfaces
+     - service-mode health gates, cluster-share diagnostics, and ORCHESTRATE
+       operator checks
+     - every remote topology still requires deployment-specific validation
+   * - Hugging Face Space
+     - validated
+     - ``tools/hf_space_smoke.py --json`` and the public app-tree guardrail
+     - availability depends on Hugging Face Spaces uptime
 
 How to use this matrix
 ----------------------

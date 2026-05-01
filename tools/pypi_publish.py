@@ -1949,6 +1949,9 @@ def main():
     cfg = make_cfg(args)
     upload_completed = False
     release_finalized = False
+    release_metadata_committed = False
+    release_references_updated = False
+    docs_generated = False
     release_snapshot: Dict[pathlib.Path, bytes | None] | None = None
     docs_repo_ready = False
 
@@ -2105,6 +2108,28 @@ def main():
             version_targets=version_targets,
         )
 
+        if cfg.repo == "pypi" and cfg.gen_docs:
+            generate_docs_in_docs_repository()
+            docs_generated = True
+
+        if cfg.repo == "pypi" and cfg.git_commit_version:
+            with defer_sigint("pre-upload release metadata commit") as deferred_interrupt:
+                if planned_tag is not None:
+                    update_public_release_references(planned_tag, chosen, version_targets)
+                    release_references_updated = True
+                git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
+                if should_commit_docs_repository_after_release(
+                    docs_repo_ready=docs_repo_ready,
+                    gen_docs=cfg.gen_docs,
+                    release_tag=planned_tag,
+                ):
+                    git_commit_docs_repository(chosen, push=True)
+                release_metadata_committed = True
+            if deferred_interrupt["value"]:
+                raise KeyboardInterrupt(
+                    "Interrupted after release metadata was committed before upload"
+                )
+
         # Twine
         twine_check(all_files)
         twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
@@ -2162,7 +2187,7 @@ def main():
         if cfg.purge_after:
             cleanup_leave_latest(cfg, version_targets)
 
-        if cfg.gen_docs:
+        if cfg.gen_docs and not docs_generated:
             if cfg.dry_run:
                 print("[docs] --gen-docs requested; skipping because this is a dry-run")
             else:
@@ -2172,9 +2197,10 @@ def main():
         if cfg.git_commit_version or (cfg.repo == "pypi" and cfg.git_tag):
             with defer_sigint("release metadata finalization") as deferred_interrupt:
                 tag = planned_tag if cfg.repo == "pypi" and cfg.git_tag else None
-                if tag is not None:
+                if tag is not None and not release_references_updated:
                     update_public_release_references(tag, chosen, version_targets)
-                if cfg.git_commit_version:
+                    release_references_updated = True
+                if cfg.git_commit_version and not release_metadata_committed:
                     git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
                     if should_commit_docs_repository_after_release(
                         docs_repo_ready=docs_repo_ready,

@@ -35,6 +35,47 @@ What each route is for
   Use :doc:`quick-start` if you want the recommended local run instead of a
   public demo.
 
+Three short demos
+-----------------
+
+Use these as narrow product demos. They are intentionally generic and should
+not depend on private apps or app-specific claims.
+
+**Local app proof**
+  Install the released package or use the source checkout, then run the public
+  first proof:
+
+  .. code-block:: bash
+
+     python -m pip install agilab
+     agilab first-proof --json
+
+  Stop when the command exits successfully and writes ``run_manifest.json``.
+  The same route is available in the UI by following ``PROJECT`` ->
+  ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_project``.
+
+**Distributed worker route**
+  Use the same public app, then switch ORCHESTRATE from the local path to the
+  configured worker or SSH-host path. Keep the demo bounded: prove that worker
+  packaging is staged, service health gates report status, and outputs land
+  under the normal log directory.
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python tools/service_health_check.py --format json
+
+  Stop when the health gate is explicit. This is a worker/operator demo, not a
+  certification of every possible remote topology.
+
+**MLflow tracking route**
+  Use a project with pipeline steps, enable MLflow tracking in the run
+  environment, then execute the pipeline and open ANALYSIS. The demo objective
+  is to show that AGILAB keeps setup, execution, artifacts, and visible results
+  together while MLflow remains the tracking system of record when it is used.
+
+  Stop when the pipeline artifacts and the MLflow run link point to the same
+  experiment evidence.
+
 Demo naming
 -----------
 
@@ -53,6 +94,7 @@ See also
 --------
 
 - :doc:`quick-start`
+- :doc:`architecture-five-minutes`
 - :doc:`agilab-demo`
 - :doc:`notebook-quickstart`
 - :doc:`newcomer-guide`

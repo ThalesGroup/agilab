@@ -1367,8 +1367,22 @@ def _project_editor_body_format(lang: str) -> str:
 
 
 def _project_editor_toolbar_buttons(base_buttons, *, pinned: bool):
-    buttons = json.loads(json.dumps(base_buttons or {"buttons": []}))
-    toolbar_buttons = buttons.setdefault("buttons", [])
+    try:
+        buttons_payload = json.loads(json.dumps(base_buttons or []))
+    except (TypeError, ValueError):
+        buttons_payload = []
+    if isinstance(buttons_payload, dict):
+        buttons = buttons_payload
+        toolbar_buttons = buttons.setdefault("buttons", [])
+        if not isinstance(toolbar_buttons, list):
+            toolbar_buttons = []
+            buttons["buttons"] = toolbar_buttons
+    elif isinstance(buttons_payload, list):
+        toolbar_buttons = buttons_payload
+        buttons = {"buttons": toolbar_buttons}
+    else:
+        toolbar_buttons = []
+        buttons = {"buttons": toolbar_buttons}
     response_type = EDITOR_UNPIN_RESPONSE if pinned else EDITOR_PIN_RESPONSE
     pin_button = {
         "name": "Unpin" if pinned else "Pin",

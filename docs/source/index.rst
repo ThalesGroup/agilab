@@ -29,6 +29,7 @@ references, and example projects.
    newcomer-guide
    quick-start
    newcomer-troubleshooting
+   architecture-five-minutes
    compatibility-matrix
 
 .. toctree::

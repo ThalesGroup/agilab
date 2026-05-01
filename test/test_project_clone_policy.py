@@ -859,7 +859,7 @@ def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monk
     fake_st = FakeStreamlit()
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "code_editor", fake_code_editor)
-    monkeypatch.setattr(module, "CUSTOM_BUTTONS", {"buttons": [{"name": "Copy"}]}, raising=False)
+    monkeypatch.setattr(module, "CUSTOM_BUTTONS", [{"name": "Copy"}], raising=False)
     monkeypatch.setattr(module, "INFO_BAR", {"info": [{"name": ""}]}, raising=False)
     monkeypatch.setattr(module, "comp_props", {}, raising=False)
     monkeypatch.setattr(module, "ace_props", {}, raising=False)
@@ -874,6 +874,11 @@ def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monk
     )["buttons"]
     assert [button["name"] for button in pinned_buttons[:2]] == ["Copy", "Unpin"]
     assert pinned_buttons[1]["commands"][-1] == ["response", module.EDITOR_UNPIN_RESPONSE]
+    list_buttons = module._project_editor_toolbar_buttons(
+        [{"name": "Copy"}],
+        pinned=False,
+    )["buttons"]
+    assert [button["name"] for button in list_buttons[:2]] == ["Copy", "Pin"]
     assert calls["editor"] == (readme_text, "markdown", f"{readme_path}_module-level_readme_None")
     panel_id = module._project_editor_panel_id(readme_path, "readme")
     panel = fake_st.session_state["agilab:pinned_expanders"][panel_id]

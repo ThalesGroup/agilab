@@ -92,8 +92,13 @@ _workflow_ui_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parent / "workflow_ui.py",
     fallback_name="agilab_workflow_ui_fallback",
 )
+record_action_history = _workflow_ui_module.record_action_history
+render_action_history = _workflow_ui_module.render_action_history
+render_artifact_drawer = _workflow_ui_module.render_artifact_drawer
 render_log_actions = _workflow_ui_module.render_log_actions
 render_latest_outputs = _workflow_ui_module.render_latest_outputs
+render_latest_run_card = _workflow_ui_module.render_latest_run_card
+render_workflow_timeline = _workflow_ui_module.render_workflow_timeline
 
 _pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
@@ -1730,6 +1735,15 @@ def display_lab_tab(
                         index_page=index_page_str,
                         succeeded=False,
                     )
+                    record_action_history(
+                        st.session_state,
+                        page_label="PIPELINE",
+                        env=env,
+                        title="Pipeline run failed",
+                        status="failed",
+                        detail=finish_result.message,
+                        artifact=start_result.details.get("log_file_path", ""),
+                    )
                     run_status.update(label=finish_result.message, state="error", expanded=True)
                     toast(st, finish_result.message, state="error")
                     raise
@@ -1739,6 +1753,15 @@ def display_lab_tab(
                         index_page=index_page_str,
                         succeeded=True,
                         message="Pipeline run finished. Inspect Run logs.",
+                    )
+                    record_action_history(
+                        st.session_state,
+                        page_label="PIPELINE",
+                        env=env,
+                        title="Pipeline run finished",
+                        status="done",
+                        detail=finish_result.message,
+                        artifact=start_result.details.get("log_file_path", ""),
                     )
                     run_status.update(label=finish_result.message, state="complete", expanded=False)
                     toast(st, finish_result.message, state="success")
@@ -1776,6 +1799,70 @@ def display_lab_tab(
             load_df_cached(Path(df_source)) if df_source else None
         )
     loaded_df = st.session_state["loaded_df"]
+    log_page_state = _build_page_state()
+    logs = list(log_page_state.run_logs)
+    log_body = "\n".join(logs)
+    last_log_file = log_page_state.last_run_log_file
+    last_run_status = st.session_state.get(f"{index_page_str}__last_run_status")
+    latest_status = last_run_status or ("done" if last_log_file or log_body else "waiting")
+    pipeline_artifacts: list[dict[str, Any]] = [
+        {"label": "Dataframe", "path": st.session_state.get("df_file"), "kind": "dataframe", "preview": False},
+        {"label": "Steps file", "path": steps_file, "kind": "toml", "preview": False},
+        {"label": "Run log", "path": last_log_file, "kind": "log"},
+    ]
+    for pipeline_view_path in (lab_dir / "pipeline_view.json", lab_dir / "pipeline_view.dot"):
+        if pipeline_view_path.is_file():
+            pipeline_artifacts.append(
+                {
+                    "label": pipeline_view_path.name,
+                    "path": pipeline_view_path,
+                    "kind": pipeline_view_path.suffix.lower().lstrip("."),
+                }
+            )
+
+    render_workflow_timeline(
+        st,
+        steps=(
+            {
+                "label": "Define steps",
+                "state": "done" if total_steps else "waiting",
+                "detail": f"{total_steps} step(s)",
+            },
+            {
+                "label": "Run pipeline",
+                "state": "ready" if page_state.can_run else "blocked",
+                "detail": page_state.run_disabled_reason or "",
+            },
+            {
+                "label": "Load dataframe",
+                "state": "done" if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty else "waiting",
+                "detail": st.session_state.get("df_file") or "",
+            },
+            {
+                "label": "Inspect artifacts",
+                "state": "done" if last_log_file or st.session_state.get("df_file") else "waiting",
+                "detail": last_log_file or "",
+            },
+        ),
+    )
+    render_latest_run_card(
+        st,
+        status=latest_status,
+        output_path=st.session_state.get("df_file"),
+        log_path=last_log_file,
+        key_prefix=f"pipeline:{index_page_str}",
+    )
+    render_artifact_drawer(
+        st,
+        artifacts=pipeline_artifacts,
+        key_prefix=f"pipeline:{index_page_str}",
+    )
+    render_action_history(
+        st,
+        session_state=st.session_state,
+        page_label="PIPELINE",
+        env=env,
+    )
     render_latest_outputs(
         st,
         source_path=st.session_state.get("df_file"),
@@ -1795,9 +1882,6 @@ def display_lab_tab(
         )
 
     with st.expander("Run logs", expanded=True):
-        log_page_state = _build_page_state()
-        logs = list(log_page_state.run_logs)
-        log_body = "\n".join(logs)
         clear_logs = render_log_actions(
             st,
             body=log_body,
@@ -1808,15 +1892,23 @@ def display_lab_tab(
         if clear_logs:
             result = clear_pipeline_run_logs(st.session_state, index_page_str)
             if result.ok:
+                record_action_history(
+                    st.session_state,
+                    page_label="PIPELINE",
+                    env=env,
+                    title="Pipeline logs cleared",
+                    status="info",
+                    detail=result.message,
+                )
                 toast(st, result.message, state="info")
             else:
                 st.warning(result.message)
             log_page_state = _build_page_state()
             logs = list(log_page_state.run_logs)
             log_body = "\n".join(logs)
+            last_log_file = log_page_state.last_run_log_file
         log_placeholder = st.empty()
         st.session_state[run_placeholder_key] = log_placeholder
-        last_log_file = log_page_state.last_run_log_file
         if last_log_file:
             st.caption(f"Most recent run log: {last_log_file}")
         source = f"PIPELINE {last_log_file}" if last_log_file else "PIPELINE"
