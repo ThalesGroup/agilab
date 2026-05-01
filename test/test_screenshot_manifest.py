@@ -18,6 +18,8 @@ if SOURCE_PACKAGE not in agilab.__path__:
 from agilab.screenshot_manifest import (
     SCHEMA,
     SCHEMA_VERSION,
+    build_screenshot_record,
+    image_dimensions,
     build_page_shots_manifest,
     load_screenshot_manifest,
     screenshot_manifest_path,
@@ -35,6 +37,21 @@ def _write_png(path: Path, *, width: int = 640, height: int = 360) -> None:
         + height.to_bytes(4, "big")
         + b"\x08\x02\x00\x00\x00"
         + b"\x00\x00\x00\x00"
+    )
+
+
+def _write_jpeg(path: Path, *, width: int = 320, height: int = 180) -> None:
+    path.write_bytes(
+        b"\xff\xd8"
+        + b"\xff\xe0"
+        + (16).to_bytes(2, "big")
+        + b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+        + b"\xff\xc0"
+        + (17).to_bytes(2, "big")
+        + b"\x08"
+        + height.to_bytes(2, "big")
+        + width.to_bytes(2, "big")
+        + b"\x03\x01\x11\x00\x02\x11\x00\x03\x11\x00"
     )
 
 
@@ -67,6 +84,32 @@ def test_screenshot_manifest_roundtrip_records_stable_contract(tmp_path: Path) -
     assert len(record.sha256) == 64
 
 
+def test_screenshot_manifest_records_jpeg_and_external_paths(tmp_path: Path) -> None:
+    image = tmp_path / "analysis-page.jpeg"
+    _write_jpeg(image, width=1024, height=512)
+
+    assert image_dimensions(image) == (1024, 512)
+
+    external_record = build_screenshot_record(
+        image,
+        root=tmp_path / "other-root",
+        source_command=("robot", "--capture"),
+        created_at="2026-05-01T12:00:00Z",
+        alt="analysis page",
+        url="http://127.0.0.1:8501/ANALYSIS",
+    )
+    no_root_record = build_screenshot_record(image, root=None, created_at="2026-05-01T12:00:00Z")
+
+    assert external_record.page == "analysis"
+    assert external_record.width_px == 1024
+    assert external_record.height_px == 512
+    assert external_record.image_path == str(image)
+    assert external_record.source_command == ("robot", "--capture")
+    assert external_record.alt == "analysis page"
+    assert external_record.url.endswith("/ANALYSIS")
+    assert no_root_record.image_path == str(image)
+
+
 def test_screenshot_manifest_loader_reports_contract_errors(tmp_path: Path) -> None:
     missing, reason = try_load_screenshot_manifest(tmp_path / "missing.json")
     assert missing is None
@@ -81,3 +124,27 @@ def test_screenshot_manifest_loader_reports_contract_errors(tmp_path: Path) -> N
     loaded, error = try_load_screenshot_manifest(bad)
     assert loaded is None
     assert error and "Unsupported screenshot manifest schema" in error
+
+    bad_version = tmp_path / "bad-version.json"
+    bad_version.write_text(
+        json.dumps({"schema": SCHEMA, "schema_version": "bad", "kind": "agilab.screenshot_manifest"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Unsupported screenshot manifest schema version"):
+        load_screenshot_manifest(bad_version)
+
+    future_version = tmp_path / "future-version.json"
+    future_version.write_text(
+        json.dumps({"schema": SCHEMA, "schema_version": SCHEMA_VERSION + 1, "kind": "agilab.screenshot_manifest"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Unsupported screenshot manifest schema version"):
+        load_screenshot_manifest(future_version)
+
+    bad_kind = tmp_path / "bad-kind.json"
+    bad_kind.write_text(
+        json.dumps({"schema": SCHEMA, "schema_version": SCHEMA_VERSION, "kind": "wrong"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Unsupported screenshot manifest kind"):
+        load_screenshot_manifest(bad_kind)

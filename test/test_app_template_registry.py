@@ -82,6 +82,11 @@ def test_app_template_registry_selects_configured_names_without_duplicates(tmp_p
 
     selected = registry.select(("second_app_template", "first_app_template", "second_app_template", "missing"))
 
+    assert len(registry) == 2
+    assert "FIRST_APP_TEMPLATE" in registry
+    assert "missing_app_template" not in registry
+    assert tuple(registry) == (first, second)
+    assert registry.get("missing_app_template", default="fallback") == "fallback"
     assert registry.names() == ("first_app_template", "second_app_template")
     assert tuple(template.name for template in selected) == ("second_app_template", "first_app_template")
     assert registry.as_rows()[0]["schema"] == APP_TEMPLATE_SCHEMA

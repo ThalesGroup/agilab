@@ -94,6 +94,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert [command.label for command in agi_gui_commands] == [
         "agi-gui coverage (support)",
         "agi-gui coverage (pipeline)",
+        "agi-gui coverage (robots)",
         "agi-gui coverage (pages)",
         "agi-gui coverage (views)",
         "agi-gui coverage (reports)",
@@ -107,10 +108,15 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "coverage-agi-gui.xml" in agi_gui_xml.argv
     assert "src/agilab/lib/agi-gui/test" in agi_gui_argv
     assert "test/test_about_agilab_helpers.py" in agi_gui_argv
+    assert "test/test_app_template_registry.py" in agi_gui_argv
     assert "test/test_cluster_flight_validation.py" in agi_gui_argv
     assert "test/test_cluster_lan_discovery.py" in agi_gui_argv
     assert "test/test_notebook_colab_support.py" in agi_gui_argv
     assert "test/test_workflow_ui.py" in agi_gui_argv
+    assert "test/test_agilab_web_robot.py" in agi_gui_argv
+    assert "test/test_agilab_widget_robot.py" in agi_gui_argv
+    assert "test/test_first_launch_robot.py" in agi_gui_argv
+    assert "test/test_screenshot_manifest.py" in agi_gui_argv
     assert "test/test_ui_pages.py" in agi_gui_argv
     assert "test/test_view*.py" not in agi_gui_argv
     assert "test/test_view_maps.py" in agi_gui_argv
