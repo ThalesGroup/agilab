@@ -1833,6 +1833,26 @@ def update_release_proof_references(tag: str) -> None:
         update_release_proof_references_in_source(tag, public_source)
 
 
+def update_public_docs_mirror_stamp_from_current_tree() -> None:
+    public_source = REPO_ROOT / "docs/source"
+    script = REPO_ROOT / "tools" / "sync_docs_source.py"
+    if not public_source.exists() or not script.exists():
+        return
+    run(
+        [
+            sys.executable,
+            str(script),
+            "--source",
+            str(public_source),
+            "--target",
+            str(public_source),
+            "--apply",
+            "--quiet",
+        ],
+        cwd=REPO_ROOT,
+    )
+
+
 def update_public_release_references(tag: str, chosen_version: str, package_names: list[str]) -> None:
     update_docs_index_release_link(tag)
     update_changelog_release_entry(chosen_version, tag, package_names)
@@ -1853,6 +1873,7 @@ def update_public_release_references_for_guard(
     public_source = REPO_ROOT / "docs/source"
     if public_source.exists():
         update_release_proof_references_in_source(tag, public_source)
+        update_public_docs_mirror_stamp_from_current_tree()
 
 
 def generate_docs_in_docs_repository():
