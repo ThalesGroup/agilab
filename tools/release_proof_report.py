@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 from pathlib import Path
+import re
 from string import Formatter
+import subprocess
 import textwrap
 from typing import Any, Mapping, Sequence
 import tomllib
@@ -34,6 +37,73 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if manifest.get("schema") != SCHEMA:
         raise ValueError(f"{path} must declare schema = {SCHEMA!r}")
     return manifest
+
+
+def _format_toml_scalar(value: Any) -> str:
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return str(value)
+    raise TypeError(f"unsupported TOML scalar: {type(value).__name__}")
+
+
+def _format_toml_list_item(value: Any) -> str:
+    if isinstance(value, Mapping):
+        raise TypeError("mapping values must be written as TOML tables")
+    return _format_toml_scalar(value)
+
+
+def _dump_toml_key_value(lines: list[str], key: str, value: Any) -> None:
+    if isinstance(value, list):
+        if all(not isinstance(item, Mapping) for item in value):
+            if not value:
+                lines.append(f"{key} = []")
+                return
+            lines.append(f"{key} = [")
+            for item in value:
+                lines.append(f"  {_format_toml_list_item(item)},")
+            lines.append("]")
+            return
+        raise TypeError(f"{key} must be emitted as an array table")
+    if isinstance(value, Mapping):
+        raise TypeError(f"{key} must be emitted as a table")
+    lines.append(f"{key} = {_format_toml_scalar(value)}")
+
+
+def dump_manifest(manifest: Mapping[str, Any]) -> str:
+    lines: list[str] = []
+    first_block = True
+    for key, value in manifest.items():
+        if isinstance(value, Mapping):
+            if not first_block:
+                lines.append("")
+            lines.append(f"[{key}]")
+            for child_key, child_value in value.items():
+                _dump_toml_key_value(lines, str(child_key), child_value)
+            first_block = False
+            continue
+        if isinstance(value, list) and any(isinstance(item, Mapping) for item in value):
+            for item in value:
+                if not isinstance(item, Mapping):
+                    raise TypeError(f"{key} mixes table and scalar values")
+                if not first_block:
+                    lines.append("")
+                lines.append(f"[[{key}]]")
+                for child_key, child_value in item.items():
+                    _dump_toml_key_value(lines, str(child_key), child_value)
+                first_block = False
+            continue
+        _dump_toml_key_value(lines, str(key), value)
+        first_block = False
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_manifest(path: Path, manifest: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dump_manifest(manifest), encoding="utf-8")
 
 
 def _template_context(manifest: Mapping[str, Any]) -> dict[str, Any]:
@@ -123,6 +193,7 @@ def render_release_proof(manifest: Mapping[str, Any]) -> str:
     proof_command = _required_table("proof_command", manifest)
     verification = _required_table("verification", manifest)
     scope = _required_table("scope", manifest)
+    maintenance = manifest.get("maintenance", {})
     ci_runs = _required_list("ci_runs", manifest)
     proof_bullets = _required_list("proof_bullets", manifest)
     related_pages = _required_list("related_pages", manifest)
@@ -195,6 +266,17 @@ def render_release_proof(manifest: Mapping[str, Any]) -> str:
     lines.append("")
     _append_paragraphs(lines, [verification["follow_up"]], context)
 
+    if maintenance:
+        if not isinstance(maintenance, Mapping):
+            raise TypeError("[maintenance] must be a table")
+        lines.extend(["", "Maintainer refresh", "------------------", ""])
+        _append_paragraphs(lines, [maintenance["intro"]], context)
+        _append_code_block(lines, maintenance.get("commands", []), context)
+        follow_up = maintenance.get("follow_up")
+        if follow_up:
+            lines.append("")
+            _append_paragraphs(lines, [follow_up], context)
+
     lines.extend(["", "Scope and limits", "----------------", ""])
     _append_paragraphs(lines, [scope["paragraph"]], context)
 
@@ -232,6 +314,80 @@ def _load_project_version(repo_root: Path) -> str | None:
         return None
     version = project.get("version")
     return str(version) if version is not None else None
+
+
+def _run_git(repo_root: Path, args: Sequence[str]) -> str | None:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return None
+    return completed.stdout.strip()
+
+
+def _release_tag_prefix(package_version: str) -> str | None:
+    match = re.match(r"^(\d{4}\.\d{2}\.\d{2})", package_version)
+    return match.group(1) if match else None
+
+
+def _latest_local_release_tag(repo_root: Path, package_version: str) -> str | None:
+    prefix = _release_tag_prefix(package_version)
+    if not prefix:
+        return None
+    output = _run_git(repo_root, ["tag", "--list", f"v{prefix}*", "--sort=-v:refname"])
+    if not output:
+        return None
+    return output.splitlines()[0].strip() or None
+
+
+def _github_repo_base_url(repo_root: Path) -> str | None:
+    remote = _run_git(repo_root, ["remote", "get-url", "origin"])
+    if not remote:
+        return None
+    remote = remote.strip()
+    if remote.startswith("https://github.com/"):
+        return remote.removesuffix(".git")
+    ssh_match = re.match(r"git@github\.com:(?P<repo>[^/]+/[^/]+?)(?:\.git)?$", remote)
+    if ssh_match:
+        return f"https://github.com/{ssh_match.group('repo')}"
+    return None
+
+
+def refresh_manifest_from_local(
+    manifest: Mapping[str, Any],
+    *,
+    repo_root: Path = REPO_ROOT,
+    github_release_tag: str | None = None,
+    github_release_url: str | None = None,
+    hf_space_commit: str | None = None,
+) -> dict[str, Any]:
+    refreshed = copy.deepcopy(dict(manifest))
+    release = refreshed.get("release")
+    if not isinstance(release, dict):
+        raise TypeError("[release] must be a table")
+
+    package_version = _load_project_version(repo_root) or str(release.get("package_version", ""))
+    if package_version:
+        release["package_version"] = package_version
+
+    tag = github_release_tag or _latest_local_release_tag(repo_root, package_version)
+    if tag:
+        release["github_release_tag"] = tag
+        base_url = _github_repo_base_url(repo_root)
+        release["github_release_url"] = github_release_url or (
+            f"{base_url}/releases/tag/{tag}" if base_url else str(release.get("github_release_url", ""))
+        )
+    elif github_release_url:
+        release["github_release_url"] = github_release_url
+
+    if hf_space_commit:
+        release["hf_space_commit"] = hf_space_commit
+
+    return refreshed
 
 
 def _text_contains(path: Path, expected: str) -> bool | None:
@@ -380,6 +536,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--data", type=Path, default=None, help="Override manifest path.")
     parser.add_argument("--output", type=Path, default=None, help="Override RST output path.")
+    parser.add_argument(
+        "--refresh-from-local",
+        action="store_true",
+        help=(
+            "Update the manifest from local release evidence: pyproject.toml, the matching "
+            "local git release tag, and the GitHub origin URL."
+        ),
+    )
+    parser.add_argument("--github-release-tag", default=None, help="Override refreshed GitHub release tag.")
+    parser.add_argument("--github-release-url", default=None, help="Override refreshed GitHub release URL.")
+    parser.add_argument("--hf-space-commit", default=None, help="Override refreshed Hugging Face Space commit.")
     parser.add_argument("--render", action="store_true", help="Write the rendered RST page.")
     parser.add_argument("--check", action="store_true", help="Fail if manifest checks or rendered page drift.")
     parser.add_argument("--compact", action="store_true", help="Emit compact JSON.")
@@ -394,6 +561,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     output_path = args.output or docs_source / OUTPUT_RELATIVE_PATH
 
     manifest = load_manifest(manifest_path)
+    if args.refresh_from_local:
+        manifest = refresh_manifest_from_local(
+            manifest,
+            repo_root=REPO_ROOT,
+            github_release_tag=args.github_release_tag,
+            github_release_url=args.github_release_url,
+            hf_space_commit=args.hf_space_commit,
+        )
+        write_manifest(manifest_path, manifest)
+
     rendered = render_release_proof(manifest)
     if args.render:
         output_path.parent.mkdir(parents=True, exist_ok=True)

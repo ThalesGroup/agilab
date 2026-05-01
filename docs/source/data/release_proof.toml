@@ -64,5 +64,12 @@ commands = [
 ]
 follow_up = "Use :doc:`quick-start` when you want the fuller source-checkout path with the built-in app installation and Streamlit UI."
 
+[maintenance]
+intro = "Maintainers can refresh the manifest from local release evidence, render the page, and run the same consistency checks with one command:"
+commands = [
+  "uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --refresh-from-local --render --check --compact",
+]
+follow_up = "Pass ``--github-release-tag``, ``--github-release-url``, or ``--hf-space-commit`` only when public evidence changes outside the local repository state."
+
 [scope]
 paragraph = "This evidence proves the public package smoke, hosted demo availability at the time of validation, and documented first-proof routes. It does not certify every remote cluster topology, every GPU stack, private app repositories, cloud accounts, security posture, or long-running production operations. Those areas remain environment-dependent and are tracked in :doc:`compatibility-matrix`."
