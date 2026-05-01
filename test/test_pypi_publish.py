@@ -2127,8 +2127,8 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
     def fake_run(cmd, **_kwargs):
         command_text = " ".join(str(part) for part in cmd)
         if "generate_component_coverage_badges.py" in command_text:
-            calls.append("coverage-badges")
-        elif "coverage_badge_guard.py" in command_text:
+            raise AssertionError("release guard must not regenerate coverage badges")
+        if "coverage_badge_guard.py" in command_text:
             assert "--changed-only" in cmd
             assert "--require-fresh-xml" not in cmd
             calls.append("coverage-guard")
@@ -2144,7 +2144,7 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
         version_targets=["agilab"],
     )
 
-    assert calls == ["public-demo-test", "preflight", "coverage-badges", "coverage-guard"]
+    assert calls == ["public-demo-test", "preflight", "coverage-guard"]
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:
