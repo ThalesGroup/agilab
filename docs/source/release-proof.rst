@@ -24,9 +24,13 @@ Current public release
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``bd6b51281025f7c7f4ae5e8a7f864165e8f8247e``
    * - Public guardrails
-     - `repo-guardrails run 25210998552 <https://github.com/ThalesGroup/agilab/actions/runs/25210998552>`__ passed hosted demo smoke, local-only policy, and clean package install jobs on macOS, Ubuntu, and Windows
-   * - CI maintenance confirmation
-     - `repo-guardrails run 25211182797 <https://github.com/ThalesGroup/agilab/actions/runs/25211182797>`__ passed after the artifact upload action maintenance update
+     - `repo-guardrails run 25212640933 <https://github.com/ThalesGroup/agilab/actions/runs/25212640933>`__ passed repository guardrails and clean package first-proof jobs
+   * - Docs source guard
+     - `docs-source-guard run 25212640942 <https://github.com/ThalesGroup/agilab/actions/runs/25212640942>`__ passed docs mirror and release-proof consistency checks
+   * - Docs publish
+     - `docs-publish run 25212640936 <https://github.com/ThalesGroup/agilab/actions/runs/25212640936>`__ built the public documentation from the managed docs mirror
+   * - Coverage
+     - `coverage run 25212640937 <https://github.com/ThalesGroup/agilab/actions/runs/25212640937>`__ passed component coverage and badge freshness checks
 
 What was proved
 ---------------
@@ -68,16 +72,17 @@ built-in app installation and Streamlit UI.
 Maintainer refresh
 ------------------
 
-Maintainers can refresh the manifest from local release evidence, render the
-page, and run the same consistency checks with one command:
+Maintainers can refresh the manifest from local release evidence and GitHub
+Actions evidence, render the page, and run the same consistency checks with one
+command:
 
 .. code-block:: bash
 
-   uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --refresh-from-local --render --check --compact
+   uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --refresh-from-local --refresh-from-github --render --check --check-github-runs --compact
 
-Pass ``--github-release-tag``, ``--github-release-url``, or
-``--hf-space-commit`` only when public evidence changes outside the local
-repository state.
+Pass ``--github-release-tag``, ``--github-release-url``, ``--hf-space-commit``,
+or ``--github-head-sha`` only when public evidence changes outside the default
+local repository and latest successful ``main`` workflow state.
 
 Scope and limits
 ----------------

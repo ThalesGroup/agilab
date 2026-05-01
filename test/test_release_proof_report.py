@@ -91,6 +91,122 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
     )
 
 
+def test_release_proof_refresh_from_github_updates_ci_runs(monkeypatch) -> None:
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+
+    rows = [
+        {
+            "databaseId": 101,
+            "workflowName": "repo-guardrails",
+            "headSha": "abc123",
+            "status": "completed",
+            "conclusion": "failure",
+            "url": "https://github.com/ThalesGroup/agilab/actions/runs/101",
+            "createdAt": "2026-05-01T10:00:00Z",
+            "event": "push",
+        },
+        {
+            "databaseId": 102,
+            "workflowName": "repo-guardrails",
+            "headSha": "abc123",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/ThalesGroup/agilab/actions/runs/102",
+            "createdAt": "2026-05-01T10:01:00Z",
+            "event": "push",
+        },
+        {
+            "databaseId": 103,
+            "workflowName": "docs-source-guard",
+            "headSha": "abc123",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/ThalesGroup/agilab/actions/runs/103",
+            "createdAt": "2026-05-01T10:02:00Z",
+            "event": "push",
+        },
+        {
+            "databaseId": 104,
+            "workflowName": "docs-publish",
+            "headSha": "abc123",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/ThalesGroup/agilab/actions/runs/104",
+            "createdAt": "2026-05-01T10:03:00Z",
+            "event": "push",
+        },
+        {
+            "databaseId": 105,
+            "workflowName": "coverage",
+            "headSha": "abc123",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/ThalesGroup/agilab/actions/runs/105",
+            "createdAt": "2026-05-01T10:04:00Z",
+            "event": "push",
+        },
+    ]
+
+    def fake_gh_json(args):
+        assert args[:2] == ["run", "list"]
+        assert "--branch" in args
+        return rows
+
+    monkeypatch.setattr(module, "_run_gh_json", fake_gh_json)
+
+    refreshed = module.refresh_manifest_from_github(
+        manifest,
+        github_repo="ThalesGroup/agilab",
+        github_branch="main",
+        github_head_sha="abc123",
+    )
+
+    by_workflow = {run["workflow"]: run for run in refreshed["ci_runs"]}
+    assert by_workflow["repo-guardrails"]["id"] == "release-guardrails"
+    assert by_workflow["repo-guardrails"]["run_id"] == "102"
+    assert by_workflow["docs-source-guard"]["run_id"] == "103"
+    assert by_workflow["docs-publish"]["run_id"] == "104"
+    assert by_workflow["coverage"]["run_id"] == "105"
+    assert [run["workflow"] for run in refreshed["ci_runs"]].count("repo-guardrails") == 1
+
+
+def test_release_proof_github_run_check_detects_failed_or_stale_runs(monkeypatch) -> None:
+    module = _load_module()
+
+    def fake_gh_json(args):
+        assert args[:2] == ["run", "view"]
+        return {
+            "databaseId": args[2],
+            "workflowName": "repo-guardrails",
+            "headSha": "abc123",
+            "status": "completed",
+            "conclusion": "failure",
+            "url": f"https://github.com/ThalesGroup/agilab/actions/runs/{args[2]}",
+            "createdAt": "2020-01-01T00:00:00Z",
+            "event": "push",
+        }
+
+    monkeypatch.setattr(module, "_run_gh_json", fake_gh_json)
+
+    check = module._github_ci_runs_check(
+        [
+            {
+                "workflow": "repo-guardrails",
+                "run_id": "42",
+                "url": "https://github.com/ThalesGroup/agilab/actions/runs/42",
+            }
+        ],
+        repo_root=Path.cwd(),
+        github_repo="ThalesGroup/agilab",
+        max_age_days=1,
+    )
+
+    assert check["status"] == "fail"
+    assert "not successful" in " ".join(check["details"]["failures"])
+    assert "stale" in " ".join(check["details"]["failures"])
+
+
 def test_release_proof_renderer_fails_unknown_template_key(tmp_path: Path) -> None:
     module = _load_module()
     manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
