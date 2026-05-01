@@ -1,0 +1,68 @@
+schema = "agilab.release_proof.v1"
+title = "Release Proof"
+
+intro = [
+  "This page is the public verification index for the current AGILAB release. It records install, CI, demo, and scope evidence in one place so reviewers can check the release without inferring status from scattered badges.",
+]
+
+proof_bullets = [
+  "The public GitHub Actions matrix validated the packaged first proof on Ubuntu, macOS, and Windows runners.",
+  "The hosted Hugging Face Space opened the public AGILAB demo route during the release guardrail run.",
+  "The public demo scope includes the lightweight ``flight_project`` and ``meteo_forecast_project`` routes documented in :doc:`agilab-demo`.",
+  "The release tag, PyPI package, public documentation, and hosted demo point to the same public product story: browser preview, local first proof, then source-checkout expansion.",
+]
+
+related_pages = [
+  "quick-start",
+  "demos",
+  "agilab-demo",
+  "compatibility-matrix",
+  "agilab-mlops-positioning",
+]
+
+[release]
+package_name = "agilab"
+package_version = "2026.05.01.post1"
+pypi_url = "https://pypi.org/project/agilab/"
+github_release_tag = "v2026.05.01-2"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.01-2"
+hf_space_label = "jpmorard/agilab"
+hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
+hf_space_commit = "bd6b51281025f7c7f4ae5e8a7f864165e8f8247e"
+
+[[ci_runs]]
+id = "release-guardrails"
+label = "Public guardrails"
+workflow = "repo-guardrails"
+run_id = "25210998552"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25210998552"
+summary = "passed hosted demo smoke, local-only policy, and clean package install jobs on macOS, Ubuntu, and Windows"
+
+[[ci_runs]]
+id = "ci-maintenance-guardrails"
+label = "CI maintenance confirmation"
+workflow = "repo-guardrails"
+run_id = "25211182797"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25211182797"
+summary = "passed after the artifact upload action maintenance update"
+
+[proof_command]
+summary = "A clean package install can run the public first proof:"
+commands = [
+  "python -m pip install {package_spec}",
+  "agilab first-proof --json --max-seconds 60",
+]
+
+[verification]
+intro = "Use the package route when you want to prove the released artifact rather than the current source checkout:"
+commands = [
+  "python -m venv .venv",
+  ". .venv/bin/activate",
+  "python -m pip install --upgrade pip",
+  "python -m pip install {package_spec}",
+  "agilab first-proof --json --max-seconds 60",
+]
+follow_up = "Use :doc:`quick-start` when you want the fuller source-checkout path with the built-in app installation and Streamlit UI."
+
+[scope]
+paragraph = "This evidence proves the public package smoke, hosted demo availability at the time of validation, and documented first-proof routes. It does not certify every remote cluster topology, every GPU stack, private app repositories, cloud accounts, security posture, or long-running production operations. Those areas remain environment-dependent and are tracked in :doc:`compatibility-matrix`."

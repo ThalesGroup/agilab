@@ -172,6 +172,13 @@ def test_agi_gui_coverage_includes_analysis_page_helpers() -> None:
     assert "test/test_analysis_page_helpers.py" in run_block
 
 
+def test_agi_gui_coverage_includes_support_parity_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_venv_linker.py" in run_block
+    assert "test/test_workflow_ui.py" in run_block
+
+
 def test_agi_gui_coverage_includes_report_helper_regressions() -> None:
     run_block = _agi_gui_run_block()
 

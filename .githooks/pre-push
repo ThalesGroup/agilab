@@ -17,6 +17,9 @@ uv --preview-features extra-build-dependencies run python tools/sync_docs_source
   --delete \
   --quiet \
   --skip-missing-source
+uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
+  --check \
+  --quiet
 uv --preview-features extra-build-dependencies run python tools/coverage_badge_guard.py \
   --changed-only \
   --require-fresh-xml

@@ -504,6 +504,19 @@ def _agi_cluster_profile() -> list[CommandSpec]:
 def _docs_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
+            label="release proof manifest check",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/release_proof_report.py",
+                "--check",
+                "--compact",
+            ],
+        ),
+        CommandSpec(
             label="docs sphinx build",
             argv=[
                 "uv",
