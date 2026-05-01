@@ -45,6 +45,11 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.10.7"
+
       - name: Compile critical Python entrypoints
         run: |
           set -euo pipefail
@@ -77,7 +82,7 @@ jobs:
           OPENAI_API_KEY: "sk-test-first-launch-000000000000"
         run: |
           set -euo pipefail
-          python tools/first_launch_robot.py --json --output first-launch-robot.json
+          uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json --output first-launch-robot.json
 
       - name: Validate security hygiene report
         run: |

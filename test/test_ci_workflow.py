@@ -14,8 +14,12 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "python tools/public_proof_scenarios.py --compact" in text
     assert "workflow_dispatch:" in text
     assert "schedule:" in text
+    assert "astral-sh/setup-uv@v7" in text
     assert "Validate first-launch robot" in text
-    assert "python tools/first_launch_robot.py --json --output first-launch-robot.json" in text
+    assert (
+        "uv --preview-features extra-build-dependencies run python "
+        "tools/first_launch_robot.py --json --output first-launch-robot.json"
+    ) in text
     assert "Validate security hygiene report" in text
     assert "python tools/security_hygiene_report.py --output security-hygiene.json --compact" in text
     assert "Upload local proof artifacts" in text
