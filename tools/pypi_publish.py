@@ -275,6 +275,8 @@ PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
     "CHANGELOG.md",
     "docs/.docs_source_mirror_stamp.json",
     "docs/source/index.rst",
+    "docs/source/data/release_proof.toml",
+    "docs/source/release-proof.rst",
     "test/test_public_demo_links.py",
 )
 GITHUB_RELEASE_URL_RE = re.compile(
@@ -960,6 +962,20 @@ def update_selected_badges(selected_core: List[Tuple[str, pathlib.Path, pathlib.
             touched |= update_badge(readme, UMBRELLA[0], version)
             touched |= update_static_badge(static_badge_path(UMBRELLA[0]), version)
     return touched
+
+
+def update_release_badge_for_project(
+    package_name: str,
+    toml_path: pathlib.Path,
+    project_dir: pathlib.Path,
+) -> bool:
+    if not toml_path.exists():
+        return False
+    version = get_version_from_pyproject(toml_path)
+    return update_badge(project_dir / "README.md", package_name, version) | update_static_badge(
+        static_badge_path(package_name),
+        version,
+    )
 
 
 def capture_release_file_state(paths: List[str]) -> Dict[pathlib.Path, bytes | None]:
@@ -1752,15 +1768,64 @@ def update_public_demo_release_test(tag: str) -> None:
         flags=re.MULTILINE,
     )
     if count == 0:
+        manifest_backed = (
+            'LATEST_RELEASE_URL = _release_proof_manifest()["release"]["github_release_url"]'
+            in text
+        )
+        if manifest_backed:
+            print("[release] latest release test derives from release_proof.toml")
+            return
         raise SystemExit(f"ERROR: could not update LATEST_RELEASE_URL in {path}")
     if _write_text_if_changed(path, updated):
         print(f"[release] updated latest release test constant to {tag_ref}")
+
+
+def update_release_proof_references(tag: str) -> None:
+    tag_ref = tag if tag.startswith("v") else f"v{tag}"
+    release_url = github_release_url(tag_ref)
+    script = REPO_ROOT / "tools" / "release_proof_report.py"
+    if not script.exists():
+        raise SystemExit(f"ERROR: release proof report script not found: {script}")
+
+    def refresh(docs_source: pathlib.Path) -> None:
+        run(
+            [
+                sys.executable,
+                str(script),
+                "--docs-source",
+                str(docs_source),
+                "--refresh-from-local",
+                "--github-release-tag",
+                tag_ref,
+                "--github-release-url",
+                release_url,
+                "--render",
+                "--check",
+                "--compact",
+            ],
+            cwd=REPO_ROOT,
+        )
+
+    docs_repo, source = find_docs_repository()
+    if docs_repo:
+        canonical_source = docs_repo / "docs/source"
+        manifest = canonical_source / "data/release_proof.toml"
+        if not manifest.exists():
+            raise SystemExit(f"ERROR: canonical release proof manifest not found: {manifest}")
+        refresh(canonical_source)
+        sync_docs_source_mirror(canonical_source)
+        return
+
+    public_source = REPO_ROOT / "docs/source"
+    if public_source.exists():
+        refresh(public_source)
 
 
 def update_public_release_references(tag: str, chosen_version: str, package_names: list[str]) -> None:
     update_docs_index_release_link(tag)
     update_changelog_release_entry(chosen_version, tag, package_names)
     update_public_demo_release_test(tag)
+    update_release_proof_references(tag)
 
 
 def generate_docs_in_docs_repository():
@@ -1949,10 +2014,11 @@ def main():
         assert_pypirc_has(cfg.repo)
     require_safe_pypi_release(cfg)
     run_release_preflight(cfg)
-    if cfg.gen_docs:
+    if cfg.gen_docs or (cfg.repo == "pypi" and cfg.git_tag):
         docs_repo, source = find_docs_repository()
         if docs_repo:
-            ensure_docs_repo_release_ready(docs_repo)
+            if cfg.gen_docs:
+                ensure_docs_repo_release_ready(docs_repo)
             docs_repo_ready = True
 
     # Validate explicit version if provided
@@ -2053,6 +2119,7 @@ def main():
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {toml}\n{e}")
             pin_internal_deps(toml, pins)
+            update_release_badge_for_project(name, toml, project)
             if cfg.dry_run:
                 print(f"[build] {name}: (dry-run would build {cfg.dist} artifacts for {chosen})")
                 files = []
@@ -2071,6 +2138,7 @@ def main():
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
             pin_internal_deps(umbrella_toml, pins)
+            update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
             if cfg.dry_run:
                 print(f"[build] umbrella: (dry-run would build {cfg.dist} artifacts for {chosen})")
                 root_files = []
@@ -2137,6 +2205,7 @@ def main():
             for name, toml, project in selected_core_entries:
                 set_version_in_pyproject(toml, chosen2)
                 pin_internal_deps(toml, pins2)
+                update_release_badge_for_project(name, toml, project)
                 uv_build_project(project, cfg.dist)
                 all_files2.extend(dist_files(project))
             if build_umbrella:
@@ -2145,6 +2214,7 @@ def main():
                 _, umbrella_toml, _ = UMBRELLA
                 set_version_in_pyproject(umbrella_toml, chosen2)
                 pin_internal_deps(umbrella_toml, pins2)
+                update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
                 uv_build_repo_root(cfg.dist)
                 all_files2.extend(dist_files_root())
             run_pre_upload_release_guard(
@@ -2196,7 +2266,7 @@ def main():
                     ):
                         git_commit_docs_repository(chosen, push=True)
                 if tag is not None:
-                    create_and_push_tag(tag, include_docs_repo=bool(cfg.gen_docs and docs_repo_ready))
+                    create_and_push_tag(tag, include_docs_repo=bool(docs_repo_ready))
                     create_or_update_github_release(tag, chosen, version_targets)
                     release_finalized = True
                     if cfg.delete_former_github_release:

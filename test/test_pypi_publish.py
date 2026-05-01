@@ -857,6 +857,11 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
     docs_index.write_text("docs\n", encoding="utf-8")
     docs_stamp = tmp_path / "docs" / ".docs_source_mirror_stamp.json"
     docs_stamp.write_text("{}\n", encoding="utf-8")
+    release_proof_data = tmp_path / "docs" / "source" / "data" / "release_proof.toml"
+    release_proof_data.parent.mkdir(parents=True, exist_ok=True)
+    release_proof_data.write_text("[release]\n", encoding="utf-8")
+    release_proof_page = tmp_path / "docs" / "source" / "release-proof.rst"
+    release_proof_page.write_text("Release proof\n", encoding="utf-8")
     public_demo_test = tmp_path / "test" / "test_public_demo_links.py"
     public_demo_test.parent.mkdir(parents=True)
     public_demo_test.write_text("tests\n", encoding="utf-8")
@@ -882,6 +887,8 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
         "CHANGELOG.md",
         "docs/.docs_source_mirror_stamp.json",
         "docs/source/index.rst",
+        "docs/source/data/release_proof.toml",
+        "docs/source/release-proof.rst",
         "test/test_public_demo_links.py",
     ]
 
@@ -919,6 +926,8 @@ def test_update_public_release_references_updates_docs_changelog_and_test(tmp_pa
 
     monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
     monkeypatch.setattr(module, "sync_docs_source_mirror", _fake_sync)
+    refreshed_release_proofs: list[str] = []
+    monkeypatch.setattr(module, "update_release_proof_references", refreshed_release_proofs.append)
 
     module.update_public_release_references(
         "2026.04.24",
@@ -934,6 +943,52 @@ def test_update_public_release_references_updates_docs_changelog_and_test(tmp_pa
     assert "Published AGILAB `2026.4.27` to PyPI for `agilab`, `agi-core`, and `agi-env`." in changelog_text
     assert f"[2026.4.27]: {release_url}" in changelog_text
     assert 'LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.04.24"' in public_test.read_text(encoding="utf-8")
+    assert refreshed_release_proofs == ["2026.04.24"]
+
+
+def test_update_public_demo_release_test_skips_manifest_backed_constant(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    public_test = tmp_path / "test" / "test_public_demo_links.py"
+    public_test.parent.mkdir(parents=True)
+    text = (
+        'RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"\n'
+        'LATEST_RELEASE_URL = _release_proof_manifest()["release"]["github_release_url"]\n'
+    )
+    public_test.write_text(text, encoding="utf-8")
+
+    module.update_public_demo_release_test("2026.04.24")
+
+    assert public_test.read_text(encoding="utf-8") == text
+
+
+def test_update_release_proof_references_refreshes_canonical_docs_and_syncs(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    script = tmp_path / "tools" / "release_proof_report.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("print('ok')\n", encoding="utf-8")
+    docs_repo = tmp_path / "thales_agilab"
+    canonical_source = docs_repo / "docs" / "source"
+    manifest = canonical_source / "data" / "release_proof.toml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text("[release]\n", encoding="utf-8")
+    commands: list[list[str]] = []
+    synced: list[Path] = []
+    monkeypatch.setattr(module, "find_docs_repository", lambda: (docs_repo, "default"))
+    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, **_kwargs: commands.append([str(part) for part in cmd]))
+    monkeypatch.setattr(module, "sync_docs_source_mirror", synced.append)
+
+    module.update_release_proof_references("2026.04.24")
+
+    assert synced == [canonical_source]
+    command = commands[0]
+    assert "--docs-source" in command
+    assert str(canonical_source) in command
+    assert "--github-release-tag" in command
+    assert "v2026.04.24" in command
+    assert "--github-release-url" in command
+    assert "https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.24" in command
 
 
 def test_update_docs_index_release_link_requires_canonical_docs_repo(tmp_path, monkeypatch) -> None:
@@ -1494,6 +1549,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "next_free_post_for_all", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not auto-post for pypi")))
+    monkeypatch.setattr(module, "update_release_proof_references", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "git_reset_pyprojects", lambda: order.append("reset"))
 
