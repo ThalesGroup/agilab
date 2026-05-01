@@ -90,7 +90,7 @@ jobs:
           python tools/security_hygiene_report.py --output security-hygiene.json --compact
 
       - name: Upload local proof artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: local-proof-artifacts
@@ -146,7 +146,7 @@ jobs:
           PY
 
       - name: Upload first-proof artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: first-proof-${{ matrix.os }}
@@ -179,7 +179,7 @@ jobs:
             --compact
 
       - name: Upload hosted proof artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: hosted-proof-artifacts
