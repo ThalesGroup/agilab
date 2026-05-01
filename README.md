@@ -138,6 +138,13 @@ Plotly/matplotlib visualizations:
 uv pip install "agilab[ai,viz]"
 ```
 
+## Packaging notes
+
+setup.py is intentionally kept alongside pyproject.toml. Dask requires packages 
+to be distributed to workers in .egg format; setup.py is the build entry point that 
+produces those eggs. pyproject.toml remains the canonical source for PyPI publishing, 
+dependency resolution, and uv-based workflows.
+
 ## App Repository Updates
 
 When `APPS_REPOSITORY` points at an external apps repository, rerun the

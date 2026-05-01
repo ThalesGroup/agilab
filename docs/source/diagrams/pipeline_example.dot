@@ -10,7 +10,7 @@ digraph PipelineExample {
   Sim [label="Simulation\n(link + demand models)", fillcolor="#c7f9cc", color="#15803d"];
   Learned [label="Learned decision engine\n(ML / RL)", fillcolor="#fde68a", color="#ca8a04"];
   Opt [label="Optimization baseline\n(ILP / MILP)", fillcolor="#fde68a", color="#ca8a04"];
-  View [label="Visualization + KPIs\n(maps / charts)", fillcolor="#fbcfe8", color="#be185d"];
+  View [label="Visualisation + KPIs\n(maps / charts)", fillcolor="#fbcfe8", color="#be185d"];
 
   TrajFlight -> Sim;
   TrajSat -> Sim;

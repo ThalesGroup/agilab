@@ -192,6 +192,6 @@ See also
 - :doc:`agilab-help` for the overall page sequence.
 - :doc:`distributed-workers` for the full distributed workflow from ORCHESTRATE configuration to imported Pipeline step.
 - :doc:`execute-help` for generating reliable snippets before running a step.
-- :doc:`apps-pages` for analysis-side visualizations after a successful run.
+- :doc:`apps-pages` for analysis-side visualisations after a successful run.
 - :doc:`roadmap/versioned-pipeline-steps` for the proposed structured successor
   to raw generated snippets in ``lab_steps.toml``.

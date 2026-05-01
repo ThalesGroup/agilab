@@ -1,19 +1,10 @@
-AGILAB in the MLOps Toolchain
+AGILab in the MLOps Toolchain
 =============================
 
-AGILAB is a reproducible AI/ML experimentation workbench for engineering
-teams. It bridges notebook experimentation and reproducible AI applications:
-controlled environments, local or distributed execution, and visible
-evidence. This page explains how AGILAB fits alongside the broader MLOps
-landscape.
-
-Positioning summary
--------------------
-
-- **AGILAB** owns execution and reproducibility.
-- **MLflow** owns tracking, artifacts, and model registry memory.
-- **AGILAB** is not a replacement for production MLOps platforms, model
-  serving, or enterprise governance.
+AGILab focuses on the early experimentation phase of AI projects—roughly
+Technology Readiness Level 3 (TRL‑3), where teams validate concepts, explore
+algorithms, and collaborate on data preparation. This page explains how AGILab
+fits alongside the broader MLOps landscape.
 
 This page is about positioning, not the detailed feature list or the roadmap.
 
@@ -25,13 +16,13 @@ This page is about positioning, not the detailed feature list or the roadmap.
 Executive review summary
 ------------------------
 
-AGILAB is best evaluated as a bridge between notebook experimentation and
-reproducible AI applications, not as a production MLOps replacement. Its
-practical value is keeping project setup, environment management, execution,
-and result analysis on one coherent path.
+AGILab is best evaluated as an AI/ML experimentation workbench, not as
+a production MLOps replacement. Its practical value is keeping project
+setup, environment management, execution, and result analysis on one
+coherent path.
 
 For research teams, engineering labs, and prototype-heavy AI workflows,
-AGILAB is worth evaluating when fragmented notebooks, scripts,
+AGILab is worth evaluating when fragmented notebooks, scripts,
 environments, and dashboards are slowing iteration. For production model
 serving, enterprise governance and audit, online monitoring, drift
 detection, or large-scale operational deployment, it should still be
@@ -41,23 +32,23 @@ stack.
 MLflow strategy
 ---------------
 
-AGILAB should not be positioned as an alternative experiment tracker, a second
+AGILab should not be positioned as an alternative experiment tracker, a second
 model registry, or a replacement run format. MLflow remains the system of
 record for runs, parameters, metrics, artifacts, models, and registry state.
-AGILAB adds the industrial execution context around that record: managed
+AGILab adds the industrial execution context around that record: managed
 environments, worker packaging, distributed execution, project structure,
 dataset and artifact paths, and reproducibility metadata.
 
 The intended split is simple:
 
-- **AGILAB owns execution**: environments, workers, clusters, packaging,
+- **AGILab owns execution**: environments, workers, clusters, packaging,
   reproducibility, and operator workflows.
 - **MLflow owns memory**: tracking, artifacts, model registry, versions, and
   deployment aliases.
 
-In code, AGILAB uses a small tracker facade such as
+In code, AGILab uses a small tracker facade such as
 ``tracker.log_metric(...)`` and ``tracker.log_artifact(...)``. The default
-backend is MLflow, so normal AGILAB execution can track automatically without
+backend is MLflow, so normal AGILab execution can track automatically without
 asking users to hand-write MLflow boilerplate in every snippet or worker.
 
 Best fit and limits
@@ -87,13 +78,13 @@ Best fit and limits
      - Weak fit; keep compliance, audit, and retraining policy in the
        production governance stack.
    * - Large-scale cloud-native MLOps
-     - Weak to moderate fit; AGILAB can help before handoff, not replace the
+     - Weak to moderate fit; AGILab can help before handoff, not replace the
        full platform.
 
 Research experimentation evidence
 ---------------------------------
 
-AGILAB's research experimentation value is strongest when teams need to turn
+AGILab's research experimentation value is strongest when teams need to turn
 interactive exploration into a replayable, inspectable workflow:
 
 - ``lab_steps.toml`` records experiment steps, prompts, selected model, runtime,
@@ -131,7 +122,7 @@ interactive exploration into a replayable, inspectable workflow:
   for every non-template built-in app while preserving legacy path fallbacks
 - MLflow tracking records one parent run and nested runs for executed steps
 - the notebook-migration example shows how exploratory notebooks become reusable
-  AGILAB projects with stable artifacts and analysis views
+  AGILab projects with stable artifacts and analysis views
 - the initial first-class reduce contract in ``agi_node`` defines partial
   inputs, reducer merge semantics, and a standard reduce artefact schema
 - ``execution_pandas_project`` and ``execution_polars_project`` emit named
@@ -161,7 +152,7 @@ outputs.
 Engineering prototyping evidence
 --------------------------------
 
-AGILAB's engineering prototyping value is strongest when a team needs to move
+AGILab's engineering prototyping value is strongest when a team needs to move
 from a working idea to an app-shaped prototype without losing the experiment
 history:
 
@@ -261,7 +252,7 @@ merge outputs appear.
 Production readiness evidence
 -----------------------------
 
-AGILAB's production-readiness story is strongest when it is judged as a
+AGILab's production-readiness story is strongest when it is judged as a
 controlled pilot and handoff workbench, not as a production MLOps platform:
 
 - release preflight tooling and workflow-parity profiles give maintainers local
@@ -287,14 +278,14 @@ controlled pilot and handoff workbench, not as a production MLOps platform:
   deployment hardening checklist
 
 That supports a ``Production readiness`` score of ``3.0 / 5``. It is not scored
-higher because AGILAB still does not provide production model serving, feature
+higher because AGILab still does not provide production model serving, feature
 stores, online monitoring, drift detection, enterprise governance, or broad
 remote-topology certification.
 
 Strategic potential evidence
 ----------------------------
 
-AGILAB's strategic potential is strongest where teams need a repeatable bridge
+AGILab's strategic potential is strongest where teams need a repeatable bridge
 between research experiments and engineering validation:
 
 - a clear TRL‑3 experimentation focus instead of an overclaimed production MLOps
@@ -363,7 +354,7 @@ Together, the current public category scores round to an overall public
 evaluation of ``3.8 / 5``. This is a compact experimentation-workbench snapshot,
 not a production MLOps certification.
 
-Where AGILAB helps
+Where AGILab helps
 ------------------
 
 - **Rapid experimentation**: one workspace for selecting a project, running it,
@@ -371,24 +362,24 @@ Where AGILAB helps
 - **Managed execution without heavy platform setup**: local and distributed
   execution stay accessible to small teams before they commit to a larger
   platform stack.
-- **Application-oriented workflows**: AGILAB is stronger when the problem is an
+- **Application-oriented workflows**: AGILab is stronger when the problem is an
   end-to-end engineering workflow, not only a scheduler or a pipeline library.
 - **Lower operational overhead during experimentation**: useful work can happen
   before a team invests in production-serving, governance, or platform-heavy
   tooling.
 - **Controlled pilot handoff**: release preflight checks, compatibility
   evidence, service health gates, and promotion-decision exports make it easier
-  to decide when an experiment is ready to leave AGILAB for a hardened
+  to decide when an experiment is ready to leave AGILab for a hardened
   production stack.
 
-What AGILAB does *not* aim to cover
+What AGILab does *not* aim to cover
 -----------------------------------
 
 - **Production deployment** (TRL‑6+): model serving, CI/CD, feature stores,
   online monitoring, or model drift detection belong to the deployment-focused
   side of MLOps (tools such as Kubeflow, MLflow Serving, Sagemaker, etc.).
 - **Enterprise governance**: compliance workflows, audit trails, or retraining
-  policies are intentionally out of scope. AGILAB’s strength is rapid iteration
+  policies are intentionally out of scope. AGILab’s strength is rapid iteration
   before promoting assets to hardened pipelines.
 
 Positioning vs. other tools
@@ -399,14 +390,14 @@ Positioning vs. other tools
    :header-rows: 1
 
    * - Phase
-     - AGILAB focus
+     - AGILab focus
      - Examples of complementary tools
    * - Ideation / TRL‑2
      - Not covered (use notebooks, small prototypes)
      - Whiteboards, notebooks, lightweight sandboxes
    * - Experimentation / TRL‑3
      - **Primary target** – templated projects, cluster automation
-     - AGILAB + data catalogues + experiment trackers
+     - AGILab + data catalogues + experiment trackers
    * - Validation / TRL‑4
      - Hand off to deployment-stack as soon as requirements stabilise
      - MLflow, Weights & Biases, Seldon, Kubeflow
@@ -420,7 +411,7 @@ Framework comparison
 The comparison below stays deliberately practical and avoids a wide table so it
 renders cleanly on narrower viewports.
 
-.. rubric:: AGILAB
+.. rubric:: AGILab
 
 - **Primary centre of gravity**: integrated experimentation and execution
   workspace spanning managed environments, distributed workers, pipeline
@@ -439,7 +430,7 @@ renders cleanly on narrower viewports.
   modular pipelines, a data catalog, hooks, runners, and Kedro-Viz.
 - **Best fit**: teams that want a structured Python project for reproducible
   pipelines and plan to plug orchestration and infrastructure in around it.
-- **Positioning note**: AGILAB is less about a pipeline framework in isolation
+- **Positioning note**: AGILab is less about a pipeline framework in isolation
   and more about a single operator-facing workspace: install, distribute, run,
   pipeline replay, MLflow-traced execution, and analysis in one product.
 
@@ -449,7 +440,7 @@ renders cleanly on narrower viewports.
   lineage, observability, automation, and testing.
 - **Best fit**: data platform teams treating orchestration and asset health as
   the backbone of the platform.
-- **Positioning note**: AGILAB is earlier-phase and more experiment-centric. It
+- **Positioning note**: AGILab is earlier-phase and more experiment-centric. It
   provides managed runtimes, domain apps, and researcher/operator workflows
   rather than a full asset-orchestration control plane.
 
@@ -459,7 +450,7 @@ renders cleanly on narrower viewports.
   deployments, and dynamic execution patterns.
 - **Best fit**: teams that want orchestration logic to stay close to normal
   Python code with lightweight deployment options.
-- **Positioning note**: AGILAB wraps more of the surrounding lifecycle directly
+- **Positioning note**: AGILab wraps more of the surrounding lifecycle directly
   in the product: environment bootstrapping, worker packaging, distribution
   planning, service mode, and analysis pages.
 
@@ -470,7 +461,7 @@ renders cleanly on narrower viewports.
   deployments.
 - **Best fit**: data science teams that want a unified Python API across local,
   scaled, and production-style execution.
-- **Positioning note**: AGILAB is more UI- and operations-oriented. It
+- **Positioning note**: AGILab is more UI- and operations-oriented. It
   emphasizes guided orchestration, explicit app packaging, and shared operator
   flows over a single Python library abstraction.
 
@@ -483,7 +474,7 @@ renders cleanly on narrower viewports.
 - **Positioning note**: modern Airflow already supports dynamic task mapping
   and dynamic DAG generation, so it remains stronger when the core need is
   task-level orchestration semantics inside a scheduler-first platform.
-  AGILAB can express dynamic behavior inside generated or custom Python steps,
+  AGILab can express dynamic behavior inside generated or custom Python steps,
   but it does not yet expose the same kind of first-class runtime pipeline-step
   expansion in **PIPELINE**. Its strength is elsewhere: experiment packaging,
   managed execution environments, distributed research workloads, and
@@ -492,7 +483,7 @@ renders cleanly on narrower viewports.
 Selection guide
 ---------------
 
-- Choose **AGILAB** when you want one environment to cover setup, execution,
+- Choose **AGILab** when you want one environment to cover setup, execution,
   service health, pipeline replay, and analysis for engineering or research
   applications.
 - Choose **Kedro** when the main need is a clean, code-first pipeline project
@@ -508,8 +499,8 @@ Selection guide
   scheduler-level dynamic task expansion rather than an experimentation
   workbench.
 
-In practice, AGILAB often complements these tools rather than replacing them:
-teams can use AGILAB during the experimentation and validation phase, then hand
+In practice, AGILab often complements these tools rather than replacing them:
+teams can use AGILab during the experimentation and validation phase, then hand
 off stabilized assets to a broader orchestration or production platform.
 
 Suggested workflow
@@ -517,8 +508,8 @@ Suggested workflow
 
 This is a handoff sketch, not a roadmap.
 
-1. Use AGILAB to prototype algorithms, reuse app templates, and validate data
-   processing. Capture execution history through AGILAB run logs and
+1. Use AGILab to prototype algorithms, reuse app templates, and validate data
+   processing. Capture execution history through AGILab run logs and
    MLflow-backed tracking runs.
 2. Once an approach stabilises, prepare the project artefacts for your target
    environment and integrate it with your organisation’s deployment toolchain
@@ -526,7 +517,7 @@ This is a handoff sketch, not a roadmap.
    uses ``tools/run_configs`` and ``src/agilab/apps/<app>``; in packaged
    installs, use the generated app package artifacts available from your installer.
 3. Track long-running metrics and governance artifacts using your preferred
-   MLOps platform; AGILAB does not replace those systems.
+   MLOps platform; AGILab does not replace those systems.
 
 See also
 --------
