@@ -40,6 +40,12 @@ PACKAGE_PAYLOAD_AUDIT_SUFFIXES = {
     ".pyx",
     ".toml",
 }
+PACKAGE_PAYLOAD_BUDGETS = {
+    "max_files": 80,
+    "max_bytes": 3 * 1024 * 1024,
+    "max_archives": 2,
+    "max_notebooks": 1,
+}
 IGNORED_PAYLOAD_PATH_PARTS = {
     ".egg-info",
     ".venv",
@@ -264,6 +270,31 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
     app_pyprojects = _app_pyproject_rows(repo_root)
     package_data_patterns = _package_data_patterns(repo_root)
     builtin_payload_files = _builtin_payload_rows(repo_root)
+    builtin_payload_bytes = sum(
+        int(row.get("bytes", 0)) for row in builtin_payload_files
+    )
+    builtin_archive_file_count = sum(
+        1 for row in builtin_payload_files if row.get("suffix") == ".7z"
+    )
+    builtin_notebook_file_count = sum(
+        1 for row in builtin_payload_files if row.get("suffix") == ".ipynb"
+    )
+    builtin_payload_budget = {
+        "file_count": len(builtin_payload_files),
+        "max_files": PACKAGE_PAYLOAD_BUDGETS["max_files"],
+        "bytes": builtin_payload_bytes,
+        "max_bytes": PACKAGE_PAYLOAD_BUDGETS["max_bytes"],
+        "archive_count": builtin_archive_file_count,
+        "max_archives": PACKAGE_PAYLOAD_BUDGETS["max_archives"],
+        "notebook_count": builtin_notebook_file_count,
+        "max_notebooks": PACKAGE_PAYLOAD_BUDGETS["max_notebooks"],
+    }
+    builtin_payload_within_budget = (
+        builtin_payload_budget["file_count"] <= builtin_payload_budget["max_files"]
+        and builtin_payload_budget["bytes"] <= builtin_payload_budget["max_bytes"]
+        and builtin_payload_budget["archive_count"] <= builtin_payload_budget["max_archives"]
+        and builtin_payload_budget["notebook_count"] <= builtin_payload_budget["max_notebooks"]
+    )
     largest_builtin_payload_files = sorted(
         builtin_payload_files,
         key=lambda row: int(row.get("bytes", 0)),
@@ -380,6 +411,14 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
                 ),
             }
         )
+    if not builtin_payload_within_budget:
+        issues.append(
+            {
+                "level": "error",
+                "location": "package_payload.budget",
+                "message": "built-in app payload inventory exceeds the public package budget",
+            }
+        )
     return {
         "schema": SCHEMA,
         "run_id": "supply-chain-attestation-proof",
@@ -419,18 +458,14 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
             "package_data_pattern_count": len(package_data_patterns),
             "package_data_patterns": package_data_patterns,
             "builtin_payload_file_count": len(builtin_payload_files),
-            "builtin_payload_bytes": sum(
-                int(row.get("bytes", 0)) for row in builtin_payload_files
-            ),
+            "builtin_payload_bytes": builtin_payload_bytes,
+            "builtin_payload_budget": builtin_payload_budget,
+            "builtin_payload_within_budget": builtin_payload_within_budget,
             "builtin_payload_extension_counts": _suffix_counts(
                 builtin_payload_files
             ),
-            "builtin_archive_file_count": sum(
-                1 for row in builtin_payload_files if row.get("suffix") == ".7z"
-            ),
-            "builtin_notebook_file_count": sum(
-                1 for row in builtin_payload_files if row.get("suffix") == ".ipynb"
-            ),
+            "builtin_archive_file_count": builtin_archive_file_count,
+            "builtin_notebook_file_count": builtin_notebook_file_count,
             "largest_builtin_payload_files": largest_builtin_payload_files,
             "aligned_builtin_app_versions": aligned_builtin_app_versions,
             "mismatched_builtin_app_version_count": len(

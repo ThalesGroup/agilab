@@ -43,6 +43,10 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
     assert report["summary"]["package_data_pattern_count"] >= 1
     assert report["summary"]["builtin_payload_file_count"] >= 1
     assert report["summary"]["builtin_payload_bytes"] >= 1
+    assert report["summary"]["builtin_payload_within_budget"] is True
+    budget = report["summary"]["builtin_payload_budget"]
+    assert budget["file_count"] <= budget["max_files"]
+    assert budget["bytes"] <= budget["max_bytes"]
     assert report["summary"]["builtin_archive_file_count"] >= 0
     assert report["summary"]["builtin_notebook_file_count"] >= 0
     assert ".toml" in report["summary"]["builtin_payload_extension_counts"]
@@ -62,6 +66,7 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
         "supply_chain_attestation_app_manifests",
         "supply_chain_attestation_builtin_app_alignment",
         "supply_chain_attestation_payload_inventory",
+        "supply_chain_attestation_payload_budget",
         "supply_chain_attestation_no_execution",
         "supply_chain_attestation_persistence",
         "supply_chain_attestation_docs_reference",
@@ -86,6 +91,10 @@ def test_supply_chain_attestation_records_core_and_app_manifests() -> None:
     assert state["summary"]["package_data_pattern_count"] >= 1
     assert state["summary"]["builtin_payload_file_count"] >= 1
     assert state["summary"]["builtin_payload_bytes"] >= 1
+    assert state["summary"]["builtin_payload_within_budget"] is True
+    budget = state["summary"]["builtin_payload_budget"]
+    assert budget["file_count"] <= budget["max_files"]
+    assert budget["bytes"] <= budget["max_bytes"]
     assert state["summary"]["builtin_payload_extension_counts"][".toml"] >= 1
     assert state["summary"]["builtin_archive_file_count"] >= 0
     assert state["summary"]["builtin_notebook_file_count"] >= 0

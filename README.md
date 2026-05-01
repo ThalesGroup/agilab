@@ -99,14 +99,15 @@ mkdir ~/agi-workspace && cd ~/agi-workspace
 uv venv
 source .venv/bin/activate
 uv pip install agilab
-agilab first-proof --json
+agilab first-proof --json --max-seconds 60
 uv run agilab
 ```
 
-Use `agilab first-proof --json` for a quick package-level check. For the most
-representative full product run, prefer the source-checkout `flight_project`
-path above because it exercises the same app installation, execution, and
-analysis flow documented in the web UI.
+Use `agilab first-proof --json --max-seconds 60` for a quick package-level
+check. The clean-install CI matrix enforces that runtime budget on Linux and
+macOS. For the most representative full product run, prefer the source-checkout
+`flight_project` path above because it exercises the same app installation,
+execution, and analysis flow documented in the web UI.
 
 Optional feature stacks stay out of the base package install. Add
 `agilab[ai]` for AI assistant features such as OpenAI, Mistral, and
@@ -153,6 +154,7 @@ tools/reduce_contract_benchmark.py --json
 tools/revision_traceability_report.py --compact
 tools/public_certification_profile_report.py --compact
 tools/supply_chain_attestation_report.py --compact
+tools/public_proof_scenarios.py --compact
 tools/repository_knowledge_report.py --compact
 tools/run_diff_evidence_report.py --compact
 tools/ci_artifact_harvest_report.py --compact

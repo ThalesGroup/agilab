@@ -41,6 +41,12 @@ Three short demos
 Use these as narrow product demos. They are intentionally generic and should
 not depend on private apps or app-specific claims.
 
+The static scenario contract is available as JSON:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
+
 **Local app proof**
   Install the released package or use the source checkout, then run the public
   first proof:
@@ -48,7 +54,7 @@ not depend on private apps or app-specific claims.
   .. code-block:: bash
 
      python -m pip install agilab
-     agilab first-proof --json
+     agilab first-proof --json --max-seconds 60
 
   Stop when the command exits successfully and writes ``run_manifest.json``.
   The same route is available in the UI by following ``PROJECT`` ->
