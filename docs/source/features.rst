@@ -270,12 +270,26 @@ single notebook but less ceremony than a production MLOps platform:
   built-in app versions, built-in app internal dependency lower bounds, and
   built-in app manifests plus package payload inventory and package payload
   budgets without formal supply-chain attestation claims
+- the security hygiene report validates
+  ``tools/security_hygiene_report.py --compact`` in
+  ``agilab.security_hygiene.v1`` mode; it checks the public security policy,
+  lockfile presence, optional AI dependency boundary, static supply-chain proof
+  tools, and documented ``pip-audit`` plus CycloneDX SBOM command contracts
+  while treating scan artifacts as optional operator-provided evidence
 - the public proof scenario report validates
   ``tools/public_proof_scenarios.py --compact`` in
   ``agilab.public_proof_scenarios.v1`` mode; it records the three bounded
   public proof routes: ``flight_project`` local first proof,
   ``meteo_forecast_project`` hosted forecast proof, and the MLflow tracking
-  contract
+  contract, and can attach runtime JSON from
+  ``--first-proof-json`` and ``--hf-smoke-json`` artifacts when CI or a release
+  run provides them
+- the first-launch robot validates
+  ``tools/first_launch_robot.py --json`` in
+  ``agilab.first_launch_robot.v1`` mode; it uses Streamlit ``AppTest`` to prove
+  the first page renders without exceptions, initializes ``AgiEnv``, exposes
+  the first-proof action, shows the project-to-results workflow, and keeps a
+  visible documentation action
 - the repository knowledge index report validates
   ``tools/repository_knowledge_report.py --compact`` in
   ``repository_knowledge_static_index`` mode against

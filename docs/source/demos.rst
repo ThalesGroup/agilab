@@ -46,6 +46,7 @@ The static scenario contract is available as JSON:
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
+   uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json --output public-proof-scenarios.json
 
 **Local app proof**
   Install the released package or use the source checkout, then run the public

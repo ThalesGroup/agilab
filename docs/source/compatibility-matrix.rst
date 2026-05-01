@@ -28,6 +28,8 @@ commands with:
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --manifest ~/log/execute/flight/run_manifest.json --compact
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --artifact-index artifact_index.json --compact
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
+   uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json
+   uv --preview-features extra-build-dependencies run python tools/security_hygiene_report.py --compact
 
 Current public matrix
 ---------------------
@@ -106,10 +108,11 @@ Platform coverage snapshot
      - validates the latest released package on the macOS runner, not every
        local Homebrew/PyCharm setup
    * - Windows / WSL2
-     - documented
-     - installer and quick-start instructions cover WSL2 and Windows-oriented
-       paths
-     - native Windows CI remains a roadmap item
+     - validated for the clean package smoke; documented for WSL2/source flows
+     - GitHub Actions clean install on ``windows-latest`` plus installer and
+       quick-start instructions for WSL2 and Windows-oriented paths
+     - validates the released package smoke on the GitHub runner, not every
+       local Windows shell, GPU, or SSH setup
    * - VM / SSH cluster
      - documented with validated operator surfaces
      - service-mode health gates, cluster-share diagnostics, and ORCHESTRATE
@@ -149,6 +152,9 @@ README summary alone. For normal maintenance, use the compact checks first:
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/supply_chain_attestation_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
+   uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json --output public-proof-scenarios.json
+   uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json --output first-launch-robot.json
+   uv --preview-features extra-build-dependencies run python tools/security_hygiene_report.py --output security-hygiene.json --compact
    uv --preview-features extra-build-dependencies run python tools/repository_knowledge_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/run_diff_evidence_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/ci_artifact_harvest_report.py --compact
