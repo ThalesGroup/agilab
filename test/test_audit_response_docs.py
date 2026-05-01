@@ -25,13 +25,17 @@ def test_compatibility_matrix_promotes_clean_package_install_evidence() -> None:
 
     assert 'id = "published-package-route"' in matrix
     assert 'status = "validated"' in matrix
+    assert 'platforms = ["Linux CI", "macOS CI"]' in matrix
     assert "python -m pip install agilab && agilab first-proof --json" in matrix
+    assert "60-second first-proof runtime budget" in matrix
     assert "Platform coverage snapshot" in docs
     assert "macOS local" in docs
     assert "Linux package" in docs
+    assert "macOS package" in docs
     assert "Windows / WSL2" in docs
     assert "VM / SSH cluster" in docs
     assert "Hugging Face Space" in docs
+    assert "tools/public_proof_scenarios.py --compact" in docs
 
 
 def test_demo_page_keeps_three_generic_demo_routes() -> None:
@@ -42,6 +46,8 @@ def test_demo_page_keeps_three_generic_demo_routes() -> None:
     assert "Distributed worker route" in demos
     assert "MLflow tracking route" in demos
     assert "python -m pip install agilab" in demos
+    assert "tools/public_proof_scenarios.py --compact" in demos
+    assert "agilab first-proof --json --max-seconds 60" in demos
     assert "tools/service_health_check.py --format json" in demos
 
 

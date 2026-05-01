@@ -51,6 +51,7 @@ jobs:
             src/agilab/orchestrate_execute.py \
             src/agilab/pipeline_openai.py \
             tools/newcomer_first_proof.py \
+            tools/public_proof_scenarios.py \
             tools/pypi_publish.py
 
       - name: Validate first-proof command contract
@@ -60,13 +61,23 @@ jobs:
           set -euo pipefail
           python src/agilab/first_proof_cli.py --print-only --json
 
+      - name: Validate public proof scenarios
+        run: |
+          set -euo pipefail
+          python tools/public_proof_scenarios.py --compact
+
       - name: Confirm extended test policy
         run: |
           echo "GitHub Actions CI runs repository guardrails plus a minimal first-proof command contract."
           echo "Run local workflow parity profiles before push for full test coverage."
 
   clean-public-install:
-    runs-on: ubuntu-latest
+    name: clean-public-install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -85,4 +96,16 @@ jobs:
           OPENAI_API_KEY: "sk-test-first-proof-000000000000"
         run: |
           set -euo pipefail
-          agilab first-proof --json
+          agilab first-proof --json --no-manifest --max-seconds 60 | tee first-proof.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          proof = json.loads(Path("first-proof.json").read_text(encoding="utf-8"))
+          if not proof.get("success"):
+              raise SystemExit("first-proof command failed")
+          if not proof.get("within_target"):
+              total = proof.get("total_duration_seconds")
+              target = proof.get("target_seconds")
+              raise SystemExit(f"first-proof exceeded runtime budget: {total}s > {target}s")
+          PY

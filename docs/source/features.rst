@@ -268,8 +268,14 @@ single notebook but less ceremony than a production MLOps platform:
   ``agilab.supply_chain_attestation.v1``; it fingerprints package metadata,
   lockfile, license, bundled AGI core versions, exact internal dependency pins,
   built-in app versions, built-in app internal dependency lower bounds, and
-  built-in app manifests plus package payload inventory without formal
-  supply-chain attestation claims
+  built-in app manifests plus package payload inventory and package payload
+  budgets without formal supply-chain attestation claims
+- the public proof scenario report validates
+  ``tools/public_proof_scenarios.py --compact`` in
+  ``agilab.public_proof_scenarios.v1`` mode; it records the three bounded
+  public proof routes: ``flight_project`` local first proof,
+  ``meteo_forecast_project`` hosted forecast proof, and the MLflow tracking
+  contract
 - the repository knowledge index report validates
   ``tools/repository_knowledge_report.py --compact`` in
   ``repository_knowledge_static_index`` mode against

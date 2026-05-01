@@ -27,6 +27,7 @@ commands with:
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --manifest ~/log/execute/flight/run_manifest.json --compact
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --artifact-index artifact_index.json --compact
+   uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
 
 Current public matrix
 ---------------------
@@ -71,7 +72,7 @@ Current public matrix
      - Not the recommended first proof path
    * - Published package route
      - validated
-     - ``python -m pip install agilab`` then ``agilab first-proof --json``
+     - ``python -m pip install agilab`` then ``agilab first-proof --json --max-seconds 60``
      - Clean public package install outside the source checkout, followed by
        the packaged first-proof smoke
      - Validates the released package, not unmerged branch contents; less
@@ -96,8 +97,14 @@ Platform coverage snapshot
    * - Linux package
      - validated
      - GitHub Actions clean install: ``python -m pip install agilab`` then
-       ``agilab first-proof --json``
+       ``agilab first-proof --json --max-seconds 60``
      - validates the latest released package
+   * - macOS package
+     - validated
+     - GitHub Actions clean install: ``python -m pip install agilab`` then
+       ``agilab first-proof --json --max-seconds 60``
+     - validates the latest released package on the macOS runner, not every
+       local Homebrew/PyCharm setup
    * - Windows / WSL2
      - documented
      - installer and quick-start instructions cover WSL2 and Windows-oriented
@@ -141,6 +148,7 @@ README summary alone. For normal maintenance, use the compact checks first:
    uv --preview-features extra-build-dependencies run python tools/agilab_web_robot.py --target-url https://jpmorard-agilab.hf.space
    uv --preview-features extra-build-dependencies run python tools/production_readiness_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/supply_chain_attestation_report.py --compact
+   uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
    uv --preview-features extra-build-dependencies run python tools/repository_knowledge_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/run_diff_evidence_report.py --compact
    uv --preview-features extra-build-dependencies run python tools/ci_artifact_harvest_report.py --compact

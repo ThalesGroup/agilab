@@ -64,6 +64,7 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "agilab.supply_chain_attestation.v1",
         "supply_chain_static_attestation",
         "package payload inventory",
+        "budgets without formal",
     ]
     doc_path = repo_root / DOC_RELATIVE_PATH
     try:
@@ -249,6 +250,18 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             },
         ),
         _check_result(
+            "supply_chain_attestation_payload_budget",
+            "Supply-chain attestation payload budget",
+            summary.get("builtin_payload_within_budget") is True,
+            (
+                "built-in app package payload stays within the public wheel budget"
+                if summary.get("builtin_payload_within_budget") is True
+                else "built-in app package payload exceeds the public wheel budget"
+            ),
+            evidence=["pyproject.toml", "src/agilab/apps/builtin"],
+            details={"budget": summary.get("builtin_payload_budget", {})},
+        ),
+        _check_result(
             "supply_chain_attestation_no_execution",
             "Supply-chain attestation no execution",
             summary.get("command_execution_count") == 0
@@ -310,6 +323,10 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "package_data_pattern_count": summary.get("package_data_pattern_count"),
             "builtin_payload_file_count": summary.get("builtin_payload_file_count"),
             "builtin_payload_bytes": summary.get("builtin_payload_bytes"),
+            "builtin_payload_budget": summary.get("builtin_payload_budget"),
+            "builtin_payload_within_budget": summary.get(
+                "builtin_payload_within_budget"
+            ),
             "builtin_payload_extension_counts": summary.get(
                 "builtin_payload_extension_counts"
             ),
