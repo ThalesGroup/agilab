@@ -24,11 +24,17 @@ The migrated AGILAB shape is illustrated by:
 - ``examples/notebook_migrations/skforecast_meteo_fr/analysis_artifacts/forecast_metrics.json``
 - ``examples/notebook_migrations/skforecast_meteo_fr/analysis_artifacts/forecast_predictions.csv``
 
+The same migration material is mirrored under
+``src/agilab/examples/notebook_migrations/skforecast_meteo_fr`` so packaged
+installs include the notebooks, sample data, exported artifacts, lab steps, and
+pipeline view instead of only the runnable app scripts.
+
 The repo now also ships the same idea as a real built-in project:
 
 - ``src/agilab/apps/builtin/meteo_forecast_project``
 - ``src/agilab/apps/builtin/meteo_forecast_project/lab_steps.toml``
 - ``src/agilab/apps/builtin/meteo_forecast_project/pipeline_view.dot``
+- ``src/agilab/apps/builtin/meteo_forecast_project/notebook_import_views.toml``
 
 Why migrate
 -----------
@@ -75,6 +81,8 @@ What it adds beyond the pilot folder:
 - seeded local sample data for the first run
 - stable artifacts exported to ``~/export/meteo_forecast/forecast_analysis``
 - a default ``ANALYSIS`` page selection through ``view_forecast_analysis``
+- app-owned notebook import view declarations for ``view_forecast_analysis``
+  and ``view_release_decision``
 
 ANALYSIS page
 -------------

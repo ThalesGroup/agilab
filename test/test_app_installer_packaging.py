@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import py_compile
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -10,6 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "src/agilab/apps/install.py"
+BUILTIN_APPS_ROOT = ROOT / "src/agilab/apps/builtin"
+APP_TEMPLATES_ROOT = ROOT / "src/agilab/apps/templates"
 EXAMPLES_ROOT = ROOT / "src/agilab/examples"
 EXAMPLE_APPS = {
     "data_io_2026": ("AGI_install_data_io_2026.py", "AGI_run_data_io_2026.py"),
@@ -27,6 +30,30 @@ EXAMPLE_PREVIEWS = {
     ),
     "service_mode": ("preview_service_mode.py", "sample_health_running.json"),
 }
+APP_SOURCE_SUFFIXES = {
+    ".7z",
+    ".csv",
+    ".dot",
+    ".ipynb",
+    ".json",
+    ".md",
+    ".py",
+    ".toml",
+    ".txt",
+}
+APP_GENERATED_NAMES = {".coverage", ".DS_Store", "uv.lock"}
+APP_GENERATED_DIRS = {
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "Modules",
+    "agilab",
+    "build",
+    "dist",
+}
+APP_GENERATED_SUFFIXES = {".c", ".pyc", ".pyo", ".pyx", ".so"}
 
 
 def _expected_script_paths() -> list[Path]:
@@ -48,6 +75,76 @@ def _load_installer(monkeypatch, tmp_path: Path):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _builtin_app_dirs() -> list[Path]:
+    return sorted(path for path in BUILTIN_APPS_ROOT.glob("*_project") if path.is_dir())
+
+
+def _packaged_app_dirs() -> list[Path]:
+    return [
+        *_builtin_app_dirs(),
+        *sorted(path for path in APP_TEMPLATES_ROOT.glob("*_template") if path.is_dir()),
+    ]
+
+
+def _git_paths(*args: str) -> set[str]:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    return {line for line in result.stdout.splitlines() if line}
+
+
+def _is_source_like_app_file(app_dir: Path, path: Path) -> bool:
+    rel_parts = path.relative_to(app_dir).parts
+    if path.name in APP_GENERATED_NAMES:
+        return False
+    if path.suffix in APP_GENERATED_SUFFIXES:
+        return False
+    if any(part in APP_GENERATED_DIRS or part.endswith(".egg-info") for part in rel_parts):
+        return False
+    return path.name == ".gitignore" or path.suffix in APP_SOURCE_SUFFIXES
+
+
+def test_packaged_apps_include_required_project_assets() -> None:
+    missing: list[str] = []
+    for app_dir in _packaged_app_dirs():
+        for rel_path in (
+            "README.md",
+            "pyproject.toml",
+            "src/app_args_form.py",
+            "src/app_settings.toml",
+            "src/pre_prompt.json",
+        ):
+            candidate = app_dir / rel_path
+            if not candidate.is_file():
+                missing.append(candidate.relative_to(ROOT).as_posix())
+
+    assert not missing, "Missing packaged app project assets:\n" + "\n".join(missing)
+
+
+def test_packaged_app_source_assets_are_tracked_or_git_visible() -> None:
+    tracked = _git_paths("ls-files")
+    visible_untracked = _git_paths("ls-files", "--others", "--exclude-standard")
+    git_visible = tracked | visible_untracked
+
+    hidden_or_untracked: list[str] = []
+    for app_dir in _packaged_app_dirs():
+        for path in sorted(candidate for candidate in app_dir.rglob("*") if candidate.is_file()):
+            if not _is_source_like_app_file(app_dir, path):
+                continue
+            rel_path = path.relative_to(ROOT).as_posix()
+            if rel_path not in git_visible:
+                hidden_or_untracked.append(rel_path)
+
+    assert not hidden_or_untracked, (
+        "Packaged app source assets are hidden by .gitignore or unavailable to git:\n"
+        + "\n".join(hidden_or_untracked)
+    )
 
 
 def test_seed_example_scripts_uses_packaged_examples_dir(tmp_path: Path, monkeypatch) -> None:
@@ -190,8 +287,24 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/notebook_to_dask/*.json" in package_data
     assert "examples/notebook_to_dask/*.toml" in package_data
     assert "examples/notebook_to_dask/*.ipynb" in package_data
+    assert "examples/notebook_migrations/*/README.md" in package_data
+    assert "examples/notebook_migrations/*/analysis_artifacts/*.csv" in package_data
+    assert "examples/notebook_migrations/*/analysis_artifacts/*.json" in package_data
+    assert "examples/notebook_migrations/*/data/*.csv" in package_data
+    assert "examples/notebook_migrations/*/migrated_project/*.dot" in package_data
+    assert "examples/notebook_migrations/*/migrated_project/*.toml" in package_data
+    assert "examples/notebook_migrations/*/notebooks/*.ipynb" in package_data
     assert "examples/service_mode/*.py" in package_data
     assert "examples/service_mode/*.json" in package_data
+
+
+def test_packaged_builtin_app_prompt_seeds_are_included_as_package_data() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+    excluded_data = pyproject["tool"]["setuptools"]["exclude-package-data"]["agilab"]
+
+    assert "apps/builtin/*/src/*.json" in package_data
+    assert "apps/builtin/*/src/pre_prompt.json" not in excluded_data
 
 
 def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path) -> None:

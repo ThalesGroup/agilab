@@ -7,7 +7,6 @@ import sys
 from pathlib import Path
 import tomllib
 
-
 README = Path("README.md")
 PYPI_README = Path("README.pypi.md")
 AGI_CORE_README = Path("src/agilab/core/agi-core/README.md")
@@ -36,6 +35,8 @@ COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
 COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
 RELEASE_PROOF_MANIFEST = Path("docs/source/data/release_proof.toml")
 DOCS_SOURCE = Path("docs/source")
+METEO_NOTEBOOK_MIGRATION = Path("examples/notebook_migrations/skforecast_meteo_fr")
+PACKAGED_METEO_NOTEBOOK_MIGRATION = Path("src/agilab/examples/notebook_migrations/skforecast_meteo_fr")
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
 PUBLIC_HF_SPACE_BADGE = "https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge"
 AGI_CORE_NOTEBOOK_URL = "https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"
@@ -45,6 +46,7 @@ QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 CURRENT_RELEASE_VERSION = "2026.04.29.post3"
 KPI_BUNDLE_TOOL = Path("tools/kpi_evidence_bundle.py").resolve()
+NOTEBOOK_PIPELINE_IMPORT = Path("src/agilab/notebook_pipeline_import.py").resolve()
 
 
 @lru_cache(maxsize=1)
@@ -61,6 +63,19 @@ def _load_kpi_module():
     spec = importlib.util.spec_from_file_location(
         "kpi_evidence_bundle_for_public_demo_links_test",
         KPI_BUNDLE_TOOL,
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@lru_cache(maxsize=1)
+def _load_notebook_pipeline_import_module():
+    spec = importlib.util.spec_from_file_location(
+        "notebook_pipeline_import_for_public_demo_links_test",
+        NOTEBOOK_PIPELINE_IMPORT,
     )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
@@ -106,6 +121,8 @@ def test_pypi_readme_uses_same_public_demo_entry_points() -> None:
     assert AGI_CORE_NOTEBOOK_BADGE in readme
     assert "flight_project" in readme
     assert "uav_relay_queue_project" in readme
+    assert "Advanced Proof Pack" in readme
+    assert "advanced-proof-pack.html" in readme
     assert "demo request" not in readme.lower()
     assert "issues/new" not in readme
 
@@ -170,13 +187,17 @@ def test_docs_sidebar_exposes_both_public_demo_lanes() -> None:
     use_sidebar_block = index.split(":caption: Use", 1)[1].split(":caption: Build", 1)[0]
 
     assert "AGILAB Demo <agilab-demo>" in index
+    assert "Advanced Proof Pack <advanced-proof-pack>" in index
     assert "notebook-quickstart" in index
     assert "AGILAB Demo <agilab-demo>" in use_sidebar_block
+    assert "Advanced Proof Pack <advanced-proof-pack>" in use_sidebar_block
     assert "notebook-quickstart" in use_sidebar_block
     assert use_sidebar_block.index("AGILAB Demo <agilab-demo>") < use_sidebar_block.index("notebook-quickstart")
     assert ":doc:`agilab-demo`" in demos
+    assert ":doc:`advanced-proof-pack`" in demos
     assert ":doc:`notebook-quickstart`" in demos
     assert "sidebar-visible counterpart" in agilab_demo
+    assert ":doc:`advanced-proof-pack`" in agilab_demo
 
 
 def test_public_demo_docs_define_flight_and_meteo_routes() -> None:
@@ -189,6 +210,9 @@ def test_public_demo_docs_define_flight_and_meteo_routes() -> None:
     assert "``view_maps``" in demos
     assert "``view_forecast_analysis``" in demos
     assert "``view_release_decision``" in demos
+    assert "notebook-migration-skforecast-meteo" in demos
+    assert "Notebook migration route" in demos
+    assert "Four short demos" in demos
     assert "``uav_relay_queue_project`` is the UAV Relay Queue RL demo" in demos
 
     for phrase in (
@@ -197,9 +221,128 @@ def test_public_demo_docs_define_flight_and_meteo_routes() -> None:
         "open ``ANALYSIS`` and finish on the ``view_maps`` operator view",
         "switch to ``meteo_forecast_project``",
         "open ``view_forecast_analysis`` or ``view_release_decision``",
+        "use :doc:`notebook-migration-skforecast-meteo` as the companion walkthrough",
         "``ANALYSIS`` opens the ``view_maps`` and ``view_forecast_analysis`` routes without a startup error",
     ):
         assert phrase in normalized_agilab_demo
+
+
+def test_advanced_proof_pack_surfaces_deeper_public_routes() -> None:
+    advanced = Path("docs/source/advanced-proof-pack.rst").read_text(encoding="utf-8")
+    demos = Path("docs/source/demos.rst").read_text(encoding="utf-8")
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    advanced_url = "https://thalesgroup.github.io/agilab/advanced-proof-pack.html"
+
+    for text in (advanced, demos):
+        for marker in (
+            "``data_io_2026_project``",
+            "``execution_pandas_project``",
+            "``execution_polars_project``",
+            "``uav_relay_queue_project``",
+            "``inter_project_dag``",
+            "``service_mode``",
+            ":doc:`data-connectors`",
+            ":doc:`release-proof`",
+        ):
+            assert marker in text
+
+    assert "Advanced Proof Pack" in demos
+    assert "advanced--proof-pack" in demos
+    assert "kernel-only benchmark" in advanced
+    assert "default hosted demo" in advanced
+    assert "Polars already manages native internal parallelism" in advanced
+    assert "[Advanced Proof Pack]" in readme
+    assert advanced_url in readme
+    assert "Advanced Proof Pack" in pypi_readme
+    assert advanced_url in pypi_readme
+
+
+def test_readme_surfaces_notebook_migration_as_demo_route() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    demo_url = "https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html"
+
+    assert demo_url in readme
+    assert "Notebook Migration Demo" in readme
+    assert "`meteo_forecast_project` notebook-migration demo" in readme
+    assert "Understand notebook-to-app migration" in readme
+    assert "Notebook Migration Demo" in pypi_readme
+    assert "`meteo_forecast_project` notebook-migration demo" in pypi_readme
+
+
+def test_meteo_notebook_migration_assets_are_complete_and_packaged() -> None:
+    required_files = (
+        "README.md",
+        "notebooks/01_prepare_meteo_series.ipynb",
+        "notebooks/02_backtest_temperature_forecast.ipynb",
+        "notebooks/03_compare_predictions.ipynb",
+        "data/meteo_fr_daily_sample.csv",
+        "migrated_project/lab_steps.toml",
+        "migrated_project/pipeline_view.dot",
+        "analysis_artifacts/forecast_metrics.json",
+        "analysis_artifacts/forecast_predictions.csv",
+    )
+
+    for relative_path in required_files:
+        source = METEO_NOTEBOOK_MIGRATION / relative_path
+        packaged = PACKAGED_METEO_NOTEBOOK_MIGRATION / relative_path
+        assert source.is_file(), f"Missing repository meteo migration asset: {source}"
+        assert packaged.is_file(), f"Missing packaged meteo migration asset: {packaged}"
+        assert (
+            packaged.read_bytes() == source.read_bytes()
+        ), f"Packaged meteo migration asset drifted: {packaged}"
+
+    package_data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"][
+        "package-data"
+    ]["agilab"]
+    for pattern in (
+        "examples/notebook_migrations/*/notebooks/*.ipynb",
+        "examples/notebook_migrations/*/analysis_artifacts/*.json",
+        "examples/notebook_migrations/*/analysis_artifacts/*.csv",
+        "examples/notebook_migrations/*/migrated_project/*.toml",
+        "examples/notebook_migrations/*/migrated_project/*.dot",
+    ):
+        assert pattern in package_data
+
+
+def test_meteo_forecast_project_declares_notebook_import_views() -> None:
+    manifest_path = Path("src/agilab/apps/builtin/meteo_forecast_project/notebook_import_views.toml")
+    manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    view_modules = {view["module"] for view in manifest["views"]}
+    notebook_pipeline_import = _load_notebook_pipeline_import_module()
+
+    assert manifest["schema"] == "agilab.notebook_import_views.v1"
+    assert manifest["app"] == "meteo_forecast_project"
+    assert {"view_forecast_analysis", "view_release_decision"} <= view_modules
+    for module in view_modules:
+        assert Path(f"src/agilab/apps-pages/{module}").is_dir(), module
+
+    view_plan = notebook_pipeline_import.build_notebook_import_view_plan(
+        {
+            "source": {
+                "source_notebook": (
+                    "examples/notebook_migrations/skforecast_meteo_fr/notebooks/"
+                    "03_compare_predictions.ipynb"
+                )
+            }
+        },
+        preflight={
+            "artifact_contract": {
+                "outputs": [
+                    "analysis_artifacts/forecast_metrics.json",
+                    "analysis_artifacts/forecast_predictions.csv",
+                ],
+            },
+        },
+        module_name="meteo_forecast_project",
+        manifest=notebook_pipeline_import.load_notebook_import_view_manifest(manifest_path),
+        manifest_path=manifest_path,
+    )
+    ready_modules = {view["module"] for view in view_plan["matched_views"]}
+
+    assert view_plan["status"] == "matched"
+    assert "view_forecast_analysis" in ready_modules
 
 
 def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:

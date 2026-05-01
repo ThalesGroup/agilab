@@ -43,6 +43,7 @@ references, and example projects.
    features
    data-connectors
    AGILAB Demo <agilab-demo>
+   Advanced Proof Pack <advanced-proof-pack>
    notebook-quickstart
    notebook-advanced
    agilab

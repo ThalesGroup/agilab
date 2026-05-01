@@ -23,14 +23,20 @@ one coherent path before hardened assets move to deployment-focused systems.
 [![agi-core notebook](https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
 
 The public AGILAB Space is the fastest browser preview. It opens the lightweight
-`flight_project` path by default; advanced scenarios such as
-`uav_relay_queue_project` are documented in the demo guide.
+`flight_project` path by default and also exposes the
+`meteo_forecast_project` notebook-migration demo with forecast analysis views.
+Advanced scenarios such as `data_io_2026_project`,
+`execution_pandas_project`, `execution_polars_project`, and
+`uav_relay_queue_project` are collected in the Advanced Proof Pack:
+https://thalesgroup.github.io/agilab/advanced-proof-pack.html
 
 ## Choose Your Path
 
 | If you want to... | Start here | Stop when... |
 |---|---|---|
 | Preview before installing | AGILAB Space | The hosted UI opens the `flight_project` path. |
+| Understand notebook-to-app migration | Notebook Migration Demo | The notebooks, `lab_steps.toml`, `pipeline_view.dot`, artifacts, and `meteo_forecast_project` analysis view line up. |
+| Evaluate deeper packaged proofs | Advanced Proof Pack | Mission decisions, execution-model benchmarks, UAV queue analysis, service health, connector reports, and release evidence are visible as separate routes. |
 | Prove the local product flow | Source-checkout first run | `agilab first-proof --json` exits 0 and reports `"success": true`. |
 | Check the package entry point | Published package install | `agilab` starts from a clean package install. |
 | Update external apps | App repository installer path | Installed apps resolve to the repository copy. |

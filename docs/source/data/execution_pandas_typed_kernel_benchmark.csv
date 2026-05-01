@@ -1,0 +1,3 @@
+runtime,median_seconds,min_seconds,max_seconds,rows_per_second,speedup_vs_python,checksum
+python,0.620132,0.603714,0.620513,161256,1.00,157347.169221
+cython,0.002023,0.002015,0.002073,49431537,306.54,157347.169221

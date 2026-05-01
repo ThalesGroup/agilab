@@ -20,6 +20,14 @@ Choose a demo
    :target: https://huggingface.co/spaces/jpmorard/agilab
    :alt: AGILAB demo
 
+.. image:: https://img.shields.io/badge/notebook--migration-demo-7C3AED?style=for-the-badge
+   :target: https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html
+   :alt: notebook migration demo
+
+.. image:: https://img.shields.io/badge/advanced--proof-pack-B45309?style=for-the-badge
+   :target: https://thalesgroup.github.io/agilab/advanced-proof-pack.html
+   :alt: advanced proof pack
+
 What each route is for
 ----------------------
 
@@ -31,12 +39,22 @@ What each route is for
   ``view_release_decision``.
 - **agi-core demo**: notebook-first runtime path. Use this if you want the
   smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the web UI.
+- **Notebook migration demo**: use :doc:`notebook-migration-skforecast-meteo`
+  when you want the notebook-to-AGILAB story: source notebooks, migrated
+  ``lab_steps.toml``, ``pipeline_view.dot``, exported forecast artifacts, and
+  the hosted ``meteo_forecast_project`` analysis route.
+- **Advanced Proof Pack**: use :doc:`advanced-proof-pack` after the first demo
+  when you want the deeper packaged proof routes: ``data_io_2026_project``,
+  ``execution_pandas_project`` / ``execution_polars_project``, UAV queue
+  analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
+  ``inter_project_dag`` previews, :doc:`data-connectors`, and
+  :doc:`release-proof`.
 - **Quick start**: the safest truthful first proof of the full product path.
   Use :doc:`quick-start` if you want the recommended local run instead of a
   public demo.
 
-Three short demos
------------------
+Four short demos
+----------------
 
 Use these as narrow product demos. They are intentionally generic and should
 not depend on private apps or app-specific claims.
@@ -83,6 +101,19 @@ The static scenario contract is available as JSON:
   Stop when the pipeline artifacts and the MLflow run link point to the same
   experiment evidence.
 
+**Notebook migration route**
+  Use the packaged migration example when the demo objective is notebook
+  consolidation rather than execution speed:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/notebook_to_dask/preview_notebook_to_dask.py --output /tmp/notebook_to_dask_preview.json
+
+  Then open :doc:`notebook-migration-skforecast-meteo` or switch the hosted UI
+  to ``meteo_forecast_project`` and open ``view_forecast_analysis``. Stop when
+  the notebook source, migrated pipeline shape, exported artifacts, and reusable
+  analysis view are visible together.
+
 Demo naming
 -----------
 
@@ -92,10 +123,14 @@ Keep the two public AGILAB demo lanes separate:
   data-generation path used to prove the core UI and local execution flow
   quickly.
 - ``meteo_forecast_project`` is the second hosted demo. It is a lightweight
-  notebook-migration path with forecast artifacts and release-decision views.
+  notebook-migration path with source notebooks, forecast artifacts, and
+  release-decision views.
 - ``uav_relay_queue_project`` is the UAV Relay Queue RL demo. It is the
   advanced domain scenario and should not be described as the default hosted
   app.
+- ``data_io_2026_project`` and the execution playground apps are advanced proof
+  routes. They are public built-in demos, but they should not replace
+  ``flight_project`` as the default hosted/newcomer app.
 
 See also
 --------
@@ -105,5 +140,7 @@ See also
 - :doc:`architecture-five-minutes`
 - :doc:`agilab-demo`
 - :doc:`notebook-quickstart`
+- :doc:`notebook-migration-skforecast-meteo`
+- :doc:`advanced-proof-pack`
 - :doc:`newcomer-guide`
 - :doc:`compatibility-matrix`

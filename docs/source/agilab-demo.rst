@@ -15,6 +15,7 @@ Open the public Hugging Face Space:
    :alt: AGILAB demo
 
 - `Open AGILAB Space <https://huggingface.co/spaces/jpmorard/agilab>`_
+- `Open the notebook migration walkthrough <https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html>`_
 
 What will happen
 ----------------
@@ -28,10 +29,28 @@ The hosted demo publishes two lightweight built-in paths:
 - switch to ``meteo_forecast_project`` to inspect the notebook-migration style
   workflow, then open ``view_forecast_analysis`` or ``view_release_decision``
   from ``ANALYSIS``
+- use :doc:`notebook-migration-skforecast-meteo` as the companion walkthrough
+  when you want to show the source notebooks, migrated ``lab_steps.toml``,
+  ``pipeline_view.dot``, and exported artifacts behind that hosted app
 
 This is a public preview route. It is not a replacement for the local
 :doc:`quick-start` proof when you need to validate your own machine,
 environment, or app repository.
+
+After the hosted first proof
+----------------------------
+
+Use :doc:`advanced-proof-pack` when the first proof is complete and you want to
+show the deeper built-in assets without making the newcomer route longer:
+
+- ``data_io_2026_project`` for a deterministic mission-decision workflow.
+- ``execution_pandas_project`` and ``execution_polars_project`` for
+  execution-model benchmarking, including the Cython typed-kernel proof.
+- ``uav_relay_queue_project`` for queue analysis, topology, trajectories, and
+  ``view_maps_network``.
+- ``service_mode`` and data connector reports for operator and integration
+  evidence.
+- :doc:`release-proof` for the trust close-out.
 
 What success looks like
 -----------------------
@@ -49,4 +68,6 @@ Related pages
 - :doc:`demos` for the public demo chooser.
 - :doc:`quick-start` for the recommended local first proof.
 - :doc:`notebook-quickstart` for the ``agi-core`` notebook demo.
+- :doc:`notebook-migration-skforecast-meteo` for the notebook-to-AGILAB demo.
+- :doc:`advanced-proof-pack` for deeper packaged proof routes.
 - :doc:`compatibility-matrix` for the validation status of public routes.

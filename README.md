@@ -54,14 +54,20 @@ AGILAB is best evaluated as an AI/ML experimentation workbench, not as a replace
 </p>
 
 The public AGILAB Space is the fastest browser preview. It opens the lightweight
-`flight_project` path by default; advanced scenarios such as
-`uav_relay_queue_project` are documented in the demo guide.
+`flight_project` path by default and also exposes the
+`meteo_forecast_project` notebook-migration demo with forecast analysis views.
+Advanced scenarios such as `data_io_2026_project`,
+`execution_pandas_project`, `execution_polars_project`, and
+`uav_relay_queue_project` are collected in the
+[Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
 
 ## Choose Your Path
 
 | If you want to... | Start here | Stop when... |
 |---|---|---|
 | Preview before installing | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | The hosted UI opens the `flight_project` path. |
+| Understand notebook-to-app migration | [Notebook Migration Demo](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html) | The notebooks, `lab_steps.toml`, `pipeline_view.dot`, artifacts, and `meteo_forecast_project` analysis view line up. |
+| Evaluate deeper packaged proofs | [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html) | Mission decisions, execution-model benchmarks, UAV queue analysis, service health, connector reports, and release evidence are visible as separate routes. |
 | Prove the local product flow | [First Run](#first-run) | `agilab first-proof --json` exits 0 and reports `"success": true`. |
 | Check the package entry point | [Published Package](#published-package) | `agilab` starts from a clean package install. |
 | Audit the current release | [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html) | PyPI, GitHub release, CI guardrails, and hosted demo evidence line up. |
