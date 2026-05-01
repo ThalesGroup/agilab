@@ -1347,10 +1347,16 @@ class ContentRenamer(ast.NodeTransformer):
 # -------------------- Code Editor Display -------------------- #
 
 
-def _project_editor_panel_id(file: Path, tab: str, fct: str | None = None) -> str:
+def _project_editor_panel_id(
+    file: Path,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> str:
     path = Path(file).resolve()
-    scope = str(fct or "file")
-    return f"project-editor:{path}:{tab}:{scope}"
+    scope_part = str(scope or "default")
+    fct_part = str(fct or "file")
+    return f"project-editor:{scope_part}:{path}:{tab}:{fct_part}"
 
 
 def _project_editor_pin_title(file: Path, fct: str | None = None) -> str:
@@ -1415,11 +1421,12 @@ def _upsert_project_editor_pin(
     lang: str,
     tab: str,
     fct: str | None = None,
+    scope: str | None = None,
 ) -> None:
     path = Path(file)
     upsert_pinned_expander(
         st.session_state,
-        _project_editor_panel_id(path, tab, fct),
+        _project_editor_panel_id(path, tab, fct, scope),
         title=_project_editor_pin_title(path, fct),
         body=body,
         body_format=_project_editor_body_format(lang),
@@ -1429,17 +1436,31 @@ def _upsert_project_editor_pin(
     )
 
 
-def _pin_project_editor(file: Path, body: str, lang: str, tab: str, fct: str | None = None) -> None:
-    _upsert_project_editor_pin(file, body, lang, tab, fct)
+def _pin_project_editor(
+    file: Path,
+    body: str,
+    lang: str,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> None:
+    _upsert_project_editor_pin(file, body, lang, tab, fct, scope=scope)
     st.rerun()
 
 
-def _unpin_project_editor(file: Path, tab: str, fct: str | None = None) -> None:
-    remove_pinned_expander(st.session_state, _project_editor_panel_id(Path(file), tab, fct))
+def _unpin_project_editor(
+    file: Path,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> None:
+    remove_pinned_expander(
+        st.session_state,
+        _project_editor_panel_id(Path(file), tab, fct, scope),
+    )
     st.rerun()
 
-
-def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None, buttons=None):
+def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None, buttons=None, scope: str | None = None):
     """
     Display a code editor component with the given code.
 
@@ -1456,16 +1477,18 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None, b
         dict or None: The response from the code_editor component, if any.
     """
     path = Path(file)
-    target_class = st.session_state.get("selected_class", "module-level")
+    editor_scope = f"{scope}" if scope else str(tab)
+    class_state_key = f"selected_class_{editor_scope}"
+    target_class = st.session_state.get(class_state_key, "module-level")
     if os.access(path, os.W_OK):
-        panel_id = _project_editor_panel_id(path, tab, fct)
+        panel_id = _project_editor_panel_id(path, tab, fct, editor_scope)
         pinned = is_pinned_expander(st.session_state, panel_id)
         if pinned:
-            _upsert_project_editor_pin(path, code, lang, tab, fct)
+            _upsert_project_editor_pin(path, code, lang, tab, fct, scope=editor_scope)
         info_bar = json.loads(json.dumps(INFO_BAR))
         info_bar["info"][0]["name"] = path.name
-        # Incorporate the file name, class name, tab, and function/item name into the key to ensure uniqueness
-        editor_key = f"{path}_{target_class}_{tab}_{fct}"
+        # Include a stable scope, file path, class name, tab and function/item name.
+        editor_key = f"{editor_scope}:{path}:{target_class}:{tab}:{fct}"
         response = code_editor(
             code,
             height=min(30, len(code)),
@@ -1484,9 +1507,9 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None, b
         if isinstance(response, dict):
             response_type = response.get("type")
             if response_type == EDITOR_PIN_RESPONSE:
-                _pin_project_editor(path, response.get("text", code), lang, tab, fct)
+                _pin_project_editor(path, response.get("text", code), lang, tab, fct, scope=editor_scope)
             elif response_type == EDITOR_UNPIN_RESPONSE:
-                _unpin_project_editor(path, tab, fct)
+                _unpin_project_editor(path, tab, fct, scope=editor_scope)
             elif response_type == "save" and code != response.get("text", ""):
                 updated_text = response["text"]
                 if fct is not None:
@@ -1610,6 +1633,7 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
                 comp_props,
                 ace_props,
                 fct="attributes",
+                scope=key_prefix,
             )
 
             # Check if a save action was triggered
@@ -1638,6 +1662,7 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
                 comp_props,
                 ace_props,
                 fct=selected_item,
+                scope=key_prefix,
             )
 
             # Check if a save action was triggered
@@ -1679,17 +1704,17 @@ def handle_project_selection():
     ):
         handle_export_project()
 
-    # Define each section as (label, render‑fn)
+    # Define each section as (label, render-fn)
     sections = [
         ("README", lambda: _render_readme(env)),
-        ("PYTHON‑ENV", lambda: _render_python_env(env)),
+        ("PYTHON-ENV", lambda: _render_python_env(env)),
         ("PYTHON-ENV-WORKER", lambda: _render_worker_python_env(env)),
         ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
-        ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
-        ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
-        ("APP‑SETTINGS", lambda: _render_app_settings(env)),
-        ("APP‑ARGS", lambda: _render_app_args_module(env)),
-        ("APP-ARGS‑FORM", lambda: _render_args_ui(env)),
+        ("EXPORT-APP-FILTER", lambda: _render_gitignore(env)),
+        ("PRE-PROMPT",        lambda: _render_pre_prompt(env)),
+        ("APP-SETTINGS", lambda: _render_app_settings(env)),
+        ("APP-ARGS", lambda: _render_app_args_module(env)),
+        ("APP-ARGS-FORM", lambda: _render_args_ui(env)),
         ("MANAGER",           lambda: _render_manager(env)),
         ("WORKER",            lambda: _render_worker(env)),
     ]
@@ -1733,13 +1758,19 @@ def _render_python_env(env):
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
         render_code_editor(
-            app_venv_file, app_venv, "toml", "pyproject", comp_props, ace_props
+            app_venv_file,
+            app_venv,
+            "toml",
+            "pyproject",
+            comp_props,
+            ace_props,
+            scope="pyproject-manager",
         )
     else:
-        st.warning("App settings file not found.")
+        st.warning("Manager pyproject.toml file not found.")
 
 def _render_worker_python_env(env):
-    worker_pyproject = env.worker_pyproject
+    worker_pyproject = getattr(env, "worker_pyproject", None)
     if worker_pyproject and worker_pyproject.exists():
         render_code_editor(
             worker_pyproject,
@@ -1748,21 +1779,28 @@ def _render_worker_python_env(env):
             "worker-pyproject",
             comp_props,
             ace_props,
+            scope="pyproject-worker",
         )
     else:
-        st.warning("Worker pyproject.toml not found.")
+        st.warning("No worker-specific pyproject.toml is defined for this project.")
 
 def _render_uv_env(env):
-    app_venv_file = env.active_app / "uv_config.toml"
+    app_venv_file = getattr(env, "uvproject", env.active_app / "uv_config.toml")
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
         if "-cu12" in app_venv:
             st.session_state["rapids"] = True
         render_code_editor(
-            app_venv_file, app_venv, "toml", "uv", comp_props, ace_props
+            app_venv_file,
+            app_venv,
+            "toml",
+            "uv",
+            comp_props,
+            ace_props,
+            scope="uv-config",
         )
     else:
-        st.warning("App settings file not found.")
+        st.warning("No uv_config.toml is defined for this project.")
 
 def _render_manager(env):
     st.header("Edit Manager Module")
@@ -1782,13 +1820,25 @@ def _render_gitignore(env):
             "git",
             comp_props,
             ace_props,
+            scope="gitignore",
         )
     else:
         st.warning("Gitignore file not found.")
 
 def _render_app_settings(env):
-    app_settings_file = env.app_settings_file
+    app_settings_file = getattr(env, "app_settings_file", None)
+    if app_settings_file is None:
+        st.warning("App settings file is not configured for this project.")
+        return
+
+    try:
+        app_settings_file = env.resolve_user_app_settings_file(ensure_exists=True)
+    except (AttributeError, RuntimeError, OSError, TypeError, ValueError):
+        # Keep backward-compatible behavior: fall back to the existing path.
+        pass
+
     if app_settings_file.exists():
+        env.app_settings_file = app_settings_file
         render_code_editor(
             app_settings_file,
             app_settings_file.read_text(),
@@ -1796,6 +1846,7 @@ def _render_app_settings(env):
             "set",
             comp_props,
             ace_props,
+            scope="app-settings",
         )
     else:
         st.warning("App settings file not found.")
@@ -1816,6 +1867,7 @@ def _render_app_args_module(env):
             "st",
             comp_props,
             ace_props,
+            scope="app-args-module",
         )
     else:
         st.warning(f"{module_name} file not found.")
@@ -1832,6 +1884,7 @@ def _render_readme(env):
             "readme",
             comp_props,
             ace_props,
+            scope="readme",
         )
     else:
         st.warning("README.md file not found.")
@@ -1847,6 +1900,7 @@ def _render_args_ui(env):
             "st",
             comp_props,
             ace_props,
+            scope="app-args-ui",
         )
     else:
         st.warning("Args UI snippet file not found.")
@@ -1882,6 +1936,7 @@ def _render_pre_prompt(env):
         "st",
         comp_props,
         ace,
+        scope="pre-prompt",
     )
 
 
