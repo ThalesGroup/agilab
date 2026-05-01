@@ -866,19 +866,32 @@ def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monk
 
     module._render_readme(env)
 
-    buttons = calls["buttons"]["buttons"]
-    assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
+    buttons = calls["buttons"]
+    assert isinstance(buttons, dict), f"expected dict, got {type(buttons)!r}"
+    toolbar_buttons = buttons.get("buttons", [])
+    assert isinstance(toolbar_buttons, list), f"expected buttons list, got {type(toolbar_buttons)!r}"
+    assert [button["name"] for button in toolbar_buttons[:2]] == ["Copy", "Pin"]
     pinned_buttons = module._project_editor_toolbar_buttons(
         {"buttons": [{"name": "Copy"}]},
         pinned=True,
-    )["buttons"]
-    assert [button["name"] for button in pinned_buttons[:2]] == ["Copy", "Unpin"]
-    assert pinned_buttons[1]["commands"][-1] == ["response", module.EDITOR_UNPIN_RESPONSE]
+    )
+    assert isinstance(pinned_buttons, dict), f"expected dict, got {type(pinned_buttons)!r}"
+    assert isinstance(pinned_buttons.get("buttons"), list), (
+        f"expected list, got {type(pinned_buttons.get('buttons'))!r}"
+    )
+    pinned_toolbar = pinned_buttons["buttons"]
+    assert [button["name"] for button in pinned_toolbar[:2]] == ["Copy", "Unpin"]
+    assert pinned_toolbar[1]["commands"][-1] == ["response", module.EDITOR_UNPIN_RESPONSE]
     list_buttons = module._project_editor_toolbar_buttons(
         [{"name": "Copy"}],
         pinned=False,
-    )["buttons"]
-    assert [button["name"] for button in list_buttons[:2]] == ["Copy", "Pin"]
+    )
+    assert isinstance(list_buttons, dict), f"expected dict, got {type(list_buttons)!r}"
+    assert isinstance(list_buttons.get("buttons"), list), (
+        f"expected list, got {type(list_buttons.get('buttons'))!r}"
+    )
+    list_toolbar = list_buttons["buttons"]
+    assert [button["name"] for button in list_toolbar[:2]] == ["Copy", "Pin"]
     assert calls["editor"] == (readme_text, "markdown", f"{readme_path}_module-level_readme_None")
     panel_id = module._project_editor_panel_id(readme_path, "readme")
     panel = fake_st.session_state["agilab:pinned_expanders"][panel_id]
@@ -895,8 +908,8 @@ def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monk
 
     module.render_code_editor(toml_path, toml_text, "toml", "pyproject", {}, {})
 
-    toml_buttons = calls["buttons"]["buttons"]
-    assert [button["name"] for button in toml_buttons[:2]] == ["Copy", "Pin"]
+    toml_buttons = calls["buttons"]
+    assert [button["name"] for button in toml_buttons["buttons"][:2]] == ["Copy", "Pin"]
     assert calls["editor"] == (toml_text, "toml", f"{toml_path}_module-level_pyproject_None")
     toml_panel_id = module._project_editor_panel_id(toml_path, "pyproject")
     toml_panel = fake_st.session_state["agilab:pinned_expanders"][toml_panel_id]
