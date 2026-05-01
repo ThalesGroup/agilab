@@ -2177,7 +2177,11 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
     )
     calls: list[str] = []
 
-    monkeypatch.setattr(module, "update_public_demo_release_test", lambda _tag: calls.append("public-demo-test"))
+    monkeypatch.setattr(
+        module,
+        "update_public_release_references_for_guard",
+        lambda *_args, **_kwargs: calls.append("release-refs-guard"),
+    )
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: calls.append("preflight"))
 
     def fake_run(cmd, **_kwargs):
@@ -2200,7 +2204,7 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
         version_targets=["agilab"],
     )
 
-    assert calls == ["public-demo-test", "preflight", "coverage-guard"]
+    assert calls == ["release-refs-guard", "preflight", "coverage-guard"]
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:

@@ -599,7 +599,7 @@ def run_pre_upload_release_guard(
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
         return
     if planned_tag is not None:
-        update_public_demo_release_test(planned_tag)
+        update_public_release_references_for_guard(planned_tag, chosen_version, version_targets)
     print(f"[preflight] Running pre-upload release metadata guard for {chosen_version}")
     run_release_preflight(cfg)
     # Do not regenerate coverage badges here. Release-only metadata edits can
@@ -1684,6 +1684,16 @@ def update_docs_index_release_link(tag: str) -> None:
         )
 
 
+def update_public_docs_index_release_link(tag: str) -> None:
+    public_index = REPO_ROOT / "docs/source/index.rst"
+    if not public_index.exists():
+        return
+    release_url = github_release_url(tag)
+    text = public_index.read_text(encoding="utf-8")
+    if _write_text_if_changed(public_index, _replace_latest_release_url(text, release_url)):
+        print(f"[docs] updated public latest release link: {public_index}")
+
+
 def _format_package_list(package_names: list[str]) -> str:
     quoted = [f"`{name}`" for name in package_names]
     if not quoted:
@@ -1780,31 +1790,34 @@ def update_public_demo_release_test(tag: str) -> None:
         print(f"[release] updated latest release test constant to {tag_ref}")
 
 
-def update_release_proof_references(tag: str) -> None:
+def update_release_proof_references_in_source(tag: str, docs_source: pathlib.Path) -> None:
     tag_ref = tag if tag.startswith("v") else f"v{tag}"
     release_url = github_release_url(tag_ref)
     script = REPO_ROOT / "tools" / "release_proof_report.py"
     if not script.exists():
         raise SystemExit(f"ERROR: release proof report script not found: {script}")
 
-    def refresh(docs_source: pathlib.Path) -> None:
-        run(
-            [
-                sys.executable,
-                str(script),
-                "--docs-source",
-                str(docs_source),
-                "--refresh-from-local",
-                "--github-release-tag",
-                tag_ref,
-                "--github-release-url",
-                release_url,
-                "--render",
-                "--check",
-                "--compact",
-            ],
-            cwd=REPO_ROOT,
-        )
+    run(
+        [
+            sys.executable,
+            str(script),
+            "--docs-source",
+            str(docs_source),
+            "--refresh-from-local",
+            "--github-release-tag",
+            tag_ref,
+            "--github-release-url",
+            release_url,
+            "--render",
+            "--check",
+            "--compact",
+        ],
+        cwd=REPO_ROOT,
+    )
+
+
+def update_release_proof_references(tag: str) -> None:
+    public_source = REPO_ROOT / "docs/source"
 
     docs_repo, source = find_docs_repository()
     if docs_repo:
@@ -1812,13 +1825,12 @@ def update_release_proof_references(tag: str) -> None:
         manifest = canonical_source / "data/release_proof.toml"
         if not manifest.exists():
             raise SystemExit(f"ERROR: canonical release proof manifest not found: {manifest}")
-        refresh(canonical_source)
+        update_release_proof_references_in_source(tag, canonical_source)
         sync_docs_source_mirror(canonical_source)
         return
 
-    public_source = REPO_ROOT / "docs/source"
     if public_source.exists():
-        refresh(public_source)
+        update_release_proof_references_in_source(tag, public_source)
 
 
 def update_public_release_references(tag: str, chosen_version: str, package_names: list[str]) -> None:
@@ -1826,6 +1838,21 @@ def update_public_release_references(tag: str, chosen_version: str, package_name
     update_changelog_release_entry(chosen_version, tag, package_names)
     update_public_demo_release_test(tag)
     update_release_proof_references(tag)
+
+
+def update_public_release_references_for_guard(
+    tag: str,
+    chosen_version: str,
+    package_names: list[str],
+) -> None:
+    """Update only release metadata tracked in this repository for pre-upload tests."""
+
+    update_public_docs_index_release_link(tag)
+    update_changelog_release_entry(chosen_version, tag, package_names)
+    update_public_demo_release_test(tag)
+    public_source = REPO_ROOT / "docs/source"
+    if public_source.exists():
+        update_release_proof_references_in_source(tag, public_source)
 
 
 def generate_docs_in_docs_repository():
