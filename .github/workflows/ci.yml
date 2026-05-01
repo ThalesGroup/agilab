@@ -62,7 +62,13 @@ jobs:
             tools/first_launch_robot.py \
             tools/security_hygiene_report.py \
             tools/public_proof_scenarios.py \
+            tools/release_proof_report.py \
             tools/pypi_publish.py
+
+      - name: Validate release proof manifest
+        run: |
+          set -euo pipefail
+          python tools/release_proof_report.py --check --compact
 
       - name: Validate first-proof command contract
         env:

@@ -8,14 +8,18 @@ on:
       - "docs/source/**"
       - "docs/.docs_source_mirror_stamp.json"
       - "tools/sync_docs_source.py"
+      - "tools/release_proof_report.py"
       - "test/test_sync_docs_source.py"
+      - "test/test_release_proof_report.py"
       - ".github/workflows/docs-source-guard.yaml"
   pull_request:
     paths:
       - "docs/source/**"
       - "docs/.docs_source_mirror_stamp.json"
       - "tools/sync_docs_source.py"
+      - "tools/release_proof_report.py"
       - "test/test_sync_docs_source.py"
+      - "test/test_release_proof_report.py"
       - ".github/workflows/docs-source-guard.yaml"
   workflow_dispatch:
 
@@ -45,8 +49,9 @@ jobs:
           set -euo pipefail
           uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp --quiet
           uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check --delete --quiet --skip-missing-source
+          uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --compact
 
-      - name: Test docs/source sync tool
+      - name: Test docs/source guard tools
         run: |
           set -euo pipefail
-          uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_sync_docs_source.py
+          uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_sync_docs_source.py test/test_release_proof_report.py

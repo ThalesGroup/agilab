@@ -1,7 +1,13 @@
 from pathlib import Path
+import tomllib
 
 
 DOCS_SOURCE = Path("docs/source")
+
+
+def _release_proof_manifest() -> dict:
+    with (DOCS_SOURCE / "data" / "release_proof.toml").open("rb") as stream:
+        return tomllib.load(stream)
 
 
 def test_architecture_five_minutes_page_exposes_layer_map() -> None:
@@ -60,13 +66,17 @@ def test_release_proof_page_collects_public_audit_evidence() -> None:
     normalized_page = " ".join(page.split())
     index = (DOCS_SOURCE / "index.rst").read_text(encoding="utf-8")
     demos = (DOCS_SOURCE / "demos.rst").read_text(encoding="utf-8")
+    manifest = _release_proof_manifest()
+    release = manifest["release"]
+    ci_runs = {row["id"]: row for row in manifest["ci_runs"]}
 
     assert "Release Proof" in page
-    assert "agilab==2026.05.01.post1" in page
-    assert "v2026.05.01-2" in page
-    assert "repo-guardrails run 25210998552" in page
-    assert "repo-guardrails run 25211182797" in page
-    assert "bd6b51281025f7c7f4ae5e8a7f864165e8f8247e" in page
+    assert "generated from docs/source/data/release_proof.toml" in page
+    assert f"{release['package_name']}=={release['package_version']}" in page
+    assert release["github_release_tag"] in page
+    assert f"repo-guardrails run {ci_runs['release-guardrails']['run_id']}" in page
+    assert f"repo-guardrails run {ci_runs['ci-maintenance-guardrails']['run_id']}" in page
+    assert release["hf_space_commit"] in page
     assert "agilab first-proof --json --max-seconds 60" in page
     assert "does not certify every remote cluster topology" in normalized_page
     assert "release-proof" in index

@@ -1,6 +1,9 @@
 Release Proof
 =============
 
+.. This page is generated from docs/source/data/release_proof.toml by
+   tools/release_proof_report.py. Edit the TOML and rerender.
+
 This page is the public verification index for the current AGILAB release. It
 records install, CI, demo, and scope evidence in one place so reviewers can
 check the release without inferring status from scattered badges.
@@ -15,20 +18,15 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab==2026.05.01.post1`` on
-       `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab==2026.05.01.post1`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
      - `v2026.05.01-2 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.01-2>`__
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__
-       at Space commit ``bd6b51281025f7c7f4ae5e8a7f864165e8f8247e``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``bd6b51281025f7c7f4ae5e8a7f864165e8f8247e``
    * - Public guardrails
-     - `repo-guardrails run 25210998552 <https://github.com/ThalesGroup/agilab/actions/runs/25210998552>`__
-       passed hosted demo smoke, local-only policy, and clean package install
-       jobs on macOS, Ubuntu, and Windows
+     - `repo-guardrails run 25210998552 <https://github.com/ThalesGroup/agilab/actions/runs/25210998552>`__ passed hosted demo smoke, local-only policy, and clean package install jobs on macOS, Ubuntu, and Windows
    * - CI maintenance confirmation
-     - `repo-guardrails run 25211182797 <https://github.com/ThalesGroup/agilab/actions/runs/25211182797>`__
-       passed after the artifact upload action maintenance update
+     - `repo-guardrails run 25211182797 <https://github.com/ThalesGroup/agilab/actions/runs/25211182797>`__ passed after the artifact upload action maintenance update
 
 What was proved
 ---------------
@@ -71,8 +69,8 @@ Scope and limits
 ----------------
 
 This evidence proves the public package smoke, hosted demo availability at the
-time of validation, and documented first-proof routes. It does not certify every
-remote cluster topology, every GPU stack, private app repositories, cloud
+time of validation, and documented first-proof routes. It does not certify
+every remote cluster topology, every GPU stack, private app repositories, cloud
 accounts, security posture, or long-running production operations. Those areas
 remain environment-dependent and are tracked in :doc:`compatibility-matrix`.
 

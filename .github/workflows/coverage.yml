@@ -281,7 +281,9 @@ jobs:
             test/test_analysis_page_helpers.py \
             test/test_about_agilab_helpers.py \
             test/test_cluster_flight_validation.py \
-            test/test_cluster_lan_discovery.py
+            test/test_cluster_lan_discovery.py \
+            test/test_venv_linker.py \
+            test/test_workflow_ui.py
 
           run_gui_chunk pipeline \
             test/test_first_proof_cli.py \

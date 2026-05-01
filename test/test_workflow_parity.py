@@ -39,7 +39,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_gui_chunks = agi_gui_commands[:-1]
     agi_gui_xml = agi_gui_commands[-1]
     agi_gui_argv = [arg for command in agi_gui_commands for arg in command.argv]
-    docs = profiles["docs"][0]
+    docs_commands = profiles["docs"]
+    release_proof_docs = docs_commands[0]
+    docs = docs_commands[1]
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
     dependency_policy = profiles["dependency-policy"][0]
@@ -113,6 +115,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_view*.py" not in agi_gui_argv
     assert "test/test_view_maps.py" in agi_gui_argv
     assert "test/test_ci_artifact_harvest_report.py" in agi_gui_argv
+    assert release_proof_docs.label == "release proof manifest check"
+    assert release_proof_docs.argv[-2:] == ["--check", "--compact"]
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
     assert docs.remove_paths == ["docs/html"]
     assert badges[-1].label == "badge drift guard"

@@ -5,6 +5,7 @@ import importlib.util
 import re
 import sys
 from pathlib import Path
+import tomllib
 
 
 README = Path("README.md")
@@ -33,6 +34,7 @@ STRATEGIC_DOC = Path("docs/source/strategic-potential.rst")
 FEATURES_DOC = Path("docs/source/features.rst")
 COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
 COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
+RELEASE_PROOF_MANIFEST = Path("docs/source/data/release_proof.toml")
 DOCS_SOURCE = Path("docs/source")
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
 PUBLIC_HF_SPACE_BADGE = "https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge"
@@ -42,8 +44,16 @@ HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 CURRENT_RELEASE_VERSION = "2026.04.29.post3"
-LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.05.01-2"
 KPI_BUNDLE_TOOL = Path("tools/kpi_evidence_bundle.py").resolve()
+
+
+@lru_cache(maxsize=1)
+def _release_proof_manifest() -> dict:
+    with RELEASE_PROOF_MANIFEST.open("rb") as stream:
+        return tomllib.load(stream)
+
+
+LATEST_RELEASE_URL = _release_proof_manifest()["release"]["github_release_url"]
 
 
 @lru_cache(maxsize=1)
