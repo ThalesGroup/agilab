@@ -7,6 +7,7 @@ n_partitions = 16
 rows_per_file = 100000
 n_groups = 32
 compute_passes = 32
+kernel_mode = "typed_numeric"
 output_format = "csv"
 seed = 42
 reset_target = false

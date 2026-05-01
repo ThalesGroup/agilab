@@ -16,10 +16,11 @@ the command shape stable.
 | 1 | `flight` | `flight_project` | First proof: install one app, run one file, inspect map-ready output. |
 | 2 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
 | 3 | `meteo_forecast` | `meteo_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
-| 4 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
-| 5 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
-| 6 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Read-only DAG contract: app nodes, artifact handoff, and runner-state preview. |
-| 7 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
+| 4 | `notebook_migrations/skforecast_meteo_fr` | `meteo_forecast_project` | Packaged migration source: notebooks, artifacts, lab steps, and pipeline view. |
+| 5 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
+| 6 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
+| 7 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Read-only DAG contract: app nodes, artifact handoff, and runner-state preview. |
+| 8 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
 
 ## What To Notice
 
@@ -32,6 +33,9 @@ the command shape stable.
 - `tools/notebook_import_preflight.py` gives the same notebook import path a
   generic cleanup report plus artifact, pipeline-view, and app view-plan
   sidecars before you turn a notebook into a project.
+- `notebook_migrations/skforecast_meteo_fr` keeps the weather-forecast source
+  notebooks, exported artifacts, migrated `lab_steps.toml`, and conceptual
+  pipeline view in the packaged examples tree.
 - `service_mode/preview_service_mode.py` explains persistent-worker operations
   and health gates without starting a service.
 - `data_in` and `data_out` are share-root relative paths, so examples stay

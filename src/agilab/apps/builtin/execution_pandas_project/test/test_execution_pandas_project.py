@@ -86,9 +86,68 @@ def test_execution_pandas_worker_processes_a_file(tmp_path: Path) -> None:
     result = worker.work_pool(str(source))
 
     assert isinstance(result, pd.DataFrame)
-    assert {"engine", "execution_model", "weighted_score", "python_tail_checksum", "source_file"} <= set(result.columns)
+    assert {
+        "engine",
+        "execution_model",
+        "weighted_score",
+        "python_tail_checksum",
+        "kernel_mode",
+        "kernel_runtime",
+        "dtype_contract",
+        "source_file",
+    } <= set(result.columns)
     assert set(result["engine"]) == {"pandas"}
     assert set(result["execution_model"]) == {"process"}
+    assert set(result["kernel_mode"]) == {"typed_numeric"}
+    assert set(result["kernel_runtime"]) == {"python"}
+    assert set(result["dtype_contract"]) == {"float64-contiguous"}
+
+
+def test_execution_pandas_typed_kernel_matches_dataframe_scores(tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+    args = ExecutionPandasArgs(
+        n_partitions=1,
+        nfile=1,
+        rows_per_file=32,
+        n_groups=4,
+        compute_passes=5,
+    )
+    manager = ExecutionPandas(env, args=args)
+    source = sorted(manager.args.data_in.glob("*.csv"))[0]
+
+    frames: dict[str, pd.DataFrame] = {}
+    for kernel_mode in ("typed_numeric", "dataframe"):
+        run_args = manager.args.model_copy(update={"kernel_mode": kernel_mode})
+        worker = ExecutionPandasWorker()
+        worker.env = env
+        worker.args = run_args.model_dump(mode="json")
+        worker._worker_id = 0
+        worker.verbose = 0
+        worker.start()
+        frames[kernel_mode] = worker.work_pool(str(source)).reset_index(drop=True)
+
+    typed = frames["typed_numeric"]
+    dataframe = frames["dataframe"]
+    pd.testing.assert_series_equal(typed["row_count"], dataframe["row_count"])
+    pd.testing.assert_series_equal(typed["source_file"], dataframe["source_file"])
+    pd.testing.assert_series_equal(typed["engine"], dataframe["engine"])
+    pd.testing.assert_series_equal(typed["execution_model"], dataframe["execution_model"])
+    pd.testing.assert_series_equal(
+        typed["weighted_score"],
+        dataframe["weighted_score"],
+        check_exact=False,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    pd.testing.assert_series_equal(
+        typed["score_max"],
+        dataframe["score_max"],
+        check_exact=False,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    assert set(typed["kernel_mode"]) == {"typed_numeric"}
+    assert set(dataframe["kernel_mode"]) == {"dataframe"}
 
 
 def test_execution_pandas_reduce_contract_merges_result_partials(tmp_path: Path) -> None:
@@ -120,6 +179,9 @@ def test_execution_pandas_reduce_contract_merges_result_partials(tmp_path: Path)
     assert artifact.payload["source_file_count"] == 2
     assert artifact.payload["engines"] == ["pandas"]
     assert artifact.payload["execution_models"] == ["process"]
+    assert artifact.payload["kernel_modes"] == ["typed_numeric"]
+    assert artifact.payload["kernel_runtimes"] == ["python"]
+    assert artifact.payload["dtype_contracts"] == ["float64-contiguous"]
 
 
 def test_execution_pandas_worker_runs_monoprocess_plan(tmp_path: Path) -> None:
@@ -153,6 +215,7 @@ def test_execution_pandas_worker_runs_monoprocess_plan(tmp_path: Path) -> None:
     assert artifact.payload["row_count"] == 48
     assert artifact.payload["source_file_count"] == 2
     assert artifact.payload["engines"] == ["pandas"]
+    assert artifact.payload["kernel_modes"] == ["typed_numeric"]
 
 
 def test_execution_pandas_worker_uses_parallel_path_for_pool_mode(tmp_path: Path) -> None:

@@ -12,8 +12,10 @@ Use this skill when preparing, validating, or deploying the official AGILAB Hugg
 
 The current source of truth is:
 - `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.md`
+- `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.advanced.md`
 - `/Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh`
 - `/Users/agi/PycharmProjects/thales_agilab/huggingface/Dockerfile`
+- `/Users/agi/PycharmProjects/thales_agilab/huggingface/seed_hf_app_settings.py`
 
 Do not default to a generic “lightweight one-page demo” plan when the repo already defines a concrete Space contract.
 
@@ -21,25 +23,47 @@ Do not default to a generic “lightweight one-page demo” plan when the repo a
 
 The official Space is currently:
 - a **Docker Space**
-- named like `<user>/agilab`
+- named like `<user>/agilab` for the default `first-proof` profile
+- optionally named like `<user>/agilab-advanced` for the heavier `advanced`
+  profile
 - launched on port `7860`
 - backed by the AGILAB Streamlit interface
 - built from the public `agilab` repo plus the private `thales_agilab/huggingface` packaging bundle
 
-Treat this as the default target unless the user explicitly asks for a different Space shape.
+Treat `first-proof` as the default target unless the user explicitly asks for
+the advanced companion Space.
 
 ## What the Space Actually Publishes
 
 The current deploy path stages:
-- `README.md` from `thales_agilab/huggingface`
+- profile README from `thales_agilab/huggingface`
+  - `README.md` for `first-proof`
+  - `README.advanced.md` for `advanced`
 - `Dockerfile` from `thales_agilab/huggingface`
 - `.dockerignore` from `thales_agilab/huggingface`
+- `seed_hf_app_settings.py` from `thales_agilab/huggingface`
 - `docker/install.sh` from the public `agilab` repo
 - `src/` from the public `agilab` repo
 - `pyproject.toml` from the public `agilab` repo
 - `uv_config.toml` from the public `agilab` repo
 
 This is not a raw repo push and not a generic Space scaffold. The deploy script assembles a bounded staging directory and uploads that to Hugging Face.
+
+Profile app/page sets:
+- `first-proof`
+  - apps: `flight_project`, `meteo_forecast_project`
+  - pages: `view_maps`, `view_forecast_analysis`, `view_release_decision`
+- `advanced`
+  - apps: `data_io_2026_project`, `execution_pandas_project`,
+    `execution_polars_project`, `flight_project`, `meteo_forecast_project`,
+    `mycode_project`, `uav_queue_project`, `uav_relay_queue_project`
+  - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,
+    `view_maps_network`, `view_release_decision`, `view_uav_queue_analysis`,
+    `view_uav_relay_queue_analysis`
+
+The advanced profile installs every current built-in demo app, but it still
+avoids unrelated historical heavyweight pages that are not part of the current
+Advanced Proof Pack.
 
 ## Runtime and Product Constraints
 
@@ -79,6 +103,7 @@ Use the documented flow:
 
 ```bash
 ./huggingface/hf_space_deploy.sh \
+  --profile first-proof \
   --agilab-path </path/to/agilab> \
   --space <user>/agilab \
   --create
@@ -88,11 +113,23 @@ For an existing Space:
 
 ```bash
 ./huggingface/hf_space_deploy.sh \
+  --profile first-proof \
   --agilab-path </path/to/agilab> \
   --space <user>/agilab
 ```
 
+For the heavier companion Space:
+
+```bash
+./huggingface/hf_space_deploy.sh \
+  --profile advanced \
+  --agilab-path </path/to/agilab> \
+  --space <user>/agilab-advanced \
+  --create
+```
+
 Relevant options from the script:
+- `--profile first-proof|advanced`
 - `--agilab-path`
 - `--space`
 - `--private`
@@ -111,6 +148,7 @@ Before touching the Space deployment, verify:
    - SDK type
    - exposed port
    - secret names
+   - profile app/page lists
    - target repo content
 5. `src/agilab/apps` in the deploy source contains only public entries such as
    `builtin`, `templates`, `install.py`, and package metadata. If the working
@@ -131,9 +169,13 @@ git -C "$tmpdir" lfs install --local
 git -C "$tmpdir" lfs pull
 find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort
 /Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh \
+  --profile first-proof \
   --agilab-path "$tmpdir" \
   --space jpmorard/agilab
 ```
+
+Use `--profile advanced --space jpmorard/agilab-advanced` for the heavier
+Advanced Proof Pack companion Space.
 
 After upload, verify the Space cutover separately from the file upload:
 

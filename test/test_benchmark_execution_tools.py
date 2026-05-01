@@ -9,6 +9,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from tools import benchmark_execution_mode_matrix as matrix
+from tools import benchmark_execution_pandas_cython_kernel as cython_kernel
 from tools import benchmark_execution_playground as playground
 
 
@@ -18,6 +19,41 @@ def test_benchmark_playground_apps_path_is_absolute() -> None:
     ).resolve()
     assert playground.APPS_PATH == expected
     assert playground.APPS_PATH.is_absolute()
+
+
+def test_cython_kernel_benchmark_uses_execution_pandas_worker_source() -> None:
+    assert cython_kernel.WORKER_SOURCE.is_file()
+    assert cython_kernel.WORKER_SOURCE.name == "execution_pandas_worker.py"
+    assert cython_kernel.KERNEL_NAME == "_typed_numeric_score_kernel"
+
+
+def test_cython_kernel_benchmark_csv_rows_report_speedup() -> None:
+    results = {
+        "environment": {"rows": 100},
+        "runtimes": {
+            "python": {
+                "median_seconds": 2.0,
+                "min_seconds": 2.0,
+                "max_seconds": 2.0,
+                "checksum": 1.0,
+            },
+            "cython": {
+                "median_seconds": 0.5,
+                "min_seconds": 0.5,
+                "max_seconds": 0.5,
+                "checksum": 1.0,
+            },
+        },
+        "speedup_vs_python": 4.0,
+    }
+
+    rows = cython_kernel._rows_for_csv(results)
+
+    assert rows[0]["runtime"] == "python"
+    assert rows[0]["speedup_vs_python"] == "1.00"
+    assert rows[1]["runtime"] == "cython"
+    assert rows[1]["speedup_vs_python"] == "4.00"
+    assert rows[1]["rows_per_second"] == "200"
 
 
 def test_ssh_target_defaults_to_agi_and_preserves_explicit_user() -> None:

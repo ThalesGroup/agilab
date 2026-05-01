@@ -1,0 +1,10 @@
+date,station,y_true,y_pred,split
+2025-04-01,Paris-Montsouris,16.1,15.7,backtest
+2025-04-02,Paris-Montsouris,14.8,15.3,backtest
+2025-04-03,Paris-Montsouris,13.9,14.5,backtest
+2025-04-04,Paris-Montsouris,13.2,13.8,backtest
+2025-04-05,Paris-Montsouris,13.8,14.1,backtest
+2025-04-06,Paris-Montsouris,14.6,14.8,backtest
+2025-04-07,Paris-Montsouris,15.8,15.4,backtest
+2025-04-08,Paris-Montsouris,16.5,16.0,forecast
+2025-04-09,Paris-Montsouris,17.1,16.7,forecast
