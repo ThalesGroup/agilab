@@ -18,19 +18,19 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab==2026.05.01.post3`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab==2026.05.01.post4`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.05.01-4 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.01-4>`__
+     - `v2026.05.01-5 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.01-5>`__
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``dda60a0ec4d8df1609f92fe85f0b64e862f7f8fd``
    * - Public guardrails
-     - `repo-guardrails run 25212640933 <https://github.com/ThalesGroup/agilab/actions/runs/25212640933>`__ passed repository guardrails and clean package first-proof jobs
+     - `repo-guardrails run 25223901208 <https://github.com/ThalesGroup/agilab/actions/runs/25223901208>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
-     - `docs-source-guard run 25212640942 <https://github.com/ThalesGroup/agilab/actions/runs/25212640942>`__ passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 25223361024 <https://github.com/ThalesGroup/agilab/actions/runs/25223361024>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 25212640936 <https://github.com/ThalesGroup/agilab/actions/runs/25212640936>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 25223720649 <https://github.com/ThalesGroup/agilab/actions/runs/25223720649>`__ built the public documentation from the managed docs mirror
    * - Coverage
-     - `coverage run 25212640937 <https://github.com/ThalesGroup/agilab/actions/runs/25212640937>`__ passed component coverage and badge freshness checks
+     - `coverage run 25223720635 <https://github.com/ThalesGroup/agilab/actions/runs/25223720635>`__ passed component coverage and badge freshness checks
 
 What was proved
 ---------------
@@ -39,7 +39,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install agilab==2026.05.01.post3
+     python -m pip install agilab==2026.05.01.post4
      agilab first-proof --json --max-seconds 60
 
 - The public GitHub Actions matrix validated the packaged first proof on
@@ -63,7 +63,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install agilab==2026.05.01.post3
+   python -m pip install agilab==2026.05.01.post4
    agilab first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the

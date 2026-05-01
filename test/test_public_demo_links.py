@@ -44,7 +44,7 @@ AGI_CORE_NOTEBOOK_BADGE = "https://img.shields.io/badge/agi--core-notebook-1D4ED
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
-CURRENT_RELEASE_VERSION = "2026.04.29.post3"
+CURRENT_RELEASE_VERSION = "2026.05.01.post4"
 KPI_BUNDLE_TOOL = Path("tools/kpi_evidence_bundle.py").resolve()
 NOTEBOOK_PIPELINE_IMPORT = Path("src/agilab/notebook_pipeline_import.py").resolve()
 
@@ -499,7 +499,7 @@ def test_readme_links_to_release_proof_page() -> None:
 def test_changelog_documents_current_public_release() -> None:
     changelog = CHANGELOG.read_text(encoding="utf-8")
 
-    assert f"## [{CURRENT_RELEASE_VERSION}] - 2026-04-29" in changelog
+    assert f"## [{CURRENT_RELEASE_VERSION}] - 2026-05-01" in changelog
     assert LATEST_RELEASE_URL in changelog
     assert f"Published AGILAB `{CURRENT_RELEASE_VERSION}` to PyPI" in changelog
     assert "create or update the" in changelog
