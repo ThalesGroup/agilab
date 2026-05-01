@@ -55,6 +55,24 @@ def test_demo_page_keeps_three_generic_demo_routes() -> None:
     assert "tools/service_health_check.py --format json" in demos
 
 
+def test_release_proof_page_collects_public_audit_evidence() -> None:
+    page = (DOCS_SOURCE / "release-proof.rst").read_text(encoding="utf-8")
+    normalized_page = " ".join(page.split())
+    index = (DOCS_SOURCE / "index.rst").read_text(encoding="utf-8")
+    demos = (DOCS_SOURCE / "demos.rst").read_text(encoding="utf-8")
+
+    assert "Release Proof" in page
+    assert "agilab==2026.05.01.post1" in page
+    assert "v2026.05.01-2" in page
+    assert "repo-guardrails run 25210998552" in page
+    assert "repo-guardrails run 25211182797" in page
+    assert "bd6b51281025f7c7f4ae5e8a7f864165e8f8247e" in page
+    assert "agilab first-proof --json --max-seconds 60" in page
+    assert "does not certify every remote cluster topology" in normalized_page
+    assert "release-proof" in index
+    assert ":doc:`release-proof`" in demos
+
+
 def test_readme_uses_recommended_workbench_positioning() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 

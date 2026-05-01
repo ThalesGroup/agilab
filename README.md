@@ -64,6 +64,7 @@ The public AGILAB Space is the fastest browser preview. It opens the lightweight
 | Preview before installing | [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab) | The hosted UI opens the `flight_project` path. |
 | Prove the local product flow | [First Run](#first-run) | `agilab first-proof --json` exits 0 and reports `"success": true`. |
 | Check the package entry point | [Published Package](#published-package) | `agilab` starts from a clean package install. |
+| Audit the current release | [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html) | PyPI, GitHub release, CI guardrails, and hosted demo evidence line up. |
 | Update external apps | [App Repository Updates](#app-repository-updates) | Installed apps resolve to the repository copy. |
 | Contribute changes | [CONTRIBUTING.md](CONTRIBUTING.md) | A focused local check passes before PR. |
 
@@ -141,6 +142,7 @@ The README is only the entry page. Detailed capability evidence, compatibility
 status, and roadmap scope live in:
 
 - [Features](https://thalesgroup.github.io/agilab/features.html)
+- [Release proof](https://thalesgroup.github.io/agilab/release-proof.html)
 - [Compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
 - [Future work](https://thalesgroup.github.io/agilab/roadmap/agilab-future-work.html)

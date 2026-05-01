@@ -22,6 +22,7 @@ PUBLIC_DOC_PAGES = (
     Path("docs/source/agilab-demo.rst"),
     Path("docs/source/demos.rst"),
     Path("docs/source/quick-start.rst"),
+    Path("docs/source/release-proof.rst"),
 )
 ADOPTION_DOC_PAGES = (
     Path("docs/source/index.rst"),
@@ -331,6 +332,15 @@ def test_readme_links_to_public_releases_page() -> None:
 
     assert "[Releases]" in readme
     assert RELEASES_URL in readme
+
+
+def test_readme_links_to_release_proof_page() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    release_proof_url = "https://thalesgroup.github.io/agilab/release-proof.html"
+
+    assert f"[Release Proof]({release_proof_url})" in readme
+    assert f"[Release proof]({release_proof_url})" in readme
 
 
 def test_changelog_documents_current_public_release() -> None:

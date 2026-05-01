@@ -101,6 +101,7 @@ See also
 --------
 
 - :doc:`quick-start`
+- :doc:`release-proof`
 - :doc:`architecture-five-minutes`
 - :doc:`agilab-demo`
 - :doc:`notebook-quickstart`
