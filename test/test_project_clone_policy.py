@@ -915,6 +915,37 @@ def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monk
     assert toml_panel["source"] == str(toml_path)
 
 
+def test_project_editor_toolbar_buttons_preserves_dict_payload_shape():
+    module = _load_project_module()
+    base_buttons = [{"name": "Copy"}]
+
+    dict_payload = module._project_editor_toolbar_buttons(
+        {"buttons": base_buttons},
+        pinned=False,
+    )
+    assert isinstance(dict_payload, dict)
+    dict_buttons = _extract_toolbar_buttons(dict_payload)
+    assert dict_buttons[0]["name"] == "Copy"
+    assert dict_buttons[1]["name"] == "Pin"
+    assert dict_buttons[1]["commands"][-1] == ["response", module.EDITOR_PIN_RESPONSE]
+
+    list_payload = module._project_editor_toolbar_buttons(
+        base_buttons,
+        pinned=True,
+    )
+    assert isinstance(list_payload, dict)
+    list_buttons = _extract_toolbar_buttons(list_payload)
+    assert list_buttons[0]["name"] == "Copy"
+    assert list_buttons[1]["name"] == "Unpin"
+    assert list_buttons[1]["commands"][-1] == ["response", module.EDITOR_UNPIN_RESPONSE]
+
+    empty_payload = module._project_editor_toolbar_buttons(None, pinned=False)
+    assert isinstance(empty_payload, dict)
+    empty_buttons = _extract_toolbar_buttons(empty_payload)
+    assert len(empty_buttons) == 1
+    assert empty_buttons[0]["name"] == "Pin"
+
+
 def test_update_function_source_action_preserves_module_context(tmp_path: Path):
     module = _load_project_module()
     target = tmp_path / "demo.py"
