@@ -210,6 +210,7 @@ def _write_csv(path: Path, results: dict[str, Any]) -> None:
                 "speedup_vs_python",
                 "checksum",
             ],
+            lineterminator="\n",
         )
         writer.writeheader()
         writer.writerows(rows)
