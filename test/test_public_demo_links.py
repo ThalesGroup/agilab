@@ -41,7 +41,7 @@ HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
 RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 CURRENT_RELEASE_VERSION = "2026.04.29.post3"
-LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.05.01"
+LATEST_RELEASE_URL = f"{RELEASES_URL}/tag/v2026.05.01-2"
 KPI_BUNDLE_TOOL = Path("tools/kpi_evidence_bundle.py").resolve()
 
 
