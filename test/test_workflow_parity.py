@@ -112,6 +112,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_cluster_flight_validation.py" in agi_gui_argv
     assert "test/test_cluster_lan_discovery.py" in agi_gui_argv
     assert "test/test_notebook_colab_support.py" in agi_gui_argv
+    assert "test/test_pinned_expander.py" in agi_gui_argv
     assert "test/test_workflow_ui.py" in agi_gui_argv
     assert "test/test_agilab_web_robot.py" in agi_gui_argv
     assert "test/test_agilab_widget_robot.py" in agi_gui_argv

@@ -199,3 +199,214 @@ def test_render_pinned_expanders_is_noop_without_panels() -> None:
     pinned_expander.render_pinned_expanders(fake_st)
 
     assert fake_st.session_state[pinned_expander.PINNED_EXPANDERS_KEY] == {}
+
+
+def test_panel_store_recovers_from_invalid_state_and_lists_sorted() -> None:
+    state = _State({pinned_expander.PINNED_EXPANDERS_KEY: "broken"})
+
+    assert not pinned_expander.is_pinned_expander(state, "missing")
+    assert state[pinned_expander.PINNED_EXPANDERS_KEY] == {}
+
+    pinned_expander.upsert_pinned_expander(state, "b", title="Beta", body="b")
+    pinned_expander.upsert_pinned_expander(state, "a", title="Alpha", body="a")
+    pinned_expander.upsert_pinned_expander(state, "c", title="Alpha", body="c")
+
+    assert [panel["id"] for panel in pinned_expander.list_pinned_expanders(state)] == ["a", "c", "b"]
+    assert not pinned_expander.remove_pinned_expander(state, "missing")
+    assert pinned_expander._button_key("toggle", "demo panel") == "pinned_expander:toggle:demo_panel"
+
+
+def test_code_editor_pin_buttons_preserves_base_and_uses_response_types() -> None:
+    base = {"buttons": [{"name": "CopyCustom"}], "meta": {"x": 1}}
+
+    unpin_buttons = pinned_expander.code_editor_pin_buttons(
+        base,
+        pinned=True,
+        unpin_response="custom_unpin",
+    )
+    pin_buttons = pinned_expander.code_editor_pin_buttons(
+        {"buttons": []},
+        pinned=False,
+        pin_response="custom_pin",
+    )
+
+    assert base == {"buttons": [{"name": "CopyCustom"}], "meta": {"x": 1}}
+    assert [button["name"] for button in unpin_buttons["buttons"]] == ["CopyCustom", "Unpin"]
+    assert unpin_buttons["buttons"][1]["commands"][1][1] == "custom_unpin"
+    assert [button["name"] for button in pin_buttons["buttons"]] == ["Pin"]
+    assert pin_buttons["buttons"][0]["commands"][1][1] == "custom_pin"
+
+
+def test_upsert_truncates_body_and_combines_caption() -> None:
+    state = _State()
+
+    panel = pinned_expander.upsert_pinned_expander(
+        state,
+        "long",
+        title="Long",
+        body="abcdef",
+        caption="Log",
+        max_body_chars=3,
+    )
+
+    assert panel["body"] == "def"
+    assert panel["caption"] == "Log Showing last 3 characters."
+
+
+def test_refresh_missing_panel_returns_false() -> None:
+    assert not pinned_expander.refresh_pinned_expander(
+        _State(),
+        "missing",
+        title="Missing",
+        body="content",
+    )
+
+
+def test_render_pin_button_unpins_existing_panel() -> None:
+    fake_st = _FakeStreamlit(buttons={"pinned_expander:toggle:demo": True})
+    pinned_expander.upsert_pinned_expander(fake_st.session_state, "demo", title="Demo", body="old")
+
+    assert not pinned_expander.render_pin_button(
+        fake_st,
+        "demo",
+        title="Demo",
+        body="fresh",
+        language="text",
+    )
+
+    key = "pinned_expander:toggle:demo"
+    assert not pinned_expander.is_pinned_expander(fake_st.session_state, "demo")
+    assert fake_st.button_kwargs[key]["disabled"] is False
+    assert fake_st.button_kwargs[key]["help"] == "Remove this pinned panel from the sidebar."
+    assert ("rerun", "called") in fake_st.events
+
+
+def test_render_pin_button_refreshes_existing_panel_when_not_clicked() -> None:
+    fake_st = _FakeStreamlit()
+    pinned_expander.upsert_pinned_expander(fake_st.session_state, "demo", title="Demo", body="old")
+
+    assert pinned_expander.render_pin_button(
+        fake_st,
+        "demo",
+        title="Demo",
+        body="fresh",
+        source="PROJECT",
+    )
+
+    panel = fake_st.session_state[pinned_expander.PINNED_EXPANDERS_KEY]["demo"]
+    assert panel["body"] == "fresh"
+    assert panel["source"] == "PROJECT"
+    assert ("rerun", "called") not in fake_st.events
+
+
+def test_render_pinnable_code_editor_handles_empty_and_non_dict_response() -> None:
+    fake_st = _FakeStreamlit()
+
+    assert (
+        pinned_expander.render_pinnable_code_editor(
+            fake_st,
+            lambda body, **kwargs: {"type": "unused"},
+            "empty",
+            title="Empty",
+            body="   ",
+            key="empty-editor",
+            empty_message="Nothing to show.",
+        )
+        is None
+    )
+    assert ("caption", "Nothing to show.") in fake_st.events
+
+    no_caption_st = SimpleNamespace(session_state=_State())
+    assert (
+        pinned_expander.render_pinnable_code_editor(
+            no_caption_st,
+            lambda body, **kwargs: {"type": "unused"},
+            "empty",
+            title="Empty",
+            body="",
+            key="empty-editor",
+        )
+        is None
+    )
+
+    editor_calls: list[dict[str, object]] = []
+
+    def _code_editor(body: str, **kwargs):
+        editor_calls.append({"body": body, **kwargs})
+        return "plain-response"
+
+    assert (
+        pinned_expander.render_pinnable_code_editor(
+            fake_st,
+            _code_editor,
+            "logs",
+            title="Logs",
+            body="line",
+            key="logs-editor",
+            height=12,
+        )
+        == "plain-response"
+    )
+    assert editor_calls[-1]["height"] == 12
+
+
+def test_render_pinnable_code_editor_unpins_existing_panel_from_toolbar() -> None:
+    fake_st = _FakeStreamlit()
+    pinned_expander.upsert_pinned_expander(fake_st.session_state, "logs", title="Logs", body="old")
+    editor_calls: list[dict[str, object]] = []
+
+    def _code_editor(body: str, **kwargs):
+        editor_calls.append({"body": body, **kwargs})
+        return {"type": pinned_expander.CODE_EDITOR_UNPIN_RESPONSE, "text": body}
+
+    response = pinned_expander.render_pinnable_code_editor(
+        fake_st,
+        _code_editor,
+        "logs",
+        title="Logs",
+        body="fresh",
+        key="logs-editor",
+        language="text",
+    )
+
+    buttons = editor_calls[-1]["buttons"]["buttons"]
+    assert response["type"] == pinned_expander.CODE_EDITOR_UNPIN_RESPONSE
+    assert [button["name"] for button in buttons[:2]] == ["Copy", "Unpin"]
+    assert not pinned_expander.is_pinned_expander(fake_st.session_state, "logs")
+    assert ("rerun", "called") in fake_st.events
+
+
+def test_render_pinned_expanders_renders_markdown_and_text_with_container() -> None:
+    fake_st = _FakeStreamlit()
+    container = _FakeSidebar(fake_st)
+    pinned_expander.upsert_pinned_expander(
+        fake_st.session_state,
+        "markdown",
+        title="Markdown",
+        body="**ready**",
+        body_format="markdown",
+        caption="Markdown caption",
+    )
+    pinned_expander.upsert_pinned_expander(
+        fake_st.session_state,
+        "text",
+        title="Text",
+        body="plain text",
+        body_format="text",
+    )
+
+    pinned_expander.render_pinned_expanders(
+        fake_st,
+        container=container,
+        session_state=fake_st.session_state,
+    )
+
+    assert ("divider", "") in fake_st.events
+    assert ("sidebar.markdown", "#### Pinned panels") in fake_st.events
+    assert ("caption", "Markdown caption") in fake_st.events
+    assert ("markdown", "**ready**") in fake_st.events
+    assert ("write", "plain text") in fake_st.events
+
+
+def test_request_rerun_ignores_missing_rerun() -> None:
+    pinned_expander._request_rerun(SimpleNamespace())
