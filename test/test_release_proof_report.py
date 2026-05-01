@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -50,6 +51,44 @@ def test_release_proof_cli_check_emits_machine_readable_report(capsys) -> None:
     assert payload["schema"] == module.SCHEMA
     assert payload["status"] == "pass"
     assert payload["release"]["package_version"] == manifest["release"]["package_version"]
+
+
+def test_release_proof_refresh_from_local_updates_manifest_and_page(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    module = _load_module()
+    docs_source = tmp_path / "docs" / "source"
+    data_dir = docs_source / "data"
+    data_dir.mkdir(parents=True)
+    shutil.copyfile(Path("docs/source/data/release_proof.toml"), data_dir / "release_proof.toml")
+
+    exit_code = module.main(
+        [
+            "--docs-source",
+            str(docs_source),
+            "--refresh-from-local",
+            "--github-release-tag",
+            "v2026.05.01-2",
+            "--hf-space-commit",
+            "test-hf-commit",
+            "--render",
+            "--check",
+            "--compact",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    refreshed = module.load_manifest(data_dir / "release_proof.toml")
+    assert exit_code == 0
+    assert payload["status"] == "pass"
+    assert refreshed["release"]["package_version"] == module._load_project_version(Path.cwd())
+    assert refreshed["release"]["github_release_tag"] == "v2026.05.01-2"
+    assert refreshed["release"]["github_release_url"].endswith("/releases/tag/v2026.05.01-2")
+    assert refreshed["release"]["hf_space_commit"] == "test-hf-commit"
+    assert (docs_source / "release-proof.rst").read_text(encoding="utf-8") == module.render_release_proof(
+        refreshed
+    )
 
 
 def test_release_proof_renderer_fails_unknown_template_key(tmp_path: Path) -> None:

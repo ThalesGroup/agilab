@@ -65,6 +65,20 @@ the current source checkout:
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
 built-in app installation and Streamlit UI.
 
+Maintainer refresh
+------------------
+
+Maintainers can refresh the manifest from local release evidence, render the
+page, and run the same consistency checks with one command:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --refresh-from-local --render --check --compact
+
+Pass ``--github-release-tag``, ``--github-release-url``, or
+``--hf-space-commit`` only when public evidence changes outside the local
+repository state.
+
 Scope and limits
 ----------------
 
