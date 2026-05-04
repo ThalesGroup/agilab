@@ -180,6 +180,22 @@ class OrchestrateCombinedWorkflowState:
     blocked_reason: str
 
 
+DISTRIBUTION_PLAN_FILENAME = "distribution_tree.json"
+LEGACY_DISTRIBUTION_PLAN_FILENAME = "distribution.json"
+
+
+def resolve_distribution_plan_path(worker_env_path: Path | str | None) -> Path | None:
+    """Return the runtime distribution plan path, preserving old installs as fallback."""
+    if worker_env_path is None:
+        return None
+    worker_root = Path(worker_env_path)
+    plan_path = worker_root / DISTRIBUTION_PLAN_FILENAME
+    legacy_path = worker_root / LEGACY_DISTRIBUTION_PLAN_FILENAME
+    if plan_path.exists() or not legacy_path.exists():
+        return plan_path
+    return legacy_path
+
+
 def _coerce_int_tuple(values: Sequence[Any]) -> tuple[int, ...]:
     result: list[int] = []
     for value in values:
@@ -334,7 +350,7 @@ def build_orchestrate_distribution_workflow_state(
     worker_env_path: Path | str | None,
 ) -> OrchestrateDistributionWorkflowState:
     """Build the pure ORCHESTRATE CHECK distribute state."""
-    distribution_path = Path(worker_env_path) / "distribution.json" if worker_env_path else None
+    distribution_path = resolve_distribution_plan_path(worker_env_path)
     command_configured = bool(cmd)
     action = _setup_readiness(
         action=OrchestrateSetupAction.DISTRIBUTE,
