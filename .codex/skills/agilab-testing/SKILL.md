@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-21
+  updated: 2026-04-29
 ---
 
 # Testing Skill (AGILAB)
@@ -28,8 +28,31 @@ Use this skill when validating changes.
   ordering, polluted `HOME`/`~/.agilab`, or stale cluster config leaking from the runner, harden the
   shared helper or shared test fixture instead of patching just one assertion.
 
+## Pipeline Efficiency
+
+- When multiple AGILAB skills are active in the same turn, build one validation
+  plan from the final changed-file set instead of running each skill's checks
+  independently.
+- Run `tools/impact_validate.py` once per stable diff. Reuse its output if no
+  files changed since the previous run; rerun only after edits that alter the
+  impact surface.
+- Batch repeated artifact checks at the end of the edit loop:
+  docs mirror sync, coverage badge guard, skill mirror sync, Codex skill index
+  generation, and release dry-runs should not run once per skill.
+- Run cheap read-only inspections in parallel when possible, but keep write or
+  generation commands serialized so generated files do not race.
+- If several workflow parity profiles are required, run each required profile
+  once. Prefer a single command with repeated `--profile` arguments when the
+  tool supports it.
+
 ## Regression Hygiene
 
+- KPI/evidence tests:
+  - For product KPI snapshots, derive expected scores and release metadata from
+    the evidence tool or public snapshot builder instead of duplicating numeric
+    literals in several tests.
+  - Keep literal thresholds only for policy boundaries or synthetic fixtures
+    where the number is the behavior under test.
 - User-facing rename sweeps:
   - When renaming a page/app/demo label, grep both the old and new wording across the page package, tests, README files, and `docs/source`.
   - Prefer a side-effect-free metadata module (for example `page_meta.py`) for page titles or other user-facing labels that tests also assert.
@@ -45,6 +68,12 @@ Use this skill when validating changes.
 - Cluster/share regressions:
   - Keep explicit regressions for “cluster share missing”, “cluster share equals local share”, and
     “no silent fallback to localshare”.
+  - For scheduler/worker inventory UI, cover mixed-node summaries: local scheduler
+    values, reachable remote worker values, and unreachable-node counters should be
+    derived from the same probe result model instead of hand-built display strings.
+  - When LAN discovery auto-populates scheduler/workers, test both the discovery
+    result and the persisted form fields so the UI cannot show discovered nodes
+    without saving executable cluster settings.
 - App settings split:
   - Source `app_settings.toml` files are seeds; mutable settings live in the user workspace.
   - Tests should target the right layer and avoid asserting that runtime writes back into source files.
@@ -77,13 +106,45 @@ Use this skill when validating changes.
   - `COVERAGE_FILE=.coverage.agi-node uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest --with pytest-asyncio --with pytest-cov python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --cov=agi_node --cov-report=xml:coverage-agi-node.xml src/agilab/core/test`
 - Streamlit page regression (active-app aware):
   - Patch `sys.argv` with `["<page>.py", "--active-app", "<app_path>"]` before `streamlit.testing.v1.AppTest.from_file(...)`.
+  - If an AppTest passes in isolation but times out in the full profile, first
+    confirm there is no real hang with an isolated run, then raise only that
+    test's timeout narrowly. Do not mask global AppTest latency by inflating the
+    whole suite timeout.
   - Example:
     `uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
 - Service health smoke tests (CI parity on Python 3.13):
   - `COVERAGE_FILE=.coverage.service-health uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest --with pytest-asyncio --with pytest-cov python -m pytest -q -o addopts='' --cov=agi_cluster --cov=agi_env --cov-report=xml:coverage-service-health.xml src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json test/test_service_health_check.py`
+- Account-free cloud connector validation:
+  - Use this when AWS/Azure/GCP compatibility needs evidence but no cloud account or credentials are available.
+  - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile cloud-emulators`
+  - This proves connector schemas, local-emulator endpoint boundaries, runtime adapter mappings, and no credential materialization for MinIO/S3, Azurite/Azure Blob, fake-gcs-server/GCS, and local search endpoints.
+  - Do not claim real-cloud validation from this profile; IAM, private networking, region behavior, quota, and billing still require opt-in live smoke in a real cloud account.
 
 - Whole repo tests (if needed):
   - `uv --preview-features extra-build-dependencies run --no-sync pytest`
+
+## Release Validation Gate
+
+Use this when the user asks for full documentation alignment, source-install
+validation, release, and Hugging Face sync in one flow.
+
+- Keep docs validation separate from installer validation:
+  - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --delete`
+  - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
+- Validate the release candidate from a clean public source clone with an
+  isolated `HOME`, not from the developer checkout:
+  - clone `https://github.com/ThalesGroup/agilab.git` into a new directory under `$HOME`
+  - run `git lfs install --local && git lfs pull`
+  - run the installer with `--install-apps builtin --test-root --test-core --test-apps --skip-offline`
+  - set `AGI_LOCAL_DIR="$PWD/localshare"` and `--agi-share-dir "$PWD/clustershare"`
+- If the release includes a first-proof or demo claim, run the demo command from
+  that same clean clone and record the produced artifact path plus key metrics.
+- Treat benign `uv self update` failures from package-manager-installed `uv` as
+  warnings only when the installer catches them and continues; do not ignore
+  uncaught install failures.
+- After release, verify package publication with a network-level check such as
+  `curl https://pypi.org/pypi/agilab/json`, because local Python SSL trust can
+  differ from the actual PyPI publication state.
 
 ## Coverage Notes
 

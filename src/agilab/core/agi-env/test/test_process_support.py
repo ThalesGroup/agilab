@@ -50,10 +50,11 @@ def test_fix_windows_drive_returns_non_string_inputs_unchanged(monkeypatch):
 def test_normalize_path_windows_resolve_fallback(monkeypatch):
     original_os_name = os.name
     original_resolve = Path.resolve
+    posix_path_cls = type(Path("/tmp"))
     monkeypatch.setattr(process_support.os, "name", "nt", raising=False)
 
     def _patched_resolve(self, *args, **kwargs):
-        if self == Path("demo"):
+        if self == posix_path_cls("demo"):
             raise OSError("boom")
         return original_resolve(self, *args, **kwargs)
 
@@ -93,6 +94,8 @@ def test_build_subprocess_env_strips_uv_run_recursion_depth(tmp_path: Path):
         "PYTHONHOME": "/tmp/home",
         "PATH": "/usr/bin",
     }
+    venv_dir = tmp_path / ".venv"
+    (venv_dir / "bin").mkdir(parents=True)
     foreign_source = tmp_path / "foreign-source"
     foreign_source.mkdir()
 
@@ -106,6 +109,26 @@ def test_build_subprocess_env_strips_uv_run_recursion_depth(tmp_path: Path):
     assert env.get("VIRTUAL_ENV") == str(tmp_path / ".venv")
     assert "UV_RUN_RECURSION_DEPTH" not in env
     assert "PYTHONPATH" not in env
+    assert "PYTHONHOME" not in env
+
+
+def test_build_subprocess_env_keeps_pythonpath_entries_for_staging_dir(tmp_path: Path):
+    class_entries = [str(tmp_path / "alpha"), str(tmp_path / "beta")]
+    base_env = {
+        "PYTHONPATH": "/tmp/ignored",
+        "PYTHONHOME": "/tmp/home",
+        "PATH": "/usr/bin",
+    }
+
+    env = process_support.build_subprocess_env(
+        base_env=base_env,
+        venv=tmp_path,
+        pythonpath_entries=class_entries,
+        sys_prefix=sys.prefix,
+    )
+
+    assert env["VIRTUAL_ENV"] == str(tmp_path / ".venv")
+    assert env["PYTHONPATH"] == os.pathsep.join(class_entries)
     assert "PYTHONHOME" not in env
 
 

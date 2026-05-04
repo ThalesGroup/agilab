@@ -121,6 +121,72 @@ def test_runner_state_units_keep_transitions_and_operator_metadata() -> None:
     }.issubset(transition_pairs)
 
 
+def test_persisted_runner_state_dispatches_next_runnable_without_app_execution(tmp_path: Path) -> None:
+    module = _load_core_module()
+    output_path = tmp_path / "runner_state.json"
+
+    proof = module.persist_runner_state(
+        repo_root=Path.cwd(),
+        output_path=output_path,
+        now="2026-04-29T00:00:00Z",
+    )
+
+    assert proof.ok is True
+    assert proof.round_trip_ok is True
+    state = proof.runner_state
+    assert state["schema"] == "agilab.global_pipeline_runner_state.v1"
+    assert state["persistence_format"] == "json"
+    assert state["run_status"] == "planned"
+    assert state["summary"]["planned_count"] == 2
+    assert state["summary"]["running_count"] == 0
+    assert state["summary"]["runnable_unit_ids"] == ["queue_baseline"]
+    assert state["provenance"]["real_app_execution"] is False
+
+    result = module.dispatch_next_runnable(state, now="2026-04-29T00:00:01Z")
+
+    assert result.ok is True
+    assert result.dispatched_unit_id == "queue_baseline"
+    assert result.state["run_status"] == "running"
+    assert result.state["summary"]["planned_count"] == 1
+    assert result.state["summary"]["running_count"] == 1
+    assert result.state["summary"]["running_unit_ids"] == ["queue_baseline"]
+    assert result.state["summary"]["blocked_unit_ids"] == ["relay_followup"]
+    assert result.state["events"][-1] == {
+        "detail": "operator dispatched the next runnable unit without executing the app",
+        "from_status": "runnable",
+        "kind": "unit_dispatched",
+        "timestamp": "2026-04-29T00:00:01Z",
+        "to_status": "running",
+        "unit_id": "queue_baseline",
+    }
+    assert result.state["provenance"]["real_app_execution"] is False
+
+
+def test_persisted_runner_state_validates_flight_plus_meteo_dag(tmp_path: Path) -> None:
+    module = _load_core_module()
+    dag_path = Path("docs/source/data/multi_app_dag_flight_sample.json")
+
+    proof = module.persist_runner_state(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "runner_state.json",
+        dag_path=dag_path,
+        now="2026-04-29T00:00:00Z",
+    )
+
+    assert proof.ok is True
+    state = proof.runner_state
+    assert state["source"]["dag_path"] == str(dag_path)
+    assert state["source"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert state["summary"]["unit_count"] == 2
+    assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
+    assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert [unit["app"] for unit in state["units"]] == [
+        "flight_project",
+        "meteo_forecast_project",
+    ]
+    assert all(unit["provenance"]["pipeline_view"] for unit in state["units"])
+
+
 def test_runner_state_report_handles_load_failure(tmp_path: Path) -> None:
     module = _load_report_module()
     missing = tmp_path / "missing.json"

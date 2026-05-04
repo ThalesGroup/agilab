@@ -14,6 +14,7 @@ from urllib.parse import unquote, urlparse
 import tomlkit
 from packaging.requirements import InvalidRequirement, Requirement
 
+from agi_cluster.agi_distributor import deployment_dask_support
 from agi_env import AgiEnv
 
 
@@ -32,6 +33,9 @@ def _latest_glob_match(root: Path, pattern: str) -> Path | None:
 
 def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
     """Delete a path robustly, falling back to Windows `rmdir` when needed."""
+    if path.is_symlink():
+        path.unlink()
+        return
     if not path.exists():
         return
 
@@ -119,6 +123,43 @@ def _resolve_install_spec(project_path: Path | None, package_name: str) -> str |
     if isinstance(project_path, Path) and _is_python_project(project_path):
         return str(project_path)
     return _resolve_distribution_install_spec(package_name)
+
+
+def _is_local_project_install_spec(spec: str) -> bool:
+    try:
+        return _is_python_project(Path(spec).expanduser())
+    except (OSError, ValueError):
+        return False
+
+
+def _build_worker_core_add_commands(
+    uv_worker: str,
+    wenv_abs: Path,
+    specs: list[str],
+    *,
+    offline_flag: str = "",
+    prefix: str = "",
+) -> list[str]:
+    editable_specs = []
+    normal_specs = []
+    for spec in specs:
+        if _is_local_project_install_spec(spec):
+            editable_specs.append(spec)
+        else:
+            normal_specs.append(spec)
+    commands = []
+
+    if editable_specs:
+        quoted_specs = " ".join(f"\"{spec}\"" for spec in editable_specs)
+        commands.append(
+            f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add --editable {quoted_specs}"
+        )
+
+    if normal_specs:
+        quoted_specs = " ".join(f"\"{spec}\"" for spec in normal_specs)
+        commands.append(f"{prefix}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_specs}")
+
+    return commands
 
 
 def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
@@ -726,9 +767,14 @@ async def deploy_local_worker(
         ]
 
     if worker_core_add_specs:
-        quoted_specs = " ".join(f"\"{spec}\"" for spec in worker_core_add_specs)
-        cmd_worker = f"{worker_extra_indexes}{uv_worker} {offline_flag}--project {wenv_abs} add {quoted_specs}"
-        await run_fn(cmd_worker, wenv_abs)
+        for cmd_worker in _build_worker_core_add_commands(
+            uv_worker,
+            wenv_abs,
+            worker_core_add_specs,
+            offline_flag=offline_flag,
+            prefix=worker_extra_indexes,
+        ):
+            await run_fn(cmd_worker, wenv_abs)
     else:
         cmd_worker = f"{worker_extra_indexes}{uv_worker} --project {wenv_abs} add agi-env"
         await run_fn(cmd_worker, wenv_abs)
@@ -749,6 +795,16 @@ async def deploy_local_worker(
     if env.verbose > 0:
         log.info(f"Installing workers: {cmd_worker}")
     await run_fn(cmd_worker, wenv_abs)
+
+    if deployment_dask_support.dask_mode_enabled(agi_cls):
+        cmd_worker = deployment_dask_support.dask_runtime_install_command(
+            uv_worker,
+            wenv_abs,
+            offline_flag=offline_flag,
+        )
+        if env.verbose > 0:
+            log.info(f"Installing Dask worker runtime: {cmd_worker}")
+        await run_fn(cmd_worker, wenv_abs)
 
     write_staged_uv_sources_pth_fn(
         worker_site_packages_dir_fn(wenv_abs, env.pyvers_worker, windows=(os.name == "nt")),

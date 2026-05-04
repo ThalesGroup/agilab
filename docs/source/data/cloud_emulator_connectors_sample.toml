@@ -1,0 +1,53 @@
+[[connectors]]
+id = "local_sqlite"
+kind = "sql"
+label = "Local SQLite emulator proof"
+description = "Local no-account SQL endpoint used to keep the emulator proof fully offline."
+uri = "sqlite:///:memory:"
+driver = "sqlite"
+query_mode = "read_only"
+
+[[connectors]]
+id = "local_opensearch_emulator"
+kind = "opensearch"
+label = "Local OpenSearch emulator"
+description = "Local OpenSearch or Elasticsearch container used to validate search-index wiring."
+provider = "opensearch"
+url = "http://127.0.0.1:9200"
+index = "agilab-runs-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "minio_s3_emulator"
+kind = "object_storage"
+label = "MinIO S3 emulator"
+description = "MinIO endpoint validating AWS S3-compatible connector wiring without an AWS account."
+provider = "s3"
+bucket = "agilab-emulator"
+prefix = "experiments/"
+region = "local"
+endpoint_url = "http://127.0.0.1:9000"
+auth_ref = "env:AGILAB_EMULATOR_S3_ACCESS_KEY"
+
+[[connectors]]
+id = "azurite_blob_emulator"
+kind = "object_storage"
+label = "Azurite Blob emulator"
+description = "Azurite endpoint validating Azure Blob connector wiring without an Azure account."
+provider = "azure_blob"
+account = "devstoreaccount1"
+bucket = "agilab-emulator"
+prefix = "experiments/"
+endpoint_url = "http://127.0.0.1:10000/devstoreaccount1"
+auth_ref = "env:AZURITE_CONNECTION_STRING"
+
+[[connectors]]
+id = "fake_gcs_emulator"
+kind = "object_storage"
+label = "fake-gcs-server emulator"
+description = "fake-gcs-server endpoint validating Google Cloud Storage connector wiring without a GCP account."
+provider = "gcs"
+bucket = "agilab-emulator"
+prefix = "experiments/"
+endpoint_url = "http://127.0.0.1:4443"
+auth_ref = "env:STORAGE_EMULATOR_HOST"

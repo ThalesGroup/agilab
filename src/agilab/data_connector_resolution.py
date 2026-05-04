@@ -10,11 +10,13 @@ from pathlib import Path
 import tomllib
 from typing import Any, Mapping
 
+from agilab.data_connector_cloud import object_storage_target
 from agilab.data_connector_facility import (
     DEFAULT_CONNECTORS_RELATIVE_PATH,
     build_data_connector_facility,
     load_connector_catalog,
 )
+from agilab.data_connector_search import search_index_target
 
 
 SCHEMA = "agilab.data_connector_resolution.v1"
@@ -49,12 +51,9 @@ def _connector_target(connector: Mapping[str, Any]) -> str:
     if kind == "sql":
         return str(connector.get("uri", "") or "")
     if kind == "opensearch":
-        return f"{connector.get('url', '')}/{connector.get('index', '')}"
+        return search_index_target(connector)
     if kind == "object_storage":
-        return (
-            f"{connector.get('provider', '')}://"
-            f"{connector.get('bucket', '')}/{connector.get('prefix', '')}"
-        )
+        return object_storage_target(connector)
     return ""
 
 

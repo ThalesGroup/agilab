@@ -44,6 +44,19 @@ Before configuring distributed workers, make sure the environment is ready:
   Do not let several users write into the same ``AGI_CLUSTER_SHARE`` tree.
 - ``uv`` and the required Python runtime are available on the manager and the
   remote workers.
+- Worker installation uses non-interactive SSH. AGILAB prepends
+  ``$HOME/.local/bin`` to remote commands, so user-local ``uv`` installs are
+  valid as long as ``$HOME/.local/bin/uv`` exists on each worker.
+- A Windows machine can be used as the AGILAB UI/manager when the OpenSSH
+  client is available; LAN discovery reads Windows ``ipconfig`` / ARP output as
+  a convenience. Remote cluster workers are still expected to expose a POSIX
+  shell environment such as Linux or macOS. Native Windows workers are a
+  separate support target because worker probing, SSHFS setup, and generated
+  install/run commands currently assume POSIX tools.
+- Dask is a cluster runtime dependency. When Dask mode is enabled, AGILAB adds
+  ``dask[distributed]`` to the generated worker environment before starting the
+  remote ``dask worker`` process. Do not duplicate it in an app worker manifest
+  unless the app code imports Dask directly.
 - The target app can be installed cleanly before you scale it to more nodes.
 
 Use :doc:`key-generation`, :doc:`environment`, and :doc:`troubleshooting` if
@@ -63,6 +76,12 @@ Typical distributed settings include:
 - enabling or disabling ``pool``, ``cython``, and ``rapids`` according to the
   worker capabilities
 
+When cluster mode is enabled from ORCHESTRATE, AGILAB first tries to populate
+the scheduler and worker fields from LAN discovery. Treat that as a convenience
+bootstrap: inspect the discovered values, keep only hosts that pass your SSH and
+share checks, and override the fields manually when discovery misses a node or
+finds a host you do not want to use.
+
 These values are persisted in the per-user workspace copy of
 ``app_settings.toml``, so future snippet generations stay aligned with the same
 cluster definition.
@@ -74,11 +93,11 @@ multiple operators. Generated snippets remain under the local ``AGI_LOG_DIR``
 workspace.
 
 .. figure:: _static/page-shots/orchestrate-page.png
-   :alt: Screenshot of the ORCHESTRATE page showing system settings, install, distribute, and run areas.
+   :alt: Screenshot of the ORCHESTRATE page showing deployment toggles and generated setup code.
    :align: center
    :class: diagram-panel diagram-wide
 
-   ORCHESTRATE is where you define distributed worker settings, run INSTALL, inspect distribution, and generate the final run snippet.
+   ORCHESTRATE is where you define worker settings and generate the snippets used for install, distribution, and run.
 
 Step 2: Let ORCHESTRATE Generate the Snippet
 --------------------------------------------
@@ -178,15 +197,13 @@ If you want the simplest mental model first, start with a local-only run:
 
    import asyncio
 
-   from agi_cluster.agi_distributor import AGI
+   from agi_cluster.agi_distributor import AGI, RunRequest
    from agi_env import AgiEnv
 
    async def main():
        app_env = AgiEnv(app="mycode_project", verbose=1)
-       result = await AGI.run(
-           app_env,
-           mode=0,  # plain local Python execution
-       )
+       request = RunRequest(mode=AGI.PYTHON_MODE)
+       result = await AGI.run(app_env, request=request)
        print(result)
 
    asyncio.run(main())
@@ -203,7 +220,7 @@ distributed ``AGI.run(...)`` snippet typically looks like this:
 
    import asyncio
 
-   from agi_cluster.agi_distributor import AGI
+   from agi_cluster.agi_distributor import AGI, RunRequest
    from agi_env import AgiEnv
 
    async def main():
@@ -212,12 +229,12 @@ distributed ``AGI.run(...)`` snippet typically looks like this:
            "192.168.1.21": 1,  # one worker slot on host 1
            "192.168.1.22": 1,  # one worker slot on host 2
        }
-       result = await AGI.run(
-           app_env,
+       request = RunRequest(
            scheduler="192.168.1.10",
            workers=workers,
-           mode=4,  # distributed cluster execution, no pool/cython/rapids extras
+           mode=AGI.DASK_MODE,
        )
+       result = await AGI.run(app_env, request=request)
        print(result)
 
    asyncio.run(main())
@@ -304,6 +321,10 @@ Common distributed setup failures usually fall into one of these categories:
 - **Remote import errors after a successful install**: verify the worker
   environment was rebuilt from the current app and that dependencies are
   declared in the correct ``pyproject.toml`` scope.
+- **Remote Dask worker never attaches and logs mention ``Failed to spawn:
+  dask``**: re-run **INSTALL** with the current AGILAB version so the generated
+  worker environment is recreated and receives ``dask[distributed]``. This is
+  part of AGILAB cluster deployment, not a dependency every app should carry.
 - **PIPELINE runs stale cluster code**: regenerate or re-import the snippet from
   ORCHESTRATE after changing worker or app settings.
 

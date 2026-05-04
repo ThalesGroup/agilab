@@ -3,6 +3,16 @@ name: coverage
 on:
   push:
     branches: ["main"]
+    paths:
+      - ".coveragerc*"
+      - ".github/workflows/coverage.yml"
+      - "pyproject.toml"
+      - "src/**"
+      - "test/**"
+      - "tools/coverage_badge_guard.py"
+      - "tools/generate_component_coverage_badges.py"
+      - "tools/workflow_parity.py"
+      - "uv.lock"
   workflow_dispatch:
 
 permissions:
@@ -63,13 +73,14 @@ jobs:
 
       - name: Upload agi-env coverage to Codecov
         if: always() && hashFiles('coverage-agi-env.xml') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-env.xml
           flags: agi-env,agi-core
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Archive agi-env coverage XML
         if: always() && hashFiles('coverage-agi-env.xml') != ''
@@ -78,6 +89,7 @@ jobs:
           name: coverage-agi-env-xml
           path: coverage-agi-env.xml
           if-no-files-found: error
+          retention-days: 3
 
   agi-core:
     runs-on: ubuntu-latest
@@ -160,23 +172,25 @@ jobs:
 
       - name: Upload agi-node coverage to Codecov
         if: always() && hashFiles('coverage-agi-node.xml') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-node.xml
           flags: agi-node,agi-core
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Upload agi-cluster coverage to Codecov
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-cluster.xml
           flags: agi-cluster,agi-core
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Archive agi-node coverage XML
         if: always() && hashFiles('coverage-agi-node.xml') != ''
@@ -185,6 +199,7 @@ jobs:
           name: coverage-agi-node-xml
           path: coverage-agi-node.xml
           if-no-files-found: error
+          retention-days: 3
 
       - name: Archive agi-cluster coverage XML
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
@@ -193,6 +208,7 @@ jobs:
           name: coverage-agi-cluster-xml
           path: coverage-agi-cluster.xml
           if-no-files-found: error
+          retention-days: 3
 
   agi-gui:
     runs-on: ubuntu-latest
@@ -234,25 +250,45 @@ jobs:
           start_coverage_heartbeat "agi-gui coverage" &
           HEARTBEAT_PID=$!
           trap 'kill "$HEARTBEAT_PID" 2>/dev/null || true' EXIT
-          rm -f .coverage.agi-gui coverage-agi-gui.xml
-          AGILAB_DISABLE_BACKGROUND_SERVICES=1 \
-          timeout 12m uv --preview-features extra-build-dependencies run --group dev \
-            python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
-            -m "not integration" \
-            --cov=src/agilab --cov-config=.coveragerc.agi-gui --cov-report=xml:coverage-agi-gui.xml \
-            --junitxml=test-results/junit.xml \
-            --ignore=src/agilab/test/test_model_returns_code.py \
+          rm -f .coverage.agi-gui coverage-agi-gui.xml test-results/junit-agi-gui-*.xml
+          export AGILAB_DISABLE_BACKGROUND_SERVICES=1
+
+          run_gui_chunk() {
+            local label="$1"
+            shift
+            timeout 8m uv --preview-features extra-build-dependencies run --group dev \
+              python -m coverage run \
+              --rcfile=.coveragerc.agi-gui \
+              --data-file=.coverage.agi-gui \
+              --append \
+              -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
+              -m "not integration" \
+              --junitxml="test-results/junit-agi-gui-${label}.xml" \
+              --ignore=src/agilab/test/test_model_returns_code.py \
+              "$@"
+          }
+
+          run_gui_chunk support \
             src/agilab/test \
             src/agilab/lib/agi-gui/test \
             test/test_orchestrate_cluster.py \
             test/test_orchestrate_distribution.py \
             test/test_orchestrate_execute.py \
             test/test_orchestrate_page_helpers.py \
+            test/test_orchestrate_page_state.py \
             test/test_orchestrate_services.py \
             test/test_orchestrate_support.py \
+            test/test_analysis_page_helpers.py \
             test/test_about_agilab_helpers.py \
+            test/test_app_template_registry.py \
             test/test_cluster_flight_validation.py \
             test/test_cluster_lan_discovery.py \
+            test/test_pinned_expander.py \
+            test/test_venv_linker.py \
+            test/test_workflow_ui.py
+
+          run_gui_chunk pipeline \
+            test/test_first_proof_cli.py \
             test/test_notebook_colab_support.py \
             test/test_page_docs.py \
             test/test_pipeline_ai.py \
@@ -265,16 +301,35 @@ jobs:
             test/test_pipeline_sidebar.py \
             test/test_pipeline_steps.py \
             test/test_pipeline_views.py \
+            test/test_tracking.py
+
+          run_gui_chunk robots \
+            test/test_agilab_web_robot.py \
+            test/test_agilab_widget_robot.py \
+            test/test_first_launch_robot.py \
+            test/test_screenshot_manifest.py
+
+          run_gui_chunk pages \
             test/test_ui_pages.py \
             test/test_apps_pages_launcher.py \
-            test/test_view*.py \
             test/test_app_args.py \
             test/test_streamlit_args.py \
             test/test_pagelib.py \
-            test/test_*_report.py \
-            test/test_*_workflow.py \
             test/test_connector_registry.py \
             test/test_run_manifest.py
+
+          run_gui_chunk views \
+            test/test_view*.py
+
+          run_gui_chunk reports \
+            test/test_*_report.py \
+            test/test_*_workflow.py
+
+          timeout 5m uv --preview-features extra-build-dependencies run --group dev \
+            python -m coverage xml \
+            --rcfile=.coveragerc.agi-gui \
+            --data-file=.coverage.agi-gui \
+            -o coverage-agi-gui.xml
           kill "$HEARTBEAT_PID" 2>/dev/null || true
           trap - EXIT
 
@@ -283,18 +338,20 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-gui-junit
-          path: test-results/junit.xml
+          path: test-results/junit-agi-gui-*.xml
           if-no-files-found: ignore
+          retention-days: 3
 
       - name: Upload agi-gui coverage to Codecov
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: ./coverage-agi-gui.xml
           flags: agi-gui
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Archive agi-gui coverage XML
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
@@ -303,6 +360,7 @@ jobs:
           name: coverage-agi-gui-xml
           path: coverage-agi-gui.xml
           if-no-files-found: error
+          retention-days: 3
 
   agilab:
     runs-on: ubuntu-latest
@@ -334,6 +392,7 @@ jobs:
         run: git diff --exit-code -- badges/
 
       - name: Upload repo-wide agilab coverage to Codecov
+        continue-on-error: true
         uses: codecov/codecov-action@v6
         with:
           files: >-
@@ -343,4 +402,4 @@ jobs:
             ./merged-coverage/coverage-agi-gui.xml
           use_oidc: true
           verbose: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false

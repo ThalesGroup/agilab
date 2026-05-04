@@ -59,6 +59,10 @@ class DiscoveryNode:
     brew: str = ""
     homebrew: str = ""
     sshfs: str = ""
+    cpu: str = ""
+    ram: str = ""
+    gpu: str = ""
+    npu: str = ""
     reverse_ssh: bool | None = None
     errors: tuple[str, ...] = ()
 
@@ -203,6 +207,8 @@ def _node_detail(node: DiscoveryNode) -> str:
         parts.append(f"os={os_label}")
     if node.arch:
         parts.append(f"arch={node.arch}")
+    if node.gpu:
+        parts.append(f"gpu={node.gpu}")
     if node.sshfs:
         parts.append(f"sshfs={node.sshfs}")
     if node.uv:
@@ -285,6 +291,10 @@ def _probe_node(
         brew=values.get("brew", ""),
         homebrew=values.get("homebrew", ""),
         sshfs=values.get("sshfs", ""),
+        cpu=values.get("cpu", ""),
+        ram=values.get("ram", ""),
+        gpu=values.get("gpu", ""),
+        npu=values.get("npu", ""),
         reverse_ssh=reverse,
         errors=errors,
     )
@@ -345,6 +355,27 @@ def _remote_probe_command(manager_target: str) -> str:
         'printf "os=%s\\n" "$(uname -s 2>/dev/null || true)"',
         'printf "arch=%s\\n" "$(uname -m 2>/dev/null || true)"',
         'printf "os_version=%s\\n" "$(sw_vers -productVersion 2>/dev/null || uname -r 2>/dev/null || true)"',
+        "cpu=''; "
+        "if command -v lscpu >/dev/null 2>&1; then cpu=\"$(lscpu 2>/dev/null | awk -F: '/Model name/ {sub(/^[ \\t]+/, \"\", $2); print $2; exit}')\"; fi; "
+        "if [ -z \"$cpu\" ] && [ -r /proc/cpuinfo ]; then cpu=\"$(awk -F: '/model name/ {sub(/^[ \\t]+/, \"\", $2); print $2; exit}' /proc/cpuinfo)\"; fi; "
+        "if [ -z \"$cpu\" ] && command -v sysctl >/dev/null 2>&1; then cpu=\"$(sysctl -n machdep.cpu.brand_string 2>/dev/null || true)\"; fi; "
+        "if [ -z \"$cpu\" ]; then cpu=\"$(uname -m 2>/dev/null || true)\"; fi; "
+        "cores=\"$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || true)\"; "
+        "if [ -n \"$cores\" ]; then cpu=\"$cpu; cores: $cores\"; fi; "
+        'printf "cpu=%s\\n" "$cpu"',
+        "ram=''; "
+        "if [ -r /proc/meminfo ]; then ram=\"$(awk '/MemTotal/ {printf \"%.0f GB\", ($2 * 1024) / (1024 * 1024 * 1024)}' /proc/meminfo)\"; fi; "
+        "if [ -z \"$ram\" ] && command -v sysctl >/dev/null 2>&1; then ram_bytes=\"$(sysctl -n hw.memsize 2>/dev/null || true)\"; "
+        "if [ -n \"$ram_bytes\" ]; then ram=\"$(awk -v b=\"$ram_bytes\" 'BEGIN {printf \"%.0f GB\", b / (1024 * 1024 * 1024)}')\"; fi; fi; "
+        'printf "ram=%s\\n" "$ram"',
+        "gpu=''; "
+        "if command -v nvidia-smi >/dev/null 2>&1; then gpu=\"$(nvidia-smi --query-gpu=name,multiprocessor_count --format=csv,noheader,nounits 2>/dev/null | awk -F, '{gsub(/^[ \\t]+|[ \\t]+$/, \"\", $1); gsub(/^[ \\t]+|[ \\t]+$/, \"\", $2); if ($2 != \"\") print $1 \" (\" $2 \" SMs)\"; else print $1}' | paste -sd ';' -)\"; fi; "
+        "if [ -z \"$gpu\" ] && command -v system_profiler >/dev/null 2>&1; then gpu=\"$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F: '/Chipset Model/ {gsub(/^[ \\t]+/, \"\", $2); print $2; exit}')\"; fi; "
+        'printf "gpu=%s\\n" "$gpu"',
+        "npu=''; chip=''; "
+        "if command -v system_profiler >/dev/null 2>&1; then chip=\"$(system_profiler SPHardwareDataType 2>/dev/null | awk -F: '/Chip/ {gsub(/^[ \\t]+/, \"\", $2); print $2; exit}')\"; fi; "
+        "case \"$chip\" in Apple\\ M*) npu='Apple Neural Engine (16 cores)' ;; esac; "
+        'printf "npu=%s\\n" "$npu"',
         'printf "python3=%s\\n" "$(command -v python3 2>/dev/null || true)"',
         'printf "uv=%s\\n" "$(command -v uv 2>/dev/null || true)"',
         'printf "sshfs=%s\\n" "$(command -v sshfs 2>/dev/null || true)"',
@@ -449,7 +480,100 @@ def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
     if completed.returncode == 0:
         for match in re.finditer(r"\binet\s+(\d+\.\d+\.\d+\.\d+)\s+netmask\s+(0x[0-9a-fA-F]+)", completed.stdout):
             hosts.add(match.group(1))
+
+    route_hosts: set[str] = set()
+    try:
+        completed = runner(["ip", "route", "get", "1.1.1.1"], capture_output=True, text=True, timeout=2)
+    except Exception:
+        completed = subprocess.CompletedProcess(["ip"], 1, stdout="", stderr="")
+    if completed.returncode == 0:
+        for match in re.finditer(r"\bsrc\s+(\d+\.\d+\.\d+\.\d+)\b", completed.stdout):
+            route_hosts.add(match.group(1))
+    hosts.update(route_hosts)
+
+    try:
+        completed = runner(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True, timeout=2)
+    except Exception:
+        completed = subprocess.CompletedProcess(["ip"], 1, stdout="", stderr="")
+    if completed.returncode == 0:
+        for line in completed.stdout.splitlines():
+            fields = line.split()
+            interface = fields[1].rstrip(":") if len(fields) > 1 else ""
+            if interface.startswith(("br-", "docker", "veth", "virbr")) or interface in {"lo"}:
+                continue
+            match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)/\d+", line)
+            if match:
+                hosts.add(match.group(1))
+
+    if not _has_usable_lan_ipv4(hosts):
+        try:
+            completed = runner(["ipconfig"], capture_output=True, text=True, timeout=2)
+        except Exception:
+            completed = subprocess.CompletedProcess(["ipconfig"], 1, stdout="", stderr="")
+        if completed.returncode == 0:
+            for match in re.finditer(r"\bIPv4[^\r\n:]*:\s*(\d+\.\d+\.\d+\.\d+)", completed.stdout, re.IGNORECASE):
+                hosts.add(match.group(1))
+
+    if not _has_usable_lan_ipv4(hosts):
+        powershell_cmd = (
+            "Get-NetIPAddress -AddressFamily IPv4 | "
+            "Where-Object { $_.IPAddress -and $_.IPAddress -notlike '169.254.*' } | "
+            "ForEach-Object { $_.IPAddress }"
+        )
+        for executable in ("powershell", "pwsh"):
+            try:
+                completed = runner(
+                    [executable, "-NoProfile", "-Command", powershell_cmd],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+            except Exception:
+                completed = subprocess.CompletedProcess([executable], 1, stdout="", stderr="")
+            if completed.returncode != 0:
+                continue
+            for token in completed.stdout.split():
+                try:
+                    address = ipaddress.ip_address(token)
+                except ValueError:
+                    continue
+                if address.version == 4:
+                    hosts.add(str(address))
+            if _has_usable_lan_ipv4(hosts):
+                break
+
+    if not _has_usable_lan_ipv4(hosts):
+        try:
+            completed = runner(["hostname", "-I"], capture_output=True, text=True, timeout=2)
+        except Exception:
+            completed = subprocess.CompletedProcess(["hostname"], 1, stdout="", stderr="")
+        if completed.returncode == 0:
+            for token in completed.stdout.split():
+                try:
+                    address = ipaddress.ip_address(token)
+                except ValueError:
+                    continue
+                if address.version == 4:
+                    hosts.add(str(address))
     return {host for host in hosts if not host.startswith("127.")}
+
+
+def _has_usable_lan_ipv4(hosts: set[str]) -> bool:
+    for host in hosts:
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            continue
+        if address.version == 4 and not any(
+            (
+                address.is_loopback,
+                address.is_link_local,
+                address.is_multicast,
+                address.is_unspecified,
+            )
+        ):
+            return True
+    return False
 
 
 def _default_cidrs(local_hosts: set[str]) -> tuple[str, ...]:
@@ -459,7 +583,7 @@ def _default_cidrs(local_hosts: set[str]) -> tuple[str, ...]:
             address = ipaddress.ip_address(host)
         except ValueError:
             continue
-        if address.is_private:
+        if address.is_private and not address.is_link_local:
             network = ipaddress.ip_network(f"{host}/24", strict=False)
             cidrs.append(str(network))
     return tuple(dict.fromkeys(cidrs))
@@ -518,13 +642,21 @@ def _known_hosts_candidates(home: Path) -> tuple[tuple[str, str], ...]:
 
 
 def _arp_candidates(runner: Runner) -> tuple[tuple[str, str], ...]:
-    try:
-        completed = runner(["arp", "-an"], capture_output=True, text=True, timeout=2)
-    except Exception:
-        return ()
-    if completed.returncode != 0:
-        return ()
-    return tuple((match.group(1), "arp") for match in re.finditer(r"\((\d+\.\d+\.\d+\.\d+)\)", completed.stdout))
+    candidates: dict[str, str] = {}
+    for command in (["arp", "-an"], ["arp", "-a"]):
+        try:
+            completed = runner(command, capture_output=True, text=True, timeout=2)
+        except Exception:
+            continue
+        if completed.returncode != 0:
+            continue
+        for match in re.finditer(r"\((\d+\.\d+\.\d+\.\d+)\)", completed.stdout):
+            candidates.setdefault(match.group(1), "arp")
+        for line in completed.stdout.splitlines():
+            match = re.match(r"\s+(\d+\.\d+\.\d+\.\d+)\s+", line)
+            if match:
+                candidates.setdefault(match.group(1), "arp")
+    return tuple(sorted(candidates.items(), key=lambda item: _host_sort_key(item[0])))
 
 
 def _cache_candidates(path: Path) -> tuple[tuple[str, str], ...]:

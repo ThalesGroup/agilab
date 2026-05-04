@@ -10,6 +10,8 @@ This page is about positioning, not the detailed feature list or the roadmap.
 
 - For current shipped capabilities, see :doc:`features`.
 - For planned work, see :doc:`roadmap/agilab-future-work`.
+- For the public strategic scorecard and score movement rule, see
+  :doc:`strategic-potential`.
 
 Executive review summary
 ------------------------
@@ -26,6 +28,28 @@ serving, enterprise governance and audit, online monitoring, drift
 detection, or large-scale operational deployment, it should still be
 treated as early-stage tooling and paired with a hardened production
 stack.
+
+MLflow strategy
+---------------
+
+AGILab should not be positioned as an alternative experiment tracker, a second
+model registry, or a replacement run format. MLflow remains the system of
+record for runs, parameters, metrics, artifacts, models, and registry state.
+AGILab adds the industrial execution context around that record: managed
+environments, worker packaging, distributed execution, project structure,
+dataset and artifact paths, and reproducibility metadata.
+
+The intended split is simple:
+
+- **AGILab owns execution**: environments, workers, clusters, packaging,
+  reproducibility, and operator workflows.
+- **MLflow owns memory**: tracking, artifacts, model registry, versions, and
+  deployment aliases.
+
+In code, AGILab uses a small tracker facade such as
+``tracker.log_metric(...)`` and ``tracker.log_artifact(...)``. The default
+backend is MLflow, so normal AGILab execution can track automatically without
+asking users to hand-write MLflow boilerplate in every snippet or worker.
 
 Best fit and limits
 -------------------
@@ -78,7 +102,8 @@ interactive exploration into a replayable, inspectable workflow:
   supervisor notebook path
 - the data connector facility report validates first-class SQL, OpenSearch,
   and object-storage connector definitions without opening live network
-  connections
+  connections; see :doc:`data-connectors` for supported provider names,
+  credential references, and runtime dependency boundaries
 - the data connector resolution report validates connector-aware app/page
   resolution and keeps ``legacy_path_fallback`` rows available during migration
 - the data connector health report plans opt-in connector health/status probes
@@ -145,7 +170,8 @@ history:
   explicit and prevents mixed environments from being flattened accidentally
 - the data connector facility report gives prototypes a plain-text connector
   catalog for external data systems while keeping credentials in environment
-  references
+  references; the current object-storage contract covers AWS S3/S3-compatible
+  stores, Azure Blob Storage, and Google Cloud Storage
 - connector-aware app/page resolution lets prototypes reference those
   connectors from app settings without dropping legacy raw path fallbacks
 - opt-in connector health planning gives prototypes a status boundary without
@@ -320,7 +346,13 @@ between research experiments and engineering validation:
 
 That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
 higher yet because future app/template reducer adoption discipline and broader
-fresh-install validation are still roadmap work.
+fresh-install validation are still roadmap work. The public scorecard in
+:doc:`strategic-potential` defines the evidence required before maintainers
+should move that score to ``4.3 / 5`` or higher.
+
+Together, the current public category scores round to an overall public
+evaluation of ``3.8 / 5``. This is a compact experimentation-workbench snapshot,
+not a production MLOps certification.
 
 Where AGILab helps
 ------------------
@@ -477,7 +509,8 @@ Suggested workflow
 This is a handoff sketch, not a roadmap.
 
 1. Use AGILab to prototype algorithms, reuse app templates, and validate data
-   processing. Capture run history via ``~/log/execute/<app>/``.
+   processing. Capture execution history through AGILab run logs and
+   MLflow-backed tracking runs.
 2. Once an approach stabilises, prepare the project artefacts for your target
    environment and integrate it with your organisation’s deployment toolchain
    (MLflow, Kubeflow, internal devops stack). In a source checkout, this commonly

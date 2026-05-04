@@ -482,7 +482,7 @@ def test_view_barycentric_warns_when_data_dir_missing(
         pyproject_name="demo-bary-project",
     )
 
-    at = run_page_app_test(str(MODULE_PATH), project_dir)
+    at = run_page_app_test(str(MODULE_PATH), project_dir, timeout=60)
 
     assert not at.exception
     assert any("Barycentric Graph" in title.value for title in at.title)

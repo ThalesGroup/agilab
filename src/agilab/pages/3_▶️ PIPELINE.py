@@ -41,6 +41,8 @@ from agi_gui.pagelib import (
     render_logo,
     inject_theme,
 )
+from agi_gui.file_picker import agi_file_picker
+from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv, normalize_path
 import_agilab_symbols(
     globals(),
@@ -52,6 +54,37 @@ import_agilab_symbols(
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "pipeline_views.py",
     fallback_name="agilab_pipeline_views_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.page_bootstrap",
+    {
+        "ensure_page_env": "_ensure_page_env",
+        "load_about_page_module": "_load_about_page_module_impl",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
+    fallback_name="agilab_page_bootstrap_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pinned_expander",
+    {
+        "render_pinned_expanders": "render_pinned_expanders",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.workflow_ui",
+    {
+        "render_page_context": "render_page_context",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
 )
 import_agilab_symbols(
     globals(),
@@ -121,8 +154,9 @@ import_agilab_symbols(
         "_restore_pipeline_snapshot": "_restore_pipeline_snapshot",
         "build_notebook_export_context": "build_notebook_export_context",
         "get_steps_list": "get_steps_list",
-        "on_import_notebook": "on_import_notebook",
+        "on_preview_notebook_import": "on_preview_notebook_import",
         "refresh_notebook_export": "refresh_notebook_export",
+        "render_notebook_import_preview": "render_notebook_import_preview",
         "resolve_pycharm_notebook_path": "resolve_pycharm_notebook_path",
         "remove_step": "remove_step",
         "save_step": "save_step",
@@ -347,6 +381,88 @@ def clean_query(index_page: str) -> None:
         venv_store = st.session_state.setdefault(f"{index_page}__venv_map", {})
         venv_store.pop(current_step, None)
         st.session_state["lab_selected_venv"] = ""
+
+
+def _resolve_dataframe_selection(
+    selection: Any,
+    *,
+    df_files_rel: List[Path],
+    export_root: Path,
+) -> Tuple[Path, str] | None:
+    """Return a valid relative dataframe selection and absolute picker path."""
+    if selection in (None, ""):
+        return None
+
+    try:
+        raw_path = Path(selection)
+    except TypeError:
+        return None
+    export_root_resolved = export_root.resolve(strict=False)
+    if raw_path.is_absolute():
+        try:
+            relative_path = raw_path.resolve(strict=False).relative_to(export_root_resolved)
+        except ValueError:
+            return None
+    else:
+        relative_path = raw_path
+
+    if relative_path not in df_files_rel:
+        return None
+    return relative_path, str((export_root_resolved / relative_path).resolve(strict=False))
+
+
+def _sync_dataframe_picker_from_selectbox(
+    *,
+    picker_key: str,
+    selectbox_key: str,
+    df_files_rel: List[Path],
+    export_root: Path,
+) -> None:
+    """Keep the picker cache aligned when the legacy selectbox changes."""
+    selected = _resolve_dataframe_selection(
+        st.session_state.get(selectbox_key),
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+    if selected is None:
+        return
+
+    _, selected_abs = selected
+    picker_applied_key = f"{picker_key}:last_applied"
+    if st.session_state.get(picker_applied_key) == selected_abs:
+        return
+
+    st.session_state[f"{picker_key}:selected_paths"] = [selected_abs]
+    st.session_state[picker_applied_key] = selected_abs
+
+
+def _apply_dataframe_picker_selection(
+    picked_df: str | Path | None,
+    *,
+    picker_key: str,
+    selectbox_key: str,
+    df_files_rel: List[Path],
+    export_root: Path,
+) -> bool:
+    """Apply a picker selection only when the picker changed."""
+    selected = _resolve_dataframe_selection(
+        picked_df,
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+    if selected is None:
+        return False
+
+    picked_df_rel, picked_abs = selected
+    picker_applied_key = f"{picker_key}:last_applied"
+    if st.session_state.get(picker_applied_key) == picked_abs:
+        return False
+
+    st.session_state[selectbox_key] = picked_df_rel
+    st.session_state[f"{picker_key}:selected_paths"] = [picked_abs]
+    st.session_state[picker_applied_key] = picked_abs
+    return True
+
 
 @st.cache_data(show_spinner=False)
 def _read_steps(steps_file: Path, module_key: str, mtime_ns: int) -> List[Dict[str, Any]]:
@@ -668,7 +784,16 @@ def sidebar_controls() -> None:
     index_page_str = str(index_page)
 
     if steps_file_rel:
-        st.sidebar.selectbox("Steps file", steps_file_rel, key="index_page", on_change=on_page_change)
+        compact_choice(
+            st.sidebar,
+            "Steps file",
+            steps_file_rel,
+            key="index_page",
+            default=index_page if index_page in steps_file_rel else steps_file_rel[0],
+            on_change=on_page_change,
+            help="Switch between exported pipeline step definitions.",
+            inline_limit=6,
+        )
 
     df_files = find_files(lab_dir)
     st.session_state.df_files = df_files
@@ -680,12 +805,55 @@ def sidebar_controls() -> None:
     key_df = index_page_str + "df"
     index = next((i for i, f in enumerate(df_files_rel) if f.name == DEFAULT_DF), 0)
     df_file_default = st.session_state.get("df_file")
+    current_df_selection = st.session_state.get(key_df)
+    if current_df_selection is not None and current_df_selection not in df_files_rel:
+        st.session_state.pop(key_df, None)
+
+    picker_default: Path | None = None
+    if df_file_default:
+        picker_default = Path(df_file_default)
+    elif df_files_rel:
+        picker_default = Agi_export_abs / df_files_rel[index]
+    picker_key = f"{index_page_str}:dataframe_picker"
+    _sync_dataframe_picker_from_selectbox(
+        picker_key=picker_key,
+        selectbox_key=key_df,
+        df_files_rel=df_files_rel,
+        export_root=Agi_export_abs,
+    )
+    picked_df = agi_file_picker(
+        "Browse dataframe",
+        roots={lab_root: lab_dir},
+        key=picker_key,
+        patterns="*",
+        default=picker_default,
+        selection_mode="single",
+        allow_files=True,
+        allow_dirs=False,
+        recursive=True,
+        container=st.sidebar,
+        help="Browse files under the active lab export directory.",
+    )
+    if picked_df:
+        try:
+            picked_df_rel = Path(picked_df).resolve(strict=False).relative_to(Agi_export_abs)
+        except ValueError:
+            st.sidebar.warning("Selected dataframe is outside the export directory.")
+        else:
+            _apply_dataframe_picker_selection(
+                picked_df_rel,
+                picker_key=picker_key,
+                selectbox_key=key_df,
+                df_files_rel=df_files_rel,
+                export_root=Agi_export_abs,
+            )
+    selectbox_index = None if key_df in st.session_state or not df_files_rel else index
 
     st.sidebar.selectbox(
         "Dataframe",
         df_files_rel,
         key=key_df,
-        index=index,
+        index=selectbox_index,
         on_change=on_df_change,
         args=(module_path, df_file_default, index_page_str, steps_file),
     )
@@ -716,9 +884,10 @@ def sidebar_controls() -> None:
         "Import notebook",
         type="ipynb",
         key=key,
-        on_change=on_import_notebook,
-        args=(key, module_path, steps_file, index_page_str),
+        on_change=on_preview_notebook_import,
+        args=(key, module_path, index_page_str),
     )
+    render_notebook_import_preview(module_path, steps_file, index_page_str)
 
     export_context = build_notebook_export_context(
         env,
@@ -763,11 +932,7 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
         with open(pre_prompt_path, encoding="utf-8") as stream:
             pre_prompt_content = json.load(stream)
     except FileNotFoundError:
-        st.warning(f"Missing pre_prompt.json at {pre_prompt_path}; using empty prompt.")
-        try:
-            pre_prompt_path.write_text("[]\n", encoding="utf-8")
-        except OSError:
-            st.warning(f"Unable to create {pre_prompt_path}; check folder permissions.")
+        logger.info("No pre_prompt.json found at %s; using empty Pipeline prompt.", pre_prompt_path)
         return []
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
         st.warning(f"Failed to load pre_prompt.json: {exc}")
@@ -780,30 +945,33 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
     return []
 
 
+def _caption_once(key: str, message: str) -> None:
+    """Render low-priority Pipeline guidance once per Streamlit session."""
+    notice_key = f"_pipeline_notice_seen__{key}"
+    if st.session_state.get(notice_key):
+        return
+    st.caption(message)
+    st.session_state[notice_key] = True
+
+
 def _load_about_page_module():
     """Load the About page module using import fallback for source and packaged layouts."""
-    about_path = Path(__file__).resolve().parents[1] / "About_agilab.py"
-    page_module = load_local_module(
-        "agilab.About_agilab",
-        current_file=__file__,
-        fallback_path=about_path,
-        fallback_name="agilab_about_fallback",
-    )
-    if not hasattr(page_module, "main"):
-        raise ModuleNotFoundError("Unable to import About_agilab page module.")
-    return page_module
+    return _load_about_page_module_impl(__file__, load_module=load_local_module)
 
 
 def page() -> None:
     """Main page logic handler."""
     global df_file
 
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", False):
-        page_module = importlib.import_module("agilab.About_agilab")
-        page_module.main()
-        st.rerun()
+    env = _ensure_page_env(
+        st,
+        __file__,
+        init_done_default=False,
+        load_module=load_local_module,
+    )
+    if env is None:
+        return
 
-    env: AgiEnv = st.session_state["env"]
     if "openai_api_key" not in st.session_state:
         seed_key = env.envars.get("OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY", "")
         if seed_key:
@@ -839,9 +1007,10 @@ def page() -> None:
     df_file = st.session_state.get("df_file")
     if not df_file or not Path(df_file).exists():
         default_df_path = (lab_dir / DEFAULT_DF).resolve()
-        st.info(
-            f"No dataframe exported for {lab_dir.name}. "
-            f"You can proceed without a dataframe; data-dependent steps may need {default_df_path}."
+        _caption_once(
+            f"missing_df::{lab_dir}",
+            f"No dataframe exported for {lab_dir.name} yet. "
+            f"Data-dependent steps may need `{default_df_path}`.",
         )
         st.session_state["df_file"] = None
 
@@ -904,10 +1073,9 @@ def load_df_cached(path: Path, nrows: int = 50, with_index: bool = True) -> Opti
 
 
 def main() -> None:
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        page_module = _load_about_page_module()
-        page_module.main()
-        st.rerun()
+    env = _ensure_page_env(st, __file__, load_module=load_local_module)
+    if env is None:
+        return
 
     env: AgiEnv = st.session_state['env']
 
@@ -937,6 +1105,8 @@ def main() -> None:
             render_logo()
         else:
             render_logo()
+        render_pinned_expanders(st)
+        render_page_context(st, page_label="PIPELINE", env=env)
 
         if background_services_enabled() and not st.session_state.get("server_started", False):
             activate_mlflow(env)

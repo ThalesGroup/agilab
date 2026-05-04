@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -16,6 +18,12 @@ def _load_project_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _extract_toolbar_buttons(payload):
+    buttons = payload["buttons"] if isinstance(payload, dict) else payload
+    assert isinstance(buttons, list), f"expected list of buttons, got {type(buttons)!r}"
+    return buttons
 
 
 def test_finalize_cloned_project_environment_detaches_shared_venv(tmp_path: Path):
@@ -79,6 +87,591 @@ def test_repair_renamed_project_environment_moves_real_venv(tmp_path: Path):
     assert not source_venv.exists()
     assert not source_venv.is_symlink()
     assert (dest_venv / "marker.txt").read_text(encoding="utf-8") == "ok"
+
+
+def test_export_project_action_creates_zip_and_honors_gitignore(tmp_path: Path):
+    module = _load_project_module()
+    project_root = tmp_path / "demo_project"
+    project_root.mkdir()
+    (project_root / ".gitignore").write_text("ignored.txt\nignored_dir/\n", encoding="utf-8")
+    (project_root / "keep.txt").write_text("ok", encoding="utf-8")
+    (project_root / "ignored.txt").write_text("ignore", encoding="utf-8")
+    ignored_dir = project_root / "ignored_dir"
+    ignored_dir.mkdir()
+    (ignored_dir / "nested.txt").write_text("ignore", encoding="utf-8")
+    export_root = tmp_path / "exports"
+    env = SimpleNamespace(app="demo_project", active_app=project_root, export_apps=export_root)
+
+    result = module._export_project_action(env)
+
+    assert result.status == "success"
+    assert result.title == f"Project exported to {export_root / 'demo_project.zip'}"
+    assert result.detail is None
+    assert result.data["app_zip"] == "demo_project.zip"
+    with zipfile.ZipFile(result.data["output_zip"], "r") as archive:
+        assert sorted(archive.namelist()) == [".gitignore", "keep.txt"]
+
+
+def test_export_project_action_reports_missing_gitignore(tmp_path: Path):
+    module = _load_project_module()
+    project_root = tmp_path / "demo_project"
+    project_root.mkdir()
+    (project_root / "keep.txt").write_text("ok", encoding="utf-8")
+    export_root = tmp_path / "exports"
+    env = SimpleNamespace(app="demo_project", active_app=project_root, export_apps=export_root)
+
+    result = module._export_project_action(env)
+
+    assert result.status == "success"
+    assert result.detail == "No .gitignore found; exported all files."
+    with zipfile.ZipFile(result.data["output_zip"], "r") as archive:
+        assert archive.namelist() == ["keep.txt"]
+
+
+def test_export_project_action_reports_missing_project(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(
+        app="missing_project",
+        active_app=tmp_path / "missing_project",
+        export_apps=tmp_path / "exports",
+    )
+
+    result = module._export_project_action(env)
+
+    assert result.status == "error"
+    assert result.title == "Project 'missing_project' does not exist."
+    assert "select another project" in str(result.next_action)
+
+
+def _write_project_archive(path: Path, files: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+
+
+def test_import_project_action_requires_archive_selection(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(export_apps=tmp_path / "exports", apps_path=tmp_path / "apps")
+
+    result = module._import_project_action(env, project_zip="-- Select a file --")
+
+    assert result.status == "error"
+    assert result.title == "Please select a project archive."
+    assert "Choose an exported project zip" in str(result.next_action)
+
+
+def test_import_project_action_reports_missing_archive(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(export_apps=tmp_path / "exports", apps_path=tmp_path / "apps")
+
+    result = module._import_project_action(env, project_zip="missing_project.zip")
+
+    assert result.status == "error"
+    assert result.title == "Project archive 'missing_project.zip' does not exist."
+    assert result.data["zip_path"] == tmp_path / "exports" / "missing_project.zip"
+
+
+def test_import_project_action_reports_invalid_archive(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    export_root.mkdir()
+    (export_root / "demo_project.zip").write_text("not a zip", encoding="utf-8")
+    apps_root = tmp_path / "apps"
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(env, project_zip="demo_project.zip")
+
+    assert result.status == "error"
+    assert result.title == "Project archive 'demo_project.zip' could not be imported."
+    assert "valid exported project zip" in str(result.next_action)
+    assert result.data["target_dir"] == apps_root / "demo_project"
+    assert not result.data["target_dir"].exists()
+
+
+def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    _write_project_archive(
+        export_root / "demo_project.zip",
+        {"README.md": "demo", "src/demo.py": "print('ok')\n"},
+    )
+    cleaned: list[Path] = []
+    monkeypatch.setattr(module, "clean_project", lambda path: cleaned.append(path))
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        clean=True,
+        overwrite=False,
+    )
+
+    target_dir = apps_root / "demo_project"
+    assert result.status == "success"
+    assert result.title == "Project 'demo_project' successfully imported."
+    assert result.data["target_dir"] == target_dir
+    assert (target_dir / "README.md").read_text(encoding="utf-8") == "demo"
+    assert (target_dir / "src" / "demo.py").read_text(encoding="utf-8") == "print('ok')\n"
+    assert cleaned == [target_dir]
+
+
+def test_import_project_action_requires_overwrite_for_existing_project(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    (target_dir / "existing.txt").write_text("keep", encoding="utf-8")
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        overwrite=False,
+    )
+
+    assert result.status == "warning"
+    assert result.title == "Project 'demo_project' already exists."
+    assert "Confirm overwrite" in str(result.next_action)
+    assert (target_dir / "existing.txt").read_text(encoding="utf-8") == "keep"
+
+
+def test_import_project_action_overwrites_existing_project(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    (target_dir / "old.txt").write_text("old", encoding="utf-8")
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
+
+    assert result.status == "success"
+    assert not (target_dir / "old.txt").exists()
+    assert (target_dir / "new.txt").read_text(encoding="utf-8") == "new"
+
+
+def test_import_project_action_reports_unremovable_existing_project(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
+
+    def _raise_unremovable(path: Path) -> None:
+        assert path == target_dir
+        raise OSError("locked")
+
+    monkeypatch.setattr(module.shutil, "rmtree", _raise_unremovable)
+
+    result = module._import_project_action(
+        env,
+        project_zip="demo_project.zip",
+        overwrite=True,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Project 'demo_project' is not removable."
+    assert result.detail == "locked"
+    assert "filesystem permissions" in str(result.next_action)
+    assert result.data["target_dir"] == target_dir
+
+
+def test_create_project_clone_action_creates_project_and_reports_strategy(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+
+    def _clone_project(source: Path, target: Path):
+        clone_calls.append((source, target))
+        (tmp_path / target).mkdir()
+
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="New Demo",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "success"
+    assert result.title == "Project 'new_demo_project' created."
+    assert result.detail is not None
+    assert "without sharing" in result.detail
+    assert result.data["new_name"] == "new_demo_project"
+    assert clone_calls == [(Path("source_project"), Path("new_demo_project"))]
+    assert (tmp_path / "new_demo_project").is_dir()
+
+
+def test_create_project_clone_action_rejects_duplicate_names(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+    (tmp_path / "existing_project").mkdir()
+    env = SimpleNamespace(
+        apps_path=tmp_path,
+        clone_project=lambda source, target: clone_calls.append((source, target)),
+    )
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Existing",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "warning"
+    assert result.title == "Project 'existing_project' already exists."
+    assert result.next_action is not None
+    assert "Choose another project name" in result.next_action
+    assert clone_calls == []
+
+
+def test_create_project_clone_action_reports_missing_clone_output(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=lambda _source, _target: None)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Missing Output",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "error"
+    assert result.title == "Error while creating 'missing_output_project'."
+    assert result.next_action is not None
+    assert "filesystem permissions" in result.next_action
+
+
+def test_create_project_clone_action_reports_clone_exception(tmp_path: Path):
+    module = _load_project_module()
+
+    def _raise_clone(_source: Path, _target: Path) -> None:
+        raise OSError("copy denied")
+
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_raise_clone)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Broken Clone",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "error"
+    assert result.title == "Project 'broken_clone_project' could not be cloned."
+    assert result.detail == "copy denied"
+    assert "filesystem permissions" in str(result.next_action)
+    assert result.data["dest_root"] == tmp_path / "broken_clone_project"
+
+
+def test_create_project_clone_action_reports_environment_finalization_failure(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+
+    def _clone_project(_source: Path, target: Path) -> None:
+        (tmp_path / target).mkdir()
+
+    def _raise_finalize(*_args, **_kwargs) -> None:
+        raise ValueError("bad strategy")
+
+    monkeypatch.setattr(module, "_finalize_cloned_project_environment", _raise_finalize)
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Partial Clone",
+        clone_env_strategy="unknown",
+    )
+
+    assert result.status == "error"
+    assert result.title == (
+        "Project 'partial_clone_project' was created, but environment finalization failed."
+    )
+    assert result.detail == "bad strategy"
+    assert "rerun INSTALL" in str(result.next_action)
+    assert (tmp_path / "partial_clone_project").is_dir()
+
+
+def test_rename_project_action_preserves_venv_and_removes_source(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+    source_root = tmp_path / "current_project"
+    source_venv = source_root / ".venv"
+    source_venv.mkdir(parents=True)
+    (source_venv / "marker.txt").write_text("ok", encoding="utf-8")
+
+    def _clone_project(source: Path, target: Path):
+        clone_calls.append((source, target))
+        (tmp_path / target).mkdir()
+
+    env = SimpleNamespace(
+        app="current_project",
+        apps_path=tmp_path,
+        clone_project=_clone_project,
+    )
+
+    result = module._rename_project_action(env, raw_project_name="Renamed")
+
+    assert result.status == "success"
+    assert result.title == "Project renamed: 'current_project' -> 'renamed_project'"
+    assert result.detail is not None
+    assert "Preserved the project .venv" in result.detail
+    assert result.next_action is None
+    assert result.data["new_name"] == "renamed_project"
+    assert clone_calls == [(Path("current_project"), Path("renamed_project"))]
+    assert not source_root.exists()
+    assert (tmp_path / "renamed_project/.venv/marker.txt").read_text(encoding="utf-8") == "ok"
+
+
+def test_rename_project_action_rejects_duplicate_target(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+    (tmp_path / "existing_project").mkdir()
+    env = SimpleNamespace(
+        app="current_project",
+        apps_path=tmp_path,
+        clone_project=lambda source, target: clone_calls.append((source, target)),
+    )
+
+    result = module._rename_project_action(env, raw_project_name="Existing")
+
+    assert result.status == "warning"
+    assert result.title == "Project 'existing_project' already exists."
+    assert result.next_action is not None
+    assert "Choose another project name" in result.next_action
+    assert clone_calls == []
+
+
+def test_rename_project_action_reports_missing_clone_output(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(
+        app="current_project",
+        apps_path=tmp_path,
+        clone_project=lambda _source, _target: None,
+    )
+
+    result = module._rename_project_action(env, raw_project_name="Missing Output")
+
+    assert result.status == "error"
+    assert result.title == "Error: Project 'missing_output_project' not found after renaming."
+    assert result.next_action is not None
+    assert "filesystem permissions" in result.next_action
+
+
+def test_rename_project_action_reports_clone_exception(tmp_path: Path):
+    module = _load_project_module()
+
+    def _raise_clone(_source: Path, _target: Path) -> None:
+        raise OSError("copy denied")
+
+    env = SimpleNamespace(
+        app="current_project",
+        apps_path=tmp_path,
+        clone_project=_raise_clone,
+    )
+
+    result = module._rename_project_action(env, raw_project_name="Broken")
+
+    assert result.status == "error"
+    assert result.title == "Project 'current_project' could not be cloned to 'broken_project'."
+    assert result.detail == "copy denied"
+    assert "filesystem permissions" in str(result.next_action)
+    assert result.data["dest_path"] == tmp_path / "broken_project"
+
+
+def test_rename_project_action_reports_environment_preservation_failure(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+    source_root = tmp_path / "current_project"
+    source_root.mkdir()
+
+    def _clone_project(_source: Path, target: Path) -> None:
+        (tmp_path / target).mkdir()
+
+    def _raise_repair(_source: Path, _dest: Path) -> None:
+        raise OSError("venv locked")
+
+    monkeypatch.setattr(module, "_repair_renamed_project_environment", _raise_repair)
+    env = SimpleNamespace(
+        app="current_project",
+        apps_path=tmp_path,
+        clone_project=_clone_project,
+    )
+
+    result = module._rename_project_action(env, raw_project_name="Renamed")
+
+    assert result.status == "error"
+    assert result.title == (
+        "Project 'renamed_project' was cloned, but environment preservation failed."
+    )
+    assert result.detail == "venv locked"
+    assert "rerun INSTALL" in str(result.next_action)
+    assert (tmp_path / "renamed_project").is_dir()
+
+
+def test_rename_project_action_reports_source_cleanup_failure(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    source_root = tmp_path / "current_project"
+    source_root.mkdir()
+
+    def _clone_project(_source: Path, target: Path):
+        (tmp_path / target).mkdir()
+
+    def _fail_rmtree(_path: Path):
+        raise OSError("locked")
+
+    monkeypatch.setattr(module.shutil, "rmtree", _fail_rmtree)
+    env = SimpleNamespace(
+        app="current_project",
+        apps_path=tmp_path,
+        clone_project=_clone_project,
+    )
+
+    result = module._rename_project_action(env, raw_project_name="Renamed")
+
+    assert result.status == "success"
+    assert result.detail is not None
+    assert "failed to remove" in result.detail
+    assert result.next_action == f"Remove the old project directory manually: {source_root}"
+
+
+def test_delete_project_action_requires_confirmation():
+    module = _load_project_module()
+    env = SimpleNamespace(app="current_project")
+
+    result = module._delete_project_action(env, confirmed=False)
+
+    assert result.status == "error"
+    assert result.title == "Please confirm that you want to delete the project."
+    assert result.next_action == "Tick the confirmation checkbox before deleting."
+
+
+def test_delete_project_action_reports_missing_project(tmp_path: Path):
+    module = _load_project_module()
+    env = SimpleNamespace(
+        app="current_project",
+        active_app=tmp_path / "current_project",
+    )
+
+    result = module._delete_project_action(env, confirmed=True)
+
+    assert result.status == "error"
+    assert result.title == "Project 'current_project' does not exist."
+    assert "Refresh the PROJECT page" in str(result.next_action)
+
+
+def test_delete_project_action_removes_project_and_runtime_artifacts(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    project_path = tmp_path / "current_project"
+    project_path.mkdir()
+    wenv_path = tmp_path / "wenv" / "current_worker"
+    wenv_path.mkdir(parents=True)
+    data_root = tmp_path / "share" / "current"
+    data_root.mkdir(parents=True)
+    home_root = tmp_path / "home"
+    cleanup_calls: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(module.Path, "home", lambda: home_root)
+    monkeypatch.setattr(
+        module,
+        "_cleanup_run_configuration_artifacts",
+        lambda app, target, errors: cleanup_calls.append(("run", f"{app}:{target}")),
+    )
+    monkeypatch.setattr(
+        module,
+        "_cleanup_module_artifacts",
+        lambda app, target, errors: cleanup_calls.append(("module", f"{app}:{target}")),
+    )
+    env = SimpleNamespace(
+        app="current_project",
+        active_app=project_path,
+        target="current",
+        wenv_abs=wenv_path,
+        app_data_rel=data_root,
+        projects=["current_project", "next_project"],
+    )
+
+    result = module._delete_project_action(env, confirmed=True)
+
+    assert result.status == "success"
+    assert result.title == "Project 'current_project' has been deleted."
+    assert result.detail is None
+    assert result.data["next_app"] == "next_project"
+    assert result.data["cleanup_errors"] == ()
+    assert env.projects == ["next_project"]
+    assert not project_path.exists()
+    assert not wenv_path.exists()
+    assert not data_root.exists()
+    assert cleanup_calls == [
+        ("run", "current_project:current"),
+        ("module", "current_project:current"),
+    ]
+
+
+def test_delete_project_action_reports_project_removal_failure(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    project_path = tmp_path / "current_project"
+    project_path.mkdir()
+    home_root = tmp_path / "home"
+    original_safe_remove_path = module._safe_remove_path
+
+    def _safe_remove_path(candidate, label, errors):
+        if str(label).startswith("Project 'current_project'"):
+            errors.append("Project 'current_project': locked")
+            return
+        original_safe_remove_path(candidate, label, errors)
+
+    monkeypatch.setattr(module.Path, "home", lambda: home_root)
+    monkeypatch.setattr(module, "_safe_remove_path", _safe_remove_path)
+    monkeypatch.setattr(
+        module,
+        "_cleanup_run_configuration_artifacts",
+        lambda _app, _target, _errors: None,
+    )
+    monkeypatch.setattr(
+        module,
+        "_cleanup_module_artifacts",
+        lambda _app, _target, _errors: None,
+    )
+    env = SimpleNamespace(
+        app="current_project",
+        active_app=project_path,
+        target="current",
+        wenv_abs=tmp_path / "wenv" / "current_worker",
+        app_data_rel=None,
+        projects=["current_project", "next_project"],
+    )
+
+    result = module._delete_project_action(env, confirmed=True)
+
+    assert result.status == "error"
+    assert result.title == "Project 'current_project' could not be removed."
+    assert result.detail == "Cleanup issue: Project 'current_project': locked"
+    assert result.next_action == f"Remove {project_path} manually, then refresh the PROJECT page."
+    assert result.data["cleanup_errors"] == ("Project 'current_project': locked",)
+    assert env.projects == ["current_project", "next_project"]
+    assert project_path.exists()
 
 
 def test_safe_remove_path_collects_probe_errors(monkeypatch):
@@ -220,6 +813,185 @@ def test_build_updated_attributes_source_rewrites_selected_class():
     assert "value = 4" in updated
     assert "other = 5" in updated
     assert "value = 1" not in updated
+
+
+def test_save_code_editor_file_action_rejects_invalid_json_without_overwrite(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "settings.json"
+    target.write_text('{"ok": true}\n', encoding="utf-8")
+
+    result = module._save_code_editor_file_action(target, "{bad json", "json")
+
+    assert result.status == "error"
+    assert result.title == "Failed to save changes to 'settings.json'."
+    assert "Invalid JSON" in str(result.detail)
+    assert target.read_text(encoding="utf-8") == '{"ok": true}\n'
+
+
+def test_save_code_editor_file_action_writes_valid_text(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "README.md"
+
+    result = module._save_code_editor_file_action(target, "# Demo\n", "markdown")
+
+    assert result.status == "success"
+    assert result.title == "Changes saved to 'README.md'."
+    assert target.read_text(encoding="utf-8") == "# Demo\n"
+
+
+def test_project_editor_pin_supports_readme_and_other_files(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    project_root = tmp_path / "demo_project"
+    project_root.mkdir()
+    readme_text = "# Demo\n\nKeep this visible while navigating.\n"
+    readme_path = project_root / "README.md"
+    readme_path.write_text(readme_text, encoding="utf-8")
+    env = SimpleNamespace(app="demo_project", active_app=project_root)
+    calls: dict[str, object] = {}
+
+    def fake_code_editor(body, **kwargs):
+        calls["editor"] = (body, kwargs["lang"], kwargs["key"])
+        calls["buttons"] = kwargs["buttons"]
+        return {"type": module.EDITOR_PIN_RESPONSE, "text": body}
+
+    class FakeStreamlit:
+        def __init__(self):
+            self.session_state = {}
+            self.rerun_called = False
+
+        def rerun(self):
+            self.rerun_called = True
+
+    fake_st = FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "code_editor", fake_code_editor)
+    monkeypatch.setattr(module, "CUSTOM_BUTTONS", [{"name": "Copy"}], raising=False)
+    monkeypatch.setattr(module, "INFO_BAR", {"info": [{"name": ""}]}, raising=False)
+    monkeypatch.setattr(module, "comp_props", {}, raising=False)
+    monkeypatch.setattr(module, "ace_props", {}, raising=False)
+
+    module._render_readme(env)
+
+    toolbar_buttons = _extract_toolbar_buttons(calls["buttons"])
+    assert [button["name"] for button in toolbar_buttons[:2]] == ["Copy", "Pin"]
+    pinned_buttons = module._project_editor_toolbar_buttons(
+        {"buttons": [{"name": "Copy"}]},
+        pinned=True,
+    )
+    pinned_toolbar = _extract_toolbar_buttons(pinned_buttons)
+    assert [button["name"] for button in pinned_toolbar[:2]] == ["Copy", "Unpin"]
+    assert pinned_toolbar[1]["commands"][-1] == ["response", module.EDITOR_UNPIN_RESPONSE]
+    list_buttons = module._project_editor_toolbar_buttons(
+        [{"name": "Copy"}],
+        pinned=False,
+    )
+    list_toolbar = _extract_toolbar_buttons(list_buttons)
+    assert [button["name"] for button in list_toolbar[:2]] == ["Copy", "Pin"]
+    assert calls["editor"] == (
+        readme_text,
+        "markdown",
+        f"readme:{readme_path}:module-level:readme:None",
+    )
+    panel_id = module._project_editor_panel_id(readme_path, "readme", "file", "readme")
+    panel = fake_st.session_state["agilab:pinned_expanders"][panel_id]
+    assert panel["title"] == "demo_project/README.md"
+    assert panel["body"] == readme_text
+    assert panel["body_format"] == "markdown"
+    assert panel["source"] == str(readme_path)
+    assert fake_st.rerun_called is True
+
+    toml_text = "[project]\nname = \"demo\"\n"
+    toml_path = project_root / "pyproject.toml"
+    toml_path.write_text(toml_text, encoding="utf-8")
+    calls.clear()
+
+    module.render_code_editor(toml_path, toml_text, "toml", "pyproject", {}, {})
+
+    toml_buttons = calls["buttons"]
+    assert [button["name"] for button in _extract_toolbar_buttons(toml_buttons)[:2]] == ["Copy", "Pin"]
+    assert calls["editor"] == (
+        toml_text,
+        "toml",
+        f"pyproject:{toml_path}:module-level:pyproject:None",
+    )
+    toml_panel_id = module._project_editor_panel_id(toml_path, "pyproject", "file", "pyproject")
+    toml_panel = fake_st.session_state["agilab:pinned_expanders"][toml_panel_id]
+    assert toml_panel["title"] == "demo_project/pyproject.toml"
+    assert toml_panel["body"] == toml_text
+    assert toml_panel["body_format"] == "code"
+    assert toml_panel["language"] == "toml"
+    assert toml_panel["source"] == str(toml_path)
+
+
+def test_project_editor_toolbar_buttons_preserves_dict_payload_shape():
+    module = _load_project_module()
+    base_buttons = [{"name": "Copy"}]
+
+    dict_payload = module._project_editor_toolbar_buttons(
+        {"buttons": base_buttons},
+        pinned=False,
+    )
+    assert isinstance(dict_payload, list)
+    dict_buttons = _extract_toolbar_buttons(dict_payload)
+    assert dict_buttons[0]["name"] == "Copy"
+    assert dict_buttons[1]["name"] == "Pin"
+    assert dict_buttons[1]["commands"][-1] == ["response", module.EDITOR_PIN_RESPONSE]
+
+    list_payload = module._project_editor_toolbar_buttons(
+        base_buttons,
+        pinned=True,
+    )
+    assert isinstance(list_payload, list)
+    list_buttons = _extract_toolbar_buttons(list_payload)
+    assert list_buttons[0]["name"] == "Copy"
+    assert list_buttons[1]["name"] == "Unpin"
+    assert list_buttons[1]["commands"][-1] == ["response", module.EDITOR_UNPIN_RESPONSE]
+
+    empty_payload = module._project_editor_toolbar_buttons(None, pinned=False)
+    assert isinstance(empty_payload, list)
+    empty_buttons = _extract_toolbar_buttons(empty_payload)
+    assert len(empty_buttons) == 1
+    assert empty_buttons[0]["name"] == "Pin"
+
+
+def test_update_function_source_action_preserves_module_context(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "demo.py"
+    target.write_text(
+        "VALUE = 1\n\n"
+        "def keep():\n"
+        "    return VALUE\n\n"
+        "def demo():\n"
+        "    return 1\n",
+        encoding="utf-8",
+    )
+
+    result = module._update_function_source_action(
+        target,
+        "def demo():\n    return 2\n",
+        "demo",
+        "module-level",
+    )
+
+    updated = target.read_text(encoding="utf-8")
+    assert result.status == "success"
+    assert "def keep" in updated
+    assert "return VALUE" in updated
+    assert "return 2" in updated
+    assert "return 1" not in updated
+
+
+def test_update_attributes_source_action_reports_invalid_class(tmp_path: Path):
+    module = _load_project_module()
+    target = tmp_path / "demo.py"
+    target.write_text("class Demo:\n    value = 1\n", encoding="utf-8")
+
+    result = module._update_attributes_source_action(target, "value = 2\n", "Missing")
+
+    assert result.status == "error"
+    assert result.title == "Error updating attributes."
+    assert "Class 'Missing' not found" in str(result.detail)
+    assert "value = 1" in target.read_text(encoding="utf-8")
 
 
 def test_build_updated_function_source_rejects_non_function_code():

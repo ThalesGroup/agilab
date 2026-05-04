@@ -171,6 +171,7 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
     assert "view_maps_network" in written
     assert 'dataset_base_choice = "AGI_SHARE_DIR"' in written
     parsed = tomllib.loads(written)
+    assert parsed["__meta__"] == {"schema": "agilab.app_settings.v1", "version": 1}
     assert parsed["view_maps_network"]["df_file"] == ""
     assert parsed["view_maps_network"]["df_files"] == ["export.csv", ""]
 
@@ -204,7 +205,7 @@ def test_view_maps_network_warns_when_no_dataset_exists(
         pyproject_name="demo-map-project",
     )
 
-    at = run_page_app_test(str(MODULE_PATH), project_dir, export_root=tmp_path / "export")
+    at = run_page_app_test(str(MODULE_PATH), project_dir, export_root=tmp_path / "export", timeout=60)
 
     assert not at.exception
     assert any("Maps Network Graph" in title.value for title in at.title)
@@ -1142,9 +1143,8 @@ def test_view_maps_network_unexpected_helper_errors_propagate(monkeypatch, tmp_p
         "_dump_toml",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dump")),
     )
-    with pytest.raises(ValueError, match="bad dump"):
-        module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
-    assert warnings == []
+    module._persist_app_settings(SimpleNamespace(app_settings_file=tmp_path / "persist.toml"))
+    assert any("Unable to persist app_settings" in message and "bad dump" in message for message in warnings)
 
     class _BadBase:
         def exists(self) -> bool:

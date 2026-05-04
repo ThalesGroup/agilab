@@ -194,6 +194,14 @@ def test_workload_barchart_warns_when_no_data(monkeypatch):
     assert warnings == ["No data available for workload distribution."]
 
 
+def test_import_plotly_graph_objects_reports_missing_optional_viz_extra():
+    def missing_plotly(_name):
+        raise ModuleNotFoundError("plotly")
+
+    with pytest.raises(RuntimeError, match=r"agilab\[viz\]"):
+        orchestrate_distribution.import_plotly_graph_objects(missing_plotly)
+
+
 def test_draw_distribution_requires_matplotlib(monkeypatch):
     monkeypatch.setattr(orchestrate_distribution, "plt", None)
     monkeypatch.setattr(orchestrate_distribution, "Patch", None)

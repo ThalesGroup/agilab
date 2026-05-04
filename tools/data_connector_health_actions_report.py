@@ -144,10 +144,12 @@ def _build_report_with_path(
         _check_result(
             "data_connector_health_actions_rows",
             "Data connector health actions rows",
-            summary.get("action_count") == 3
+            summary.get("action_count") == 5
             and action_ids
             == [
                 "artifact_object_store:health_probe",
+                "azure_artifact_store:health_probe",
+                "gcp_artifact_store:health_probe",
                 "ops_opensearch:health_probe",
                 "warehouse_sql:health_probe",
             ]
@@ -162,8 +164,8 @@ def _build_report_with_path(
         _check_result(
             "data_connector_health_actions_operator_trigger",
             "Data connector health actions operator trigger",
-            summary.get("operator_trigger_count") == 3
-            and summary.get("pending_action_count") == 3
+            summary.get("operator_trigger_count") == 5
+            and summary.get("pending_action_count") == 5
             and {action.get("trigger_mode") for action in actions}
             == {"operator_explicit_opt_in"}
             and {action.get("ui_control") for action in actions} == {"button"}
@@ -195,8 +197,8 @@ def _build_report_with_path(
         _check_result(
             "data_connector_health_actions_credential_boundary",
             "Data connector health actions credentials boundary",
-            summary.get("operator_context_required_count") == 3
-            and summary.get("credential_gated_count") == 2
+            summary.get("operator_context_required_count") == 5
+            and summary.get("credential_gated_count") == 4
             and summary.get("no_credential_required_count") == 1
             and all(
                 action.get("requires_operator_context") is True

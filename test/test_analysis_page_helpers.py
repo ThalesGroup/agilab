@@ -3,18 +3,29 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import sys
+import tomllib
 import types
 from pathlib import Path
 from types import SimpleNamespace
 
 
 MODULE_PATH = Path("src/agilab/pages/4_▶️ ANALYSIS.py")
+STATE_MODULE_PATH = Path("src/agilab/analysis_page_state.py")
 
 
 def _load_analysis_module():
     spec = importlib.util.spec_from_file_location("agilab_analysis_page_tests", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _load_analysis_state_module():
+    spec = importlib.util.spec_from_file_location("agilab_analysis_page_state_tests", STATE_MODULE_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -44,7 +55,11 @@ def test_write_config_creates_parent_and_persists_toml(tmp_path: Path):
 
     module._write_config(config_path, {"title": "demo"})
 
-    assert config_path.read_text(encoding="utf-8") == 'title = "demo"\n'
+    data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    assert data == {
+        "__meta__": {"schema": "agilab.app_settings.v1", "version": 1},
+        "title": "demo",
+    }
 
 
 def test_write_config_reports_oserror(tmp_path: Path, monkeypatch):
@@ -250,6 +265,115 @@ def test_excluded_view_options_normalizes_configured_names():
     assert module._excluded_view_options(cfg) == {"view_maps_network"}
 
 
+def test_page_apps_path_prefers_agilab_apps_over_legacy_src_apps(tmp_path: Path):
+    module = _load_analysis_module()
+    page_file = tmp_path / "src" / "agilab" / "pages" / "4_ANALYSIS.py"
+    page_file.parent.mkdir(parents=True)
+    page_file.write_text("", encoding="utf-8")
+    legacy_apps = tmp_path / "src" / "apps"
+    legacy_apps.mkdir(parents=True)
+    bundled_apps = tmp_path / "src" / "agilab" / "apps"
+    bundled_apps.mkdir(parents=True)
+
+    assert module._page_apps_path(page_file) == bundled_apps.resolve()
+
+
+def test_resolve_app_path_accepts_builtin_project_name(tmp_path: Path):
+    module = _load_analysis_module()
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+
+    assert module._resolve_app_path(apps_path, "flight_project") == flight_project.resolve()
+
+
+def test_default_app_path_prefers_builtin_flight_project(tmp_path: Path):
+    module = _load_analysis_module()
+    apps_path = tmp_path / "apps"
+    generic_project = apps_path / "alpha_project"
+    flight_project = apps_path / "builtin" / "flight_project"
+    generic_project.mkdir(parents=True)
+    flight_project.mkdir(parents=True)
+
+    assert module._default_app_path(apps_path) == flight_project.resolve()
+
+
+def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+    stored_apps: list[Path] = []
+
+    class FakeAgiEnv:
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / "builtin" / app
+            self.is_source_env = True
+            self.is_worker_env = False
+
+    fake_st = SimpleNamespace(
+        session_state={},
+        error=lambda message: (_ for _ in ()).throw(AssertionError(message)),
+        stop=lambda: (_ for _ in ()).throw(AssertionError("st.stop should not be called")),
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "AgiEnv", FakeAgiEnv)
+    monkeypatch.setattr(module, "_page_apps_path", lambda: apps_path)
+    monkeypatch.setattr(module, "load_last_active_app", lambda: None)
+    monkeypatch.setattr(module, "store_last_active_app", stored_apps.append)
+
+    env = module._initialize_analysis_env("flight_project")
+
+    assert env.apps_path == apps_path.resolve()
+    assert env.app == "flight_project"
+    assert fake_st.session_state["apps_path"] == str(apps_path.resolve())
+    assert fake_st.session_state["app"] == "flight_project"
+    assert stored_apps == [flight_project.resolve()]
+
+
+def test_initialize_analysis_env_defaults_to_builtin_flight_project(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_analysis_module()
+    apps_path = tmp_path / "apps"
+    flight_project = apps_path / "builtin" / "flight_project"
+    flight_project.mkdir(parents=True)
+
+    class FakeAgiEnv:
+        def __init__(self, *, apps_path: Path, app: str, verbose: int):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / "builtin" / app
+            self.is_source_env = True
+            self.is_worker_env = False
+
+    fake_st = SimpleNamespace(
+        session_state={},
+        error=lambda message: (_ for _ in ()).throw(AssertionError(message)),
+        stop=lambda: (_ for _ in ()).throw(AssertionError("st.stop should not be called")),
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "AgiEnv", FakeAgiEnv)
+    monkeypatch.setattr(module, "_page_apps_path", lambda: apps_path)
+    monkeypatch.setattr(module, "load_last_active_app", lambda: None)
+    monkeypatch.setattr(module, "store_last_active_app", lambda _path: None)
+
+    env = module._initialize_analysis_env(None)
+
+    assert env.apps_path == apps_path.resolve()
+    assert env.app == "flight_project"
+
+
 def test_builtin_flight_project_defaults_to_view_maps_and_excludes_network_page():
     settings_path = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
     cfg = _load_analysis_module()._read_config(settings_path)
@@ -257,6 +381,83 @@ def test_builtin_flight_project_defaults_to_view_maps_and_excludes_network_page(
     assert cfg["pages"]["default_view"] == "view_maps"
     assert cfg["pages"]["view_module"] == ["view_maps"]
     assert cfg["pages"]["excluded_views"] == ["view_maps_network"]
+
+
+def test_analysis_page_state_defaults_flight_to_view_maps_and_excludes_network(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    view_maps = tmp_path / "view_maps.py"
+    view_maps_network = tmp_path / "view_maps_network.py"
+    view_barycentric = tmp_path / "view_barycentric.py"
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={
+            "default_view": "view_maps",
+            "view_module": ["view_maps"],
+            "excluded_views": ["view_maps_network"],
+        },
+        current_page=None,
+        configured_views=["view_maps"],
+        resolved_pages={
+            "view_maps": view_maps,
+            "view_maps_network": view_maps_network,
+            "view_barycentric": view_barycentric,
+        },
+        custom_view_lookup={},
+    )
+
+    assert "view_maps_network" not in state.view_names
+    assert state.default_view_name == "view_maps"
+    assert state.widget_selection == ("view_maps",)
+    assert state.selected_views == ("view_maps",)
+    assert state.config_view_module == ("view_maps",)
+    assert state.default_route_path == view_maps
+
+
+def test_analysis_page_state_sanitizes_stale_session_selection_before_widget(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    view_maps = tmp_path / "view_maps.py"
+    view_maps_network = tmp_path / "view_maps_network.py"
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={
+            "default_view": "view_maps",
+            "excluded_views": ["view_maps_network"],
+        },
+        current_page=None,
+        configured_views=[],
+        resolved_pages={
+            "view_maps": view_maps,
+            "view_maps_network": view_maps_network,
+        },
+        custom_view_lookup={},
+        session_selection=["view_maps_network", "missing"],
+        has_session_selection=True,
+    )
+
+    assert state.view_names == ("view_maps",)
+    assert state.widget_selection == ("view_maps",)
+    assert state.default_route_path == view_maps
+
+
+def test_analysis_page_state_keeps_custom_selection_as_resolved_config_path(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    custom_view = tmp_path / "custom_view.py"
+    custom_key = str(custom_view)
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={},
+        current_page="main",
+        configured_views=[],
+        resolved_pages={},
+        custom_view_lookup={custom_key: custom_view},
+        session_selection=[custom_key],
+        has_session_selection=True,
+    )
+
+    assert state.view_names == (custom_key,)
+    assert state.selected_views == (custom_key,)
+    assert state.config_view_module == (str(custom_view.resolve()),)
+    assert state.default_route_path is None
 
 
 def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):

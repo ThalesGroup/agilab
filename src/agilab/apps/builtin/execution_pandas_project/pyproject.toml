@@ -1,32 +1,13 @@
 [project]
 name = "execution_pandas_project"
-version = "2026.4.27.post6"
+version = "2026.05.01.post4"
 description = "Built-in AGILab execution playground using PandasWorker"
 requires-python = ">=3.11"
-dependencies = [
-  "pydantic",
-  "pandas",
-  "streamlit>=1.56.0",
-  "humanize",
-  "python-dotenv",
-  "setuptools",
-  "tomlkit",
-  "astor",
-  "psutil",
-  "pathspec",
-  "py7zr",
-  "numba>=0.61.0",
-  "scikit-learn",
-  "parso",
-  "cython",
-  "msgpack",
-  "tomli",
-  "dask[distributed]",
-  "wheel",
-  "scipy==1.16.1",
-  "typing-inspection>=0.4.1",
-  "polars",
-]
+dependencies = ["agi-env>=2026.05.01.post4", "agi-node>=2026.05.01.post4", "numpy", "pandas", "pydantic", "streamlit>=1.56.0"]
+
+[tool.uv.sources]
+agi-env = { path = "../../../core/agi-env", editable = true }
+agi-node = { path = "../../../core/agi-node", editable = true }
 
 [build-system]
 requires = ["setuptools"]

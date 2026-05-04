@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable, cast
 
+from . import worker_tracking_support
+
 BUILD_ARTIFACT_EXCEPTIONS = (
     FileNotFoundError,
     IsADirectoryError,
@@ -113,6 +115,12 @@ async def run_worker(
 
     if mode == 48:
         return workers_plan
+
+    worker_tracking_support.prepare_worker_tracking_environment(
+        env,
+        logger_obj=logger_obj,
+        path_cls=path_cls,
+    )
 
     started_at = time_module.time()
     do_works_fn(workers_plan, workers_plan_metadata)
@@ -735,7 +743,15 @@ def _execute_initialized_worker_plan(
         path_cls=path_cls,
     )
 
-    insts[worker_id].works(expanded_plan, expanded_meta)
+    with worker_tracking_support.worker_tracking_run(
+        worker_id=worker_id,
+        worker_name=worker_name,
+        plan_batch_count=plan_batch_count,
+        plan_chunk_len=plan_chunk_len,
+        metadata_chunk_len=meta_chunk_len,
+        logger_obj=logger_obj,
+    ):
+        insts[worker_id].works(expanded_plan, expanded_meta)
 
     logger_obj.info(
         "worker #%s completed %s plan batches",

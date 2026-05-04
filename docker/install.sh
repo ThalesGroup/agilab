@@ -61,6 +61,10 @@ update_environment() {
         echo "AGI_PYTHON_FREE_THREADED=\"${AGI_PYTHON_FREE_THREADED:-0}\""
         echo "APPS_REPOSITORY=\"$APPS_REPOSITORY\""
         echo "OLLAMA_HOST=\"${OLLAMA_HOST:-http://localhost:11434}\""
+        echo "AGI_CLUSTER_SHARE=\"$HOME/clustershare\""
+        echo "AGI_LOCAL_SHARE=\"$HOME/localshare\""
+        echo "AGI_INTERNET_ON=\"1\""
+        echo "IS_SOURCE_ENV=\"1\""
     } > "$ENV_FILE"
     echo -e "${GREEN}Environment updated in $ENV_FILE${NC}"
 }
@@ -176,7 +180,7 @@ echo -e "${BLUE}Install path: $AGI_INSTALL_PATH${NC}"
 install_python_version
 update_environment
 mkdir -p "$HOME/.local/share/agilab"
-echo "$AGI_INSTALL_PATH" > "$HOME/.local/share/agilab/.agilab-path"
+echo "$AGI_INSTALL_PATH/src/agilab" > "$HOME/.local/share/agilab/.agilab-path"
 install_core
 write_env_values
 

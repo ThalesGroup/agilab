@@ -28,11 +28,15 @@ async def _run_scp_command(
     local_path: Path,
     remote: str,
     log: Any = logger,
+    extra_env: dict[str, str] | None = None,
 ) -> None:
+    import os as _os
+    proc_env = {**_os.environ, **(extra_env or {})}
     process = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        env=proc_env,
     )
     _stdout, stderr = await process.communicate()
 
@@ -128,9 +132,11 @@ async def send_file(
     remote = f"{user_at_ip}:{remote_path}"
 
     auth_prefix: list[str] = []
+    scp_env: dict[str, str] = {}
 
     if password and os.name != "nt":
-        auth_prefix = ["sshpass", "-p", password]
+        auth_prefix = ["sshpass", "-e"]
+        scp_env["SSHPASS"] = password
 
     scp_cmd = [
         "scp",
@@ -151,7 +157,7 @@ async def send_file(
     last_error: ConnectionError | OSError | None = None
     for _attempt in range(2):
         try:
-            await _run_scp_command(cmd, local_path=local_path, remote=remote, log=log)
+            await _run_scp_command(cmd, local_path=local_path, remote=remote, log=log, extra_env=scp_env)
             return
         except (ConnectionError, OSError) as exc:
             last_error = exc

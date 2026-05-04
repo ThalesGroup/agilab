@@ -5,6 +5,9 @@ on:
     branches: ["**"]
   pull_request:
     branches: ["**"]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 5 * * *"
 
 permissions:
   contents: read
@@ -37,7 +40,163 @@ jobs:
             exit 1
           fi
 
-      - name: Confirm local-only test policy
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.10.7"
+
+      - name: Compile critical Python entrypoints
         run: |
-          echo "Repository tests are intentionally local-only."
-          echo "GitHub Actions CI runs lightweight repository guardrails only."
+          set -euo pipefail
+          python -m py_compile \
+            src/agilab/About_agilab.py \
+            src/agilab/first_proof_cli.py \
+            src/agilab/orchestrate_execute.py \
+            src/agilab/pipeline_openai.py \
+            tools/newcomer_first_proof.py \
+            tools/first_launch_robot.py \
+            tools/security_hygiene_report.py \
+            tools/public_proof_scenarios.py \
+            tools/release_proof_report.py \
+            tools/pypi_publish.py
+
+      - name: Validate release proof manifest
+        run: |
+          set -euo pipefail
+          python tools/release_proof_report.py --check --compact
+
+      - name: Validate release proof GitHub run evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python tools/release_proof_report.py --check --check-github-runs --compact
+
+      - name: Validate first-proof command contract
+        env:
+          PYTHONPATH: src
+        run: |
+          set -euo pipefail
+          python src/agilab/first_proof_cli.py --print-only --json
+
+      - name: Validate public proof scenarios
+        run: |
+          set -euo pipefail
+          python tools/public_proof_scenarios.py --compact
+
+      - name: Validate first-launch robot
+        env:
+          AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+          OPENAI_API_KEY: "sk-test-first-launch-000000000000"
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json --output first-launch-robot.json
+
+      - name: Validate security hygiene report
+        run: |
+          set -euo pipefail
+          python tools/security_hygiene_report.py --output security-hygiene.json --compact
+
+      - name: Upload local proof artifacts
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: local-proof-artifacts
+          path: |
+            first-launch-robot.json
+            security-hygiene.json
+          if-no-files-found: ignore
+
+      - name: Confirm extended test policy
+        run: |
+          echo "GitHub Actions CI runs repository guardrails plus a minimal first-proof command contract."
+          echo "Run local workflow parity profiles before push for full test coverage."
+
+  clean-public-install:
+    name: clean-public-install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install released AGILAB package
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          python -m pip install agilab
+
+      - name: Validate clean package first proof
+        shell: bash
+        env:
+          AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+          OPENAI_API_KEY: "sk-test-first-proof-000000000000"
+        run: |
+          set -euo pipefail
+          agilab first-proof --json --no-manifest --max-seconds 60 | tee first-proof.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          proof = json.loads(Path("first-proof.json").read_text(encoding="utf-8"))
+          if not proof.get("success"):
+              raise SystemExit("first-proof command failed")
+          if not proof.get("within_target"):
+              total = proof.get("total_duration_seconds")
+              target = proof.get("target_seconds")
+              raise SystemExit(f"first-proof exceeded runtime budget: {total}s > {target}s")
+          PY
+
+      - name: Upload first-proof artifact
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: first-proof-${{ matrix.os }}
+          path: first-proof.json
+          if-no-files-found: ignore
+
+  public-demo-smoke:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Validate hosted Hugging Face demo
+        run: |
+          set -euo pipefail
+          python tools/hf_space_smoke.py --json --timeout 30 --target-seconds 30 | tee hf-space-smoke.json
+
+      - name: Attach hosted runtime proof to public scenarios
+        run: |
+          set -euo pipefail
+          python tools/public_proof_scenarios.py \
+            --hf-smoke-json hf-space-smoke.json \
+            --output public-proof-scenarios.json \
+            --compact
+
+      - name: Upload hosted proof artifacts
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: hosted-proof-artifacts
+          path: |
+            hf-space-smoke.json
+            public-proof-scenarios.json
+          if-no-files-found: ignore

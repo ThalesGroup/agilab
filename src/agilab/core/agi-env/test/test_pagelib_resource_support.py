@@ -31,7 +31,11 @@ def test_load_json_resource_rejects_non_object_payload(tmp_path):
 
 def test_about_content_payload_contains_expected_message():
     payload = resource_support.about_content_payload()
+    about_text = payload["About"]
 
     assert "About" in payload
-    assert "AGILab" in payload["About"]
-    assert "Data Science in Engineering" in payload["About"]
+    assert "AGILAB" in about_text
+    assert "Reproducible AI engineering, from project to proof." in about_text
+    assert "Thales SIX GTS France SAS" in about_text
+    assert "Support: open a GitHub issue" in about_text
+    assert "Data Science in Engineering" not in about_text

@@ -30,10 +30,10 @@ def test_data_connector_live_ui_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["schema"] == "agilab.data_connector_live_ui.v1"
     assert report["summary"]["run_status"] == "ready_for_live_ui"
     assert report["summary"]["execution_mode"] == "streamlit_render_contract_only"
-    assert report["summary"]["connector_card_count"] == 3
+    assert report["summary"]["connector_card_count"] == 5
     assert report["summary"]["page_binding_count"] == 2
     assert report["summary"]["legacy_fallback_count"] == 2
-    assert report["summary"]["health_probe_status_count"] == 3
+    assert report["summary"]["health_probe_status_count"] == 5
     assert report["summary"]["streamlit_metric_count"] == 4
     assert report["summary"]["streamlit_dataframe_count"] == 4
     assert report["summary"]["network_probe_count"] == 0

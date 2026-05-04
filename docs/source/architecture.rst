@@ -5,8 +5,9 @@ This page gives a single place to understand how the repository is organised,
 which services collaborate at runtime, and where to hook in when building a new
 app or extending the platform.
 
-New to AGILab? Start with :doc:`quick-start` for a five-minute run-through, then
-return here when you need the big picture of how the layers fit together.
+New to AGILab? Start with :doc:`quick-start` for a first run, use
+:doc:`architecture-five-minutes` for the compact layer map, then return here
+when you need the big picture of how the layers fit together.
 
 .. figure:: Agilab-Overview.svg
    :alt: High-level view of AGILab runtime
@@ -54,6 +55,10 @@ Manager vs worker responsibilities
 
    An app manager prepares arguments and submits plans via ``AGI.run``; workers
    (BaseWorker subclasses) execute the distributed tasks.
+
+   Why setup.py exists: Dask serialises and ships worker code as .egg archives.
+   setup.py is the build hook that generates those archives when the cluster is initialised.
+   It has no role in the PyPI release pipeline — that is handled entirely by pyproject.toml and uv.
 
 Layers at a glance
 ------------------
@@ -115,8 +120,8 @@ Layers at a glance
 
 **Execution back-plane**
     - :doc:`agi-distributor` contains the Dask-based scheduler, worker templates and
-      capacity balancer. Workers are packaged (``python -m agi_node…``) into
-      ``~/wenv/<app>_worker`` before run time.
+      capacity-weighted work-plan balancer. Workers are packaged
+      (``python -m agi_node…``) into ``~/wenv/<app>_worker`` before run time.
     - Optional cluster helpers (SSH, remote installs, zip staging) live under
       ``src/agilab/core/agi-node/agi_dispatcher`` and are reused by every app.
     - AGILAB submits one coarse AGILAB task per worker to the outer Dask

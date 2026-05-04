@@ -7,6 +7,7 @@ n_partitions = 16
 rows_per_file = 100000
 n_groups = 32
 compute_passes = 32
+kernel_mode = "typed_numeric"
 output_format = "csv"
 seed = 42
 reset_target = false
@@ -17,6 +18,11 @@ cython = false
 pool = false
 rapids = false
 cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 2
 
 [cluster.service_health]
 allow_idle = false

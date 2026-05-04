@@ -86,6 +86,39 @@ def _replace_placeholders(tree: ET.ElementTree, app: str) -> None:
             el.text = el.text.replace("{APP}", app)
 
 
+def _normalize_module_name(raw_module: str, app_dir: str, module_name: str) -> str:
+    """Keep app modules slash-free while preserving non-app template modules."""
+    if raw_module == module_name or raw_module == f"{app_dir}_project":
+        return module_name
+    if raw_module.endswith(f"/{module_name}"):
+        return module_name
+    return raw_module
+
+
+def _normalize_sdk_name(raw_sdk_name: str, module_name: str, app_name: str) -> str:
+    """Map SDK names back to the venv names created by setup_pycharm.py."""
+    if not raw_sdk_name.startswith("uv (") or not raw_sdk_name.endswith(")"):
+        return raw_sdk_name
+    if raw_sdk_name.endswith("_project)"):
+        return f"uv ({module_name})"
+    if raw_sdk_name.endswith("_worker)"):
+        return f"uv ({app_name}_worker)"
+    return raw_sdk_name
+
+
+def _normalize_builtin_worker_references(raw_value: str, app_dir: str, app_name: str) -> str:
+    """Built-in apps live under apps/builtin, but worker venvs do not."""
+    if app_dir != app_name:
+        return raw_value.replace(f"{app_dir}_worker", f"{app_name}_worker")
+    return raw_value
+
+
+def _normalize_test_script_name(raw_value: str, app_dir: str, app_name: str) -> str:
+    if app_dir == app_name:
+        return raw_value
+    return raw_value.replace(f"/test/test_{app_dir}_", f"/test/test_{app_name}_")
+
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: gen_app_script.py <app>")
@@ -173,53 +206,48 @@ if __name__ == "__main__":
         config_name = first_cfg.attrib.get("name", os.path.splitext(base)[0])
         config_type = first_cfg.attrib.get("type", "PythonConfigurationType")
 
-        # --- 1) make this config use the right module (flight_project, mycode_project, ...) ---
+        # --- 1) normalize app modules, but preserve explicit core modules like agi-cluster ---
         module_el = first_cfg.find("module")
         if module_el is None:
             ET.SubElement(first_cfg, "module", {"name": module_name})
         else:
-            module_el.set("name", module_name)
-
-        # --- 2) force it to use the module's SDK, not an explicit SDK_NAME ---
-        is_module_opt = first_cfg.find("./option[@name='IS_MODULE_SDK']")
-        if is_module_opt is None:
-            ET.SubElement(first_cfg, "option", {"name": "IS_MODULE_SDK", "value": "true"})
-        else:
-            is_module_opt.set("value", "true")
-
-        # clear/remove any SDK_NAME options
-        for opt in list(first_cfg.findall("./option[@name='SDK_NAME']")):
-            first_cfg.remove(opt)
+            module_el.set("name", _normalize_module_name(module_el.get("name", ""), app_dir, module_name))
 
         # ---- Adjust SCRIPT_NAME for this app ----
         for opt in first_cfg.findall("option"):
             name = opt.attrib.get("name")
+            if "value" in opt.attrib:
+                opt.attrib["value"] = _normalize_builtin_worker_references(
+                    opt.attrib["value"],
+                    app_dir,
+                    app_name,
+                )
 
             if name == "SCRIPT_NAME":
                 val = opt.attrib.get("value", "")
                 marker = "log/execute/"
                 idx = val.find(marker)
-                if idx == -1:
-                    continue
 
-                base_prefix = val[: idx + len(marker)]
+                if idx != -1:
+                    base_prefix = val[: idx + len(marker)]
 
-                agi_idx = val.find("AGI_", idx)
-                if agi_idx == -1:
-                    continue
-                after_agi = val[agi_idx + len("AGI_") :]
-                underscore_idx = after_agi.find("_")
-                if underscore_idx == -1:
-                    continue
+                    agi_idx = val.find("AGI_", idx)
+                    if agi_idx != -1:
+                        after_agi = val[agi_idx + len("AGI_") :]
+                        underscore_idx = after_agi.find("_")
+                        if underscore_idx != -1:
+                            action = after_agi[:underscore_idx]  # install, run, get_distrib, ...
 
-                action = after_agi[:underscore_idx]  # install, run, get_distrib, ...
+                            # e.g. $USER_HOME$/log/execute/flight/AGI_install_flight.py
+                            opt.attrib["value"] = f"{base_prefix}{app_name}/AGI_{action}_{app_name}.py"
 
-                # e.g. $USER_HOME$/log/execute/flight/AGI_install_flight.py
-                opt.attrib["value"] = f"{base_prefix}{app_name}/AGI_{action}_{app_name}.py"
+                opt.attrib["value"] = _normalize_test_script_name(opt.attrib["value"], app_dir, app_name)
+
+            elif name == "SDK_NAME":
+                opt.attrib["value"] = _normalize_sdk_name(opt.attrib.get("value", ""), module_name, app_name)
 
             elif name == "IS_MODULE_SDK":
-                # Force using the module's SDK
-                opt.attrib["value"] = "true"
+                opt.attrib["value"] = "false"
 
         # ---- Write / update file on disk ----
         if os.path.exists(out_path):

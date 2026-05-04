@@ -101,13 +101,15 @@ async def test_send_file_remote_retries_with_password_auth_on_first_failure(monk
     local_file.write_text("x", encoding="utf-8")
     env = SimpleNamespace(user="alice", password="secret", ssh_key_path=None)
     calls = []
+    call_envs = []
     procs = [
         SimpleNamespace(returncode=1, communicate=lambda: asyncio.sleep(0, result=(b"", b"fail-1"))),
         SimpleNamespace(returncode=0, communicate=lambda: asyncio.sleep(0, result=(b"ok", b""))),
     ]
 
-    async def _fake_subproc(*cmd, **_kwargs):
+    async def _fake_subproc(*cmd, **kwargs):
         calls.append(cmd)
+        call_envs.append(kwargs.get("env") or {})
         return procs.pop(0)
 
     monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
@@ -123,8 +125,12 @@ async def test_send_file_remote_retries_with_password_auth_on_first_failure(monk
     assert len(calls) == 2
     assert calls[0][0] == "sshpass"
     assert calls[1][0] == "sshpass"
-    assert "-p" in calls[0]
-    assert "-p" in calls[1]
+    assert "-e" in calls[0]
+    assert "-e" in calls[1]
+    assert "-p" not in calls[0]
+    assert "-p" not in calls[1]
+    assert call_envs[0]["SSHPASS"] == "secret"
+    assert call_envs[1]["SSHPASS"] == "secret"
 
 
 @pytest.mark.asyncio

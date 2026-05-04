@@ -48,7 +48,7 @@ def run_streamlit(page: str, page_script: Path, active_app: Path, *, port: int |
         cmd[5:5] = ["--server.port", str(port)]
 
     env = os.environ.copy()
-    env.setdefault("PYTHONUNBUFFERED", "1")
+    env["PYTHONUNBUFFERED"] = "1"
     print(f"[launcher] {page}: {' '.join(cmd)}")
     return subprocess.call(cmd, env=env)
 

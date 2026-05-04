@@ -57,6 +57,26 @@ def _runtime_root() -> Path:
     return _detect_repo_root() or PACKAGE_ROOT
 
 
+def _agilab_package_marker_root() -> Path:
+    repo_root = _detect_repo_root()
+    if repo_root is not None:
+        source_package = repo_root / "src" / "agilab"
+        if source_package.is_dir():
+            return source_package.resolve()
+    return PACKAGE_ROOT.resolve()
+
+
+def _agilab_path_marker() -> Path:
+    return Path.home() / ".local" / "share" / "agilab" / ".agilab-path"
+
+
+def write_agilab_path_marker() -> Path:
+    marker_path = _agilab_path_marker()
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    marker_path.write_text(f"{_agilab_package_marker_root()}\n", encoding="utf-8")
+    return marker_path
+
+
 def default_active_app() -> Path:
     candidates: list[Path] = []
     repo_root = _detect_repo_root()
@@ -569,6 +589,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     results = run_proof(commands)
     summary = summarize_kpi(command_count=len(commands), results=results, max_seconds=args.max_seconds)
     success = bool(summary["success"])
+    marker_path = write_agilab_path_marker() if success else None
     manifest = None
     if not args.no_manifest:
         manifest = build_run_manifest(
@@ -592,6 +613,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if manifest is not None:
             payload["run_manifest_path"] = str(manifest_path)
             payload["run_manifest"] = manifest.as_dict()
+        if marker_path is not None:
+            payload["agilab_path_marker"] = str(marker_path)
         print(json.dumps(payload, indent=2))
     else:
         print(

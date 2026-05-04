@@ -46,6 +46,7 @@ strip_ansi = _orchestrate_page_support.strip_ansi
 workplan_selection_key = _orchestrate_page_support.workplan_selection_key
 _app_install_status_impl = _orchestrate_page_support.app_install_status
 _is_app_installed_impl = _orchestrate_page_support.is_app_installed
+_configured_cluster_share_matches_impl = _orchestrate_page_support.configured_cluster_share_matches
 
 _orchestrate_support = import_agilab_module(
     "agilab.orchestrate_support",
@@ -172,6 +173,21 @@ def resolve_share_candidate(
     path_type: Any = Path,
 ) -> Path:
     return _resolve_share_candidate_impl(path_value, home_abs, path_type=path_type)
+
+
+def configured_cluster_share_matches(
+    path_value: Any,
+    *,
+    cluster_share_path: Any,
+    home_abs: Path | str,
+    path_type: Any = Path,
+) -> bool:
+    return _configured_cluster_share_matches_impl(
+        path_value,
+        cluster_share_path=cluster_share_path,
+        home_abs=home_abs,
+        path_type=path_type,
+    )
 
 
 def benchmark_display_date(

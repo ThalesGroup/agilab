@@ -80,9 +80,19 @@ def _check_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
         args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
         profiles = workflow_parity._profile_commands(args)
         docs_commands = profiles.get("docs") or []
-        docs_command = docs_commands[0] if docs_commands else None
-        argv = list(getattr(docs_command, "argv", [])) if docs_command else []
-        required_tokens = [
+        command_details = [
+            {
+                "label": getattr(command, "label", ""),
+                "argv": list(getattr(command, "argv", [])),
+            }
+            for command in docs_commands
+        ]
+        release_proof_tokens = [
+            "tools/release_proof_report.py",
+            "--check",
+            "--compact",
+        ]
+        sphinx_tokens = [
             "uv",
             "--preview-features",
             "extra-build-dependencies",
@@ -90,13 +100,35 @@ def _check_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
             "docs/source",
             "docs/html",
         ]
-        ok = bool(docs_command) and all(token in argv for token in required_tokens)
+        release_proof_command = next(
+            (
+                command
+                for command in docs_commands
+                if all(token in list(getattr(command, "argv", [])) for token in release_proof_tokens)
+            ),
+            None,
+        )
+        sphinx_command = next(
+            (
+                command
+                for command in docs_commands
+                if all(token in list(getattr(command, "argv", [])) for token in sphinx_tokens)
+            ),
+            None,
+        )
+        ok = bool(release_proof_command and sphinx_command)
         summary = (
-            "docs workflow parity profile matches the expected Sphinx build command"
+            "docs workflow parity profile checks release-proof generation and builds Sphinx"
             if ok
             else "docs workflow parity profile is missing or no longer matches the expected command"
         )
-        details = {"argv": argv, "label": getattr(docs_command, "label", "")}
+        details = {
+            "commands": command_details,
+            "release_proof_argv": (
+                list(getattr(release_proof_command, "argv", [])) if release_proof_command else []
+            ),
+            "sphinx_argv": list(getattr(sphinx_command, "argv", [])) if sphinx_command else [],
+        }
     except Exception as exc:
         ok = False
         summary = str(exc)
@@ -151,6 +183,7 @@ def _run_docs_workflow_profile(repo_root: Path) -> dict[str, Any]:
 def _check_compatibility_matrix(repo_root: Path) -> dict[str, Any]:
     matrix_path = repo_root / "docs" / "source" / "data" / "compatibility_matrix.toml"
     required_validated_ids = {
+        "published-package-route",
         "source-checkout-first-proof",
         "web-ui-local-first-proof",
         "service-mode-operator-surface",

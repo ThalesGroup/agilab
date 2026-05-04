@@ -735,7 +735,7 @@ def _remote_share_setup_commands(
         + '; if mount | grep -F -- "$REMOTE_CLUSTER_SHARE" >/dev/null; then '
         + 'echo "already mounted: $REMOTE_CLUSTER_SHARE"; else '
         + f"sshfs {shlex.quote(source)} "
-        + '"$REMOTE_CLUSTER_SHARE"; fi'
+        + '"$REMOTE_CLUSTER_SHARE" -o noexec; fi'
     )
     return sshfs_check_command, mkdir_command, mount_command
 

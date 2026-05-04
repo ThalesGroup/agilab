@@ -17,6 +17,7 @@ for src in [data_src, worker_root / "fireducks_worker", worker_root / "agi_dispa
 
 from agi_node.fireducks_worker import FireducksWorker
 from agi_node.agi_dispatcher import BaseWorker
+import agi_node.pandas_worker.pandas_worker as pandas_module
 
 
 class DummyFireduckFrame:
@@ -61,6 +62,23 @@ class DummyFireducksWorker(FireducksWorker):
         self.last_df = df
         if self.data_out:
             super().work_done(df)
+
+
+class InlineProcessPool:
+    def __init__(self, max_workers, initializer, initargs):
+        self._initializer = initializer
+        self._initargs = initargs
+
+    def __enter__(self):
+        if self._initializer:
+            self._initializer(*self._initargs)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def map(self, fn, items):
+        return [fn(item) for item in items]
 
 
 @pytest.fixture
@@ -116,7 +134,8 @@ def test_exec_mono_process(worker_csv):
     assert len(result_df) == 2
 
 
-def test_exec_multi_process(worker_csv):
+def test_exec_multi_process(monkeypatch, worker_csv):
+    monkeypatch.setattr(pandas_module, "ProcessPoolExecutor", InlineProcessPool)
     worker_csv._mode = 1
     workers_tree = {0: [[100, 102]]}
     worker_csv.last_df = None

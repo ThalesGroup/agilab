@@ -32,11 +32,11 @@ def test_data_connector_ui_preview_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["run_status"] == "ready_for_ui_preview"
     assert report["summary"]["execution_mode"] == "static_ui_preview_only"
     assert report["summary"]["persistence_format"] == "json+html"
-    assert report["summary"]["connector_card_count"] == 3
+    assert report["summary"]["connector_card_count"] == 5
     assert report["summary"]["page_binding_count"] == 2
     assert report["summary"]["legacy_fallback_count"] == 2
-    assert report["summary"]["health_probe_status_count"] == 3
-    assert report["summary"]["component_count"] == 8
+    assert report["summary"]["health_probe_status_count"] == 5
+    assert report["summary"]["component_count"] == 10
     assert report["summary"]["network_probe_count"] == 0
     assert report["summary"]["html_rendered"] is True
     assert report["summary"]["round_trip_ok"] is True

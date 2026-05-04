@@ -35,10 +35,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_core_combined = profiles["agi-core-combined"]
     agi_node = profiles["agi-node"][0]
     agi_cluster = profiles["agi-cluster"][0]
-    agi_gui = profiles["agi-gui"][0]
-    docs = profiles["docs"][0]
+    agi_gui_commands = profiles["agi-gui"]
+    agi_gui_chunks = agi_gui_commands[:-1]
+    agi_gui_xml = agi_gui_commands[-1]
+    agi_gui_argv = [arg for command in agi_gui_commands for arg in command.argv]
+    docs_commands = profiles["docs"]
+    release_proof_docs = docs_commands[0]
+    docs = docs_commands[1]
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
+    dependency_policy = profiles["dependency-policy"][0]
+    cloud_emulators = profiles["cloud-emulators"]
 
     assert agi_env.timeout_seconds == 20 * 60
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
@@ -84,21 +91,56 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(agi_cluster.argv, "fastparquet")
     assert agi_cluster.argv[-1] == "src/agilab/core/test"
 
-    assert agi_gui.timeout_seconds == 12 * 60
-    assert agi_gui.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
-    assert "coverage-agi-gui.xml" in " ".join(agi_gui.argv)
-    assert "src/agilab/lib/agi-gui/test" in agi_gui.argv
-    assert "test/test_about_agilab_helpers.py" in agi_gui.argv
-    assert "test/test_cluster_flight_validation.py" in agi_gui.argv
-    assert "test/test_cluster_lan_discovery.py" in agi_gui.argv
-    assert "test/test_notebook_colab_support.py" in agi_gui.argv
-    assert "test/test_ui_pages.py" in agi_gui.argv
-    assert "test/test_view*.py" not in agi_gui.argv
-    assert "test/test_view_maps.py" in agi_gui.argv
+    assert [command.label for command in agi_gui_commands] == [
+        "agi-gui coverage (support)",
+        "agi-gui coverage (pipeline)",
+        "agi-gui coverage (robots)",
+        "agi-gui coverage (pages)",
+        "agi-gui coverage (views)",
+        "agi-gui coverage (reports)",
+        "agi-gui coverage xml",
+    ]
+    assert all(command.timeout_seconds == 8 * 60 for command in agi_gui_chunks)
+    assert all(command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1" for command in agi_gui_commands)
+    assert agi_gui_commands[0].remove_paths[:2] == [".coverage.agi-gui", "coverage-agi-gui.xml"]
+    assert all("coverage" in command.argv for command in agi_gui_chunks)
+    assert "--append" in agi_gui_commands[0].argv
+    assert "coverage-agi-gui.xml" in agi_gui_xml.argv
+    assert "src/agilab/lib/agi-gui/test" in agi_gui_argv
+    assert "test/test_about_agilab_helpers.py" in agi_gui_argv
+    assert "test/test_app_template_registry.py" in agi_gui_argv
+    assert "test/test_cluster_flight_validation.py" in agi_gui_argv
+    assert "test/test_cluster_lan_discovery.py" in agi_gui_argv
+    assert "test/test_notebook_colab_support.py" in agi_gui_argv
+    assert "test/test_pinned_expander.py" in agi_gui_argv
+    assert "test/test_workflow_ui.py" in agi_gui_argv
+    assert "test/test_agilab_web_robot.py" in agi_gui_argv
+    assert "test/test_agilab_widget_robot.py" in agi_gui_argv
+    assert "test/test_first_launch_robot.py" in agi_gui_argv
+    assert "test/test_screenshot_manifest.py" in agi_gui_argv
+    assert "test/test_ui_pages.py" in agi_gui_argv
+    assert "test/test_view*.py" not in agi_gui_argv
+    assert "test/test_view_maps.py" in agi_gui_argv
+    assert "test/test_ci_artifact_harvest_report.py" in agi_gui_argv
+    assert release_proof_docs.label == "release proof manifest check"
+    assert release_proof_docs.argv[-2:] == ["--check", "--compact"]
     assert docs.argv[-2:] == ["docs/source", "docs/html"]
+    assert docs.remove_paths == ["docs/html"]
     assert badges[-1].label == "badge drift guard"
     assert badges[-1].argv == ["git", "diff", "--exit-code", "--", "badges/"]
     assert strict_typing.argv[-1] == "tools/shared_core_strict_typing.py"
+    assert dependency_policy.label == "dependency policy"
+    assert dependency_policy.argv[-1] == "test/test_pyproject_dependency_hygiene.py"
+    assert "addopts=" in dependency_policy.argv
+    assert [command.label for command in cloud_emulators] == [
+        "cloud emulator connector evidence",
+        "cloud emulator connector tests",
+    ]
+    assert cloud_emulators[0].argv[-2:] == [
+        "tools/data_connector_cloud_emulator_report.py",
+        "--compact",
+    ]
+    assert cloud_emulators[1].argv[-1] == "test/test_data_connector_cloud_emulator_report.py"
 
 
 def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
@@ -108,6 +150,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     selected = module._selected_profiles(args)
 
     assert "agi-core-combined" in selected
+    assert "cloud-emulators" in selected
     assert "agi-node" not in selected
     assert "agi-cluster" not in selected
 

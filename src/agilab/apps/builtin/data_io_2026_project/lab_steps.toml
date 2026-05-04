@@ -1,0 +1,8 @@
+data_io_2026 = [
+  { D = "Ingest mission data", Q = "Load the public Data IO 2026 mission scenario with sensor, satcom, constraint inputs, and deterministic FRED context evidence.", M = "", C = "APP = 'data_io_2026_project'\ndata_in = 'data_io_2026/scenarios'\nfiles = '*.json'", R = "runpy" },
+  { D = "Generate the adaptive pipeline", Q = "Select the required cleaning, feature, scoring, failure-detection, re-planning, and decision stages from the scenario contract.", M = "", C = "APP = 'data_io_2026_project'\nfailure_kind = 'bandwidth_drop'\nadaptation_mode = 'auto_replan'", R = "runpy" },
+  { D = "Distribute scenario execution", Q = "Partition mission scenario files across available workers and produce worker-visible metadata.", M = "", C = "APP = 'data_io_2026_project'\nworkers = {'127.0.0.1': 1}", R = "runpy" },
+  { D = "Optimize the routing decision", Q = "Score candidate routes against latency, cost, reliability, and risk constraints.", M = "", C = "APP = 'data_io_2026_project'\nobjective = 'balanced_mission'", R = "runpy" },
+  { D = "Inject failure and re-plan", Q = "Apply a bandwidth-drop event to the initially selected route, recompute candidate scores, and select the adapted strategy.", M = "", C = "APP = 'data_io_2026_project'\nfailure_kind = 'bandwidth_drop'", R = "runpy" },
+  { D = "Export final decision evidence", Q = "Write the summary metrics, generated pipeline, decision timeline, and route comparison artifacts for ANALYSIS.", M = "", C = "APP = 'data_io_2026_project'\ndata_out = 'data_io_2026/results'", R = "runpy" },
+]

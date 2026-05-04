@@ -1,5 +1,5 @@
 [project]
-version = "2026.4.27.post6"
+version = "2026.05.01.post4"
 name = "agi-node"
 description = "Distributed worker orchestration and execution support library for AGILAB"
 requires-python = ">=3.11"
@@ -12,7 +12,7 @@ license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 classifiers = [
     "Intended Audience :: Developers",
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -23,36 +23,19 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
 ]
 keywords = [
-    "asyncio",
-    "distributed",
-    "cluster",
-    "worker-orchestration",
-    "dispatch",
-    "remote-execution",
-    "dataframe",
-    "dataset",
-    "agi",
     "python",
-    "ai-operations",
-]
-dependencies = [
-    "scikit-learn",
-    "parso",
+    "distributed-computing",
+    "distributed-execution",
+    "workflow-orchestration",
+    "worker-orchestration",
+    "remote-execution",
+    "reproducibility",
     "cython",
-    "setuptools",
-    "msgpack",
-    "numba>=0.61.0",
-    "py7zr",
-    "python-dotenv",
-    "tomli",
-    "dask[distributed]",
-    "wheel",
-    "scipy==1.16.1",
-    "psutil",
-    "typing-inspection>=0.4.1",
-    "polars",
+    "free-threaded-python",
     "pandas",
+    "polars",
 ]
+dependencies = ["agi-env==2026.05.01.post4", "cython", "humanize", "numpy", "pandas", "parso", "polars", "psutil", "py7zr", "setuptools"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -62,6 +45,67 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[[tool.mypy.overrides]]
+module = "agi_core.*"
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_return_any = true
+warn_unused_ignores = true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -178,9 +222,12 @@ dev = [
     "pytest-cov",
     "pytest-asyncio",
     "fastparquet",
-    "pytest-cov",
     "agi-node",
 ]
+
+[tool.uv.sources.agi-env]
+path = "../agi-env"
+editable = true
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -190,7 +237,7 @@ build-backend = "setuptools.build_meta"
 mypy_path = [
     "stubs",
 ]
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 ignore_missing_imports = true
 
 [tool.pyment]

@@ -1,7 +1,7 @@
 import importlib.util
 import logging
+import sys
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -19,10 +19,9 @@ from agi_gui.pagelib import (
     run_lab,
     save_csv,
 )
+from agi_gui.ux_widgets import action_button, compact_choice, confirm_button, empty_state, status_container, toast
 from agi_env.snippet_contract import (
     clean_stale_snippet_files,
-    is_generated_agi_snippet,
-    is_supported_snippet_api,
     stale_snippet_cleanup_message,
 )
 
@@ -63,6 +62,44 @@ _snippet_source_guidance = _pipeline_steps_module.snippet_source_guidance
 _step_label_for_multiselect = _pipeline_steps_module.step_label_for_multiselect
 _step_summary = _pipeline_steps_module.step_summary
 
+_pipeline_page_state_module = import_agilab_module(
+    "agilab.pipeline_page_state",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_page_state.py",
+    fallback_name="agilab_pipeline_page_state_fallback",
+)
+PipelinePageStateDeps = _pipeline_page_state_module.PipelinePageStateDeps
+PipelineAction = _pipeline_page_state_module.PipelineAction
+build_pipeline_page_state = _pipeline_page_state_module.build_pipeline_page_state
+clear_pipeline_run_logs = _pipeline_page_state_module.clear_pipeline_run_logs
+delete_all_pipeline_steps_command = _pipeline_page_state_module.delete_all_pipeline_steps_command
+delete_pipeline_step_command = _pipeline_page_state_module.delete_pipeline_step_command
+finish_pipeline_run_command = _pipeline_page_state_module.finish_pipeline_run_command
+start_pipeline_run_command = _pipeline_page_state_module.start_pipeline_run_command
+undo_pipeline_delete_command = _pipeline_page_state_module.undo_pipeline_delete_command
+
+_pinned_expander_module = import_agilab_module(
+    "agilab.pinned_expander",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+render_pinnable_code_editor = _pinned_expander_module.render_pinnable_code_editor
+
+_workflow_ui_module = import_agilab_module(
+    "agilab.workflow_ui",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+record_action_history = _workflow_ui_module.record_action_history
+render_action_history = _workflow_ui_module.render_action_history
+render_artifact_drawer = _workflow_ui_module.render_artifact_drawer
+render_log_actions = _workflow_ui_module.render_log_actions
+render_latest_outputs = _workflow_ui_module.render_latest_outputs
+render_latest_run_card = _workflow_ui_module.render_latest_run_card
+render_workflow_timeline = _workflow_ui_module.render_workflow_timeline
+
 _pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
     current_file=__file__,
@@ -77,7 +114,39 @@ _python_for_step = _pipeline_runtime_module.python_for_step
 start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
 wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
 
+_snippet_registry_module = import_agilab_module(
+    "agilab.snippet_registry",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "snippet_registry.py",
+    fallback_name="agilab_snippet_registry_fallback",
+)
+discover_pipeline_snippets = _snippet_registry_module.discover_pipeline_snippets
+
+_src_root = Path(__file__).resolve().parents[1]
+if str(_src_root) not in sys.path:
+    sys.path.insert(0, str(_src_root))
+_agilab_pkg = sys.modules.get("agilab")
+if _agilab_pkg is not None:
+    package_path = str(_src_root / "agilab")
+    package_paths = list(getattr(_agilab_pkg, "__path__", []) or [])
+    if package_path not in package_paths:
+        _agilab_pkg.__path__ = [*package_paths, package_path]
+
+_global_runner_state_module = import_agilab_module(
+    "agilab.global_pipeline_runner_state",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "global_pipeline_runner_state.py",
+    fallback_name="agilab_global_pipeline_runner_state_fallback",
+)
+dispatch_next_runnable = _global_runner_state_module.dispatch_next_runnable
+load_runner_state = _global_runner_state_module.load_runner_state
+persist_runner_state = _global_runner_state_module.persist_runner_state
+write_runner_state = _global_runner_state_module.write_runner_state
+
 logger = logging.getLogger(__name__)
+GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
+GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
+GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_flight_sample.json")
 
 
 def _normalize_editor_text(raw: Optional[str]) -> str:
@@ -95,6 +164,128 @@ def _resolve_step_engine(entry_engine: str, ui_engine: str, venv_root: str) -> s
     if entry_engine:
         return entry_engine
     return "agi.run" if venv_root else "runpy"
+
+
+def _valid_runtime_path(raw: Any) -> str:
+    normalized = normalize_runtime_path(raw)
+    return normalized if normalized and _is_valid_runtime_root(normalized) else ""
+
+
+def _valid_runtime_choices(raw_paths: List[Any]) -> List[str]:
+    choices: List[str] = []
+    seen: set[str] = set()
+    for raw_path in raw_paths:
+        runtime = _valid_runtime_path(raw_path)
+        if runtime and runtime not in seen:
+            seen.add(runtime)
+            choices.append(runtime)
+    return choices
+
+
+def _repo_root_for_global_dag() -> Path:
+    candidates = [
+        Path.cwd(),
+        Path(__file__).resolve().parents[2],
+    ]
+    for candidate in candidates:
+        if (candidate / "docs" / "source" / "data").is_dir():
+            return candidate.resolve()
+    return Path(__file__).resolve().parents[2]
+
+
+def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
+    app_name = Path(str(getattr(env, "app", "") or getattr(env, "target", ""))).name
+    preferred = (
+        GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH
+        if app_name in {"flight", "flight_project"}
+        else GLOBAL_DAG_SAMPLE_RELATIVE_PATH
+    )
+    preferred_path = repo_root / preferred
+    if preferred_path.is_file():
+        return preferred_path
+    fallback_path = repo_root / GLOBAL_DAG_SAMPLE_RELATIVE_PATH
+    return fallback_path if fallback_path.is_file() else None
+
+
+def _global_runner_state_path(lab_dir: Path) -> Path:
+    return lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
+
+
+def _load_or_create_global_runner_state(env: AgiEnv, lab_dir: Path) -> tuple[dict[str, Any], Path, Path | None]:
+    repo_root = _repo_root_for_global_dag()
+    dag_path = _global_runner_dag_path(env, repo_root)
+    state_path = _global_runner_state_path(lab_dir)
+    if state_path.is_file():
+        return load_runner_state(state_path), state_path, dag_path
+    proof = persist_runner_state(
+        repo_root=repo_root,
+        output_path=state_path,
+        dag_path=dag_path,
+    )
+    return proof.runner_state, state_path, dag_path
+
+
+def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
+    units = state.get("units", [])
+    if not isinstance(units, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for unit in units:
+        if not isinstance(unit, dict):
+            continue
+        rows.append(
+            {
+                "unit": str(unit.get("id", "")),
+                "app": str(unit.get("app", "")),
+                "status": str(unit.get("dispatch_status", "")),
+                "depends_on": ", ".join(str(item) for item in unit.get("depends_on", []) if str(item)),
+            }
+        )
+    return rows
+
+
+def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str: str) -> None:
+    try:
+        state, state_path, dag_path = _load_or_create_global_runner_state(env, lab_dir)
+    except Exception as exc:
+        st.caption(f"Global DAG runner preview is unavailable: {exc}")
+        return
+
+    summary = state.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+    with st.expander("Global DAG runner", expanded=False):
+        st.caption("Operator preview only: dispatch changes state, but does not execute apps or synthesize artifacts.")
+        if dag_path is not None:
+            st.caption(f"DAG contract: `{dag_path}`")
+        st.caption(f"State file: `{state_path}`")
+        planned_col, running_col, completed_col, failed_col = st.columns(4)
+        planned_col.metric("Planned", int(summary.get("planned_count", 0) or 0))
+        running_col.metric("Running", int(summary.get("running_count", 0) or 0))
+        completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
+        failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
+
+        rows = _state_units_for_display(state)
+        if rows:
+            st.dataframe(rows, hide_index=True, width="stretch")
+        else:
+            st.caption("No global DAG units are available.")
+
+        dispatch_clicked = action_button(
+            st,
+            "Dispatch next runnable",
+            key=f"{index_page_str}_global_runner_dispatch_next",
+            kind="run",
+            help="Move the next runnable global DAG unit to running state without executing the app.",
+        )
+        if dispatch_clicked:
+            result = dispatch_next_runnable(state)
+            if result.ok:
+                write_runner_state(state_path, result.state)
+                st.success(result.message)
+                st.rerun()
+            else:
+                st.warning(result.message)
 
 
 @dataclass(frozen=True)
@@ -136,46 +327,8 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
     _ensure_safe_service_template = deps.ensure_safe_service_template
     SAFE_SERVICE_START_TEMPLATE_FILENAME = deps.safe_service_template_filename
     SAFE_SERVICE_START_TEMPLATE_MARKER = deps.safe_service_template_marker
-    discovered: List[Path] = []
-    stale_snippets: List[Path] = []
-    seen: set[str] = set()
-
-    def _is_current_or_non_agi_snippet(path: Path) -> bool:
-        try:
-            code = path.read_text(encoding="utf-8")
-        except (AttributeError, OSError, RuntimeError, TypeError, UnicodeDecodeError, ValueError):
-            return True
-        if not is_generated_agi_snippet(code):
-            return True
-        if is_supported_snippet_api(code):
-            return True
-        stale_snippets.append(path)
-        return False
-
-    def _add_path(candidate: Path) -> None:
-        try:
-            path = candidate.expanduser()
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            path = candidate
-        if not path.exists() or not path.is_file() or path.suffix.lower() != ".py":
-            return
-        try:
-            unique_key = str(path.resolve())
-        except (OSError, RuntimeError, ValueError):
-            unique_key = str(path)
-        if unique_key in seen:
-            return
-        seen.add(unique_key)
-        if not _is_current_or_non_agi_snippet(path):
-            return
-        discovered.append(path)
 
     snippet_file = st.session_state.get("snippet_file")
-    if snippet_file:
-        _add_path(Path(snippet_file))
-
-    run_script = steps_file.parent / "AGI_run.py"
-    _add_path(run_script)
     safe_service_template = _ensure_safe_service_template(
         env,
         steps_file,
@@ -183,61 +336,39 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
         marker=SAFE_SERVICE_START_TEMPLATE_MARKER,
         debug_log=logger.debug,
     )
-    if safe_service_template:
-        _add_path(safe_service_template)
 
-    # Avoid importing arbitrary execute logs (stale app_args) from runenv.
-    # Only keep a short-lived, app-scoped run snippet that is still
-    # aligned with the current app_settings modification timestamp.
-    runenv_root = getattr(env, "runenv", None)
-    if runenv_root:
-        try:
-            runenv_path = Path(runenv_root).expanduser()
-            app_settings_mtime = Path(env.app_settings_file).stat().st_mtime if Path(env.app_settings_file).exists() else None
-            expected_suffix = f"_{env.app}.py"
-            for py_file in sorted(runenv_path.glob("AGI_*.py")):
-                if not py_file.name.endswith(expected_suffix):
-                    continue
-                if app_settings_mtime is not None:
-                    try:
-                        if py_file.stat().st_mtime < app_settings_mtime:
-                            continue
-                    except OSError:
-                        continue
-                _add_path(py_file)
-        except (OSError, RuntimeError, TypeError, ValueError):
-            pass
-
-    discovered.sort(key=lambda p: (p.name.lower(), str(p).lower()))
+    registry = discover_pipeline_snippets(
+        steps_file=steps_file,
+        app_name=str(getattr(env, "app", "")),
+        explicit_snippet=snippet_file,
+        safe_service_template=safe_service_template,
+        runenv_root=getattr(env, "runenv", None),
+        app_settings_file=getattr(env, "app_settings_file", None),
+    )
+    stale_snippets = list(registry.stale_snippets)
     if stale_snippets:
         try:
-            st.warning(stale_snippet_cleanup_message(stale_snippets))
-            if st.button(
+            cleanup_message = stale_snippet_cleanup_message(stale_snippets)
+            st.warning(cleanup_message)
+            if confirm_button(
+                st,
                 "Clean stale snippets",
                 key=f"clean_stale_snippets_{getattr(env, 'app', 'app')}",
+                message=cleanup_message,
+                confirm_label="Delete stale snippets",
                 help="Delete only old generated AGI_*.py snippets that no longer match this AGILAB core API.",
             ):
                 deleted, failed = clean_stale_snippet_files(stale_snippets)
                 if deleted:
                     st.success(f"Deleted {len(deleted)} stale generated snippet(s).")
+                    toast(st, f"Deleted {len(deleted)} stale snippet(s).", state="success")
                 if failed:
                     st.warning(f"Could not delete {len(failed)} stale generated snippet(s).")
+                    toast(st, f"Could not delete {len(failed)} stale snippet(s).", state="warning")
         except AttributeError:
             pass
 
-    option_map: Dict[str, Path] = {}
-    for path in discovered:
-        base_label = path.name
-        label = base_label
-        if label in option_map:
-            parent_name = path.parent.name or str(path.parent)
-            label = f"{base_label} ({parent_name})"
-            idx = 2
-            while label in option_map:
-                label = f"{base_label} ({parent_name} #{idx})"
-                idx += 1
-        option_map[label] = path
-    return option_map
+    return registry.as_option_map()
 
 def display_lab_tab(
     lab_dir: Path,
@@ -321,11 +452,8 @@ def display_lab_tab(
         expander_reset_key = f"{safe_prefix}_expander_open"
         st.session_state[expander_reset_key] = {}
 
-    available_venvs = [
-        normalize_runtime_path(path) for path in get_available_virtualenvs(env)
-    ]
-    available_venvs = [path for path in dict.fromkeys(available_venvs) if path]
-    env_active_app = normalize_runtime_path(env.active_app)
+    available_venvs = _valid_runtime_choices(list(get_available_virtualenvs(env)))
+    env_active_app = _valid_runtime_path(getattr(env, "active_app", ""))
     manager_runtime = env_active_app
     if env_active_app:
         available_venvs = [env_active_app] + [p for p in available_venvs if p != env_active_app]
@@ -335,7 +463,7 @@ def display_lab_tab(
     engine_state_key = f"{index_page_str}__engine_map"
     engine_map: Dict[int, str] = st.session_state.setdefault(engine_state_key, {})
     for idx_key, raw_value in list(selected_map.items()):
-        normalized_value = normalize_runtime_path(raw_value)
+        normalized_value = _valid_runtime_path(raw_value)
         if normalized_value:
             selected_map[idx_key] = normalized_value
         else:
@@ -346,6 +474,7 @@ def display_lab_tab(
         bool(snippet_option_map),
         env.app,
     )
+    _render_global_runner_state_panel(env, lab_dir, index_page_str)
     step_source_key = f"{safe_prefix}_new_step_source"
     source_options = ["gen step"] + list(snippet_option_map.keys())
     if st.session_state.get(step_source_key) not in source_options:
@@ -360,11 +489,13 @@ def display_lab_tab(
         if new_q_key not in st.session_state:
             st.session_state[new_q_key] = ""
         with st.expander("New step", expanded=True):
-            step_source = st.selectbox(
+            step_source = compact_choice(
+                st,
                 "Step source",
                 source_options,
                 key=step_source_key,
                 help="Select `gen step` to use the code generator, or choose an existing snippet to import as read-only.",
+                inline_limit=5,
             )
 
             if step_source == "gen step":
@@ -375,20 +506,20 @@ def display_lab_tab(
                     label_visibility="collapsed",
                 )
                 venv_labels = ["Use AGILAB environment"] + available_venvs
-                selected_new_venv = st.selectbox(
+                selected_new_venv = compact_choice(
+                    st,
                     "venv",
                     venv_labels,
                     key=new_venv_key,
                     help="Choose which virtual environment should execute this step.",
+                    inline_limit=4,
                 )
-                selected_path = (
-                    "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
-                )
-                run_new = st.button(
+                selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
+                run_new = action_button(
+                    st,
                     "Generate code",
-                    type="primary",
-                    width="stretch",
                     key=f"{safe_prefix}_add_first_step_btn",
+                    kind="generate",
                 )
                 if run_new:
                     prompt_text = st.session_state.get(new_q_key, "").strip()
@@ -433,11 +564,11 @@ def display_lab_tab(
                 if snippet_path:
                     st.caption(f"Snippet source: `{snippet_path}`")
                 st.code(snippet_code or "# Empty snippet", language="python")
-                import_new = st.button(
+                import_new = action_button(
+                    st,
                     "Add snippet",
-                    type="primary",
-                    width="stretch",
                     key=f"{safe_prefix}_add_first_snippet_btn",
+                    kind="add",
                 )
                 if import_new:
                     if not snippet_code.strip():
@@ -484,6 +615,27 @@ def display_lab_tab(
     st.session_state.setdefault(run_logs_key, [])
     expander_state_key = f"{safe_prefix}_expander_open"
     expander_state: Dict[int, bool] = st.session_state.setdefault(expander_state_key, {})
+
+    def _build_page_state(*, include_lock: bool = False):
+        return build_pipeline_page_state(
+            index_page=index_page_str,
+            steps_file=steps_file,
+            steps=persisted_steps,
+            sequence=st.session_state.get(sequence_state_key, []),
+            session_state=st.session_state,
+            selected_lab=lab_dir,
+            env=env,
+            deps=PipelinePageStateDeps(
+                is_displayable_step=lambda entry: _is_displayable_step(dict(entry)),
+                is_runnable_step=lambda entry: _pipeline_steps_module.is_runnable_step(dict(entry)),
+                step_summary=lambda entry: _step_summary(dict(entry), width=80),
+                step_label=lambda idx, entry: _step_label_for_multiselect(idx, dict(entry), env=env),
+                find_legacy_agi_run_steps=_pipeline_steps_module.find_legacy_agi_run_steps,
+                inspect_pipeline_run_lock=_inspect_pipeline_run_lock if include_lock else None,
+            ),
+        )
+
+    render_page_state = _build_page_state()
 
     @st.fragment
     def _render_pipeline_step_fragment(step: int, entry: Dict[str, Any]) -> None:
@@ -548,11 +700,9 @@ def display_lab_tab(
             initial_snapshot = (entry.get("Q", ""), entry.get("C", ""))
             st.session_state[undo_key] = [initial_snapshot]
 
-        current_path_raw = normalize_runtime_path(selected_map.get(step, ""))
-        current_path = current_path_raw if _is_valid_runtime_root(current_path_raw) else ""
+        current_path = _valid_runtime_path(selected_map.get(step, ""))
         if not current_path:
-            entry_venv_raw = normalize_runtime_path(entry.get("E", ""))
-            entry_venv = entry_venv_raw if _is_valid_runtime_root(entry_venv_raw) else ""
+            entry_venv = _valid_runtime_path(entry.get("E", ""))
             if entry_venv:
                 selected_map[step] = entry_venv
                 current_path = entry_venv
@@ -579,21 +729,23 @@ def display_lab_tab(
         with st.expander(expander_title, expanded=expanded_flag):
             venv_col, _ = st.columns([3, 2], gap="small")
             with venv_col:
-                session_label = st.session_state.get(select_key, "")
+                session_label = _valid_runtime_path(st.session_state.get(select_key, ""))
                 initial_label = session_label or current_path or ""
                 if initial_label and initial_label not in venv_labels:
                     venv_labels.append(initial_label)
                 default_label = initial_label or venv_labels[0]
                 if select_key not in st.session_state or st.session_state[select_key] not in venv_labels:
                     st.session_state[select_key] = default_label
-                selected_label = st.selectbox(
+                selected_label = compact_choice(
+                    st,
                     "venv",
                     venv_labels,
                     key=select_key,
                     help="Choose which virtual environment should execute this step.",
                     disabled=is_locked_step,
+                    inline_limit=4,
                 )
-                selected_path = "" if selected_label == venv_labels[0] else normalize_runtime_path(selected_label)
+                selected_path = "" if selected_label == venv_labels[0] else _valid_runtime_path(selected_label)
                 if selected_path:
                     selected_map[step] = selected_path
                 else:
@@ -613,11 +765,11 @@ def display_lab_tab(
                 st.caption("This step is locked. Re-run ORCHESTRATE and re-import it here if you need changes.")
                 st.code(st.session_state.get(code_val_key, entry.get("C", "")) or "# Empty snippet", language="python")
 
-                if st.button(
+                if action_button(
+                    st,
                     "Run imported step",
-                    type="primary",
-                    width="stretch",
                     key=f"{safe_prefix}_run_locked_{step}",
+                    kind="run",
                 ):
                     _run_locked_step(
                         env,
@@ -641,27 +793,28 @@ def display_lab_tab(
                     )
 
                 if st.session_state.get(confirm_delete_key, False):
-                    delete_clicked = st.button(
+                    delete_clicked = action_button(
+                        st,
                         "Confirm remove",
-                        type="primary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_confirm_{step}",
+                        kind="destructive",
+                        type="primary",
                     )
-                    cancel_delete_clicked = st.button(
+                    cancel_delete_clicked = action_button(
+                        st,
                         "Cancel",
-                        type="secondary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_cancel_{step}",
+                        kind="cancel",
                     )
                     arm_delete_clicked = False
                 else:
                     delete_clicked = False
                     cancel_delete_clicked = False
-                    arm_delete_clicked = st.button(
+                    arm_delete_clicked = action_button(
+                        st,
                         "Remove",
-                        type="secondary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_{step}",
+                        kind="remove",
                     )
 
                 if arm_delete_clicked:
@@ -671,13 +824,21 @@ def display_lab_tab(
                     st.session_state.pop(confirm_delete_key, None)
                     _rerun_fragment_or_app()
                 if delete_clicked:
-                    delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
-                    delete_snapshot["label"] = f"remove step {step + 1}"
-                    delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
-                    st.session_state[delete_undo_key] = delete_snapshot
-                    selected_map.pop(step, None)
-                    remove_step(lab_dir, str(step), steps_file, index_page_str)
-                    st.rerun()
+                    result = delete_pipeline_step_command(
+                        session_state=st.session_state,
+                        index_page=index_page_str,
+                        step_index=step,
+                        lab_dir=lab_dir,
+                        steps_file=steps_file,
+                        persisted_steps=persisted_steps,
+                        selected_map=selected_map,
+                        capture_pipeline_snapshot=_capture_pipeline_snapshot,
+                        remove_step=remove_step,
+                    )
+                    if not result.ok:
+                        st.warning(result.message)
+                    else:
+                        st.rerun()
                 return
 
             run_pressed = False
@@ -696,46 +857,48 @@ def display_lab_tab(
             )
             btn_save, btn_run, btn_revert, btn_delete = st.columns([1, 1, 1, 1], gap="small")
             with btn_save:
-                save_pressed = st.button(
+                save_pressed = action_button(
+                    st,
                     "Save",
-                    type="secondary",
-                    width="stretch",
                     key=f"{safe_prefix}_save_{step}",
+                    kind="save",
+                    type="secondary",
                 )
             with btn_run:
-                run_pressed = st.button(
+                run_pressed = action_button(
+                    st,
                     "Gen code",
-                    type="primary",
-                    width="stretch",
                     key=f"{safe_prefix}_run_{step}",
+                    kind="generate",
                 )
             with btn_revert:
-                revert_pressed = st.button(
+                revert_pressed = action_button(
+                    st,
                     "Undo",
-                    type="secondary",
-                    width="stretch",
                     key=f"{safe_prefix}_revert_{step}",
+                    kind="revert",
                 )
             with btn_delete:
                 if st.session_state.get(confirm_delete_key, False):
-                    delete_clicked = st.button(
+                    delete_clicked = action_button(
+                        st,
                         "Confirm remove",
-                        type="primary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_confirm_{step}",
+                        kind="destructive",
+                        type="primary",
                     )
-                    cancel_delete_clicked = st.button(
+                    cancel_delete_clicked = action_button(
+                        st,
                         "Cancel",
-                        type="secondary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_cancel_{step}",
+                        kind="cancel",
                     )
                 else:
-                    arm_delete_clicked = st.button(
+                    arm_delete_clicked = action_button(
+                        st,
                         "Remove",
-                        type="secondary",
-                        width="stretch",
                         key=f"{safe_prefix}_delete_{step}",
+                        kind="remove",
                     )
 
             if arm_delete_clicked:
@@ -1143,26 +1306,35 @@ def display_lab_tab(
 
             if delete_clicked:
                 st.session_state.pop(confirm_delete_key, None)
-                delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
-                delete_snapshot["label"] = f"remove step {step + 1}"
-                delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
-                st.session_state[delete_undo_key] = delete_snapshot
-                selected_map.pop(step, None)
-                remove_step(lab_dir, str(step), steps_file, index_page_str)
-                st.rerun()
+                result = delete_pipeline_step_command(
+                    session_state=st.session_state,
+                    index_page=index_page_str,
+                    step_index=step,
+                    lab_dir=lab_dir,
+                    steps_file=steps_file,
+                    persisted_steps=persisted_steps,
+                    selected_map=selected_map,
+                    capture_pipeline_snapshot=_capture_pipeline_snapshot,
+                    remove_step=remove_step,
+                )
+                if not result.ok:
+                    st.warning(result.message)
+                else:
+                    st.rerun()
 
     _conceptual_source, conceptual_dot = load_pipeline_conceptual_dot(env, lab_dir)
     if conceptual_dot:
         with st.expander("Conceptual view", expanded=False):
             st.graphviz_chart(conceptual_dot, width="content")
 
+    render_steps = [persisted_steps[item.index] for item in render_page_state.visible_steps]
     render_pipeline_view(
-        persisted_steps,
+        render_steps,
         title="Execution view" if conceptual_dot else "Pipeline view",
     )
 
-    for step, entry in enumerate(persisted_steps):
-        _render_pipeline_step_fragment(step, entry)
+    for visible_step in render_page_state.visible_steps:
+        _render_pipeline_step_fragment(visible_step.index, persisted_steps[visible_step.index])
 
     # Add-step expander to append a new step at the end
     new_q_key = f"{safe_prefix}_new_q"
@@ -1171,11 +1343,13 @@ def display_lab_tab(
         st.session_state[new_q_key] = ""
     with st.expander("Add step", expanded=False):
         st.info(snippet_guidance)
-        step_source = st.selectbox(
+        step_source = compact_choice(
+            st,
             "Step source",
             source_options,
             key=step_source_key,
             help="Select `gen step` to use the code generator, or choose an existing snippet to import as read-only.",
+            inline_limit=5,
         )
         if step_source == "gen step":
             st.text_area(
@@ -1185,14 +1359,16 @@ def display_lab_tab(
                 label_visibility="collapsed",
             )
             venv_labels = ["Use AGILAB environment"] + available_venvs
-            selected_new_venv = st.selectbox(
+            selected_new_venv = compact_choice(
+                st,
                 "venv",
                 venv_labels,
                 key=new_venv_key,
                 help="Choose which virtual environment should execute this step.",
+                inline_limit=4,
             )
-            selected_path = "" if selected_new_venv == venv_labels[0] else normalize_runtime_path(selected_new_venv)
-            run_new = st.button("Generate code", type="primary", width="stretch", key=f"{safe_prefix}_add_step_btn")
+            selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
+            run_new = action_button(st, "Generate code", key=f"{safe_prefix}_add_step_btn", kind="generate")
             if run_new:
                 prompt_text = st.session_state.get(new_q_key, "").strip()
                 if prompt_text:
@@ -1271,11 +1447,11 @@ def display_lab_tab(
             if snippet_path:
                 st.caption(f"Snippet source: `{snippet_path}`")
             st.code(snippet_code or "# Empty snippet", language="python")
-            import_new = st.button(
+            import_new = action_button(
+                st,
                 "Add snippet",
-                type="primary",
-                width="stretch",
                 key=f"{safe_prefix}_add_step_snippet_btn",
+                kind="add",
             )
             if import_new:
                 if not snippet_code.strip():
@@ -1320,7 +1496,7 @@ def display_lab_tab(
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
     if total_steps > 0:
-        sequence_options = list(range(total_steps))
+        sequence_options = [item.index for item in render_page_state.visible_steps]
         stored_sequence = [idx for idx in st.session_state.get(sequence_state_key, sequence_options) if idx in sequence_options]
         stored_sequence = stored_sequence or sequence_options
         st.session_state[sequence_state_key] = stored_sequence
@@ -1349,7 +1525,11 @@ def display_lab_tab(
             st.session_state[sequence_state_key] = final_sequence
             _persist_sequence_preferences(module_path, steps_file, final_sequence)
 
-    lock_state = _inspect_pipeline_run_lock(env)
+    page_state = _build_page_state(include_lock=True)
+    if page_state.stale_step_refs and page_state.run_disabled_reason:
+        st.warning(page_state.run_disabled_reason)
+
+    lock_state = page_state.lock_state
     if lock_state:
         owner_text = str(lock_state.get("owner_text") or "unknown owner")
         stale_reason = lock_state.get("stale_reason")
@@ -1370,50 +1550,81 @@ def display_lab_tab(
     force_run_confirm_key = f"{index_page_str}_confirm_force_run"
     run_col, force_col = st.columns(2)
     with run_col:
-        run_all_clicked = st.button(
+        run_blocked_reason = page_state.blocked_actions.get(
+            PipelineAction.RUN_PIPELINE,
+            "",
+        )
+        run_all_clicked = action_button(
+            st,
             "Run pipeline",
             key=f"{index_page_str}_run_all",
-            help="Execute every step sequentially using its saved virtual environment.",
-            type="secondary",
-            width="stretch",
+            kind="run",
+            help=run_blocked_reason or "Execute every step sequentially using its saved virtual environment.",
+            disabled=PipelineAction.RUN_PIPELINE not in page_state.available_actions,
         )
     with force_col:
         if lock_state:
+            force_blocked_reason = page_state.blocked_actions.get(
+                PipelineAction.FORCE_RUN,
+                "",
+            )
             if lock_state.get("is_stale"):
-                force_run_clicked = st.button(
+                force_run_clicked = action_button(
+                    st,
                     "Clear stale lock and run",
                     key=f"{index_page_str}_force_run_stale",
-                    help="Remove the stale pipeline lock and start a new run.",
-                    type="primary",
-                    width="stretch",
+                    kind="run",
+                    help=force_blocked_reason or "Remove the stale pipeline lock and start a new run.",
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
             elif st.session_state.get(force_run_confirm_key, False):
-                force_run_clicked = st.button(
+                force_run_clicked = action_button(
+                    st,
                     "Confirm force unlock",
                     key=f"{index_page_str}_force_run_confirm",
-                    help="Remove the current lock and start a new run. Use this only if the previous run is gone.",
-                    type="primary",
-                    width="stretch",
+                    kind="run",
+                    help=force_blocked_reason
+                    or "Remove the current lock and start a new run. Use this only if the previous run is gone.",
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
             else:
-                force_run_arm_clicked = st.button(
+                force_run_arm_clicked = action_button(
+                    st,
                     "Force unlock and run",
                     key=f"{index_page_str}_force_run_arm",
-                    help="Use only when a previous pipeline run was interrupted and left a lock behind.",
-                    type="secondary",
-                    width="stretch",
+                    kind="destructive",
+                    help=force_blocked_reason
+                    or "Use only when a previous pipeline run was interrupted and left a lock behind.",
+                    disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
+
+    if run_all_clicked and PipelineAction.RUN_PIPELINE not in page_state.available_actions:
+        st.warning(
+            page_state.blocked_actions.get(
+                PipelineAction.RUN_PIPELINE,
+                "Pipeline cannot run in the current state.",
+            )
+        )
+        run_all_clicked = False
+    if force_run_clicked and PipelineAction.FORCE_RUN not in page_state.available_actions:
+        st.warning(
+            page_state.blocked_actions.get(
+                PipelineAction.FORCE_RUN,
+                "Pipeline cannot be force-run in the current state.",
+            )
+        )
+        force_run_clicked = False
 
     if force_run_arm_clicked:
         st.session_state[force_run_confirm_key] = True
         st.rerun()
 
     if st.session_state.get(force_run_confirm_key, False) and not (force_run_clicked or force_run_arm_clicked):
-        force_run_cancel_clicked = st.button(
+        force_run_cancel_clicked = action_button(
+            st,
             "Cancel force unlock",
             key=f"{index_page_str}_force_run_cancel",
-            type="secondary",
-            width="stretch",
+            kind="cancel",
         )
     if force_run_cancel_clicked:
         st.session_state.pop(force_run_confirm_key, None)
@@ -1428,28 +1639,29 @@ def display_lab_tab(
     delete_all_confirm_key = f"{index_page_str}_confirm_delete_all"
     with delete_all_col:
         if st.session_state.get(delete_all_confirm_key, False):
-            delete_all_clicked = st.button(
+            delete_all_clicked = action_button(
+                st,
                 "Confirm delete",
                 key=f"{index_page_str}_delete_all_confirm",
                 help="Permanently remove every step in this lab.",
+                kind="destructive",
                 type="primary",
-                width="stretch",
             )
         else:
-            arm_delete_all_clicked = st.button(
+            arm_delete_all_clicked = action_button(
+                st,
                 "Delete all",
                 key=f"{index_page_str}_delete_all",
                 help="Remove every step in this lab.",
-                type="secondary",
-                width="stretch",
+                kind="delete",
             )
     with cancel_col:
         if st.session_state.get(delete_all_confirm_key, False):
-            cancel_delete_all_clicked = st.button(
+            cancel_delete_all_clicked = action_button(
+                st,
                 "Cancel",
                 key=f"{index_page_str}_delete_all_cancel",
-                type="secondary",
-                width="stretch",
+                kind="cancel",
             )
 
     if arm_delete_all_clicked:
@@ -1463,82 +1675,119 @@ def display_lab_tab(
     undo_payload = st.session_state.get(delete_undo_key)
     if isinstance(undo_payload, dict) and isinstance(undo_payload.get("steps"), list):
         undo_label = str(undo_payload.get("label", "last delete"))
-        undo_delete_clicked = st.button(
+        undo_delete_clicked = action_button(
+            st,
             "Undo delete",
             key=f"{index_page_str}_undo_delete",
             help=f"Restore the pipeline state before the latest delete action ({undo_label}).",
-            type="secondary",
-            width="stretch",
+            kind="revert",
         )
 
     if undo_delete_clicked:
-        restore_error = _restore_pipeline_snapshot(
-            module_path,
-            steps_file,
-            index_page_str,
-            sequence_widget_key,
-            undo_payload,
+        result = undo_pipeline_delete_command(
+            session_state=st.session_state,
+            index_page=index_page_str,
+            module_path=module_path,
+            steps_file=steps_file,
+            sequence_widget_key=sequence_widget_key,
+            restore_pipeline_snapshot=_restore_pipeline_snapshot,
         )
-        if restore_error:
-            st.error(f"Undo failed: {restore_error}")
+        if not result.ok:
+            st.error(result.message)
         else:
-            st.session_state.pop(delete_undo_key, None)
-            st.success("Deleted steps restored.")
+            st.success(result.message)
             st.rerun()
 
     if run_all_clicked or force_run_clicked:
-        st.session_state.pop(force_run_confirm_key, None)
-        run_placeholder = _get_run_placeholder(index_page_str)
-        log_file_path, log_error = _prepare_run_log_file(index_page_str, env, prefix="pipeline")
-        if log_file_path:
-            _push_run_log(
-                index_page_str,
-                f"Run pipeline started… logs will be saved to {log_file_path}",
-                run_placeholder,
-            )
-        else:
-            _push_run_log(
-                index_page_str,
-                f"Run pipeline started… (unable to prepare log file: {log_error})",
-                run_placeholder,
-            )
+        requested_action = PipelineAction.FORCE_RUN if force_run_clicked else PipelineAction.RUN_PIPELINE
+        start_result = start_pipeline_run_command(
+            page_state=page_state,
+            requested_action=requested_action,
+            session_state=st.session_state,
+            env=env,
+            prepare_run_log_file=_prepare_run_log_file,
+            get_run_placeholder=_get_run_placeholder,
+            push_run_log=_push_run_log,
+            force_confirm_key=force_run_confirm_key,
+        )
+        if not start_result.ok:
+            st.warning(start_result.message)
+            st.rerun()
+            return
+        run_placeholder = start_result.details.get("log_placeholder")
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
-            run_all_steps(
-                lab_dir,
-                index_page_str,
-                steps_file,
-                module_path,
-                env,
-                log_placeholder=run_placeholder,
-                force_lock_clear=force_run_clicked,
-            )
+            with status_container(st, "Running pipeline…", state="running", expanded=True) as run_status:
+                try:
+                    run_all_steps(
+                        lab_dir,
+                        index_page_str,
+                        steps_file,
+                        module_path,
+                        env,
+                        log_placeholder=run_placeholder,
+                        force_lock_clear=bool(start_result.details.get("force_lock_clear")),
+                    )
+                except Exception:
+                    finish_result = finish_pipeline_run_command(
+                        session_state=st.session_state,
+                        index_page=index_page_str,
+                        succeeded=False,
+                    )
+                    record_action_history(
+                        st.session_state,
+                        page_label="PIPELINE",
+                        env=env,
+                        title="Pipeline run failed",
+                        status="failed",
+                        detail=finish_result.message,
+                        artifact=start_result.details.get("log_file_path", ""),
+                    )
+                    run_status.update(label=finish_result.message, state="error", expanded=True)
+                    toast(st, finish_result.message, state="error")
+                    raise
+                else:
+                    finish_result = finish_pipeline_run_command(
+                        session_state=st.session_state,
+                        index_page=index_page_str,
+                        succeeded=True,
+                        message="Pipeline run finished. Inspect Run logs.",
+                    )
+                    record_action_history(
+                        st.session_state,
+                        page_label="PIPELINE",
+                        env=env,
+                        title="Pipeline run finished",
+                        status="done",
+                        detail=finish_result.message,
+                        artifact=start_result.details.get("log_file_path", ""),
+                    )
+                    run_status.update(label=finish_result.message, state="complete", expanded=False)
+                    toast(st, finish_result.message, state="success")
         finally:
             st.session_state.pop(f"{index_page_str}__run_log_file", None)
         st.rerun()
 
     if delete_all_clicked:
-        st.session_state.pop(delete_all_confirm_key, None)
-        delete_snapshot = _capture_pipeline_snapshot(index_page_str, persisted_steps)
-        delete_snapshot["label"] = "delete pipeline"
-        delete_snapshot["timestamp"] = datetime.now().isoformat(timespec="seconds")
-        st.session_state[delete_undo_key] = delete_snapshot
-        total_steps = st.session_state[index_page_str][-1]
-        for idx_remove in reversed(range(total_steps)):
-            remove_step(lab_dir, str(idx_remove), steps_file, index_page_str)
-        st.session_state[index_page_str] = [0, "", "", "", "", "", 0]
-        st.session_state[f"{index_page_str}__details"] = {}
-        st.session_state[f"{index_page_str}__venv_map"] = {}
-        st.session_state[f"{index_page_str}__run_sequence"] = []
-        st.session_state.pop(sequence_widget_key, None)
-        st.session_state["lab_selected_venv"] = ""
-        st.session_state[f"{index_page_str}__clear_q"] = True
-        st.session_state[f"{index_page_str}__force_blank_q"] = True
-        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-        _bump_history_revision()
-        _persist_sequence_preferences(module_path, steps_file, [])
-        st.rerun()
+        result = delete_all_pipeline_steps_command(
+            session_state=st.session_state,
+            index_page=index_page_str,
+            lab_dir=lab_dir,
+            module_path=module_path,
+            steps_file=steps_file,
+            persisted_steps=persisted_steps,
+            sequence_widget_key=sequence_widget_key,
+            capture_pipeline_snapshot=_capture_pipeline_snapshot,
+            remove_step=remove_step,
+            bump_history_revision=_bump_history_revision,
+            persist_sequence_preferences=_persist_sequence_preferences,
+            confirm_key=delete_all_confirm_key,
+        )
+        if not result.ok:
+            st.warning(result.message)
+        else:
+            st.rerun()
 
     if st.session_state.pop("_experiment_reload_required", False):
         st.session_state.pop("loaded_df", None)
@@ -1550,32 +1799,129 @@ def display_lab_tab(
             load_df_cached(Path(df_source)) if df_source else None
         )
     loaded_df = st.session_state["loaded_df"]
+    log_page_state = _build_page_state()
+    logs = list(log_page_state.run_logs)
+    log_body = "\n".join(logs)
+    last_log_file = log_page_state.last_run_log_file
+    last_run_status = st.session_state.get(f"{index_page_str}__last_run_status")
+    latest_status = last_run_status or ("done" if last_log_file or log_body else "waiting")
+    pipeline_artifacts: list[dict[str, Any]] = [
+        {"label": "Dataframe", "path": st.session_state.get("df_file"), "kind": "dataframe", "preview": False},
+        {"label": "Steps file", "path": steps_file, "kind": "toml", "preview": False},
+        {"label": "Run log", "path": last_log_file, "kind": "log"},
+    ]
+    for pipeline_view_path in (lab_dir / "pipeline_view.json", lab_dir / "pipeline_view.dot"):
+        if pipeline_view_path.is_file():
+            pipeline_artifacts.append(
+                {
+                    "label": pipeline_view_path.name,
+                    "path": pipeline_view_path,
+                    "kind": pipeline_view_path.suffix.lower().lstrip("."),
+                }
+            )
+
+    render_workflow_timeline(
+        st,
+        steps=(
+            {
+                "label": "Define steps",
+                "state": "done" if total_steps else "waiting",
+                "detail": f"{total_steps} step(s)",
+            },
+            {
+                "label": "Run pipeline",
+                "state": "ready" if page_state.can_run else "blocked",
+                "detail": page_state.run_disabled_reason or "",
+            },
+            {
+                "label": "Load dataframe",
+                "state": "done" if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty else "waiting",
+                "detail": st.session_state.get("df_file") or "",
+            },
+            {
+                "label": "Inspect artifacts",
+                "state": "done" if last_log_file or st.session_state.get("df_file") else "waiting",
+                "detail": last_log_file or "",
+            },
+        ),
+    )
+    render_latest_run_card(
+        st,
+        status=latest_status,
+        output_path=st.session_state.get("df_file"),
+        log_path=last_log_file,
+        key_prefix=f"pipeline:{index_page_str}",
+    )
+    render_artifact_drawer(
+        st,
+        artifacts=pipeline_artifacts,
+        key_prefix=f"pipeline:{index_page_str}",
+    )
+    render_action_history(
+        st,
+        session_state=st.session_state,
+        page_label="PIPELINE",
+        env=env,
+    )
+    render_latest_outputs(
+        st,
+        source_path=st.session_state.get("df_file"),
+        dataframe=loaded_df,
+        key_prefix=f"pipeline:{index_page_str}",
+    )
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         render_dataframe_preview(
             loaded_df,
             truncation_label="PIPELINE preview limited",
         )
     else:
-        st.info(
-            f"No data loaded yet. Generate and execute a step so the latest {DEFAULT_DF} appears under the Dataframe selector."
+        empty_state(
+            st,
+            "No data loaded yet.",
+            body=f"Generate and execute a step so the latest {DEFAULT_DF} appears under the Dataframe selector.",
         )
 
     with st.expander("Run logs", expanded=True):
-        clear_logs = st.button(
-            "Clear logs",
-            key=f"{index_page_str}__clear_logs_global",
-            type="secondary",
-            width="stretch",
+        clear_logs = render_log_actions(
+            st,
+            body=log_body,
+            download_key=f"{index_page_str}__download_logs_global",
+            file_name=f"{index_page_str}_pipeline.log",
+            clear_key=f"{index_page_str}__clear_logs_global",
         )
         if clear_logs:
-            st.session_state[run_logs_key] = []
+            result = clear_pipeline_run_logs(st.session_state, index_page_str)
+            if result.ok:
+                record_action_history(
+                    st.session_state,
+                    page_label="PIPELINE",
+                    env=env,
+                    title="Pipeline logs cleared",
+                    status="info",
+                    detail=result.message,
+                )
+                toast(st, result.message, state="info")
+            else:
+                st.warning(result.message)
+            log_page_state = _build_page_state()
+            logs = list(log_page_state.run_logs)
+            log_body = "\n".join(logs)
+            last_log_file = log_page_state.last_run_log_file
         log_placeholder = st.empty()
         st.session_state[run_placeholder_key] = log_placeholder
-        logs = st.session_state.get(run_logs_key, [])
-        if logs:
-            log_placeholder.code("\n".join(logs))
-        else:
-            log_placeholder.caption("No runs recorded yet.")
-        last_log_file = st.session_state.get(f"{index_page_str}__last_run_log_file")
         if last_log_file:
             st.caption(f"Most recent run log: {last_log_file}")
+        source = f"PIPELINE {last_log_file}" if last_log_file else "PIPELINE"
+        render_pinnable_code_editor(
+            st,
+            code_editor,
+            f"pipeline_run_logs:{index_page_str}",
+            title=f"Pipeline logs: {getattr(env, 'app', None) or index_page_str}",
+            body=log_body,
+            key=f"{index_page_str}__run_logs_editor",
+            body_format="code",
+            language="text",
+            source=source,
+            empty_message="No runs recorded yet.",
+            info_name="Run logs",
+        )

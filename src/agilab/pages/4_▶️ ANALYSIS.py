@@ -41,6 +41,37 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_symbols(
+    globals(),
+    "agilab.analysis_page_state",
+    {
+        "build_analysis_view_selection_state": "build_analysis_view_selection_state",
+        "normalize_view_name": "_analysis_normalize_view_name",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "analysis_page_state.py",
+    fallback_name="agilab_analysis_page_state_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pinned_expander",
+    {
+        "render_pinned_expanders": "render_pinned_expanders",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.workflow_ui",
+    {
+        "render_page_context": "render_page_context",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
 
 # Use modern TOML libraries
 import tomllib       # For reading TOML files (read as binary)
@@ -53,7 +84,9 @@ from agi_gui.pagelib import (
     select_project,
     inject_theme,
 )
+from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv
+from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
@@ -360,14 +393,179 @@ def _page_pythonpath(*paths: Path) -> str:
         ordered_unique.append(value)
     return os.pathsep.join(ordered_unique)
 
-def _default_app_path(apps_path: Path | None) -> Path | None:
-    """Return the first *_project directory found under apps_path."""
-    if not apps_path or not apps_path.exists():
+
+def _safe_existing_dir(path: Path | None) -> Path | None:
+    if path is None:
         return None
-    for candidate in sorted(apps_path.iterdir()):
-        if candidate.is_dir() and candidate.name.endswith("_project"):
-            return candidate
+    try:
+        return path.resolve() if path.exists() and path.is_dir() else None
+    except OSError:
+        return None
+
+
+def _page_apps_path(current_file: str | Path = __file__) -> Path | None:
+    """Return the bundled apps root for source and packaged page layouts."""
+    current_path = Path(current_file).resolve()
+    candidates: list[Path] = []
+    parents = current_path.parents
+    if len(parents) > 1:
+        candidates.append(parents[1] / "apps")
+    if len(parents) > 2:
+        candidates.append(parents[2] / "agilab" / "apps")
+        candidates.append(parents[2] / "apps")
+    for candidate in candidates:
+        existing = _safe_existing_dir(candidate)
+        if existing is not None:
+            return existing
     return None
+
+
+def _candidate_app_paths(apps_path: Path | None, value: str | Path | None) -> list[Path]:
+    if value is None:
+        return []
+    raw_value = str(value).strip()
+    if not raw_value:
+        return []
+    try:
+        provided = Path(raw_value).expanduser()
+    except (RuntimeError, TypeError, ValueError):
+        return []
+
+    candidates: list[Path] = []
+    if provided.is_absolute() or len(provided.parts) > 1:
+        candidates.append(provided)
+        candidates.append(provided.parent / "builtin" / provided.name)
+
+    if apps_path is not None:
+        root = Path(apps_path).expanduser()
+        if len(provided.parts) == 1:
+            candidates.append(root / raw_value)
+        candidates.append(root / provided.name)
+        candidates.append(root / "builtin" / provided.name)
+
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(candidate)
+    return unique
+
+
+def _resolve_app_path(apps_path: Path | None, value: str | Path | None) -> Path | None:
+    for candidate in _candidate_app_paths(apps_path, value):
+        existing = _safe_existing_dir(candidate)
+        if existing is not None:
+            return existing
+    return None
+
+
+def _apps_path_for_active_app(active_app_path: Path) -> Path:
+    parent = active_app_path.parent
+    if parent.name == "builtin" and parent.parent.name == "apps":
+        return parent.parent
+    return parent
+
+
+def _default_app_path(apps_path: Path | None) -> Path | None:
+    """Return a deterministic default *_project, preferring bundled flight_project."""
+    root = _safe_existing_dir(Path(apps_path).expanduser() if apps_path else None)
+    if root is None:
+        return None
+    search_roots = [root]
+    if root.name != "builtin":
+        builtin_root = _safe_existing_dir(root / "builtin")
+        if builtin_root is not None:
+            search_roots.append(builtin_root)
+
+    for search_root in search_roots:
+        preferred = _safe_existing_dir(search_root / "flight_project")
+        if preferred is not None:
+            return preferred
+
+    for search_root in search_roots:
+        try:
+            candidates = sorted(search_root.iterdir())
+        except OSError:
+            continue
+        for candidate in candidates:
+            existing = _safe_existing_dir(candidate)
+            if existing is not None and existing.name.endswith("_project"):
+                return existing
+    return None
+
+
+def _stored_active_app_path(env: AgiEnv) -> Path | None:
+    active_app = getattr(env, "active_app", None)
+    if active_app:
+        try:
+            return Path(active_app)
+        except (RuntimeError, TypeError, ValueError):
+            return None
+    if getattr(env, "apps_path", None) and getattr(env, "app", None):
+        return Path(env.apps_path) / str(env.app)
+    return None
+
+
+def _store_active_app(env: AgiEnv) -> None:
+    active_app_path = _stored_active_app_path(env)
+    if active_app_path is None:
+        return
+    try:
+        store_last_active_app(active_app_path)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+
+
+def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
+    apps_path_value = st.session_state.get("apps_path")
+    apps_path = Path(apps_path_value).expanduser() if apps_path_value else None
+    if _safe_existing_dir(apps_path) is None:
+        apps_path = _page_apps_path()
+
+    active_app_path = _resolve_app_path(apps_path, requested_app)
+
+    if active_app_path is None:
+        active_app_path = _resolve_app_path(apps_path, st.session_state.get("app"))
+
+    if active_app_path is None:
+        active_app_path = _resolve_app_path(apps_path, os.environ.get("AGILAB_APP"))
+
+    if active_app_path is None:
+        last_app = load_last_active_app()
+        if last_app is not None:
+            active_app_path = _resolve_app_path(apps_path or _apps_path_for_active_app(Path(last_app)), last_app)
+
+    if active_app_path is None:
+        active_app_path = _default_app_path(apps_path)
+
+    if active_app_path is None:
+        st.error(
+            "Could not determine the active app. Please select a project first or set AGILAB_APP."
+        )
+        st.stop()
+
+    apps_path = _apps_path_for_active_app(active_app_path)
+    app_name = active_app_path.name
+    env = AgiEnv(
+        apps_path=apps_path,
+        app=app_name,
+        verbose=0,
+    )
+    env.init_done = True
+    st.session_state['env'] = env
+    st.session_state['IS_SOURCE_ENV'] = env.is_source_env
+    st.session_state['IS_WORKER_ENV'] = env.is_worker_env
+    st.session_state['apps_path'] = str(apps_path)
+    st.session_state['app'] = app_name
+    try:
+        store_last_active_app(active_app_path)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+    return env
+
 
 def exec_bg(agi_env: AgiEnv, cmd: str, cwd: str, process_env: dict[str, str] | None = None) -> None:
     """
@@ -1088,17 +1286,14 @@ def _read_config(path: Path) -> dict:
 
 def _normalize_view_name(value: str) -> str:
     """Normalize page bundle labels by removing leading icon glyphs/decoration."""
-    if not value:
-        return ""
-    normalized = re.sub(r"^\s*[^\w-]+", "", value).strip()
-    return normalized or value.strip()
+    return _analysis_normalize_view_name(value)
 
 def _write_config(path: Path, cfg: dict):
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as f:
-            tomli_w.dump(cfg, f)
-    except OSError as e:
+            tomli_w.dump(prepare_app_settings_for_write(cfg), f)
+    except (OSError, ValueError) as e:
         st.error(f"Error updating configuration: {e}")
 
 async def main():
@@ -1108,85 +1303,7 @@ async def main():
     requested_app = qp.get("active_app")
 
     if 'env' not in st.session_state:
-        apps_path_value = st.session_state.get("apps_path")
-        apps_path = Path(apps_path_value).expanduser() if apps_path_value else None
-        if apps_path is None:
-            repo_apps_path = Path(__file__).resolve().parents[2] / "apps"
-            if repo_apps_path.exists():
-                apps_path = repo_apps_path
-
-        # Derive active app path
-        active_app_path = None
-
-        def _resolve_requested_app(value: str | None) -> Path | None:
-            if not value:
-                return None
-            candidate = Path(value).expanduser()
-            if candidate.is_absolute() and candidate.exists():
-                return candidate
-            if apps_path:
-                candidate = Path(apps_path) / value
-                if candidate.exists():
-                    return candidate
-            return None
-
-        if requested_app:
-            candidate = _resolve_requested_app(requested_app)
-            if candidate is not None:
-                active_app_path = candidate
-                if apps_path is None:
-                    apps_path = candidate.parent
-
-        if active_app_path is None:
-            stored_app = st.session_state.get("app")
-            if stored_app and apps_path:
-                candidate = apps_path / stored_app
-                if candidate.exists():
-                    active_app_path = candidate
-
-        if active_app_path is None:
-            env_app = os.environ.get("AGILAB_APP")
-            if env_app:
-                candidate = Path(env_app).expanduser()
-                if candidate.exists():
-                    active_app_path = candidate
-                    if not apps_path:
-                        apps_path = candidate.parent
-
-        if active_app_path is None:
-            last_app = load_last_active_app()
-            if last_app is not None:
-                active_app_path = last_app
-                if not apps_path:
-                    apps_path = last_app.parent
-
-        if active_app_path is None:
-            active_app_path = _default_app_path(apps_path)
-
-        if active_app_path is None:
-            st.error(
-                "Could not determine the active app. Please select a project first or set AGILAB_APP."
-            )
-            st.stop()
-
-        app_name = active_app_path.name
-        if apps_path is None:
-            apps_path = active_app_path.parent
-
-        env = AgiEnv(
-            apps_path=apps_path,
-            app=app_name,
-            verbose=0,
-        )
-        env.init_done = True
-        st.session_state['env'] = env
-        st.session_state['IS_SOURCE_ENV'] = env.is_source_env
-        st.session_state['IS_WORKER_ENV'] = env.is_worker_env
-        if apps_path:
-            st.session_state['apps_path'] = str(apps_path)
-        if app_name:
-            st.session_state['app'] = app_name
-        store_last_active_app(active_app_path)
+        env = _initialize_analysis_env(requested_app)
     else:
         env = st.session_state['env']
 
@@ -1195,6 +1312,8 @@ async def main():
 
     # Sidebar header/logo
     render_logo()
+    render_pinned_expanders(st)
+    render_page_context(st, page_label="ANALYSIS", env=env)
 
     # Sidebar: project selection
     projects = env.projects
@@ -1203,7 +1322,7 @@ async def main():
     if env.app:
         st.query_params["active_app"] = env.app
     if env.app:
-        store_last_active_app(Path(env.apps_path) / env.app)
+        _store_active_app(env)
 
     # Where to store selected pages per project
     project = env.app
@@ -1246,16 +1365,6 @@ async def main():
     if not all_available_views:
         st.info("No pages found under AGILAB_PAGES_ABS.")
 
-    # Build preselection from stored config (legacy names + custom paths)
-    preselect: list[str] = []
-    for value in configured_views:
-        if value in all_available_views:
-            preselect.append(value)
-            continue
-        normalized = _normalize_view_name(value)
-        if normalized in resolved_pages:
-            preselect.append(normalized)
-
     clone_source_paths = [""]
     clone_source_labels = {"": "Blank template"}
     for view_path in sorted(all_views, key=lambda p: p.as_posix()):
@@ -1291,11 +1400,13 @@ async def main():
                 placeholder="my_analysis_view",
                 key=f"analysis_template_view_name__{project or 'default'}",
             )
-            clone_source = st.selectbox(
+            clone_source = compact_choice(
+                st,
                 "Clone from existing apps-page (optional)",
-                options=clone_source_paths,
+                clone_source_paths,
                 format_func=lambda value: clone_source_labels.get(value, value),
                 key=f"analysis_template_clone_source__{project or 'default'}",
+                inline_limit=5,
             )
             create_template_view = st.button(
                 "Create",
@@ -1344,57 +1455,22 @@ async def main():
                         )
                         st.rerun()
 
-    # Merge resolved pages and custom entries for display.
-    excluded_view_names = _excluded_view_options(cfg)
-    all_view_names = [
-        view_name
-        for view_name in sorted(set(resolved_pages.keys()) | set(custom_view_lookup.keys()))
-        if _normalize_view_name(view_name) not in excluded_view_names
-    ]
-    if bool(cfg.get("pages", {}).get("restrict_to_view_module")):
-        configured_options = _configured_view_options(
-            configured_views,
-            all_view_names,
-            resolved_pages,
-        )
-        view_names = configured_options or all_view_names
-    else:
-        view_names = all_view_names
-
     selection_key = f"view_selection__{project or 'default'}"
-    default_view_name, default_view_path = _resolve_default_view(
-        cfg.get("pages", {}).get("default_view"),
-        view_names,
-        resolved_pages,
-        custom_view_lookup,
+    pages_cfg = cfg.get("pages", {})
+    pages_cfg = pages_cfg if isinstance(pages_cfg, dict) else {}
+    selection_state = build_analysis_view_selection_state(
+        pages_cfg=pages_cfg,
+        current_page=current_page,
+        configured_views=configured_views,
+        resolved_pages=resolved_pages,
+        custom_view_lookup=custom_view_lookup,
+        session_selection=st.session_state.get(selection_key),
+        has_session_selection=selection_key in st.session_state,
     )
-
-    initial_selection = list(preselect)
-    if (
-        not current_page
-        and default_view_name
-        and default_view_path is not None
-        and default_view_name not in initial_selection
-    ):
-        initial_selection = [default_view_name, *initial_selection]
-
-    if selection_key not in st.session_state:
-        st.session_state[selection_key] = initial_selection
-    else:
-        # Sanitize any persisted selection to only include currently available views
-        current = st.session_state.get(selection_key, [])
-        if not isinstance(current, list):
-            current = []
-        cleaned = [v for v in current if v in view_names]
-        if (
-            not current_page
-            and default_view_name
-            and default_view_path is not None
-            and default_view_name not in cleaned
-        ):
-            cleaned = [default_view_name, *cleaned]
-        if cleaned != current:
-            st.session_state[selection_key] = cleaned
+    view_names = list(selection_state.view_names)
+    widget_selection = list(selection_state.widget_selection)
+    if st.session_state.get(selection_key) != widget_selection:
+        st.session_state[selection_key] = widget_selection
 
     # Styling is handled globally in resources/theme.css. No per-page override here to avoid double borders.
 
@@ -1406,27 +1482,24 @@ async def main():
         help="Selected pages are shown as quick-access shortcuts on the AGILAB start screen."
     )
 
-    selected_views = [v for v in selected_views if v in view_names]
-    if (
-        not current_page
-        and default_view_name
-        and default_view_path is not None
-        and default_view_name not in selected_views
-    ):
-        selected_views = [default_view_name, *selected_views]
+    selection_state = build_analysis_view_selection_state(
+        pages_cfg=pages_cfg,
+        current_page=current_page,
+        configured_views=configured_views,
+        resolved_pages=resolved_pages,
+        custom_view_lookup=custom_view_lookup,
+        session_selection=selected_views,
+        has_session_selection=True,
+    )
+    selected_views = list(selection_state.selected_views)
 
-    if cfg.get("pages", {}).get("view_module") != selected_views:
-        normalized_config = []
-        for page_id in selected_views:
-            if page_id in resolved_pages:
-                normalized_config.append(page_id)
-            else:
-                normalized_config.append(str(Path(page_id).resolve()))
+    normalized_config = list(selection_state.config_view_module)
+    if cfg.get("pages", {}).get("view_module") != normalized_config:
         cfg.setdefault("pages", {})["view_module"] = normalized_config
         _write_config(app_settings, cfg)
 
-    if not current_page and default_view_name and default_view_path is not None:
-        view_str = str(default_view_path.resolve())
+    if selection_state.default_route_path is not None:
+        view_str = str(selection_state.default_route_path.resolve())
         st.session_state["current_page"] = view_str
         st.query_params["current_page"] = view_str
         st.rerun()

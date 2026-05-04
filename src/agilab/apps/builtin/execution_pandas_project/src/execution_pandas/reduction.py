@@ -28,6 +28,9 @@ _REQUIRED_FRAME_COLUMNS = frozenset(
         "weight_sum",
         "weighted_score",
         "python_tail_checksum",
+        "kernel_mode",
+        "kernel_runtime",
+        "dtype_contract",
         "source_file",
         "engine",
         "execution_model",
@@ -42,6 +45,9 @@ _REQUIRED_PAYLOAD_KEYS = (
     "weight_sum",
     "weighted_score_sum",
     "python_tail_checksum",
+    "kernel_modes",
+    "kernel_runtimes",
+    "dtype_contracts",
     "source_files",
     "engines",
     "execution_models",
@@ -56,6 +62,9 @@ def _merge_execution_pandas_partials(partials: Sequence[ReducePartial]) -> dict[
     source_files: set[str] = set()
     engines: set[str] = set()
     execution_models: set[str] = set()
+    kernel_modes: set[str] = set()
+    kernel_runtimes: set[str] = set()
+    dtype_contracts: set[str] = set()
     payload: dict[str, Any] = {
         "row_count": 0,
         "result_rows": 0,
@@ -77,11 +86,17 @@ def _merge_execution_pandas_partials(partials: Sequence[ReducePartial]) -> dict[
         source_files.update(str(item) for item in partial_payload["source_files"])
         engines.update(str(item) for item in partial_payload["engines"])
         execution_models.update(str(item) for item in partial_payload["execution_models"])
+        kernel_modes.update(str(item) for item in partial_payload["kernel_modes"])
+        kernel_runtimes.update(str(item) for item in partial_payload["kernel_runtimes"])
+        dtype_contracts.update(str(item) for item in partial_payload["dtype_contracts"])
 
     payload["source_files"] = sorted(source_files)
     payload["source_file_count"] = len(source_files)
     payload["engines"] = sorted(engines)
     payload["execution_models"] = sorted(execution_models)
+    payload["kernel_modes"] = sorted(kernel_modes)
+    payload["kernel_runtimes"] = sorted(kernel_runtimes)
+    payload["dtype_contracts"] = sorted(dtype_contracts)
     return payload
 
 
@@ -93,6 +108,8 @@ def _validate_execution_pandas_artifact(artifact: ReduceArtifact) -> None:
         raise ValueError("execution_pandas reducer produced no source files")
     if not payload["engines"]:
         raise ValueError("execution_pandas reducer produced no engine metadata")
+    if not payload["kernel_modes"]:
+        raise ValueError("execution_pandas reducer produced no kernel metadata")
 
 
 EXECUTION_PANDAS_REDUCE_CONTRACT = ReduceContract(
@@ -138,6 +155,9 @@ def partial_from_result_frame(
         "weight_sum": float(df["weight_sum"].sum()),
         "weighted_score_sum": float(df["weighted_score"].sum()),
         "python_tail_checksum": float(checksum_by_file.sum()),
+        "kernel_modes": _sorted_unique_strings(df["kernel_mode"]),
+        "kernel_runtimes": _sorted_unique_strings(df["kernel_runtime"]),
+        "dtype_contracts": _sorted_unique_strings(df["dtype_contract"]),
         "source_files": source_files,
         "engines": _sorted_unique_strings(df["engine"]),
         "execution_models": _sorted_unique_strings(df["execution_model"]),

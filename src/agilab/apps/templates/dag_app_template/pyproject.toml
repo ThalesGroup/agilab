@@ -9,13 +9,8 @@ authors = [
 ]
 
 dependencies = [
- "setuptools",
-    "cython",
-    "parso",
-    "py7zr",
-    "python-dotenv",
-    "ipython",
-    "psutil",
+    "pydantic",
+    "streamlit>=1.56.0",
 ]
 
 [dependency-groups]
@@ -50,5 +45,5 @@ your_dag_project = [
 mypy_path = [
     "stubs",
 ]
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 ignore_missing_imports = true

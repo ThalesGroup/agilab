@@ -80,6 +80,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "skills",
             "installer",
             "shared-core-typing",
+            "dependency-policy",
+            "cloud-emulators",
         ],
         help="Parity profile to run. May be passed multiple times.",
     )
@@ -136,6 +138,8 @@ def _profile_descriptions() -> dict[str, str]:
         "skills": "Validate and regenerate the repo Codex skill mirror outputs.",
         "installer": "Run local installer parity checks including shell syntax and contract checks.",
         "shared-core-typing": "Run the curated shared-core strict mypy slice.",
+        "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
+        "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
     }
 
 
@@ -151,50 +155,80 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "skills": _skills_profile(args.skills),
         "installer": _installer_profile(args.app_path, args.worker_copy),
         "shared-core-typing": _shared_core_typing_profile(),
+        "dependency-policy": _dependency_policy_profile(),
+        "cloud-emulators": _cloud_emulators_profile(),
     }
 
 
 def _agi_gui_profile() -> list[CommandSpec]:
-    test_targets = _expand_repo_globs(
-        [
-            "src/agilab/test",
-            "src/agilab/lib/agi-gui/test",
-            "test/test_orchestrate_cluster.py",
-            "test/test_orchestrate_distribution.py",
-            "test/test_orchestrate_execute.py",
-            "test/test_orchestrate_page_helpers.py",
-            "test/test_orchestrate_services.py",
-            "test/test_orchestrate_support.py",
-            "test/test_about_agilab_helpers.py",
-            "test/test_cluster_flight_validation.py",
-            "test/test_cluster_lan_discovery.py",
-            "test/test_notebook_colab_support.py",
-            "test/test_page_docs.py",
-            "test/test_pipeline_ai.py",
-            "test/test_pipeline_editor.py",
-            "test/test_pipeline_lab.py",
-            "test/test_pipeline_openai.py",
-            "test/test_pipeline_run_controls.py",
-            "test/test_pipeline_runtime.py",
-            "test/test_pipeline_service_guard.py",
-            "test/test_pipeline_sidebar.py",
-            "test/test_pipeline_steps.py",
-            "test/test_pipeline_views.py",
-            "test/test_ui_pages.py",
-            "test/test_apps_pages_launcher.py",
-            "test/test_view*.py",
-            "test/test_app_args.py",
-            "test/test_streamlit_args.py",
-            "test/test_pagelib.py",
-            "test/test_*_report.py",
-            "test/test_*_workflow.py",
-            "test/test_connector_registry.py",
-            "test/test_run_manifest.py",
-        ]
-    )
-    return [
+    commands = [
+        _agi_gui_coverage_chunk(
+            "support",
+            [
+                "src/agilab/test",
+                "src/agilab/lib/agi-gui/test",
+                "test/test_orchestrate_cluster.py",
+                "test/test_orchestrate_distribution.py",
+                "test/test_orchestrate_execute.py",
+                "test/test_orchestrate_page_helpers.py",
+                "test/test_orchestrate_page_state.py",
+                "test/test_orchestrate_services.py",
+                "test/test_orchestrate_support.py",
+                "test/test_analysis_page_helpers.py",
+                "test/test_about_agilab_helpers.py",
+                "test/test_app_template_registry.py",
+                "test/test_cluster_flight_validation.py",
+                "test/test_cluster_lan_discovery.py",
+                "test/test_pinned_expander.py",
+                "test/test_venv_linker.py",
+                "test/test_workflow_ui.py",
+            ],
+            clean=True,
+        ),
+        _agi_gui_coverage_chunk(
+            "pipeline",
+            [
+                "test/test_first_proof_cli.py",
+                "test/test_notebook_colab_support.py",
+                "test/test_page_docs.py",
+                "test/test_pipeline_ai.py",
+                "test/test_pipeline_editor.py",
+                "test/test_pipeline_lab.py",
+                "test/test_pipeline_openai.py",
+                "test/test_pipeline_run_controls.py",
+                "test/test_pipeline_runtime.py",
+                "test/test_pipeline_service_guard.py",
+                "test/test_pipeline_sidebar.py",
+                "test/test_pipeline_steps.py",
+                "test/test_pipeline_views.py",
+                "test/test_tracking.py",
+            ],
+        ),
+        _agi_gui_coverage_chunk(
+            "robots",
+            [
+                "test/test_agilab_web_robot.py",
+                "test/test_agilab_widget_robot.py",
+                "test/test_first_launch_robot.py",
+                "test/test_screenshot_manifest.py",
+            ],
+        ),
+        _agi_gui_coverage_chunk(
+            "pages",
+            [
+                "test/test_ui_pages.py",
+                "test/test_apps_pages_launcher.py",
+                "test/test_app_args.py",
+                "test/test_streamlit_args.py",
+                "test/test_pagelib.py",
+                "test/test_connector_registry.py",
+                "test/test_run_manifest.py",
+            ],
+        ),
+        _agi_gui_coverage_chunk("views", ["test/test_view*.py"]),
+        _agi_gui_coverage_chunk("reports", ["test/test_*_report.py", "test/test_*_workflow.py"]),
         CommandSpec(
-            label="agi-gui coverage",
+            label="agi-gui coverage xml",
             argv=[
                 "uv",
                 "--preview-features",
@@ -204,27 +238,62 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "dev",
                 "python",
                 "-m",
-                "pytest",
-                "-q",
-                "--maxfail=1",
-                "--disable-warnings",
+                "coverage",
+                "xml",
+                "--rcfile=.coveragerc.agi-gui",
+                "--data-file=.coverage.agi-gui",
                 "-o",
-                "addopts=",
-                "-m",
-                "not integration",
-                "--cov=src/agilab",
-                "--cov-config=.coveragerc.agi-gui",
-                "--cov-report=xml:coverage-agi-gui.xml",
-                "--junitxml=test-results/junit.xml",
-                "--ignore=src/agilab/test/test_model_returns_code.py",
-                *test_targets,
+                "coverage-agi-gui.xml",
             ],
-            env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1", "COVERAGE_FILE": ".coverage.agi-gui"},
-            timeout_seconds=12 * 60,
+            env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+            timeout_seconds=5 * 60,
             ensure_dirs=["test-results"],
-            remove_paths=[".coverage.agi-gui", "coverage-agi-gui.xml"],
-        )
+        ),
     ]
+    return commands
+
+
+def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool = False) -> CommandSpec:
+    expanded_targets = _expand_repo_globs(targets)
+    junit_path = f"test-results/junit-agi-gui-{label}.xml"
+    return CommandSpec(
+        label=f"agi-gui coverage ({label})",
+        argv=[
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--group",
+            "dev",
+            "python",
+            "-m",
+            "coverage",
+            "run",
+            "--rcfile=.coveragerc.agi-gui",
+            "--data-file=.coverage.agi-gui",
+            "--append",
+            "-m",
+            "pytest",
+            "-q",
+            "--maxfail=1",
+            "--disable-warnings",
+            "-o",
+            "addopts=",
+            "-m",
+            "not integration",
+            f"--junitxml={junit_path}",
+            "--ignore=src/agilab/test/test_model_returns_code.py",
+            *expanded_targets,
+        ],
+        env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+        timeout_seconds=8 * 60,
+        ensure_dirs=["test-results"],
+        remove_paths=(
+            [".coverage.agi-gui", "coverage-agi-gui.xml", junit_path]
+            if clean
+            else [junit_path]
+        ),
+    )
 
 
 def _agi_env_profile() -> list[CommandSpec]:
@@ -446,6 +515,19 @@ def _agi_cluster_profile() -> list[CommandSpec]:
 def _docs_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
+            label="release proof manifest check",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/release_proof_report.py",
+                "--check",
+                "--compact",
+            ],
+        ),
+        CommandSpec(
             label="docs sphinx build",
             argv=[
                 "uv",
@@ -476,6 +558,7 @@ def _docs_profile() -> list[CommandSpec]:
                 "docs/source",
                 "docs/html",
             ],
+            remove_paths=["docs/html"],
         )
     ]
 
@@ -554,6 +637,7 @@ def _installer_profile(app_path: str | None, worker_copy: str | None) -> list[Co
                 "addopts=",
                 "test/test_install_apps_discovery.py",
                 "test/test_install_contract_check.py",
+                "test/test_venv_linker.py",
             ],
         ),
     ]
@@ -589,6 +673,56 @@ def _shared_core_typing_profile() -> list[CommandSpec]:
                 "tools/shared_core_strict_typing.py",
             ],
         )
+    ]
+
+
+def _dependency_policy_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="dependency policy",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "pytest",
+                "-q",
+                "-o",
+                "addopts=",
+                "test/test_pyproject_dependency_hygiene.py",
+            ],
+        )
+    ]
+
+
+def _cloud_emulators_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="cloud emulator connector evidence",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/data_connector_cloud_emulator_report.py",
+                "--compact",
+            ],
+        ),
+        CommandSpec(
+            label="cloud emulator connector tests",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "pytest",
+                "-q",
+                "-o",
+                "addopts=",
+                "test/test_data_connector_cloud_emulator_report.py",
+            ],
+        ),
     ]
 
 

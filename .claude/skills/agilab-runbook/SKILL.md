@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-04-24
+  updated: 2026-04-30
 ---
 
 # AGILab runbook (Agent Skill)
@@ -17,6 +17,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - `uv --preview-features extra-build-dependencies run python …`
   - `uv --preview-features extra-build-dependencies run streamlit …`
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
+- **Process ownership**: treat existing terminals, Codex CLI sessions, dev servers, and other long-running processes as user-owned unless this turn started them. Do not use broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool sessions created for the active task. Do not use Codex CLI control shortcuts such as `/stop`, Esc interruption, or terminal-close actions to manage background terminals unless the terminal/session was created by this active task and its identity is verified. A status banner that says a background terminal is running is not ownership proof. If a port is busy, choose another port or ask before stopping its owner; do not try to "pause" another Codex CLI session from here.
+- **High-frequency shortcuts**: prefer `./dev <shortcut>` for repeated local validation loops. The
+  top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`, `flow` for one
+  or more workflow parity profiles, `badge` for the fresh coverage-badge guard, and `docs` for docs
+  mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
+  narrow pytest slice, `flow` matches local GitHub workflow profiles, `badge` catches stale coverage
+  badges, and `docs` keeps the public mirror aligned. Add `--print-only` to inspect the expanded
+  commands.
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 - **Local-first validation**: do not jump to GitHub Actions when the same check can be run locally.
@@ -51,6 +59,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
 - **Streamlit API**: do not add `st.experimental_rerun()`; use `st.rerun`.
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
+- **Repository update requests**: when the user asks to "update repos", "sync repos", or similar,
+  first show the exact command plan before executing it. The plan should be a fenced `bash` block
+  with concrete `git -C <repo>` commands for each targeted checkout. Use the fast path by default:
+  `status --porcelain=v1 --untracked-files=no`, `fetch --prune`, `rev-list --left-right --count
+  HEAD...@{u}`, then `merge --ff-only @{u}` only for repos that are actually behind. This avoids a
+  redundant fetch from `git pull` and avoids slow untracked scans. Group independent repo checks and
+  fetches in parallel when the tooling allows it. If a checkout has tracked dirty paths, do not
+  merge it until the dirty paths are reported and the update plan is adjusted.
 
 ## Git footprint maintenance
 
@@ -93,6 +109,8 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`
 - Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
   - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
+  - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
+  - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.
 
 ## CI and badge checks
 
@@ -138,6 +156,17 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 
 - Missing import: check both manager and worker `pyproject.toml` scopes (`src/agilab/apps/<app>/pyproject.toml` and `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml`).
 - Installer pip issue: run `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in the target venv.
+- Cluster inventory/status mismatch:
+  - If the UI shows a worker as unreachable but `ssh <user>@<ip> 'echo ok'` works,
+    reproduce the exact non-interactive probe path used by AGILAB before changing UI
+    display code.
+  - Check remote PATH and required tools with SSH, not an interactive shell:
+    `ssh <user>@<ip> 'printf "path=%s\n" "$PATH"; command -v python3; command -v nvidia-smi || true; uname -a'`.
+  - Validate the same account can reach the scheduler and shared storage from the worker:
+    `ssh <user>@<ip> 'ssh -o BatchMode=yes <scheduler_user>@<scheduler_ip> hostname'`
+    and the configured cluster-share mount/read-write sentinel.
+  - Treat a display of "+ 1 worker unreachable" as an inventory/probe failure until the
+    exact probe command succeeds; a bare SSH success only proves authentication.
 - For a reinstalled cluster node, separate host-key repair from auth repair:
   - host key changed:
     - `ssh-keygen -R <ip>`

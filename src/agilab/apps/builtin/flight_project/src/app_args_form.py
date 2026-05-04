@@ -8,10 +8,16 @@ from typing import Any
 import streamlit as st
 from pydantic import ValidationError
 
-from flight import FlightArgs, apply_source_defaults, dump_args_to_toml, load_args_from_toml
+from flight import (
+    FlightArgs,
+    apply_source_defaults,
+    dump_args_to_toml,
+    load_args_from_toml,
+)
 
 
 PAGE_ID = "flight_project:app_args_form"
+SUPPORTED_DATA_SOURCES = ("file",)
 
 
 def _k(name: str) -> str:
@@ -48,6 +54,9 @@ def _load_current_args(settings_path: Path) -> FlightArgs:
 
 def _on_data_source_change() -> None:
     data_source = (st.session_state.get(_k("data_source")) or "file").strip() or "file"
+    if data_source not in SUPPORTED_DATA_SOURCES:
+        data_source = "file"
+        st.session_state[_k("data_source")] = data_source
     try:
         defaults = apply_source_defaults(FlightArgs(data_source=data_source))
     except Exception:
@@ -84,6 +93,7 @@ except Exception:
 st.caption(
     "Paths are resolved relative to `AGI_SHARE_DIR` (shared storage)."
     + (f" Current share root: `{share_root}`." if share_root else "")
+    + " This public built-in app runs file-based Flight input only."
 )
 
 # Seed widget state once (never write to widget keys after instantiation)
@@ -105,28 +115,30 @@ st.session_state.setdefault(
 )
 st.session_state.setdefault(_k("output_format"), str(current_payload.get("output_format", "parquet") or "parquet"))
 st.session_state.setdefault(_k("reset_target"), bool(current_payload.get("reset_target", False)))
+if st.session_state.get(_k("data_source")) not in SUPPORTED_DATA_SOURCES:
+    st.warning("Unsupported Flight data source reset to `file` for the public built-in app.")
+    st.session_state[_k("data_source")] = "file"
 
 # --- UI
 c1, c2, c3, c4, c5 = st.columns([1, 2, 2, 1.2, 1.2])
 with c1:
     st.selectbox(
         "Data source",
-        options=["file", "hawk"],
+        options=list(SUPPORTED_DATA_SOURCES),
         key=_k("data_source"),
         on_change=_on_data_source_change,
     )
 with c2:
-    data_source = (st.session_state.get(_k("data_source")) or "file").strip() or "file"
     st.text_input(
-        "Data directory" if data_source == "file" else "Hawk cluster URI",
+        "Data directory",
         key=_k("data_in"),
-        help="Relative path under shared storage (file) or a Hawk/ELK endpoint (hawk).",
+        help="Relative path under shared storage.",
     )
 with c3:
     st.text_input(
-        "Files filter" if data_source == "file" else "Pipeline name",
+        "Files filter",
         key=_k("files"),
-        help="Regex or wildcard (e.g. `*`), depending on the pipeline.",
+        help="Regex or wildcard (e.g. `*`) used to discover input files.",
     )
 with c4:
     st.number_input(
@@ -196,6 +208,9 @@ candidate: dict[str, Any] = {
     "output_format": st.session_state.get(_k("output_format")) or "parquet",
     "reset_target": bool(st.session_state.get(_k("reset_target"), False)),
 }
+if candidate["data_source"] not in SUPPORTED_DATA_SOURCES:
+    candidate["data_source"] = "file"
+    st.session_state[_k("data_source")] = "file"
 if data_in_raw:
     candidate["data_in"] = data_in_raw
 if data_out_raw:

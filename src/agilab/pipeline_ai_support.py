@@ -22,6 +22,10 @@ DEFAULT_GPT_OSS_ENDPOINT = "http://127.0.0.1:8000/v1/responses"
 
 OLLAMA_QWEN_PROVIDER = "ollama-qwen"
 OLLAMA_DEEPSEEK_PROVIDER = "ollama-deepseek"
+OLLAMA_QWEN3_PROVIDER = "ollama-qwen3"
+OLLAMA_QWEN3_CODER_PROVIDER = "ollama-qwen3-coder"
+OLLAMA_MINISTRAL_PROVIDER = "ollama-ministral"
+OLLAMA_PHI4_MINI_PROVIDER = "ollama-phi4-mini"
 
 CODE_STRICT_INSTRUCTIONS = (
     "Return ONLY Python code wrapped in ```python ...``` with no explanations.\n"
@@ -33,9 +37,33 @@ CODE_STRICT_INSTRUCTIONS = (
 _OLLAMA_CODE_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:code|coder|codestral|deepseek)(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_QWEN_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:qwen|qwq)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_DEEPSEEK_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:deepseek)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
+_OLLAMA_QWEN3_MODEL_RE = re.compile(r"(?:^|/|:|_)qwen3(?!-coder)[A-Za-z0-9._:-]*(?:$|/|:|_)", re.IGNORECASE)
+_OLLAMA_QWEN3_CODER_MODEL_RE = re.compile(r"(?:^|/|:|_)qwen3-coder(?:$|/|:|_)", re.IGNORECASE)
+_OLLAMA_MINISTRAL_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:ministral-?3|ministral)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
+_OLLAMA_PHI4_MINI_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:phi4-mini|phi-4-mini)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_FAMILY_DEFAULTS = {
     "qwen": "qwen2.5-coder:latest",
     "deepseek": "deepseek-coder:latest",
+    "qwen3": "qwen3:30b-a3b-instruct-2507-q4_K_M",
+    "qwen3-coder": "qwen3-coder:30b-a3b-q4_K_M",
+    "ministral": "ministral-3:14b-instruct-2512-q4_K_M",
+    "phi4-mini": "phi4-mini:3.8b-q4_K_M",
+}
+_OLLAMA_FAMILY_PATTERNS = {
+    "qwen": _OLLAMA_QWEN_MODEL_RE,
+    "deepseek": _OLLAMA_DEEPSEEK_MODEL_RE,
+    "qwen3": _OLLAMA_QWEN3_MODEL_RE,
+    "qwen3-coder": _OLLAMA_QWEN3_CODER_MODEL_RE,
+    "ministral": _OLLAMA_MINISTRAL_MODEL_RE,
+    "phi4-mini": _OLLAMA_PHI4_MINI_MODEL_RE,
+}
+OLLAMA_LOCAL_PROVIDER_FAMILIES = {
+    OLLAMA_QWEN_PROVIDER: "qwen",
+    OLLAMA_DEEPSEEK_PROVIDER: "deepseek",
+    OLLAMA_QWEN3_PROVIDER: "qwen3",
+    OLLAMA_QWEN3_CODER_PROVIDER: "qwen3-coder",
+    OLLAMA_MINISTRAL_PROVIDER: "ministral",
+    OLLAMA_PHI4_MINI_PROVIDER: "phi4-mini",
 }
 _API_KEY_PATTERNS = [
     re.compile(r"(sk-[A-Za-z0-9]{6})([A-Za-z0-9\\-_]{8,})"),
@@ -133,7 +161,7 @@ def _ollama_available_models(endpoint: str) -> List[str]:
 def _default_ollama_model(
     endpoint: str,
     *,
-    preferred: str = "mistral:instruct",
+    preferred: str = "qwen2.5-coder:latest",
     prefer_code: bool = False,
 ) -> str:
     models = _ollama_available_models(endpoint)
@@ -150,10 +178,9 @@ def _default_ollama_model(
 
 def _ollama_family_pattern(family: str) -> re.Pattern[str]:
     normalized = str(family or "").strip().lower()
-    if normalized == "qwen":
-        return _OLLAMA_QWEN_MODEL_RE
-    if normalized == "deepseek":
-        return _OLLAMA_DEEPSEEK_MODEL_RE
+    pattern = _OLLAMA_FAMILY_PATTERNS.get(normalized)
+    if pattern is not None:
+        return pattern
     raise ValueError(f"Unsupported Ollama model family: {family}")
 
 

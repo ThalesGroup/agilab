@@ -75,6 +75,94 @@ def test_main_print_only_json_emits_first_proof_contract(capsys) -> None:
     assert payload["commands"][-1]["label"] == "seeded script check"
 
 
+def test_main_print_only_human_emits_commands(capsys) -> None:
+    module = _load_module()
+
+    exit_code = module.main(["--print-only", "--max-seconds", "42"])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "AGILAB first proof" in output
+    assert "mode: print-only" in output
+    assert "kpi target: <= 42.00s" in output
+    assert "$" in output
+
+
+def test_main_rejects_non_positive_kpi_target() -> None:
+    module = _load_module()
+
+    with pytest.raises(SystemExit):
+        module.main(["--max-seconds", "0"])
+
+
+def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    active_app = tmp_path / "custom_project"
+    active_app.mkdir()
+    (active_app / "pyproject.toml").write_text("[project]\nname = 'custom'\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    def fake_run_proof(commands):
+        return [
+            module.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=0,
+                duration_seconds=0.5,
+                stdout="ok",
+                env=command.env,
+            )
+            for command in commands
+        ]
+
+    monkeypatch.setattr(module, "run_proof", fake_run_proof)
+
+    exit_code = module.main(["--active-app", str(active_app), "--json", "--no-manifest", "--max-seconds", "5"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["success"] is True
+    assert payload["within_target"] is True
+    assert "run_manifest" not in payload
+    assert payload["results"][0]["stdout"] == "ok"
+    marker = tmp_path / "home" / ".local" / "share" / "agilab" / ".agilab-path"
+    assert payload["agilab_path_marker"] == str(marker)
+    assert marker.read_text(encoding="utf-8").strip() == str(ROOT / "src" / "agilab")
+
+
+def test_main_human_no_manifest_reports_failure(monkeypatch, tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    active_app = tmp_path / "custom_project"
+    active_app.mkdir()
+    (active_app / "pyproject.toml").write_text("[project]\nname = 'custom'\n", encoding="utf-8")
+
+    def fake_run_proof(commands):
+        command = commands[0]
+        return [
+            module.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=9,
+                duration_seconds=0.5,
+                stdout="boom",
+                env=command.env,
+            )
+        ]
+
+    monkeypatch.setattr(module, "run_proof", fake_run_proof)
+
+    exit_code = module.main(["--active-app", str(active_app), "--no-manifest"])
+
+    assert exit_code == 1
+    output = capsys.readouterr().out
+    assert "verdict: FAIL" in output
+    assert "recovery:" in output
+    assert "[package preinit smoke output]" in output
+    assert "boom" in output
+
+
 def test_run_proof_stops_on_first_failure() -> None:
     module = _load_module()
     commands = module.build_proof_commands(module.default_active_app(), with_install=True)
@@ -148,6 +236,58 @@ def test_build_run_manifest_records_cli_command(tmp_path: Path) -> None:
     }
 
 
+def test_collect_existing_artifacts_skips_internal_helpers(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest_path = tmp_path / "run_manifest.json"
+    manifest_path.write_text("{}", encoding="utf-8")
+    (tmp_path / ".hidden").write_text("hidden", encoding="utf-8")
+    (tmp_path / "AGI_install_flight.py").write_text("helper", encoding="utf-8")
+    artifact = tmp_path / "metrics.json"
+    artifact.write_text("{}", encoding="utf-8")
+
+    artifacts = module._collect_existing_artifacts(tmp_path, manifest_path)
+
+    artifact_names = {item.name for item in artifacts}
+    assert {"run_manifest", "metrics.json"} <= artifact_names
+    assert ".hidden" not in artifact_names
+    assert "AGI_install_flight.py" not in artifact_names
+
+
+def test_executed_argv_records_non_default_options(tmp_path: Path) -> None:
+    module = _load_module()
+    active_app = tmp_path / "custom_project"
+    active_app.mkdir()
+    (active_app / "pyproject.toml").write_text("[project]\nname = 'custom'\n", encoding="utf-8")
+    manifest_path = tmp_path / "custom-manifest.json"
+
+    argv = module._executed_argv(
+        active_app=active_app,
+        with_install=True,
+        max_seconds=42,
+        manifest_path=manifest_path,
+    )
+
+    assert argv[:3] == ("agilab", "first-proof", "--json")
+    assert "--active-app" in argv
+    assert "--with-install" in argv
+    assert ("--max-seconds", "42") == argv[argv.index("--max-seconds") : argv.index("--max-seconds") + 2]
+    assert ("--manifest-out", str(manifest_path)) == argv[
+        argv.index("--manifest-out") : argv.index("--manifest-out") + 2
+    ]
+
+
+def test_resolve_active_app_rejects_missing_path_and_files(tmp_path: Path) -> None:
+    module = _load_module()
+    missing = tmp_path / "missing_project"
+    file_path = tmp_path / "demo_project"
+    file_path.write_text("not a directory", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="Active app path not found"):
+        module.resolve_active_app(str(missing))
+    with pytest.raises(NotADirectoryError):
+        module.resolve_active_app(str(file_path))
+
+
 def test_resolve_active_app_rejects_missing_pyproject(tmp_path: Path) -> None:
     module = _load_module()
     active_app = tmp_path / "demo_project"
@@ -157,9 +297,41 @@ def test_resolve_active_app_rejects_missing_pyproject(tmp_path: Path) -> None:
         module.resolve_active_app(str(active_app))
 
 
+def test_write_agilab_path_marker_initializes_packaged_examples(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    marker = module.write_agilab_path_marker()
+
+    assert marker == tmp_path / ".local" / "share" / "agilab" / ".agilab-path"
+    assert marker.read_text(encoding="utf-8").strip() == str(ROOT / "src" / "agilab")
+
+
 def test_package_data_includes_app_installer_for_with_install() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
     package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
 
     assert "apps/install.py" in package_data
+    assert "examples/*/AGI_*.py" in package_data
+
+
+def test_package_data_includes_flight_dataset_archive_for_execute() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+    excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agilab", [])
+
+    assert (ROOT / "src/agilab/apps/builtin/flight_project/src/flight_worker/dataset.7z").is_file()
+    assert "apps/builtin/*/src/*/*.7z" in package_data
+    assert "apps/builtin/*/src/*/*.7z" not in excluded_data
+
+
+def test_package_discovery_includes_about_page_helpers() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+
+    package_includes = set(pyproject["tool"]["setuptools"]["packages"]["find"]["include"])
+
+    assert "agilab.about_page*" in package_includes
+    for helper in ("bootstrap.py", "env_editor.py", "layout.py", "onboarding.py"):
+        assert (ROOT / "src" / "agilab" / "about_page" / helper).is_file()

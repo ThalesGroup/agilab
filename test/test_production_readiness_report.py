@@ -26,7 +26,7 @@ def test_build_report_passes_static_production_readiness_contracts() -> None:
     report = module.build_report(run_docs_profile=False)
 
     assert report["kpi"] == "Production readiness"
-    assert report["supported_score"] == "3.0 / 5"
+    assert report["supported_score"] == module.SUPPORTED_SCORE
     assert report["status"] == "pass"
     assert report["summary"]["docs_profile_executed"] is False
     check_ids = {check["id"] for check in report["checks"]}
@@ -49,10 +49,13 @@ def test_docs_workflow_profile_check_reports_expected_sphinx_command() -> None:
     )
 
     assert check["status"] == "pass"
-    argv = check["details"]["argv"]
-    assert argv[-2:] == ["docs/source", "docs/html"]
-    assert "sphinx" in argv
-    assert "myst-parser" in argv
+    release_proof_argv = check["details"]["release_proof_argv"]
+    sphinx_argv = check["details"]["sphinx_argv"]
+    assert release_proof_argv[-2:] == ["--check", "--compact"]
+    assert "tools/release_proof_report.py" in release_proof_argv
+    assert sphinx_argv[-2:] == ["docs/source", "docs/html"]
+    assert "sphinx" in sphinx_argv
+    assert "myst-parser" in sphinx_argv
 
 
 def test_main_emits_json_and_returns_success(capsys) -> None:

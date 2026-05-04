@@ -103,65 +103,140 @@ uv --preview-features extra-build-dependencies run --with imageio-ffmpeg \
   --duration 30
 ```
 
-### Three-project technical hero demo
+### Data IO 2026 autonomous decision demo
 
-Use this when one app is not enough and you explicitly want to prove that AGILAB
-can host:
+`data_io_2026_project` is the first-class public demo for the Data IO 2026
+story. Use it when the audience needs to see a complete AGILAB loop: mission
+data enters the system, AGILAB builds the runnable pipeline, worker execution
+produces evidence, a mission event changes the constraints, and the analysis
+view shows the final decision.
 
-- a data workflow
-- an ML workflow
-- an RL workflow
+Treat it as a technical hero demo, not a short teaser. Keep the public recording
+in the `70-75s` final range and end on measurable evidence.
 
-This is not a short teaser anymore. Treat it as a technical hero demo and keep
-the recording in the `70-75s` final range.
+Primary run path:
 
-Concrete command:
+1. `PROJECT` -> select `src/agilab/apps/builtin/data_io_2026_project`.
+2. `ORCHESTRATE` -> `INSTALL`, then `EXECUTE`.
+3. `ANALYSIS` -> open the default `view_data_io_decision` page.
+
+Successful run indicators:
+
+- the seeded scenario is `mission_decision_demo.json`
+- the initial strategy is `direct_satcom`
+- the adapted strategy is `relay_mesh`
+- the analysis view shows latency, cost, and reliability deltas versus the
+  no-replan outcome
+- the artifact bundle is written under `export/data_io_2026/data_io_decision`
+
+Tracked companion card:
+
+![Data IO 2026 AGILAB demo card](diagrams/agilab_data_io_2026_card.svg)
+
+Use `docs/source/diagrams/agilab_data_io_2026_card.svg` as the lightweight
+shareable poster or thumbnail. The MP4/GIF remain generated local artifacts
+under `artifacts/demo_media/` and are intentionally not tracked.
+
+Scenario and pipeline:
+
+- inputs: sensor-style streams, network / satcom status, and operational
+  constraints such as latency, bandwidth, reliability, cost, and risk
+- objective: select the best mission route under changed constraints
+- generated pipeline: ingestion, cleaning, feature extraction, route scoring,
+  event detection, re-planning, and decision evidence export
+- output: selected strategy plus latency, cost, and reliability deltas
+
+Demo steps:
+
+1. Live data ingestion: show the seeded mission scenario and input streams.
+2. Pipeline generation: show the app pipeline view and generated pipeline
+   artifact.
+3. Distributed execution: show worker execution or the clearest local-worker
+   equivalent.
+4. Optimization loop: show candidate route scoring.
+5. Adaptation: inject the bandwidth drop and show the re-plan.
+6. Final decision: close on selected strategy and metric deltas.
+
+Preferred operator cut:
+
+- opener: `4s`
+- ingestion and generated pipeline: `16s`
+- worker execution: `16s`
+- route scoring: `14s`
+- failure injection and re-plan: `14s`
+- decision metrics: `10s`
+
+Keep the act discipline strict:
+
+- show at most two settings before moving on
+- use one fast `ORCHESTRATE` proof frame
+- flash `PIPELINE` only long enough to prove replayability
+- make worker execution the key technical moment
+- show adaptation as a before/after decision change
+- close on latency, cost, and reliability deltas
+
+Recommended narration:
+
+- opening: "AGILAB turns mission data into an executable decision."
+- mid-demo: "The pipeline is replayable, and the decision is backed by artifacts."
+- closing: "The result is not just a recommendation; it is an auditable run."
+
+Optional add-on:
+
+- air-gapped mode with no internet access and local models only, when the
+  environment is configured and validated
+
+Optional composite capture:
+
+The legacy three-project capture remains useful when you want a broader montage
+across ingestion, prediction, and decision apps instead of the focused
+`data_io_2026_project` flow.
 
 ```bash
-tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 82 --trim 74
+tools/capture_three_project_demo.sh --name agilab-data-io-2026 --duration 82 --trim 74
 ```
 
 If the capture is triggered from an automated or agent-driven shell, use:
 
 ```bash
-tools/capture_three_project_demo.sh --name agilab-data-ml-rl --duration 82 --trim 74 --via-terminal
+tools/capture_three_project_demo.sh --name agilab-data-io-2026 --duration 82 --trim 74 --via-terminal
 ```
 
 This wrapper:
 
 - writes a cue sheet under `artifacts/demo_media/<name>/`
-- points to the exact project roots for the three acts
+- points to public project roots for the ingestion, prediction, and decision
+  montage acts
 - then delegates the actual recording/export to `tools/capture_demo_workflow.sh`
 
 Default sequence:
 
 1. `execution_pandas_project`
 2. `meteo_forecast_project`
-3. `sb3_trainer_project`
+3. `uav_relay_queue_project`, or another routing / optimization project passed
+   with `--rl-app-root`
 
 Important scope note:
 
-- the first two acts are public built-ins from `agilab`
-- the RL act uses `sb3_trainer_project` from the sibling `thales_agilab/apps/`
-  repo
+- the default sequence uses public built-ins from `agilab`
+- the first-class Data IO demo is `data_io_2026_project`; the three-project
+  wrapper is only a composite media workflow
+- keep dynamic-pipeline claims grounded in visible AGILAB steps, generated
+  snippets, worker activity, and replayable evidence
+- do not publish competitor-specific claims in the public guide
 
 Use this asset for technical audiences. Do not replace the broad one-app intro
 video with it for first-time visitors.
 
-Preferred operator cut:
+Winning criteria:
 
-- intro: `3s`
-- data act: `18s`
-- ML act: `21s`
-- RL act: `22s`
-- closing frame: `8s`
-
-Keep the act discipline strict:
-
-- show at most two settings before moving on
-- use one fast `ORCHESTRATE` proof frame per act
-- flash `PIPELINE` only long enough to prove replayability
-- end each act on evidence, then cut immediately
+| Criteria | Strength |
+|---|---|
+| Innovation | Autonomous pipeline path |
+| Scalability | Distributed worker execution |
+| Real use case | Mission / network optimization |
+| AI depth | ML + optimization / orchestration |
+| Differentiation | Not a chatbot |
 
 If interactive screen capture is not possible from your environment, build the
 coherent synthetic composite instead:
@@ -173,9 +248,12 @@ uv --preview-features extra-build-dependencies run --with imageio --with imageio
 
 Outputs:
 
-- `artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic.mp4`
-- `artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic.gif`
-- `artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic_poster.png`
+- `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic.mp4`
+- `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic.gif`
+- `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic_poster.png`
+
+These files are generated for local review and publishing workflows. Keep them
+out of git unless a separate release channel explicitly needs a media upload.
 
 Current synthetic reel contract:
 
@@ -183,20 +261,20 @@ Current synthetic reel contract:
 - `30 fps`
 - about `52s`
 - one consistent visual system across the three acts
-- data and ML acts rendered from the same AGILAB reel engine as the public
-  one-app demos
-- RL act rendered in the same style, with FCAS routing figures used only as
-  evidence material
+- ingestion and prediction acts rendered from the same AGILAB reel engine as the
+  public one-app demos
+- decision act rendered in the same style, with routing evidence used only as
+  proof material
 
 This is not the old crude fallback anymore. It is a coherent technical
 composite built from the same scene language as the one-app reels, then stitched
-into one operator story:
+into one mission-data story:
 
 - intro card
 - `execution_pandas_project`
 - `meteo_forecast_project`
-- `sb3_trainer_project`
-- closing synthesis card
+- `uav_relay_queue_project`, or a configurable routing / optimization decision act
+- closing decision card
 
 Use it when you need a deterministic technical explainer rather than a live UI
 walkthrough, but still want the video to feel like one consistent product asset.

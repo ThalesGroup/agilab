@@ -191,9 +191,9 @@ def _build_report_with_path(
         _check_result(
             "data_connector_live_endpoint_smoke_plan",
             "Data connector live endpoint smoke plan",
-            summary.get("connector_count") == 3
-            and summary.get("planned_endpoint_count") == 3,
-            "live smoke plan covers the three first-class connector kinds",
+            summary.get("connector_count") == 5
+            and summary.get("planned_endpoint_count") == 5,
+            "live smoke plan covers SQL, OpenSearch, and multi-cloud object storage",
             evidence=[proof["catalog_path"]],
             details={"summary": summary, "endpoint_smokes": endpoint_smokes},
         ),

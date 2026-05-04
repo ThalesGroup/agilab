@@ -32,7 +32,7 @@ FIRST_PROOF_REQUIRED_VALIDATIONS = (
     "target_seconds",
     "recommended_project",
 )
-DOCUMENTED_ROUTE_IDS = ("notebook-quickstart", "published-package-route")
+DOCUMENTED_ROUTE_IDS = ("notebook-quickstart",)
 REMEDIATION_LINKS = (
     ("Troubleshooting", "https://thalesgroup.github.io/agilab/newcomer-troubleshooting.html"),
     ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
@@ -253,10 +253,10 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     tool_contract = first_proof_tool_contract(repo_root)
     compatibility = first_proof_compatibility(repo_root)
     content = FirstProofContent(
-        title="Start here",
+        title="Start here: run flight_project first",
         intro=(
-            "Goal: make the validated flight_project source-checkout proof work "
-            "on your computer before branching into other routes."
+            "Run the built-in flight demo locally before trying notebooks, "
+            "cluster mode, service mode, or custom apps."
         ),
         recommended_path_id=FIRST_PROOF_RECOMMENDED_ENTRY_ID,
         recommended_path_label=FIRST_PROOF_RECOMMENDED_LABEL,
@@ -269,15 +269,18 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         cli_command=tool_contract.cli_command,
         run_manifest_filename=_load_run_manifest_module().RUN_MANIFEST_FILENAME,
         steps=(
-            ("PROJECT", "Go to `PROJECT`. Choose `flight_project`."),
-            ("ORCHESTRATE", "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."),
-            ("ANALYSIS", "Go to `ANALYSIS`. Open the default built-in view."),
+            ("PROJECT", "Open `PROJECT` and select `flight_project`."),
+            (
+                "ORCHESTRATE",
+                "Open `ORCHESTRATE`. Keep cluster, benchmark, and service options off. "
+                "Click `INSTALL`, then `EXECUTE`.",
+            ),
+            ("ANALYSIS", "Open `ANALYSIS` and keep the default built-in view."),
         ),
         success_criteria=(
-            "`flight_project` runs without error.",
-            "`run_manifest.json` records the command, environment, timing, artifacts, and validation status.",
-            "Generated files are created under `~/log/execute/flight/`.",
             "A visible `ANALYSIS` result opens for `flight_project`.",
+            "`flight_project` finishes without an error.",
+            "`run_manifest.json` and generated files appear under `~/log/execute/flight/`.",
         ),
         links=(
             ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),

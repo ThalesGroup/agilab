@@ -390,7 +390,7 @@ def test_view_release_decision_renders_promotable_candidate_and_exports_json(tmp
     assert any(header.value == "Connector path registry" for header in at.subheader)
     connector_live_ui = at.session_state["release_decision_connector_live_ui"]
     assert connector_live_ui["run_status"] == "ready_for_live_ui"
-    assert connector_live_ui["summary"]["connector_card_count"] == 3
+    assert connector_live_ui["summary"]["connector_card_count"] == 5
     assert connector_live_ui["summary"]["page_binding_count"] == 2
     assert connector_live_ui["summary"]["network_probe_count"] == 0
 
@@ -728,9 +728,13 @@ def test_view_release_decision_helper_branches(monkeypatch, tmp_path) -> None:
     module_path.write_text("# stub\n", encoding="utf-8")
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(module.sys, "path", [])
+    fake_agilab_package = ModuleType("agilab")
+    fake_agilab_package.__path__ = []
+    monkeypatch.setitem(module.sys.modules, "agilab", fake_agilab_package)
     module._ensure_repo_on_path()
     assert str(src_root) in module.sys.path
     assert str(repo_root) in module.sys.path
+    assert str(src_root / "agilab") in fake_agilab_package.__path__
 
     broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
     assert module._discover_files(broken_base, "*.json") == []

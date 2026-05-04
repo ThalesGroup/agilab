@@ -1,0 +1,4 @@
+interface:
+  display_name: "AGILAB Code Statistics"
+  short_description: "Generate AGILAB LOC and file-count reports"
+  default_prompt: "Use $agilab-code-statistics to produce a tracked-file code statistics report for this checkout."

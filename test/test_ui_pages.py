@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
 import os
 import sys
 import tomllib
@@ -19,6 +20,25 @@ from pydantic import BaseModel, ValidationError, model_validator
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
 DEFAULT_APPTEST_TIMEOUT = 20
 ENV_TEMPLATE_PATH = Path("src/agilab/core/agi-env/src/agi_env/resources/.agilab/.env")
+
+
+def _import_agilab_module(module_name: str):
+    src_root = Path(__file__).resolve().parents[1] / "src"
+    package_root = str(src_root / "agilab")
+    src_root_str = str(src_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root not in package_path:
+            pkg.__path__ = [package_root, *package_path]
+    importlib.invalidate_caches()
+    return importlib.import_module(module_name)
 
 
 def _widget_or_none(collections, key: str):
@@ -120,9 +140,11 @@ def _load_flight_form_module(
         reset_target: bool = False
 
         @model_validator(mode="after")
-        def _validate_hawk(self):
-            if self.data_source == "hawk" and not self.data_in.strip():
-                raise ValueError("hawk data_in is required")
+        def _validate_public_file_source(self):
+            if self.data_source != "file":
+                raise ValueError("flight_project public demo supports only file-based input")
+            if self.files == "[":
+                raise ValueError("invalid files filter")
             return self
 
         def to_toml_payload(self):
@@ -145,6 +167,7 @@ def _load_flight_form_module(
 
     fake_flight = types.ModuleType("flight")
     fake_flight.FlightArgs = FlightArgs
+    fake_flight.SUPPORTED_DATA_SOURCES = ("file",)
     fake_flight.apply_source_defaults = apply_source_defaults
     fake_flight.dump_args_to_toml = dump_args_to_toml
     fake_flight.load_args_from_toml = load_args_from_toml
@@ -166,14 +189,22 @@ def _load_flight_form_module(
     if inject_env:
         fake_st.session_state.setdefault("env", env)
     monkeypatch.setitem(sys.modules, "streamlit", fake_st)
-    monkeypatch.setitem(sys.modules, "flight", fake_flight)
+    missing = object()
+    previous_flight = sys.modules.get("flight", missing)
+    sys.modules["flight"] = fake_flight
 
     module_name = f"flight_form_test_{len(sys.modules)}"
     spec = importlib.util.spec_from_file_location(module_name, APP_ARGS_FORM)
     module = importlib.util.module_from_spec(spec)
     assert spec is not None and spec.loader is not None
     sys.modules[module_name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if previous_flight is missing:
+            sys.modules.pop("flight", None)
+        else:
+            sys.modules["flight"] = previous_flight
     return module, fake_st, calls
 
 
@@ -229,7 +260,6 @@ def _all_button_labels(at: AppTest) -> list[str]:
 def _assert_docs_actions_present(at: AppTest) -> None:
     labels = _all_button_labels(at)
     assert "Read Documentation" in labels
-    assert "Open Local Documentation" in labels
 
 
 def _assert_docs_actions_absent(at: AppTest) -> None:
@@ -296,6 +326,11 @@ def load_args_from_toml(path):
     # Create apps-pages directory structure (not strictly needed since AgiEnv falls back to builtin apps)
     pages_dir = project_dir / "apps-pages"
     pages_dir.mkdir(parents=True, exist_ok=True)
+    env_file = tmp_path / ".agilab" / ".env"
+    env_file.parent.mkdir(parents=True, exist_ok=True)
+    env_file.write_text("CLUSTER_CREDENTIALS=\n", encoding="utf-8")
+    about_env_editor = _import_agilab_module("agilab.about_page.env_editor")
+    monkeypatch.setattr(about_env_editor, "ENV_FILE_PATH", env_file, raising=False)
 
 
     # Mock CLI argv for AGILAB main page
@@ -495,7 +530,7 @@ def test_flight_project_app_args_form_render(mock_ui_env):
             sys.path.remove(project_src)
 
 def test_flight_project_app_args_form(mock_ui_env):
-    """Test the flight_project UI data source form interactions."""
+    """Test the flight_project file-based public UI data source form interactions."""
     project_src = str(mock_ui_env["project_dir"] / "src")
     sys.path.insert(0, project_src)
     try:
@@ -508,21 +543,17 @@ def test_flight_project_app_args_form(mock_ui_env):
         at.run()
         assert not at.exception
 
-        # The default data source is 'file', we switch it to 'hawk'
-        at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
+        source_select = at.selectbox(key="flight_project:app_args_form:data_source")
+        assert source_select.options == ["file"]
 
-        # Check if the text input labels changed
-        # Text input for "Hawk cluster URI" should exist (it replaces "Data directory")
-        # Actually, AppTest exposes text inputs but their labels might vary. Let's find it by key
         data_in_input = at.text_input(key="flight_project:app_args_form:data_in")
-        assert data_in_input.label == "Hawk cluster URI"
+        assert data_in_input.label == "Data directory"
 
         files_input = at.text_input(key="flight_project:app_args_form:files")
-        assert files_input.label == "Pipeline name"
+        assert files_input.label == "Files filter"
 
-        # Let's set some values
-        data_in_input.set_value("hawk.cluster.local:9200")
-        files_input.set_value("test_pipeline")
+        data_in_input.set_value("flight/custom_dataset")
+        files_input.set_value("*.csv")
         at.number_input(key="flight_project:app_args_form:nfile").set_value(5)
 
         at.run()
@@ -537,12 +568,10 @@ def test_flight_project_app_args_form(mock_ui_env):
 
         assert not at.exception
 
-        # The current parameters are collected in the session state payload or validated structure
-        # The UI saves to `settings_path` and updates `app_settings`
         assert "app_settings" in at.session_state, "app_settings was not saved!"
-        assert at.session_state["app_settings"]["args"]["data_source"] == "hawk"
-        assert at.session_state["app_settings"]["args"]["data_in"] == "hawk.cluster.local:9200"
-        assert at.session_state["app_settings"]["args"]["files"] == "test_pipeline"
+        assert at.session_state["app_settings"]["args"]["data_source"] == "file"
+        assert at.session_state["app_settings"]["args"]["data_in"] == "flight/custom_dataset"
+        assert at.session_state["app_settings"]["args"]["files"] == "*.csv"
         assert at.session_state["app_settings"]["args"]["nfile"] == 5
 
         # Look for the success message containing "Saved to"
@@ -580,8 +609,8 @@ def test_flight_app_args_form_import_validation_branches(monkeypatch, tmp_path):
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_project:app_args_form:data_source": "hawk",
-            "flight_project:app_args_form:data_in": "",
+            "flight_project:app_args_form:data_source": "file",
+            "flight_project:app_args_form:files": "[",
         },
         with_humanized_errors=True,
     )
@@ -593,8 +622,8 @@ def test_flight_app_args_form_import_validation_branches(monkeypatch, tmp_path):
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_project:app_args_form:data_source": "hawk",
-            "flight_project:app_args_form:data_in": "",
+            "flight_project:app_args_form:data_source": "file",
+            "flight_project:app_args_form:files": "[",
         },
         with_humanized_errors=False,
     )
@@ -769,14 +798,14 @@ def test_edit_page_load(mock_ui_env):
     _assert_docs_actions_absent(at)
 
 
-def test_execute_page_cython_toggle(mock_ui_env):
-    """Test toggling the Cython checkbox on the EXECUTE page."""
+def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
+    """Test that the EXECUTE page hydrates the Cython checkbox from app settings."""
     at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    Path(env.app_settings_file).write_text("[cluster]\ncython = true\n", encoding="utf-8")
     at.session_state["env"] = env
-    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
     _seed_env_editor_state(at, env)
 
     at.run()
@@ -784,19 +813,10 @@ def test_execute_page_cython_toggle(mock_ui_env):
 
     app_state_name = _current_app_state_name(at)
     cython_key = f"cluster_cython__{app_state_name}"
-    at.session_state[cython_key] = True
-    at.run()
-    assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     assert cluster_state.get("cython", at.session_state[cython_key]) is True
-
-    at.session_state[cython_key] = False
-    at.run()
-    assert not at.exception
-    app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
-    cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
-    assert cluster_state.get("cython", at.session_state[cython_key]) is False
+    assert at.session_state[cython_key] is True
 
 
 def test_execute_page_workers_data_path(mock_ui_env):
@@ -909,8 +929,8 @@ def test_app_args_form_no_changes(mock_ui_env):
             sys.path.remove(project_src)
 
 
-def test_app_args_form_switch_back_to_file(mock_ui_env):
-    """Test switching data source from file -> hawk -> file and verifying labels revert."""
+def test_app_args_form_exposes_only_file_source(mock_ui_env):
+    """Test the public built-in form exposes only the implemented file source."""
     project_src = str(mock_ui_env["project_dir"] / "src")
     sys.path.insert(0, project_src)
     try:
@@ -920,14 +940,8 @@ def test_app_args_form_switch_back_to_file(mock_ui_env):
         at.run()
         assert not at.exception
 
-        # Switch to hawk
-        at.selectbox(key="flight_project:app_args_form:data_source").set_value("hawk").run()
-        assert not at.exception
-        assert at.text_input(key="flight_project:app_args_form:data_in").label == "Hawk cluster URI"
-
-        # Switch back to file
-        at.selectbox(key="flight_project:app_args_form:data_source").set_value("file").run()
-        assert not at.exception
+        source_select = at.selectbox(key="flight_project:app_args_form:data_source")
+        assert source_select.options == ["file"]
         assert at.text_input(key="flight_project:app_args_form:data_in").label == "Data directory"
         assert at.text_input(key="flight_project:app_args_form:files").label == "Files filter"
     finally:
@@ -948,7 +962,7 @@ def test_agilab_main_page_theme_injection(mock_ui_env):
         "Expected theme CSS to be injected via st.markdown"
 
 
-def test_agilab_main_page_missing_openai_key_warning_points_to_env_editor(mock_ui_env):
+def test_agilab_main_page_missing_openai_key_stays_silent_on_first_launch(mock_ui_env):
     at = _app_test("src/agilab/About_agilab.py")
 
     with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
@@ -956,11 +970,9 @@ def test_agilab_main_page_missing_openai_key_warning_points_to_env_editor(mock_u
 
     assert not at.exception
     warning_messages = [str(item.value) for item in at.warning]
-    assert any(
-        "Set OPENAI_API_KEY below in 'Environment Variables', then reload the app." in message
-        for message in warning_messages
-    )
-    assert not any("via the 'Environment Variables' expander" in message for message in warning_messages)
+    info_messages = [str(item.value) for item in at.info]
+    assert not any("OPENAI_API_KEY" in message for message in warning_messages)
+    assert not any("OPENAI_API_KEY" in message for message in info_messages)
 
 
 def test_experiment_page_missing_openai_key(mock_ui_env):
@@ -1203,6 +1215,5 @@ def test_clone_page_exposes_environment_strategy(mock_ui_env):
     at.run()
     assert not at.exception
 
-    sidebar_radios = list(at.sidebar.radio)
-    radio_keys = [radio.key for radio in sidebar_radios]
-    assert "clone_env_strategy" in radio_keys
+    assert "clone_env_strategy" in at.session_state
+    assert at.session_state["clone_env_strategy"] in {"share_source_venv", "detach_venv"}

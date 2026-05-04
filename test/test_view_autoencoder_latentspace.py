@@ -319,6 +319,10 @@ def test_build_ae_builds_expected_dense_stack(monkeypatch) -> None:
 def test_bary_visualisation_supports_color_and_plain_modes(monkeypatch) -> None:
     module = _load_module()
 
+    class _StandardScaler:
+        def fit_transform(self, data):
+            return data
+
     class FakeCollection:
         def __init__(self, points, labels, colors=None):
             self.points = points
@@ -353,6 +357,7 @@ def test_bary_visualisation_supports_color_and_plain_modes(monkeypatch) -> None:
 
     monkeypatch.setattr(module, "Collection", FakeCollection)
     monkeypatch.setattr(module, "ModifiedSimplex", FakeSimplex)
+    monkeypatch.setattr(module, "lazy_import_sklearn", lambda: (object(), _StandardScaler))
     monkeypatch.setattr(
         module,
         "st",

@@ -9,36 +9,23 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 import tomli_w
+from agi_env.app_settings_support import (
+    app_settings_contract_error,
+    ensure_app_settings_metadata,
+    prepare_app_settings_for_write,
+    sanitize_app_settings_for_toml,
+)
 
 
 def sanitize_for_toml(obj: Any) -> Any:
     """Recursively convert values into TOML-safe structures."""
-    if isinstance(obj, dict):
-        sanitized = {}
-        for key, value in obj.items():
-            if value is None:
-                continue
-            sanitized_value = sanitize_for_toml(value)
-            sanitized[key] = sanitized_value
-        return sanitized
-    if isinstance(obj, list):
-        sanitized_items = []
-        for item in obj:
-            if item is None:
-                continue
-            sanitized_item = sanitize_for_toml(item)
-            sanitized_items.append(sanitized_item)
-        return sanitized_items
-    if isinstance(obj, tuple):
-        return sanitize_for_toml(list(obj))
-    if isinstance(obj, Path):
-        return str(obj)
-    return obj
+
+    return sanitize_app_settings_for_toml(obj)
 
 
 def write_app_settings_toml(settings_path: Path, payload: dict) -> dict:
     """Persist ``payload`` after converting it to a TOML-serializable object."""
-    sanitized = sanitize_for_toml(payload)
+    sanitized = prepare_app_settings_for_write(payload)
     with open(settings_path, "wb") as file:
         tomli_w.dump(sanitized, file)
     return sanitized

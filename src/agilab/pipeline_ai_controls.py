@@ -34,6 +34,35 @@ UOAIC_OLLAMA_ENDPOINT_ENV = _pipeline_ai_uoaic_module.UOAIC_OLLAMA_ENDPOINT_ENV
 UOAIC_PROVIDER = _pipeline_ai_uoaic_module.UOAIC_PROVIDER
 UOAIC_RUNTIME_KEY = _pipeline_ai_uoaic_module.UOAIC_RUNTIME_KEY
 
+_pipeline_mistral_module = import_agilab_module(
+    "agilab.pipeline_mistral",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_mistral.py",
+    fallback_name="agilab_pipeline_mistral_fallback",
+)
+MISTRAL_DEFAULT_MODEL = _pipeline_mistral_module.MISTRAL_DEFAULT_MODEL
+MISTRAL_DEFAULT_REASONING_EFFORT = _pipeline_mistral_module.MISTRAL_DEFAULT_REASONING_EFFORT
+MISTRAL_MODEL_ENV = _pipeline_mistral_module.MISTRAL_MODEL_ENV
+MISTRAL_PROVIDER = _pipeline_mistral_module.MISTRAL_PROVIDER
+MISTRAL_REASONING_EFFORT_ENV = _pipeline_mistral_module.MISTRAL_REASONING_EFFORT_ENV
+MISTRAL_TEMPERATURE_ENV = _pipeline_mistral_module.MISTRAL_TEMPERATURE_ENV
+
+_pipeline_openai_compatible_module = import_agilab_module(
+    "agilab.pipeline_openai_compatible",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pipeline_openai_compatible.py",
+    fallback_name="agilab_pipeline_openai_compatible_fallback",
+)
+DEFAULT_OPENAI_COMPAT_API_KEY = _pipeline_openai_compatible_module.DEFAULT_OPENAI_COMPAT_API_KEY
+DEFAULT_OPENAI_COMPAT_MODEL = _pipeline_openai_compatible_module.DEFAULT_OPENAI_COMPAT_MODEL
+OPENAI_COMPAT_API_KEY_ENV = _pipeline_openai_compatible_module.OPENAI_COMPAT_API_KEY_ENV
+OPENAI_COMPAT_BASE_URL_ENV = _pipeline_openai_compatible_module.OPENAI_COMPAT_BASE_URL_ENV
+OPENAI_COMPAT_MAX_TOKENS_ENV = _pipeline_openai_compatible_module.OPENAI_COMPAT_MAX_TOKENS_ENV
+OPENAI_COMPAT_MODEL_ENV = _pipeline_openai_compatible_module.OPENAI_COMPAT_MODEL_ENV
+OPENAI_COMPAT_PROVIDER = _pipeline_openai_compatible_module.OPENAI_COMPAT_PROVIDER
+OPENAI_COMPAT_TEMPERATURE_ENV = _pipeline_openai_compatible_module.OPENAI_COMPAT_TEMPERATURE_ENV
+normalize_openai_compatible_base_url = _pipeline_openai_compatible_module.normalize_openai_compatible_base_url
+
 _pipeline_ai_support_module = import_agilab_module(
     "agilab.pipeline_ai_support",
     current_file=__file__,
@@ -41,6 +70,11 @@ _pipeline_ai_support_module = import_agilab_module(
     fallback_name="agilab_pipeline_ai_support_fallback",
 )
 OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+OLLAMA_LOCAL_PROVIDER_FAMILIES = _pipeline_ai_support_module.OLLAMA_LOCAL_PROVIDER_FAMILIES
+OLLAMA_MINISTRAL_PROVIDER = _pipeline_ai_support_module.OLLAMA_MINISTRAL_PROVIDER
+OLLAMA_PHI4_MINI_PROVIDER = _pipeline_ai_support_module.OLLAMA_PHI4_MINI_PROVIDER
+OLLAMA_QWEN3_CODER_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN3_CODER_PROVIDER
+OLLAMA_QWEN3_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN3_PROVIDER
 OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
 default_ollama_family_model = _pipeline_ai_support_module.default_ollama_family_model
 normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
@@ -73,17 +107,20 @@ def configure_assistant_engine(
     local_family_providers = {
         "Qwen (local)": OLLAMA_QWEN_PROVIDER,
         "DeepSeek (local)": OLLAMA_DEEPSEEK_PROVIDER,
+        "Qwen3 30B-A3B (local)": OLLAMA_QWEN3_PROVIDER,
+        "Qwen3-Coder 30B-A3B (local)": OLLAMA_QWEN3_CODER_PROVIDER,
+        "Ministral 3 14B (local)": OLLAMA_MINISTRAL_PROVIDER,
+        "Phi-4-mini (local)": OLLAMA_PHI4_MINI_PROVIDER,
     }
     provider_options = {
         "OpenAI (online)": "openai",
+        "vLLM / OpenAI-compatible (self-hosted)": OPENAI_COMPAT_PROVIDER,
+        "Mistral Medium 3.5 (online)": MISTRAL_PROVIDER,
         "GPT-OSS (local)": "gpt-oss",
         **local_family_providers,
         "Ollama (local)": uoaic_provider,
     }
-    provider_families = {
-        OLLAMA_QWEN_PROVIDER: "qwen",
-        OLLAMA_DEEPSEEK_PROVIDER: "deepseek",
-    }
+    provider_families = OLLAMA_LOCAL_PROVIDER_FAMILIES
     stored_provider = deps.session_state.get("lab_llm_provider")
     current_provider = stored_provider or env.envars.get("LAB_LLM_PROVIDER", "openai")
     provider_labels = list(provider_options.keys())
@@ -112,6 +149,32 @@ def configure_assistant_engine(
 
         if selected_provider == "openai":
             env.envars["OPENAI_MODEL"] = deps.get_default_openai_model_fn()
+        elif selected_provider == OPENAI_COMPAT_PROVIDER:
+            env.envars.pop("OPENAI_MODEL", None)
+            base_url = normalize_openai_compatible_base_url(
+                deps.session_state.get("openai_compat_base_url")
+                or env.envars.get(OPENAI_COMPAT_BASE_URL_ENV)
+                or os.getenv(OPENAI_COMPAT_BASE_URL_ENV, "")
+            )
+            model = str(
+                deps.session_state.get("openai_compat_model")
+                or env.envars.get(OPENAI_COMPAT_MODEL_ENV)
+                or os.getenv(OPENAI_COMPAT_MODEL_ENV, DEFAULT_OPENAI_COMPAT_MODEL)
+            ).strip() or DEFAULT_OPENAI_COMPAT_MODEL
+            deps.session_state["openai_compat_base_url"] = base_url
+            deps.session_state["openai_compat_model"] = model
+            env.envars[OPENAI_COMPAT_BASE_URL_ENV] = base_url
+            env.envars[OPENAI_COMPAT_MODEL_ENV] = model
+        elif selected_provider == MISTRAL_PROVIDER:
+            env.envars.pop("OPENAI_MODEL", None)
+            model = str(
+                deps.session_state.get("mistral_model")
+                or env.envars.get(MISTRAL_MODEL_ENV)
+                or os.getenv(MISTRAL_MODEL_ENV, MISTRAL_DEFAULT_MODEL)
+            ).strip() or MISTRAL_DEFAULT_MODEL
+            deps.session_state["mistral_model"] = model
+            env.envars[MISTRAL_MODEL_ENV] = model
+            env.envars.setdefault(MISTRAL_REASONING_EFFORT_ENV, MISTRAL_DEFAULT_REASONING_EFFORT)
         elif selected_provider == "gpt-oss":
             oss_model = (
                 deps.session_state.get("gpt_oss_model")
@@ -162,6 +225,128 @@ def configure_assistant_engine(
         env.envars["GPT_OSS_ENDPOINT"] = endpoint
     else:
         deps.session_state.pop("gpt_oss_endpoint", None)
+
+    if selected_provider == OPENAI_COMPAT_PROVIDER:
+        base_default = normalize_openai_compatible_base_url(
+            deps.session_state.get("openai_compat_base_url")
+            or env.envars.get(OPENAI_COMPAT_BASE_URL_ENV)
+            or os.getenv(OPENAI_COMPAT_BASE_URL_ENV, "")
+        )
+        base_url = normalize_openai_compatible_base_url(
+            deps.sidebar.text_input(
+                "OpenAI-compatible base URL",
+                value=base_default,
+                help="Base URL for vLLM, LM Studio, OpenRouter, or another Chat Completions-compatible endpoint.",
+            )
+        )
+        deps.session_state["openai_compat_base_url"] = base_url
+        env.envars[OPENAI_COMPAT_BASE_URL_ENV] = base_url
+
+        model_default = str(
+            deps.session_state.get("openai_compat_model")
+            or env.envars.get(OPENAI_COMPAT_MODEL_ENV)
+            or os.getenv(OPENAI_COMPAT_MODEL_ENV, DEFAULT_OPENAI_COMPAT_MODEL)
+        ).strip() or DEFAULT_OPENAI_COMPAT_MODEL
+        model = deps.sidebar.text_input(
+            "OpenAI-compatible model",
+            value=model_default,
+            help="Must match the model name served by the endpoint, for example the `vllm serve <model>` ID.",
+        ).strip() or DEFAULT_OPENAI_COMPAT_MODEL
+        deps.session_state["openai_compat_model"] = model
+        env.envars[OPENAI_COMPAT_MODEL_ENV] = model
+
+        api_key_default = str(
+            deps.session_state.get("openai_compat_api_key")
+            or env.envars.get(OPENAI_COMPAT_API_KEY_ENV)
+            or os.getenv(OPENAI_COMPAT_API_KEY_ENV, DEFAULT_OPENAI_COMPAT_API_KEY)
+        ).strip() or DEFAULT_OPENAI_COMPAT_API_KEY
+        api_key = deps.sidebar.text_input(
+            "OpenAI-compatible API key",
+            value=api_key_default,
+            help="Use `EMPTY` for local vLLM unless your gateway requires a real key.",
+        ).strip() or DEFAULT_OPENAI_COMPAT_API_KEY
+        deps.session_state["openai_compat_api_key"] = api_key
+        env.envars[OPENAI_COMPAT_API_KEY_ENV] = api_key
+
+        temperature_default = str(
+            deps.session_state.get("openai_compat_temperature")
+            or env.envars.get(OPENAI_COMPAT_TEMPERATURE_ENV)
+            or os.getenv(OPENAI_COMPAT_TEMPERATURE_ENV, "0.1")
+        ).strip() or "0.1"
+        temperature = deps.sidebar.text_input(
+            "OpenAI-compatible temperature",
+            value=temperature_default,
+            help="Lower values improve deterministic code generation.",
+        ).strip()
+        if temperature:
+            deps.session_state["openai_compat_temperature"] = temperature
+            env.envars[OPENAI_COMPAT_TEMPERATURE_ENV] = temperature
+        else:
+            deps.session_state.pop("openai_compat_temperature", None)
+            env.envars.pop(OPENAI_COMPAT_TEMPERATURE_ENV, None)
+
+        max_tokens_default = str(
+            deps.session_state.get("openai_compat_max_tokens")
+            or env.envars.get(OPENAI_COMPAT_MAX_TOKENS_ENV)
+            or os.getenv(OPENAI_COMPAT_MAX_TOKENS_ENV, "")
+        ).strip()
+        max_tokens = deps.sidebar.text_input(
+            "OpenAI-compatible max tokens",
+            value=max_tokens_default,
+            help="Optional generation cap. Leave blank to use the endpoint default.",
+        ).strip()
+        if max_tokens:
+            deps.session_state["openai_compat_max_tokens"] = max_tokens
+            env.envars[OPENAI_COMPAT_MAX_TOKENS_ENV] = max_tokens
+        else:
+            deps.session_state.pop("openai_compat_max_tokens", None)
+            env.envars.pop(OPENAI_COMPAT_MAX_TOKENS_ENV, None)
+
+    if selected_provider == MISTRAL_PROVIDER:
+        default_model = str(
+            deps.session_state.get("mistral_model")
+            or env.envars.get(MISTRAL_MODEL_ENV)
+            or os.getenv(MISTRAL_MODEL_ENV, MISTRAL_DEFAULT_MODEL)
+        ).strip() or MISTRAL_DEFAULT_MODEL
+        model = deps.sidebar.text_input(
+            "Mistral model",
+            value=default_model,
+        ).strip() or MISTRAL_DEFAULT_MODEL
+        deps.session_state["mistral_model"] = model
+        env.envars[MISTRAL_MODEL_ENV] = model
+
+        reasoning_options = ["high", "none"]
+        default_reasoning = str(
+            deps.session_state.get("mistral_reasoning_effort")
+            or env.envars.get(MISTRAL_REASONING_EFFORT_ENV)
+            or os.getenv(MISTRAL_REASONING_EFFORT_ENV, MISTRAL_DEFAULT_REASONING_EFFORT)
+        ).strip().lower()
+        if default_reasoning not in reasoning_options:
+            default_reasoning = MISTRAL_DEFAULT_REASONING_EFFORT
+        reasoning = deps.sidebar.selectbox(
+            "Mistral reasoning",
+            reasoning_options,
+            index=reasoning_options.index(default_reasoning),
+        )
+        deps.session_state["mistral_reasoning_effort"] = reasoning
+        env.envars[MISTRAL_REASONING_EFFORT_ENV] = reasoning
+
+        default_temperature = str(
+            deps.session_state.get("mistral_temperature")
+            or env.envars.get(MISTRAL_TEMPERATURE_ENV)
+            or os.getenv(MISTRAL_TEMPERATURE_ENV)
+            or ("0.7" if reasoning == "high" else "0.1")
+        )
+        temperature = deps.sidebar.text_input(
+            "Mistral temperature",
+            value=default_temperature,
+        ).strip()
+        if temperature:
+            deps.session_state["mistral_temperature"] = temperature
+            env.envars[MISTRAL_TEMPERATURE_ENV] = temperature
+        else:
+            deps.session_state.pop("mistral_temperature", None)
+            env.envars.pop(MISTRAL_TEMPERATURE_ENV, None)
 
     return selected_provider
 

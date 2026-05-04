@@ -1,0 +1,63 @@
+FROM ghcr.io/astral-sh/uv:bookworm-slim
+
+LABEL maintainer="Jean-Pierre Morard"
+LABEL description="AGILAB worker node"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssh-server \
+    sshfs \
+    fuse3 \
+    sshpass \
+    build-essential \
+    curl \
+    git \
+    ca-certificates \
+    libssl-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    libsqlite3-dev \
+    libffi-dev \
+    locales \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN locale-gen en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+
+# SSH: allow root login with password (dev cluster only)
+RUN mkdir -p /run/sshd /root/.ssh \
+    && chmod 700 /root/.ssh \
+    && echo "PermitRootLogin yes"        >> /etc/ssh/sshd_config \
+    && echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config \
+    && echo "StrictModes no"             >> /etc/ssh/sshd_config \
+    && ssh-keygen -A
+
+# Allow FUSE mounts (needed for sshfs)
+RUN echo "user_allow_other" >> /etc/fuse.conf
+
+ENV AGI_PYTHON_VERSION="3.13.9"
+ENV AGI_PYTHON_FREE_THREADED="0"
+ENV CLUSTER_CREDENTIALS="root:password"
+
+WORKDIR /app
+
+COPY src/agilab/core/ ./src/agilab/core/
+COPY pyproject.toml ./pyproject.toml
+COPY uv_config.toml ./uv_config.toml
+COPY docker/worker-entrypoint.sh ./entrypoint.sh
+
+RUN uv python install ${AGI_PYTHON_VERSION}
+
+RUN uv pip install --system \
+    -e src/agilab/core/agi-env \
+    -e src/agilab/core/agi-node \
+    -e src/agilab/core/agi-cluster
+
+RUN mkdir -p /root/.agilab /root/.local/share/agilab /root/clustershare /root/log \
+    && chmod +x ./entrypoint.sh
+
+EXPOSE 22
+
+ENTRYPOINT ["./entrypoint.sh"]

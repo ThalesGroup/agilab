@@ -70,6 +70,16 @@ use this order:
 5. **Intent-first operator mode**
    - valuable, but it benefits from the cleaner evidence, compatibility, and
      connector contracts above
+6. **Elasticity and active mesh optimization**
+   - keep the current public claim bounded to the `Train -> Test -> Evidence`
+     loop
+   - evolve toward multi-agent reinforcement learning only after the evidence
+     layer can compare baseline versus adaptive-network outcomes
+   - model moving nodes such as aircraft, UAVs, or satellites as active agents
+     that can adapt trajectory or routing behavior to improve network KPIs
+   - avoid duplicating experiment tracking or model-registry concepts; the
+     differentiator should be closed-loop execution and evidence, not another
+     metrics UI
 
 Why this order:
 
@@ -82,6 +92,8 @@ Why this order:
 - keep notebook interop after the orchestration state model is clearer
 - stabilize contracts before standardizing distributed reduction
 - keep operator refinements downstream of the proof/evidence layer
+- keep MARL and active-mesh work downstream of reproducible execution,
+  baseline/candidate comparison, and the shared evidence contract
 
 ## Streamlit-inspired AGILab views
 
@@ -752,7 +764,9 @@ Current shipped baseline:
   `agilab.data_connector_facility.v1` against
   `docs/source/data/data_connectors_sample.toml`
 - the sample covers SQL, OpenSearch/ELK, and object-storage connector
-  definitions with kind-specific required fields
+  definitions with kind-specific required fields; the current object-storage
+  contract covers AWS S3/S3-compatible stores, Azure Blob Storage, and Google
+  Cloud Storage
 - remote credentials are represented as `env:` references and the report runs
   in `contract_validation_only` mode without live network probes
 - `tools/data_connector_resolution_report.py --compact` validates
@@ -842,8 +856,8 @@ Purpose:
 
 Recommended scope:
 
-- internal deployment first
-- index `agilab` and private app repositories separately
+- start with controlled local deployments before publishing hosted search
+- index each repository separately
 - include code, docs source, runbooks, and `pyproject.toml`
 - exclude generated artefacts, virtualenvs, `build/`, `dist/`, and runtime shares
 
@@ -869,8 +883,9 @@ Current shipped baseline:
 
 Remaining scope:
 
-- connect this static index to an internal generated wiki or Q&A service
-- extend indexing to private app repositories under the same source-of-truth
+- connect this static index to a generated wiki or Q&A service in controlled
+  deployments
+- extend indexing to external app repositories under the same source-of-truth
   guardrail
 
 Why it matters:

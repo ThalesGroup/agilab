@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-24
+  updated: 2026-04-28
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -12,8 +12,10 @@ Use this skill when preparing, validating, or deploying the official AGILAB Hugg
 
 The current source of truth is:
 - `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.md`
+- `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.advanced.md`
 - `/Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh`
 - `/Users/agi/PycharmProjects/thales_agilab/huggingface/Dockerfile`
+- `/Users/agi/PycharmProjects/thales_agilab/huggingface/seed_hf_app_settings.py`
 
 Do not default to a generic “lightweight one-page demo” plan when the repo already defines a concrete Space contract.
 
@@ -21,19 +23,25 @@ Do not default to a generic “lightweight one-page demo” plan when the repo a
 
 The official Space is currently:
 - a **Docker Space**
-- named like `<user>/agilab`
+- named like `<user>/agilab` for the default `first-proof` profile
+- optionally named like `<user>/agilab-advanced` for the heavier `advanced`
+  profile
 - launched on port `7860`
 - backed by the AGILAB Streamlit interface
 - built from the public `agilab` repo plus the private `thales_agilab/huggingface` packaging bundle
 
-Treat this as the default target unless the user explicitly asks for a different Space shape.
+Treat `first-proof` as the default target unless the user explicitly asks for
+the advanced companion Space.
 
 ## What the Space Actually Publishes
 
 The current deploy path stages:
-- `README.md` from `thales_agilab/huggingface`
+- profile README from `thales_agilab/huggingface`
+  - `README.md` for `first-proof`
+  - `README.advanced.md` for `advanced`
 - `Dockerfile` from `thales_agilab/huggingface`
 - `.dockerignore` from `thales_agilab/huggingface`
+- `seed_hf_app_settings.py` from `thales_agilab/huggingface`
 - `docker/install.sh` from the public `agilab` repo
 - `src/` from the public `agilab` repo
 - `pyproject.toml` from the public `agilab` repo
@@ -41,17 +49,37 @@ The current deploy path stages:
 
 This is not a raw repo push and not a generic Space scaffold. The deploy script assembles a bounded staging directory and uploads that to Hugging Face.
 
+Profile app/page sets:
+- `first-proof`
+  - apps: `flight_project`, `meteo_forecast_project`
+  - pages: `view_maps`, `view_forecast_analysis`, `view_release_decision`
+- `advanced`
+  - apps: `data_io_2026_project`, `execution_pandas_project`,
+    `execution_polars_project`, `flight_project`, `meteo_forecast_project`,
+    `mycode_project`, `uav_queue_project`, `uav_relay_queue_project`
+  - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,
+    `view_maps_network`, `view_release_decision`, `view_uav_queue_analysis`,
+    `view_uav_relay_queue_analysis`
+
+The advanced profile installs every current built-in demo app, but it still
+avoids unrelated historical heavyweight pages that are not part of the current
+Advanced Proof Pack.
+
 ## Runtime and Product Constraints
 
 Keep the skill aligned with the README contract:
 - the Space exposes the AGILAB Streamlit interface
-- Space mode is single-node only
+- Space mode is single-container only
+- local Dask multi-worker execution may be demonstrated inside that container
+  using `127.0.0.1:8786`, `{"127.0.0.1": 2}`, and a writable in-container
+  `AGI_CLUSTER_SHARE`
 - offline/local LLM paths such as Ollama are not available there
 - storage is ephemeral unless a Hugging Face dataset mount is used
 
 Do not promise:
-- multi-node ORCHESTRATE behavior
+- remote multi-node ORCHESTRATE behavior
 - remote-cluster parity
+- remote SSH workers from the hosted Space
 - local `~/agi-space` or `~/wenv` semantics
 - developer-machine assumptions
 
@@ -75,6 +103,7 @@ Use the documented flow:
 
 ```bash
 ./huggingface/hf_space_deploy.sh \
+  --profile first-proof \
   --agilab-path </path/to/agilab> \
   --space <user>/agilab \
   --create
@@ -84,11 +113,23 @@ For an existing Space:
 
 ```bash
 ./huggingface/hf_space_deploy.sh \
+  --profile first-proof \
   --agilab-path </path/to/agilab> \
   --space <user>/agilab
 ```
 
+For the heavier companion Space:
+
+```bash
+./huggingface/hf_space_deploy.sh \
+  --profile advanced \
+  --agilab-path </path/to/agilab> \
+  --space <user>/agilab-advanced \
+  --create
+```
+
 Relevant options from the script:
+- `--profile first-proof|advanced`
 - `--agilab-path`
 - `--space`
 - `--private`
@@ -107,11 +148,14 @@ Before touching the Space deployment, verify:
    - SDK type
    - exposed port
    - secret names
+   - profile app/page lists
    - target repo content
 5. `src/agilab/apps` in the deploy source contains only public entries such as
    `builtin`, `templates`, `install.py`, and package metadata. If the working
    checkout has ignored private app symlinks, deploy from a temporary clean
    worktree at `origin/main` rather than from the dirty checkout.
+   Also verify LFS-backed built-in assets are present in that clean worktree
+   before staging the Space.
 6. Any public-facing AGILAB docs that link to the Space are updated only after the deployment contract is stable.
 
 When feasible, inspect the deploy script rather than paraphrasing it from memory.
@@ -121,11 +165,17 @@ Clean worktree pattern when private app symlinks are present:
 ```bash
 tmpdir=$(mktemp -d /tmp/agilab-hf-public.XXXXXX)
 git worktree add --detach "$tmpdir" origin/main
+git -C "$tmpdir" lfs install --local
+git -C "$tmpdir" lfs pull
+find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort
 /Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh \
+  --profile first-proof \
   --agilab-path "$tmpdir" \
   --space jpmorard/agilab
-git worktree remove "$tmpdir"
 ```
+
+Use `--profile advanced --space jpmorard/agilab-advanced` for the heavier
+Advanced Proof Pack companion Space.
 
 After upload, verify the Space cutover separately from the file upload:
 
@@ -137,6 +187,46 @@ curl -I -L --max-time 20 https://jpmorard-agilab.hf.space/
 If the fix is about a deployed file, download that exact file from the Space and
 inspect it. Do not assume the runtime is serving the new code until
 `runtime.stage` is `RUNNING` and the runtime SHA matches the uploaded Space SHA.
+Only remove the temporary worktree after this cutover check passes:
+
+```bash
+git worktree remove "$tmpdir"
+```
+
+Runtime cutover check:
+
+```bash
+python3 - <<'PY'
+import json
+import subprocess
+import time
+
+for attempt in range(1, 31):
+    info = json.loads(subprocess.check_output(
+        ["hf", "spaces", "info", "jpmorard/agilab", "--format", "json"],
+        text=True,
+    ))
+    runtime = info.get("runtime") or {}
+    raw = runtime.get("raw") or {}
+    stage = runtime.get("stage") or raw.get("stage")
+    repo_sha = info.get("sha")
+    runtime_sha = raw.get("sha")
+    private = info.get("private")
+    print(f"attempt={attempt} stage={stage} private={private} repo_sha={repo_sha} runtime_sha={runtime_sha}")
+    if stage in {"RUNNING", "READY"} and private is False and runtime_sha == repo_sha:
+        raise SystemExit(0)
+    time.sleep(20)
+raise SystemExit(1)
+PY
+```
+
+If the Space is stuck in `RUNNING_BUILDING` or `RUNNING_APP_STARTING`, inspect
+the relevant logs before making another upload:
+
+```bash
+hf spaces logs jpmorard/agilab --build --tail 120
+hf spaces logs jpmorard/agilab --tail 160
+```
 
 ## When Editing the Space Contract
 

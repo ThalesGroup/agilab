@@ -137,7 +137,7 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
         zoom_start=1.0,
         zoom_end=1.03,
         highlight=(0.22, 0.30, 0.95, 0.93),
-        highlight_label="view_maps_network",
+        highlight_label="view_maps",
         overlay="view_maps",
     ),
 )
@@ -836,7 +836,7 @@ def draw_view_maps_overlay(canvas: Image.Image, scene: Scene, slide_x: int, slid
     draw = ImageDraw.Draw(map_panel)
     draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=28, fill=(9, 22, 35, 244), outline=(255, 255, 255, 34), width=2)
     draw.rounded_rectangle((18, 16, 264, 52), radius=14, fill=(255, 255, 255, 22))
-    draw.text((36, 24), "view_maps_network", font=FONT_HIGHLIGHT, fill=INK)
+    draw.text((36, 24), "view_maps", font=FONT_HIGHLIGHT, fill=INK)
 
     map_rect = (18, 68, box_w - 18, box_h - 18)
     x0, y0, x1, y1 = map_rect

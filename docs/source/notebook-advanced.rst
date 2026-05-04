@@ -71,9 +71,10 @@ From the AGILab repository root:
 If you also want local Ollama-backed models available in the same source
 checkout, rerun the installer with the families you want::
 
-   ./install.sh --install-apps --install-local-models qwen,deepseek,gpt-oss
+   ./install.sh --install-apps --install-local-models gpt-oss,qwen3-coder,ministral,phi4-mini
 
-Supported values are ``mistral``, ``qwen``, ``deepseek``, and ``gpt-oss``.
+Supported values are ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``,
+``qwen3-coder``, ``ministral``, and ``phi4-mini``.
 
 The notebook file lives in the repository at
 ``examples/notebook_quickstart/agi_core_first_run.ipynb``.
@@ -103,16 +104,16 @@ Cell 2: build ``AgiEnv`` and run the smallest local ``AGI.run(...)`` shape.
 
 .. code-block:: python
 
-   from agi_cluster.agi_distributor import AGI
+   from agi_cluster.agi_distributor import AGI, RunRequest
    from agi_env import AgiEnv
 
    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)
-   result = await AGI.run(
-       app_env,
+   request = RunRequest(
        scheduler="127.0.0.1",
        workers={"127.0.0.1": 1},
-       mode=0,
+       mode=AGI.PYTHON_MODE,
    )
+   result = await AGI.run(app_env, request=request)
    result
 
 Cell 3: inspect the run artifacts.

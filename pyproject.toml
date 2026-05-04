@@ -1,7 +1,7 @@
 [project]
-version = "2026.4.27.post6"
+version = "2026.05.01.post4"
 name = "agilab"
-description = "AGILAB is an end-to-end experimentation platform linking interactive development with scalable, reproducible execution orchestration."
+description = "AGILAB is a reproducible AI/ML workbench for engineering teams."
 requires-python = ">=3.11"
 readme = "README.pypi.md"
 authors = [
@@ -13,7 +13,7 @@ license-files = ["LICENSE"]
 
 classifiers = [
     "Intended Audience :: Developers",
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -23,20 +23,45 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
 ]
 keywords = [
-    "ai-experimentation",
-    "ai-lab",
-    "agentic-ai",
-    "jupyter-notebooks",
-    "multi-venv",
-    "streamlit",
-    "distributed-execution",
-    "mlops",
     "python",
-    "pycharm",
+    "machine-learning",
+    "ai-experimentation",
+    "reproducibility",
+    "reproducible-research",
+    "mlops",
+    "workflow-orchestration",
+    "distributed-computing",
+    "distributed-execution",
+    "streamlit",
+    "mlflow",
+    "experiment-tracking",
+    "dask",
     "jupyter",
-    "ci-cd"
+    "jupyter-notebook",
+    "cython",
+    "free-threaded-python",
+    "agentic-ai",
+    "ai-agents",
+    "codex",
+    "claude",
 ]
-dependencies = ["astor", "asyncssh", "fastparquet", "geojson", "geopy", "humanize", "jupyter-ai", "keras", "matplotlib", "mlflow", "networkx", "noise", "numba>=0.61.0", "numpy>=1.14.1", "openai", "pathspec", "plotly", "polars", "pulp", "py7zr", "scipy==1.16.1", "seaborn", "simpy>=4.1,<5", "skforecast>=0.19,<0.20", "tomli", "tomli_w", "sgp4", "agi-core==2026.4.27.post6", "agi-gui==2026.4.27.post6", "legacy-cgi; python_version >= '3.13'", "standard-imghdr; python_version >= '3.13'"]
+dependencies = [
+    "agi-core==2026.05.01.post4",
+    "agi-gui==2026.05.01.post4",
+    "astor>=0.8.1",
+    "legacy-cgi>=2.6.4; python_version >= '3.13'",
+    "mlflow>=3.11.1",
+    "mlx>=0.31.2",
+    "mlx-lm>=0.31.3",
+    "networkx>=3.6.1",
+    "numpy>=1.14.1",
+    "pandas>=2.3.0",
+    "pathspec>=1.1.0",
+    "pydantic>=2.13.3",
+    "standard-imghdr>=3.13.0; python_version >= '3.13'",
+    "streamlit>=1.56.0",
+    "tomli_w>=1.2.0",
+]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -50,7 +75,65 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
-offline = ["gpt-oss>=0.0.8; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "accelerate>=0.34.2; python_version >= '3.12'"]
+ai = ["openai>=2.32.0"]
+viz = ["matplotlib>=3.10.0", "plotly>=6.7.0"]
+offline = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -160,12 +243,15 @@ offline = ["gpt-oss>=0.0.8; python_version >= '3.12'", "universal-offline-ai-cha
 dev = [
     "agi-core",
     "build",
+    "geojson>=3.2.0",
+    "ipython",
     "pip",
     "pytest",
     "pytest-cov",
     "pytest-local-badge",
     "pytest-asyncio",
     "setuptools",
+    "simpy>=4.1,<5",
     "twine",
     "wheel",
     "ydata-profiling",
@@ -209,6 +295,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = [
     "agilab",
+    "agilab.about_page*",
     "agilab.resources*",
 ]
 exclude = [
@@ -225,17 +312,39 @@ exclude = [
 agilab = [
     "resources/*.*",
     "resources/help/*",
+    "examples/README.md",
+    "examples/*/README.md",
+    "examples/*/AGI_*.py",
+    "examples/inter_project_dag/*.py",
+    "examples/inter_project_dag/*.json",
+    "examples/notebook_to_dask/*.py",
+    "examples/notebook_to_dask/*.json",
+    "examples/notebook_to_dask/*.toml",
+    "examples/notebook_to_dask/*.ipynb",
+    "examples/notebook_migrations/*/README.md",
+    "examples/notebook_migrations/*/analysis_artifacts/*.csv",
+    "examples/notebook_migrations/*/analysis_artifacts/*.json",
+    "examples/notebook_migrations/*/data/*.csv",
+    "examples/notebook_migrations/*/migrated_project/*.dot",
+    "examples/notebook_migrations/*/migrated_project/*.toml",
+    "examples/notebook_migrations/*/notebooks/*.ipynb",
+    "examples/service_mode/*.py",
+    "examples/service_mode/*.json",
     "pages/*.py",
     "apps/install.py",
     "apps/builtin/*/pyproject.toml",
     "apps/builtin/*/README.md",
     "apps/builtin/*/lab_steps.toml",
     "apps/builtin/*/pipeline_view.dot",
+    "apps/builtin/*/notebook_export.toml",
+    "apps/builtin/*/notebook_import_views.toml",
     "apps/builtin/*/src/**/*.py",
     "apps/builtin/*/src/**/*.pyx",
     "apps/builtin/*/src/**/*.toml",
+    "apps/builtin/*/src/*.json",
     "apps/builtin/*/src/**/*.csv",
     "apps/builtin/*/src/**/*.dot",
+    "apps/builtin/*/src/*/*.7z",
     "apps/builtin/*/src/*/sample_data/*.json",
     "apps-pages/README.md",
     "apps-pages/*/pyproject.toml",
@@ -250,7 +359,6 @@ agilab = [
     # Keep internal tests out of the distribution.
     "test/*",
     # Drop local build artifacts from packaged built-in apps.
-    "apps/builtin/*/src/pre_prompt.json",
     "apps/builtin/*/src/__pycache__/*",
     "apps/builtin/*/src/*/__pycache__/*",
     "apps/builtin/*/src/*/*/__pycache__/*",
@@ -260,14 +368,13 @@ agilab = [
     "apps/builtin/*/src/*.egg-info/*",
     "apps/builtin/*/src/*/*.egg-info/*",
     "apps/builtin/*/src/*/*.c",
-    "apps/builtin/*/src/*/*.7z",
 ]
 
 [tool.mypy]
 mypy_path = [
     "stubs",
 ]
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 ignore_missing_imports = true
 
 [tool.pyment]

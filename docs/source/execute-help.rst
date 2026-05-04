@@ -17,11 +17,11 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/orchestrate-page.png
-   :alt: Screenshot of the ORCHESTRATE page showing system settings, install snippet, and execution controls.
+   :alt: Screenshot of the ORCHESTRATE page showing deployment toggles and the generated install snippet.
    :align: center
    :class: diagram-panel diagram-wide
 
-   ORCHESTRATE centralises deployment settings, generated snippets, install logs, and run controls in one operational page.
+   ORCHESTRATE centralises deployment settings and generated snippets before install, distribution, and run actions.
 
 Sidebar
 -------
@@ -144,14 +144,14 @@ Common examples:
      - ``cluster + pool + cython + rapids``
      - All currently enabled execution flags.
 
-This is why a generated ``AGI.install(...)`` snippet may show
-``modes_enabled=13`` and the matching ``AGI.run(...)`` snippet may show
-``mode=13``: they both reflect the same toggle combination, but one prepares
-the runtime capabilities and the other selects the concrete run mode.
+This is why generated snippets should express execution intent with public
+constants such as ``AGI.PYTHON_MODE | AGI.DASK_MODE`` and pass run settings
+through ``RunRequest``. One snippet prepares runtime capabilities through
+``AGI.install(..., modes_enabled=...)``; the other selects the concrete run
+shape through ``AGI.run(app_env, request=request)``.
 
-In normal usage, you do not type these integers manually. You set the toggles
-in ``System settings`` and AGILAB generates the matching numeric value for the
-snippet.
+In normal usage, you do not type bitmasks manually. You set the toggles in
+``System settings`` and AGILAB generates the matching snippet.
 
 From UI to Snippet Fields
 -------------------------
@@ -233,9 +233,8 @@ For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
    snippet in Pipeline.
 
 This avoids running stale code that still references old app argument values.
-For example, ``sat_trajectory_project`` snippets now use
-``total_satellites_wanted``; older exports using ``number_of_sat`` or
-``number_of_tle_satellites`` will fail fast until you regenerate them.
+For example, when an app renames an argument, older saved snippets that still
+pass the removed name will fail fast until you regenerate or replace them.
 
 Service Mode Health
 -------------------

@@ -1,31 +1,43 @@
-[![PyPI version](https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300)](https://pypi.org/project/agilab)
-[![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
+[![PyPI version](https://img.shields.io/badge/PyPI-2026.4.25-informational?logo=pypi)](https://pypi.org/project/agilab)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
-[![PyPI downloads](https://img.shields.io/pypi/dm/agilab)](https://pypi.org/project/agilab/)
-[![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml) [![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg)](https://codecov.io/gh/ThalesGroup/agilab) [![GitHub stars](https://img.shields.io/github/stars/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab) [![Commit activity](https://img.shields.io/github/commit-activity/m/ThalesGroup/agilab.svg)](https://github.com/ThalesGroup/agilab/pulse) [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/ThalesGroup/agilab/pulls) [![Open issues](https://img.shields.io/github/issues/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab/issues) [![PyPI - Format](https://img.shields.io/pypi/format/agilab)](https://pypi.org/project/agilab/) [![Repo size](https://img.shields.io/github/repo-size/ThalesGroup/agilab)](https://github.com/ThalesGroup/agilab)
+[![GitHub](https://img.shields.io/badge/GitHub-ThalesGroup%2Fagilab-black?logo=github)](https://github.com/ThalesGroup/agilab)
 
 # AGILAB Docker Deployment
 
-This directory contains the optional Docker setup for running AGILAB with
-offline LLM capabilities through a multi-container architecture.
+Docker setup for running AGILAB standalone or as a simulated cluster with worker nodes.
 
 ## Architecture
 
-The setup consists of two containers:
+### Standalone (default)
 
-1. **agilab-main**: Main AGILAB application with Streamlit GUI
-2. **agilab-ollama**: Offline LLM service running Ollama with Mistral and GPT-OSS models
+| Container | Image | Role |
+|---|---|---|
+| `agilab` | built from `docker/Dockerfile` | Streamlit UI + scheduler (port 8501) |
+| `agilab-ollama` | `ollama/ollama` | Offline LLM inference API (port 11434) |
+
+### Cluster mode
+
+| Container | Image | Role |
+|---|---|---|
+| `agilab` | built from `docker/Dockerfile` | Streamlit UI + scheduler + sshd |
+| `agilab-worker-1` | built from `docker/Dockerfile-Worker` | Worker node (sshd port 22) |
+| `agilab-worker-2` | built from `docker/Dockerfile-Worker` | Worker node (sshd port 22) |
+| `agilab-ollama` | `ollama/ollama` | Offline LLM inference API (port 11434) |
+
+In cluster mode the scheduler SSHes into workers to distribute jobs, and workers
+sshfs-mount `/root/clustershare` from the scheduler to share datasets.
 
 ## Prerequisites
 
-- Docker Engine 20.10+
-- Docker Compose v2.0+
-- At least 8GB RAM (16GB recommended for LLM models)
-- 20GB free disk space (for models and dependencies)
+- Docker Engine 24.0+
+- Docker Compose 2.22+
+- `/dev/fuse` available on the host (required by workers for sshfs — present by default on Linux)
+- 8 GB RAM minimum (16 GB recommended when using LLM models)
+- 20 GB free disk space
 
 ## Quick Start
 
-### Using Docker Compose (Recommended)
+### Standalone
 
 1. **Set environment variables** (optional):
    ```bash
@@ -33,80 +45,148 @@ The setup consists of two containers:
    export CLUSTER_CREDENTIALS="user:password"
    ```
 
-2. **Start all services**:
+2. **Start services**:
    ```bash
-   docker compose -f docker/docker-compose.yml up -d
+   docker compose -f docker/docker-compose.yml up -d agilab ollama
    ```
 
-3. **Access the application**:
-   - AGILAB GUI: http://localhost:8501
-   - Ollama API: http://localhost:11434
+3. **Pull an LLM model** (first time only — persisted in `ollama-models` volume):
+   ```bash
+   docker exec agilab-ollama ollama pull qwen3-coder:30b-a3b-q4_K_M
+   ```
+   Other supported local models: `gpt-oss:20b`, `qwen2.5-coder:latest`,
+   `deepseek-coder:latest`, `qwen3:30b-a3b-instruct-2507-q4_K_M`,
+   `ministral-3:14b-instruct-2512-q4_K_M`, `phi4-mini:3.8b-q4_K_M`.
+   See [ollama.com/library](https://ollama.com/library).
 
-4. **Stop services**:
+4. **Access the UI**: http://localhost:8501
+
+5. **Stop**:
    ```bash
    docker compose -f docker/docker-compose.yml down
    ```
 
-### Manual Build and Run
+### Cluster mode (scheduler + 2 workers)
 
-#### Build the main AGILAB image:
+```bash
+# Start the full cluster (add ollama if needed)
+docker compose -f docker/docker-compose.yml up -d agilab worker-1 worker-2
+
+# Check all nodes are up
+docker compose -f docker/docker-compose.yml ps
+
+# In the AGILAB UI, configure workers:
+#   Scheduler: agilab:22
+#   Workers:   root@worker-1, root@worker-2
+#   CLUSTER_CREDENTIALS: root:password
+```
+
+Workers require `CAP_SYS_ADMIN` and `/dev/fuse` for sshfs mounts — both are set
+in `docker-compose.yml`. On some Linux distributions you may also need:
+```bash
+sudo modprobe fuse
+```
+
+## Development Workflow
+
+For fast iteration without rebuilding, use Docker Compose `watch`.
+It syncs `src/` into the running container on save — Streamlit hot-reloads automatically:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml watch
+```
+
+Rebuild only when `pyproject.toml` or `docker/install.sh` changes:
+```bash
+docker compose -f docker/docker-compose.yml build
+docker compose -f docker/docker-compose.yml up -d
+```
+
+## Manual Build and Run
+
+**Scheduler image** (from repo root):
 ```bash
 docker buildx build -f docker/Dockerfile -t agilab .
 ```
 
-#### Build the Ollama LLM image:
+**Worker image**:
 ```bash
-docker buildx build -f docker/Dockerfile-Ollama -t agilab-ollama .
+docker buildx build -f docker/Dockerfile-Worker -t agilab-worker .
 ```
 
-#### Create a network:
-```bash
-docker network create agilab-network
-```
-
-#### Run Ollama container:
+**Standalone run** (no Ollama):
 ```bash
 docker run -d \
-  --name agilab-ollama \
-  --network agilab-network \
-  -p 11434:11434 \
-  -v ollama-models:/root/.ollama \
-  agilab-ollama
-```
-
-#### Run AGILAB container:
-```bash
-docker run -d \
-  --name agilab-main \
-  --network agilab-network \
+  --name agilab \
   -p 8501:8501 \
   -e OPENAI_API_KEY="your-api-key" \
-  -e OLLAMA_HOST="http://agilab-ollama:11434" \
   agilab
 ```
 
-## Configuration
+**Manual cluster run**:
+```bash
+docker network create agilab-network
 
-### Environment Variables
+docker run -d --name agilab --hostname agilab \
+  --network agilab-network -p 8501:8501 \
+  -e CLUSTER_CREDENTIALS="root:password" \
+  -v cluster-share:/root/clustershare \
+  agilab
 
-#### Main Application (agilab)
-- `OPENAI_API_KEY`: OpenAI API key (default: "dummykey")
-- `CLUSTER_CREDENTIALS`: SSH credentials for cluster access (default: "root:password")
-- `AGI_PYTHON_VERSION`: Python version to use (default: "3.13.9")
-- `AGI_PYTHON_FREE_THREADED`: Enable free-threaded Python (default: "0")
-- `OLLAMA_HOST`: Ollama service URL (default: "http://ollama:11434")
+docker run -d --name agilab-worker-1 --hostname worker-1 \
+  --network agilab-network \
+  --device /dev/fuse --cap-add SYS_ADMIN \
+  --security-opt apparmor:unconfined \
+  -e CLUSTER_CREDENTIALS="root:password" \
+  agilab-worker
+```
 
-#### Ollama Container
-The Ollama container automatically pulls the following models on first startup:
-- `mistral:instruct` (~4GB)
-- `gpt-oss:20b` (~12GB)
+## Environment Variables
 
-**Note**: Initial startup may take 15-30 minutes to download models.
+| Variable | Default | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | `dummykey` | OpenAI API key |
+| `CLUSTER_CREDENTIALS` | `root:password` | SSH credentials — format `user:password` |
+| `AGI_PYTHON_VERSION` | `3.13.9` | Python version managed by uv |
+| `AGI_PYTHON_FREE_THREADED` | `0` | Enable free-threaded Python build |
+| `OLLAMA_HOST` | `http://agilab-ollama:11434` | Ollama service endpoint |
+| `APPS_REPOSITORY` | _(empty)_ | Optional external apps repository path |
 
-### Volume Mounts
+## Volumes
 
-Persistent data is stored in Docker volumes:
-- `agilab-logs`: Application logs
-- `agilab-config`: AGILAB configuration
-- `ollama-models`: Ollama model storage
-- `ollama-logs`: Ollama service logs
+| Volume | Used by | Description |
+|---|---|---|
+| `agilab-logs` | scheduler | Application logs |
+| `agilab-config` | scheduler | AGILAB configuration (`~/.agilab`) |
+| `cluster-share` | scheduler | Shared dataset directory mounted by workers via sshfs |
+| `ollama-models` | ollama | Model storage (persists across restarts) |
+
+## Files
+
+| File | Description |
+|---|---|
+| `Dockerfile` | Scheduler image (Streamlit + sshd) |
+| `Dockerfile-Worker` | Worker image (sshd + agi-node + agi-cluster) |
+| `scheduler-entrypoint.sh` | Sets SSH password, starts sshd and Streamlit |
+| `worker-entrypoint.sh` | Sets SSH password, writes `.env`, starts sshd |
+| `docker-compose.yml` | Full cluster: scheduler + 2 workers + ollama |
+| `install.sh` | Lightweight install script for Docker builds |
+
+## GPU Support (optional)
+
+To enable GPU acceleration for Ollama, add a `deploy` section to the `ollama` service in `docker-compose.yml`:
+
+```yaml
+ollama:
+  image: ollama/ollama
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+```
+
+Requires [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html).

@@ -20,7 +20,6 @@ import zipfile
 from pathlib import Path
 import ast
 import re
-import importlib
 import importlib.util
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
@@ -46,6 +45,7 @@ from agi_gui.pagelib import (
     render_logo,
     activate_mlflow
 )
+from agi_gui.ux_widgets import compact_choice
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 from streamlit_modal import Modal
@@ -59,6 +59,44 @@ _code_editor_support_module = import_agilab_module(
     fallback_name="agilab_code_editor_support_fallback",
 )
 normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
+
+_page_bootstrap_module = import_agilab_module(
+    "agilab.page_bootstrap",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
+    fallback_name="agilab_page_bootstrap_fallback",
+)
+ensure_page_env = _page_bootstrap_module.ensure_page_env
+
+_pinned_expander_module = import_agilab_module(
+    "agilab.pinned_expander",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+render_pinned_expanders = _pinned_expander_module.render_pinned_expanders
+is_pinned_expander = _pinned_expander_module.is_pinned_expander
+remove_pinned_expander = _pinned_expander_module.remove_pinned_expander
+upsert_pinned_expander = _pinned_expander_module.upsert_pinned_expander
+
+_workflow_ui_module = import_agilab_module(
+    "agilab.workflow_ui",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+render_page_context = _workflow_ui_module.render_page_context
+
+_action_execution_module = import_agilab_module(
+    "agilab.action_execution",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "action_execution.py",
+    fallback_name="agilab_action_execution_fallback",
+)
+ActionResult = _action_execution_module.ActionResult
+ActionSpec = _action_execution_module.ActionSpec
+render_action_result = _action_execution_module.render_action_result
+run_streamlit_action = _action_execution_module.run_streamlit_action
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -77,6 +115,8 @@ CLONE_ENV_STRATEGY_CAPTIONS = {
         "so run INSTALL before EXECUTE."
     ),
 }
+EDITOR_PIN_RESPONSE = "editor_pin"
+EDITOR_UNPIN_RESPONSE = "editor_unpin"
 
 
 # -------------------- Source Extractor Class -------------------- #
@@ -360,6 +400,99 @@ def _write_python_source(path: Path, source_code: str) -> None:
     path.write_text(source_code)
 
 
+def _save_code_editor_file_action(file: Path, updated_text: str, lang: str) -> ActionResult:
+    path = Path(file)
+    if lang == "json":
+        try:
+            json.loads(updated_text)
+        except json.JSONDecodeError as exc:
+            return ActionResult.error(
+                f"Failed to save changes to '{path.name}'.",
+                detail=f"Invalid JSON format. {exc}",
+                next_action="Fix the JSON syntax and save again.",
+                data={"file": path},
+            )
+
+    try:
+        path.write_text(updated_text, encoding="utf-8")
+    except OSError as exc:
+        return ActionResult.error(
+            f"Failed to save changes to '{path.name}'.",
+            detail=str(exc),
+            next_action="Check filesystem permissions and retry.",
+            data={"file": path},
+        )
+
+    return ActionResult.success(
+        f"Changes saved to '{path.name}'.",
+        data={"file": path, "lang": lang},
+    )
+
+
+def _update_attributes_source_action(
+    path: Path,
+    updated_attributes_code: str,
+    selected_class: str,
+) -> ActionResult:
+    try:
+        original_source = _read_python_source(path)
+        updated_source = _build_updated_attributes_source(
+            original_source,
+            updated_attributes_code,
+            selected_class,
+        )
+        _write_python_source(path, updated_source)
+    except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            "Error updating attributes.",
+            detail=str(exc),
+            next_action="Fix the attributes snippet and save again.",
+            data={"file": path, "selected_class": selected_class},
+        )
+
+    return ActionResult.success(
+        "Attributes updated successfully.",
+        data={"file": path, "selected_class": selected_class},
+    )
+
+
+def _update_function_source_action(
+    path: Path,
+    updated_function_code: str,
+    selected_item: str,
+    selected_class: str,
+) -> ActionResult:
+    try:
+        original_source = _read_python_source(path)
+        updated_source = _build_updated_function_source(
+            original_source,
+            updated_function_code,
+            selected_item,
+            selected_class,
+        )
+        _write_python_source(path, updated_source)
+    except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Error updating function/method '{selected_item}'.",
+            detail=str(exc),
+            next_action="Fix the function snippet and save again.",
+            data={
+                "file": path,
+                "selected_item": selected_item,
+                "selected_class": selected_class,
+            },
+        )
+
+    return ActionResult.success(
+        f"Function/Method '{selected_item}' updated successfully.",
+        data={
+            "file": path,
+            "selected_item": selected_item,
+            "selected_class": selected_class,
+        },
+    )
+
+
 def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
     source_project = target_project
     templates_root = env.apps_path / "templates"
@@ -572,17 +705,19 @@ def _cleanup_module_artifacts(app_name, target_name, errors):
 # -------------------- Project Export Handler -------------------- #
 
 
-def handle_export_project():
-    """
-    Handle the export of a project to a zip file.
-    """
-    env = st.session_state["env"]
-    input_dir = env.active_app
-    output_zip = (env.export_apps / env.app).with_suffix(".zip")
-    gitignore_path = input_dir / ".gitignore"
+def _export_project_action(env: AgiEnv) -> ActionResult:
+    input_dir = Path(env.active_app)
+    if not input_dir.exists():
+        return ActionResult.error(
+            f"Project '{env.app}' does not exist.",
+            next_action="Refresh the PROJECT page or select another project.",
+            data={"app": env.app, "input_dir": input_dir},
+        )
 
-    if not gitignore_path.exists():
-        st.info("No .gitignore found; exporting all files.")
+    output_zip = (env.export_apps / env.app).with_suffix(".zip")
+    output_zip.parent.mkdir(parents=True, exist_ok=True)
+    gitignore_path = input_dir / ".gitignore"
+    detail = None if gitignore_path.exists() else "No .gitignore found; exported all files."
     spec = read_gitignore(gitignore_path)
 
     with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as out:
@@ -591,19 +726,133 @@ def handle_export_project():
             if spec.match_file(rel_root):
                 continue
             for file in files:
-                relative_file_path = os.path.relpath(
-                    os.path.join(root, file), input_dir
-                )
+                source_path = Path(root) / file
+                relative_file_path = os.path.relpath(source_path, input_dir)
                 if not spec.match_file(relative_file_path):
-                    out.write(os.path.join(root, file), relative_file_path)
+                    out.write(source_path, relative_file_path)
 
-    st.session_state["export_message"] = "Export completed."
-    time.sleep(1)
     app_zip = env.app + ".zip"
-    if app_zip not in st.session_state["archives"]:
-        st.session_state["archives"].append(app_zip)
+    return ActionResult.success(
+        f"Project exported to {output_zip}",
+        detail=detail,
+        data={"app": env.app, "app_zip": app_zip, "output_zip": output_zip},
+    )
 
-    st.info(f"Project exported to {(env.export_apps / app_zip)}")
+
+def handle_export_project():
+    """
+    Handle the export of a project to a zip file.
+    """
+    env = st.session_state["env"]
+
+    def _remember_export(result):
+        app_zip = str(result.data["app_zip"])
+        archives = st.session_state.setdefault("archives", ["-- Select a file --"])
+        if app_zip not in archives:
+            archives.append(app_zip)
+        st.session_state["export_message"] = "Export completed."
+
+    run_streamlit_action(
+        st,
+        ActionSpec(
+            name="Export project",
+            start_message=f"Exporting project '{env.app}'...",
+            failure_title="Project export failed.",
+            failure_next_action="Check the project path, export directory, and filesystem permissions.",
+        ),
+        lambda: _export_project_action(env),
+        on_success=_remember_export,
+    )
+
+
+def _import_project_action(
+    env: AgiEnv,
+    *,
+    project_zip: str,
+    clean: bool = False,
+    overwrite: bool = False,
+) -> ActionResult:
+    selected_archive = str(project_zip).strip()
+    if not selected_archive or selected_archive == "-- Select a file --":
+        return ActionResult.error(
+            "Please select a project archive.",
+            next_action="Choose an exported project zip from the sidebar.",
+        )
+
+    zip_path = env.export_apps / selected_archive
+    if not zip_path.exists():
+        return ActionResult.error(
+            f"Project archive '{selected_archive}' does not exist.",
+            next_action=f"Check {env.export_apps} or export the project again.",
+            data={"project_zip": selected_archive, "zip_path": zip_path},
+        )
+
+    import_target = Path(selected_archive).stem
+    target_dir = env.apps_path / import_target
+    if target_dir.exists():
+        if not overwrite:
+            return ActionResult.warning(
+                f"Project '{import_target}' already exists.",
+                next_action="Confirm overwrite to replace the existing project.",
+                data={
+                    "project_zip": selected_archive,
+                    "import_target": import_target,
+                    "target_dir": target_dir,
+                },
+            )
+        try:
+            shutil.rmtree(target_dir)
+        except OSError as exc:
+            return ActionResult.error(
+                f"Project '{import_target}' is not removable.",
+                detail=str(exc),
+                next_action="Check filesystem permissions, then retry the import.",
+                data={
+                    "project_zip": selected_archive,
+                    "import_target": import_target,
+                    "target_dir": target_dir,
+                },
+            )
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zip_ref:
+            zip_ref.extractall(target_dir)
+        if clean:
+            clean_project(target_dir)
+    except (OSError, RuntimeError, ValueError, zipfile.BadZipFile) as exc:
+        return ActionResult.error(
+            f"Project archive '{selected_archive}' could not be imported.",
+            detail=str(exc),
+            next_action="Check that the archive is a valid exported project zip.",
+            data={
+                "project_zip": selected_archive,
+                "import_target": import_target,
+                "target_dir": target_dir,
+                "zip_path": zip_path,
+            },
+        )
+
+    if not target_dir.exists():
+        return ActionResult.error(
+            f"Error while importing '{import_target}'.",
+            next_action="Check archive contents and filesystem permissions.",
+            data={
+                "project_zip": selected_archive,
+                "import_target": import_target,
+                "target_dir": target_dir,
+            },
+        )
+
+    return ActionResult.success(
+        f"Project '{import_target}' successfully imported.",
+        data={
+            "project_zip": selected_archive,
+            "import_target": import_target,
+            "target_dir": target_dir,
+            "clean": clean,
+            "overwrite": overwrite,
+        },
+    )
 
 
 def import_project(project_zip, ignore=False):
@@ -614,15 +863,14 @@ def import_project(project_zip, ignore=False):
         ignore (bool, optional): Whether to clean the project after import. Defaults to False.
     """
     env = st.session_state["env"]
-    zip_path = env.export_apps / project_zip
-    project_name = Path(project_zip).stem
-    target_dir = env.apps_path / project_name
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        zip_ref.extractall(target_dir)
-    if ignore:
-        clean_project(target_dir)
-
-    st.session_state["project_imported"] = True
+    result = _import_project_action(
+        env,
+        project_zip=project_zip,
+        clean=ignore,
+        overwrite=True,
+    )
+    st.session_state["project_imported"] = result.status == "success"
+    return result
 
 
 # -------------------- Project Cloner (Recursive with .venv Symlink) -------------------- #
@@ -1099,7 +1347,116 @@ class ContentRenamer(ast.NodeTransformer):
 # -------------------- Code Editor Display -------------------- #
 
 
-def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
+def _project_editor_panel_id(
+    file: Path,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> str:
+    path = Path(file).resolve()
+    scope_part = str(scope or "default")
+    fct_part = str(fct or "file")
+    return f"project-editor:{scope_part}:{path}:{tab}:{fct_part}"
+
+
+def _project_editor_pin_title(file: Path, fct: str | None = None) -> str:
+    path = Path(file)
+    parent = path.parent.name
+    title = f"{parent}/{path.name}" if parent else path.name
+    if fct:
+        title = f"{title}:{fct}"
+    return title
+
+
+def _project_editor_body_format(lang: str) -> str:
+    return "markdown" if str(lang).lower() in {"markdown", "md"} else "code"
+
+
+def _project_editor_toolbar_buttons(base_buttons, *, pinned: bool):
+    try:
+        buttons_payload = json.loads(json.dumps(base_buttons or []))
+    except (TypeError, ValueError):
+        buttons_payload = []
+    if isinstance(buttons_payload, dict):
+        toolbar_buttons = buttons_payload.get("buttons", [])
+        if not isinstance(toolbar_buttons, list):
+            toolbar_buttons = []
+    elif isinstance(buttons_payload, list):
+        toolbar_buttons = buttons_payload
+    else:
+        toolbar_buttons = []
+    response_type = EDITOR_UNPIN_RESPONSE if pinned else EDITOR_PIN_RESPONSE
+    pin_button = {
+        "name": "Unpin" if pinned else "Pin",
+        "feather": "Bookmark",
+        "hasText": True,
+        "alwaysOn": True,
+        "commands": [
+            "save-state",
+            [
+                "response",
+                response_type,
+            ],
+        ],
+        "style": {
+            "top": "-0.25rem",
+            "right": "6.8rem",
+            "backgroundColor": "#ffffff",
+            "borderColor": "#4A90E2",
+            "color": "#4A90E2",
+        },
+    }
+    insert_at = 1 if toolbar_buttons else 0
+    toolbar_buttons.insert(insert_at, pin_button)
+    return toolbar_buttons
+
+
+def _upsert_project_editor_pin(
+    file: Path,
+    body: str,
+    lang: str,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> None:
+    path = Path(file)
+    upsert_pinned_expander(
+        st.session_state,
+        _project_editor_panel_id(path, tab, fct, scope),
+        title=_project_editor_pin_title(path, fct),
+        body=body,
+        body_format=_project_editor_body_format(lang),
+        language="" if _project_editor_body_format(lang) == "markdown" else lang,
+        source=str(path),
+        caption="Pinned editor content.",
+    )
+
+
+def _pin_project_editor(
+    file: Path,
+    body: str,
+    lang: str,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> None:
+    _upsert_project_editor_pin(file, body, lang, tab, fct, scope=scope)
+    st.rerun()
+
+
+def _unpin_project_editor(
+    file: Path,
+    tab: str,
+    fct: str | None = None,
+    scope: str | None = None,
+) -> None:
+    remove_pinned_expander(
+        st.session_state,
+        _project_editor_panel_id(Path(file), tab, fct, scope),
+    )
+    st.rerun()
+
+def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None, buttons=None, scope: str | None = None):
     """
     Display a code editor component with the given code.
 
@@ -1115,17 +1472,27 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
     Returns:
         dict or None: The response from the code_editor component, if any.
     """
-    target_class = st.session_state.get("selected_class", "module-level")
-    if os.access(file, os.W_OK):
+    path = Path(file)
+    editor_scope = f"{scope}" if scope else str(tab)
+    class_state_key = f"selected_class_{editor_scope}"
+    target_class = st.session_state.get(class_state_key, "module-level")
+    if os.access(path, os.W_OK):
+        panel_id = _project_editor_panel_id(path, tab, fct, editor_scope)
+        pinned = is_pinned_expander(st.session_state, panel_id)
+        if pinned:
+            _upsert_project_editor_pin(path, code, lang, tab, fct, scope=editor_scope)
         info_bar = json.loads(json.dumps(INFO_BAR))
-        info_bar["info"][0]["name"] = file.name
-        # Incorporate the file name, class name, tab, and function/item name into the key to ensure uniqueness
-        editor_key = f"{file}_{target_class}_{tab}_{fct}"
+        info_bar["info"][0]["name"] = path.name
+        # Include a stable scope, file path, class name, tab and function/item name.
+        editor_key = f"{editor_scope}:{path}:{target_class}:{tab}:{fct}"
         response = code_editor(
             code,
             height=min(30, len(code)),
             theme="contrast",
-            buttons=CUSTOM_BUTTONS,
+            buttons=_project_editor_toolbar_buttons(
+                buttons if buttons is not None else CUSTOM_BUTTONS,
+                pinned=pinned,
+            ),
             lang=lang,
             info=info_bar,
             component_props=comp_props,
@@ -1134,23 +1501,21 @@ def render_code_editor(file, code, lang, tab, comp_props, ace_props, fct=None):
         )
         # Ensure response has the expected structure
         if isinstance(response, dict):
-            if response.get("type") == "save" and code != response.get("text", ""):
+            response_type = response.get("type")
+            if response_type == EDITOR_PIN_RESPONSE:
+                _pin_project_editor(path, response.get("text", code), lang, tab, fct, scope=editor_scope)
+            elif response_type == EDITOR_UNPIN_RESPONSE:
+                _unpin_project_editor(path, tab, fct, scope=editor_scope)
+            elif response_type == "save" and code != response.get("text", ""):
                 updated_text = response["text"]
-                if lang == "json":
-                    try:
-                        # Validate JSON before saving
-                        json.loads(updated_text)
-                        file.write_text(updated_text)
-                        st.success(f"Changes saved to '{file.name}'.")
-                        time.sleep(1)
-                        if "app_settings" in st.session_state:
-                            del st.session_state["app_settings"]
-                    except json.JSONDecodeError as e:
-                        st.error(f"Failed to save changes: Invalid JSON format. {e}")
-                else:
-                    # For non-JSON files, save directly
-                    file.write_text(updated_text)
-                    st.success(f"Changes saved to '{file.name}'.")
+                if fct is not None:
+                    return response
+                result = _save_code_editor_file_action(path, updated_text, lang)
+                render_action_result(st, result)
+                if result.status == "success" and lang == "json":
+                    time.sleep(1)
+                    st.session_state.pop("app_settings", None)
+        return response
     else:
         # Case when the user doesn't have access to write to the file
         st.write(f"### {file.name}")
@@ -1264,22 +1629,17 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
                 comp_props,
                 ace_props,
                 fct="attributes",
+                scope=key_prefix,
             )
 
             # Check if a save action was triggered
             if isinstance(response, dict) and response.get("type") == "save":
-                try:
-                    updated_attributes_code = response.get("text", attributes_code)
-                    original_source = _read_python_source(path)
-                    updated_source = _build_updated_attributes_source(
-                        original_source,
-                        updated_attributes_code,
-                        st.session_state[class_state_key],
-                    )
-                    _write_python_source(path, updated_source)
-                    st.success("Attributes updated successfully.")
-                except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as ve:
-                    st.error(f"Error updating attributes: {ve}")
+                result = _update_attributes_source_action(
+                    path,
+                    response.get("text", attributes_code),
+                    st.session_state[class_state_key],
+                )
+                render_action_result(st, result)
         else:
             # Handle the selected method or function
             try:
@@ -1298,25 +1658,18 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
                 comp_props,
                 ace_props,
                 fct=selected_item,
+                scope=key_prefix,
             )
 
             # Check if a save action was triggered
             if isinstance(response, dict) and response.get("type") == "save":
-                try:
-                    updated_function_code = response.get("text", function_code)
-                    original_source = _read_python_source(path)
-                    updated_source = _build_updated_function_source(
-                        original_source,
-                        updated_function_code,
-                        selected_item,
-                        st.session_state[class_state_key],
-                    )
-                    _write_python_source(path, updated_source)
-                    st.success(
-                        f"Function/Method '{selected_item}' updated successfully."
-                    )
-                except (OSError, UnicodeDecodeError, SyntaxError, TypeError, ValueError) as ve:
-                    st.error(f"Error updating function/method: {ve}")
+                result = _update_function_source_action(
+                    path,
+                    response.get("text", function_code),
+                    selected_item,
+                    st.session_state[class_state_key],
+                )
+                render_action_result(st, result)
 
 
 # -------------------- Sidebar Handlers -------------------- #
@@ -1347,19 +1700,19 @@ def handle_project_selection():
     ):
         handle_export_project()
 
-    # Define each section as (label, render‑fn)
+    # Keep all sections visible; each renderer handles its own absence checks.
     sections = [
         ("README", lambda: _render_readme(env)),
-        ("PYTHON‑ENV", lambda: _render_python_env(env)),
+        ("PYTHON-ENV", lambda: _render_python_env(env)),
         ("PYTHON-ENV-WORKER", lambda: _render_worker_python_env(env)),
         ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
-        ("EXPORT‑APP‑FILTER", lambda: _render_gitignore(env)),
-        ("PRE‑PROMPT",        lambda: _render_pre_prompt(env)),
-        ("APP‑SETTINGS", lambda: _render_app_settings(env)),
-        ("APP‑ARGS", lambda: _render_app_args_module(env)),
-        ("APP-ARGS‑FORM", lambda: _render_args_ui(env)),
-        ("MANAGER",           lambda: _render_manager(env)),
-        ("WORKER",            lambda: _render_worker(env)),
+        ("EXPORT-APP-FILTER", lambda: _render_gitignore(env)),
+        ("PRE-PROMPT", lambda: _render_pre_prompt(env)),
+        ("APP-SETTINGS", lambda: _render_app_settings(env)),
+        ("APP-ARGS", lambda: _render_app_args_module(env)),
+        ("APP-ARGS-FORM", lambda: _render_args_ui(env)),
+        ("MANAGER", lambda: _render_manager(env)),
+        ("WORKER", lambda: _render_worker(env)),
     ]
 
     for label, render_fn in sections:
@@ -1401,14 +1754,25 @@ def _render_python_env(env):
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
         render_code_editor(
-            app_venv_file, app_venv, "toml", "pyproject", comp_props, ace_props
+            app_venv_file,
+            app_venv,
+            "toml",
+            "pyproject",
+            comp_props,
+            ace_props,
+            scope="pyproject-manager",
         )
     else:
-        st.warning("App settings file not found.")
+        st.warning("Manager pyproject.toml file not found.")
 
 def _render_worker_python_env(env):
-    worker_pyproject = env.worker_pyproject
-    if worker_pyproject and worker_pyproject.exists():
+    worker_pyproject = getattr(env, "worker_pyproject", None)
+    manager_pyproject = env.active_app / "pyproject.toml"
+    if (
+        isinstance(worker_pyproject, Path)
+        and worker_pyproject.exists()
+        and worker_pyproject != manager_pyproject
+    ):
         render_code_editor(
             worker_pyproject,
             worker_pyproject.read_text(),
@@ -1416,21 +1780,28 @@ def _render_worker_python_env(env):
             "worker-pyproject",
             comp_props,
             ace_props,
+            scope="pyproject-worker",
         )
     else:
-        st.warning("Worker pyproject.toml not found.")
+        st.warning("No worker-specific pyproject.toml is defined for this project.")
 
 def _render_uv_env(env):
-    app_venv_file = env.active_app / "uv_config.toml"
+    app_venv_file = getattr(env, "uvproject", env.active_app / "uv_config.toml")
     if app_venv_file.exists():
         app_venv = app_venv_file.read_text()
         if "-cu12" in app_venv:
             st.session_state["rapids"] = True
         render_code_editor(
-            app_venv_file, app_venv, "toml", "uv", comp_props, ace_props
+            app_venv_file,
+            app_venv,
+            "toml",
+            "uv",
+            comp_props,
+            ace_props,
+            scope="uv-config",
         )
     else:
-        st.warning("App settings file not found.")
+        st.warning("No uv_config.toml is defined for this project.")
 
 def _render_manager(env):
     st.header("Edit Manager Module")
@@ -1450,13 +1821,25 @@ def _render_gitignore(env):
             "git",
             comp_props,
             ace_props,
+            scope="gitignore",
         )
     else:
         st.warning("Gitignore file not found.")
 
 def _render_app_settings(env):
-    app_settings_file = env.app_settings_file
+    app_settings_file = getattr(env, "app_settings_file", None)
+    if app_settings_file is None:
+        st.warning("App settings file is not configured for this project.")
+        return
+
+    try:
+        app_settings_file = env.resolve_user_app_settings_file(ensure_exists=True)
+    except (AttributeError, RuntimeError, OSError, TypeError, ValueError):
+        # Keep backward-compatible behavior: fall back to the existing path.
+        pass
+
     if app_settings_file.exists():
+        env.app_settings_file = app_settings_file
         render_code_editor(
             app_settings_file,
             app_settings_file.read_text(),
@@ -1464,6 +1847,7 @@ def _render_app_settings(env):
             "set",
             comp_props,
             ace_props,
+            scope="app-settings",
         )
     else:
         st.warning("App settings file not found.")
@@ -1484,6 +1868,7 @@ def _render_app_args_module(env):
             "st",
             comp_props,
             ace_props,
+            scope="app-args-module",
         )
     else:
         st.warning(f"{module_name} file not found.")
@@ -1492,13 +1877,15 @@ def _render_app_args_module(env):
 def _render_readme(env):
     readme_file = env.active_app / "README.md"
     if readme_file.exists():
+        readme_text = readme_file.read_text(encoding="utf-8")
         render_code_editor(
             readme_file,
-            readme_file.read_text(),
+            readme_text,
             "markdown",
             "readme",
             comp_props,
             ace_props,
+            scope="readme",
         )
     else:
         st.warning("README.md file not found.")
@@ -1514,6 +1901,7 @@ def _render_args_ui(env):
             "st",
             comp_props,
             ace_props,
+            scope="app-args-ui",
         )
     else:
         st.warning("Args UI snippet file not found.")
@@ -1549,7 +1937,250 @@ def _render_pre_prompt(env):
         "st",
         comp_props,
         ace,
+        scope="pre-prompt",
     )
+
+
+def _create_project_clone_action(
+    env: AgiEnv,
+    *,
+    clone_source: str | Path,
+    raw_project_name: str,
+    clone_env_strategy: str,
+) -> ActionResult:
+    raw = raw_project_name.strip()
+    if not raw:
+        return ActionResult.error("Project name must not be empty.")
+
+    new_name = normalize_project_name(raw)
+    if not new_name:
+        return ActionResult.error("Could not normalize project name.")
+
+    dest_root = env.apps_path / new_name
+    if dest_root.exists():
+        return ActionResult.warning(
+            f"Project '{new_name}' already exists.",
+            next_action="Choose another project name or remove the existing project first.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    clone_source_path = Path(clone_source)
+    clone_source_root = _resolve_clone_source_root(env, clone_source_path)
+    try:
+        env.clone_project(clone_source_path, Path(new_name))
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' could not be cloned.",
+            detail=str(exc),
+            next_action="Check the clone source, target path, and filesystem permissions.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+            },
+        )
+
+    if not dest_root.exists():
+        return ActionResult.error(
+            f"Error while creating '{new_name}'.",
+            next_action="Check the clone source, target path, and filesystem permissions.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    try:
+        status_message = _finalize_cloned_project_environment(
+            clone_source_root,
+            dest_root,
+            clone_env_strategy,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was created, but environment finalization failed.",
+            detail=str(exc),
+            next_action="Check the cloned .venv state, then rerun INSTALL before EXECUTE.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "clone_env_strategy": clone_env_strategy,
+            },
+        )
+    return ActionResult.success(
+        f"Project '{new_name}' created.",
+        detail=status_message,
+        data={
+            "new_name": new_name,
+            "dest_root": dest_root,
+            "clone_source": clone_source_path,
+            "clone_env_strategy": clone_env_strategy,
+        },
+    )
+
+
+def _rename_project_action(
+    env: AgiEnv,
+    *,
+    raw_project_name: str,
+) -> ActionResult:
+    current = env.app
+    raw = raw_project_name.strip()
+    if not raw:
+        return ActionResult.error("Project name must not be empty.")
+
+    new_name = normalize_project_name(raw)
+    if not new_name:
+        return ActionResult.error("Could not normalize project name.")
+
+    src_path = env.apps_path / current
+    dest_path = env.apps_path / new_name
+    if dest_path.exists():
+        return ActionResult.warning(
+            f"Project '{new_name}' already exists.",
+            next_action="Choose another project name or remove the existing project first.",
+            data={"current": current, "new_name": new_name, "dest_path": dest_path},
+        )
+
+    try:
+        env.clone_project(Path(current), Path(new_name))
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{current}' could not be cloned to '{new_name}'.",
+            detail=str(exc),
+            next_action="Check the source project, target path, and filesystem permissions.",
+            data={
+                "current": current,
+                "new_name": new_name,
+                "src_path": src_path,
+                "dest_path": dest_path,
+            },
+        )
+
+    if not dest_path.exists():
+        return ActionResult.error(
+            f"Error: Project '{new_name}' not found after renaming.",
+            next_action="Check the clone source, target path, and filesystem permissions.",
+            data={"current": current, "new_name": new_name, "dest_path": dest_path},
+        )
+
+    details: list[str] = []
+    try:
+        renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was cloned, but environment preservation failed.",
+            detail=str(exc),
+            next_action=(
+                f"Inspect {src_path} and {dest_path}, then rerun INSTALL before EXECUTE."
+            ),
+            data={
+                "current": current,
+                "new_name": new_name,
+                "src_path": src_path,
+                "dest_path": dest_path,
+            },
+        )
+    if renamed_venv_message:
+        details.append(renamed_venv_message)
+    if src_path.exists():
+        try:
+            shutil.rmtree(src_path)
+        except OSError as exc:
+            details.append(f"Project was renamed, but failed to remove {src_path}: {exc}")
+
+    return ActionResult.success(
+        f"Project renamed: '{current}' -> '{new_name}'",
+        detail="\n\n".join(details) or None,
+        next_action=(
+            f"Remove the old project directory manually: {src_path}"
+            if src_path.exists()
+            else None
+        ),
+        data={
+            "current": current,
+            "new_name": new_name,
+            "src_path": src_path,
+            "dest_path": dest_path,
+        },
+    )
+
+
+def _delete_project_action(
+    env: AgiEnv,
+    *,
+    confirmed: bool,
+) -> ActionResult:
+    app_name = env.app
+    if not confirmed:
+        return ActionResult.error(
+            "Please confirm that you want to delete the project.",
+            next_action="Tick the confirmation checkbox before deleting.",
+            data={"app": app_name},
+        )
+
+    project_path = Path(env.active_app)
+    if not project_path.exists():
+        return ActionResult.error(
+            f"Project '{app_name}' does not exist.",
+            next_action="Refresh the PROJECT page or select another project.",
+            data={"app": app_name, "project_path": project_path},
+        )
+
+    cleanup_errors: list[str] = []
+    target_name = env.target
+    _cleanup_run_configuration_artifacts(app_name, target_name, cleanup_errors)
+    _cleanup_module_artifacts(app_name, target_name, cleanup_errors)
+    _safe_remove_path(
+        env.wenv_abs,
+        f"worker environment for {target_name}",
+        cleanup_errors,
+    )
+    _safe_remove_path(
+        Path.home() / "log" / "execute" / target_name,
+        f"log/execute/{target_name}",
+        cleanup_errors,
+    )
+
+    data_root = None
+    if env.app_data_rel:
+        try:
+            data_root = Path(env.app_data_rel).expanduser()
+        except (RuntimeError, TypeError, ValueError):
+            data_root = None
+    if data_root and data_root.name == target_name:
+        _safe_remove_path(
+            data_root,
+            f"AGI share directory for {target_name}",
+            cleanup_errors,
+        )
+
+    _safe_remove_path(project_path, f"Project '{app_name}'", cleanup_errors)
+    if _path_exists_or_symlink(project_path):
+        detail = "\n".join(f"Cleanup issue: {message}" for message in cleanup_errors) or None
+        return ActionResult.error(
+            f"Project '{app_name}' could not be removed.",
+            detail=detail,
+            next_action=f"Remove {project_path} manually, then refresh the PROJECT page.",
+            data={
+                "app": app_name,
+                "project_path": project_path,
+                "cleanup_errors": tuple(cleanup_errors),
+            },
+        )
+
+    env.projects = [project for project in env.projects if project != app_name]
+    next_app = env.projects[0] if env.projects else None
+    detail = "\n".join(f"Cleanup issue: {message}" for message in cleanup_errors) or None
+    return ActionResult.success(
+        f"Project '{app_name}' has been deleted.",
+        detail=detail,
+        data={
+            "app": app_name,
+            "project_path": project_path,
+            "cleanup_errors": tuple(cleanup_errors),
+            "next_app": next_app,
+        },
+    )
+
 
 def handle_project_creation():
     """
@@ -1559,16 +2190,19 @@ def handle_project_creation():
     env = st.session_state["env"]
 
     # choose a template (relative project name, e.g. "flight_project")
-    st.sidebar.selectbox(
+    compact_choice(
+        st.sidebar,
         "Clone source",
         [env.app] + st.session_state["templates"],
         key="clone_src",
         on_change=lambda: on_project_change(
             st.session_state["clone_src"], switch_to_edit=True
         ),
+        inline_limit=5,
     )
 
-    clone_env_strategy = st.sidebar.radio(
+    clone_env_strategy = compact_choice(
+        st.sidebar,
         "Environment strategy",
         list(CLONE_ENV_STRATEGY_LABELS),
         key="clone_env_strategy",
@@ -1577,6 +2211,7 @@ def handle_project_creation():
             "Choose whether the clone should keep sharing the source .venv or "
             "start without any .venv."
         ),
+        fallback="radio",
     )
     st.sidebar.caption(CLONE_ENV_STRATEGY_CAPTIONS[clone_env_strategy])
 
@@ -1584,36 +2219,29 @@ def handle_project_creation():
 
     create_clicked = st.sidebar.button("Create", type="primary", width="stretch")
     if create_clicked:
-        if not raw:
-            st.error("Project name must not be empty.")
-            return
-
-        new_name = normalize_project_name(raw)
-        if (env.apps_path / new_name).exists():
-            st.warning(f"Project '{new_name}' already exists.")
-            return
-
-        # clone it
-        clone_source_root = _resolve_clone_source_root(env, Path(st.session_state["clone_src"]))
-        env.clone_project(Path(st.session_state["clone_src"]), Path(new_name))
-
-        # verify
-        dest_root = env.apps_path / new_name
-        if dest_root.exists():
-            status_message = _finalize_cloned_project_environment(
-                clone_source_root,
-                dest_root,
-                clone_env_strategy,
-            )
-            st.success(f"Project '{new_name}' created.")
-            if status_message:
-                st.info(status_message)
+        def _activate_clone(result):
+            new_name = str(result.data["new_name"])
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
             time.sleep(1.5)
             st.rerun()
-        else:
-            st.error(f"Error while creating '{new_name}'.")
+
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Create project",
+                start_message=f"Creating project '{raw or '<empty>'}'...",
+                failure_title="Project creation failed.",
+                failure_next_action="Check the clone source, target path, and filesystem permissions.",
+            ),
+            lambda: _create_project_clone_action(
+                env,
+                clone_source=st.session_state["clone_src"],
+                raw_project_name=raw,
+                clone_env_strategy=clone_env_strategy,
+            ),
+            on_success=_activate_clone,
+        )
     else:
         st.sidebar.info("Enter a project name and click 'Create'.")
 
@@ -1654,42 +2282,23 @@ def handle_project_rename():
 
     rename_clicked = st.sidebar.button("Rename", type="primary", width="stretch")
     if rename_clicked:
-        if not raw:
-            st.error("Project name must not be empty.")
-            return
-
-        # locally normalize
-        new_name = normalize_project_name(raw)
-        if not new_name:
-            st.error("Could not normalize project name.")
-            return
-
-        src_path  = env.apps_path / current
-        dest_path = env.apps_path / new_name
-
-        if dest_path.exists():
-            st.warning(f"Project '{new_name}' already exists.")
-            return
-
-        # perform clone
-        env.clone_project(Path(current), Path(new_name))
-
-        # verify & cleanup
-        if dest_path.exists():
-            renamed_venv_message = _repair_renamed_project_environment(src_path, dest_path)
-            try:
-                shutil.rmtree(src_path, ignore_errors=True)
-            except OSError as exc:
-                st.warning(f"failed to remove {src_path}: {exc}")
-
-            st.success(f"Project renamed: '{current}' → '{new_name}'")
-            if renamed_venv_message:
-                st.info(renamed_venv_message)
+        def _activate_renamed_project(result):
+            new_name = str(result.data["new_name"])
             env.change_app(new_name)
             st.session_state["switch_to_edit"] = True
             st.rerun()
-        else:
-            st.error(f"Error: Project '{new_name}' not found after renaming.")
+
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Rename project",
+                start_message=f"Renaming project '{current}'...",
+                failure_title="Project rename failed.",
+                failure_next_action="Check the target name, clone source, and filesystem permissions.",
+            ),
+            lambda: _rename_project_action(env, raw_project_name=raw),
+            on_success=_activate_renamed_project,
+        )
     else:
         st.sidebar.info("Enter a base name above and click Rename.")
 
@@ -1707,61 +2316,29 @@ def handle_project_delete():
         key="confirm_delete",
     )
 
-    cols = st.sidebar.columns(3)
     # Delete button
     delete_clicked = st.sidebar.button("Delete", type="primary", width="stretch")
     if delete_clicked:
-        if not confirm_delete:
-            st.error("Please confirm that you want to delete the project.")
-        else:
-            project_path = env.active_app
-            if not project_path.exists():
-                st.error(f"Project '{env.app}' does not exist.")
-                return
-
-            cleanup_errors = []
-            target_name = env.target
-
-            _cleanup_run_configuration_artifacts(env.app, target_name, cleanup_errors)
-            _cleanup_module_artifacts(env.app, target_name, cleanup_errors)
-            _safe_remove_path(
-                env.wenv_abs,
-                f"worker environment for {target_name}",
-                cleanup_errors,
-            )
-            _safe_remove_path(
-                Path.home() / "log" / "execute" / target_name,
-                f"log/execute/{target_name}",
-                cleanup_errors,
-            )
-            data_root = None
-            if env.app_data_rel:
-                try:
-                    data_root = Path(env.app_data_rel).expanduser()
-                except TypeError:
-                    data_root = None
-            if data_root and data_root.name == target_name:
-                _safe_remove_path(
-                    data_root,
-                    f"AGI share directory for {target_name}",
-                    cleanup_errors,
-                )
-
-            _safe_remove_path(project_path, f"Project '{env.app}'", cleanup_errors)
-
-            env.projects = [p for p in env.projects if p != env.app]
-            if env.projects:
-                on_project_change(env.projects[0])
-
-            st.success(f"Project '{env.app}' has been deleted.")
-            del st.session_state.env
+        def _activate_after_delete(result):
+            next_app = result.data.get("next_app")
+            if next_app:
+                on_project_change(str(next_app))
+            st.session_state.pop("env", None)
             st.session_state.pop("templates", None)
-            if cleanup_errors:
-                for message in cleanup_errors:
-                    st.warning(f"Cleanup issue: {message}")
-
             st.session_state["switch_to_edit"] = True
             st.rerun()
+
+        run_streamlit_action(
+            st,
+            ActionSpec(
+                name="Delete project",
+                start_message=f"Deleting project '{env.app}'...",
+                failure_title="Project deletion failed.",
+                failure_next_action="Check filesystem permissions and project selection.",
+            ),
+            lambda: _delete_project_action(env, confirmed=confirm_delete),
+            on_success=_activate_after_delete,
+        )
     else:
         st.info("Select a project and confirm deletion to remove it.")
 
@@ -1771,11 +2348,13 @@ def handle_project_import():
     Handle the 'Import' tab in the sidebar for project loading.
     """
     env = st.session_state["env"]
-    selected_archive = st.sidebar.selectbox(
+    selected_archive = compact_choice(
+        st.sidebar,
         f"From {env.export_apps}",
         st.session_state["archives"],
         key="archive",
         help="Select one of the previously exported projects to load it.",
+        inline_limit=5,
     )
 
     if selected_archive == "-- Select a file --":
@@ -1792,13 +2371,37 @@ def handle_project_import():
         target_dir = env.apps_path / import_target
         overwrite_modal = Modal("Import project", key="import-modal", max_width=450)
 
+        def _activate_import(result):
+            imported_project = str(result.data["import_target"])
+            env.change_app(imported_project)
+            on_project_change(imported_project)
+            st.session_state["switch_to_edit"] = True
+            st.rerun()
+
+        def _run_import_action(*, overwrite: bool) -> None:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Import project",
+                    start_message=f"Importing project '{import_target}'...",
+                    failure_title="Project import failed.",
+                    failure_next_action="Check the archive, target path, and filesystem permissions.",
+                ),
+                lambda: _import_project_action(
+                    env,
+                    project_zip=selected_archive,
+                    clean=st.session_state["clean_import"],
+                    overwrite=overwrite,
+                ),
+                on_success=_activate_import,
+            )
+
         import_clicked = st.sidebar.button(
             "Import", type="primary", width="stretch"
         )
         if import_clicked:
             if not target_dir.exists():
-                import_project(selected_archive, st.session_state["clean_import"])
-                env.change_app(import_target)
+                _run_import_action(overwrite=False)
             else:
                 overwrite_modal.open()
 
@@ -1809,27 +2412,9 @@ def handle_project_import():
                 if cols[0].button(
                         "Overwrite", type="primary", width="stretch"
                 ):
-                    try:
-                        shutil.rmtree(target_dir)
-                        import_project(selected_archive, st.session_state["clean_import"])
-                        env.change_app(import_target)
-                        overwrite_modal.close()
-                    except PermissionError:
-                        st.error(f"Project '{import_target}' is not removable.")
+                    _run_import_action(overwrite=True)
                 if cols[1].button("Cancel", type="primary", width="stretch"):
                     overwrite_modal.close()
-
-        if st.session_state.get("project_imported"):
-            project_path = env.apps_path / import_target
-            if project_path.exists():
-                st.success(f"Project '{import_target}' successfully imported.")
-                on_project_change(import_target)
-                # Set the switch flag to switch the sidebar tab
-                st.session_state["switch_to_edit"] = True
-                st.rerun()  # Trigger rerun to apply the change
-            else:
-                st.error(f"Error while importing '{import_target}'.")
-            del st.session_state["project_imported"]
 
 
 # -------------------- Streamlit Page Rendering -------------------- #
@@ -1841,20 +2426,17 @@ def page():
     """
     global CUSTOM_BUTTONS, INFO_BAR, CSS_TEXT, comp_props, ace_props
 
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        # Redirect back to the landing page and rerun immediately
-        page_module = importlib.import_module("agilab.About_agilab")
-        page_module.main()
-        st.rerun()
-
-    else:
-        env = st.session_state['env']
-        st.session_state['_env'] = env
+    env = ensure_page_env(st, __file__)
+    if env is None:
+        return
+    st.session_state['_env'] = env
 
     env = st.session_state['_env']
     inject_theme(env.st_resources)
 
     render_logo()
+    render_pinned_expanders(st)
+    render_page_context(st, page_label="PROJECT", env=env)
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)
@@ -1920,11 +2502,13 @@ def page():
         st.session_state.setdefault(key, value)
 
     # Sidebar: Project selection, creation, loading
-    sidebar_selection = st.sidebar.radio(
+    sidebar_selection = compact_choice(
+        st.sidebar,
         "Project action",
         ["Edit", "Clone", "Rename", "Delete", "Import"],
         key="sidebar_selection",
         label_visibility="collapsed",
+        fallback="radio",
     )
 
     if sidebar_selection == "Edit":

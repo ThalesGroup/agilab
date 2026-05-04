@@ -76,7 +76,7 @@ def test_load_pre_prompt_messages_returns_list(tmp_path, monkeypatch):
     assert warnings == []
 
 
-def test_load_pre_prompt_messages_recovers_missing_file(tmp_path, monkeypatch):
+def test_load_pre_prompt_messages_treats_missing_file_as_optional(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     warnings: list[str] = []
     fake_st = SimpleNamespace(warning=lambda message: warnings.append(str(message)))
@@ -89,8 +89,8 @@ def test_load_pre_prompt_messages_recovers_missing_file(tmp_path, monkeypatch):
     result = module._load_pre_prompt_messages(env)
 
     assert result == []
-    assert (app_src / "pre_prompt.json").read_text(encoding="utf-8") == "[]\n"
-    assert any("Missing pre_prompt.json" in message for message in warnings)
+    assert not (app_src / "pre_prompt.json").exists()
+    assert warnings == []
 
 
 def test_load_pre_prompt_messages_rejects_invalid_json(tmp_path, monkeypatch):
@@ -108,6 +108,22 @@ def test_load_pre_prompt_messages_rejects_invalid_json(tmp_path, monkeypatch):
 
     assert result == []
     assert any("Failed to load pre_prompt.json" in message for message in warnings)
+
+
+def test_caption_once_suppresses_repeated_low_priority_guidance(monkeypatch):
+    module = _load_pipeline_module()
+    captions: list[str] = []
+    fake_st = SimpleNamespace(
+        caption=lambda message: captions.append(str(message)),
+        session_state={},
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+
+    module._caption_once("demo", "Only once.")
+    module._caption_once("demo", "Only once.")
+    module._caption_once("other", "Second notice.")
+
+    assert captions == ["Only once.", "Second notice."]
 
 
 def test_ensure_notebook_export_creates_missing_notebook(tmp_path, monkeypatch):
@@ -195,6 +211,86 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     module._render_notebook_download_button(notebook_path, "pipeline-export")
 
     assert errors == ["Failed to prepare notebook export: download failed"]
+
+
+def test_dataframe_picker_syncs_from_selectbox_when_selectbox_changed(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    session_state = {}
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
+
+    export_root = tmp_path / "export"
+    df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
+    picker_key = "demo/dataframe_picker"
+    selectbox_key = "demodf"
+    old_abs = str((export_root / df_files_rel[0]).resolve(strict=False))
+    new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
+    session_state[selectbox_key] = df_files_rel[1]
+    session_state[f"{picker_key}:selected_paths"] = [old_abs]
+    session_state[f"{picker_key}:last_applied"] = old_abs
+
+    module._sync_dataframe_picker_from_selectbox(
+        picker_key=picker_key,
+        selectbox_key=selectbox_key,
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+
+    assert session_state[selectbox_key] == df_files_rel[1]
+    assert session_state[f"{picker_key}:selected_paths"] == [new_abs]
+    assert session_state[f"{picker_key}:last_applied"] == new_abs
+
+
+def test_dataframe_picker_apply_ignores_stale_picker_after_selectbox_sync(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    session_state = {}
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
+
+    export_root = tmp_path / "export"
+    df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
+    picker_key = "demo/dataframe_picker"
+    selectbox_key = "demodf"
+    new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
+    session_state[selectbox_key] = df_files_rel[1]
+    session_state[f"{picker_key}:last_applied"] = new_abs
+
+    applied = module._apply_dataframe_picker_selection(
+        export_root / df_files_rel[1],
+        picker_key=picker_key,
+        selectbox_key=selectbox_key,
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+
+    assert applied is False
+    assert session_state[selectbox_key] == df_files_rel[1]
+
+
+def test_dataframe_picker_apply_updates_selectbox_when_picker_changed(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    session_state = {}
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
+
+    export_root = tmp_path / "export"
+    df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
+    picker_key = "demo/dataframe_picker"
+    selectbox_key = "demodf"
+    old_abs = str((export_root / df_files_rel[0]).resolve(strict=False))
+    new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
+    session_state[selectbox_key] = df_files_rel[0]
+    session_state[f"{picker_key}:last_applied"] = old_abs
+
+    applied = module._apply_dataframe_picker_selection(
+        export_root / df_files_rel[1],
+        picker_key=picker_key,
+        selectbox_key=selectbox_key,
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+
+    assert applied is True
+    assert session_state[selectbox_key] == df_files_rel[1]
+    assert session_state[f"{picker_key}:selected_paths"] == [new_abs]
+    assert session_state[f"{picker_key}:last_applied"] == new_abs
 
 
 def test_load_about_page_module_uses_imported_module(monkeypatch):
