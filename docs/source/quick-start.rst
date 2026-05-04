@@ -235,6 +235,19 @@ For an external apps repository available on your machine::
       --test-apps \
       --test-core
 
+Clean source-validation runs should keep their disposable checkout and fake
+``HOME`` outside the normal home directory. Use a cache-backed workspace so
+failed validation can still be inspected without polluting ``$HOME``::
+
+    cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/agilab/source_validate"
+    root="$cache_root/agilab_source_validate_clean_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$root/home"
+    HOME="$root/home" git clone https://github.com/ThalesGroup/agilab.git "$root/home/agilab"
+
+This workspace is separate from a normal install. A normal installer run uses
+the real ``$HOME`` and creates worker environments under ``~/wenv``; a clean
+source-validation run creates its own ``home/wenv`` under the validation root.
+
 Rerunning the installer refreshes repository app/page links. If a selected
 repository app or page already exists locally as a real directory, the installer
 moves it to ``<name>.previous.<timestamp>`` and links the repository copy so app
