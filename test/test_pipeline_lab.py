@@ -2209,7 +2209,8 @@ def test_display_lab_tab_can_pin_run_logs(monkeypatch, tmp_path):
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
 
     panels = fake_st.session_state["agilab:pinned_expanders"]
-    buttons = editor_calls[-1]["buttons"]["buttons"]
+    buttons = editor_calls[-1]["buttons"]
+    assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
     assert panels["pipeline_run_logs:demo"]["title"] == "Pipeline logs: flight_project"
     assert panels["pipeline_run_logs:demo"]["body"] == "line 1\nline 2"
