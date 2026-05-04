@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import shutil
 import sys
 import subprocess
@@ -67,10 +68,8 @@ class Config:
                 line = raw_line.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
-
                 key, value = line.split("=", 1)
                 value = value.split("#", 1)[0].strip()
-
                 if key:
                     data[key.strip()] = value.strip().strip("\"'")
         except OSError as exc:
@@ -80,49 +79,38 @@ class Config:
 
     def __eligible_apps(self) -> List[Path]:
         out: List[Path] = []
-
         for apps_dir in self.APPS_PATH_SET:
             if not apps_dir.exists():
                 continue
-
             for p in sorted(apps_dir.iterdir()):
                 if p.is_dir() and p.name.endswith("_project"):
                     out.append(p)
-
         return out
 
     def __eligible_apps_pages(self) -> List[Path]:
         out: List[Path] = []
-
         if not self.APPS_PAGES_DIR.exists():
             return out
-
         for p in sorted(self.APPS_PAGES_DIR.iterdir()):
             if p.is_dir() and not p.name.startswith((".", "__")):
                 out.append(p)
-
         return out
 
     def __eligible_core(self) -> List[Path]:
         out: List[Path] = []
-
         if not self.CORE_DIR.exists():
             return out
-
         for p in sorted(self.CORE_DIR.iterdir()):
             if p.is_dir() and not p.name.startswith((".", "__")):
                 out.append(p)
-
         return out
 
     def resolve_macros(self, raw: str, app_name: str) -> Path:
         s = raw.replace("{APP}", app_name)
         s = s.replace("$PROJECT_DIR$", str(self.ROOT))
         s = s.replace("$USER_HOME$", str(Path.home()))
-
         if s.startswith("file://"):
             s = s[len("file://"):]
-
         return Path(s)
 
     def is_within_repo(self, p: Path) -> bool:
@@ -139,8 +127,6 @@ class Config:
     def as_project_url(self, p: Path) -> str:
         return f"file://{self.as_project_macro(p)}"
 
-
-# ================= XML Utilities =================
 
 def read_xml(file_path: Path) -> ET.ElementTree:
     return ET.parse(file_path)
@@ -159,8 +145,6 @@ def write_xml(tree: ET.ElementTree, path: Path) -> None:
     tree.write(str(path), encoding="UTF-8", xml_declaration=True)
 
 
-# ================= Helper Functions =================
-
 def venv_python_for(project_dir: Path) -> Optional[Path]:
     for candidate in (
         project_dir / ".venv" / "bin" / "python",
@@ -169,7 +153,6 @@ def venv_python_for(project_dir: Path) -> Optional[Path]:
     ):
         if candidate.exists():
             return candidate.absolute()
-
     return None
 
 
@@ -187,7 +170,6 @@ def _find_uv_binary() -> Optional[str]:
         os.environ.get("UV_BIN"),
         shutil.which("uv"),
     )
-
     for candidate in candidates:
         if candidate:
             path = Path(candidate).expanduser()
@@ -240,10 +222,8 @@ def seed_example_scripts(cfg: Config, app_slug: str) -> None:
 
     for source in sorted(examples_dir.glob("AGI_*.py")):
         destination = target_dir / source.name
-
         if destination.exists():
             continue
-
         try:
             shutil.copy2(source, destination)
             logging.info("Seeded %s from %s", destination, source)
@@ -251,19 +231,139 @@ def seed_example_scripts(cfg: Config, app_slug: str) -> None:
             logging.warning("Failed to copy %s to %s: %s", source, destination, exc)
 
 
-# ================= JdkTable Class =================
+def _candidate_stale_roots(cfg: Config) -> List[Path]:
+    candidates = [
+        Path.home() / "PycharmProjects" / cfg.PROJECT_NAME,
+        Path.home() / "PycharmProjects" / "agilab",
+        Path.home() / cfg.PROJECT_NAME,
+    ]
+
+    return [p.resolve() for p in candidates if p.exists() and p.resolve() != cfg.ROOT]
+
+
+def _path_variants(path: Path) -> List[str]:
+    raw = str(path)
+    home_macro = raw.replace(str(Path.home()), "$USER_HOME$")
+    project_macro = raw.replace(str(path), "$PROJECT_DIR$")
+    return sorted(set([raw, home_macro, project_macro]))
+
+
+def _split_path_value(value: str) -> List[str]:
+    if not value:
+        return []
+    parts = re.split(r"[:;]", value)
+    return [p for p in parts if p]
+
+
+def _join_path_value(parts: List[str], original: str) -> str:
+    sep = ";" if ";" in original and ":" not in original else os.pathsep
+    return sep.join(parts)
+
+
+def _clean_path_like_value(value: str, stale_values: List[str]) -> str:
+    parts = _split_path_value(value)
+    if not parts:
+        cleaned = value
+        for stale in stale_values:
+            cleaned = cleaned.replace(stale, "")
+        return cleaned
+
+    cleaned_parts = []
+    for part in parts:
+        stripped = part.strip()
+        should_drop = False
+        for stale in stale_values:
+            if not stale:
+                continue
+            if stripped == stale or stripped.startswith(stale + os.sep) or stripped.startswith(stale + "/"):
+                should_drop = True
+                break
+        if not should_drop:
+            cleaned_parts.append(part)
+
+    return _join_path_value(cleaned_parts, value)
+
+
+def remove_stale_agilab_paths(cfg: Config) -> None:
+    """
+    Remove stale AGILAB checkout references from PyCharm XML files.
+
+    This fixes errors like:
+      Mixed AGILAB checkout detected...
+      expected /Users/agi/agilab/src/agilab
+      but resolved /Users/agi/PycharmProjects/agilab/src/agilab
+    """
+    stale_roots = _candidate_stale_roots(cfg)
+    if not stale_roots:
+        logging.info("No stale AGILAB checkout roots detected.")
+        return
+
+    stale_values: List[str] = []
+
+    for root in stale_roots:
+        variants = [
+            root,
+            root / "src",
+            root / "src" / cfg.PROJECT_NAME,
+        ]
+        for v in variants:
+            stale_values.extend(_path_variants(v))
+
+    stale_values = sorted(set(stale_values), key=len, reverse=True)
+
+    xml_files: List[Path] = []
+    xml_files.extend(cfg.RUN_CONFIGS_DIR.glob("*.xml"))
+    xml_files.extend(cfg.MODULES_DIR.glob("*.iml"))
+    xml_files.extend(
+        [
+            cfg.IDEA_DIR / "workspace.xml",
+            cfg.IDEA_DIR / "misc.xml",
+            cfg.IDEA_DIR / "modules.xml",
+            cfg.IDEA_DIR / "python-terminal.xml",
+        ]
+    )
+
+    changed_files = 0
+
+    for xml_file in sorted(set(xml_files)):
+        if not xml_file.exists():
+            continue
+
+        try:
+            text = xml_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            logging.warning("Unable to read %s: %s", xml_file, exc)
+            continue
+
+        original = text
+
+        for stale in stale_values:
+            text = text.replace(stale, str(cfg.ROOT))
+
+        # Clean duplicated or stale PYTHONPATH-like XML option values.
+        for attr_name in ("PYTHONPATH", "PYTHON_PATH", "PYTHONPATH_VALUE"):
+            pattern = rf'({attr_name}=")([^"]*)(")'
+            text = re.sub(
+                pattern,
+                lambda m: m.group(1) + _clean_path_like_value(m.group(2), stale_values) + m.group(3),
+                text,
+            )
+
+        if text != original:
+            try:
+                xml_file.write_text(text, encoding="utf-8")
+                changed_files += 1
+                logging.info("Removed stale AGILAB paths from %s", xml_file)
+            except OSError as exc:
+                logging.warning("Unable to write %s: %s", xml_file, exc)
+
+    if changed_files:
+        logging.info("Cleaned stale AGILAB checkout paths in %d PyCharm file(s).", changed_files)
+    else:
+        logging.info("No stale AGILAB paths found in PyCharm XML files.")
+
 
 class JdkTable:
-    """
-    Idempotent JetBrains jdk.table.xml manager.
-
-    Important behavior:
-    - matches SDKs by name OR interpreter homePath
-    - prevents growth on repeated calls
-    - removes duplicate SDK entries for the same logical interpreter
-    - rewrites one canonical SDK entry
-    """
-
     def __init__(self, sdk_type: str):
         self.sdk_type = sdk_type
         self.jb_dirs = self.__jetbrains_dir()
@@ -298,10 +398,8 @@ class JdkTable:
 
     def __ensure_component(self, root: ET.Element) -> ET.Element:
         comp = root.find("./component[@name='ProjectJdkTable']")
-
         if comp is None:
             comp = ET.SubElement(root, "component", {"name": "ProjectJdkTable"})
-
         return comp
 
     def __load_jdk_table(self, path: Path) -> ET.ElementTree:
@@ -317,16 +415,15 @@ class JdkTable:
 
     def __project_dir_for_home(self, home: Path) -> str:
         home = Path(home)
-
         parts = home.parts
+
         if ".venv" in parts:
             idx = parts.index(".venv")
             project_dir = Path(*parts[:idx])
         else:
             project_dir = home.parents[2]
 
-        value = str(project_dir)
-        return value.replace(str(Path.home()), "$USER_HOME$")
+        return str(project_dir).replace(str(Path.home()), "$USER_HOME$")
 
     def __jdk_name(self, jdk: ET.Element) -> str:
         name_el = jdk.find("name")
@@ -539,8 +636,6 @@ class JdkTable:
                 logging.info("Pruned %d SDK(s) in %s, kept: %s", removed, table, sorted(keep))
 
 
-# ================= Project Class =================
-
 class Project:
     EXCLUDE_FOLDERS = ("dist", "build", ".venv")
 
@@ -578,7 +673,6 @@ class Project:
 
         for root_name in source_roots:
             root_path = dir_path / root_name
-
             if not root_path.exists():
                 continue
 
@@ -735,7 +829,6 @@ class Project:
                     content.set("url", "file://$PROJECT_DIR$")
 
                 changed = self._ensure_exclude_folders(content)
-
                 if changed:
                     write_xml(tree, path)
 
@@ -916,6 +1009,8 @@ def main() -> int:
     cfg.create_directories()
     ensure_modules_xml(cfg)
 
+    remove_stale_agilab_paths(cfg)
+
     model = Project(cfg)
     jdk_table = JdkTable(cfg.PROJECT_SDK_TYPE)
 
@@ -1054,6 +1149,8 @@ def main() -> int:
 
     model.generate_run_configs_for_apps(realized_apps)
     model.python_terminal_settings()
+
+    remove_stale_agilab_paths(cfg)
 
     logging.info("Project setup completed successfully.")
     logging.info("Realized apps: %s", ", ".join(str(app) for app in realized_apps))
