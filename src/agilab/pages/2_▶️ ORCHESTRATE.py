@@ -474,7 +474,7 @@ def _apply_distribution_plan_action(
     except FileNotFoundError:
         return ActionResult.error(
             "Distribution plan file does not exist.",
-            next_action="Run CHECK distribute to regenerate distribution.json.",
+            next_action="Run CHECK distribute to regenerate the distribution plan file.",
             data={"dist_tree_path": dist_tree_path},
         )
     except OSError as exc:
@@ -491,7 +491,7 @@ def _apply_distribution_plan_action(
         return ActionResult.error(
             "Distribution plan file is not valid JSON.",
             detail=str(exc),
-            next_action="Run CHECK distribute to regenerate distribution.json.",
+            next_action="Run CHECK distribute to regenerate the distribution plan file.",
             data={"dist_tree_path": dist_tree_path},
         )
 
@@ -1113,6 +1113,13 @@ async def _render_distribution_panel(
                             ),
                             on_success=_rerun_after_apply,
                         )
+                elif dist_tree_path is not None:
+                    st.warning(
+                        f"Distribution plan file `{dist_tree_path}` was not found. "
+                        "Run CHECK distribute to regenerate it.",
+                    )
+                else:
+                    st.caption("Unable to resolve the worker environment path. Run INSTALL, then retry CHECK distribute.")
 
 
 async def _render_run_panels(

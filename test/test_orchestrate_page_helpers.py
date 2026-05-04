@@ -491,9 +491,9 @@ def test_orchestrate_page_support_distribution_plan_helpers():
     }
 
 
-def test_apply_distribution_plan_action_updates_distribution_json(tmp_path):
+def test_apply_distribution_plan_action_updates_distribution_tree_json(tmp_path):
     module = _load_orchestrate_module()
-    dist_tree_path = tmp_path / "distribution.json"
+    dist_tree_path = tmp_path / "distribution_tree.json"
     dist_tree_path.write_text(
         json.dumps(
             {
@@ -527,7 +527,7 @@ def test_apply_distribution_plan_action_updates_distribution_json(tmp_path):
     assert saved["work_plan"] == [[], [["a.csv"], ["b.csv"]]]
 
 
-def test_apply_distribution_plan_action_reports_missing_distribution_json(tmp_path):
+def test_apply_distribution_plan_action_reports_missing_distribution_plan(tmp_path):
     module = _load_orchestrate_module()
     dist_tree_path = tmp_path / "missing.json"
 
@@ -546,9 +546,9 @@ def test_apply_distribution_plan_action_reports_missing_distribution_json(tmp_pa
     assert result.data["dist_tree_path"] == dist_tree_path
 
 
-def test_apply_distribution_plan_action_reports_invalid_distribution_json(tmp_path):
+def test_apply_distribution_plan_action_reports_invalid_distribution_plan(tmp_path):
     module = _load_orchestrate_module()
-    dist_tree_path = tmp_path / "distribution.json"
+    dist_tree_path = tmp_path / "distribution_tree.json"
     dist_tree_path.write_text("{bad json", encoding="utf-8")
 
     result = module._apply_distribution_plan_action(
@@ -567,7 +567,7 @@ def test_apply_distribution_plan_action_reports_invalid_distribution_json(tmp_pa
 
 def test_apply_distribution_plan_action_reports_unserializable_payload(tmp_path):
     module = _load_orchestrate_module()
-    dist_tree_path = tmp_path / "distribution.json"
+    dist_tree_path = tmp_path / "distribution_tree.json"
     original_payload = {
         "workers": {"10.0.0.1": 1},
         "target_args": {"old": True},

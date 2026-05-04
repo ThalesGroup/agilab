@@ -264,7 +264,31 @@ def test_orchestrate_distribution_workflow_state_is_ready(tmp_path):
 
     assert state.action.enabled is True
     assert state.command_configured is True
-    assert state.distribution_path == worker_env_path / "distribution.json"
+    assert state.distribution_path == worker_env_path / "distribution_tree.json"
+
+
+def test_orchestrate_distribution_workflow_state_prefers_runtime_distribution_tree(tmp_path):
+    worker_env_path = tmp_path / "wenv" / "flight_worker"
+    worker_env_path.mkdir(parents=True)
+    runtime_plan = worker_env_path / "distribution_tree.json"
+    legacy_plan = worker_env_path / "distribution.json"
+    legacy_plan.write_text("{}", encoding="utf-8")
+
+    legacy_state = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
+        show_distribute=True,
+        cmd="print('distribute')",
+        worker_env_path=worker_env_path,
+    )
+
+    runtime_plan.write_text("{}", encoding="utf-8")
+    runtime_state = orchestrate_page_state.build_orchestrate_distribution_workflow_state(
+        show_distribute=True,
+        cmd="print('distribute')",
+        worker_env_path=worker_env_path,
+    )
+
+    assert legacy_state.distribution_path == legacy_plan
+    assert runtime_state.distribution_path == runtime_plan
 
 
 def test_orchestrate_distribution_workflow_state_blocks_hidden_missing_command_or_runtime(tmp_path):
