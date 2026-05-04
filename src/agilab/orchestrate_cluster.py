@@ -193,6 +193,56 @@ def _is_empty_workers_data_path(value: Any) -> bool:
     return str(value or "").strip().lower() in {"", "none", "local", "localshare"}
 
 
+def _clean_path_text(value: Any) -> str:
+    text = str(value or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
+        text = text[1:-1].strip()
+    return text
+
+
+def _resolve_env_relative_path(value: Any, env: Any) -> Path | None:
+    text = _clean_path_text(value)
+    if not text:
+        return None
+    try:
+        candidate = Path(text).expanduser()
+        if not candidate.is_absolute():
+            home = getattr(env, "home_abs", None)
+            candidate = (Path(home).expanduser() if home else Path.home()) / candidate
+        return candidate.resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _env_local_share_candidate(env: Any) -> Path | None:
+    raw_value = getattr(env, "AGI_LOCAL_SHARE", None)
+    envars = getattr(env, "envars", None)
+    if not raw_value and isinstance(envars, dict):
+        raw_value = envars.get("AGI_LOCAL_SHARE")
+    if not raw_value:
+        raw_value = getattr(env, "agi_share_path", None)
+    return _resolve_env_relative_path(raw_value, env)
+
+
+def _path_is_within(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def _workers_data_path_points_to_local_share(value: Any, env: Any) -> bool:
+    text = _clean_path_text(value)
+    if text.lower() in {"local", "localshare"}:
+        return True
+    data_path = _resolve_env_relative_path(text, env)
+    local_share = _env_local_share_candidate(env)
+    if data_path is None or local_share is None:
+        return False
+    return data_path == local_share or _path_is_within(data_path, local_share)
+
+
 def _env_cluster_share_candidate(env: Any) -> Path | None:
     raw_value = getattr(env, "AGI_CLUSTER_SHARE", None)
     envars = getattr(env, "envars", None)
@@ -578,6 +628,15 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
         lan_defaults = lan_cache_defaults
         if cluster_share_candidate is not None:
             lan_defaults = {**lan_defaults, "workers_data_path": str(cluster_share_candidate)}
+            workers_data_path_key = widget_keys["workers_data_path"]
+            current_workers_data_path = st.session_state.get(
+                workers_data_path_key,
+                cluster_params.get("workers_data_path"),
+            )
+            if _workers_data_path_points_to_local_share(current_workers_data_path, env):
+                cluster_share_value = str(cluster_share_candidate)
+                cluster_params["workers_data_path"] = cluster_share_value
+                st.session_state[workers_data_path_key] = cluster_share_value
         _apply_lan_discovery_defaults(
             cluster_params,
             st.session_state,

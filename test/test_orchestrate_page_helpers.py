@@ -1186,6 +1186,89 @@ def test_resolve_share_candidate_falls_back_when_resolve_fails(monkeypatch):
     assert str(resolved) == "/home/agi/clustershare"
 
 
+def test_app_args_env_uses_cluster_share_instead_of_stale_local_share(tmp_path):
+    module = _load_orchestrate_module()
+    local_share = tmp_path / "localshare" / "agi"
+    cluster_share = tmp_path / "clustershare" / "agi"
+    local_share.mkdir(parents=True)
+    cluster_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=Path("localshare/agi"),
+        agi_share_path_abs=local_share,
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(cluster_share),
+        envars={},
+        share_root_path=lambda: local_share,
+    )
+
+    args_env = module._app_args_env_for_cluster(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": str(local_share),
+        },
+    )
+
+    assert args_env is not env
+    assert args_env.share_root_path() == cluster_share
+    assert args_env.agi_share_path == cluster_share
+    assert args_env.agi_share_path_abs == cluster_share
+    assert args_env.resolve_share_path("flight/dataset") == cluster_share / "flight/dataset"
+    assert args_env.envars["AGI_CLUSTER_SHARE"] == str(cluster_share)
+
+
+def test_cluster_args_share_warning_accepts_configured_cluster_share(tmp_path):
+    module = _load_orchestrate_module()
+    local_share = tmp_path / "localshare" / "agi"
+    cluster_share = tmp_path / "clustershare" / "agi"
+    local_share.mkdir(parents=True)
+    cluster_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=Path("localshare/agi"),
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(cluster_share),
+        envars={},
+    )
+
+    warning = module._cluster_args_share_warning(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": str(cluster_share),
+        },
+    )
+
+    assert warning is None
+
+
+def test_cluster_args_share_warning_reports_stale_local_workers_path(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+    monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
+    local_share = tmp_path / "localshare" / "agi"
+    local_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=Path("localshare/agi"),
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE="",
+        envars={},
+    )
+
+    warning = module._cluster_args_share_warning(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": str(local_share),
+        },
+    )
+
+    assert warning is not None
+    assert "appears local" in warning
+    assert str(local_share) in warning
+
+
 def test_benchmark_display_date_uses_mtime_fallback(tmp_path: Path, monkeypatch):
     module = _load_orchestrate_module()
     benchmark = tmp_path / "benchmark.json"
