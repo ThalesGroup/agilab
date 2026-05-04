@@ -47,7 +47,7 @@ your_pandas_project = [
 mypy_path = [
     "stubs",
 ]
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 ignore_missing_imports = true
 
 # Quiet known third-party deprecations
