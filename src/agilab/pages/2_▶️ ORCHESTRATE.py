@@ -337,6 +337,205 @@ def _resolve_share_candidate(path_value: Any, home_abs: Path | str) -> Path:
     return _orchestrate_resolve_share_candidate(path_value, home_abs, path_type=Path)
 
 
+def _clean_share_path_text(value: Any) -> str:
+    text = str(value or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
+        text = text[1:-1].strip()
+    return text
+
+
+def _env_cluster_share_value(env: Any) -> Any:
+    cluster_share_path = getattr(env, "AGI_CLUSTER_SHARE", None)
+    env_vars = getattr(env, "envars", None)
+    if not cluster_share_path and isinstance(env_vars, dict):
+        cluster_share_path = env_vars.get("AGI_CLUSTER_SHARE")
+    return cluster_share_path
+
+
+def _env_local_share_paths(env: Any) -> tuple[Path, ...]:
+    raw_values: list[Any] = []
+    local_share = getattr(env, "AGI_LOCAL_SHARE", None)
+    env_vars = getattr(env, "envars", None)
+    if local_share:
+        raw_values.append(local_share)
+    if isinstance(env_vars, dict) and env_vars.get("AGI_LOCAL_SHARE"):
+        raw_values.append(env_vars.get("AGI_LOCAL_SHARE"))
+    agi_share_path = getattr(env, "agi_share_path", None)
+    if agi_share_path:
+        raw_values.append(agi_share_path)
+
+    paths: list[Path] = []
+    for raw_value in raw_values:
+        text = _clean_share_path_text(raw_value)
+        if not text:
+            continue
+        try:
+            paths.append(_resolve_share_candidate(text, getattr(env, "home_abs", Path.home())))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+    return tuple(paths)
+
+
+def _path_is_under(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def _path_points_to_local_share(path: Path, env: Any) -> bool:
+    for local_share in _env_local_share_paths(env):
+        if path == local_share or _path_is_under(path, local_share):
+            return True
+    return False
+
+
+def _cluster_args_share_root(env: Any, cluster_params: dict[str, Any]) -> Path | None:
+    if not bool(cluster_params.get("cluster_enabled", False)):
+        return None
+    candidate_values = (
+        cluster_params.get("workers_data_path"),
+        _env_cluster_share_value(env),
+    )
+    for raw_value in candidate_values:
+        text = _clean_share_path_text(raw_value)
+        if text.lower() in {"", "none", "local", "localshare"}:
+            continue
+        try:
+            candidate = _resolve_share_candidate(text, getattr(env, "home_abs", Path.home()))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+        if _path_points_to_local_share(candidate, env):
+            continue
+        return candidate
+    return None
+
+
+class _ShareRootOverrideEnv:
+    def __init__(self, env: Any, share_root: Path) -> None:
+        object.__setattr__(self, "_env", env)
+        object.__setattr__(self, "_share_root", Path(share_root).expanduser())
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._env, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in {"_env", "_share_root"}:
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._env, name, value)
+
+    @property
+    def agi_share_path(self) -> Path:
+        return self._share_root
+
+    @property
+    def agi_share_path_abs(self) -> Path:
+        return self._share_root
+
+    @property
+    def AGI_CLUSTER_SHARE(self) -> str:
+        return str(self._share_root)
+
+    @property
+    def envars(self) -> dict[str, Any]:
+        env_vars = getattr(self._env, "envars", None)
+        payload = dict(env_vars) if isinstance(env_vars, dict) else {}
+        payload["AGI_CLUSTER_SHARE"] = str(self._share_root)
+        payload["AGI_SHARE_DIR"] = str(self._share_root)
+        return payload
+
+    def share_root_path(self) -> Path:
+        return self._share_root
+
+    def resolve_share_path(self, path: Any = None) -> Path:
+        if path in (None, ""):
+            return self._share_root
+        candidate = Path(str(path)).expanduser()
+        if candidate.is_absolute():
+            return candidate.resolve(strict=False)
+        return (self._share_root / candidate).resolve(strict=False)
+
+
+def _app_args_env_for_cluster(env: Any, cluster_params: dict[str, Any]) -> Any:
+    share_root = _cluster_args_share_root(env, cluster_params)
+    if share_root is None:
+        return env
+    return _ShareRootOverrideEnv(env, share_root)
+
+
+def _with_app_args_env(args_env: Any):
+    class _SessionEnvContext:
+        _missing = object()
+
+        def __enter__(self):
+            self._previous_env = st.session_state.get("env", self._missing)
+            self._previous_private_env = st.session_state.get("_env", self._missing)
+            st.session_state["env"] = args_env
+            st.session_state["_env"] = args_env
+            return args_env
+
+        def __exit__(self, exc_type, exc, tb):
+            if self._previous_env is self._missing:
+                st.session_state.pop("env", None)
+            else:
+                st.session_state["env"] = self._previous_env
+            if self._previous_private_env is self._missing:
+                st.session_state.pop("_env", None)
+            else:
+                st.session_state["_env"] = self._previous_private_env
+            return False
+
+    return _SessionEnvContext()
+
+
+def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str | None:
+    if not bool(cluster_params.get("cluster_enabled", False)):
+        return None
+    active_share_root = _cluster_args_share_root(env, cluster_params)
+    share_source = active_share_root if active_share_root is not None else getattr(env, "agi_share_path", None)
+    if share_source is None:
+        return None
+    try:
+        share_candidate = Path(share_source)
+        if not share_candidate.is_absolute():
+            share_candidate = Path(getattr(env, "home_abs", Path.home())) / share_candidate
+        share_candidate = share_candidate.expanduser()
+        share_resolved = _resolve_share_candidate(share_candidate, getattr(env, "home_abs", Path.home()))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+    is_symlink = share_candidate.is_symlink()
+    looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(share_resolved)
+    cluster_share_path = _env_cluster_share_value(env)
+    workers_data_path = _clean_share_path_text(cluster_params.get("workers_data_path"))
+    has_worker_share_path = workers_data_path.lower() not in {"", "none", "local", "localshare"}
+    try:
+        worker_path = _resolve_share_candidate(workers_data_path, getattr(env, "home_abs", Path.home()))
+        has_worker_share_path = has_worker_share_path and not _path_points_to_local_share(worker_path, env)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        pass
+    configured_cluster_share = _configured_cluster_share_matches(
+        share_resolved,
+        cluster_share_path=cluster_share_path,
+        home_abs=getattr(env, "home_abs", Path.home()),
+    )
+    if is_symlink or looks_shared or (configured_cluster_share and has_worker_share_path):
+        return None
+
+    fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
+    hint = _macos_autofs_hint(share_candidate)
+    extra = f"\n\n{hint}" if hint else ""
+    return (
+        f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
+        f"(detected fstype: `{fstype}`) "
+        "Set `AGI_CLUSTER_SHARE` and `Workers Data Path` to the shared mount used by workers, "
+        "or set `AGI_SHARE_DIR` to a shared mount/symlink when not using the cluster-share contract."
+        f"{extra}"
+    )
+
+
 def _benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
     """Return the benchmark date string, using file mtime as a fallback."""
     return _orchestrate_benchmark_display_date(
@@ -925,6 +1124,8 @@ async def _render_distribution_panel(
     with st.expander(f"2. Configure {module} arguments", expanded=True):
         st.caption("Set the input, output, and app-specific parameters that will be passed to the run.")
         app_args_form = env.app_args_form
+        cluster_params = st.session_state.app_settings.setdefault("cluster", {})
+        args_env = _app_args_env_for_cluster(env, cluster_params)
 
         snippet_exists = app_args_form.exists()
         snippet_not_empty = snippet_exists and app_args_form.stat().st_size > 1
@@ -936,57 +1137,31 @@ async def _render_distribution_panel(
         st.toggle("Edit", key=toggle_key, on_change=init_custom_ui, args=[app_args_form])
 
         if st.session_state[toggle_key]:
-            render_generic_ui()
+            with _with_app_args_env(args_env):
+                render_generic_ui()
             if not snippet_exists:
                 with open(app_args_form, "w") as st_src:
                     st_src.write("")
         else:
             if snippet_exists and snippet_not_empty:
                 try:
-                    runpy.run_path(app_args_form, init_globals=globals())
+                    with _with_app_args_env(args_env):
+                        runpy.run_path(app_args_form, init_globals={**globals(), "env": args_env})
                 except (SyntaxError, RuntimeError, OSError, TypeError, ValueError, AttributeError, ImportError) as e:
                     st.warning(e)
             else:
-                render_generic_ui()
+                with _with_app_args_env(args_env):
+                    render_generic_ui()
                 if not snippet_exists:
                     with open(app_args_form, "w") as st_src:
                         st_src.write("")
 
-        cluster_params = st.session_state.app_settings.setdefault("cluster", {})
-        cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
-        if cluster_enabled:
+        if bool(cluster_params.get("cluster_enabled", False)):
             # Refresh mount table cache each rerun (mounts can appear/disappear while Streamlit stays alive).
             _clear_mount_table_cache()
-            share_candidate = Path(env.agi_share_path)
-            if not share_candidate.is_absolute():
-                share_candidate = Path(env.home_abs) / share_candidate
-            share_candidate = share_candidate.expanduser()
-            is_symlink = share_candidate.is_symlink()
-            share_resolved = _resolve_share_candidate(env.agi_share_path, env.home_abs)
-            looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(share_resolved)
-            cluster_share_path = getattr(env, "AGI_CLUSTER_SHARE", None)
-            env_vars = getattr(env, "envars", None)
-            if not cluster_share_path and isinstance(env_vars, dict):
-                cluster_share_path = env_vars.get("AGI_CLUSTER_SHARE")
-            workers_data_path = str(cluster_params.get("workers_data_path") or "").strip().lower()
-            has_worker_share_path = workers_data_path not in {"", "none", "local", "localshare"}
-            configured_cluster_share = _configured_cluster_share_matches(
-                share_resolved,
-                cluster_share_path=cluster_share_path,
-                home_abs=env.home_abs,
-            )
-            if not is_symlink and not looks_shared and not (configured_cluster_share and has_worker_share_path):
-                fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
-                hint = _macos_autofs_hint(share_candidate)
-                extra = f"\n\n{hint}" if hint else ""
-                st.warning(
-                    f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
-                    f"(detected fstype: `{fstype}`) "
-                    "Set `AGI_CLUSTER_SHARE` and `Workers Data Path` to the shared mount used by workers, "
-                    "or set `AGI_SHARE_DIR` to a shared mount/symlink when not using the cluster-share contract."
-                    f"{extra}",
-                    icon="⚠️",
-                )
+        warning_message = _cluster_args_share_warning(env, cluster_params)
+        if warning_message:
+            st.warning(warning_message, icon="⚠️")
 
         args_serialized = serialize_args_payload(st.session_state.app_settings["args"])
         st.session_state["args_serialized"] = args_serialized
