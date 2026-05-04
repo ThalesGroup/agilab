@@ -1,0 +1,122 @@
+{
+  "created_at": "2026-04-29T00:00:00Z",
+  "kind": "agilab.screenshot_manifest",
+  "root": "docs/source/_static/page-shots",
+  "schema": "agilab.screenshot_manifest.v1",
+  "schema_version": 1,
+  "screenshots": [
+    {
+      "alt": "",
+      "app": "",
+      "created_at": "2026-04-29T00:00:00Z",
+      "height_px": 900,
+      "image_path": "analysis-page.png",
+      "page": "analysis",
+      "project": "",
+      "sha256": "46ffe8a7c7437ae99edeb16895de7e2e1fcdc7aa9f52f86d96c42f668ecfaf12",
+      "size_bytes": 327417,
+      "source_command": [
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "docs/source/_static/page-shots",
+        "--output",
+        "docs/source/_static/page-shots/screenshot_manifest.json"
+      ],
+      "url": "",
+      "width_px": 1600
+    },
+    {
+      "alt": "",
+      "app": "",
+      "created_at": "2026-04-29T00:00:00Z",
+      "height_px": 1310,
+      "image_path": "core-pages-overview.png",
+      "page": "core-pages-overview",
+      "project": "",
+      "sha256": "4d92e4811a0b89fe4e30c940b805e1a4c7c59c2247db254aef93bb6ac11756f1",
+      "size_bytes": 454083,
+      "source_command": [
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "docs/source/_static/page-shots",
+        "--output",
+        "docs/source/_static/page-shots/screenshot_manifest.json"
+      ],
+      "url": "",
+      "width_px": 2086
+    },
+    {
+      "alt": "",
+      "app": "",
+      "created_at": "2026-04-29T00:00:00Z",
+      "height_px": 910,
+      "image_path": "orchestrate-page.png",
+      "page": "orchestrate",
+      "project": "",
+      "sha256": "f41824a149840cffd44664d59d86bf9dbaf6ca85f62e15760fb260d79b40889f",
+      "size_bytes": 115779,
+      "source_command": [
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "docs/source/_static/page-shots",
+        "--output",
+        "docs/source/_static/page-shots/screenshot_manifest.json"
+      ],
+      "url": "",
+      "width_px": 1600
+    },
+    {
+      "alt": "",
+      "app": "",
+      "created_at": "2026-04-29T00:00:00Z",
+      "height_px": 910,
+      "image_path": "pipeline-page.png",
+      "page": "pipeline",
+      "project": "",
+      "sha256": "3ce44dd472c3c0c82e8ee35c3c97d0d923f251edc43fb87f3566429ed0b2cc65",
+      "size_bytes": 96102,
+      "source_command": [
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "docs/source/_static/page-shots",
+        "--output",
+        "docs/source/_static/page-shots/screenshot_manifest.json"
+      ],
+      "url": "",
+      "width_px": 1600
+    },
+    {
+      "alt": "",
+      "app": "",
+      "created_at": "2026-04-29T00:00:00Z",
+      "height_px": 910,
+      "image_path": "project-page.png",
+      "page": "project",
+      "project": "",
+      "sha256": "91e792b67bc2897775b27be55ff0e755121310d32216e43dd7407f54167794a9",
+      "size_bytes": 67117,
+      "source_command": [
+        "python",
+        "tools/generate_screenshot_manifest.py",
+        "--root",
+        "docs/source/_static/page-shots",
+        "--output",
+        "docs/source/_static/page-shots/screenshot_manifest.json"
+      ],
+      "url": "",
+      "width_px": 1600
+    }
+  ],
+  "source_command": [
+    "python",
+    "tools/generate_screenshot_manifest.py",
+    "--root",
+    "docs/source/_static/page-shots",
+    "--output",
+    "docs/source/_static/page-shots/screenshot_manifest.json"
+  ]
+}

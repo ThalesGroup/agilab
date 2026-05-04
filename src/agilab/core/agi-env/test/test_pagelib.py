@@ -1295,9 +1295,13 @@ def test_get_projects_zip_templates_and_about_content(tmp_path, monkeypatch):
         ),
     )
 
+    about_text = pagelib.get_about_content()["About"]
+
     assert pagelib.get_projects_zip() == ["alpha.zip", "beta.zip"]
     assert pagelib.get_templates() == ["builtin", "demo"]
-    assert "AGILab" in pagelib.get_about_content()["About"]
+    assert "AGILAB" in about_text
+    assert "Reproducible AI engineering, from project to proof." in about_text
+    assert "Data Science in Engineering" not in about_text
 
 
 def test_get_templates_falls_back_to_globbed_template_names(tmp_path, monkeypatch):
@@ -1816,14 +1820,14 @@ def test_on_project_change_resets_state_and_reports_env_errors(monkeypatch, tmp_
     assert "view_checkbox_beta" not in session_state
     assert "sample:app_args_form:field" not in session_state
     for label in (
-        "PYTHON‑ENV",
+        "PYTHON-ENV",
         "PYTHON-ENV-EXTRA",
         "MANAGER",
         "WORKER",
-        "EXPORT‑APP‑FILTER",
-        "APP‑SETTINGS",
-        "ARGS‑UI",
-        "PRE‑PROMPT",
+        "EXPORT-APP-FILTER",
+        "APP-SETTINGS",
+        "ARGS-UI",
+        "PRE-PROMPT",
     ):
         assert session_state[label] is False
 

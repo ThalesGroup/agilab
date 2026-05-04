@@ -169,7 +169,7 @@ def _build_report_with_path(
         _check_result(
             "data_connector_live_ui_components",
             "Data connector live UI components",
-            render_summary.get("connector_card_count") == 3
+            render_summary.get("connector_card_count") == 5
             and render_summary.get("page_binding_count") == 2
             and render_summary.get("legacy_fallback_count") == 2
             and call_methods.get("expander", 0) == 1
@@ -182,7 +182,7 @@ def _build_report_with_path(
         _check_result(
             "data_connector_live_ui_health_boundary",
             "Data connector live UI health boundary",
-            render_summary.get("health_probe_status_count") == 3
+            render_summary.get("health_probe_status_count") == 5
             and render_summary.get("network_probe_count") == 0
             and render_summary.get("operator_opt_in_required_for_health") is True
             and {probe.get("status") for probe in health_probes} == {"unknown_not_probed"},

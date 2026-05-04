@@ -10,8 +10,12 @@ from typing import Any, Dict, Iterable, Sequence
 
 import tomllib
 
+from .page_bundle_registry import discover_page_bundle
+
 
 DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
+NOTEBOOK_EXPORT_SCHEMA = "agilab.notebook_export.v1"
+NOTEBOOK_EXPORT_SCHEMA_VERSION = 1
 PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 ALLOW_WORKSPACE_SIBLING_APPS_ENV = "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
 APPS_REPOSITORY_ENV_KEYS = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
@@ -438,24 +442,8 @@ def _load_related_page_manifest(
 def _discover_page_script(pages_root: str | Path | None, module_name: str) -> str:
     if not pages_root:
         return ""
-    try:
-        root = Path(pages_root).expanduser()
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return ""
-
-    candidates = (
-        root / f"{module_name}.py",
-        root / module_name / f"{module_name}.py",
-        root / module_name / "main.py",
-        root / module_name / "app.py",
-        root / module_name / "src" / module_name / f"{module_name}.py",
-        root / module_name / "src" / module_name / "main.py",
-        root / module_name / "src" / module_name / "app.py",
-    )
-    for candidate in candidates:
-        if candidate.exists():
-            return str(candidate.resolve())
-    return ""
+    bundle = discover_page_bundle(pages_root, module_name)
+    return str(bundle.script_path) if bundle is not None else ""
 
 
 def _discover_page_inline_renderer(
@@ -1254,7 +1242,23 @@ def _step_runner_cell(step: dict[str, Any]) -> str:
     ).strip() + "\n"
 
 
-def _notebook_metadata(agilab_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def _agilab_notebook_payload(
+    agilab_payload: dict[str, Any] | None = None,
+    *,
+    export_mode: str = "plain",
+) -> dict[str, Any]:
+    payload = dict(agilab_payload or {})
+    payload.setdefault("schema", NOTEBOOK_EXPORT_SCHEMA)
+    payload.setdefault("version", NOTEBOOK_EXPORT_SCHEMA_VERSION)
+    payload.setdefault("export_mode", export_mode)
+    return payload
+
+
+def _notebook_metadata(
+    agilab_payload: dict[str, Any] | None = None,
+    *,
+    export_mode: str = "plain",
+) -> dict[str, Any]:
     metadata: dict[str, Any] = {
         "kernelspec": {
             "display_name": "Python 3",
@@ -1273,8 +1277,7 @@ def _notebook_metadata(agilab_payload: dict[str, Any] | None = None) -> dict[str
             }
         },
     }
-    if agilab_payload is not None:
-        metadata["agilab"] = agilab_payload
+    metadata["agilab"] = _agilab_notebook_payload(agilab_payload, export_mode=export_mode)
     return metadata
 
 
@@ -1379,7 +1382,7 @@ def build_notebook_document(
 
     return {
         "cells": cells,
-        "metadata": _notebook_metadata(payload),
+        "metadata": _notebook_metadata(payload, export_mode=export_context.export_mode),
         "nbformat": 4,
         "nbformat_minor": 5,
     }

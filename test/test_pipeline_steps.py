@@ -70,6 +70,8 @@ def test_module_key_normalization_and_sequence_roundtrip(monkeypatch, tmp_path):
     data = tomllib.loads(steps_file.read_text(encoding="utf-8"))
     assert "flight_project" in data
     assert absolute_key not in data
+    assert data["__meta__"]["schema"] == "agilab.lab_steps.v1"
+    assert data["__meta__"]["version"] == 1
     assert pipeline_steps.load_sequence_preferences(module_dir, steps_file, env=env) == [2, 0, 1]
 
 
@@ -102,6 +104,8 @@ def test_restore_missing_export_steps_from_project_source(monkeypatch, tmp_path)
     data = tomllib.loads(target_steps.read_text(encoding="utf-8"))
     assert data["sb3_trainer"][0]["Q"] == "Train policy"
     assert "sb3_trainer_project" not in data
+    assert data["__meta__"]["schema"] == "agilab.lab_steps.v1"
+    assert data["__meta__"]["version"] == 1
 
 
 def test_restore_missing_export_steps_handles_empty_file(monkeypatch, tmp_path):
@@ -131,6 +135,7 @@ def test_restore_missing_export_steps_handles_empty_file(monkeypatch, tmp_path):
     assert restored == source_steps
     data = tomllib.loads(target_steps.read_text(encoding="utf-8"))
     assert data["flight"][0]["Q"] == "Run"
+    assert data["__meta__"]["schema"] == "agilab.lab_steps.v1"
 
 
 def test_restore_missing_export_steps_does_not_overwrite_existing_export(monkeypatch, tmp_path):
@@ -803,6 +808,24 @@ def test_sequence_preferences_and_guidance_ignore_invalid_metadata(tmp_path):
     assert pipeline_steps.load_sequence_preferences("demo_project", steps_file) == [2, 0]
     assert "latest ORCHESTRATE run" in pipeline_steps.snippet_source_guidance(True, "demo_project")
     assert "No ORCHESTRATE-generated snippet" in pipeline_steps.snippet_source_guidance(False, "demo_project")
+
+
+def test_lab_steps_contract_metadata_and_refusal_paths() -> None:
+    data = {"demo_project": [{"Q": "Run", "C": "print(1)"}]}
+
+    prepared = pipeline_steps.prepare_lab_steps_for_write(data)
+
+    assert prepared is data
+    assert prepared["__meta__"] == {
+        "schema": "agilab.lab_steps.v1",
+        "version": 1,
+    }
+    assert pipeline_steps.lab_steps_contract_error({"__meta__": {"version": 999}}).startswith(
+        "Unsupported lab_steps.toml schema version 999"
+    )
+    assert pipeline_steps.lab_steps_contract_error({"__meta__": "bad"}) == (
+        "lab_steps.toml __meta__ must be a TOML table."
+    )
 
 
 def test_pipeline_steps_misc_helpers_cover_path_conversion_and_locked_source():

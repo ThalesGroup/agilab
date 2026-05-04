@@ -430,7 +430,6 @@ lib/
         README.md
 examples/
     flight/
-        AGI_command_flight.py
         AGI_install_flight.py
         AGI_run_flight.py
     mycode/

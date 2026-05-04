@@ -9,6 +9,7 @@ on:
       - 'docs/source/**'
       - 'src/agilab/core/**'
       - 'src/agilab/resources/help/**'
+      - 'tools/release_proof_report.py'
       - '.github/workflows/docs-publish.yaml'
   workflow_dispatch:
 
@@ -49,9 +50,12 @@ jobs:
             uv.lock
             pyproject.toml
       - name: Verify managed docs/source mirror stamp
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp --quiet
+          uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --check-github-runs --compact
       - name: Install Graphviz
         run: |
           set -euo pipefail

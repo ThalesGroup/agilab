@@ -1,9 +1,9 @@
-from agi_cluster.agi_distributor import AGI
+from agi_cluster.agi_distributor import AGI, RunRequest
 
-result = await AGI.run(
-    app_env,
+request = RunRequest(
     scheduler="127.0.0.1",
     workers={"127.0.0.1": 1},
-    mode=0,  # plain local Python execution
+    mode=AGI.PYTHON_MODE,
 )
+result = await AGI.run(app_env, request=request)
 result

@@ -169,6 +169,10 @@ def test_save_step_roundtrip_writes_toml_and_notebook(monkeypatch, tmp_path):
     assert nsteps == 1
     assert entry["Q"] == "Describe step"
     assert entry["M"] == "gpt-x"
+    assert stored["__meta__"] == {
+        "schema": "agilab.lab_steps.v1",
+        "version": 1,
+    }
     assert stored["flight_project"][0]["R"] == "agi.run"
     assert notebook["cells"][0]["source"] == ["print('ok')"]
 
@@ -343,10 +347,23 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
 
     steps = [
-        {"D": "d0", "Q": "q0", "M": "m0", "C": "c0", "E": str(tmp_path / "venv0"), "R": "runpy"},
+        {
+            "D": "d0",
+            "Q": "q0",
+            "M": "m0",
+            "C": "c0",
+            "E": str(tmp_path / "venv0"),
+            "R": "runpy",
+            "template_id": "generic.execute",
+            "template_version": 1,
+            "custom_contract": {"schema_version": 1},
+        },
         {"D": "d1", "Q": "q1", "M": "m1", "C": "c1", "E": str(tmp_path / "venv1"), "R": "agi.run"},
     ]
     snapshot = pipeline_editor._capture_pipeline_snapshot("idx", steps)
+    assert snapshot["steps"][0]["template_id"] == "generic.execute"
+    assert snapshot["steps"][0]["template_version"] == 1
+    assert snapshot["steps"][0]["custom_contract"] == {"schema_version": 1}
 
     writes = {}
     def _write_steps(module, steps_file, module_steps):
@@ -379,6 +396,38 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
     assert fake_st.session_state["idx"][-1] == 2
     assert "idx_sequence_widget" not in fake_st.session_state
     assert writes["bumped"] is True
+    assert writes["steps"][0]["template_id"] == "generic.execute"
+    assert writes["steps"][0]["template_version"] == 1
+    assert writes["steps"][0]["custom_contract"] == {"schema_version": 1}
+
+
+def test_write_steps_for_module_preserves_step_contract_metadata(monkeypatch, tmp_path):
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(pipeline_editor, "get_steps_dict", lambda *_args, **_kwargs: {"flight_project": []})
+    monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
+
+    steps_file = tmp_path / "lab_steps.toml"
+    count = pipeline_editor._write_steps_for_module(
+        tmp_path / "flight_project",
+        steps_file,
+        [
+            {
+                "Q": "Run template",
+                "C": "print('run')",
+                "R": "runpy",
+                "template_id": "generic.execute",
+                "template_version": 1,
+                "custom_contract": {"schema_version": 1},
+            }
+        ],
+    )
+
+    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    assert count == 1
+    assert stored["flight_project"][0]["template_id"] == "generic.execute"
+    assert stored["flight_project"][0]["template_version"] == 1
+    assert stored["flight_project"][0]["custom_contract"] == {"schema_version": 1}
 
 
 def test_capture_pipeline_snapshot_falls_back_to_default_sequence_and_active_step(monkeypatch, tmp_path):
@@ -767,6 +816,39 @@ C = "print('short')"
     assert errors == ["Failed to save steps file: save boom"]
 
 
+def test_save_step_refuses_future_lab_steps_schema(monkeypatch, tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text(
+        "[__meta__]\nversion = 999\n[[flight_project]]\nQ = 'First'\nC = 'print(1)'\n",
+        encoding="utf-8",
+    )
+
+    errors: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={"_experiment_last_save_skipped": False},
+        error=lambda message, *args, **kwargs: errors.append(str(message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
+    monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
+
+    nsteps, entry = pipeline_editor.save_step(
+        tmp_path / "flight_project",
+        ["detail", "updated question", "model", "print(2)"],
+        current_step=0,
+        nsteps=1,
+        steps_file=steps_file,
+    )
+
+    assert nsteps == 1
+    assert entry["Q"] == "updated question"
+    assert fake_st.session_state["_experiment_last_save_skipped"] is True
+    assert errors == [
+        "Failed to save steps file: Unsupported lab_steps.toml schema version 999; "
+        "upgrade AGILAB before editing this pipeline."
+    ]
+
+
 def test_save_query_valid_uses_runtime_and_engine_maps(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(
         session_state={
@@ -884,6 +966,116 @@ def test_on_import_notebook_imports_ipynb_and_marks_page_broken(monkeypatch, tmp
     assert calls["args"][0] is uploaded
     assert fake_st.session_state["idx"][-1] == 3
     assert fake_st.session_state["page_broken"] is True
+
+
+def test_on_preview_notebook_import_stores_preview_without_writing(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    uploaded = SimpleNamespace(
+        name="demo.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["# Import context\n"]},
+                    {"cell_type": "code", "source": ["print(1)\n"]},
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"upload": uploaded, "idx": [0, "", "", "", "", "", 0]}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        info=lambda message, *args, **kwargs: messages.append(("info", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    pipeline_editor.on_preview_notebook_import("upload", tmp_path / "demo_project", "idx")
+
+    preview = fake_st.session_state["idx__notebook_import_preview"]
+    assert preview["cell_count"] == 1
+    assert preview["module"] == "demo_project"
+    assert (tmp_path / "demo_project" / "lab_steps.toml").exists() is False
+    assert messages == [
+        ("info", "Notebook import preview ready: 1 step(s), 0 input(s), 0 output(s).")
+    ]
+
+
+def test_confirm_notebook_import_preview_writes_steps_contract_and_marks_page_broken(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    uploaded = SimpleNamespace(
+        name="demo.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["# Import context\n"]},
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "import pandas as pd\n",
+                            "df = pd.read_csv('data/orders.csv')\n",
+                            "df.to_parquet('artifacts/orders.parquet')\n",
+                        ],
+                    },
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        info=lambda message, *args, **kwargs: messages.append(("info", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: messages.append(("revision", "bump")))
+
+    module_dir = tmp_path / "demo_project"
+    module_dir.mkdir()
+    (module_dir / "notebook_import_views.toml").write_text(
+        """
+schema = "agilab.notebook_import_views.v1"
+app = "demo_project"
+
+[[views]]
+id = "orders_dataframe"
+module = "view_dataframe"
+required_artifacts_any = ["artifacts/*.parquet"]
+optional_artifacts = ["data/*.csv"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, module_dir)
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+
+    count = pipeline_editor.confirm_notebook_import_preview(
+        module_dir,
+        module_dir / "lab_steps.toml",
+        "idx",
+    )
+
+    stored = tomllib.loads((module_dir / "lab_steps.toml").read_text(encoding="utf-8"))
+    contract = json.loads((module_dir / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    pipeline_view = json.loads((module_dir / "notebook_import_pipeline_view.json").read_text(encoding="utf-8"))
+    view_plan = json.loads((module_dir / "notebook_import_view_plan.json").read_text(encoding="utf-8"))
+    assert count == 1
+    assert stored["demo_project"][0]["D"] == "Import context"
+    assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
+    assert contract["artifact_contract"]["outputs"] == ["artifacts/orders.parquet"]
+    assert pipeline_view["schema"] == "agilab.notebook_import_pipeline_view.v1"
+    assert any(node["kind"] == "analysis_consumer" for node in pipeline_view["nodes"])
+    assert any(edge["kind"] == "analysis_consumes" for edge in pipeline_view["edges"])
+    assert view_plan["schema"] == "agilab.notebook_import_view_plan.v1"
+    assert view_plan["status"] == "matched"
+    assert view_plan["matched_views"][0]["module"] == "view_dataframe"
+    assert "idx__notebook_import_preview" not in fake_st.session_state
+    assert fake_st.session_state["idx"][-1] == 1
+    assert fake_st.session_state["page_broken"] is True
+    assert ("success", "Imported 1 notebook code cell(s).") in messages
+    assert ("revision", "bump") in messages
 
 
 def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_path):
@@ -1200,6 +1392,9 @@ def test_toml_to_notebook_handles_meta_string_steps_and_blank_entries(tmp_path):
     assert notebook["metadata"]["kernelspec"]["name"] == "python3"
     assert notebook["metadata"]["language_info"]["name"] == "python"
     assert "pycharm" in notebook["metadata"]
+    assert notebook["metadata"]["agilab"]["schema"] == "agilab.notebook_export.v1"
+    assert notebook["metadata"]["agilab"]["version"] == 1
+    assert notebook["metadata"]["agilab"]["export_mode"] == "plain"
 
 
 def test_pycharm_notebook_mirror_path_targets_source_checkout_for_external_exports(tmp_path):
@@ -1626,6 +1821,8 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     page_markdown = "".join(notebook["cells"][-2]["source"])
     analysis_source = "".join(notebook["cells"][-1]["source"])
 
+    assert metadata["schema"] == "agilab.notebook_export.v1"
+    assert metadata["version"] == 1
     assert metadata["export_mode"] == "supervisor"
     assert metadata["project_name"] == "demo_project"
     assert metadata["controller_python"] == sys.executable
@@ -2185,6 +2382,8 @@ def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_pat
 
 
 def test_pycharm_notebook_sitecustomize_patches_debugpy_values_policy(tmp_path):
+    debugpy = pytest.importorskip("debugpy")
+
     shim_dir = tmp_path / "notebook_dir"
     shim_dir.mkdir(parents=True, exist_ok=True)
     (shim_dir / "sitecustomize.py").write_text(
@@ -2195,7 +2394,10 @@ def test_pycharm_notebook_sitecustomize_patches_debugpy_values_policy(tmp_path):
     import subprocess
 
     env = os.environ.copy()
-    env["PYTHONPATH"] = str(shim_dir)
+    pythonpath_entries = [str(shim_dir), str(Path(debugpy.__file__).resolve().parents[1])]
+    if env.get("PYTHONPATH"):
+        pythonpath_entries.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
 
     result = subprocess.run(
         [
@@ -2308,6 +2510,60 @@ def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_p
     assert stored["demo_project"][0]["NB_CELL_ID"] == "cell-3"
     assert stored["demo_project"][0]["NB_CONTEXT_IDS"] == ["markdown-1"]
     assert stored["demo_project"][0]["NB_EXECUTION_MODE"] == "not_executed_import"
+
+
+def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    fake_st = SimpleNamespace(
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        info=lambda message, *args, **kwargs: messages.append(("info", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    uploaded = SimpleNamespace(
+        name="demo.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["# Import context\n"]},
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "!pip install requests\n",
+                            "import pandas as pd\n",
+                            "df = pd.read_csv('data/orders.csv')\n",
+                            "df.to_parquet('artifacts/orders.parquet')\n",
+                        ],
+                    },
+                ]
+            }
+        ).encode("utf-8"),
+    )
+
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
+
+    contract = json.loads((tmp_path / "demo_project" / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    view_plan = json.loads((tmp_path / "demo_project" / "notebook_import_view_plan.json").read_text(encoding="utf-8"))
+    assert count == 1
+    assert contract["schema"] == "agilab.notebook_import_contract.v1"
+    assert view_plan["schema"] == "agilab.notebook_import_view_plan.v1"
+    assert view_plan["status"] == "unmatched"
+    assert contract["preflight"]["status"] == "review"
+    assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
+    assert contract["artifact_contract"]["outputs"] == ["artifacts/orders.parquet"]
+    assert {warning["rule"] for warning in contract["warnings"]} >= {
+        "dependency_install",
+        "shell_execution",
+    }
+    assert messages == [
+        (
+            "warning",
+            "Notebook import preflight: review; 1 step(s), 1 input(s), 1 output(s). "
+            "Contract: notebook_import_contract.json; View plan: notebook_import_view_plan.json",
+        )
+    ]
 
 
 def test_notebook_to_toml_uses_lab_steps_key_when_module_dir_has_no_name(monkeypatch, tmp_path):

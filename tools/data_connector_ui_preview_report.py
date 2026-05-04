@@ -160,7 +160,7 @@ def _build_report_with_paths(
         _check_result(
             "data_connector_ui_preview_connector_cards",
             "Data connector UI preview connector cards",
-            summary.get("connector_card_count") == 3
+            summary.get("connector_card_count") == 5
             and {card.get("kind") for card in connector_cards}
             == {"sql", "opensearch", "object_storage"}
             and all(card.get("health_status") == "unknown_not_probed" for card in connector_cards),
@@ -192,7 +192,7 @@ def _build_report_with_paths(
         _check_result(
             "data_connector_ui_preview_health_boundary",
             "Data connector UI preview health boundary",
-            summary.get("health_probe_status_count") == 3
+            summary.get("health_probe_status_count") == 5
             and summary.get("network_probe_count") == 0
             and state.get("provenance", {}).get("operator_opt_in_required_for_health") is True,
             "preview shows health boundary without executing network probes",

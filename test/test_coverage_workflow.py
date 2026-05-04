@@ -32,6 +32,16 @@ def _run_block(start_name: str, end_name: str) -> str:
     return workflow_text[start:end]
 
 
+def _step_block(step_name: str) -> str:
+    workflow_text = _workflow_text()
+    start_marker = f"      - name: {step_name}"
+    start = workflow_text.index(start_marker)
+    next_step = workflow_text.find("\n      - name:", start + len(start_marker))
+    if next_step == -1:
+        next_step = len(workflow_text)
+    return workflow_text[start:next_step]
+
+
 def test_core_coverage_runs_shared_core_suite_once_for_node_and_cluster() -> None:
     workflow_text = _workflow_text()
 
@@ -44,6 +54,27 @@ def test_core_coverage_runs_shared_core_suite_once_for_node_and_cluster() -> Non
     assert "      - agi-core" in workflow_text
     assert "      - agi-node" not in workflow_text
     assert "      - agi-cluster" not in workflow_text
+
+
+def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
+    workflow_text = _workflow_text()
+    trigger_block = workflow_text.split("workflow_dispatch:", 1)[0]
+
+    for path in (
+        '".coveragerc*"',
+        '".github/workflows/coverage.yml"',
+        '"pyproject.toml"',
+        '"src/**"',
+        '"test/**"',
+        '"tools/coverage_badge_guard.py"',
+        '"tools/generate_component_coverage_badges.py"',
+        '"tools/workflow_parity.py"',
+        '"uv.lock"',
+    ):
+        assert path in trigger_block
+    assert '"docs/**"' not in trigger_block
+    assert '"README.md"' not in trigger_block
+    assert '"badges/**"' not in trigger_block
 
 
 def test_agi_env_coverage_installs_streamlit_ui_dependency() -> None:
@@ -89,6 +120,21 @@ def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
     assert "src/agilab/lib/agi-gui/test" in run_block
 
 
+def test_agi_gui_coverage_uses_chunked_append_profile() -> None:
+    run_block = _agi_gui_run_block()
+    junit_upload = _step_block("Upload JUnit results")
+
+    assert "run_gui_chunk support" in run_block
+    assert "run_gui_chunk pipeline" in run_block
+    assert "run_gui_chunk pages" in run_block
+    assert "run_gui_chunk views" in run_block
+    assert "run_gui_chunk reports" in run_block
+    assert "--append" in run_block
+    assert "python -m coverage xml" in run_block
+    assert "--cov=src/agilab" not in run_block
+    assert "test-results/junit-agi-gui-*.xml" in junit_upload
+
+
 def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
     run_block = _agi_gui_run_block()
 
@@ -106,6 +152,31 @@ def test_agi_gui_coverage_includes_pipeline_run_controls() -> None:
     run_block = _agi_gui_run_block()
 
     assert "test/test_pipeline_run_controls.py" in run_block
+
+
+def test_agi_gui_coverage_includes_tracking_facade() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_tracking.py" in run_block
+
+
+def test_agi_gui_coverage_includes_orchestrate_page_state() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_orchestrate_page_state.py" in run_block
+
+
+def test_agi_gui_coverage_includes_analysis_page_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_analysis_page_helpers.py" in run_block
+
+
+def test_agi_gui_coverage_includes_support_parity_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_venv_linker.py" in run_block
+    assert "test/test_workflow_ui.py" in run_block
 
 
 def test_agi_gui_coverage_includes_report_helper_regressions() -> None:
@@ -160,3 +231,34 @@ def test_agi_gui_workflow_wildcard_covers_all_workflow_tests() -> None:
         f"coverage.yml agi-gui workflow wildcard is out of sync; "
         f"missing={missing}, extra={extra}"
     )
+
+
+def test_codecov_uploads_are_external_reporting_not_blocking_gates() -> None:
+    upload_steps = [
+        "Upload agi-env coverage to Codecov",
+        "Upload agi-node coverage to Codecov",
+        "Upload agi-cluster coverage to Codecov",
+        "Upload agi-gui coverage to Codecov",
+        "Upload repo-wide agilab coverage to Codecov",
+    ]
+
+    for step_name in upload_steps:
+        block = _step_block(step_name)
+
+        assert "uses: codecov/codecov-action@v6" in block
+        assert "continue-on-error: true" in block
+        assert "fail_ci_if_error: false" in block
+
+
+def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
+    for step_name in (
+        "Archive agi-env coverage XML",
+        "Archive agi-node coverage XML",
+        "Archive agi-cluster coverage XML",
+        "Upload JUnit results",
+        "Archive agi-gui coverage XML",
+    ):
+        block = _step_block(step_name)
+
+        assert "uses: actions/upload-artifact@v7" in block
+        assert "retention-days: 3" in block

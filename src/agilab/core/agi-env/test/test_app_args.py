@@ -108,6 +108,7 @@ def test_dump_model_to_toml_creates_file_and_section(tmp_path: Path):
     dump_model_to_toml(model, settings)
 
     data = tomllib.loads(settings.read_text())
+    assert data["__meta__"] == {"schema": "agilab.app_settings.v1", "version": 1}
     assert data["args"] == {"foo": 7, "bar": "written"}
 
 
@@ -120,6 +121,14 @@ def test_dump_model_to_toml_respects_create_missing_flag(tmp_path: Path):
 
     dump_model_to_toml(model, settings)
     dump_model_to_toml(model, settings, create_missing=False)
+
+
+def test_dump_model_to_toml_rejects_future_app_settings_contract(tmp_path: Path):
+    settings = tmp_path / "config.toml"
+    settings.write_text("[__meta__]\nversion = 999\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unsupported app_settings.toml schema version 999"):
+        dump_model_to_toml(ExampleModel(), settings)
 
 
 def test_dump_model_to_toml_falls_back_to_tomlkit_when_tomli_w_missing(

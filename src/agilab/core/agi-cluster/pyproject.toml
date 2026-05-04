@@ -1,5 +1,5 @@
 [project]
-version = "2026.4.27.post6"
+version = "2026.05.01.post4"
 name = "agi-cluster"
 description = "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends"
 requires-python = ">=3.11"
@@ -12,7 +12,7 @@ license = "BSD-3-Clause"
 license-files = ["LICENSE"]
 classifiers = [
     "Intended Audience :: Developers",
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -23,44 +23,19 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
 ]
 keywords = [
-    "asyncio",
+    "python",
+    "distributed-computing",
+    "distributed-execution",
+    "workflow-orchestration",
+    "cluster-computing",
+    "remote-execution",
+    "reproducibility",
     "dask",
     "rapids",
-    "distributed-execution",
-    "cluster",
-    "dataframe",
-    "dataset",
-    "loadbalancing",
     "job-scheduling",
-    "agi",
-    "datascience",
+    "mlops",
 ]
-dependencies = [
-    "astor",
-    "asyncssh",
-    "cython",
-    "dask[distributed]",
-    "humanize",
-    "jupyter",
-    "msgpack",
-    "mypy",
-    "numba>=0.61.0",
-    "parso",
-    "pathspec",
-    "psutil",
-    "py7zr",
-    "pydantic",
-    "python-dotenv",
-    "requests",
-    "scp",
-    "scikit-learn",
-    "scipy==1.16.1",
-    "setuptools",
-    "tomli",
-    "tomlkit",
-    "typing-inspection>=0.4.1",
-    "wheel",
-]
+dependencies = ["agi-env==2026.05.01.post4", "agi-node==2026.05.01.post4", "asyncssh", "dask[distributed]", "humanize", "numpy", "packaging", "polars", "psutil", "scikit-learn", "tomlkit"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -70,6 +45,67 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[[tool.mypy.overrides]]
+module = "agi_core.*"
+disallow_untyped_defs = true
+disallow_any_generics = true
+warn_return_any = true
+warn_unused_ignores = true
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -207,7 +243,7 @@ mypy_path = [
     "stubs",
 ]
 
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 ignore_missing_imports = true
 
 [tool.pyment]

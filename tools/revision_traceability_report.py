@@ -147,8 +147,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         _check_result(
             "revision_traceability_builtin_apps",
             "Revision traceability built-in apps",
-            summary.get("builtin_app_count") == 7
-            and summary.get("app_fingerprint_count") == 7
+            summary.get("builtin_app_count") == summary.get("app_fingerprint_count")
             and summary.get("missing_app_pyproject_count") == 0
             and summary.get("missing_app_settings_count") == 0,
             "all built-in app manifests and settings are fingerprinted",

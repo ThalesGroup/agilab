@@ -1,12 +1,17 @@
 import textwrap
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 import pandas as pd
 import streamlit as st
+from agi_gui.ux_widgets import action_button
+
+from .action_execution import ActionResult, render_action_result
 
 SERVICE_MODE_POOL = 1
 SERVICE_MODE_CYTHON = 2
@@ -64,6 +69,40 @@ class ServiceHealthGateKeys:
     max_restart_rate: str
 
 
+class ServiceWorkflowStatus(str, Enum):
+    DISABLED = "disabled"
+    IDLE = "idle"
+    RUNNING = "running"
+    DEGRADED = "degraded"
+    STOPPED = "stopped"
+    ERROR = "error"
+    UNKNOWN = "unknown"
+
+
+class OrchestrateServiceAction(str, Enum):
+    START = "start"
+    STATUS = "status"
+    HEALTH_GATE = "health"
+    EXPORT_SNAPSHOT = "export_snapshot"
+    STOP = "stop"
+
+
+@dataclass(frozen=True)
+class OrchestrateServiceState:
+    enabled: bool
+    mode: int
+    status: ServiceWorkflowStatus
+    status_text: str
+    worker_health: tuple[Mapping[str, Any], ...]
+    summary: Mapping[str, Any]
+    snapshot_path: str
+    available_actions: tuple[OrchestrateServiceAction, ...]
+    blocked_actions: Mapping[OrchestrateServiceAction, str]
+
+    def can(self, action: OrchestrateServiceAction) -> bool:
+        return action in self.available_actions
+
+
 def ensure_service_session_defaults(session_state: Any) -> None:
     for key, value in SERVICE_SESSION_DEFAULTS.items():
         session_state.setdefault(key, value)
@@ -96,6 +135,92 @@ def compute_service_mode(cluster_params: dict[str, Any], service_enabled: bool) 
         + int(cluster_params.get("cython", False)) * SERVICE_MODE_CYTHON
         + int(service_enabled) * SERVICE_MODE_ENABLED
         + int(cluster_params.get("rapids", False)) * SERVICE_MODE_RAPIDS
+    )
+
+
+def _coerce_worker_health(worker_health: Any) -> tuple[Mapping[str, Any], ...]:
+    if not isinstance(worker_health, list):
+        return ()
+    return tuple(row for row in worker_health if isinstance(row, Mapping))
+
+
+def _coerce_service_status(
+    *,
+    enabled: bool,
+    status_text: str,
+    worker_health: tuple[Mapping[str, Any], ...],
+) -> ServiceWorkflowStatus:
+    if not enabled:
+        return ServiceWorkflowStatus.DISABLED
+    normalized = status_text.strip().lower()
+    if normalized in {"error", "failed", "failure"}:
+        return ServiceWorkflowStatus.ERROR
+    if normalized in {"stopped", "stop"}:
+        return ServiceWorkflowStatus.STOPPED
+    if normalized in {"idle", ""}:
+        return ServiceWorkflowStatus.IDLE
+    if normalized in {"running", "started", "healthy"}:
+        has_unhealthy = any(row.get("healthy") is False for row in worker_health)
+        return ServiceWorkflowStatus.DEGRADED if has_unhealthy else ServiceWorkflowStatus.RUNNING
+    return ServiceWorkflowStatus.UNKNOWN
+
+
+def build_orchestrate_service_state(
+    *,
+    session_state: Mapping[str, Any],
+    cluster_params: Mapping[str, Any],
+    allow_idle: bool,
+    max_unhealthy: int,
+    max_restart_rate: float,
+    heartbeat_timeout_sec: float,
+) -> OrchestrateServiceState:
+    """Build a pure ViewModel for Orchestrate service-mode controls."""
+    enabled = bool(cluster_params.get("cluster_enabled", False))
+    mode = compute_service_mode(dict(cluster_params), enabled)
+    status_text = str(session_state.get("service_status_cache", "idle") or "idle")
+    worker_health = _coerce_worker_health(session_state.get("service_health_cache") or [])
+    status = _coerce_service_status(
+        enabled=enabled,
+        status_text=status_text,
+        worker_health=worker_health,
+    )
+    summary = build_service_operator_summary(
+        status=status_text,
+        worker_health=list(worker_health),
+        allow_idle=allow_idle,
+        max_unhealthy=max_unhealthy,
+        max_restart_rate=max_restart_rate,
+        heartbeat_timeout_sec=heartbeat_timeout_sec,
+    )
+    snapshot_path = str(session_state.get("service_snapshot_path_cache", "") or "").strip()
+
+    all_actions = (
+        OrchestrateServiceAction.START,
+        OrchestrateServiceAction.STATUS,
+        OrchestrateServiceAction.HEALTH_GATE,
+        OrchestrateServiceAction.EXPORT_SNAPSHOT,
+        OrchestrateServiceAction.STOP,
+    )
+    if enabled:
+        available_actions = all_actions
+        blocked_actions: dict[OrchestrateServiceAction, str] = {}
+    else:
+        available_actions = ()
+        blocked_actions = {
+            action: "Enable Cluster in deployment settings before using service mode."
+            for action in all_actions
+        }
+
+    return OrchestrateServiceState(
+        enabled=enabled,
+        mode=mode,
+        status=status,
+        status_text=status_text,
+        worker_health=worker_health,
+        summary=summary,
+        snapshot_path=snapshot_path,
+        available_actions=available_actions,
+        blocked_actions=blocked_actions,
     )
 
 
@@ -469,7 +594,16 @@ async def render_service_panel(
             except (AttributeError, RuntimeError):
                 pass
 
-        st.caption(f"Service status: `{st.session_state.get('service_status_cache', 'idle')}`")
+        service_state = build_orchestrate_service_state(
+            session_state=st.session_state,
+            cluster_params=cluster_params,
+            allow_idle=bool(service_health_allow_idle),
+            max_unhealthy=int(service_health_max_unhealthy),
+            max_restart_rate=float(service_health_max_restart_rate),
+            heartbeat_timeout_sec=float(service_heartbeat_timeout),
+        )
+
+        st.caption(f"Service status: `{service_state.status_text}`")
 
         preview_action = st.selectbox(
             "Service snippet action",
@@ -482,7 +616,7 @@ async def render_service_panel(
                 env=env,
                 verbose=verbose,
                 service_action=preview_action,
-                service_mode=service_mode,
+                service_mode=service_state.mode,
                 scheduler=scheduler,
                 workers=workers,
                 service_poll_interval=float(service_poll_interval),
@@ -501,40 +635,40 @@ async def render_service_panel(
         )
 
         start_col, status_col, health_col, export_col, stop_col = st.columns(5)
-        start_service_clicked = start_col.button(
+        start_service_clicked = action_button(
+            start_col,
             "START service",
             key="service_start_btn",
-            type="primary",
-            width="stretch",
-            disabled=not service_enabled,
+            kind="run",
+            disabled=not service_state.can(OrchestrateServiceAction.START),
         )
-        status_service_clicked = status_col.button(
+        status_service_clicked = action_button(
+            status_col,
             "STATUS service",
             key="service_status_btn",
-            type="secondary",
-            width="stretch",
-            disabled=not service_enabled,
+            kind="refresh",
+            disabled=not service_state.can(OrchestrateServiceAction.STATUS),
         )
-        health_gate_clicked = health_col.button(
+        health_gate_clicked = action_button(
+            health_col,
             "HEALTH gate",
             key="service_health_gate_btn",
-            type="secondary",
-            width="stretch",
-            disabled=not service_enabled,
+            kind="check",
+            disabled=not service_state.can(OrchestrateServiceAction.HEALTH_GATE),
         )
-        export_snapshot_clicked = export_col.button(
+        export_snapshot_clicked = action_button(
+            export_col,
             "EXPORT snapshot",
             key="service_export_btn",
-            type="secondary",
-            width="stretch",
-            disabled=not service_enabled,
+            kind="download",
+            disabled=not service_state.can(OrchestrateServiceAction.EXPORT_SNAPSHOT),
         )
-        stop_service_clicked = stop_col.button(
+        stop_service_clicked = action_button(
+            stop_col,
             "STOP service",
             key="service_stop_btn",
-            type="secondary",
-            width="stretch",
-            disabled=not service_enabled,
+            kind="stop",
+            disabled=not service_state.can(OrchestrateServiceAction.STOP),
         )
 
         service_log_placeholder = st.empty()
@@ -566,23 +700,30 @@ async def render_service_panel(
             service_health_placeholder.dataframe(health_df, width="stretch")
 
         def _render_service_operator_summary() -> None:
-            summary = build_service_operator_summary(
-                status=str(st.session_state.get("service_status_cache", "idle")),
-                worker_health=st.session_state.get("service_health_cache") or [],
+            current_state = build_orchestrate_service_state(
+                session_state=st.session_state,
+                cluster_params=cluster_params,
                 allow_idle=bool(service_health_allow_idle),
                 max_unhealthy=int(service_health_max_unhealthy),
                 max_restart_rate=float(service_health_max_restart_rate),
                 heartbeat_timeout_sec=float(service_heartbeat_timeout),
             )
             service_summary_placeholder.info(
-                "\n".join(f"- {line}" for line in summary["lines"])
+                "\n".join(f"- {line}" for line in current_state.summary["lines"])
             )
 
         def _render_service_snapshot_status() -> None:
-            snapshot_path = str(st.session_state.get("service_snapshot_path_cache", "") or "").strip()
-            if snapshot_path:
+            current_state = build_orchestrate_service_state(
+                session_state=st.session_state,
+                cluster_params=cluster_params,
+                allow_idle=bool(service_health_allow_idle),
+                max_unhealthy=int(service_health_max_unhealthy),
+                max_restart_rate=float(service_health_max_restart_rate),
+                heartbeat_timeout_sec=float(service_heartbeat_timeout),
+            )
+            if current_state.snapshot_path:
                 service_snapshot_placeholder.caption(
-                    f"Operator snapshot: `{snapshot_path}`"
+                    f"Operator snapshot: `{current_state.snapshot_path}`"
                 )
             else:
                 service_snapshot_placeholder.empty()
@@ -598,14 +739,39 @@ async def render_service_panel(
                 height=deps.install_log_height,
             )
 
-        async def _execute_service_action(action_name: str) -> Optional[dict]:
+        async def _execute_service_action(action_name: str) -> ActionResult:
+            try:
+                action = OrchestrateServiceAction(action_name)
+            except ValueError:
+                return ActionResult.error(
+                    "Unsupported service action.",
+                    detail=f"Unknown service action: {action_name}",
+                    next_action="Use START, STATUS, HEALTH gate, EXPORT snapshot, or STOP.",
+                    data={"action": action_name},
+                )
+            current_state = build_orchestrate_service_state(
+                session_state=st.session_state,
+                cluster_params=cluster_params,
+                allow_idle=bool(service_health_allow_idle),
+                max_unhealthy=int(service_health_max_unhealthy),
+                max_restart_rate=float(service_health_max_restart_rate),
+                heartbeat_timeout_sec=float(service_heartbeat_timeout),
+            )
+            if not current_state.can(action):
+                return ActionResult.warning(
+                    "Service action is unavailable.",
+                    detail=current_state.blocked_actions.get(action, "Service action is blocked."),
+                    next_action="Enable Cluster in deployment settings before using service mode.",
+                    data={"action": action.value, "status": current_state.status.value},
+                )
+
             deps.reset_traceback_skip()
             local_log: list[str] = []
             context_lines = [
                 f"=== Service action: {action_name.upper()} ===",
                 f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
                 f"app: {env.app}",
-                f"mode: {service_mode}",
+                f"mode: {current_state.mode}",
                 f"scheduler: {cluster_params.get('scheduler') if service_enabled else 'None'}",
                 f"workers: {cluster_params.get('workers') if service_enabled else 'None'}",
                 f"poll_interval: {service_poll_interval}",
@@ -638,7 +804,7 @@ async def render_service_panel(
                 env=env,
                 verbose=verbose,
                 service_action=action_name,
-                service_mode=service_mode,
+                service_mode=current_state.mode,
                 scheduler=scheduler,
                 workers=workers,
                 service_poll_interval=float(service_poll_interval),
@@ -755,29 +921,33 @@ async def render_service_panel(
             _render_logs()
 
             if service_error or service_stderr.strip():
-                st.error(f"Service action '{action_name}' failed.")
-            else:
-                if isinstance(result_payload, dict):
-                    restarted_workers = result_payload.get("restarted_workers") or []
-                    if restarted_workers:
-                        st.warning(
-                            "Service auto-restarted worker loops: "
-                            + ", ".join(str(worker) for worker in restarted_workers)
-                        )
-                st.success(
-                    f"Service action '{action_name}' completed with status "
-                    f"'{st.session_state.get('service_status_cache', 'unknown')}'."
+                return ActionResult.error(
+                    f"Service action '{action_name}' failed.",
+                    detail=service_stderr.strip() or str(service_error),
+                    next_action="Inspect the service log and rerun STATUS after fixing the reported failure.",
+                    data={"action": action_name, "payload": result_payload},
                 )
             if isinstance(result_payload, dict):
-                return result_payload
-            return None
+                restarted_workers = result_payload.get("restarted_workers") or []
+                if restarted_workers:
+                    st.warning(
+                        "Service auto-restarted worker loops: "
+                        + ", ".join(str(worker) for worker in restarted_workers)
+                    )
+            return ActionResult.success(
+                f"Service action '{action_name}' completed with status "
+                f"'{st.session_state.get('service_status_cache', 'unknown')}'.",
+                data={"action": action_name, "payload": result_payload},
+            )
 
         if start_service_clicked:
-            await _execute_service_action("start")
+            render_action_result(st, await _execute_service_action("start"))
         elif status_service_clicked:
-            await _execute_service_action("status")
+            render_action_result(st, await _execute_service_action("status"))
         elif health_gate_clicked:
-            health_payload = await _execute_service_action("health")
+            health_result = await _execute_service_action("health")
+            render_action_result(st, health_result)
+            health_payload = health_result.data.get("payload")
             if isinstance(health_payload, dict):
                 gate_code, gate_reason, gate_details = deps.evaluate_service_health_gate(
                     health_payload,
@@ -814,10 +984,22 @@ async def render_service_panel(
             try:
                 written_path = write_service_operator_snapshot(snapshot_path, snapshot_payload)
             except OSError as exc:
-                st.error(f"Operator snapshot export failed: {exc}")
+                render_action_result(
+                    st,
+                    ActionResult.error(
+                        f"Operator snapshot export failed: {exc}",
+                        next_action="Check filesystem permissions and available disk space.",
+                    ),
+                )
             else:
                 st.session_state["service_snapshot_path_cache"] = str(written_path)
                 _render_service_snapshot_status()
-                st.success(f"Operator snapshot exported to '{written_path}'.")
+                render_action_result(
+                    st,
+                    ActionResult.success(
+                        f"Operator snapshot exported to '{written_path}'.",
+                        data={"path": str(written_path)},
+                    ),
+                )
         elif stop_service_clicked:
-            await _execute_service_action("stop")
+            render_action_result(st, await _execute_service_action("stop"))

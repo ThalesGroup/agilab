@@ -40,6 +40,8 @@ from agilab.data_connector_runtime_adapters import (
 
 EXPECTED_ADAPTER_IDS = [
     "artifact_object_store:runtime_adapter",
+    "azure_artifact_store:runtime_adapter",
+    "gcp_artifact_store:runtime_adapter",
     "ops_opensearch:runtime_adapter",
     "warehouse_sql:runtime_adapter",
 ]
@@ -49,7 +51,9 @@ EXPECTED_OPERATIONS = [
     "read_only_connectivity_check",
 ]
 EXPECTED_RUNTIME_DEPENDENCIES = [
+    "package:azure-storage-blob",
     "package:boto3",
+    "package:google-cloud-storage",
     "package:psycopg",
     "python:urllib.request",
 ]
@@ -163,7 +167,7 @@ def _build_report_with_path(
         _check_result(
             "data_connector_runtime_adapters_rows",
             "Data connector runtime adapters rows",
-            summary.get("adapter_count") == 3
+            summary.get("adapter_count") == 5
             and adapter_ids == EXPECTED_ADAPTER_IDS
             and summary.get("operations") == EXPECTED_OPERATIONS
             and summary.get("runtime_dependencies") == EXPECTED_RUNTIME_DEPENDENCIES,
@@ -174,7 +178,7 @@ def _build_report_with_path(
         _check_result(
             "data_connector_runtime_adapters_credential_boundary",
             "Data connector runtime adapters credential boundary",
-            summary.get("credential_deferred_count") == 2
+            summary.get("credential_deferred_count") == 4
             and summary.get("no_credential_required_count") == 1
             and summary.get("credential_value_materialized_count") == 0
             and all(
@@ -190,10 +194,12 @@ def _build_report_with_path(
         _check_result(
             "data_connector_runtime_adapters_health_actions",
             "Data connector runtime adapters health actions",
-            summary.get("health_action_binding_count") == 3
+            summary.get("health_action_binding_count") == 5
             and sorted(str(adapter.get("health_action_id", "")) for adapter in adapters)
             == [
                 "artifact_object_store:health_probe",
+                "azure_artifact_store:health_probe",
+                "gcp_artifact_store:health_probe",
                 "ops_opensearch:health_probe",
                 "warehouse_sql:health_probe",
             ]

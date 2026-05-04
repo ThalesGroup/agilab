@@ -24,6 +24,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 import tomllib as _toml
+from agi_env.app_settings_support import prepare_app_settings_for_write
 
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
@@ -110,7 +111,7 @@ def _visible_dataset_files(datadir: Path, files: list[Path]) -> list[Path]:
         visible_files.append(file_path)
     return visible_files
 
-st.title(":world_map: Cartography Visualisation")
+st.title(":world_map: Cartography Visualization")
 
 
 def continuous():
@@ -235,7 +236,7 @@ def _persist_view_maps_settings(env: AgiEnv, base_settings: dict, view_settings:
     payload["view_maps"] = view_settings
     try:
         with open(env.app_settings_file, "wb") as fh:
-            _dump_toml_payload(payload, fh)
+            _dump_toml_payload(prepare_app_settings_for_write(payload), fh)
     except (OSError, RuntimeError):
         pass
     return payload

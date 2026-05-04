@@ -5,11 +5,11 @@ requires-python = ">=3.13"
 dependencies = [
     "agi-gui",
     "agi-node",
+    "ipython",
     "networkx",
     "plotly",
     "matplotlib",
     "sqlalchemy>=2.0.43",
-    "scipy==1.16.1",
 ]
 
 [tool.uv.sources]

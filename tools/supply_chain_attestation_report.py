@@ -63,6 +63,8 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
         "tools/supply_chain_attestation_report.py --compact",
         "agilab.supply_chain_attestation.v1",
         "supply_chain_static_attestation",
+        "package payload inventory",
+        "budgets without formal",
     ]
     doc_path = repo_root / DOC_RELATIVE_PATH
     try:
@@ -160,12 +162,104 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             },
         ),
         _check_result(
+            "supply_chain_attestation_internal_dependency_pins",
+            "Supply-chain attestation internal dependency pins",
+            summary.get("aligned_internal_dependency_pins") is True
+            and summary.get("internal_dependency_pin_count", 0) >= 1
+            and summary.get("mismatched_internal_dependency_pin_count") == 0,
+            "internal exact dependency pins match the corresponding package versions",
+            evidence=["pyproject.toml"]
+            + [row.get("path", "") for row in state.get("core_components", [])]
+            + [row.get("path", "") for row in state.get("page_lib_components", [])],
+            details={
+                "internal_dependency_pins": summary.get("internal_dependency_pins", []),
+                "mismatched_internal_dependency_pins": summary.get(
+                    "mismatched_internal_dependency_pins",
+                    [],
+                ),
+            },
+        ),
+        _check_result(
             "supply_chain_attestation_app_manifests",
             "Supply-chain attestation app manifests",
-            summary.get("builtin_app_pyproject_count") == 7,
+            summary.get("builtin_app_pyproject_count") == len(state.get("builtin_app_pyprojects", []))
+            and all(row.get("sha256") for row in state.get("builtin_app_pyprojects", [])),
             "built-in app pyproject manifests are included in the attestation",
             evidence=["src/agilab/apps/builtin"],
             details={"builtin_app_pyprojects": state.get("builtin_app_pyprojects", [])},
+        ),
+        _check_result(
+            "supply_chain_attestation_builtin_app_alignment",
+            "Supply-chain attestation built-in app alignment",
+            summary.get("builtin_app_pyproject_count") == len(state.get("builtin_app_pyprojects", []))
+            and summary.get("aligned_builtin_app_versions") is True
+            and summary.get("mismatched_builtin_app_version_count") == 0
+            and summary.get("aligned_builtin_app_internal_dependency_bounds") is True
+            and summary.get("mismatched_builtin_app_internal_dependency_bound_count") == 0,
+            "built-in app versions and internal dependency lower bounds match the release",
+            evidence=["src/agilab/apps/builtin"],
+            details={
+                "mismatched_builtin_app_versions": summary.get(
+                    "mismatched_builtin_app_versions",
+                    [],
+                ),
+                "builtin_app_internal_dependency_bounds": summary.get(
+                    "builtin_app_internal_dependency_bounds",
+                    [],
+                ),
+                "mismatched_builtin_app_internal_dependency_bounds": summary.get(
+                    "mismatched_builtin_app_internal_dependency_bounds",
+                    [],
+                ),
+            },
+        ),
+        _check_result(
+            "supply_chain_attestation_payload_inventory",
+            "Supply-chain attestation payload inventory",
+            summary.get("package_data_pattern_count", 0) >= 1
+            and summary.get("builtin_payload_file_count", 0) >= 1
+            and isinstance(summary.get("builtin_payload_extension_counts"), dict),
+            "package-data patterns and built-in app payload files are inventoried",
+            evidence=["pyproject.toml", "src/agilab/apps/builtin"],
+            details={
+                "package_data_pattern_count": summary.get(
+                    "package_data_pattern_count",
+                    0,
+                ),
+                "builtin_payload_file_count": summary.get(
+                    "builtin_payload_file_count",
+                    0,
+                ),
+                "builtin_payload_bytes": summary.get("builtin_payload_bytes", 0),
+                "builtin_payload_extension_counts": summary.get(
+                    "builtin_payload_extension_counts",
+                    {},
+                ),
+                "builtin_archive_file_count": summary.get(
+                    "builtin_archive_file_count",
+                    0,
+                ),
+                "builtin_notebook_file_count": summary.get(
+                    "builtin_notebook_file_count",
+                    0,
+                ),
+                "largest_builtin_payload_files": summary.get(
+                    "largest_builtin_payload_files",
+                    [],
+                ),
+            },
+        ),
+        _check_result(
+            "supply_chain_attestation_payload_budget",
+            "Supply-chain attestation payload budget",
+            summary.get("builtin_payload_within_budget") is True,
+            (
+                "built-in app package payload stays within the public wheel budget"
+                if summary.get("builtin_payload_within_budget") is True
+                else "built-in app package payload exceeds the public wheel budget"
+            ),
+            evidence=["pyproject.toml", "src/agilab/apps/builtin"],
+            details={"budget": summary.get("builtin_payload_budget", {})},
         ),
         _check_result(
             "supply_chain_attestation_no_execution",
@@ -194,7 +288,10 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         "status": "pass" if failed == 0 else "fail",
         "scope": (
             "Fingerprints package metadata, lockfile, license, bundled AGI core "
-            "versions, and built-in app manifests without formal attestation claims."
+            "versions, exact internal dependency pins, built-in app versions, "
+            "built-in app internal dependency lower bounds, and built-in app "
+            "manifests plus package payload inventory without formal attestation "
+            "claims."
         ),
         "summary": {
             "passed": passed,
@@ -207,6 +304,15 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "package_version": summary.get("package_version"),
             "dependency_count": summary.get("dependency_count"),
             "pinned_core_dependency_count": summary.get("pinned_core_dependency_count"),
+            "aligned_internal_dependency_pins": summary.get(
+                "aligned_internal_dependency_pins"
+            ),
+            "internal_dependency_pin_count": summary.get(
+                "internal_dependency_pin_count"
+            ),
+            "mismatched_internal_dependency_pin_count": summary.get(
+                "mismatched_internal_dependency_pin_count"
+            ),
             "lockfile_present": summary.get("lockfile_present"),
             "license_present": summary.get("license_present"),
             "core_component_count": summary.get("core_component_count"),
@@ -214,6 +320,35 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "page_lib_component_count": summary.get("page_lib_component_count"),
             "aligned_page_lib_versions": summary.get("aligned_page_lib_versions"),
             "builtin_app_pyproject_count": summary.get("builtin_app_pyproject_count"),
+            "package_data_pattern_count": summary.get("package_data_pattern_count"),
+            "builtin_payload_file_count": summary.get("builtin_payload_file_count"),
+            "builtin_payload_bytes": summary.get("builtin_payload_bytes"),
+            "builtin_payload_budget": summary.get("builtin_payload_budget"),
+            "builtin_payload_within_budget": summary.get(
+                "builtin_payload_within_budget"
+            ),
+            "builtin_payload_extension_counts": summary.get(
+                "builtin_payload_extension_counts"
+            ),
+            "builtin_archive_file_count": summary.get("builtin_archive_file_count"),
+            "builtin_notebook_file_count": summary.get(
+                "builtin_notebook_file_count"
+            ),
+            "aligned_builtin_app_versions": summary.get(
+                "aligned_builtin_app_versions"
+            ),
+            "mismatched_builtin_app_version_count": summary.get(
+                "mismatched_builtin_app_version_count"
+            ),
+            "builtin_app_internal_dependency_bound_count": summary.get(
+                "builtin_app_internal_dependency_bound_count"
+            ),
+            "aligned_builtin_app_internal_dependency_bounds": summary.get(
+                "aligned_builtin_app_internal_dependency_bounds"
+            ),
+            "mismatched_builtin_app_internal_dependency_bound_count": summary.get(
+                "mismatched_builtin_app_internal_dependency_bound_count"
+            ),
             "command_execution_count": summary.get("command_execution_count"),
             "network_probe_count": summary.get("network_probe_count"),
             "formal_supply_chain_attestation": summary.get(

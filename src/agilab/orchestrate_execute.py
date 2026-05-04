@@ -1,7 +1,9 @@
 import json
 import os
 import shutil
-from dataclasses import dataclass
+import stat
+import importlib.util
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -10,6 +12,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 import pandas as pd
 import streamlit as st
+from code_editor import code_editor
 
 try:
     import matplotlib.pyplot as plt
@@ -22,7 +25,51 @@ else:
 from agi_env import AgiEnv
 from agi_gui.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
 
+_import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
+_import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
+if _import_guard_spec is None or _import_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load import_guard.py from {_import_guard_path}")
+_import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
+_import_guard_spec.loader.exec_module(_import_guard_module)
+import_agilab_module = _import_guard_module.import_agilab_module
+
+_orchestrate_page_state = import_agilab_module(
+    "agilab.orchestrate_page_state",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_page_state.py",
+    fallback_name="agilab_orchestrate_page_state_fallback",
+)
+build_orchestrate_execute_workflow_state = _orchestrate_page_state.build_orchestrate_execute_workflow_state
+build_orchestrate_run_artifact_state = _orchestrate_page_state.build_orchestrate_run_artifact_state
+
+_pinned_expander = import_agilab_module(
+    "agilab.pinned_expander",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+render_pinnable_code_editor = _pinned_expander.render_pinnable_code_editor
+
+_workflow_ui = import_agilab_module(
+    "agilab.workflow_ui",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+render_action_readiness = _workflow_ui.render_action_readiness
+record_action_history = _workflow_ui.record_action_history
+render_action_history = _workflow_ui.render_action_history
+render_artifact_drawer = _workflow_ui.render_artifact_drawer
+render_latest_outputs = _workflow_ui.render_latest_outputs
+render_latest_run_card = _workflow_ui.render_latest_run_card
+render_log_actions = _workflow_ui.render_log_actions
+render_workflow_timeline = _workflow_ui.render_workflow_timeline
+
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
+RUN_LOGS_PIN_ID = "orchestrate_run_logs"
+PREVIEW_FILE_PATTERNS = ("*.parquet", "*.csv", "*.json", "*.gml")
+PREVIEW_MAX_SEARCH_FILES = int(os.environ.get("AGILAB_PREVIEW_MAX_SEARCH_FILES", "1000"))
+PREVIEW_MAX_FILE_BYTES = int(os.environ.get("AGILAB_PREVIEW_MAX_FILE_BYTES", str(25 * 1024 * 1024)))
 
 
 @dataclass(frozen=True)
@@ -41,6 +88,9 @@ class OrchestrateExecuteDeps:
     log_display_max_lines: int
     live_log_min_height: int
     install_log_height: int
+
+    def __replace__(self, **changes: Any) -> "OrchestrateExecuteDeps":
+        return replace(self, **changes)
 
 
 def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> list[Path]:
@@ -71,32 +121,52 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
     return unique_roots
 
 
-def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], list[Path]]:
+def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
     search_files: list[Path] = []
+
+    def _append_candidate(candidate: Path) -> bool:
+        if len(search_files) >= PREVIEW_MAX_SEARCH_FILES:
+            return False
+        search_files.append(candidate)
+        return True
+
     for root in candidate_roots:
         if root.is_dir():
-            search_files.extend(
-                list(root.rglob("*.parquet"))
-                + list(root.rglob("*.csv"))
-                + list(root.rglob("*.json"))
-                + list(root.rglob("*.gml"))
-            )
+            for pattern in PREVIEW_FILE_PATTERNS:
+                for candidate in sorted(root.rglob(pattern), key=lambda path: str(path)):
+                    if not _append_candidate(candidate):
+                        return search_files
         elif root.is_file():
-            search_files.append(root)
+            if not _append_candidate(root):
+                return search_files
+    return search_files
 
-    filtered_files = [
-        file_path
-        for file_path in search_files
-        if file_path.is_file()
-        and not file_path.name.startswith("._")
-        and file_path.stat().st_size > 0
-    ]
-    if not filtered_files:
+
+def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], list[Path]]:
+    search_files = _preview_candidate_paths(candidate_roots)
+
+    filtered_records: list[tuple[Path, float]] = []
+    for file_path in search_files:
+        if file_path.name.startswith("._"):
+            continue
+        try:
+            file_stat = file_path.stat()
+        except (FileNotFoundError, OSError):
+            continue
+        if not stat.S_ISREG(file_stat.st_mode):
+            continue
+        if file_stat.st_size <= 0 or file_stat.st_size > PREVIEW_MAX_FILE_BYTES:
+            continue
+        filtered_records.append((file_path, file_stat.st_mtime))
+
+    if not filtered_records:
         return None, []
 
+    filtered_files = [file_path for file_path, _mtime in filtered_records]
+    target_file = max(filtered_records, key=lambda item: (item[1], str(item[0])))[0]
     try:
-        target_file = max(filtered_files, key=lambda file: file.stat().st_mtime)
-    except FileNotFoundError:
+        target_file.stat()
+    except (FileNotFoundError, OSError):
         return None, filtered_files
     return target_file, filtered_files
 
@@ -111,7 +181,10 @@ def consume_pending_execute_action(session_state) -> Optional[str]:
 
 def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional[str]) -> None:
     if plt is None:
-        raise RuntimeError(f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}")
+        raise RuntimeError(
+            f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
+            "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
+        )
 
     st.caption("Graph preview generated from JSON output")
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -150,10 +223,39 @@ async def render_execute_section(
     LOG_DISPLAY_MAX_LINES = deps.log_display_max_lines
     LIVE_LOG_MIN_HEIGHT = deps.live_log_min_height
     INSTALL_LOG_HEIGHT = deps.install_log_height
+    execute_state = build_orchestrate_execute_workflow_state(
+        show_run_panel=show_run_panel,
+        cmd=cmd,
+        project_path=project_path,
+        worker_env_path=getattr(env, "wenv_abs", None),
+    )
 
     existing_run_log = st.session_state.get("run_log_cache", "").strip()
     run_log_expander = None
     log_container = None
+
+    def _run_log_pin_title() -> str:
+        app_name = str(getattr(env, "app", "") or "project")
+        return f"Run logs: {app_name}"
+
+    def _run_log_source() -> str:
+        log_path = str(st.session_state.get("last_run_log_path") or "").strip()
+        return f"ORCHESTRATE {log_path}" if log_path else "ORCHESTRATE"
+
+    def _render_run_log_viewer(log_text: str, *, key: str) -> None:
+        render_pinnable_code_editor(
+            st,
+            code_editor,
+            RUN_LOGS_PIN_ID,
+            title=_run_log_pin_title(),
+            body=log_text,
+            key=key,
+            body_format="code",
+            language="text",
+            source=_run_log_source(),
+            empty_message="No run logs yet.",
+            info_name="Run logs",
+        )
 
     def _ensure_run_log_expander(*, expanded: bool):
         nonlocal run_log_expander, log_container
@@ -205,8 +307,38 @@ async def render_execute_section(
             st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
         with target_expander:
             log_placeholder.empty()
-            display_log(st.session_state["run_log_cache"], stderr)
+            log_body = st.session_state["run_log_cache"]
+            if str(stderr or "").strip():
+                display_log(log_body, stderr)
+            else:
+                _render_run_log_viewer(log_body, key="orchestrate_run_logs_editor")
             st.caption(f"Logs saved to {log_file_path}")
+            if render_log_actions(
+                st,
+                body=log_body,
+                download_key="orchestrate_run_logs_download",
+                file_name=f"{getattr(env, 'app', 'agilab')}_run.log",
+                clear_key="orchestrate_run_logs_clear",
+            ):
+                record_action_history(
+                    st.session_state,
+                    page_label="ORCHESTRATE",
+                    env=env,
+                    title="Run logs cleared",
+                    status="info",
+                )
+                st.session_state["run_log_cache"] = ""
+                st.session_state["log_text"] = ""
+                st.rerun()
+        record_action_history(
+            st.session_state,
+            page_label="ORCHESTRATE",
+            env=env,
+            title="Run finished",
+            status="done",
+            detail=f"Logs saved to {log_file_path}",
+            artifact=log_file_path,
+        )
         st.session_state["dataframe_deleted"] = False
         return target_expander
 
@@ -216,35 +348,50 @@ async def render_execute_section(
         queue_pending_execute_action(st.session_state, action)
         st.rerun()
 
+    def _current_artifact_state():
+        return build_orchestrate_run_artifact_state(
+            show_run_panel=show_run_panel,
+            loaded_dataframe=st.session_state.get("loaded_df"),
+            loaded_graph=st.session_state.get("loaded_graph"),
+            loaded_source_path=st.session_state.get("loaded_source_path"),
+            dataframe_deleted=bool(st.session_state.get("dataframe_deleted")),
+        )
+
     @st.fragment
     def _render_run_panel_controls() -> None:
+        artifact_state = _current_artifact_state()
         if show_run_panel:
+            render_action_readiness(
+                st,
+                actions=(
+                    (
+                        "Run benchmark" if st.session_state.get("benchmark") else "Run",
+                        execute_state.run_action.enabled,
+                        execute_state.run_action.disabled_reason,
+                    ),
+                    ("Load output", artifact_state.load_action.enabled, artifact_state.load_action.disabled_reason),
+                    ("Export dataframe", artifact_state.export_action.enabled, artifact_state.export_action.disabled_reason),
+                ),
+            )
             run_col, load_col, delete_col = st.columns(3)
-            run_label = "RUN benchmark" if st.session_state.get("benchmark") else "EXECUTE"
-            if cmd:
-                if run_col.button(
-                    run_label,
-                    key="run_btn",
-                    type="primary",
-                    width="stretch",
-                ):
-                    _queue_execute_action("run")
-            else:
-                run_col.button(
-                    run_label,
-                    key="run_btn_disabled",
-                    type="primary",
-                    disabled=True,
-                    help="Configure the run snippet to enable execution",
-                    width="stretch",
-                )
+            run_label = "Run benchmark" if st.session_state.get("benchmark") else "Run"
+            if run_col.button(
+                run_label,
+                key="run_btn",
+                type="primary",
+                disabled=not execute_state.run_action.enabled,
+                help=execute_state.run_action.disabled_reason or "Run the configured AGILAB command.",
+                width="stretch",
+            ):
+                _queue_execute_action("run")
 
             if load_col.button(
-                "LOAD dataframe",
+                "Load output",
                 key="load_data_main",
                 type="primary",
+                disabled=not artifact_state.load_action.enabled,
                 width="stretch",
-                help="Fetch the latest dataframe preview for export",
+                help=artifact_state.load_action.disabled_reason or "Fetch the latest dataframe preview for export",
             ):
                 _queue_execute_action("load")
 
@@ -267,11 +414,13 @@ async def render_execute_section(
                 )
             else:
                 delete_armed_clicked = delete_col.button(
-                    "DELETE dataframe",
+                    "Delete output",
                     key="delete_data_main",
                     type="secondary",
+                    disabled=not artifact_state.delete_action.enabled,
                     width="stretch",
-                    help="Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
+                    help=artifact_state.delete_action.disabled_reason
+                    or "Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
                 )
 
             if _update_delete_confirm_state(
@@ -285,7 +434,7 @@ async def render_execute_section(
             undo_payload = st.session_state.get(delete_undo_key)
             if isinstance(undo_payload, dict):
                 undo_delete_clicked = st.button(
-                    "UNDO last delete dataframe",
+                    "Undo last delete",
                     key="delete_data_main_undo_btn",
                     type="secondary",
                     width="stretch",
@@ -327,22 +476,25 @@ async def render_execute_section(
                     st.success("Dataframe preview restore completed.")
                 _rerun_fragment_or_app()
 
-            if cmd:
-                if st.button(
-                    "EXECUTE → LOAD → EXPORT",
-                    key="combo_exec_load_export",
-                    type="primary",
-                    help="Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
-                    width="stretch",
-                ):
-                    _queue_execute_action("combo")
+            if st.button(
+                "Run -> Load -> Export",
+                key="combo_exec_load_export",
+                type="primary",
+                disabled=not execute_state.combo_action.enabled,
+                help=execute_state.combo_action.disabled_reason
+                or "Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
+                width="stretch",
+            ):
+                _queue_execute_action("combo")
         else:
-            st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD / EXPORT actions.")
+            st.info("`Serve` mode selected. Switch to `Run now` to access EXECUTE / LOAD actions.")
             st.session_state.pop("_combo_load_trigger", None)
             st.session_state.pop("_combo_export_trigger", None)
             st.session_state.pop(delete_confirm_key, None)
 
     if controls_visible:
+        st.markdown("#### 5. Execute and inspect outputs")
+        st.caption("Run the configured command, load the latest result, and export the dataframe used by analysis pages.")
         _render_run_panel_controls()
     else:
         consume_pending_execute_action(st.session_state)
@@ -354,8 +506,9 @@ async def render_execute_section(
     combo_clicked = pending_action == "combo"
 
     if show_run_panel and load_clicked:
-        if st.session_state.get("dataframe_deleted"):
-            st.info("Dataframe preview was deleted. Run EXECUTE again before loading a new export.")
+        load_action = _current_artifact_state().load_action
+        if not load_action.enabled:
+            st.info(load_action.disabled_reason)
         else:
             active_args = st.session_state.app_settings.get("args", {})
             candidate_roots = collect_candidate_roots(env, active_args if isinstance(active_args, dict) else {})
@@ -454,6 +607,12 @@ async def render_execute_section(
                     st.error(f"Unable to load {target_file.name}: {exc}")
 
     if show_run_panel and delete_clicked:
+        delete_action = _current_artifact_state().delete_action
+        if not delete_action.enabled:
+            st.info(delete_action.disabled_reason)
+            delete_clicked = False
+
+    if show_run_panel and delete_clicked:
         st.session_state.pop(delete_confirm_key, None)
         undo_payload = _capture_dataframe_preview_state()
         undo_payload["deleted_at"] = datetime.now().isoformat(timespec="seconds")
@@ -499,51 +658,50 @@ async def render_execute_section(
             st.info("Dataframe preview cleared. Run EXECUTE then LOAD to refresh with new output.")
         st.session_state[delete_undo_key] = undo_payload
 
-    if show_run_panel and run_clicked and cmd:
-        manager_venv = project_path / ".venv"
-        worker_venv = env.wenv_abs / ".venv"
-        if not manager_venv.exists() or not worker_venv.exists():
-            missing = []
-            if not manager_venv.exists():
-                missing.append(f"manager venv `{manager_venv}`")
-            if not worker_venv.exists():
-                missing.append(f"worker venv `{worker_venv}`")
-            st.error(
-                "EXECUTE is unavailable because the installation is incomplete. "
-                "Run INSTALL first to create: " + ", ".join(missing)
-            )
-        else:
+    if show_run_panel and run_clicked:
+        run_action = execute_state.run_action
+        if run_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
             if st.session_state.get("benchmark"):
                 st.session_state["_benchmark_expand"] = True
                 st.rerun()
+        else:
+            st.error(run_action.disabled_reason)
 
     if show_run_panel and combo_clicked:
-        manager_venv = project_path / ".venv"
-        worker_venv = env.wenv_abs / ".venv"
-        if cmd and manager_venv.exists() and worker_venv.exists():
+        combo_action = execute_state.combo_action
+        if combo_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
-        elif not cmd:
-            st.error("No EXECUTE command configured; please configure it first.")
+            st.session_state["_combo_load_trigger"] = True
+            st.session_state["_combo_export_trigger"] = True
+            st.rerun()
         else:
-            missing = []
-            if not manager_venv.exists():
-                missing.append(f"manager venv `{manager_venv}`")
-            if not worker_venv.exists():
-                missing.append(f"worker venv `{worker_venv}`")
-            st.error(
-                "EXECUTE → LOAD → EXPORT is unavailable because the installation is incomplete. "
-                "Run INSTALL first to create: " + ", ".join(missing)
-            )
+            st.error(combo_action.disabled_reason)
 
-        st.session_state["_combo_load_trigger"] = True
-        st.session_state["_combo_export_trigger"] = True
-        st.rerun()
-
-    if show_run_panel and existing_run_log and run_log_expander is None:
+    if show_run_panel and run_log_expander is None:
         expander = _ensure_run_log_expander(expanded=False)
         with expander:
-            st.code(existing_run_log, language="python")
+            _render_run_log_viewer(
+                existing_run_log,
+                key="orchestrate_run_logs_editor_existing",
+            )
+            if render_log_actions(
+                st,
+                body=existing_run_log,
+                download_key="orchestrate_run_logs_download_existing",
+                file_name=f"{getattr(env, 'app', 'agilab')}_run.log",
+                clear_key="orchestrate_run_logs_clear_existing",
+            ):
+                record_action_history(
+                    st.session_state,
+                    page_label="ORCHESTRATE",
+                    env=env,
+                    title="Run logs cleared",
+                    status="info",
+                )
+                st.session_state["run_log_cache"] = ""
+                st.session_state["log_text"] = ""
+                st.rerun()
 
     df_preview = st.session_state.get("loaded_df")
     graph_preview = st.session_state.get("loaded_graph")
@@ -554,6 +712,73 @@ async def render_execute_section(
             source_preview_name = Path(source_preview_path).name
         except (OSError, RuntimeError, TypeError, ValueError):
             source_preview_name = str(source_preview_path)
+
+    latest_log_path = st.session_state.get("last_run_log_path")
+    current_artifact_state = _current_artifact_state()
+    render_workflow_timeline(
+        st,
+        steps=(
+            {
+                "label": "Configure",
+                "state": "done" if cmd else "blocked",
+                "detail": str(project_path),
+            },
+            {
+                "label": "Run",
+                "state": "done" if latest_log_path or existing_run_log else (
+                    "ready" if execute_state.run_action.enabled else "blocked"
+                ),
+                "detail": execute_state.run_action.disabled_reason or "",
+            },
+            {
+                "label": "Load output",
+                "state": "done" if source_preview_path else (
+                    "ready" if current_artifact_state.load_action.enabled else "waiting"
+                ),
+                "detail": current_artifact_state.load_action.disabled_reason or "",
+            },
+            {
+                "label": "Export",
+                "state": "ready" if current_artifact_state.export_action.enabled else "waiting",
+                "detail": current_artifact_state.export_action.disabled_reason or "",
+            },
+        ),
+    )
+    render_latest_run_card(
+        st,
+        status="done" if latest_log_path or existing_run_log else "waiting",
+        output_path=source_preview_path,
+        log_path=latest_log_path,
+        key_prefix=f"orchestrate:{app_state_name}",
+    )
+    render_artifact_drawer(
+        st,
+        artifacts=(
+            {"label": "Loaded output", "path": source_preview_path, "kind": "output", "preview": False},
+            {"label": "Run log", "path": latest_log_path, "kind": "log"},
+            {"label": "Export target", "path": st.session_state.get("df_export_file"), "kind": "csv", "preview": False},
+            {
+                "label": "Profile report",
+                "path": st.session_state.get("profile_report_file"),
+                "kind": "html",
+                "preview": False,
+            },
+        ),
+        key_prefix=f"orchestrate:{app_state_name}",
+    )
+    render_action_history(
+        st,
+        session_state=st.session_state,
+        page_label="ORCHESTRATE",
+        env=env,
+    )
+    render_latest_outputs(
+        st,
+        source_path=source_preview_path,
+        dataframe=df_preview,
+        graph=graph_preview,
+        key_prefix=f"orchestrate:{app_state_name}",
+    )
 
     if isinstance(df_preview, pd.DataFrame) and not df_preview.empty:
         render_dataframe_preview(
@@ -570,8 +795,9 @@ async def render_execute_section(
 
     export_expanded = st.session_state.pop("_force_export_open", False)
     loaded_df = st.session_state.get("loaded_df")
+    artifact_state = _current_artifact_state()
 
-    if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+    if artifact_state.export_action.enabled and isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         expander = st.expander("Prepare data for experiment and exploration", expanded=export_expanded)
         with expander:
             loaded_df.columns = [
@@ -642,6 +868,7 @@ async def render_execute_section(
                     "STATS report",
                     key="stats_report_main",
                     type="primary",
+                    disabled=not artifact_state.stats_action.enabled,
                     width="stretch",
                 )
             with action_col_export:
@@ -649,8 +876,10 @@ async def render_execute_section(
                     "EXPORT dataframe",
                     key="export_df_main",
                     type="primary",
+                    disabled=not artifact_state.export_action.enabled,
                     width="stretch",
-                    help="Save the current run output to export/export.csv so Experiment/Explore can load it.",
+                    help=artifact_state.export_action.disabled_reason
+                    or "Save the current run output to export/export.csv so Experiment/Explore can load it.",
                 )
             combo_export_trigger = st.session_state.pop("_combo_export_trigger", False)
             export_clicked = export_clicked_manual or combo_export_trigger
@@ -673,6 +902,15 @@ async def render_execute_section(
                     exported_df = loaded_df[st.session_state.selected_cols]
                     if save_csv(exported_df, target_path):
                         st.success(f"Dataframe exported successfully to {target_path}.")
+                        record_action_history(
+                            st.session_state,
+                            page_label="ORCHESTRATE",
+                            env=env,
+                            title="Dataframe exported",
+                            status="done",
+                            detail=f"{len(exported_df)} row(s), {len(exported_df.columns)} column(s)",
+                            artifact=target_path,
+                        )
                         st.session_state["_reset_export_checkboxes"] = True
                         st.session_state["_experiment_reload_required"] = True
 

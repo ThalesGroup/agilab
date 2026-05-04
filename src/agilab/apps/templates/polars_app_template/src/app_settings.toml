@@ -7,6 +7,8 @@ cython = false
 rapids = false
 pool = false
 cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
 
 [cluster.service_health]
 allow_idle = false
@@ -14,7 +16,4 @@ max_unhealthy = 0
 max_restart_rate = 0.25
 
 [cluster.workers]
-"127.0.0.1" = 1
-
-[cluster.scheduler]
-"127.0.0.1" = 1
+"127.0.0.1" = 2

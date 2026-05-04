@@ -55,6 +55,16 @@ def isolate_home_for_root_tests(tmp_path, monkeypatch):
 
     share_dir = fake_home / ".local" / "share" / "agilab"
     share_dir.mkdir(parents=True, exist_ok=True)
+    # Some UI support modules are imported during pytest collection, before this
+    # fixture can set HOME. Rebind their module-level state paths for every test
+    # so page AppTests never read or write the developer's real last-active app.
+    from agi_env import ui_support
+
+    monkeypatch.setattr(ui_support, "_GLOBAL_STATE_FILE", share_dir / "app_state.toml")
+    monkeypatch.setattr(ui_support, "_LEGACY_LAST_APP_FILE", share_dir / ".last-active-app")
+    monkeypatch.setattr(ui_support, "_DOCS_ALREADY_OPENED", False, raising=False)
+    monkeypatch.setattr(ui_support, "_LAST_DOCS_URL", None, raising=False)
+
     repo_agilab_dir = (Path(__file__).resolve().parents[1] / "src" / "agilab").resolve()
     (share_dir / ".agilab-path").write_text(str(repo_agilab_dir) + "\n", encoding="utf-8")
 
@@ -107,6 +117,8 @@ def preserve_real_user_state_for_root_tests(tmp_path):
                 src.unlink()
 
     for src, backup in export_snapshots:
+        if not backup.exists():
+            continue
         src.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(backup, src)
 

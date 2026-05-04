@@ -42,6 +42,7 @@ import_agilab_symbols(
         "build_run_snippet": "build_run_snippet",
         "available_benchmark_modes": "available_benchmark_modes",
         "benchmark_mode_label": "benchmark_mode_label",
+        "benchmark_rows_with_delta_percent": "benchmark_rows_with_delta_percent",
         "benchmark_workers_data_path_issue": "benchmark_workers_data_path_issue",
         "compute_run_mode": "compute_run_mode",
         "describe_run_mode": "describe_run_mode",
@@ -67,6 +68,62 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.orchestrate_page_state",
+    {
+        "OrchestratePageStateDeps": "OrchestratePageStateDeps",
+        "build_orchestrate_distribution_workflow_state": "build_orchestrate_distribution_workflow_state",
+        "build_orchestrate_install_workflow_state": "build_orchestrate_install_workflow_state",
+        "build_orchestrate_page_state": "build_orchestrate_page_state",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_page_state.py",
+    fallback_name="agilab_orchestrate_page_state_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.page_bootstrap",
+    {
+        "ensure_page_env": "_ensure_page_env",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
+    fallback_name="agilab_page_bootstrap_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.pinned_expander",
+    {
+        "render_pinned_expanders": "render_pinned_expanders",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "pinned_expander.py",
+    fallback_name="agilab_pinned_expander_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.workflow_ui",
+    {
+        "render_page_context": "render_page_context",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
+    fallback_name="agilab_workflow_ui_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.action_execution",
+    {
+        "ActionResult": "ActionResult",
+        "ActionSpec": "ActionSpec",
+        "render_action_result": "render_action_result",
+        "run_streamlit_action": "run_streamlit_action",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "action_execution.py",
+    fallback_name="agilab_action_execution_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.orchestrate_page_helpers",
     {
         "app_install_status": "_orchestrate_app_install_status",
@@ -83,6 +140,7 @@ import_agilab_symbols(
         "clear_cached_distribution": "_orchestrate_clear_cached_distribution",
         "clear_mount_table_cache": "_orchestrate_clear_mount_table_cache",
         "resolve_share_candidate": "_orchestrate_resolve_share_candidate",
+        "configured_cluster_share_matches": "_configured_cluster_share_matches",
         "benchmark_display_date": "_orchestrate_benchmark_display_date",
         "display_log": "_orchestrate_display_log",
         "safe_eval": "_orchestrate_safe_eval",
@@ -177,6 +235,7 @@ from agi_gui.pagelib import (
 
 from agi_env import AgiEnv
 from agi_gui.ui_support import store_last_active_app
+from agi_gui.ux_widgets import compact_choice
 
 # ===========================
 # Session State Initialization
@@ -385,6 +444,197 @@ def load_distribution(file_path: str | Path) -> tuple[list[str], list[Any], list
     workers = [f"{ip}-{i}" for ip, count in data.get("workers", {}).items() for i in range(1, count + 1)]
     return workers, data.get("work_plan_metadata", []), data.get("work_plan", [])
 
+
+def _apply_distribution_plan_action(
+    *,
+    dist_tree_path: Path,
+    workers: list[str],
+    work_plan_metadata: list[Any],
+    work_plan: list[Any],
+    selections: Any,
+    target_args: dict[str, Any],
+) -> ActionResult:
+    try:
+        new_work_plan_metadata, new_work_plan = reassign_distribution_plan(
+            workers=workers,
+            work_plan_metadata=work_plan_metadata,
+            work_plan=work_plan,
+            selections=selections,
+        )
+    except (RuntimeError, TypeError, ValueError, KeyError) as exc:
+        return ActionResult.error(
+            "Distribution plan could not be reassigned.",
+            detail=str(exc),
+            next_action="Refresh the distribution preview, then retry the assignment.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+
+    try:
+        raw_payload = dist_tree_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ActionResult.error(
+            "Distribution plan file does not exist.",
+            next_action="Run CHECK distribute to regenerate distribution.json.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+    except OSError as exc:
+        return ActionResult.error(
+            "Distribution plan file could not be read.",
+            detail=str(exc),
+            next_action="Check filesystem permissions, then rerun CHECK distribute.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+
+    try:
+        payload = json.loads(raw_payload)
+    except json.JSONDecodeError as exc:
+        return ActionResult.error(
+            "Distribution plan file is not valid JSON.",
+            detail=str(exc),
+            next_action="Run CHECK distribute to regenerate distribution.json.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+
+    try:
+        updated_payload = update_distribution_payload(
+            payload,
+            target_args=target_args,
+            work_plan_metadata=new_work_plan_metadata,
+            work_plan=new_work_plan,
+        )
+        dist_tree_path.write_text(json.dumps(updated_payload), encoding="utf-8")
+    except (OSError, RuntimeError, TypeError, ValueError, KeyError) as exc:
+        return ActionResult.error(
+            "Distribution plan could not be saved.",
+            detail=str(exc),
+            next_action="Check target args and filesystem permissions, then retry.",
+            data={"dist_tree_path": dist_tree_path},
+        )
+
+    return ActionResult.success(
+        "Distribution plan updated.",
+        next_action="Run EXECUTE to use the updated workplan.",
+        data={
+            "dist_tree_path": dist_tree_path,
+            "work_plan_metadata": new_work_plan_metadata,
+            "work_plan": new_work_plan,
+        },
+    )
+
+
+async def _check_distribution_action(
+    env: Any,
+    *,
+    cmd: str,
+    project_path: Path,
+) -> ActionResult:
+    dist_log: list[str] = []
+    runtime_root = (
+        Path(getattr(env, "agi_cluster"))
+        if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
+        and getattr(env, "agi_cluster", None)
+        else project_path
+    )
+    command = cmd.replace("asyncio.run(main())", env.snippet_tail)
+
+    try:
+        stdout, stderr = await env.run_agi(
+            command,
+            log_callback=lambda message: _append_log_lines(dist_log, message),
+            venv=runtime_root,
+        )
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
+        _append_log_lines(dist_log, f"ERROR: {exc}")
+        return ActionResult.error(
+            "Distribution build failed.",
+            detail=str(exc),
+            next_action="Check orchestration settings and logs, then retry CHECK distribute.",
+            data={
+                "command": command,
+                "dist_log": tuple(dist_log),
+                "runtime_root": runtime_root,
+            },
+        )
+
+    if stderr:
+        _append_log_lines(dist_log, stderr)
+    if stdout:
+        _append_log_lines(dist_log, stdout)
+
+    data = {
+        "command": command,
+        "dist_log": tuple(dist_log),
+        "runtime_root": runtime_root,
+        "stdout": stdout,
+        "stderr": stderr,
+    }
+    if str(stderr or "").strip():
+        return ActionResult.error(
+            "Distribution build failed.",
+            detail=str(stderr).strip(),
+            next_action="Check orchestration settings and logs, then retry CHECK distribute.",
+            data=data,
+        )
+
+    return ActionResult.success(
+        "Distribution built successfully.",
+        data=data,
+    )
+
+
+async def _install_worker_action(
+    env: Any,
+    *,
+    install_command: str,
+    venv: Any,
+    local_log: list[str],
+) -> ActionResult:
+    install_stdout = ""
+    install_stderr = ""
+    install_error: Exception | None = None
+    try:
+        install_stdout, install_stderr = await env.run_agi(
+            install_command,
+            log_callback=lambda message: _append_log_lines(local_log, message),
+            venv=venv,
+        )
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
+        install_error = exc
+        install_stderr = str(exc)
+        _append_log_lines(local_log, f"ERROR: {install_stderr}")
+
+    error_flag = bool(str(install_stderr or "").strip()) or install_error is not None
+    if not error_flag and _log_indicates_install_failure(local_log):
+        error_flag = True
+        if not str(install_stderr or "").strip():
+            install_stderr = "Detected connection failure in install logs."
+
+    status_line = (
+        "✅ Install complete."
+        if not error_flag
+        else "❌ Install finished with errors. Check logs above."
+    )
+    _append_log_lines(local_log, status_line)
+    data = {
+        "install_command": install_command,
+        "install_log": tuple(local_log),
+        "stdout": install_stdout,
+        "stderr": install_stderr,
+        "venv": venv,
+    }
+    if error_flag:
+        return ActionResult.error(
+            "Cluster installation failed.",
+            detail=str(install_stderr or install_error or "Install logs indicate failure."),
+            next_action="Check install logs above, fix the worker environment, then rerun INSTALL.",
+            data=data,
+        )
+    return ActionResult.success(
+        "Cluster installation completed.",
+        data=data,
+    )
+
+
 @st.cache_data(show_spinner=False)
 def generate_profile_report(df: pd.DataFrame) -> Any:
     env = st.session_state["env"]
@@ -547,7 +797,8 @@ async def _render_deployment_panel(
 ) -> int:
     """Render the deployment expander and return the effective verbose level."""
     verbose = initial_verbose
-    with st.expander("Do deployment", expanded=True):
+    with st.expander("1. Runtime setup and install", expanded=True):
+        st.caption("Choose local or cluster capabilities, then install the manager and worker environments.")
         if install_status["manager_ready"] and not install_status["worker_ready"]:
             st.warning(
                 "Manager environment detected, but the worker environment is missing. "
@@ -591,7 +842,25 @@ async def _render_deployment_panel(
             workers=workers,
             workers_data_path=workers_data_path,
         )
+        install_state = build_orchestrate_install_workflow_state(
+            show_install=show_install,
+            cmd=cmd,
+            active_app_path=getattr(env, "active_app", None),
+            agi_cluster_path=getattr(env, "agi_cluster", None),
+            is_source_env=bool(getattr(env, "is_source_env", False)),
+            is_worker_env=bool(getattr(env, "is_worker_env", False)),
+            snippet_tail=getattr(env, "snippet_tail", "asyncio.run(main())"),
+            app=getattr(env, "app", ""),
+            cluster_enabled=bool(enabled),
+            verbose=verbose,
+            mode=st.session_state.get("mode", "N/A"),
+            raw_scheduler=raw_scheduler,
+            raw_workers=raw_workers,
+            timestamp=datetime.now().isoformat(timespec="seconds"),
+        )
         st.code(cmd, language="python")
+        if not install_state.action.enabled:
+            st.caption(install_state.action.disabled_reason)
 
         install_expanded = st.session_state.get("_install_logs_expanded", True)
         log_expander = st.expander("Install logs", expanded=install_expanded)
@@ -600,25 +869,16 @@ async def _render_deployment_panel(
             existing_log = st.session_state.get("log_text", "").strip()
             if existing_log:
                 log_placeholder.code(existing_log, language="python")
-        if st.button("INSTALL", key="install_btn", type="primary"):
+        if st.button("INSTALL", key="install_btn", type="primary", disabled=not install_state.action.enabled):
+            if install_state.runtime_root is None or install_state.install_command is None:
+                st.warning(install_state.action.disabled_reason)
+                return verbose
             st.session_state["_install_logs_expanded"] = True
             _reset_traceback_skip()
             clear_log()
-            venv = env.agi_cluster if (env.is_source_env or env.is_worker_env) else env.active_app.parents[1]
-            install_command = cmd.replace("asyncio.run(main())", env.snippet_tail)
-            context_lines = [
-                "=== Install request ===",
-                f"timestamp: {datetime.now().isoformat(timespec='seconds')}",
-                f"app: {env.app}",
-                f"env_flags: source={env.is_source_env}, worker={env.is_worker_env}",
-                f"cluster_enabled: {enabled}",
-                f"verbose: {verbose}",
-                f"modes_enabled: {st.session_state.get('mode', 'N/A')}",
-                f"scheduler: {raw_scheduler if enabled and raw_scheduler else 'None'}",
-                f"workers: {raw_workers if enabled and raw_workers else 'None'}",
-                f"venv: {venv}",
-                "=== Streaming install logs ===",
-            ]
+            venv = install_state.runtime_root
+            install_command = install_state.install_command
+            context_lines = install_state.context_lines
             local_log: list[str] = []
             with log_expander:
                 log_placeholder.empty()
@@ -630,42 +890,20 @@ async def _render_deployment_panel(
                 height=INSTALL_LOG_HEIGHT,
             )
             with st.spinner("Installing worker..."):
-                _install_stdout = ""
-                install_stderr = ""
-                install_error: Exception | None = None
-                try:
-                    _install_stdout, install_stderr = await env.run_agi(
-                        install_command,
-                        log_callback=lambda message: _append_log_lines(local_log, message),
-                        venv=venv,
-                    )
-                except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
-                    install_error = exc
-                    install_stderr = str(exc)
-                    _append_log_lines(local_log, f"ERROR: {install_stderr}")
-
-                error_flag = bool(install_stderr.strip()) or install_error is not None
-                if not error_flag and _log_indicates_install_failure(local_log):
-                    error_flag = True
-                    if not install_stderr.strip():
-                        install_stderr = "Detected connection failure in install logs."
-
-                status_line = (
-                    "✅ Install complete."
-                    if not error_flag
-                    else "❌ Install finished with errors. Check logs above."
+                result = await _install_worker_action(
+                    env,
+                    install_command=install_command,
+                    venv=venv,
+                    local_log=local_log,
                 )
-                _append_log_lines(local_log, status_line)
                 with log_expander:
                     log_placeholder.code(
-                        "\n".join(local_log[-LOG_DISPLAY_MAX_LINES:]),
+                        "\n".join(result.data.get("install_log", local_log)[-LOG_DISPLAY_MAX_LINES:]),
                         language="python",
                         height=INSTALL_LOG_HEIGHT,
                     )
-                if error_flag:
-                    st.error("Cluster installation failed.")
-                else:
-                    st.success("Cluster installation completed.")
+                render_action_result(st, result)
+                if result.status == "success":
                     st.session_state["SET ARGS"] = True
                     st.session_state["show_run"] = True
 
@@ -684,7 +922,8 @@ async def _render_distribution_panel(
 
     module = env.target
 
-    with st.expander(f"{module} args", expanded=True):
+    with st.expander(f"2. Configure {module} arguments", expanded=True):
+        st.caption("Set the input, output, and app-specific parameters that will be passed to the run.")
         app_args_form = env.app_args_form
 
         snippet_exists = app_args_form.exists()
@@ -725,14 +964,26 @@ async def _render_distribution_panel(
             is_symlink = share_candidate.is_symlink()
             share_resolved = _resolve_share_candidate(env.agi_share_path, env.home_abs)
             looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(share_resolved)
-            if not is_symlink and not looks_shared:
+            cluster_share_path = getattr(env, "AGI_CLUSTER_SHARE", None)
+            env_vars = getattr(env, "envars", None)
+            if not cluster_share_path and isinstance(env_vars, dict):
+                cluster_share_path = env_vars.get("AGI_CLUSTER_SHARE")
+            workers_data_path = str(cluster_params.get("workers_data_path") or "").strip().lower()
+            has_worker_share_path = workers_data_path not in {"", "none", "local", "localshare"}
+            configured_cluster_share = _configured_cluster_share_matches(
+                share_resolved,
+                cluster_share_path=cluster_share_path,
+                home_abs=env.home_abs,
+            )
+            if not is_symlink and not looks_shared and not (configured_cluster_share and has_worker_share_path):
                 fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
                 hint = _macos_autofs_hint(share_candidate)
                 extra = f"\n\n{hint}" if hint else ""
                 st.warning(
                     f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
                     f"(detected fstype: `{fstype}`) "
-                    "Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
+                    "Set `AGI_CLUSTER_SHARE` and `Workers Data Path` to the shared mount used by workers, "
+                    "or set `AGI_SHARE_DIR` to a shared mount/symlink when not using the cluster-share contract."
                     f"{extra}",
                     icon="⚠️",
                 )
@@ -743,7 +994,8 @@ async def _render_distribution_panel(
             del st.session_state["app_settings"]
             st.rerun()
 
-    with st.expander("Check orchestration", expanded=False):
+    with st.expander("3. Verify distribution workplan", expanded=False):
+        st.caption("Preview how the current arguments will be partitioned across available workers.")
         cluster_params = st.session_state.app_settings["cluster"]
         enabled = cluster_params.get("cluster_enabled", False)
         scheduler = cluster_params.get("scheduler", "")
@@ -757,41 +1009,43 @@ async def _render_distribution_panel(
             workers=workers,
             args_serialized=st.session_state.args_serialized,
         )
+        distribution_state = build_orchestrate_distribution_workflow_state(
+            show_distribute=show_distribute,
+            cmd=cmd,
+            worker_env_path=getattr(env, "wenv_abs", None),
+        )
         st.code(cmd, language="python")
-        if st.button("CHECK distribute", key="preview_btn", type="primary"):
-            st.session_state.preview_tree = True
+        if not distribution_state.action.enabled:
+            st.caption(distribution_state.action.disabled_reason)
+        if st.button(
+            "CHECK distribute",
+            key="preview_btn",
+            type="primary",
+            disabled=not distribution_state.action.enabled,
+        ):
             with st.expander("Orchestration log", expanded=False):
-                dist_log: list[str] = []
                 live_log_placeholder = st.empty()
                 _reset_traceback_skip()
-                runtime_root = (
-                    Path(getattr(env, "agi_cluster"))
-                    if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
-                    and getattr(env, "agi_cluster", None)
-                    else project_path
-                )
                 with st.spinner("Building distribution..."):
-                    stdout, stderr = await env.run_agi(
-                        cmd.replace("asyncio.run(main())", env.snippet_tail),
-                        log_callback=lambda message: _append_log_lines(dist_log, message),
-                        venv=runtime_root,
+                    result = await _check_distribution_action(
+                        env,
+                        cmd=cmd,
+                        project_path=project_path,
                     )
-                if stderr:
-                    _append_log_lines(dist_log, stderr)
-                if stdout:
-                    _append_log_lines(dist_log, stdout)
+                dist_log = list(result.data.get("dist_log", ()))
                 live_log_placeholder.code(
                     "\n".join(dist_log[-LOG_DISPLAY_MAX_LINES:]),
                     language="python",
                     height=LIVE_LOG_MIN_HEIGHT,
                 )
-                if not stderr:
-                    st.success("Distribution built successfully.")
+                render_action_result(st, result)
+                if result.status == "success":
+                    st.session_state.preview_tree = True
 
         with st.expander("Workplan", expanded=False):
             if st.session_state.get("preview_tree"):
-                dist_tree_path = env.wenv_abs / "distribution.json"
-                if dist_tree_path.exists():
+                dist_tree_path = distribution_state.distribution_path
+                if dist_tree_path is not None and dist_tree_path.exists():
                     workers, work_plan_metadata, work_plan = load_distribution(dist_tree_path)
                     partition_key = "Partition"
                     weights_key = "Units"
@@ -835,24 +1089,30 @@ async def _render_distribution_panel(
                                 b2.selectbox("Worker", options=workers, key=key, index=i if i < len(workers) else 0)
                             count += 1
                     if st.button("Apply", key="apply_btn", type="primary"):
-                        new_work_plan_metadata, new_work_plan = reassign_distribution_plan(
-                            workers=workers,
-                            work_plan_metadata=work_plan_metadata,
-                            work_plan=work_plan,
-                            selections=st.session_state,
+                        def _rerun_after_apply(_result: Any) -> None:
+                            _clear_cached_distribution()
+                            st.rerun()
+
+                        run_streamlit_action(
+                            st,
+                            ActionSpec(
+                                name="Apply distribution",
+                                start_message="Applying distribution workplan...",
+                                failure_title="Distribution apply failed.",
+                                failure_next_action=(
+                                    "Refresh the distribution preview, then retry the assignment."
+                                ),
+                            ),
+                            lambda: _apply_distribution_plan_action(
+                                dist_tree_path=dist_tree_path,
+                                workers=workers,
+                                work_plan_metadata=work_plan_metadata,
+                                work_plan=work_plan,
+                                selections=st.session_state,
+                                target_args=st.session_state.app_settings["args"],
+                            ),
+                            on_success=_rerun_after_apply,
                         )
-                        # Read & update the original JSON dict (avoid writing to the workers list)
-                        with open(dist_tree_path, "r") as f:
-                            data = json.load(f)
-                        data = update_distribution_payload(
-                            data,
-                            target_args=st.session_state.app_settings["args"],
-                            work_plan_metadata=new_work_plan_metadata,
-                            work_plan=new_work_plan,
-                        )
-                        with open(dist_tree_path, "w") as f:
-                            json.dump(data, f)
-                        st.rerun()
 
 
 async def _render_run_panels(
@@ -880,15 +1140,13 @@ async def _render_run_panels(
     st.session_state.setdefault("run_log_cache", "")
 
     execution_view_key = f"orchestrate_execution_view__{env.app}"
-    if execution_view_key not in st.session_state:
-        st.session_state[execution_view_key] = "Run now"
-
-    execution_view = st.radio(
-        "Execution panel",
-        options=("Run now", "Serve"),
+    execution_view = compact_choice(
+        st,
+        "Execution mode",
+        ("Run now", "Serve"),
         key=execution_view_key,
-        horizontal=True,
-        help="Show either the run panel or the submit panel.",
+        help="Run now executes once and stops. Serve starts a persistent service with status and stop controls.",
+        fallback="radio",
     )
     show_run_panel = execution_view == "Run now"
     show_submit_panel = execution_view == "Serve"
@@ -900,19 +1158,31 @@ async def _render_run_panels(
     workers = optional_python_expr(enabled, cluster_params.get("workers"))
 
     if show_run_panel:
-        with st.expander("Optimize execution"):
+        st.markdown("#### 4. Choose execution strategy")
+        st.caption("Select one-shot execution or service mode, then tune benchmark and runtime options.")
+        with st.expander("Execution options", expanded=True):
             cluster_params = st.session_state.app_settings["cluster"]
-            cluster_enabled = bool(cluster_params.get("cluster_enabled", False))
-
-            available_modes = available_benchmark_modes(
-                cluster_params,
-                cluster_enabled=cluster_enabled,
+            try:
+                local_share_path = env.share_root_path()
+            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+                local_share_path = None
+            run_state_deps = OrchestratePageStateDeps(
+                available_benchmark_modes=available_benchmark_modes,
+                sanitize_benchmark_modes=sanitize_benchmark_modes,
+                resolve_requested_run_mode=resolve_requested_run_mode,
+                describe_run_mode=describe_run_mode,
+                benchmark_workers_data_path_issue=benchmark_workers_data_path_issue,
+                optional_string_expr=optional_string_expr,
+                optional_python_expr=optional_python_expr,
             )
             benchmark_modes_key = f"benchmark_modes__{env.app}"
-            selected_benchmark_modes = sanitize_benchmark_modes(
-                st.session_state.get(benchmark_modes_key, []),
-                available_modes,
+            run_state = build_orchestrate_page_state(
+                cluster_params=cluster_params,
+                selected_benchmark_modes=st.session_state.get(benchmark_modes_key, []),
+                local_share_path=local_share_path,
+                deps=run_state_deps,
             )
+            selected_benchmark_modes = list(run_state.selected_benchmark_modes)
             if st.session_state.pop("benchmark_reset_pending", False):
                 selected_benchmark_modes = []
             if st.session_state.get(benchmark_modes_key) != selected_benchmark_modes:
@@ -920,7 +1190,7 @@ async def _render_run_panels(
 
             selected_benchmark_modes = st.multiselect(
                 "Benchmark modes",
-                options=available_modes,
+                options=list(run_state.available_benchmark_modes),
                 key=benchmark_modes_key,
                 format_func=benchmark_mode_label,
                 help=(
@@ -928,63 +1198,37 @@ async def _render_run_panels(
                     "the single mode defined by the optimization toggles."
                 ),
             )
-            selected_benchmark_modes = sanitize_benchmark_modes(
-                selected_benchmark_modes,
-                available_modes,
-            )
-            benchmark_enabled = bool(selected_benchmark_modes)
-            st.session_state["benchmark"] = benchmark_enabled
-
-            run_mode = resolve_requested_run_mode(
-                cluster_params,
-                cluster_enabled=cluster_enabled,
-                benchmark_enabled=benchmark_enabled,
-                benchmark_modes=selected_benchmark_modes,
+            run_state = build_orchestrate_page_state(
+                cluster_params=cluster_params,
+                selected_benchmark_modes=selected_benchmark_modes,
+                local_share_path=local_share_path,
+                deps=run_state_deps,
             )
 
-            info_label = describe_run_mode(run_mode, benchmark_enabled)
-
-            st.session_state["mode"] = run_mode
-            st.info(info_label)
-            if benchmark_enabled:
-                labels = ", ".join(benchmark_mode_label(mode) for mode in selected_benchmark_modes)
+            st.session_state["benchmark"] = run_state.benchmark_enabled
+            st.session_state["mode"] = run_state.run_mode
+            st.info(run_state.run_mode_label)
+            if run_state.benchmark_enabled:
+                labels = ", ".join(benchmark_mode_label(mode) for mode in run_state.selected_benchmark_modes)
                 st.caption(f"Benchmark will iterate only on: {labels}")
             else:
                 st.caption("Leave Benchmark modes empty to run the single selected mode.")
 
-            verbose = cluster_params.get("verbose", 1)
-            enabled = cluster_enabled
-            scheduler = optional_string_expr(enabled, cluster_params.get("scheduler"))
-            workers = optional_python_expr(enabled, cluster_params.get("workers"))
-            raw_workers_data_path = cluster_params.get("workers_data_path", "")
-            workers_data_path = optional_string_expr(enabled, raw_workers_data_path)
-            try:
-                local_share_path = env.share_root_path()
-            except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-                local_share_path = None
-            benchmark_path_issue = benchmark_workers_data_path_issue(
-                modes=selected_benchmark_modes,
-                workers=cluster_params.get("workers"),
-                workers_data_path=raw_workers_data_path,
-                local_share_path=local_share_path,
-            )
-            if benchmark_path_issue:
-                st.error(benchmark_path_issue)
+            verbose = run_state.verbose
+            scheduler = run_state.scheduler
+            workers = run_state.workers
+            if not run_state.can_run:
+                st.error(run_state.run_disabled_reason)
                 cmd = None
             else:
-                rapids_enabled = (
-                    any(int(mode) & 8 for mode in selected_benchmark_modes)
-                    if benchmark_enabled
-                    else bool(cluster_params.get("rapids", False))
-                )
                 cmd = build_run_snippet(
                     env=env,
                     verbose=verbose,
-                    run_mode=run_mode,
+                    run_mode=run_state.run_mode,
                     scheduler=scheduler,
                     workers=workers,
-                    workers_data_path=workers_data_path,
-                    rapids_enabled=rapids_enabled,
+                    workers_data_path=run_state.workers_data_path,
+                    rapids_enabled=run_state.rapids_enabled,
                     run_args=st.session_state.app_settings.get("args", {}),
                 )
                 st.code(cmd, language="python")
@@ -997,6 +1241,7 @@ async def _render_run_panels(
                             raw = json.load(f) or {}
 
                         date_value = str(raw.pop("date", "") or "").strip()
+                        raw = benchmark_rows_with_delta_percent(raw)
                         benchmark_df = pd.DataFrame.from_dict(raw, orient="index")
 
                         df_nonempty = benchmark_df.dropna(how="all")
@@ -1051,13 +1296,10 @@ async def _render_run_panels(
 # Main Application UI
 # ===========================
 async def page() -> None:
-    if 'env' not in st.session_state or not getattr(st.session_state["env"], "init_done", True):
-        page_module = importlib.import_module("agilab.About_agilab")
-        page_module.main()
-        st.rerun()
+    env = _ensure_page_env(st, __file__)
+    if env is None:
         return
 
-    env = st.session_state["env"]
     current_app, changed_from_query = resolve_active_app(env)
     if changed_from_query:
         st.session_state["project_changed"] = True
@@ -1067,6 +1309,8 @@ async def page() -> None:
     st.set_page_config(page_title="AGILab ORCHESTRATE", layout="wide", menu_items=get_about_content())
     inject_theme(env.st_resources)
     render_logo()
+    render_pinned_expanders(st)
+    render_page_context(st, page_label="ORCHESTRATE", env=env)
 
     if background_services_enabled() and not st.session_state.get("server_started"):
         activate_mlflow(env)
@@ -1200,11 +1444,13 @@ async def page() -> None:
 
     st.session_state.setdefault("cluster_verbose", current_verbose)
 
-    selected_verbose = st.sidebar.selectbox(
+    selected_verbose = compact_choice(
+        st.sidebar,
         "Verbosity level",
-        options=verbosity_options,
+        verbosity_options,
         key="cluster_verbose",
         help="Controls AgiEnv verbosity for generated install/distribute/run snippets.",
+        inline_limit=4,
     )
 
     try:

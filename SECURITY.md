@@ -16,13 +16,19 @@ please upgrade to the latest release before requesting a patch.
 
 ## Reporting a Vulnerability
 
-- Open a GitHub issue with the title **`[SECURITY] <short summary>`**.
-- Include:
-  - Steps to reproduce, impacted components, and any proof-of-concept material.
-  - Which environments are affected (development install, packaged release, etc.).
+- Do **not** open a public GitHub issue for suspected vulnerabilities.
+- Use GitHub private vulnerability reporting when it is available for the repository.
+- If private reporting is not available to you, contact your usual Thales representative or submit
+  a request via <https://cpl.thalesgroup.com/fr/contact-us> and ask for a private AGILAB security
+  intake.
+- Include only non-sensitive routing details in the first contact:
+  - A short summary and affected component names.
+  - Which environments are affected (development install, packaged release, shared deployment, etc.).
   - A preferred way to reach you for follow-up questions.
-- Do **not** attach detailed exploits directly to the email. If you require an encrypted channel,
-  request a Cryptobox link in your message and we will provision it promptly.
+- Share reproduction steps, proof-of-concept material, secrets, exploit details, or sensitive logs
+  only after a private channel has been confirmed.
+- Public GitHub issues may be used for non-sensitive follow-up after a fix is available, but not for
+  initial vulnerability disclosure.
 
 We will acknowledge receipt within **two business days**. If you do not hear back, please resend your
 message or reach out through your usual Thales representative.
@@ -54,6 +60,9 @@ organization's security requirements in mind. At minimum:
 - Rotate credentials regularly and prefer short-lived access tokens to static passwords.
 - Monitor and log execution environments; disable unused Streamlit pages or demo apps in shared
   environments.
+- Treat AGILAB command execution as a trusted-operator boundary. Shared deployments should restrict
+  project roots, environment variables, writable paths, and network access according to the team
+  threat model.
 
 For end-to-end secure deployments or bespoke threat modelling, please engage your Thales security
 contact or submit a request via <https://cpl.thalesgroup.com/fr/contact-us>.

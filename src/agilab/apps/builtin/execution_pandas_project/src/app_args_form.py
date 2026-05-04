@@ -62,6 +62,7 @@ for key, default in (
     ("rows_per_file", int(current_payload.get("rows_per_file", 100_000) or 100_000)),
     ("n_groups", int(current_payload.get("n_groups", 32) or 32)),
     ("compute_passes", int(current_payload.get("compute_passes", 32) or 32)),
+    ("kernel_mode", str(current_payload.get("kernel_mode", "typed_numeric") or "typed_numeric")),
     ("output_format", str(current_payload.get("output_format", "csv") or "csv")),
     ("seed", int(current_payload.get("seed", 42) or 42)),
     ("reset_target", bool(current_payload.get("reset_target", False))),
@@ -92,9 +93,18 @@ with c8:
 with c9:
     st.number_input("Compute passes", key=_k("compute_passes"), min_value=1, step=1)
 with c10:
-    st.number_input("Seed", key=_k("seed"), min_value=0, step=1)
+    st.selectbox(
+        "Kernel",
+        options=["typed_numeric", "dataframe"],
+        format_func=lambda value: "Typed numeric" if value == "typed_numeric" else "DataFrame",
+        key=_k("kernel_mode"),
+    )
 with c11:
     st.checkbox("Reset output", key=_k("reset_target"))
+
+c12, _ = st.columns([1.2, 3.6])
+with c12:
+    st.number_input("Seed", key=_k("seed"), min_value=0, step=1)
 
 candidate: dict[str, Any] = {
     "data_in": (st.session_state.get(_k("data_in")) or "").strip(),
@@ -105,6 +115,7 @@ candidate: dict[str, Any] = {
     "rows_per_file": st.session_state.get(_k("rows_per_file"), 100_000),
     "n_groups": st.session_state.get(_k("n_groups"), 32),
     "compute_passes": st.session_state.get(_k("compute_passes"), 32),
+    "kernel_mode": st.session_state.get(_k("kernel_mode")) or "typed_numeric",
     "output_format": st.session_state.get(_k("output_format")) or "csv",
     "seed": st.session_state.get(_k("seed"), 42),
     "reset_target": bool(st.session_state.get(_k("reset_target"), False)),
@@ -138,5 +149,6 @@ else:
     rows_per_partition = _safe_rows_per_partition(validated.rows_per_file, validated.n_partitions)
     st.caption(
         f"Planned workload: `{validated.nfile}` files, about `{total_rows:,}` rows total, "
-        f"`{validated.n_partitions}` partitions per file, about `{rows_per_partition:,}` rows per partition."
+        f"`{validated.n_partitions}` partitions per file, about `{rows_per_partition:,}` rows per partition, "
+        f"`{validated.kernel_mode}` kernel."
     )

@@ -1,0 +1,58 @@
+[[notebook_to_dask_project]]
+D = "Load notebook dataset"
+Q = "Imported notebook cell cell-2"
+C = """import pandas as pd
+from pathlib import Path
+
+orders_path = Path("data/orders.csv")
+orders_sample = pd.read_csv(orders_path).head(5)
+print(orders_sample)
+"""
+M = ""
+NB_CELL_ID = "cell-2"
+NB_CELL_INDEX = 2
+NB_CONTEXT_IDS = ["markdown-1"]
+NB_ENV_HINTS = ["pandas", "pathlib"]
+NB_ARTIFACT_REFERENCES = ["data/orders.csv"]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "notebook_to_dask_sample.ipynb"
+
+[[notebook_to_dask_project]]
+D = "Scale feature engineering with Dask"
+Q = "Imported notebook cell cell-4"
+C = """import dask.dataframe as dd
+
+orders = dd.read_csv("data/orders.csv", blocksize="64MB")
+orders["revenue"] = orders["quantity"] * orders["unit_price"]
+daily = orders.groupby("order_date").agg({"revenue": "sum", "order_id": "count"}).rename(columns={"order_id": "order_count"}).reset_index()
+daily.to_parquet("artifacts/daily_orders.parquet", write_index=False)
+"""
+M = ""
+NB_CELL_ID = "cell-4"
+NB_CELL_INDEX = 4
+NB_CONTEXT_IDS = ["markdown-3"]
+NB_ENV_HINTS = ["dask"]
+NB_ARTIFACT_REFERENCES = ["data/orders.csv", "artifacts/daily_orders.parquet"]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "notebook_to_dask_sample.ipynb"
+
+[[notebook_to_dask_project]]
+D = "Export analysis summary"
+Q = "Imported notebook cell cell-6"
+C = """import json
+import dask.dataframe as dd
+from pathlib import Path
+
+daily = dd.read_parquet("artifacts/daily_orders.parquet")
+summary = daily.describe().compute().to_dict()
+Path("artifacts").mkdir(parents=True, exist_ok=True)
+Path("artifacts/dask_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+"""
+M = ""
+NB_CELL_ID = "cell-6"
+NB_CELL_INDEX = 6
+NB_CONTEXT_IDS = ["markdown-5"]
+NB_ENV_HINTS = ["dask", "json", "pathlib"]
+NB_ARTIFACT_REFERENCES = ["artifacts/daily_orders.parquet", "artifacts/dask_summary.json"]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "notebook_to_dask_sample.ipynb"

@@ -6,16 +6,34 @@
 
 # AGILAB
 
-AGILAB is an open-source platform for reproducible AI and ML workflows.
+AGILAB is a reproducible AI/ML workbench for engineering teams.
 
-The core idea is simple: keep one app on one control path from setup to run to
-visible analysis instead of splitting the workflow across ad hoc scripts,
-environments, and notebooks.
+It turns notebooks and scripts into reproducible apps with:
 
-AGILAB is best evaluated as an AI/ML experimentation workbench, not as a
-replacement for mature orchestration or production MLOps platforms. Its value is
-keeping project setup, environment management, execution, and result analysis on
-one coherent path before hardened assets move to deployment-focused systems.
+- **one-command setup**
+- **controlled environments**
+- **local or distributed execution**
+- **visible experiment evidence**
+- **optional MLflow integration**
+
+AGILAB complements MLflow. It is not a replacement for MLflow or production
+MLOps platforms.
+
+It owns the execution and reproducibility layer around tracking, packaging, and
+analysis.
+
+## Central demo
+
+Notebook/script → AGILAB app → execution (local/distributed) → MLflow →
+Streamlit UI
+
+Try this first:
+
+```bash
+pip install agilab
+agilab first-proof --json
+agilab
+```
 
 ## Quick Start
 
@@ -23,21 +41,28 @@ one coherent path before hardened assets move to deployment-focused systems.
 [![agi-core notebook](https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
 
 The public AGILAB Space is the fastest browser preview. It opens the lightweight
-`flight_project` path by default; advanced scenarios such as
-`uav_relay_queue_project` are documented in the demo guide.
+`flight_project` path by default and also exposes the
+`meteo_forecast_project` notebook-migration demo with forecast analysis views.
+Advanced scenarios such as `data_io_2026_project`,
+`execution_pandas_project`, `execution_polars_project`, and
+`uav_relay_queue_project` are collected in the Advanced Proof Pack:
+https://thalesgroup.github.io/agilab/advanced-proof-pack.html
 
-## Choose Your Path
+### Maturity snapshot
 
-| If you want to... | Start here | Stop when... |
-|---|---|---|
-| Preview before installing | AGILAB Space | The hosted UI opens the `flight_project` path. |
-| Prove the local product flow | Source-checkout first run | `agilab first-proof --json` exits 0 and reports `"success": true`. |
-| Check the package entry point | Published package install | `agilab` starts from a clean package install. |
-| Update external apps | App repository installer path | Installed apps resolve to the repository copy. |
-| Contribute changes | `CONTRIBUTING.md` in the source repository | A focused local check passes before PR. |
+| Capability | Status |
+|---|---|
+| Local run | Stable |
+| UI Streamlit | Stable |
+| Distributed (Dask) | Beta |
+| MLflow | Beta |
+| Production | Experimental |
+| Agents RL | Roadmap |
 
-For the complete adoption checklist, see:
-https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md
+AGILAB is strongest in the bridge between notebook experimentation and
+reproducible AI applications: local execution, controlled environments, and
+analysis views. Broader production MLOps claims are intentionally limited and
+should be delivered with specialized production stacks.
 
 ## First Run
 
@@ -101,10 +126,11 @@ compatibility status, and roadmap scope live in the public docs:
 
 ## Evaluation Snapshot
 
-Current public evaluation is `3.8 / 5`, from the four public KPI scores:
-adoption `4.0 / 5`, research experimentation `4.0 / 5`, engineering
-prototyping `4.0 / 5`, and production readiness `3.0 / 5`. This is an AI/ML
-experimentation-workbench score, not a production MLOps claim. Validation
+Current public evaluation is `3.8 / 5`, from the four evidence-backed public
+KPI scores: adoption `4.0 / 5`, research experimentation `4.0 / 5`,
+engineering prototyping `4.0 / 5`, and production readiness `3.0 / 5`.
+Strategic potential is tracked separately at `4.2 / 5`. These are AI/ML
+experimentation-workbench scores, not production MLOps claims. Validation
 includes local and external macOS checks, AI Lightning, Hugging Face, one
 bare-metal cluster, and one VM-based cluster. Azure, AWS, and GCP deployments
 remain validation gaps.
@@ -112,6 +138,7 @@ remain validation gaps.
 ## Read Next
 
 - Demo chooser: https://thalesgroup.github.io/agilab/demos.html
+- Demo capture guide: https://thalesgroup.github.io/agilab/demo_capture_script.html
 - Quick start: https://thalesgroup.github.io/agilab/quick-start.html
 - Adoption guide: https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md
 - Notebook quickstart: https://thalesgroup.github.io/agilab/notebook-quickstart.html

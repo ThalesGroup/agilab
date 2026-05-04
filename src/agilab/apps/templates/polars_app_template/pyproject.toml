@@ -9,13 +9,10 @@ authors = [
 ]
 
 dependencies = [
- "setuptools",
-    "cython",
-    "parso",
+    "polars",
+    "pydantic",
     "py7zr",
-    "python-dotenv",
-    "ipython",
-    "psutil",
+    "streamlit>=1.56.0",
 ]
 
 [dependency-groups]
@@ -50,7 +47,7 @@ your_polars_project = [
 mypy_path = [
     "stubs",
 ]
-disallow_untyped_defs = false
+disallow_untyped_defs = true
 ignore_missing_imports = true
 
 # Quiet known third-party deprecations

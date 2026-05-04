@@ -4,29 +4,49 @@
 # cython:boundscheck False
 # cython:cdivision True
 
-import getpass
 import glob
+import logging
+import math
 import os
 import re
-import subprocess
 import traceback
 import warnings
 from datetime import datetime as dt
 from pathlib import Path
-import logging
 
 from agi_env import normalize_path
 from agi_node import MutableNamespace
 from agi_node.polars_worker import PolarsWorker
-from agi_node.agi_dispatcher import BaseWorker
 from agi_env.agi_logger import AgiLogger
+from flight.flight_args import UNSUPPORTED_DATA_SOURCE_MESSAGE
 from flight.reduction import write_reduce_artifact
 
 logger = AgiLogger.get_logger(__name__)
 warnings.filterwarnings("ignore")
 
 import polars as pl
-from geopy.distance import geodesic
+
+_EARTH_RADIUS_M = 6_371_000.0
+
+
+def _haversine_distance_m(row) -> float:
+    if row["prev_lat"] is None or row["prev_long"] is None:
+        return 0.0
+    try:
+        lat1 = math.radians(float(row["prev_lat"]))
+        lon1 = math.radians(float(row["prev_long"]))
+        lat2 = math.radians(float(row["lat"]))
+        lon2 = math.radians(float(row["long"]))
+    except (TypeError, ValueError):
+        return 0.0
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = (
+        math.sin(dlat / 2.0) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2.0) ** 2
+    )
+    return 2.0 * _EARTH_RADIUS_M * math.asin(math.sqrt(min(1.0, a)))
 
 
 class FlightWorker(PolarsWorker):
@@ -54,22 +74,15 @@ class FlightWorker(PolarsWorker):
 
     def calculate_speed(self, new_column_name: str, df: pl.DataFrame) -> pl.DataFrame:
         """
-        Compute the speed (in meters) between consecutive coordinate pairs
-        and add it to the DataFrame under the provided column name.
+        Compute the segment distance in meters between consecutive coordinate pairs
+        and add it under the legacy ``speed`` column name used by this demo.
         Assumes that the previous coordinate columns are already present.
         """
         df = df.with_columns(
             [
                 pl.struct(["prev_lat", "prev_long", "lat", "long"])
                 .map_elements(
-                    lambda row: (
-                        0.0
-                        if row["prev_lat"] is None
-                        else geodesic(
-                            (row["prev_lat"], row["prev_long"]),
-                            (row["lat"], row["long"]),
-                        ).meters
-                    ),
+                    _haversine_distance_m,
                     return_dtype=pl.Float64,
                 )
                 .alias(new_column_name),
@@ -116,12 +129,8 @@ class FlightWorker(PolarsWorker):
         if not getattr(args, "output_format", None):
             args.output_format = "parquet"
 
-        if args.data_source == "file":
-            # Implement your file logic
-            pass
-        else:
-            # Implement your HAWK logic
-            pass
+        if args.data_source != "file":
+            raise NotImplementedError(UNSUPPORTED_DATA_SOURCE_MESSAGE)
 
         self.pool_vars["args"] = self.args
         self.pool_vars["verbose"] = self.verbose
@@ -157,17 +166,19 @@ class FlightWorker(PolarsWorker):
         if not data_source:
             data_source = "file"
 
-        prefix = "~/"
         if data_source == "file":
+            file_path = Path(os.path.expanduser(str(file)))
+            if not file_path.is_absolute():
+                file_path = Path(os.path.expanduser(f"~/{file}"))
             if os.name != "nt":
-                file = os.path.normpath(os.path.expanduser(prefix + file)).replace(
-                    "\\", "/"
-                )
+                file = os.path.normpath(str(file_path)).replace("\\", "/")
             else:
-                file = normalize_path(os.path.expanduser(prefix + file))
+                file = normalize_path(str(file_path))
 
             if not Path(file).is_file():
                 raise FileNotFoundError(file)
+        else:
+            raise NotImplementedError(UNSUPPORTED_DATA_SOURCE_MESSAGE)
 
         # Read the CSV file using Polars.
         df = pl.read_csv(file)
@@ -179,17 +190,7 @@ class FlightWorker(PolarsWorker):
         # Preprocess the DataFrame (date parsing, cleaning, etc.)
         df = self.preprocess_df(df)
 
-        # Create previous coordinate columns if they are not already present.
-        # This assumes "lat" and "long" are valid column names.
-        if "lat" in df.columns and "long" in df.columns:
-            df = df.with_columns(
-                [
-                    pl.col("lat").shift(1).alias("prev_lat"),
-                    pl.col("long").shift(1).alias("prev_long"),
-                ]
-            )
-
-        # Calculate speed using the existing calculate_speed function.
+        # Preserve the historical output column name expected by downstream demos.
         df = self.calculate_speed("speed", df)
         return df.with_columns(pl.lit(Path(file).name).alias("source_file"))
 
@@ -231,7 +232,7 @@ class FlightWorker(PolarsWorker):
                     )
             except Exception as e:
                 logging.info(traceback.format_exc())
-                logging.info(f"Error saving dataframe for plane {plane}: {e}")
+                raise RuntimeError(f"Error saving dataframe for plane {plane}") from e
 
         write_reduce_artifact(
             worker_df,

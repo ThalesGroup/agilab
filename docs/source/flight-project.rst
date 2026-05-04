@@ -3,7 +3,7 @@ Flight Project
 
 Overview
 --------
-- End-to-end reference project that ingests aeronautical telemetry, cleans it
+- End-to-end reference project that ingests file-based aeronautical telemetry, cleans it
   with `Polars` and pushes curated artefacts back into the AGILab export
   directory.
 - Demonstrates how to orchestrate file-based distributions, run inside the
@@ -14,7 +14,7 @@ Overview
 
 Scientific highlights
 ---------------------
-The worker derives distances and speeds from time-stamped telemetry. For two
+The worker derives segment distances from time-stamped telemetry. For two
 samples with latitude/longitude :math:`(\phi_1, \lambda_1)` and
 :math:`(\phi_2, \lambda_2)`, a common great-circle approximation is the
 haversine formula:
@@ -25,8 +25,16 @@ haversine formula:
 
 with Earth radius :math:`R` and angular differences
 :math:`\Delta\phi = \phi_2 - \phi_1`, :math:`\Delta\lambda = \lambda_2 - \lambda_1`.
-Given timestamps :math:`t_1, t_2`, an instantaneous speed estimate is
-:math:`v \approx d / (t_2 - t_1)`.
+The public demo stores this per-sample segment distance in the historical
+``speed`` column so existing analysis pages and reducer contracts remain
+compatible.
+
+Public scope
+------------
+``flight_project`` is intentionally file-only. The wider AGILab connector
+catalog supports SQL, object-storage, and OpenSearch-compatible connector
+definitions, but this built-in app rejects search-index data sources instead of
+exposing a partially implemented path.
 
 Manager (`flight.flight`)
 -------------------------
@@ -40,28 +48,26 @@ Manager (`flight.flight`)
 
 Args (`flight.flight_args`)
 ---------------------------
-- Pydantic models that capture the full surface area of the project’s
-  configuration, including dataset location, slicing parameters and cluster
-  toggles.
+- Pydantic models that capture the supported public configuration, including
+  dataset location, slicing parameters and cluster toggles.
 - Ships conversion utilities for reading/writing ``app_settings.toml`` and merging
   overrides that are injected by the Orchestrate page.
 
 Worker (`flight_worker.flight_worker`)
 --------------------------------------
-- Extends ``PolarsWorker`` to preprocess raw telemetry, compute geodesic distances
-  between samples, and partition files across the cluster.
-- Contains Cython hooks (``flight_worker.pyx``) and pre/post-install scripts so
-  you can see how compiled extensions are integrated into a distribution.
+- Extends ``PolarsWorker`` to preprocess raw telemetry, compute great-circle
+  segment distances between samples, and partition files across the cluster.
+- Can be compiled by the AGILab dispatcher when Cython is enabled; generated
+  ``.pyx``/``.c`` files are build artefacts, not source-of-truth files.
 - Demonstrates Windows-friendly path handling and data staging for managed
   environments.
 
 Assets & Tests
 --------------
-- ``app_test.py`` exercises the full install → distribute → run flow.
-- ``test/_test_*`` modules focus on unit-level behaviour for manager, worker and
-  orchestration glue.
-- ``Modules`` and ``lab_steps.toml`` contain the web-view lab material used by
-  the Pipeline page.
+- ``test/test_flight_project_runtime_args.py`` covers argument validation,
+  file inventory building, worker defaults, and reduce-artifact emission.
+- Cluster validation and UI tests cover the default ``view_maps`` route,
+  first-proof flow, and Release Decision reduce-artifact discovery.
 
 API Reference
 -------------

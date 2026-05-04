@@ -25,17 +25,20 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     bundle = module.build_bundle(run_hf_smoke=False)
 
     assert bundle["kpi"] == "Overall public evaluation"
-    assert bundle["supported_score"] == "3.8 / 5"
-    assert bundle["baseline_review_score"] == "3.2 / 5"
+    assert bundle["supported_score"] == module.SUPPORTED_OVERALL_SCORE
+    assert bundle["baseline_review_score"] == module.BASELINE_REVIEW_SCORE
     assert bundle["status"] == "pass"
     assert bundle["summary"]["hf_smoke_executed"] is False
     assert bundle["summary"]["score_components"] == {
-        "Ease of adoption": "4.0 / 5",
-        "Research experimentation": "4.0 / 5",
-        "Engineering prototyping": "4.0 / 5",
-        "Production readiness": "3.0 / 5",
+        name: f"{score:.1f} / 5"
+        for name, score in module.KPI_COMPONENT_SCORES.items()
     }
-    assert bundle["summary"]["score_formula"] == "(4.0 + 4.0 + 4.0 + 3.0) / 4 = 3.75"
+    assert bundle["summary"]["strategic_potential_score"] == module.STRATEGIC_POTENTIAL_SCORE
+    assert bundle["summary"]["score_formula"] == module._score_formula()
+    assert (
+        f"Strategic potential is tracked separately at {module.STRATEGIC_POTENTIAL_SCORE}"
+        in bundle["rationale"]
+    )
     check_ids = {check["id"] for check in bundle["checks"]}
     assert check_ids == {
         "workflow_compatibility_report",
@@ -83,6 +86,59 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     }
 
 
+def test_render_readme_summary_uses_kpi_bundle_scores() -> None:
+    module = _load_module()
+    snapshot = module.build_score_snapshot()
+
+    summary = module.render_readme_summary(snapshot)
+    components = snapshot["summary"]["score_components"]
+
+    assert "Current CODEX 5.5 working summary" in summary
+    assert (
+        f"`{components['Ease of adoption']}` for ease of adoption, research experimentation, "
+        "and engineering prototyping."
+    ) in summary
+    assert f"`{components['Production readiness']}` for production readiness." in summary
+    assert f"`{snapshot['summary']['strategic_potential_score']}` for strategic potential." in summary
+    assert f"rounded category average: `{snapshot['supported_score']}`" in summary
+
+
+def test_refresh_readme_summary_replaces_static_block(tmp_path: Path) -> None:
+    module = _load_module()
+    snapshot = module.build_score_snapshot()
+    readme_path = tmp_path / "README.md"
+    readme_path.write_text(
+        "\n".join(
+            [
+                "# AGILAB",
+                "",
+                "## Evaluation Snapshot",
+                "",
+                "Current CODEX 5.5 working summary, refreshed from the public KPI bundle:",
+                "",
+                "- stale",
+                "",
+                "These are public experimentation-workbench scores, not production MLOps claims.",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    changed = module.refresh_readme_summary(
+        readme_path=readme_path,
+        bundle=snapshot,
+    )
+
+    refreshed = readme_path.read_text(encoding="utf-8")
+    assert changed is True
+    assert module.README_SUMMARY_START in refreshed
+    assert module.README_SUMMARY_END in refreshed
+    assert "- stale" not in refreshed
+    assert f"`{snapshot['summary']['strategic_potential_score']}` for strategic potential." in refreshed
+    assert "These are public experimentation-workbench scores" in refreshed
+
+
 def test_workflow_compatibility_report_requires_hf_demo_validated() -> None:
     module = _load_module()
 
@@ -110,7 +166,7 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     wizard = check["details"]["wizard"]
     assert wizard["recommended_path_id"] == "source-checkout-first-proof"
     assert wizard["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert wizard["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert wizard["documented_route_ids"] == ["notebook-quickstart"]
     assert wizard["compatibility_status"] == "validated"
     assert wizard["compatibility_report_status"] == "pass"
     assert wizard["run_manifest_filename"] == "run_manifest.json"
@@ -145,8 +201,8 @@ def test_revision_traceability_report_contract_fingerprints_repo() -> None:
     assert check["details"]["summary"]["schema"] == "agilab.revision_traceability.v1"
     assert check["details"]["summary"]["execution_mode"] == "revision_traceability_static"
     assert check["details"]["summary"]["core_component_count"] == 5
-    assert check["details"]["summary"]["builtin_app_count"] == 7
-    assert check["details"]["summary"]["app_fingerprint_count"] == 7
+    assert check["details"]["summary"]["builtin_app_count"] == 8
+    assert check["details"]["summary"]["app_fingerprint_count"] == 8
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert "revision_traceability_builtin_apps" in check["details"]["check_ids"]
@@ -163,9 +219,9 @@ def test_public_certification_profile_report_contract_bounds_scope() -> None:
     )
     assert check["details"]["summary"]["certification_profile"] == "bounded_public_evidence"
     assert check["details"]["summary"]["path_count"] == 6
-    assert check["details"]["summary"]["certified_public_evidence_count"] == 4
-    assert check["details"]["summary"]["documented_not_certified_count"] == 2
-    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 2
+    assert check["details"]["summary"]["certified_public_evidence_count"] == 5
+    assert check["details"]["summary"]["documented_not_certified_count"] == 1
+    assert check["details"]["summary"]["certified_beyond_newcomer_operator_count"] == 3
     assert check["details"]["summary"]["production_certification_claimed"] is False
     assert check["details"]["summary"]["formal_third_party_certification"] is False
     assert check["details"]["summary"]["command_execution_count"] == 0
@@ -188,11 +244,23 @@ def test_supply_chain_attestation_report_contract_fingerprints_package() -> None
     assert check["details"]["summary"]["license_present"] is True
     assert check["details"]["summary"]["core_component_count"] == 4
     assert check["details"]["summary"]["aligned_core_versions"] is True
-    assert check["details"]["summary"]["builtin_app_pyproject_count"] == 7
+    assert check["details"]["summary"]["aligned_internal_dependency_pins"] is True
+    assert check["details"]["summary"]["mismatched_internal_dependency_pin_count"] == 0
+    assert check["details"]["summary"]["builtin_app_pyproject_count"] == 8
+    assert check["details"]["summary"]["aligned_builtin_app_versions"] is True
+    assert check["details"]["summary"]["mismatched_builtin_app_version_count"] == 0
+    assert check["details"]["summary"]["aligned_builtin_app_internal_dependency_bounds"] is True
+    assert check["details"]["summary"]["mismatched_builtin_app_internal_dependency_bound_count"] == 0
+    assert check["details"]["summary"]["package_data_pattern_count"] >= 1
+    assert check["details"]["summary"]["builtin_payload_file_count"] >= 1
+    assert check["details"]["summary"]["builtin_payload_bytes"] >= 1
+    assert check["details"]["summary"]["builtin_archive_file_count"] >= 0
+    assert check["details"]["summary"]["builtin_notebook_file_count"] >= 0
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["formal_supply_chain_attestation"] is False
     assert "supply_chain_attestation_core_alignment" in check["details"]["check_ids"]
+    assert "supply_chain_attestation_payload_inventory" in check["details"]["check_ids"]
 
 
 def test_repository_knowledge_report_contract_indexes_repo_context() -> None:
@@ -598,7 +666,7 @@ def test_data_connector_facility_report_contract_validates_connector_targets() -
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_facility.v1"
     assert check["details"]["summary"]["run_status"] == "validated"
     assert check["details"]["summary"]["execution_mode"] == "contract_validation_only"
-    assert check["details"]["summary"]["connector_count"] == 3
+    assert check["details"]["summary"]["connector_count"] == 5
     assert check["details"]["summary"]["supported_kinds"] == [
         "object_storage",
         "opensearch",
@@ -645,10 +713,10 @@ def test_data_connector_health_report_contract_plans_opt_in_probes() -> None:
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_health.v1"
     assert check["details"]["summary"]["run_status"] == "planned"
     assert check["details"]["summary"]["execution_mode"] == "health_probe_plan_only"
-    assert check["details"]["summary"]["connector_count"] == 3
-    assert check["details"]["summary"]["planned_probe_count"] == 3
+    assert check["details"]["summary"]["connector_count"] == 5
+    assert check["details"]["summary"]["planned_probe_count"] == 5
     assert check["details"]["summary"]["executed_probe_count"] == 0
-    assert check["details"]["summary"]["opt_in_required_count"] == 3
+    assert check["details"]["summary"]["opt_in_required_count"] == 5
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["status_values"] == ["unknown_not_probed"]
     assert check["details"]["summary"]["unhealthy_count"] == 0
@@ -665,15 +733,15 @@ def test_data_connector_health_actions_report_contract_exposes_operator_triggers
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_health_actions.v1"
     assert check["details"]["summary"]["run_status"] == "ready_for_operator_trigger"
     assert check["details"]["summary"]["execution_mode"] == "operator_trigger_contract_only"
-    assert check["details"]["summary"]["action_count"] == 3
-    assert check["details"]["summary"]["connector_count"] == 3
-    assert check["details"]["summary"]["operator_trigger_count"] == 3
-    assert check["details"]["summary"]["pending_action_count"] == 3
-    assert check["details"]["summary"]["pending_operator_trigger_count"] == 3
+    assert check["details"]["summary"]["action_count"] == 5
+    assert check["details"]["summary"]["connector_count"] == 5
+    assert check["details"]["summary"]["operator_trigger_count"] == 5
+    assert check["details"]["summary"]["pending_action_count"] == 5
+    assert check["details"]["summary"]["pending_operator_trigger_count"] == 5
     assert check["details"]["summary"]["executed_probe_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
-    assert check["details"]["summary"]["operator_context_required_count"] == 3
-    assert check["details"]["summary"]["credential_gated_count"] == 2
+    assert check["details"]["summary"]["operator_context_required_count"] == 5
+    assert check["details"]["summary"]["credential_gated_count"] == 4
     assert check["details"]["summary"]["no_credential_required_count"] == 1
     assert check["details"]["summary"]["default_status_values"] == ["unknown_not_probed"]
     assert check["details"]["summary"]["result_status_values"] == ["unknown_not_probed"]
@@ -692,13 +760,13 @@ def test_data_connector_runtime_adapters_report_contract_exposes_bindings() -> N
     )
     assert check["details"]["summary"]["run_status"] == "ready_for_runtime_binding"
     assert check["details"]["summary"]["execution_mode"] == "runtime_adapter_contract_only"
-    assert check["details"]["summary"]["connector_count"] == 3
-    assert check["details"]["summary"]["adapter_count"] == 3
-    assert check["details"]["summary"]["runtime_ready_count"] == 3
-    assert check["details"]["summary"]["credential_deferred_count"] == 2
+    assert check["details"]["summary"]["connector_count"] == 5
+    assert check["details"]["summary"]["adapter_count"] == 5
+    assert check["details"]["summary"]["runtime_ready_count"] == 5
+    assert check["details"]["summary"]["credential_deferred_count"] == 4
     assert check["details"]["summary"]["no_credential_required_count"] == 1
-    assert check["details"]["summary"]["operator_opt_in_required_count"] == 3
-    assert check["details"]["summary"]["health_action_binding_count"] == 3
+    assert check["details"]["summary"]["operator_opt_in_required_count"] == 5
+    assert check["details"]["summary"]["health_action_binding_count"] == 5
     assert check["details"]["summary"]["executed_adapter_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["credential_value_materialized_count"] == 0
@@ -721,8 +789,8 @@ def test_data_connector_live_endpoint_smoke_report_contract_reports_opt_in() -> 
         "agilab.data_connector_live_endpoint_smoke.v1"
     )
     assert check["details"]["summary"]["execution_mode"] == "live_endpoint_smoke_plan_only"
-    assert check["details"]["summary"]["connector_count"] == 3
-    assert check["details"]["summary"]["planned_endpoint_count"] == 3
+    assert check["details"]["summary"]["connector_count"] == 5
+    assert check["details"]["summary"]["planned_endpoint_count"] == 5
     assert check["details"]["summary"]["executed_endpoint_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["sqlite_smoke_healthy_count"] == 1
@@ -742,11 +810,11 @@ def test_data_connector_ui_preview_report_contract_renders_connector_state() -> 
     assert check["details"]["summary"]["run_status"] == "ready_for_ui_preview"
     assert check["details"]["summary"]["execution_mode"] == "static_ui_preview_only"
     assert check["details"]["summary"]["persistence_format"] == "json+html"
-    assert check["details"]["summary"]["connector_card_count"] == 3
+    assert check["details"]["summary"]["connector_card_count"] == 5
     assert check["details"]["summary"]["page_binding_count"] == 2
     assert check["details"]["summary"]["legacy_fallback_count"] == 2
-    assert check["details"]["summary"]["health_probe_status_count"] == 3
-    assert check["details"]["summary"]["component_count"] == 8
+    assert check["details"]["summary"]["health_probe_status_count"] == 5
+    assert check["details"]["summary"]["component_count"] == 10
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert check["details"]["summary"]["html_rendered"] is True
     assert check["details"]["summary"]["html_written"] is True
@@ -763,10 +831,10 @@ def test_data_connector_live_ui_report_contract_wires_release_decision() -> None
     assert check["details"]["summary"]["schema"] == "agilab.data_connector_live_ui.v1"
     assert check["details"]["summary"]["run_status"] == "ready_for_live_ui"
     assert check["details"]["summary"]["execution_mode"] == "streamlit_render_contract_only"
-    assert check["details"]["summary"]["connector_card_count"] == 3
+    assert check["details"]["summary"]["connector_card_count"] == 5
     assert check["details"]["summary"]["page_binding_count"] == 2
     assert check["details"]["summary"]["legacy_fallback_count"] == 2
-    assert check["details"]["summary"]["health_probe_status_count"] == 3
+    assert check["details"]["summary"]["health_probe_status_count"] == 5
     assert check["details"]["summary"]["streamlit_metric_count"] == 4
     assert check["details"]["summary"]["streamlit_dataframe_count"] == 4
     assert check["details"]["summary"]["network_probe_count"] == 0
@@ -839,7 +907,7 @@ def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None
     check = module._check_reduce_contract_adoption_guardrail(Path.cwd())
 
     assert check["status"] == "pass"
-    assert check["details"]["checked_app_count"] == 6
+    assert check["details"]["checked_app_count"] == 7
     assert check["details"]["template_only_exemptions"] == {
         "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
     }
@@ -882,12 +950,15 @@ def test_optional_hf_smoke_run_is_explicit(monkeypatch) -> None:
                     "base app",
                     "flight project",
                     "flight view_maps",
-                    "flight view_maps_network",
                 )
             ]
 
         @staticmethod
         def check_public_app_tree():
+            return None
+
+        @staticmethod
+        def check_public_pages_tree():
             return None
 
         @staticmethod
@@ -897,7 +968,10 @@ def test_optional_hf_smoke_run_is_explicit(monkeypatch) -> None:
                 total_duration_seconds=1.0,
                 target_seconds=30.0,
                 within_target=True,
-                checks=[_FakeCheck("public app tree", True, 1.0, "ok")],
+                checks=[
+                    _FakeCheck("public app tree", True, 0.5, "ok"),
+                    _FakeCheck("public pages tree", True, 0.5, "ok"),
+                ],
             )
 
     original_loader = module._load_tool_module

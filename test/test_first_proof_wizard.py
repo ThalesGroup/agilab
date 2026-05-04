@@ -23,15 +23,18 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
 
     content = module.newcomer_first_proof_content()
 
+    assert content["title"] == "Start here: run flight_project first"
+    assert "built-in flight demo locally" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["recommended_path_label"] == "Source checkout first proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert content["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert content["documented_route_ids"] == ["notebook-quickstart"]
     assert content["compatibility_status"] == "validated"
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
     assert content["run_manifest_filename"] == "run_manifest.json"
     assert [label for label, _ in content["steps"]] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+    assert any("cluster, benchmark, and service options off" in detail for _, detail in content["steps"])
     assert "tools/newcomer_first_proof.py --json" in content["cli_command"]
     assert any("run_manifest.json" in item for item in content["success_criteria"])
 
@@ -65,7 +68,7 @@ def test_first_proof_state_routes_only_to_flight_project(tmp_path: Path) -> None
     assert state["current_app_matches"] is False
     assert state["recommended_path_id"] == "source-checkout-first-proof"
     assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
-    assert state["documented_route_ids"] == ["notebook-quickstart", "published-package-route"]
+    assert state["documented_route_ids"] == ["notebook-quickstart"]
     assert state["run_manifest_path"] == tmp_path / "log" / "execute" / "flight" / "run_manifest.json"
     assert state["run_manifest_loaded"] is False
     assert state["run_manifest_status"] == "missing"

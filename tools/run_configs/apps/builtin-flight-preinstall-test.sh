@@ -8,4 +8,4 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$REPO_ROOT/src/agilab/apps/builtin/flight_project"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
-uv run python $REPO_ROOT/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py remove_decorators --verbose --worker_path $HOME/wenv/builtin/flight_worker/src/builtin/flight_worker/builtin/flight_worker.py
+uv run python $REPO_ROOT/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/pre_install.py remove_decorators --verbose --worker_path $HOME/wenv/flight_worker/src/flight_worker/flight_worker.py

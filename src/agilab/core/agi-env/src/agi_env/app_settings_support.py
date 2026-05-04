@@ -4,13 +4,92 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from agi_env.env_config_support import clean_envar_value
 
+APP_SETTINGS_META_KEY = "__meta__"
+APP_SETTINGS_SCHEMA = "agilab.app_settings.v1"
+APP_SETTINGS_SCHEMA_VERSION = 1
 PATH_VALUE_EXCEPTIONS = (TypeError, ValueError)
 PATH_PROBE_EXCEPTIONS = (OSError,)
 EXPORT_ROOT_EXCEPTIONS = (OSError, TypeError, ValueError)
+
+
+def sanitize_app_settings_for_toml(obj: Any) -> Any:
+    """Recursively convert app-settings values into TOML-safe structures."""
+
+    if isinstance(obj, dict):
+        sanitized = {}
+        for key, value in obj.items():
+            if value is None:
+                continue
+            sanitized_value = sanitize_app_settings_for_toml(value)
+            sanitized[key] = sanitized_value
+        return sanitized
+    if isinstance(obj, list):
+        sanitized_items = []
+        for item in obj:
+            if item is None:
+                continue
+            sanitized_items.append(sanitize_app_settings_for_toml(item))
+        return sanitized_items
+    if isinstance(obj, tuple):
+        return sanitize_app_settings_for_toml(list(obj))
+    if isinstance(obj, Path):
+        return str(obj)
+    return obj
+
+
+def ensure_app_settings_metadata(data: dict[str, Any]) -> dict[str, Any]:
+    """Stamp app settings with the current persisted artifact contract."""
+
+    meta = data.get(APP_SETTINGS_META_KEY)
+    if not isinstance(meta, dict):
+        meta = {}
+        data[APP_SETTINGS_META_KEY] = meta
+    meta.setdefault("schema", APP_SETTINGS_SCHEMA)
+    meta.setdefault("version", APP_SETTINGS_SCHEMA_VERSION)
+    return data
+
+
+def app_settings_contract_error(data: dict[str, Any]) -> str:
+    """Return a refusal reason when app-settings metadata is unsupported."""
+
+    meta = data.get(APP_SETTINGS_META_KEY, {})
+    if meta in ({}, None):
+        return ""
+    if not isinstance(meta, dict):
+        return "app_settings.toml __meta__ must be a TOML table."
+    raw_version = meta.get("version")
+    if raw_version in (None, ""):
+        return ""
+    try:
+        version = int(raw_version)
+    except (TypeError, ValueError):
+        return f"Unsupported app_settings.toml schema version {raw_version!r}."
+    if version < 1 or version > APP_SETTINGS_SCHEMA_VERSION:
+        return (
+            f"Unsupported app_settings.toml schema version {version}; "
+            "upgrade AGILAB before editing this app settings file."
+        )
+    return ""
+
+
+def prepare_app_settings_for_write(
+    payload: dict[str, Any],
+    *,
+    sanitize: bool = True,
+) -> dict[str, Any]:
+    """Validate and stamp app settings before persisting them."""
+
+    data = sanitize_app_settings_for_toml(payload) if sanitize else dict(payload)
+    if not isinstance(data, dict):
+        raise ValueError("app_settings.toml payload must be a TOML table.")
+    error = app_settings_contract_error(data)
+    if error:
+        raise ValueError(error)
+    return ensure_app_settings_metadata(data)
 
 
 def app_settings_aliases(app_name: str | None) -> set[str]:

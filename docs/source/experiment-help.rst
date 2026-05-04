@@ -8,11 +8,11 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/pipeline-page.png
-   :alt: Screenshot of the PIPELINE page with assistant controls, lab directory selectors, and MLflow status.
+   :alt: Screenshot of the PIPELINE page with assistant controls, lab directory selectors, and dataframe selection.
    :align: center
    :class: diagram-panel diagram-wide
 
-   PIPELINE combines lab-step editing, execution context, and MLflow tracking status in the same workspace.
+   PIPELINE combines lab-step editing, execution context, dataframe selection, and notebook export in the same workspace.
 
 Sidebar
 -------
@@ -80,9 +80,8 @@ If a generated step becomes stale after an app or orchestration change, the
 saved code remains unchanged until you explicitly regenerate or replace it.
 This avoids hidden behaviour changes, but it also means stale generated steps
 must be refreshed deliberately.
-One concrete example is ``sat_trajectory_project``: generated snippets now use
-``total_satellites_wanted``, so older saved snippets using ``number_of_sat`` or
-``number_of_tle_satellites`` must be regenerated before they can run.
+For example, if an app renames a runtime argument, older saved snippets that
+still pass the removed name must be regenerated or replaced before they can run.
 
 Notebook export
 ~~~~~~~~~~~~~~~
@@ -141,6 +140,23 @@ Pipeline execution and MLflow tracking now share the same runtime contract:
 This means MLflow is no longer just a nearby dashboard. It is the execution
 trace for PIPELINE runs, while the sidebar remains the place where you inspect
 that trace.
+
+AGILAB does not define a separate experiment tracker, model registry, run
+format, or metrics schema. The AGILAB runtime talks through a small tracker
+facade (for example ``tracker.log_metric(...)`` and
+``tracker.log_artifact(...)``), and the default backend is MLflow. This keeps
+tracking automatic during normal AGILAB execution while preserving compatibility
+with existing MLflow tooling.
+
+Inside a snippet or worker, prefer the AGILAB facade when you need custom
+domain metrics:
+
+.. code-block:: python
+
+   from agilab.tracking import tracker
+
+   tracker.log_metric("accuracy", 0.94)
+   tracker.log_artifact("reports/confusion_matrix.png")
 
 The tracking store is the directory configured by ``MLFLOW_TRACKING_DIR``.
 Subprocess-based steps receive the same ``MLFLOW_TRACKING_URI`` as in-process

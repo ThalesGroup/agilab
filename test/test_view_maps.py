@@ -317,7 +317,7 @@ def test_view_maps_renders_minimal_export_dataset(tmp_path, monkeypatch) -> None
         at.run()
 
     assert not at.exception
-    assert any("Cartography Visualisation" in title.value for title in at.title)
+    assert any("Cartography Visualization" in title.value for title in at.title)
     assert any(widget.label == "Dataset selection" for widget in at.radio)
     assert any(widget.label == "File type" for widget in at.selectbox)
     assert any(widget.label == "DataFrame" for widget in at.selectbox)

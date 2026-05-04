@@ -6,10 +6,12 @@ agilab local publisher for TestPyPI / PyPI using ~/.pypirc.
 
 Highlights
 - Builds with uv (wheels and/or sdists). No pep517 shim.
-- Unified version for published AGI libraries + umbrella. If busy, auto-bumps .postN.
+- Unified version for published AGI libraries + umbrella. Real PyPI never auto-bumps
+  to .postN; choose an explicit new version instead. TestPyPI may auto-bump for retries.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - Twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
+- Optional exact release deletion using pypi-cleanup --version-regex.
 - Optional yank previous versions on PyPI.
 - Optional git tag (date-based), GitHub Release, and commit of version bumps.
 
@@ -90,7 +92,13 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--verbose", action="store_true", help="Verbose logging for cleanup")
 
     # Version control
-    ap.add_argument("--version", help="Explicit version 'X.Y.Z[.postN]'. If omitted, base=UTC YYYY.MM.DD then .postN chosen")
+    ap.add_argument(
+        "--version",
+        help=(
+            "Explicit version 'X.Y.Z[.postN]'. If omitted, base=UTC YYYY.MM.DD. "
+            "Real PyPI refuses automatic .postN bumps when that version is already used."
+        ),
+    )
 
     # Cleanup / purge (web login)
     ap.add_argument("--purge-before", action="store_true", help="Run cleanup before upload (leave most recent only)")
@@ -103,6 +111,23 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--password", help="Cleanup/Purge web-login password (NOT used for twine)")
     ap.add_argument("--cleanup-timeout", type=int, default=60, help="Cleanup timeout seconds (0 disables)")
     ap.add_argument("--skip-cleanup", action="store_true", help="Disable cleanup entirely")
+    ap.add_argument(
+        "--delete-pypi-release",
+        action="append",
+        default=[],
+        metavar="VERSION",
+        help=(
+            "Cleanup: delete exactly VERSION from the selected PyPI packages using pypi-cleanup. "
+            "Repeatable; requires web-login cleanup credentials."
+        ),
+    )
+    ap.add_argument(
+        "--delete-former-pypi-release",
+        dest="delete_pypi_release",
+        action="append",
+        metavar="VERSION",
+        help="Alias for --delete-pypi-release.",
+    )
 
     # Yank
     ap.add_argument("--yank-previous", action="store_true", help="On PyPI, yank versions older than the chosen version")
@@ -111,6 +136,14 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--git-tag", action="store_true", help="Create & push date tag (vYYYY.MM.DD[-N]) on PyPI")
     ap.add_argument("--git-commit-version", action="store_true", help="git add/commit pyproject version bumps")
     ap.add_argument("--git-reset-on-failure", action="store_true", help="On failure, git checkout -- pyproject files")
+    ap.add_argument(
+        "--delete-former-github-release",
+        action="store_true",
+        help=(
+            "After creating the current GitHub Release, delete the previous GitHub Release entry. "
+            "The underlying git tag and PyPI files are kept."
+        ),
+    )
 
     # Docs
     ap.add_argument(
@@ -161,6 +194,8 @@ class Cfg:
     packages: list[str] | None
     gen_docs: bool
     release_preflight: bool = True
+    delete_former_github_release: bool = False
+    delete_pypi_releases: list[str] | None = None
 
 
 def make_cfg(args: argparse.Namespace) -> Cfg:
@@ -185,10 +220,12 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         git_tag=bool(args.git_tag),
         git_commit_version=bool(args.git_commit_version),
         git_reset_on_failure=bool(args.git_reset_on_failure),
+        delete_former_github_release=bool(getattr(args, "delete_former_github_release", False)),
         pypirc_check=bool(getattr(args, "pypirc_check", True)),
         packages=list(args.packages) if getattr(args, "packages", None) else None,
         gen_docs=bool(getattr(args, "gen_docs", False)),
         release_preflight=bool(getattr(args, "release_preflight", True)),
+        delete_pypi_releases=list(getattr(args, "delete_pypi_release", []) or []),
     )
 
 
@@ -238,6 +275,8 @@ PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
     "CHANGELOG.md",
     "docs/.docs_source_mirror_stamp.json",
     "docs/source/index.rst",
+    "docs/source/data/release_proof.toml",
+    "docs/source/release-proof.rst",
     "test/test_public_demo_links.py",
 )
 GITHUB_RELEASE_URL_RE = re.compile(
@@ -269,10 +308,12 @@ def builtin_app_pyprojects() -> List[pathlib.Path]:
     )
 
 
-def sync_builtin_app_versions(new_version: str) -> List[pathlib.Path]:
+def sync_builtin_app_versions(new_version: str, pins: Dict[str, str] | None = None) -> List[pathlib.Path]:
     updated: List[pathlib.Path] = []
     for pyproject_path in builtin_app_pyprojects():
         set_version_in_pyproject(pyproject_path, new_version)
+        if pins:
+            pin_internal_deps(pyproject_path, pins, operator=">=")
         rel = pyproject_path.relative_to(REPO_ROOT)
         print(f"[version] builtin app {rel}: {new_version}")
         updated.append(pyproject_path)
@@ -311,6 +352,51 @@ def read_cleanup_creds_from_pypirc(repo_name: str) -> tuple[str | None, str | No
     username = (cfg.get(section, "username", fallback="") or "").strip() or None
     password = (cfg.get(section, "password", fallback="") or "").strip() or None
     return username, password
+
+
+def cleanup_host(repo_name: str) -> str:
+    return "https://test.pypi.org/" if repo_name == "testpypi" else "https://pypi.org/"
+
+
+def cleanup_credentials(cfg: Cfg, *, required: bool = False) -> tuple[str, str] | None:
+    pypirc_user, pypirc_pass = read_cleanup_creds_from_pypirc(cfg.repo)
+
+    # precedence: CLI > env > ~/.pypirc cleanup section
+    cleanup_user = (
+        (cfg.cleanup_user or "").strip()
+        or (os.environ.get("PYPI_USERNAME") or "").strip()
+        or pypirc_user
+        or ""
+    )
+    cleanup_pass = (
+        (cfg.cleanup_pass or "").strip()
+        or (os.environ.get("PYPI_CLEANUP_PASSWORD") or "").strip()
+        or (os.environ.get("PYPI_PASSWORD") or "").strip()
+        or pypirc_pass
+        or ""
+    )
+
+    if not cleanup_user or not cleanup_pass:
+        message = "cleanup web-login credentials via CLI, env, or ~/.pypirc are required; tokens won't work here."
+        if required:
+            raise SystemExit(f"ERROR: {message}")
+        print(f"[cleanup] Skipping: requires {message}")
+        return None
+    if cleanup_user == "__token__" or str(cleanup_pass).startswith("pypi-"):
+        message = "cleanup needs real account credentials, not an API token."
+        if required:
+            raise SystemExit(f"ERROR: {message}")
+        print(f"[cleanup] Skipping: {message}")
+        return None
+    return cleanup_user, cleanup_pass
+
+
+def exact_release_regex(version: str) -> str:
+    try:
+        normalized = str(Version(version.strip().lstrip("v")))
+    except InvalidVersion as exc:
+        raise SystemExit(f"ERROR: Invalid --delete-pypi-release version: {version!r}") from exc
+    return f"^{re.escape(normalized)}$"
 
 
 def load_doc(p: pathlib.Path):
@@ -413,6 +499,11 @@ def pypi_releases(name: str, repo_target: str) -> set[str]:
 
 
 def require_safe_pypi_release(cfg: Cfg) -> None:
+    if cfg.delete_former_github_release and (cfg.repo != "pypi" or not cfg.git_tag):
+        raise SystemExit(
+            "ERROR: --delete-former-github-release requires --repo pypi --git-tag "
+            "because it runs after the new GitHub Release has been created."
+        )
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
         return
     missing: list[str] = []
@@ -438,13 +529,51 @@ def require_safe_pypi_release(cfg: Cfg) -> None:
 def release_preflight_profiles(cfg: Cfg) -> list[str]:
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only or not cfg.release_preflight:
         return []
-    return ["agi-env", "agi-core-combined", "agi-gui", "docs", "installer", "shared-core-typing"]
+    return [
+        "agi-env",
+        "agi-core-combined",
+        "agi-gui",
+        "docs",
+        "installer",
+        "shared-core-typing",
+        "dependency-policy",
+    ]
+
+
+RELEASE_PREFLIGHT_COVERAGE_ARTIFACTS = (
+    ".coverage",
+    ".coverage.agi-env",
+    ".coverage.agi-core-combined",
+    ".coverage.agi-gui",
+    ".coverage.agi-node",
+    ".coverage.agi-cluster",
+    "coverage-agi-env.xml",
+    "coverage-agi-node.xml",
+    "coverage-agi-cluster.xml",
+    "coverage-agi-gui.xml",
+    "coverage-agi-core.xml",
+    "coverage-agilab.xml",
+)
+
+
+def clean_release_preflight_coverage_artifacts() -> None:
+    """Remove stale local coverage artifacts before release workflow parity."""
+    for rel_path in RELEASE_PREFLIGHT_COVERAGE_ARTIFACTS:
+        path = REPO_ROOT / rel_path
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def run_release_preflight(cfg: Cfg) -> None:
     profiles = release_preflight_profiles(cfg)
     if not profiles:
         return
+    clean_release_preflight_coverage_artifacts()
     cmd = [
         "uv",
         "--preview-features",
@@ -457,6 +586,34 @@ def run_release_preflight(cfg: Cfg) -> None:
         cmd.extend(["--profile", profile])
     print("[preflight] Running required local release preflight: " + ", ".join(profiles))
     run(cmd, cwd=REPO_ROOT)
+
+
+def run_pre_upload_release_guard(
+    cfg: Cfg,
+    *,
+    planned_tag: str | None,
+    chosen_version: str,
+    version_targets: list[str],
+) -> None:
+    """Prove release metadata is locally pushable before irreversible upload."""
+    if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
+        return
+    if planned_tag is not None:
+        update_public_release_references_for_guard(planned_tag, chosen_version, version_targets)
+    print(f"[preflight] Running pre-upload release metadata guard for {chosen_version}")
+    run_release_preflight(cfg)
+    # Do not regenerate coverage badges here. Release-only metadata edits can
+    # produce local coverage XML that differs from the CI artifact source of
+    # truth, so the guard only verifies that no coverage-sensitive files were
+    # accidentally changed by the release metadata update.
+    run(
+        [
+            sys.executable,
+            "tools/coverage_badge_guard.py",
+            "--changed-only",
+        ],
+        cwd=REPO_ROOT,
+    )
 
 
 def split_base_and_post(ver: str) -> Tuple[str, int | None]:
@@ -477,6 +634,17 @@ def safe_ver(x: str) -> Version:
         return Version(x)
     except InvalidVersion:
         return Version("0")
+
+
+def versions_equivalent(left: str, right: str) -> bool:
+    try:
+        return Version(left) == Version(right)
+    except InvalidVersion:
+        return left == right
+
+
+def release_exists(candidate: str, releases: set[str]) -> bool:
+    return any(versions_equivalent(candidate, release) for release in releases)
 
 
 def max_base_across_packages(package_names: List[str], repo_target: str) -> str:
@@ -508,20 +676,33 @@ def next_free_post_for_all(package_names: List[str], repo_target: str, base: str
     k_start = 1
     for releases in per_pkg.values():
         max_post = 0
-        if base in releases:
+        release_parts = [split_base_and_post(release) for release in releases]
+        if any(post is None and versions_equivalent(release_base, base) for release_base, post in release_parts):
             max_post = 0
-        for v in releases:
-            b, post = split_base_and_post(v)
-            if b == base and post is not None and post > max_post:
+        for release_base, post in release_parts:
+            if versions_equivalent(release_base, base) and post is not None and post > max_post:
                 max_post = post
         k_start = max(k_start, max_post + 1)
 
     k = k_start
     while True:
         cand = f"{base}.post{k}"
-        if all(cand not in per_pkg[n] for n in package_names):
+        if all(not release_exists(cand, per_pkg[name]) for name in package_names):
             return cand
         k += 1
+
+
+def _raise_pypi_auto_post_disabled(version: str, repo_target: str, collisions: Dict[str, List[str]] | None = None) -> None:
+    collision_lines = []
+    for package, releases in sorted((collisions or {}).items()):
+        if releases:
+            collision_lines.append(f"{package}: {', '.join(releases)}")
+    detail = f" Existing releases: {'; '.join(collision_lines)}." if collision_lines else ""
+    raise SystemExit(
+        f"ERROR: {repo_target} release version {version} is already used. "
+        "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
+        f"{detail}"
+    )
 
 
 def compute_unified_version(core_names: List[str], repo_target: str, base_version: str | None) -> Tuple[str, Dict[str, List[str]]]:
@@ -531,12 +712,23 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
         provided = base_version
         provided_base = normalize_base(provided)
         existing_by_pkg = {n: pypi_releases(n, repo_target) for n in core_names}
-        provided_in_use = any(provided in rels for rels in existing_by_pkg.values())
+        provided_in_use = any(
+            versions_equivalent(provided, release)
+            for rels in existing_by_pkg.values()
+            for release in rels
+        )
         if not provided_in_use:
             chosen = provided
             base = provided_base
         else:
             base = provided_base
+            for name, releases in existing_by_pkg.items():
+                collisions[name] = sorted(
+                    {release for release in releases if versions_equivalent(provided, release)},
+                    key=safe_ver,
+                )
+            if repo_target == "pypi":
+                _raise_pypi_auto_post_disabled(provided, repo_target, collisions)
             chosen = next_free_post_for_all(core_names, repo_target, base)
     else:
         today_base = datetime.now(timezone.utc).strftime("%Y.%m.%d")
@@ -547,8 +739,23 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
             if latest_base is not None and safe_ver(latest_base) > safe_ver(today_base)
             else today_base
         )
-        # if no releases at all, still .post1 to keep everything uniform
-        chosen = next_free_post_for_all(core_names, repo_target, base)
+        if repo_target == "pypi":
+            existing_by_pkg = {n: pypi_releases(n, repo_target) for n in core_names}
+            for name, releases in existing_by_pkg.items():
+                collisions[name] = sorted(
+                    {
+                        release
+                        for release in releases
+                        if versions_equivalent(normalize_base(release), base)
+                    },
+                    key=safe_ver,
+                )
+            if any(collisions.values()):
+                _raise_pypi_auto_post_disabled(base, repo_target, collisions)
+            chosen = base
+        else:
+            # TestPyPI is often reused during release rehearsals, so keep .postN there.
+            chosen = next_free_post_for_all(core_names, repo_target, base)
 
     latest = latest_existing_release(core_names, repo_target)
     if latest is not None and safe_ver(chosen) < safe_ver(latest):
@@ -561,11 +768,11 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
     for n in core_names:
         rels = pypi_releases(n, repo_target)
         hits: List[str] = []
-        if base in rels:
-            hits.append(base)
         for v in rels:
             b, post = split_base_and_post(v)
-            if b == base and v != base and safe_ver(v) < safe_ver(chosen):
+            if not versions_equivalent(b, base):
+                continue
+            if post is None or safe_ver(v) < safe_ver(chosen):
                 hits.append(v)
         collisions[n] = sorted(set(hits), key=safe_ver)
 
@@ -622,7 +829,7 @@ def set_version_in_pyproject(pyproject_path: str | pathlib.Path, new_version: st
     save_doc(p, doc)
 
 
-def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str]) -> bool:
+def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str], *, operator: str = "==") -> bool:
     if not pyproject_path.exists():
         return False
     doc = load_doc(pyproject_path)
@@ -640,7 +847,7 @@ def pin_internal_deps(pyproject_path: pathlib.Path, pins: Dict[str, str]) -> boo
             if m:
                 pkg, extras = m.group(1), (m.group(2) or "")
                 if pkg in pins:
-                    s = f"{pkg}{extras}=={pins[pkg]}{marker}"
+                    s = f"{pkg}{extras}{operator}{pins[pkg]}{marker}"
                     changed = True
             out.append(s)
         return out
@@ -755,6 +962,20 @@ def update_selected_badges(selected_core: List[Tuple[str, pathlib.Path, pathlib.
             touched |= update_badge(readme, UMBRELLA[0], version)
             touched |= update_static_badge(static_badge_path(UMBRELLA[0]), version)
     return touched
+
+
+def update_release_badge_for_project(
+    package_name: str,
+    toml_path: pathlib.Path,
+    project_dir: pathlib.Path,
+) -> bool:
+    if not toml_path.exists():
+        return False
+    version = get_version_from_pyproject(toml_path)
+    return update_badge(project_dir / "README.md", package_name, version) | update_static_badge(
+        static_badge_path(package_name),
+        version,
+    )
 
 
 def capture_release_file_state(paths: List[str]) -> Dict[pathlib.Path, bytes | None]:
@@ -897,31 +1118,11 @@ def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
     if cfg.skip_cleanup:
         return
 
-    host = "https://pypi.org/"
-    if cfg.repo == "testpypi":
-        host = "https://test.pypi.org/"
-
-    pypirc_user, pypirc_pass = read_cleanup_creds_from_pypirc(cfg.repo)
-
-    # precedence: CLI > env > ~/.pypirc cleanup section
-    cleanup_user = (
-        (cfg.cleanup_user or "").strip()
-        or (os.environ.get("PYPI_USERNAME") or "").strip()
-        or pypirc_user
-    )
-    cleanup_pass = (
-        (cfg.cleanup_pass or "").strip()
-        or (os.environ.get("PYPI_CLEANUP_PASSWORD") or "").strip()
-        or (os.environ.get("PYPI_PASSWORD") or "").strip()
-        or pypirc_pass
-    )
-
-    if not cleanup_user or not cleanup_pass:
-        print("[cleanup] Skipping: requires cleanup web-login credentials via CLI, env, or ~/.pypirc; tokens won't work here.")
+    credentials = cleanup_credentials(cfg)
+    if credentials is None:
         return
-    if cleanup_user == "__token__" or str(cleanup_pass).startswith("pypi-"):
-        print("[cleanup] Skipping: cleanup needs real account credentials (not API token).")
-        return
+    cleanup_user, cleanup_pass = credentials
+    host = cleanup_host(cfg.repo)
 
     def run_cleanup(package: str):
         cmd = [
@@ -954,6 +1155,49 @@ def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
 
     for pkg in packages:
         run_cleanup(pkg)
+
+
+def delete_exact_pypi_releases(cfg: Cfg, packages: list[str]) -> None:
+    versions = list(cfg.delete_pypi_releases or [])
+    if not versions:
+        return
+    if cfg.skip_cleanup:
+        raise SystemExit("ERROR: --delete-pypi-release cannot be used with --skip-cleanup.")
+
+    if cfg.dry_run:
+        for version in versions:
+            for package in packages:
+                print(f"[cleanup] Would delete exact release {version} from {package} on {cfg.repo}")
+        return
+
+    cleanup_user, cleanup_pass = cleanup_credentials(cfg, required=True) or ("", "")
+    host = cleanup_host(cfg.repo)
+    env = {
+        "PYPI_USERNAME": cleanup_user,
+        "PYPI_PASSWORD": cleanup_pass,
+        "PYPI_CLEANUP_PASSWORD": cleanup_pass,
+    }
+
+    for version in versions:
+        pattern = exact_release_regex(version)
+        for package in packages:
+            cmd = [
+                "pypi-cleanup",
+                "--version-regex",
+                pattern,
+                "--do-it",
+                "-y",
+                "--host",
+                host,
+                "--package",
+                package,
+                "--username",
+                cleanup_user,
+            ]
+            if cfg.verbose:
+                cmd.append("-v")
+            print(f"[cleanup] Deleting exact release {version} from {package} on {cfg.repo}")
+            run(cmd, cwd=REPO_ROOT, env=env, timeout=(cfg.cleanup_timeout or None))
 
 
 # ---------- Yank ----------
@@ -1327,6 +1571,49 @@ def create_or_update_github_release(tag: str, chosen_version: str, package_names
     print(f"[github] created GitHub Release {tag_ref}")
 
 
+def delete_former_github_release(current_tag: str, *, limit: int = 20) -> str | None:
+    current_ref = current_tag if current_tag.startswith("v") else f"v{current_tag}"
+    gh = shutil.which("gh")
+    if not gh:
+        raise SystemExit(
+            "ERROR: --delete-former-github-release requires the GitHub CLI ('gh'). "
+            "Install gh or delete the former GitHub Release manually."
+        )
+
+    proc = subprocess.run(
+        [gh, "release", "list", "--limit", str(limit), "--json", "tagName"],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if proc.returncode != 0:
+        raise SystemExit(
+            "ERROR: could not list GitHub Releases before deleting the former release: "
+            + (proc.stderr or proc.stdout or "").strip()
+        )
+
+    try:
+        releases = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"ERROR: could not parse GitHub Release list JSON: {exc}") from exc
+
+    former_ref = None
+    for release in releases:
+        tag_name = str((release or {}).get("tagName") or "").strip()
+        if tag_name and tag_name != current_ref:
+            former_ref = tag_name
+            break
+
+    if former_ref is None:
+        print(f"[github] no former GitHub Release found to delete before {current_ref}")
+        return None
+
+    run([gh, "release", "delete", former_ref, "--yes"], cwd=REPO_ROOT)
+    print(f"[github] deleted former GitHub Release {former_ref}; tag kept")
+    return former_ref
+
+
 def github_release_url(tag: str) -> str:
     tag_ref = tag if tag.startswith("v") else f"v{tag}"
     return f"{GITHUB_RELEASES_URL}/tag/{tag_ref}"
@@ -1395,6 +1682,16 @@ def update_docs_index_release_link(tag: str) -> None:
             "public docs/source mirror because the mirror stamp would drift. Set DOCS_REPOSITORY "
             "or keep ../thales_agilab available before publishing to PyPI."
         )
+
+
+def update_public_docs_index_release_link(tag: str) -> None:
+    public_index = REPO_ROOT / "docs/source/index.rst"
+    if not public_index.exists():
+        return
+    release_url = github_release_url(tag)
+    text = public_index.read_text(encoding="utf-8")
+    if _write_text_if_changed(public_index, _replace_latest_release_url(text, release_url)):
+        print(f"[docs] updated public latest release link: {public_index}")
 
 
 def _format_package_list(package_names: list[str]) -> str:
@@ -1481,15 +1778,102 @@ def update_public_demo_release_test(tag: str) -> None:
         flags=re.MULTILINE,
     )
     if count == 0:
+        manifest_backed = (
+            'LATEST_RELEASE_URL = _release_proof_manifest()["release"]["github_release_url"]'
+            in text
+        )
+        if manifest_backed:
+            print("[release] latest release test derives from release_proof.toml")
+            return
         raise SystemExit(f"ERROR: could not update LATEST_RELEASE_URL in {path}")
     if _write_text_if_changed(path, updated):
         print(f"[release] updated latest release test constant to {tag_ref}")
+
+
+def update_release_proof_references_in_source(tag: str, docs_source: pathlib.Path) -> None:
+    tag_ref = tag if tag.startswith("v") else f"v{tag}"
+    release_url = github_release_url(tag_ref)
+    script = REPO_ROOT / "tools" / "release_proof_report.py"
+    if not script.exists():
+        raise SystemExit(f"ERROR: release proof report script not found: {script}")
+
+    run(
+        [
+            sys.executable,
+            str(script),
+            "--docs-source",
+            str(docs_source),
+            "--refresh-from-local",
+            "--github-release-tag",
+            tag_ref,
+            "--github-release-url",
+            release_url,
+            "--render",
+            "--check",
+            "--compact",
+        ],
+        cwd=REPO_ROOT,
+    )
+
+
+def update_release_proof_references(tag: str) -> None:
+    public_source = REPO_ROOT / "docs/source"
+
+    docs_repo, source = find_docs_repository()
+    if docs_repo:
+        canonical_source = docs_repo / "docs/source"
+        manifest = canonical_source / "data/release_proof.toml"
+        if not manifest.exists():
+            raise SystemExit(f"ERROR: canonical release proof manifest not found: {manifest}")
+        update_release_proof_references_in_source(tag, canonical_source)
+        sync_docs_source_mirror(canonical_source)
+        return
+
+    if public_source.exists():
+        update_release_proof_references_in_source(tag, public_source)
+
+
+def update_public_docs_mirror_stamp_from_current_tree() -> None:
+    public_source = REPO_ROOT / "docs/source"
+    script = REPO_ROOT / "tools" / "sync_docs_source.py"
+    if not public_source.exists() or not script.exists():
+        return
+    run(
+        [
+            sys.executable,
+            str(script),
+            "--source",
+            str(public_source),
+            "--target",
+            str(public_source),
+            "--apply",
+            "--quiet",
+        ],
+        cwd=REPO_ROOT,
+    )
 
 
 def update_public_release_references(tag: str, chosen_version: str, package_names: list[str]) -> None:
     update_docs_index_release_link(tag)
     update_changelog_release_entry(chosen_version, tag, package_names)
     update_public_demo_release_test(tag)
+    update_release_proof_references(tag)
+
+
+def update_public_release_references_for_guard(
+    tag: str,
+    chosen_version: str,
+    package_names: list[str],
+) -> None:
+    """Update only release metadata tracked in this repository for pre-upload tests."""
+
+    update_public_docs_index_release_link(tag)
+    update_changelog_release_entry(chosen_version, tag, package_names)
+    update_public_demo_release_test(tag)
+    public_source = REPO_ROOT / "docs/source"
+    if public_source.exists():
+        update_release_proof_references_in_source(tag, public_source)
+        update_public_docs_mirror_stamp_from_current_tree()
 
 
 def generate_docs_in_docs_repository():
@@ -1539,6 +1923,17 @@ def git_commit_docs_repository(chosen_version: str, *, push: bool = False):
         remote = os.environ.get(DOCS_REPO_REMOTE_ENV, "origin")
         run(["git", "push", remote, branch], cwd=docs_repo)
         print(f"[git] pushed docs repository changes on {branch}")
+
+
+def should_commit_docs_repository_after_release(
+    *,
+    docs_repo_ready: bool,
+    gen_docs: bool,
+    release_tag: str | None,
+) -> bool:
+    """Commit docs repo changes created by release reference updates or docs generation."""
+
+    return docs_repo_ready and (gen_docs or release_tag is not None)
 
 
 def git_paths_to_commit(include_docs: bool = False) -> list[str]:
@@ -1606,13 +2001,35 @@ def git_commit_version(chosen_version: str, include_docs: bool = False, *, push:
     )
     if diff_status.returncode == 0:
         print("[git] no staged release metadata changes to commit")
+        ensure_release_metadata_committed(files)
         return
     run(["git", "commit", "-m", f"chore(release): bump version to {chosen_version}"], cwd=REPO_ROOT)
+    ensure_release_metadata_committed(files)
     print(f"[git] committed version bump to {chosen_version}")
     if push:
         branch = current_git_branch(REPO_ROOT)
         run(["git", "push", "origin", branch], cwd=REPO_ROOT)
         print(f"[git] pushed release metadata on {branch}")
+
+
+def ensure_release_metadata_committed(files: list[str]) -> None:
+    if not files:
+        return
+    proc = subprocess.run(
+        ["git", "status", "--porcelain", "--", *files],
+        cwd=str(REPO_ROOT),
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    dirty = [line for line in (proc.stdout or "").splitlines() if line.strip()]
+    if dirty:
+        formatted = "\n".join(f"  {line}" for line in dirty)
+        raise SystemExit(
+            "ERROR: release metadata paths are still dirty after the release commit. "
+            "Refusing to tag a source tree that does not match the uploaded artifacts:\n"
+            f"{formatted}"
+        )
 
 
 def git_reset_pyprojects():
@@ -1632,6 +2049,9 @@ def main():
     cfg = make_cfg(args)
     upload_completed = False
     release_finalized = False
+    release_metadata_committed = False
+    release_references_updated = False
+    docs_generated = False
     release_snapshot: Dict[pathlib.Path, bytes | None] | None = None
     docs_repo_ready = False
 
@@ -1642,10 +2062,11 @@ def main():
         assert_pypirc_has(cfg.repo)
     require_safe_pypi_release(cfg)
     run_release_preflight(cfg)
-    if cfg.gen_docs:
+    if cfg.gen_docs or (cfg.repo == "pypi" and cfg.git_tag):
         docs_repo, source = find_docs_repository()
         if docs_repo:
-            ensure_docs_repo_release_ready(docs_repo)
+            if cfg.gen_docs:
+                ensure_docs_repo_release_ready(docs_repo)
             docs_repo_ready = True
 
     # Validate explicit version if provided
@@ -1665,6 +2086,10 @@ def main():
 
     selected_core_names = [name for name, *_ in selected_core_entries]
     version_targets = selected_core_names + ([UMBRELLA[0]] if build_umbrella else [])
+
+    if cfg.cleanup_only and cfg.delete_pypi_releases:
+        delete_exact_pypi_releases(cfg, version_targets)
+        return
 
     if cfg.version is not None:
         latest_existing = latest_existing_release(version_targets, cfg.repo)
@@ -1703,6 +2128,7 @@ def main():
         print(f"[plan] Unified version: {chosen}")
         date_tag = normalize_base(chosen)  # date base (YYYY.MM.DD)
         print(f"[plan] Tag base (UTC): {date_tag}")
+        planned_tag = compute_date_tag() if cfg.repo == "pypi" and cfg.git_tag else None
         if cfg.dry_run:
             print("[dry-run] Collisions per package:")
             for n in version_targets:
@@ -1725,6 +2151,9 @@ def main():
         for name in selected_core_names:
             pins[name] = chosen
 
+        if sync_builtin_versions:
+            sync_builtin_app_versions(chosen, pins)
+
         # Update README badges before building so the packaged long_description
         # and uploaded PyPI page embed the new versioned badge immediately.
         update_selected_badges(selected_core_entries, build_umbrella)
@@ -1738,6 +2167,7 @@ def main():
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {toml}\n{e}")
             pin_internal_deps(toml, pins)
+            update_release_badge_for_project(name, toml, project)
             if cfg.dry_run:
                 print(f"[build] {name}: (dry-run would build {cfg.dist} artifacts for {chosen})")
                 files = []
@@ -1756,6 +2186,7 @@ def main():
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
             pin_internal_deps(umbrella_toml, pins)
+            update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
             if cfg.dry_run:
                 print(f"[build] umbrella: (dry-run would build {cfg.dist} artifacts for {chosen})")
                 root_files = []
@@ -1766,9 +2197,6 @@ def main():
                     print(f"[build] umbrella: {', '.join(root_files)}")
             all_files.extend(root_files)
 
-        if sync_builtin_versions:
-            sync_builtin_app_versions(chosen)
-
         # Dry-run end
         if cfg.dry_run:
             print("[dry-run] Would twine check & upload:")
@@ -1776,10 +2204,44 @@ def main():
                 print("  -", f)
             return
 
+        run_pre_upload_release_guard(
+            cfg,
+            planned_tag=planned_tag,
+            chosen_version=chosen,
+            version_targets=version_targets,
+        )
+
+        if cfg.repo == "pypi" and cfg.gen_docs:
+            generate_docs_in_docs_repository()
+            docs_generated = True
+
+        if cfg.repo == "pypi" and cfg.git_commit_version:
+            with defer_sigint("pre-upload release metadata commit") as deferred_interrupt:
+                if planned_tag is not None:
+                    update_public_release_references(planned_tag, chosen, version_targets)
+                    release_references_updated = True
+                git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
+                if should_commit_docs_repository_after_release(
+                    docs_repo_ready=docs_repo_ready,
+                    gen_docs=cfg.gen_docs,
+                    release_tag=planned_tag,
+                ):
+                    git_commit_docs_repository(chosen, push=True)
+                release_metadata_committed = True
+            if deferred_interrupt["value"]:
+                raise KeyboardInterrupt(
+                    "Interrupted after release metadata was committed before upload"
+                )
+
         # Twine
         twine_check(all_files)
         twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
         if not cfg.dry_run and UPLOAD_COLLISION_DETECTED and UPLOAD_SUCCESS_COUNT == 0:
+            if cfg.repo == "pypi":
+                raise SystemExit(
+                    f"ERROR: PyPI upload reported a version collision for {chosen}. "
+                    "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
+                )
             print('[auto-bump] upload collision detected; bumping to next .postN and retrying upload...')
             base_only = normalize_base(chosen)
             chosen2 = next_free_post_for_all(version_targets, cfg.repo, base_only)
@@ -1791,16 +2253,24 @@ def main():
             for name, toml, project in selected_core_entries:
                 set_version_in_pyproject(toml, chosen2)
                 pin_internal_deps(toml, pins2)
+                update_release_badge_for_project(name, toml, project)
                 uv_build_project(project, cfg.dist)
                 all_files2.extend(dist_files(project))
             if build_umbrella:
+                if sync_builtin_versions:
+                    sync_builtin_app_versions(chosen2, pins2)
                 _, umbrella_toml, _ = UMBRELLA
                 set_version_in_pyproject(umbrella_toml, chosen2)
                 pin_internal_deps(umbrella_toml, pins2)
+                update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
                 uv_build_repo_root(cfg.dist)
                 all_files2.extend(dist_files_root())
-            if sync_builtin_versions:
-                sync_builtin_app_versions(chosen2)
+            run_pre_upload_release_guard(
+                cfg,
+                planned_tag=planned_tag,
+                chosen_version=chosen2,
+                version_targets=version_targets,
+            )
             twine_check(all_files2)
             globals()['UPLOAD_COLLISION_DETECTED'] = False
             globals()['UPLOAD_SUCCESS_COUNT'] = 0
@@ -1815,11 +2285,14 @@ def main():
         if cfg.yank_previous:
             yank_previous_versions(cfg, version_targets, chosen)
 
+        if cfg.delete_pypi_releases:
+            delete_exact_pypi_releases(cfg, version_targets)
+
         # Purge AFTER (optional)
         if cfg.purge_after:
             cleanup_leave_latest(cfg, version_targets)
 
-        if cfg.gen_docs:
+        if cfg.gen_docs and not docs_generated:
             if cfg.dry_run:
                 print("[docs] --gen-docs requested; skipping because this is a dry-run")
             else:
@@ -1828,16 +2301,24 @@ def main():
         # Git tag/commit (optional)
         if cfg.git_commit_version or (cfg.repo == "pypi" and cfg.git_tag):
             with defer_sigint("release metadata finalization") as deferred_interrupt:
-                tag = compute_date_tag() if cfg.repo == "pypi" and cfg.git_tag else None
-                if tag is not None:
+                tag = planned_tag if cfg.repo == "pypi" and cfg.git_tag else None
+                if tag is not None and not release_references_updated:
                     update_public_release_references(tag, chosen, version_targets)
-                if cfg.git_commit_version:
+                    release_references_updated = True
+                if cfg.git_commit_version and not release_metadata_committed:
                     git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
-                    if cfg.gen_docs and docs_repo_ready:
+                    if should_commit_docs_repository_after_release(
+                        docs_repo_ready=docs_repo_ready,
+                        gen_docs=cfg.gen_docs,
+                        release_tag=tag,
+                    ):
                         git_commit_docs_repository(chosen, push=True)
                 if tag is not None:
-                    create_and_push_tag(tag, include_docs_repo=bool(cfg.gen_docs and docs_repo_ready))
+                    create_and_push_tag(tag, include_docs_repo=bool(docs_repo_ready))
                     create_or_update_github_release(tag, chosen, version_targets)
+                    release_finalized = True
+                    if cfg.delete_former_github_release:
+                        delete_former_github_release(tag)
             release_finalized = True
             if deferred_interrupt["value"]:
                 raise KeyboardInterrupt("Interrupted after release metadata finalization")

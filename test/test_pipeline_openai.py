@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import builtins
 import importlib
 from pathlib import Path
+import stat
 import sys
 import types
 import pytest
@@ -49,6 +51,7 @@ def test_persist_env_var_replaces_existing_value(monkeypatch, tmp_path):
     pipeline_openai.persist_env_var("OPENAI_API_KEY", "new-key")
 
     assert env_file.read_text(encoding="utf-8") == 'OTHER="keep"\nOPENAI_API_KEY="new-key"\n'
+    assert stat.S_IMODE(env_file.stat().st_mode) == 0o600
 
 
 def test_persist_env_var_creates_env_file_when_missing(monkeypatch, tmp_path):
@@ -56,7 +59,36 @@ def test_persist_env_var_creates_env_file_when_missing(monkeypatch, tmp_path):
 
     pipeline_openai.persist_env_var("OPENAI_API_KEY", "created-key")
 
-    assert (tmp_path / ".agilab" / ".env").read_text(encoding="utf-8") == 'OPENAI_API_KEY="created-key"\n'
+    env_dir = tmp_path / ".agilab"
+    env_file = env_dir / ".env"
+    assert env_file.read_text(encoding="utf-8") == 'OPENAI_API_KEY="created-key"\n'
+    assert stat.S_IMODE(env_dir.stat().st_mode) == 0o700
+    assert stat.S_IMODE(env_file.stat().st_mode) == 0o600
+
+
+def test_persist_env_var_quotes_values_and_rejects_bad_names(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    pipeline_openai.persist_env_var("OPENAI_API_KEY", 'quoted "value"\nnext')
+
+    assert (
+        (tmp_path / ".agilab" / ".env").read_text(encoding="utf-8")
+        == 'OPENAI_API_KEY="quoted \\"value\\"\\nnext"\n'
+    )
+    with pytest.raises(ValueError, match="Invalid environment variable name"):
+        pipeline_openai.persist_env_var("OPENAI API KEY", "bad")
+
+
+def test_persist_env_var_refuses_env_symlink(monkeypatch, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    env_dir = tmp_path / ".agilab"
+    env_dir.mkdir()
+    target = tmp_path / "target.env"
+    target.write_text("", encoding="utf-8")
+    (env_dir / ".env").symlink_to(target)
+
+    with pytest.raises(OSError, match="Refusing to write API credentials through symlink"):
+        pipeline_openai.persist_env_var("OPENAI_API_KEY", "created-key")
 
 
 def test_make_openai_client_and_model_prefers_azure(monkeypatch):
@@ -392,6 +424,7 @@ def test_prompt_for_openai_api_key_warns_when_persist_fails(monkeypatch):
 
 def test_prompt_for_openai_api_key_stops_when_form_not_submitted(monkeypatch):
     events: list[tuple[str, str]] = []
+    checkbox_kwargs: dict[str, object] = {}
 
     class FakeForm:
         def __enter__(self):
@@ -405,7 +438,7 @@ def test_prompt_for_openai_api_key_stops_when_form_not_submitted(monkeypatch):
         warning=lambda message: events.append(("warning", str(message))),
         form=lambda _key: FakeForm(),
         text_input=lambda *args, **kwargs: "sk-unused-value-123456",
-        checkbox=lambda *args, **kwargs: True,
+        checkbox=lambda *args, **kwargs: checkbox_kwargs.update(kwargs) or False,
         form_submit_button=lambda *args, **kwargs: False,
         error=lambda message: events.append(("error", str(message))),
         success=lambda message: events.append(("success", str(message))),
@@ -418,6 +451,7 @@ def test_prompt_for_openai_api_key_stops_when_form_not_submitted(monkeypatch):
         pipeline_openai.prompt_for_openai_api_key("Missing key")
 
     assert ("warning", "Missing key") in events
+    assert checkbox_kwargs["value"] is False
     assert not any(kind in {"error", "success", "rerun"} for kind, _ in events)
 
 
@@ -460,3 +494,17 @@ def test_make_openai_client_and_model_module_fallback_without_base_url(monkeypat
     assert is_azure is False
     assert fake_openai.api_key == "module-secret"
     assert not hasattr(fake_openai, "api_base")
+
+
+def test_make_openai_client_and_model_reports_missing_optional_ai_extra(monkeypatch):
+    real_import = builtins.__import__
+
+    def import_without_openai(name, *args, **kwargs):
+        if name == "openai":
+            raise ImportError("missing openai")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_openai)
+
+    with pytest.raises(ImportError, match=r"agilab\[ai\]"):
+        pipeline_openai.make_openai_client_and_model({}, "openai-secret")

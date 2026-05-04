@@ -68,6 +68,10 @@ def test_discover_lan_nodes_combines_sources_and_scores_nodes(tmp_path: Path):
                         "os=Darwin",
                         "arch=x86_64",
                         "os_version=10.15.8",
+                        "cpu=Intel Core i9; cores: 16",
+                        "ram=64 GB",
+                        "gpu=AMD Radeon Pro",
+                        "npu=",
                         "python3=/usr/bin/python3",
                         "uv=/usr/local/bin/uv",
                         "sshfs=/usr/local/bin/sshfs",
@@ -84,6 +88,10 @@ def test_discover_lan_nodes_combines_sources_and_scores_nodes(tmp_path: Path):
                         "os=Darwin",
                         "arch=arm64",
                         "os_version=14.0",
+                        "cpu=Apple M4 Max; cores: 16",
+                        "ram=48 GB",
+                        "gpu=Apple M4 Max",
+                        "npu=Apple Neural Engine (16 cores)",
                         "python3=/usr/bin/python3",
                         "uv=/usr/local/bin/uv",
                         "sshfs=",
@@ -124,6 +132,8 @@ def test_discover_lan_nodes_combines_sources_and_scores_nodes(tmp_path: Path):
     cache = json.loads((tmp_path / ".agilab" / "lan_nodes.json").read_text(encoding="utf-8"))
     assert cache["cache_version"] == 1
     assert cache["nodes"][0]["status"] == "ready"
+    assert cache["nodes"][0]["cpu"] == "Intel Core i9; cores: 16"
+    assert cache["nodes"][0]["gpu"] == "AMD Radeon Pro"
 
 
 def test_passive_cache_only_discovery_does_not_tcp_probe(tmp_path: Path):
@@ -149,6 +159,10 @@ def test_passive_cache_only_discovery_does_not_tcp_probe(tmp_path: Path):
                 stdout="\n".join(
                     [
                         "hostname=cache-node",
+                        "cpu=AMD EPYC; cores: 64",
+                        "ram=256 GB",
+                        "gpu=NVIDIA L40S (142 SMs)",
+                        "npu=",
                         "python3=/usr/bin/python3",
                         "uv=/usr/local/bin/uv",
                         "sshfs=/usr/local/bin/sshfs",
@@ -171,6 +185,103 @@ def test_passive_cache_only_discovery_does_not_tcp_probe(tmp_path: Path):
     assert report.nodes[0].host == "192.168.3.55"
     assert report.nodes[0].tcp_ssh_open is None
     assert report.nodes[0].status == "ready"
+    assert report.nodes[0].gpu == "NVIDIA L40S (142 SMs)"
+
+
+def test_local_ipv4_hosts_supports_ubuntu_without_ifconfig(monkeypatch):
+    monkeypatch.setattr(discovery.socket, "gethostname", lambda: "ubuntu-worker")
+    monkeypatch.setattr(discovery.socket, "getaddrinfo", lambda *_args, **_kwargs: [])
+
+    def fake_runner(argv, **kwargs):
+        command = list(argv)
+        if command[:1] == ["ifconfig"]:
+            return subprocess.CompletedProcess(command, 127, stdout="", stderr="ifconfig: not found")
+        if command[:4] == ["ip", "route", "get", "1.1.1.1"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="1.1.1.1 via 192.168.20.1 dev eno1 src 192.168.20.15 uid 1000\n",
+                stderr="",
+            )
+        if command[:6] == ["ip", "-4", "-o", "addr", "show", "scope"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "2: eno1    inet 192.168.20.15/24 brd 192.168.20.255 scope global dynamic eno1\n"
+                    "3: docker0 inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\n"
+                ),
+                stderr="",
+            )
+        if command[:2] == ["hostname", "-I"]:
+            return subprocess.CompletedProcess(command, 0, stdout="192.168.20.15 10.42.0.5\n", stderr="")
+        raise AssertionError(f"unexpected command: {command}")
+
+    hosts = discovery._local_ipv4_hosts(runner=fake_runner)
+
+    assert hosts == {"192.168.20.15"}
+
+
+def test_local_ipv4_hosts_supports_windows_ipconfig(monkeypatch):
+    monkeypatch.setattr(discovery.socket, "gethostname", lambda: "windows-manager")
+    monkeypatch.setattr(
+        discovery.socket,
+        "getaddrinfo",
+        lambda *_args, **_kwargs: [(None, None, None, None, ("127.0.0.1", 0))],
+    )
+    commands: list[tuple[str, ...]] = []
+
+    def fake_runner(argv, **kwargs):
+        command = tuple(argv)
+        commands.append(command)
+        if command[:1] in {("ifconfig",), ("ip",)}:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="not found")
+        if command[:1] == ("ipconfig",):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "Windows IP Configuration\r\n\r\n"
+                    "Ethernet adapter Ethernet:\r\n"
+                    "   IPv4 Address. . . . . . . . . . . : 192.168.20.111(Preferred)\r\n"
+                    "   Subnet Mask . . . . . . . . . . . : 255.255.255.0\r\n"
+                    "   Default Gateway . . . . . . . . . : 192.168.20.1\r\n"
+                ),
+                stderr="",
+            )
+        if command[:1] in {("powershell",), ("pwsh",), ("hostname",)}:
+            raise AssertionError(f"unexpected fallback after ipconfig success: {command}")
+        raise AssertionError(f"unexpected command: {command}")
+
+    hosts = discovery._local_ipv4_hosts(runner=fake_runner)
+
+    assert hosts == {"192.168.20.111"}
+    assert ("ipconfig",) in commands
+
+
+def test_arp_candidates_supports_windows_arp_a():
+    def fake_runner(argv, **kwargs):
+        command = list(argv)
+        if command[:2] == ["arp", "-an"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="invalid option")
+        if command[:2] == ["arp", "-a"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "Interface: 192.168.20.111 --- 0x7\r\n"
+                    "  Internet Address      Physical Address      Type\r\n"
+                    "  192.168.20.15         aa-bb-cc-dd-ee-ff     dynamic\r\n"
+                    "  192.168.20.130        11-22-33-44-55-66     dynamic\r\n"
+                ),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    assert discovery._arp_candidates(fake_runner) == (
+        ("192.168.20.15", "arp"),
+        ("192.168.20.130", "arp"),
+    )
 
 
 def test_print_discovery_report_recommends_ready_workers(capsys):
@@ -253,6 +364,7 @@ def test_probe_helpers_classify_missing_prerequisites_and_reverse_ssh():
     assert discovery._parse_optional_bool("no") is False
     assert discovery._parse_optional_bool("") is None
     assert "reverse_ssh=" in discovery._remote_probe_command("agi@192.168.3.103")
+    assert "gpu=%s" in discovery._remote_probe_command("agi@192.168.3.103")
 
 
 def test_candidate_and_host_helpers_handle_edge_cases(tmp_path: Path, monkeypatch):
@@ -349,7 +461,9 @@ def test_default_cidrs_and_local_ipv4_hosts_handle_runner_failures(monkeypatch):
     hosts = discovery._local_ipv4_hosts(runner=failing_runner)
 
     assert hosts == {"192.168.3.103"}
-    assert discovery._default_cidrs({"192.168.3.103", "not-an-ip"}) == ("192.168.3.0/24",)
+    assert discovery._default_cidrs({"169.254.35.190", "192.168.3.103", "not-an-ip"}) == (
+        "192.168.3.0/24",
+    )
 
 
 def test_main_discover_lan_writes_json_summary(tmp_path: Path, monkeypatch, capsys):

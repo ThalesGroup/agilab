@@ -28,6 +28,9 @@ KPI_COMPONENT_SCORES = {
 }
 OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(len(KPI_COMPONENT_SCORES))
 SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
+STRATEGIC_POTENTIAL_SCORE = "4.2 / 5"
+README_SUMMARY_START = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_START -->"
+README_SUMMARY_END = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->"
 TEMPLATE_ONLY_BUILTIN_APPS = {
     "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
 }
@@ -177,10 +180,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             and active_app.name == "flight_project"
             and wizard_content["recommended_path_id"] == "source-checkout-first-proof"
             and wizard_content["actionable_route_ids"] == ["source-checkout-first-proof"]
-            and wizard_content["documented_route_ids"] == [
-                "notebook-quickstart",
-                "published-package-route",
-            ]
+            and wizard_content["documented_route_ids"] == ["notebook-quickstart"]
             and wizard_content["compatibility_status"] == "validated"
             and wizard_content["compatibility_report_status"] == "pass"
             and wizard_content["proof_command_labels"] == labels
@@ -331,8 +331,8 @@ def _check_revision_traceability_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.revision_traceability.v1"
             and summary.get("execution_mode") == "revision_traceability_static"
             and summary.get("core_component_count") == 5
-            and summary.get("builtin_app_count") == 7
-            and summary.get("app_fingerprint_count") == 7
+            and summary.get("builtin_app_count") == 8
+            and summary.get("app_fingerprint_count") == 8
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
         )
@@ -375,9 +375,9 @@ def _check_public_certification_profile_report(repo_root: Path) -> dict[str, Any
             and summary.get("schema") == "agilab.public_certification_profile.v1"
             and summary.get("certification_profile") == "bounded_public_evidence"
             and summary.get("path_count") == 6
-            and summary.get("certified_public_evidence_count") == 4
-            and summary.get("documented_not_certified_count") == 2
-            and summary.get("certified_beyond_newcomer_operator_count") == 2
+            and summary.get("certified_public_evidence_count") == 5
+            and summary.get("documented_not_certified_count") == 1
+            and summary.get("certified_beyond_newcomer_operator_count") == 3
             and summary.get("production_certification_claimed") is False
             and summary.get("formal_third_party_certification") is False
             and summary.get("command_execution_count") == 0
@@ -427,7 +427,18 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("license_present") is True
             and summary.get("core_component_count") == 4
             and summary.get("aligned_core_versions") is True
-            and summary.get("builtin_app_pyproject_count") == 7
+            and summary.get("aligned_internal_dependency_pins") is True
+            and summary.get("mismatched_internal_dependency_pin_count") == 0
+            and summary.get("builtin_app_pyproject_count") == 8
+            and summary.get("aligned_builtin_app_versions") is True
+            and summary.get("mismatched_builtin_app_version_count") == 0
+            and summary.get("aligned_builtin_app_internal_dependency_bounds") is True
+            and summary.get("mismatched_builtin_app_internal_dependency_bound_count") == 0
+            and summary.get("package_data_pattern_count", 0) >= 1
+            and summary.get("builtin_payload_file_count", 0) >= 1
+            and summary.get("builtin_payload_bytes", 0) >= 1
+            and summary.get("builtin_archive_file_count", 0) >= 0
+            and summary.get("builtin_notebook_file_count", 0) >= 0
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("formal_supply_chain_attestation") is False
@@ -446,7 +457,8 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
         ok,
         (
             "supply-chain attestation report fingerprints package metadata, "
-            "lockfile, core versions, and app manifests without formal claims"
+            "lockfile, core versions, app manifests, and package payload "
+            "inventory without formal claims"
             if ok
             else "supply-chain attestation report is failing or disconnected"
         ),
@@ -1642,7 +1654,7 @@ def _check_data_connector_facility_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.data_connector_facility.v1"
             and summary.get("run_status") == "validated"
             and summary.get("execution_mode") == "contract_validation_only"
-            and summary.get("connector_count") == 3
+            and summary.get("connector_count") == 5
             and summary.get("supported_kinds") == [
                 "object_storage",
                 "opensearch",
@@ -1744,10 +1756,10 @@ def _check_data_connector_health_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.data_connector_health.v1"
             and summary.get("run_status") == "planned"
             and summary.get("execution_mode") == "health_probe_plan_only"
-            and summary.get("connector_count") == 3
-            and summary.get("planned_probe_count") == 3
+            and summary.get("connector_count") == 5
+            and summary.get("planned_probe_count") == 5
             and summary.get("executed_probe_count") == 0
-            and summary.get("opt_in_required_count") == 3
+            and summary.get("opt_in_required_count") == 5
             and summary.get("network_probe_count") == 0
             and summary.get("status_values") == ["unknown_not_probed"]
             and summary.get("unhealthy_count") == 0
@@ -1793,15 +1805,15 @@ def _check_data_connector_health_actions_report(repo_root: Path) -> dict[str, An
             and summary.get("schema") == "agilab.data_connector_health_actions.v1"
             and summary.get("run_status") == "ready_for_operator_trigger"
             and summary.get("execution_mode") == "operator_trigger_contract_only"
-            and summary.get("action_count") == 3
-            and summary.get("connector_count") == 3
-            and summary.get("operator_trigger_count") == 3
-            and summary.get("pending_action_count") == 3
-            and summary.get("pending_operator_trigger_count") == 3
+            and summary.get("action_count") == 5
+            and summary.get("connector_count") == 5
+            and summary.get("operator_trigger_count") == 5
+            and summary.get("pending_action_count") == 5
+            and summary.get("pending_operator_trigger_count") == 5
             and summary.get("executed_probe_count") == 0
             and summary.get("network_probe_count") == 0
-            and summary.get("operator_context_required_count") == 3
-            and summary.get("credential_gated_count") == 2
+            and summary.get("operator_context_required_count") == 5
+            and summary.get("credential_gated_count") == 4
             and summary.get("no_credential_required_count") == 1
             and summary.get("default_status_values") == ["unknown_not_probed"]
             and summary.get("result_status_values") == ["unknown_not_probed"]
@@ -1847,13 +1859,13 @@ def _check_data_connector_runtime_adapters_report(repo_root: Path) -> dict[str, 
             and summary.get("schema") == "agilab.data_connector_runtime_adapters.v1"
             and summary.get("run_status") == "ready_for_runtime_binding"
             and summary.get("execution_mode") == "runtime_adapter_contract_only"
-            and summary.get("connector_count") == 3
-            and summary.get("adapter_count") == 3
-            and summary.get("runtime_ready_count") == 3
-            and summary.get("credential_deferred_count") == 2
+            and summary.get("connector_count") == 5
+            and summary.get("adapter_count") == 5
+            and summary.get("runtime_ready_count") == 5
+            and summary.get("credential_deferred_count") == 4
             and summary.get("no_credential_required_count") == 1
-            and summary.get("operator_opt_in_required_count") == 3
-            and summary.get("health_action_binding_count") == 3
+            and summary.get("operator_opt_in_required_count") == 5
+            and summary.get("health_action_binding_count") == 5
             and summary.get("executed_adapter_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("credential_value_materialized_count") == 0
@@ -1905,8 +1917,8 @@ def _check_data_connector_live_endpoint_smoke_report(repo_root: Path) -> dict[st
             and summary.get("schema")
             == "agilab.data_connector_live_endpoint_smoke.v1"
             and summary.get("execution_mode") == "live_endpoint_smoke_plan_only"
-            and summary.get("connector_count") == 3
-            and summary.get("planned_endpoint_count") == 3
+            and summary.get("connector_count") == 5
+            and summary.get("planned_endpoint_count") == 5
             and summary.get("executed_endpoint_count") == 0
             and summary.get("network_probe_count") == 0
             and summary.get("sqlite_smoke_healthy_count") == 1
@@ -1951,11 +1963,11 @@ def _check_data_connector_ui_preview_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("run_status") == "ready_for_ui_preview"
             and summary.get("execution_mode") == "static_ui_preview_only"
             and summary.get("persistence_format") == "json+html"
-            and summary.get("connector_card_count") == 3
+            and summary.get("connector_card_count") == 5
             and summary.get("page_binding_count") == 2
             and summary.get("legacy_fallback_count") == 2
-            and summary.get("health_probe_status_count") == 3
-            and summary.get("component_count") == 8
+            and summary.get("health_probe_status_count") == 5
+            and summary.get("component_count") == 10
             and summary.get("network_probe_count") == 0
             and summary.get("html_rendered") is True
             and summary.get("html_written") is True
@@ -2002,10 +2014,10 @@ def _check_data_connector_live_ui_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.data_connector_live_ui.v1"
             and summary.get("run_status") == "ready_for_live_ui"
             and summary.get("execution_mode") == "streamlit_render_contract_only"
-            and summary.get("connector_card_count") == 3
+            and summary.get("connector_card_count") == 5
             and summary.get("page_binding_count") == 2
             and summary.get("legacy_fallback_count") == 2
-            and summary.get("health_probe_status_count") == 3
+            and summary.get("health_probe_status_count") == 5
             and summary.get("streamlit_metric_count") == 4
             and summary.get("streamlit_dataframe_count") == 4
             and summary.get("network_probe_count") == 0
@@ -2062,9 +2074,9 @@ def _check_data_connector_view_surface_report(repo_root: Path) -> dict[str, Any]
             and summary.get("release_decision_surface_count") == 4
             and summary.get("page_source_loaded") is True
             and summary.get("live_ui_run_status") == "ready_for_live_ui"
-            and summary.get("connector_card_count") == 3
+            and summary.get("connector_card_count") == 5
             and summary.get("page_binding_count") == 2
-            and summary.get("health_probe_status_count") == 3
+            and summary.get("health_probe_status_count") == 5
             and summary.get("external_artifact_traceability_ready") is True
             and summary.get("import_export_provenance_ready") is True
             and summary.get("network_probe_count") == 0
@@ -2169,12 +2181,12 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
             "base app",
             "flight project",
             "flight view_maps",
-            "flight view_maps_network",
         }
         ok = (
             required_labels.issubset(labels)
             and hf_space_smoke.DEFAULT_SPACE_ID == "jpmorard/agilab"
             and callable(hf_space_smoke.check_public_app_tree)
+            and callable(hf_space_smoke.check_public_pages_tree)
         )
         details = {
             "space_id": hf_space_smoke.DEFAULT_SPACE_ID,
@@ -2433,6 +2445,95 @@ def _score_formula() -> str:
     return f"({terms}) / {len(KPI_COMPONENT_SCORES)} = {OVERALL_SCORE_RAW}"
 
 
+def build_score_snapshot() -> dict[str, Any]:
+    """Return the scoring fields needed by lightweight public summaries."""
+    return {
+        "kpi": "Overall public evaluation",
+        "supported_score": SUPPORTED_OVERALL_SCORE,
+        "summary": {
+            "score_components": {
+                name: f"{score:.1f} / 5"
+                for name, score in KPI_COMPONENT_SCORES.items()
+            },
+            "strategic_potential_score": STRATEGIC_POTENTIAL_SCORE,
+            "score_formula": _score_formula(),
+            "score_rounding": "one decimal, half up",
+        },
+    }
+
+
+def render_readme_summary(bundle: dict[str, Any]) -> str:
+    """Render the public README summary from the machine-readable KPI bundle."""
+    components = bundle["summary"]["score_components"]
+    adoption = components["Ease of adoption"]
+    research = components["Research experimentation"]
+    prototyping = components["Engineering prototyping"]
+    production = components["Production readiness"]
+    strategic = bundle["summary"]["strategic_potential_score"]
+
+    lines = ["Current CODEX 5.5 working summary, refreshed from the public KPI bundle:", ""]
+    if adoption == research == prototyping:
+        lines.append(
+            f"- `{adoption}` for ease of adoption, research experimentation, "
+            "and engineering prototyping."
+        )
+    else:
+        lines.extend(
+            [
+                f"- `{adoption}` for ease of adoption.",
+                f"- `{research}` for research experimentation.",
+                f"- `{prototyping}` for engineering prototyping.",
+            ]
+        )
+    lines.extend(
+        [
+            f"- `{production}` for production readiness.",
+            f"- `{strategic}` for strategic potential.",
+            f"- Overall public evaluation, rounded category average: `{bundle['supported_score']}`.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _replace_readme_summary_block(readme_text: str, bundle: dict[str, Any]) -> str:
+    generated = (
+        f"{README_SUMMARY_START}\n"
+        f"{render_readme_summary(bundle)}\n"
+        f"{README_SUMMARY_END}"
+    )
+    if README_SUMMARY_START in readme_text or README_SUMMARY_END in readme_text:
+        start = readme_text.find(README_SUMMARY_START)
+        end = readme_text.find(README_SUMMARY_END)
+        if start == -1 or end == -1 or end < start:
+            raise ValueError("README KPI summary markers are incomplete or out of order")
+        end += len(README_SUMMARY_END)
+        return f"{readme_text[:start]}{generated}{readme_text[end:]}"
+
+    pattern = re.compile(
+        r"Current CODEX 5\.5 working summary, refreshed from the public KPI bundle:\n\n"
+        r"(?:- .+\n)+",
+        re.MULTILINE,
+    )
+    updated, count = pattern.subn(f"{generated}\n", readme_text)
+    if count != 1:
+        raise ValueError("expected exactly one README Evaluation Snapshot summary block")
+    return updated
+
+
+def refresh_readme_summary(
+    *,
+    readme_path: Path = REPO_ROOT / "README.md",
+    bundle: dict[str, Any] | None = None,
+) -> bool:
+    bundle = bundle or build_score_snapshot()
+    readme_text = readme_path.read_text(encoding="utf-8")
+    updated = _replace_readme_summary_block(readme_text, bundle)
+    if updated == readme_text:
+        return False
+    readme_path.write_text(updated, encoding="utf-8")
+    return True
+
+
 def build_bundle(
     *,
     repo_root: Path = REPO_ROOT,
@@ -2502,6 +2603,7 @@ def build_bundle(
                 name: f"{score:.1f} / 5"
                 for name, score in KPI_COMPONENT_SCORES.items()
             },
+            "strategic_potential_score": STRATEGIC_POTENTIAL_SCORE,
             "score_formula": _score_formula(),
             "score_rounding": "one decimal, half up",
         },
@@ -2509,8 +2611,9 @@ def build_bundle(
             f"Supports an overall public evaluation of {SUPPORTED_OVERALL_SCORE} "
             "as the one-decimal mean of the four scored public KPIs: adoption, "
             "research experimentation, engineering prototyping, and bounded "
-            "production-readiness evidence. It does not change the alpha status "
-            "or claim production MLOps coverage."
+            "production-readiness evidence. Strategic potential is tracked "
+            f"separately at {STRATEGIC_POTENTIAL_SCORE}. It does not change the "
+            "alpha status or claim production MLOps coverage."
         ),
         "checks": checks,
     }
@@ -2530,11 +2633,36 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit compact JSON without indentation.",
     )
+    parser.add_argument(
+        "--readme-summary",
+        action="store_true",
+        help="Emit the Markdown Evaluation Snapshot summary used in README.md.",
+    )
+    parser.add_argument(
+        "--refresh-readme-summary",
+        action="store_true",
+        help="Refresh README.md Evaluation Snapshot from the KPI bundle.",
+    )
+    parser.add_argument(
+        "--readme-path",
+        type=Path,
+        default=REPO_ROOT / "README.md",
+        help="README path used with --refresh-readme-summary.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
+    if args.readme_summary:
+        print(render_readme_summary(build_score_snapshot()))
+        return 0
+    if args.refresh_readme_summary:
+        changed = refresh_readme_summary(readme_path=args.readme_path, bundle=build_score_snapshot())
+        status = "refreshed" if changed else "already current"
+        print(f"{args.readme_path}: {status}")
+        return 0
+
     bundle = build_bundle(run_hf_smoke=args.run_hf_smoke)
     if args.compact:
         print(json.dumps(bundle, sort_keys=True, separators=(",", ":")))

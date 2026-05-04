@@ -148,7 +148,7 @@ def test_find_preview_target_returns_none_when_latest_file_disappears(tmp_path, 
     def flaky_stat(self: Path, *args, **kwargs):
         if self == newest_csv:
             newest_calls["count"] += 1
-            if newest_calls["count"] >= 5:
+            if newest_calls["count"] >= 4:
                 raise FileNotFoundError("simulated race")
         return original_stat(self, *args, **kwargs)
 
@@ -170,6 +170,54 @@ def test_find_preview_target_returns_none_when_only_hidden_or_empty_files_exist(
 
     assert target is None
     assert files == []
+
+
+def test_find_preview_target_caps_candidate_search(tmp_path, monkeypatch):
+    files = []
+    for index in range(3):
+        file_path = tmp_path / f"artifact_{index}.csv"
+        file_path.write_text("a,b\n1,2\n", encoding="utf-8")
+        files.append(file_path)
+
+    monkeypatch.setattr(orchestrate_execute, "PREVIEW_MAX_SEARCH_FILES", 2)
+
+    target, found_files = orchestrate_execute.find_preview_target(files)
+
+    assert target in files[:2]
+    assert found_files == files[:2]
+
+
+def test_preview_candidate_paths_are_sorted_before_search_cap(tmp_path, monkeypatch):
+    root = tmp_path / "output"
+    root.mkdir()
+    first = root / "a.csv"
+    second = root / "b.csv"
+    first.write_text("a,b\n1,2\n", encoding="utf-8")
+    second.write_text("a,b\n3,4\n", encoding="utf-8")
+
+    def fake_rglob(self, pattern):
+        if self == root and pattern == "*.csv":
+            return [second, first]
+        return []
+
+    monkeypatch.setattr(orchestrate_execute.Path, "rglob", fake_rglob)
+    monkeypatch.setattr(orchestrate_execute, "PREVIEW_MAX_SEARCH_FILES", 1)
+
+    assert orchestrate_execute._preview_candidate_paths([root]) == [first]
+
+
+def test_find_preview_target_skips_oversized_files(tmp_path, monkeypatch):
+    small_csv = tmp_path / "small.csv"
+    small_csv.write_text("a,b\n1,2\n", encoding="utf-8")
+    large_csv = tmp_path / "large.csv"
+    large_csv.write_text("a,b\n" + ("x" * 50), encoding="utf-8")
+
+    monkeypatch.setattr(orchestrate_execute, "PREVIEW_MAX_FILE_BYTES", 12)
+
+    target, found_files = orchestrate_execute.find_preview_target([large_csv, small_csv])
+
+    assert target == small_csv
+    assert found_files == [small_csv]
 
 
 def test_pending_execute_action_round_trip():
@@ -275,12 +323,16 @@ class _FakeStreamlit:
         self.session_state = _State(session_state or {})
         self._buttons = buttons or {}
         self.messages: list[tuple[str, str]] = []
+        self.button_calls: list[tuple[str, dict[str, object]]] = []
 
     def fragment(self, func):
         return func
 
     def caption(self, message):
         self.messages.append(("caption", str(message)))
+
+    def markdown(self, message):
+        self.messages.append(("markdown", str(message)))
 
     def pyplot(self, _fig, width=None):
         self.messages.append(("pyplot", str(width)))
@@ -313,8 +365,15 @@ class _FakeStreamlit:
         return str(self.session_state.get(key, value))
 
     def button(self, _label, key=None, **_kwargs):
+        self.button_calls.append((str(key or _label), dict(_kwargs)))
+        if _kwargs.get("disabled"):
+            return False
         button_key = key or _label
         return bool(self._buttons.get(button_key, False))
+
+    def download_button(self, _label, *, key=None, **_kwargs):
+        self.messages.append(("download_button", str(key or _label)))
+        return False
 
     def spinner(self, _label):
         return _Ctx()
@@ -428,6 +487,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     assert "__source__" in fake_st.session_state["loaded_df"].columns
     assert any(kind == "success" and "Loaded dataframe preview from 2 files" in msg for kind, msg in fake_st.messages)
     assert any(kind == "success" and "Dataframe exported successfully" in msg for kind, msg in fake_st.messages)
+    assert ("markdown", "#### 5. Execute and inspect outputs") in fake_st.messages
     assert any(kind == "preview" for kind, _ in fake_st.messages)
 
 
@@ -531,7 +591,10 @@ async def test_render_execute_section_run_requires_installed_venvs(monkeypatch, 
         deps=deps,
     )
 
-    assert any(kind == "error" and "installation is incomplete" in msg for kind, msg in fake_st.messages)
+    run_call = next(kwargs for key, kwargs in fake_st.button_calls if key == "run_btn")
+    assert run_call["disabled"] is True
+    assert "installation is incomplete" in str(run_call["help"])
+    assert not any(kind == "error" and "installation is incomplete" in msg for kind, msg in fake_st.messages)
 
 
 @pytest.mark.asyncio
@@ -638,6 +701,108 @@ async def test_render_execute_section_run_executes_and_records_logs(monkeypatch,
     assert fake_st.session_state["_benchmark_expand"] is True
     assert any(kind == "display_log" and "stderr text" in msg for kind, msg in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp_path):
+    manager_venv = tmp_path / "project" / ".venv"
+    worker_venv = tmp_path / "wenv" / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+
+    editor_calls: list[dict[str, object]] = []
+
+    def _code_editor(body, **kwargs):
+        editor_calls.append({"body": body, **kwargs})
+        return {"type": "pin_to_sidebar", "text": body}
+
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+            "run_log_cache": "existing log",
+            "last_run_log_path": str(tmp_path / "run.log"),
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    monkeypatch.setattr(orchestrate_execute, "code_editor", _code_editor)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+        snippet_tail="pass",
+    )
+    deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=deps,
+    )
+
+    panels = fake_st.session_state["agilab:pinned_expanders"]
+    buttons = editor_calls[-1]["buttons"]["buttons"]
+    assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
+    assert panels["orchestrate_run_logs"]["title"] == "Run logs: flight_project"
+    assert panels["orchestrate_run_logs"]["body"] == "existing log"
+    assert panels["orchestrate_run_logs"]["source"] == f"ORCHESTRATE {tmp_path / 'run.log'}"
+    assert ("rerun", "called") in fake_st.messages
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_skips_log_pin_editor_without_run_logs(monkeypatch, tmp_path):
+    manager_venv = tmp_path / "project" / ".venv"
+    worker_venv = tmp_path / "wenv" / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    monkeypatch.setattr(
+        orchestrate_execute,
+        "code_editor",
+        lambda *_args, **_kwargs: pytest.fail("empty logs should not render code editor"),
+    )
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+        snippet_tail="pass",
+    )
+    deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=deps,
+    )
+
+    assert all(
+        key != "pinned_expander:toggle:orchestrate_run_logs"
+        for key, _kwargs in fake_st.button_calls
+    )
+    assert ("caption", "No run logs yet.") in fake_st.messages
 
 
 @pytest.mark.asyncio
@@ -783,6 +948,11 @@ async def test_render_execute_section_handles_existing_logs_graph_errors_and_sta
     monkeypatch.setattr(orchestrate_execute, "st", fake_st)
     monkeypatch.setattr(
         orchestrate_execute,
+        "code_editor",
+        lambda body, **_kwargs: fake_st.messages.append(("code", str(body))),
+    )
+    monkeypatch.setattr(
+        orchestrate_execute,
         "render_dataframe_preview",
         lambda df, truncation_label=None: fake_st.messages.append(("preview", ",".join(df.columns))),
     )
@@ -901,8 +1071,75 @@ async def test_render_execute_section_load_deleted_and_combo_without_cmd(monkeyp
     )
 
     assert any(kind == "error" and "No EXECUTE command configured" in msg for kind, msg in combo_st.messages)
-    assert combo_st.session_state["_combo_load_trigger"] is True
-    assert combo_st.session_state["_combo_export_trigger"] is True
+    assert "_combo_load_trigger" not in combo_st.session_state
+    assert "_combo_export_trigger" not in combo_st.session_state
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_uses_artifact_state_for_load_and_delete_buttons(monkeypatch, tmp_path):
+    deleted_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "dataframe_deleted": True,
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"load_data_main": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", deleted_st)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(deleted_st.messages, deleted_st.session_state),
+    )
+
+    load_call = next(kwargs for key, kwargs in deleted_st.button_calls if key == "load_data_main")
+    delete_call = next(kwargs for key, kwargs in deleted_st.button_calls if key == "delete_data_main")
+    assert load_call["disabled"] is True
+    assert "Run EXECUTE again" in str(load_call["help"])
+    assert delete_call["disabled"] is True
+
+    loaded_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "loaded_df": pd.DataFrame({"value": [1]}),
+            "loaded_source_path": str(tmp_path / "result.csv"),
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", loaded_st)
+    monkeypatch.setattr(orchestrate_execute, "render_dataframe_preview", lambda *_args, **_kwargs: None)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(loaded_st.messages, loaded_st.session_state),
+    )
+
+    loaded_delete_call = next(kwargs for key, kwargs in loaded_st.button_calls if key == "delete_data_main")
+    stats_call = next(kwargs for key, kwargs in loaded_st.button_calls if key == "stats_report_main")
+    export_call = next(kwargs for key, kwargs in loaded_st.button_calls if key == "export_df_main")
+    assert loaded_delete_call["disabled"] is False
+    assert stats_call["disabled"] is False
+    assert export_call["disabled"] is False
 
 
 @pytest.mark.asyncio
@@ -935,10 +1172,12 @@ async def test_render_execute_section_combo_button_queues_action(monkeypatch, tm
         deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
     )
 
-    assert any(kind == "rerun" and msg == "called" for kind, msg in fake_st.messages)
-    assert any(kind == "error" and "installation is incomplete" in msg for kind, msg in fake_st.messages)
-    assert fake_st.session_state["_combo_load_trigger"] is True
-    assert fake_st.session_state["_combo_export_trigger"] is True
+    combo_call = next(kwargs for key, kwargs in fake_st.button_calls if key == "combo_exec_load_export")
+    assert combo_call["disabled"] is True
+    assert "installation is incomplete" in str(combo_call["help"])
+    assert not any(kind == "rerun" and msg == "called" for kind, msg in fake_st.messages)
+    assert "_combo_load_trigger" not in fake_st.session_state
+    assert "_combo_export_trigger" not in fake_st.session_state
 
 
 @pytest.mark.asyncio
@@ -1620,8 +1859,8 @@ async def test_render_execute_section_export_checkbox_callbacks_update_selection
         project_path=tmp_path / "project",
         app_state_name="flight_project",
         controls_visible=True,
-        show_run_panel=False,
-        cmd=None,
+        show_run_panel=True,
+        cmd="print('run')",
         deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
     )
 

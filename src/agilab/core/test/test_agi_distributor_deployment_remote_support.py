@@ -82,6 +82,8 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
         send_calls.append((ip, [Path(local_path).name], str(remote_path.parent)))
 
     agi_cls = SimpleNamespace(
+        _mode=0,
+        DASK_MODE=4,
         _rapids_enabled=False,
         _workers_data_path=None,
         exec_ssh=_fake_exec_ssh,
@@ -101,8 +103,69 @@ async def test_deploy_remote_worker_non_source_flow(monkeypatch, tmp_path):
 
     assert any("demo_worker-0.0.1.egg" in names for _, names, _ in send_calls)
     assert any("ensurepip" in cmd for cmd in ssh_calls)
+    assert not any("dask[distributed]" in cmd for cmd in ssh_calls)
     assert not any("numba==0.62.1" in cmd for cmd in ssh_calls)
     assert any("python -m demo.post_install" in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
+async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled(tmp_path):
+    dist_abs = tmp_path / "dist"
+    dist_abs.mkdir(parents=True, exist_ok=True)
+    (dist_abs / "demo_worker-0.0.1.egg").write_text("x", encoding="utf-8")
+
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "worker_env",
+        wenv_rel=Path("worker_env"),
+        dist_rel=Path("worker_env/dist"),
+        dist_abs=dist_abs,
+        pyvers_worker="3.13",
+        envars={},
+        uv_worker="uv",
+        is_source_env=False,
+        app="demo_app",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        verbose=0,
+    )
+    ssh_calls = []
+
+    async def _fake_exec_ssh(_ip, cmd):
+        ssh_calls.append(cmd)
+        return "ok"
+
+    async def _fake_send(_env, _ip, _files, _remote_path, user=None, password=None):
+        del user, password
+
+    async def _fake_send_file(_env, _ip, _local_path, _remote_path, user=None, password=None):
+        del user, password
+
+    agi_cls = SimpleNamespace(
+        _mode=4,
+        DASK_MODE=4,
+        _rapids_enabled=False,
+        _workers_data_path=None,
+        exec_ssh=_fake_exec_ssh,
+        send_files=_fake_send,
+        send_file=_fake_send_file,
+    )
+
+    await _call_deploy_remote_worker(
+        agi_cls,
+        "10.0.0.2",
+        env,
+        Path("worker_env"),
+        "",
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=deployment_remote_support.logger,
+    )
+
+    env_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-env" in cmd)
+    node_index = next(i for i, cmd in enumerate(ssh_calls) if "--upgrade agi-node" in cmd)
+    dask_index = next(i for i, cmd in enumerate(ssh_calls) if "dask[distributed]" in cmd)
+
+    assert "uv --project worker_env add -p 3.13 'dask[distributed]'" in ssh_calls[dask_index]
+    assert env_index < node_index < dask_index
 
 
 @pytest.mark.asyncio

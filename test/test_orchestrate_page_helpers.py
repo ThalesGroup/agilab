@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import importlib
 import importlib.util
+import json
 from importlib.machinery import ModuleSpec
 import os
 import sys
@@ -182,6 +183,11 @@ def test_page_helpers_fallback_loader_handles_missing_support_imports(monkeypatc
     resolved = module.resolve_share_candidate("clustershare", "/home/agi")
     assert resolved.name == "clustershare"
     assert str(resolved).endswith("/home/agi/clustershare")
+    assert module.configured_cluster_share_matches(
+        resolved,
+        cluster_share_path="clustershare",
+        home_abs="/home/agi",
+    )
     assert module.looks_like_shared_path(Path("/mnt/share"), Path("/repo")) is True
 
 
@@ -312,6 +318,11 @@ def test_page_helpers_delegate_state_log_and_install_wrappers(monkeypatch, tmp_p
     assert calls == {"distribution": 1, "mount": 1}
 
     assert module.resolve_share_candidate("clustershare", "/home/agi") == Path("/home/agi/clustershare")
+    assert module.configured_cluster_share_matches(
+        Path("/home/agi/clustershare"),
+        cluster_share_path="clustershare",
+        home_abs="/home/agi",
+    )
     assert module.benchmark_display_date(tmp_path / "missing", "already-set") == "already-set"
 
     module.display_log(
@@ -478,6 +489,105 @@ def test_orchestrate_page_support_distribution_plan_helpers():
         "work_plan_metadata": [[("A", 1)]],
         "work_plan": [[["a.csv"]]],
     }
+
+
+def test_apply_distribution_plan_action_updates_distribution_json(tmp_path):
+    module = _load_orchestrate_module()
+    dist_tree_path = tmp_path / "distribution.json"
+    dist_tree_path.write_text(
+        json.dumps(
+            {
+                "workers": {"10.0.0.1": 1, "10.0.0.2": 1},
+                "target_args": {"old": True},
+                "work_plan_metadata": [[["A", 2]], [["B", 3]]],
+                "work_plan": [[["a.csv"]], [["b.csv"]]],
+                "keep": "unchanged",
+            }
+        ),
+        encoding="utf-8",
+    )
+    workers = ["10.0.0.1-1", "10.0.0.2-1"]
+    selection_key = orchestrate_page_support.workplan_selection_key("A", 0, 0)
+
+    result = module._apply_distribution_plan_action(
+        dist_tree_path=dist_tree_path,
+        workers=workers,
+        work_plan_metadata=[[["A", 2]], [["B", 3]]],
+        work_plan=[[["a.csv"]], [["b.csv"]]],
+        selections={selection_key: "10.0.0.2-1"},
+        target_args={"new": "value"},
+    )
+
+    saved = json.loads(dist_tree_path.read_text(encoding="utf-8"))
+    assert result.status == "success"
+    assert result.title == "Distribution plan updated."
+    assert saved["keep"] == "unchanged"
+    assert saved["target_args"] == {"new": "value"}
+    assert saved["work_plan_metadata"] == [[], [["A", 2], ["B", 3]]]
+    assert saved["work_plan"] == [[], [["a.csv"], ["b.csv"]]]
+
+
+def test_apply_distribution_plan_action_reports_missing_distribution_json(tmp_path):
+    module = _load_orchestrate_module()
+    dist_tree_path = tmp_path / "missing.json"
+
+    result = module._apply_distribution_plan_action(
+        dist_tree_path=dist_tree_path,
+        workers=["10.0.0.1-1"],
+        work_plan_metadata=[[["A", 1]]],
+        work_plan=[[["a.csv"]]],
+        selections={},
+        target_args={},
+    )
+
+    assert result.status == "error"
+    assert result.title == "Distribution plan file does not exist."
+    assert "CHECK distribute" in str(result.next_action)
+    assert result.data["dist_tree_path"] == dist_tree_path
+
+
+def test_apply_distribution_plan_action_reports_invalid_distribution_json(tmp_path):
+    module = _load_orchestrate_module()
+    dist_tree_path = tmp_path / "distribution.json"
+    dist_tree_path.write_text("{bad json", encoding="utf-8")
+
+    result = module._apply_distribution_plan_action(
+        dist_tree_path=dist_tree_path,
+        workers=["10.0.0.1-1"],
+        work_plan_metadata=[[["A", 1]]],
+        work_plan=[[["a.csv"]]],
+        selections={},
+        target_args={},
+    )
+
+    assert result.status == "error"
+    assert result.title == "Distribution plan file is not valid JSON."
+    assert "CHECK distribute" in str(result.next_action)
+
+
+def test_apply_distribution_plan_action_reports_unserializable_payload(tmp_path):
+    module = _load_orchestrate_module()
+    dist_tree_path = tmp_path / "distribution.json"
+    original_payload = {
+        "workers": {"10.0.0.1": 1},
+        "target_args": {"old": True},
+        "work_plan_metadata": [[["A", 1]]],
+        "work_plan": [[["a.csv"]]],
+    }
+    dist_tree_path.write_text(json.dumps(original_payload), encoding="utf-8")
+
+    result = module._apply_distribution_plan_action(
+        dist_tree_path=dist_tree_path,
+        workers=["10.0.0.1-1"],
+        work_plan_metadata=[[["A", 1]]],
+        work_plan=[[["a.csv"]]],
+        selections={},
+        target_args={"bad": object()},
+    )
+
+    assert result.status == "error"
+    assert result.title == "Distribution plan could not be saved."
+    assert json.loads(dist_tree_path.read_text(encoding="utf-8")) == original_payload
 
 
 def test_orchestrate_page_support_log_filters_and_display_helpers():
@@ -841,6 +951,214 @@ def test_clear_cached_distribution_calls_clear_when_available():
     module._clear_cached_distribution()
 
     assert called["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_check_distribution_action_reports_success_and_uses_controller_runtime(tmp_path: Path):
+    module = _load_orchestrate_module()
+    controller_root = tmp_path / "controller"
+    project_path = tmp_path / "project"
+    captured: dict[str, object] = {}
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        captured["cmd"] = cmd
+        captured["venv"] = venv
+        log_callback("building distribution")
+        return "distribution ready", ""
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=True,
+        is_worker_env=False,
+        agi_cluster=controller_root,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=project_path,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Distribution built successfully."
+    assert captured == {"cmd": "pass", "venv": controller_root}
+    assert result.data["runtime_root"] == controller_root
+    assert result.data["dist_log"] == ("building distribution", "distribution ready")
+
+
+@pytest.mark.asyncio
+async def test_check_distribution_action_reports_stderr_failure(tmp_path: Path):
+    module = _load_orchestrate_module()
+    project_path = tmp_path / "project"
+    captured: dict[str, object] = {}
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        captured["cmd"] = cmd
+        captured["venv"] = venv
+        log_callback("building distribution")
+        return "partial output", "worker failed"
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=False,
+        is_worker_env=False,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=project_path,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Distribution build failed."
+    assert result.detail == "worker failed"
+    assert "retry CHECK distribute" in str(result.next_action)
+    assert captured == {"cmd": "pass", "venv": project_path}
+    assert result.data["runtime_root"] == project_path
+    assert result.data["dist_log"] == (
+        "building distribution",
+        "worker failed",
+        "partial output",
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_distribution_action_reports_run_exception(tmp_path: Path):
+    module = _load_orchestrate_module()
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        raise RuntimeError("cluster unavailable")
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=False,
+        is_worker_env=False,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=tmp_path / "project",
+    )
+
+    assert result.status == "error"
+    assert result.title == "Distribution build failed."
+    assert result.detail == "cluster unavailable"
+    assert result.data["dist_log"] == ("ERROR: cluster unavailable",)
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_success(tmp_path: Path):
+    module = _load_orchestrate_module()
+    captured: dict[str, object] = {}
+    local_log = ["=== Install request ==="]
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        captured["cmd"] = cmd
+        captured["venv"] = venv
+        log_callback("installing worker")
+        return "done", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Cluster installation completed."
+    assert captured == {"cmd": "install command", "venv": tmp_path}
+    assert result.data["stdout"] == "done"
+    assert result.data["stderr"] == ""
+    assert result.data["install_log"] == (
+        "=== Install request ===",
+        "installing worker",
+        "✅ Install complete.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_stderr_failure(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("installing worker")
+        return "", "worker failed"
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Cluster installation failed."
+    assert result.detail == "worker failed"
+    assert result.data["install_log"] == (
+        "installing worker",
+        "❌ Install finished with errors. Check logs above.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("TRACEBACK")
+        log_callback("error")
+        log_callback("connection")
+        return "", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.detail == "Detected connection failure in install logs."
+    assert "rerun INSTALL" in str(result.next_action)
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_run_exception(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        raise RuntimeError("uv missing")
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.detail == "uv missing"
+    assert result.data["install_log"] == (
+        "ERROR: uv missing",
+        "❌ Install finished with errors. Check logs above.",
+    )
 
 
 def test_clear_mount_table_cache_calls_cache_clear_when_available(monkeypatch):

@@ -23,6 +23,23 @@ DATA = ImageColor.getrgb("#5ca0ff")
 ML = ImageColor.getrgb("#ff8e45")
 RL = ImageColor.getrgb("#6ad3a8")
 
+DEMO_SLUG = "agilab-data-io-2026"
+DEMO_FILE_STEM = "agilab_data_io_2026"
+MISSION_TITLE = "Data IO 2026: Mission Data -> Decision Engine."
+MISSION_SUBTITLE = (
+    "AGILAB ingests mission signals, distributes computation, adapts to constraints, "
+    "and returns an executable routing decision."
+)
+MISSION_OUTRO_TITLE = "From raw mission data to an optimized decision."
+MISSION_OUTRO_SUBTITLE = (
+    "Use this composite when the audience needs impact and execution: ingest data, "
+    "predict constraints, optimize routing, inject failure, and show the new decision."
+)
+DEFAULT_OUTPUT_ROOT = Path("artifacts/demo_media") / DEMO_SLUG / "edited"
+DEFAULT_GIF = str(DEFAULT_OUTPUT_ROOT / f"{DEMO_FILE_STEM}_synthetic.gif")
+DEFAULT_MP4 = str(DEFAULT_OUTPUT_ROOT / f"{DEMO_FILE_STEM}_synthetic.mp4")
+DEFAULT_POSTER = str(DEFAULT_OUTPUT_ROOT / f"{DEMO_FILE_STEM}_synthetic_poster.png")
+
 FONT_BADGE = load_font(24, bold=True)
 FONT_TITLE = load_font(68, bold=True)
 FONT_BODY = load_font(30)
@@ -86,19 +103,23 @@ def render_card(
     panel = (1080, 198, 1770, 770)
     px0, py0, px1, py1 = panel
     draw.rounded_rectangle(panel, radius=36, fill=SURFACE, outline=(255, 255, 255, 42), width=2)
-    draw.text((px0 + 34, py0 + 34), "Act flow", font=FONT_FOOTER, fill=INK)
+    draw.text((px0 + 34, py0 + 34), "Decision flow", font=FONT_FOOTER, fill=INK)
 
     rails = [
-        ("DATA", "execution_pandas_project", DATA),
-        ("ML", "meteo_forecast_project", ML),
-        ("RL", "sb3_trainer_project", RL),
+        ("INGEST", "mission data ingestion", DATA),
+        ("PREDICT", "constraint prediction", ML),
+        ("DECIDE", "routing decision loop", RL),
     ]
     row_y = py0 + 112
     for label, name, color in rails:
-        draw.rounded_rectangle((px0 + 34, row_y, px0 + 138, row_y + 42), radius=16, fill=color, outline=WHITE, width=2)
-        draw.text((px0 + 58, row_y + 9), label, font=FONT_BADGE, fill=WHITE)
-        draw.rounded_rectangle((px0 + 158, row_y, px1 - 34, row_y + 42), radius=16, fill=(12, 28, 44), outline=LINE, width=2)
-        draw.text((px0 + 182, row_y + 9), name, font=FONT_CHIP, fill=INK)
+        label_bbox = draw.textbbox((0, 0), label, font=FONT_BADGE)
+        badge_width = max(126, label_bbox[2] - label_bbox[0] + 44)
+        badge_x1 = px0 + 34 + badge_width
+        draw.rounded_rectangle((px0 + 34, row_y, badge_x1, row_y + 42), radius=16, fill=color, outline=WHITE, width=2)
+        draw.text((px0 + 34 + badge_width / 2, row_y + 21), label, font=FONT_BADGE, fill=WHITE, anchor="mm")
+        name_x0 = badge_x1 + 20
+        draw.rounded_rectangle((name_x0, row_y, px1 - 34, row_y + 42), radius=16, fill=(12, 28, 44), outline=LINE, width=2)
+        draw.text((name_x0 + 24, row_y + 9), name, font=FONT_CHIP, fill=INK)
         row_y += 66
 
     draw.rounded_rectangle((px0 + 34, py1 - 92, px1 - 34, py1 - 34), radius=20, fill=(12, 28, 44), outline=LINE, width=2)
@@ -181,18 +202,18 @@ def build_gif(mp4: Path, gif: Path) -> None:
 
 def build_three_project_demo(mp4: Path, gif: Path, poster: Path) -> None:
     intro = render_card(
-        title="AGILAB technical demo: data, ML, and RL in one reproducible shell.",
-        subtitle="A consistent three-act reel built from the same AGILAB scene system, with RL evidence backed by FCAS routing assets.",
-        footer="Technical composite for channels where one app is not enough.",
-        chips=[("DATA", DATA), ("ML", ML), ("RL", RL)],
-        act_hint="THREE-PROJECT DEMO",
+        title=MISSION_TITLE,
+        subtitle=MISSION_SUBTITLE,
+        footer="Technical composite for mission-data audiences.",
+        chips=[("INGEST", DATA), ("PREDICT", ML), ("DECIDE", RL)],
+        act_hint="AUTONOMOUS DECISION DEMO",
     )
     outro = render_card(
-        title="One shell. Three workflow classes. One reproducible operator story.",
-        subtitle="Use the one-app reel for onboarding. Use this composite when the audience needs concrete data, ML, and RL proof in one video.",
-        footer="execution_pandas_project -> meteo_forecast_project -> sb3_trainer_project",
-        chips=[("DATA", DATA), ("ML", ML), ("RL", RL)],
-        act_hint="CLOSING",
+        title=MISSION_OUTRO_TITLE,
+        subtitle=MISSION_OUTRO_SUBTITLE,
+        footer="ingest -> predict -> optimize -> adapt -> decide",
+        chips=[("LATENCY", DATA), ("COST", ML), ("RELIABILITY", RL)],
+        act_hint="CLOSING DECISION",
     )
 
     poster.parent.mkdir(parents=True, exist_ok=True)
@@ -209,7 +230,7 @@ def build_three_project_demo(mp4: Path, gif: Path, poster: Path) -> None:
         write_loop_mp4(intro, 2.0, intro_mp4)
         build_variant(data_mp4, tmpdir / "data.gif", tmpdir / "data_poster.png", variant_key="execution_pandas")
         build_variant(ml_mp4, tmpdir / "ml.gif", tmpdir / "ml_poster.png", variant_key="meteo_forecast")
-        build_variant(rl_mp4, tmpdir / "rl.gif", tmpdir / "rl_poster.png", variant_key="sb3_routing")
+        build_variant(rl_mp4, tmpdir / "rl.gif", tmpdir / "rl_poster.png", variant_key="uav_queue")
         write_loop_mp4(outro, 2.4, outro_mp4)
 
         concat_mp4s([intro_mp4, data_mp4, ml_mp4, rl_mp4, outro_mp4], mp4)
@@ -217,18 +238,18 @@ def build_three_project_demo(mp4: Path, gif: Path, poster: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build a consistent three-act AGILAB technical demo reel.")
+    parser = argparse.ArgumentParser(description="Build the Data IO 2026 AGILAB autonomous decision demo reel.")
     parser.add_argument(
         "--gif",
-        default="artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic.gif",
+        default=DEFAULT_GIF,
     )
     parser.add_argument(
         "--mp4",
-        default="artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic.mp4",
+        default=DEFAULT_MP4,
     )
     parser.add_argument(
         "--poster",
-        default="artifacts/demo_media/agilab-data-ml-rl/edited/agilab_data_ml_rl_synthetic_poster.png",
+        default=DEFAULT_POSTER,
     )
     args = parser.parse_args()
 

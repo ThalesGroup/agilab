@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
 
 
 FIRST_PARTY_STREAMLIT_MANIFESTS = [
@@ -19,3 +20,28 @@ def test_first_party_streamlit_manifests_require_156_when_pinned() -> None:
             stale.append(str(manifest))
 
     assert stale == []
+
+
+def test_new_choice_widgets_use_agilab_blue_theme() -> None:
+    theme_css = Path("src/agilab/resources/theme.css").read_text(encoding="utf-8")
+    theme_config = tomllib.loads(Path("src/agilab/resources/config.toml").read_text(encoding="utf-8"))
+
+    assert theme_config["theme"]["primaryColor"] == "#4A90E2"
+    assert "--agilab-primary: #4A90E2;" in theme_css
+    assert '[data-testid="stButtonGroup"]' in theme_css
+    assert '[role="radio"][aria-checked="true"]' in theme_css
+    assert '[role="checkbox"][aria-checked="true"]' in theme_css
+    assert "var(--agilab-primary)" in theme_css
+    assert "#ff4b4b" not in theme_css.lower()
+    assert "255, 75, 75" not in theme_css
+
+
+def test_first_party_streamlit_code_uses_width_api() -> None:
+    offenders = []
+    for path in sorted(Path("src/agilab").rglob("*.py")):
+        if ".venv" in path.parts or "build" in path.parts:
+            continue
+        if b"use_container_width" in path.read_bytes():
+            offenders.append(str(path))
+
+    assert offenders == []

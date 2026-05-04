@@ -106,6 +106,23 @@ class FalsyWorkersPlan:
         return False
 
 
+class InlineProcessPool:
+    def __init__(self, max_workers, initializer, initargs):
+        self._initializer = initializer
+        self._initargs = initargs
+
+    def __enter__(self):
+        if self._initializer:
+            self._initializer(*self._initargs)
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def map(self, fn, items):
+        return [fn(item) for item in items]
+
+
 @pytest.fixture
 def temp_output_dir(tmp_path):
     output_dir = tmp_path / "output"
@@ -176,7 +193,8 @@ def test_exec_mono_process(worker_csv):
     assert result_df["worker_id"].tolist() == [str((0, 0)), str((0, 0))]
 
 
-def test_exec_multi_process(worker_csv):
+def test_exec_multi_process(monkeypatch, worker_csv):
+    monkeypatch.setattr(pandas_module, "ProcessPoolExecutor", InlineProcessPool)
     worker_csv._mode = 1
     worker_csv.last_df = None
     worker_csv._exec_multi_process({0: [[100, 102]]}, None)
@@ -187,7 +205,8 @@ def test_exec_multi_process(worker_csv):
     assert "worker_id" in result_df.columns
 
 
-def test_exec_multi_process_with_list_plan(worker_csv):
+def test_exec_multi_process_with_list_plan(monkeypatch, worker_csv):
+    monkeypatch.setattr(pandas_module, "ProcessPoolExecutor", InlineProcessPool)
     worker_csv._mode = 1
     worker_csv.last_df = None
     worker_csv._exec_multi_process([[[200, 201]]], None)
@@ -197,24 +216,8 @@ def test_exec_multi_process_with_list_plan(worker_csv):
 
 
 def test_exec_multi_process_windows_branch(monkeypatch, worker_csv):
-    class FakePool:
-        def __init__(self, max_workers, initializer, initargs):
-            self._initializer = initializer
-            self._initargs = initargs
-
-        def __enter__(self):
-            if self._initializer:
-                self._initializer(*self._initargs)
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def map(self, fn, items):
-            return [fn(item) for item in items]
-
     monkeypatch.setattr(pandas_module.os, "name", "nt", raising=False)
-    monkeypatch.setattr(pandas_module, "ProcessPoolExecutor", FakePool)
+    monkeypatch.setattr(pandas_module, "ProcessPoolExecutor", InlineProcessPool)
 
     worker_csv.last_df = None
     worker_csv.data_out = None

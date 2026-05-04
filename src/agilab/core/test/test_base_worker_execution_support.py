@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import io
+import itertools
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -721,7 +723,7 @@ def test_baseworker_get_worker_info_creates_temp_share_dir(monkeypatch, tmp_path
         lambda: SimpleNamespace(current=3200),
     )
     monkeypatch.setattr(base_worker_mod.time, "sleep", lambda *_args, **_kwargs: None)
-    time_values = iter([1.0, 2.0])
+    time_values = itertools.count(1.0)
     monkeypatch.setattr(base_worker_mod.time, "time", lambda: next(time_values))
     monkeypatch.setattr(
         base_worker_mod.os,
@@ -992,14 +994,26 @@ def test_log_worker_plan_progress_reports_counts_and_returns_plan_batch_count():
     ]
 
 
-def test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_completion():
+def test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_completion(monkeypatch):
     logged: list[str] = []
     works_calls: list[tuple[object, object]] = []
+    tracking_calls: list[dict[str, object]] = []
     logger = SimpleNamespace(
         info=lambda message, *args: logged.append(str(message % args if args else message))
     )
     worker_inst = SimpleNamespace(
         works=lambda plan, meta: works_calls.append((plan, meta))
+    )
+
+    @contextmanager
+    def fake_worker_tracking_run(**kwargs):
+        tracking_calls.append(kwargs)
+        yield object()
+
+    monkeypatch.setattr(
+        execution_support.worker_tracking_support,
+        "worker_tracking_run",
+        fake_worker_tracking_run,
     )
 
     plan_batch_count = execution_support._execute_initialized_worker_plan(
@@ -1013,6 +1027,16 @@ def test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_c
         file_path="/tmp/worker.py",
     )
 
+    assert tracking_calls == [
+        {
+            "worker_id": 1,
+            "worker_name": "local-worker",
+            "plan_batch_count": 1,
+            "plan_chunk_len": None,
+            "metadata_chunk_len": None,
+            "logger_obj": logger,
+        }
+    ]
     assert plan_batch_count == 1
     assert works_calls == [
         ([["plan-a"], ["plan-b"]], [["meta-a"], ["meta-b"]])
@@ -1023,6 +1047,81 @@ def test_execute_initialized_worker_plan_expands_payloads_runs_worker_and_logs_c
         "worker #1 completed 1 plan batches",
     ]
 
+
+def test_execute_initialized_worker_plan_preserves_tracking_exception_boundary(monkeypatch):
+    logged: list[str] = []
+    logger = SimpleNamespace(
+        info=lambda message, *args: logged.append(str(message % args if args else message))
+    )
+    worker_inst = SimpleNamespace(
+        works=lambda *_args: (_ for _ in ()).throw(RuntimeError("worker failed"))
+    )
+
+    @contextmanager
+    def fake_worker_tracking_run(**_kwargs):
+        yield object()
+
+    monkeypatch.setattr(
+        execution_support.worker_tracking_support,
+        "worker_tracking_run",
+        fake_worker_tracking_run,
+    )
+
+    with pytest.raises(RuntimeError, match="worker failed"):
+        execution_support._execute_initialized_worker_plan(
+            workers_plan=[["plan-a"]],
+            workers_plan_metadata=[["meta-a"]],
+            worker_id=0,
+            worker_name="local-worker",
+            insts={0: worker_inst},
+            expand_chunk_fn=lambda payload, worker_id: (payload, None, len(payload)),
+            logger_obj=logger,
+            file_path="/tmp/worker.py",
+        )
+
+
+def test_run_worker_prepares_tracking_environment(monkeypatch):
+    calls: list[object] = []
+
+    async def fake_build_distribution_plan(**_kwargs):
+        return {"local": 1}, {"plan": 1}, {"meta": 2}
+
+    monkeypatch.setattr(
+        execution_support,
+        "_build_distribution_plan",
+        fake_build_distribution_plan,
+    )
+    monkeypatch.setattr(
+        execution_support.worker_tracking_support,
+        "prepare_worker_tracking_environment",
+        lambda env, **kwargs: calls.append((env, kwargs)) or "sqlite:///tmp/mlflow.db",
+    )
+
+    env = SimpleNamespace(_run_time=None, mode2str=lambda mode: f"mode-{mode}")
+    time_values = iter([10.0, 11.0])
+
+    result = asyncio.run(
+        execution_support.run_worker(
+            env=env,
+            workers={"local": 1},
+            mode=0,
+            args={"payload": 1},
+            do_works_fn=lambda plan, meta: calls.append((plan, meta)),
+            dispatcher_loader=lambda: object,
+            sys_path=[],
+            logger_obj=SimpleNamespace(info=lambda *_args: None),
+            traceback_module=SimpleNamespace(format_exc=lambda: ""),
+            time_module=SimpleNamespace(time=lambda: next(time_values)),
+            humanize_module=SimpleNamespace(precisedelta=lambda delta: "1 second"),
+            datetime_module=SimpleNamespace(timedelta=lambda seconds: seconds),
+        )
+    )
+
+    assert calls[0][0] is env
+    assert calls[0][1]["logger_obj"] is not None
+    assert calls[1] == ({"plan": 1}, {"meta": 2})
+    assert env._run_time == 1.0
+    assert result == "mode-0 1 second"
 
 def test_attach_and_detach_worker_log_capture_manage_handler_lifecycle():
     root_logger = base_worker_mod.logging.getLogger("test.worker.capture")

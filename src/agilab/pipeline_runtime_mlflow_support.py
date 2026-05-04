@@ -307,6 +307,95 @@ def start_mlflow_run(
         yield {"mlflow": mlflow, "run": run, "tracking_uri": tracking_uri}
 
 
+class AgilabTrackerRun:
+    """Small tracking facade used by AGILAB code without exposing MLflow payloads."""
+
+    def __init__(
+        self,
+        tracking: Optional[Dict[str, Any]],
+        *,
+        log_artifacts_fn: Callable[..., None],
+    ) -> None:
+        self._tracking = tracking
+        self._log_artifacts_fn = log_artifacts_fn
+
+    def __bool__(self) -> bool:
+        return bool(self._tracking)
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self)
+
+    @property
+    def run_id(self) -> str | None:
+        run = (self._tracking or {}).get("run")
+        return getattr(getattr(run, "info", None), "run_id", None)
+
+    @property
+    def tracking_uri(self) -> str | None:
+        tracking_uri = (self._tracking or {}).get("tracking_uri")
+        return str(tracking_uri) if tracking_uri else None
+
+    def log_artifacts(
+        self,
+        *,
+        text_artifacts: Optional[Dict[str, Any]] = None,
+        file_artifacts: Optional[List[str | Path]] = None,
+        tags: Optional[Dict[str, Any]] = None,
+        metrics: Optional[Dict[str, float]] = None,
+    ) -> None:
+        self._log_artifacts_fn(
+            self._tracking,
+            text_artifacts=text_artifacts,
+            file_artifacts=file_artifacts,
+            tags=tags,
+            metrics=metrics,
+        )
+
+    def log_metric(self, key: str, value: float) -> None:
+        self.log_artifacts(metrics={key: value})
+
+    def log_metrics(self, metrics: Dict[str, float]) -> None:
+        self.log_artifacts(metrics=metrics)
+
+    def set_tag(self, key: str, value: Any) -> None:
+        self.log_artifacts(tags={key: value})
+
+    def set_tags(self, tags: Dict[str, Any]) -> None:
+        self.log_artifacts(tags=tags)
+
+    def log_text(self, artifact_name: str, text: Any) -> None:
+        self.log_artifacts(text_artifacts={artifact_name: text})
+
+    def log_artifact(self, artifact: str | Path) -> None:
+        self.log_artifacts(file_artifacts=[artifact])
+
+
+@contextmanager
+def start_tracker_run(
+    env: AgiEnv,
+    *,
+    run_name: str,
+    tags: Optional[Dict[str, Any]] = None,
+    params: Optional[Dict[str, Any]] = None,
+    nested: bool = False,
+    start_mlflow_run_fn: Callable[..., Any],
+    log_mlflow_artifacts_fn: Callable[..., None],
+):
+    """Open an AGILAB tracker run backed by MLflow when MLflow is installed."""
+    with start_mlflow_run_fn(
+        env,
+        run_name=run_name,
+        tags=tags,
+        params=params,
+        nested=nested,
+    ) as tracking:
+        yield AgilabTrackerRun(
+            tracking,
+            log_artifacts_fn=log_mlflow_artifacts_fn,
+        )
+
+
 def log_mlflow_artifacts(
     tracking: Optional[Dict[str, Any]],
     *,

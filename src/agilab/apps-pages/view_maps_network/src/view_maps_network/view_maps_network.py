@@ -30,6 +30,7 @@ import json
 import re
 import tomllib
 from urllib.parse import quote, urlencode
+from agi_env.app_settings_support import prepare_app_settings_for_write
 try:
     import tomli_w as _toml_writer  # type: ignore[import-not-found]
 
@@ -148,8 +149,11 @@ def _persist_app_settings(env: AgiEnv) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as handle:
-            _dump_toml(_sanitize_toml_payload(settings), handle)
-    except (OSError, RuntimeError) as exc:
+            _dump_toml(
+                prepare_app_settings_for_write(_sanitize_toml_payload(settings), sanitize=False),
+                handle,
+            )
+    except (OSError, RuntimeError, ValueError) as exc:
         logger.warning(f"Unable to persist app_settings to {path}: {exc}")
 
 
@@ -260,7 +264,7 @@ if "TABLE_MAX_ROWS" not in st.session_state:
     st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
 if "GUI_SAMPLING" not in st.session_state:
     st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
-render_logo("Cartography Visualisation")
+render_logo("Cartography Visualization")
 
 # Map imagery token must come from runtime env/secrets, never from source code.
 _mapbox_secret = ""

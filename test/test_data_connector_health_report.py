@@ -31,12 +31,12 @@ def test_data_connector_health_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["schema"] == "agilab.data_connector_health.v1"
     assert report["summary"]["run_status"] == "planned"
     assert report["summary"]["execution_mode"] == "health_probe_plan_only"
-    assert report["summary"]["connector_count"] == 3
-    assert report["summary"]["planned_probe_count"] == 3
+    assert report["summary"]["connector_count"] == 5
+    assert report["summary"]["planned_probe_count"] == 5
     assert report["summary"]["executed_probe_count"] == 0
-    assert report["summary"]["opt_in_required_count"] == 3
+    assert report["summary"]["opt_in_required_count"] == 5
     assert report["summary"]["network_probe_count"] == 0
-    assert report["summary"]["unknown_status_count"] == 3
+    assert report["summary"]["unknown_status_count"] == 5
     assert report["summary"]["unhealthy_count"] == 0
     assert report["summary"]["probe_types"] == [
         "bucket_prefix_list",

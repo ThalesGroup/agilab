@@ -39,6 +39,7 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
     assert check["status"] == "pass", "\n".join(check["details"].get("failures", []))
     assert check["id"] == "reduce_contract_adoption_guardrail"
     assert check["details"]["checked_apps"] == [
+        "data_io_2026_project",
         "execution_pandas_project",
         "execution_polars_project",
         "flight_project",
@@ -47,6 +48,64 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
         "uav_relay_queue_project",
     ]
     assert check["details"]["template_only_exemptions"] == TEMPLATE_ONLY_BUILTIN_APPS
+
+
+def test_data_io_2026_reduce_contract_merges_decision_summaries(monkeypatch) -> None:
+    app_src = BUILTIN_APPS_ROOT / "data_io_2026_project" / "src"
+    monkeypatch.syspath_prepend(str(app_src))
+    from data_io_2026.reduction import (
+        REDUCE_ARTIFACT_NAME,
+        REDUCER_NAME,
+        build_reduce_artifact,
+        partial_from_decision_summary,
+    )
+
+    base_summary = {
+        "schema": "agilab.data_io_2026.summary.v1",
+        "scenario": "mission_alpha",
+        "artifact_stem": "mission_alpha",
+        "status": "pass",
+        "selected_strategy": "route_b",
+        "initial_strategy": "route_a",
+        "degraded_initial_strategy": "route_a",
+        "latency_ms_selected": 90.0,
+        "cost_selected": 12.0,
+        "reliability_selected": 0.98,
+        "risk_selected": 0.05,
+        "pipeline_stage_count": 6,
+        "applied_event_count": 1,
+    }
+    second_summary = {
+        **base_summary,
+        "scenario": "mission_beta",
+        "artifact_stem": "mission_beta",
+        "selected_strategy": "route_c",
+        "latency_ms_selected": 110.0,
+        "cost_selected": 10.0,
+        "reliability_selected": 0.94,
+        "risk_selected": 0.07,
+        "pipeline_stage_count": 5,
+        "applied_event_count": 2,
+    }
+
+    artifact = build_reduce_artifact(
+        (
+            partial_from_decision_summary(base_summary, partial_id="first"),
+            partial_from_decision_summary(second_summary, partial_id="second"),
+        )
+    )
+
+    assert artifact.name == REDUCE_ARTIFACT_NAME
+    assert artifact.reducer == REDUCER_NAME
+    assert artifact.partial_count == 2
+    assert artifact.payload["scenario_count"] == 2
+    assert artifact.payload["scenarios"] == ["mission_alpha", "mission_beta"]
+    assert artifact.payload["selected_strategies"] == ["route_b", "route_c"]
+    assert artifact.payload["selected_latency_ms_mean"] == 100.0
+    assert artifact.payload["selected_cost_mean"] == 11.0
+    assert artifact.payload["selected_reliability_mean"] == 0.96
+    assert artifact.payload["max_pipeline_stage_count"] == 6
+    assert artifact.payload["applied_event_count"] == 3
 
 
 def test_template_only_builtin_apps_are_explicitly_exempted() -> None:

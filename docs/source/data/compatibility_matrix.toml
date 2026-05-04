@@ -1,9 +1,9 @@
 [metadata]
 version = 1
-updated = "2026-04-25"
+updated = "2026-05-01"
 owner = "manual-public-docs"
 purpose = "Public compatibility and demo-tour slice for AGILAB"
-notes = "Matrix promoted into tools/compatibility_report.py for public status, proof-command validation, optional local/external run_manifest.json evidence ingestion, and downloaded CI artifact-index ingestion. Broader certification remains roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
+notes = "Matrix promoted into tools/compatibility_report.py for public status, proof-command validation, optional local/external run_manifest.json evidence ingestion, downloaded CI artifact-index ingestion, and the clean public package install smoke. Broader certification remains roadmap work. Newcomer proof and full public tour are intentionally tracked as separate public paths."
 
 [[entries]]
 id = "source-checkout-first-proof"
@@ -35,7 +35,7 @@ surface = "public hosted demo"
 primary_proof = "uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "Self-serve AGILAB web UI demo hosted on Hugging Face Spaces, including route smoke and public app-tree guardrail"
+scope = "Self-serve AGILAB web UI demo hosted on Hugging Face Spaces, including flight and meteo route smoke plus public app-tree guardrail"
 limits = ["Hosted demo environment", "Not a remote cluster proof", "Availability depends on Hugging Face Spaces uptime"]
 
 [[entries]]
@@ -63,10 +63,10 @@ limits = ["Alternative path", "Not the recommended newcomer proof"]
 [[entries]]
 id = "published-package-route"
 label = "Published package route"
-status = "documented"
+status = "validated"
 surface = "PyPI package"
-primary_proof = "uv pip install agilab && uv run agilab"
+primary_proof = "python -m pip install agilab && agilab first-proof --json --max-seconds 60"
 python = ["3.11+"]
-platforms = ["macOS", "Linux", "WSL2"]
-scope = "Fast public package install outside the source checkout"
-limits = ["Less representative than the source-checkout first proof", "Not the main contributor workflow"]
+platforms = ["Linux CI", "macOS CI", "Windows CI"]
+scope = "Clean public package install outside the source checkout, followed by the packaged first-proof smoke"
+limits = ["Validates the released package, not unmerged branch contents", "Clean-install CI enforces the 60-second first-proof runtime budget on Linux, macOS, and Windows runners", "Less representative than the source-checkout first proof", "Not the main contributor workflow"]

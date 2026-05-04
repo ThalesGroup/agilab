@@ -10,6 +10,8 @@ import tomllib
 
 from pydantic import BaseModel, ValidationError
 
+from agi_env.app_settings_support import prepare_app_settings_for_write
+
 TModel = TypeVar("TModel", bound=BaseModel)
 
 from agi_env.agi_logger import AgiLogger
@@ -87,6 +89,7 @@ def dump_model_to_toml(
         raise FileNotFoundError(f"Settings file not found: {settings_path}")
 
     doc[section] = model_to_payload(model)
+    doc = prepare_app_settings_for_write(doc)
 
     dumper: Callable[[dict[str, Any], BufferedWriter], None] | None = None
     try:

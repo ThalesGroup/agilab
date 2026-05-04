@@ -1,0 +1,65 @@
+{
+  "schema": "agilab.notebook_to_dask_pipeline.v1",
+  "project": "notebook_to_dask_project",
+  "goal": "Turn a notebook order-analysis workflow into a Dask-backed AGILAB pipeline plan with explicit artifacts.",
+  "nodes": [
+    {
+      "id": "load_sample",
+      "kind": "notebook_cell",
+      "role": "load",
+      "source_cells": ["cell-2"],
+      "consumes": ["data/orders.csv"],
+      "produces": ["orders_sample"],
+      "note": "Keep as a lightweight inspection step or fold into a PROJECT input check."
+    },
+    {
+      "id": "dask_feature_engineering",
+      "kind": "dask_step",
+      "role": "transform",
+      "source_cells": ["cell-4"],
+      "consumes": ["data/orders.csv"],
+      "produces": ["artifacts/daily_orders.parquet"],
+      "note": "Move dataframe-heavy feature work from notebook memory to a Dask dataframe operation."
+    },
+    {
+      "id": "dask_kpi_export",
+      "kind": "dask_step",
+      "role": "export",
+      "source_cells": ["cell-6"],
+      "consumes": ["artifacts/daily_orders.parquet"],
+      "produces": ["artifacts/dask_summary.json"],
+      "note": "Persist analysis-ready metrics so downstream pages do not depend on notebook state."
+    },
+    {
+      "id": "analysis_page_plan",
+      "kind": "analysis_plan",
+      "role": "analyze",
+      "source_cells": [],
+      "consumes": ["artifacts/daily_orders.parquet", "artifacts/dask_summary.json"],
+      "produces": ["ANALYSIS page"],
+      "note": "Future page reads declared artifacts instead of re-running notebook cells."
+    }
+  ],
+  "edges": [
+    {
+      "from": "load_sample",
+      "to": "dask_feature_engineering",
+      "artifact": "data/orders.csv"
+    },
+    {
+      "from": "dask_feature_engineering",
+      "to": "dask_kpi_export",
+      "artifact": "artifacts/daily_orders.parquet"
+    },
+    {
+      "from": "dask_kpi_export",
+      "to": "analysis_page_plan",
+      "artifact": "artifacts/dask_summary.json"
+    }
+  ],
+  "artifact_contract": {
+    "inputs": ["data/orders.csv"],
+    "outputs": ["artifacts/daily_orders.parquet", "artifacts/dask_summary.json"],
+    "analysis_consumes": ["artifacts/daily_orders.parquet", "artifacts/dask_summary.json"]
+  }
+}

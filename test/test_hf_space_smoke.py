@@ -29,6 +29,20 @@ def test_build_space_url_encodes_current_page_query() -> None:
     assert "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps%2Fsrc%2Fview_maps%2Fview_maps.py" in url
 
 
+def test_build_space_url_encodes_meteo_view_query() -> None:
+    module = _load_module()
+    spec = module.route_specs()[5]
+
+    url = module.build_space_url("https://demo.hf.space/", spec)
+
+    assert url.startswith("https://demo.hf.space?")
+    assert "active_app=meteo_forecast_project" in url
+    assert (
+        "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_forecast_analysis"
+        "%2Fsrc%2Fview_forecast_analysis%2Fview_forecast_analysis.py"
+    ) in url
+
+
 def test_private_app_entries_flags_only_direct_non_public_apps() -> None:
     module = _load_module()
 
@@ -42,6 +56,23 @@ def test_private_app_entries_flags_only_direct_non_public_apps() -> None:
     )
 
     assert offenders == ["uav_graph_routing_project"]
+
+
+def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:
+    module = _load_module()
+
+    offenders = module.unexpected_page_entries(
+        [
+            {"path": "src/agilab/apps-pages/README.md"},
+            {"path": "src/agilab/apps-pages/view_maps"},
+            {"path": "src/agilab/apps-pages/view_forecast_analysis"},
+            {"path": "src/agilab/apps-pages/view_release_decision"},
+            {"path": "src/agilab/apps-pages/view_maps_network"},
+            {"path": "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"},
+        ]
+    )
+
+    assert offenders == ["view_maps_network"]
 
 
 def test_check_route_rejects_localhost_connection_body() -> None:
@@ -64,7 +95,26 @@ def test_check_route_rejects_localhost_connection_body() -> None:
 
 def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     module = _load_module()
-    clock = iter([0.0, 0.1, 0.1, 0.3, 0.3, 0.6, 0.6, 1.0, 1.0, 1.5, 1.5, 2.1])
+    clock = iter(
+        [
+            0.0,
+            0.1,
+            0.1,
+            0.3,
+            0.3,
+            0.6,
+            0.6,
+            1.0,
+            1.0,
+            1.5,
+            1.5,
+            2.1,
+            2.1,
+            2.8,
+            2.8,
+            3.6,
+        ]
+    )
 
     def _fetch_text(_url: str, _timeout: float):
         return 200, "ok"
@@ -83,9 +133,9 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     )
 
     assert summary.success is True
-    assert summary.total_duration_seconds == 2.1
+    assert summary.total_duration_seconds == 3.6
     assert summary.within_target is True
-    assert [check.label for check in summary.checks][-1] == "public app tree"
+    assert [check.label for check in summary.checks][-2:] == ["public app tree", "public pages tree"]
 
 
 def test_main_json_returns_failure_for_private_app(monkeypatch, capsys) -> None:

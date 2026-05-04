@@ -318,6 +318,86 @@ def test_pipeline_run_controls_lock_failure_branches(tmp_path, monkeypatch):
     module._release_pipeline_run_lock({"path": release_dir, "token": "token"}, "page")
 
 
+def test_pipeline_run_controls_stale_owner_and_retry_exhaustion_branches(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "3600")
+    env = SimpleNamespace(app="demo", target="demo")
+
+    lock_path = tmp_path / "owner.lock"
+    lock_path.write_text(
+        json.dumps({"host": socket.gethostname(), "pid": 123456, "app": "demo"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "_pipeline_lock_path", lambda _env: lock_path)
+    monkeypatch.setattr(module.os, "kill", lambda *_args: (_ for _ in ()).throw(ProcessLookupError()))
+
+    state = module._inspect_pipeline_run_lock(env)
+
+    assert state is not None
+    assert state["is_stale"] is True
+    assert state["stale_reason"] == "owner process is no longer running on this host"
+
+    missing_lock = tmp_path / "missing-clear.lock"
+    monkeypatch.setattr(module, "_inspect_pipeline_run_lock", lambda _env: {"path": missing_lock})
+    assert module._clear_pipeline_run_lock(env, "page", reason="race") is True
+
+    sticky_lock = tmp_path / "sticky.lock"
+    sticky_lock.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(module, "_pipeline_lock_path", lambda _env: sticky_lock)
+    monkeypatch.setattr(
+        module,
+        "_inspect_pipeline_run_lock",
+        lambda _env: {
+            "path": sticky_lock,
+            "is_stale": True,
+            "stale_reason": "unit stale",
+            "owner_text": "owner",
+        },
+    )
+    monkeypatch.setattr(module, "_clear_pipeline_run_lock", lambda *_args, **_kwargs: True)
+
+    assert module._acquire_pipeline_run_lock(env, "page") is None
+    assert any(
+        kind == "warning" and "after stale cleanup retries" in message
+        for kind, message in fake_st.messages
+    )
+
+
+def test_pipeline_run_controls_legacy_step_formatting_and_clean_abort(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+
+    stale_steps = [
+        {"step": idx, "line": idx + 10, "project": f"app-{idx}", "summary": f"summary-{idx}"}
+        for idx in range(1, 7)
+    ]
+
+    formatted = module._format_legacy_step_refs(stale_steps)
+
+    assert "step 1, line 11, app-1: summary-1" in formatted
+    assert "1 more" in formatted
+
+    assert module._abort_if_legacy_agi_run_steps(
+        "page",
+        tmp_path / "lab_steps.toml",
+        [{"Q": "fresh", "C": "print('ok')"}],
+        [0],
+        None,
+    ) is False
+
+    assert module._abort_if_legacy_agi_run_steps(
+        "page",
+        tmp_path / "lab_steps.toml",
+        [{"Q": "stale", "C": "await AGI.run(app_env, mode=0)", "R": "agi.run"}],
+        [0],
+        None,
+    ) is True
+    assert any(kind == "error" and "aborted before execution" in message for kind, message in fake_st.messages)
+
+
 def test_pipeline_run_controls_run_all_steps_executes_runpy_and_agi_run(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"
@@ -472,6 +552,50 @@ def test_pipeline_run_controls_run_all_steps_handles_early_exits(tmp_path, monke
     assert fake_st.session_state["page__run_logs"].count("Run pipeline invoked.") == 3
 
 
+def test_pipeline_run_controls_run_all_steps_reports_no_runnable_code(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("print('snippet')", encoding="utf-8")
+    fake_st = _FakeStreamlit(
+        {
+            "page": [3, "old desc", "old q", "old model", "old code", "old detail", 0],
+            "snippet_file": str(snippet_file),
+            "lab_selected_venv": "",
+            "lab_selected_engine": "",
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+    releases: list[dict] = []
+
+    @contextmanager
+    def no_mlflow_run(*_args, **_kwargs):
+        yield None
+
+    monkeypatch.setattr(module._pipeline_runtime, "mlflow_tracking_uri", lambda _env: "")
+    monkeypatch.setattr(module._pipeline_runtime, "start_mlflow_run", no_mlflow_run)
+    monkeypatch.setattr(module._pipeline_steps, "normalize_runtime_path", lambda value: str(value or ""))
+    monkeypatch.setattr(module._pipeline_steps, "is_runnable_step", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: {"path": "lock", "token": "t"})
+    monkeypatch.setattr(module, "_refresh_pipeline_run_lock", lambda _handle: None)
+    monkeypatch.setattr(module, "_release_pipeline_run_lock", lambda handle, *_args, **_kwargs: releases.append(handle))
+
+    env = SimpleNamespace(app="demo", active_app="", copilot_file=tmp_path / "copilot.py")
+    module.run_all_steps(
+        tmp_path / "lab",
+        "page",
+        tmp_path / "lab_steps.toml",
+        tmp_path / "module.py",
+        env,
+        load_all_steps_fn=lambda *_args: [{"D": "skip", "Q": "no code", "M": "model", "C": ""}],
+        stream_run_command_fn=lambda *_args, **_kwargs: "should not run",
+    )
+
+    assert any(kind == "info" and "No runnable code found" in message for kind, message in fake_st.messages)
+    assert any("no runnable code found" in line for line in fake_st.session_state["page__run_logs"])
+    assert fake_st.session_state["page"][0] == 3
+    assert releases == [{"path": "lock", "token": "t"}]
+
+
 def test_pipeline_run_controls_blocks_legacy_agi_run_before_lock(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"
@@ -583,4 +707,74 @@ def test_pipeline_run_controls_run_all_steps_without_mlflow_tracks_runpy_no_outp
     assert any("runpy executed (no captured stdout)" in line for line in fake_st.session_state["page__run_logs"])
     assert fake_st.session_state["page"][0] == 7
     assert fake_st.session_state["lab_selected_engine"] == "old-engine"
+    assert releases == [{"path": "lock", "token": "t"}]
+
+
+def test_pipeline_run_controls_run_all_steps_uses_active_app_for_agi_engine(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    snippet_file = tmp_path / "snippet.py"
+    snippet_file.write_text("print('snippet')", encoding="utf-8")
+    runtime_root = tmp_path / "active_app_runtime"
+    runtime_root.mkdir()
+    fake_st = _FakeStreamlit(
+        {
+            "page": [4, "old desc", "old q", "old model", "old code", "old detail", 0],
+            "snippet_file": str(snippet_file),
+            "lab_selected_venv": "",
+            "lab_selected_engine": "",
+        }
+    )
+    monkeypatch.setattr(module, "st", fake_st)
+
+    stream_calls: list[dict] = []
+    releases: list[dict] = []
+
+    @contextmanager
+    def no_mlflow_run(*_args, **_kwargs):
+        yield None
+
+    monkeypatch.setattr(module._pipeline_runtime, "mlflow_tracking_uri", lambda _env: "")
+    monkeypatch.setattr(module._pipeline_runtime, "start_mlflow_run", no_mlflow_run)
+    monkeypatch.setattr(module._pipeline_runtime, "build_mlflow_process_env", lambda _env, *, run_id=None: {})
+    monkeypatch.setattr(module._pipeline_runtime, "wrap_code_with_mlflow_resume", lambda code: code)
+    monkeypatch.setattr(
+        module._pipeline_runtime,
+        "python_for_step",
+        lambda runtime, *, engine, code: f"python-for-{Path(runtime).name}",
+    )
+    monkeypatch.setattr(
+        module._pipeline_runtime,
+        "label_for_step_runtime",
+        lambda runtime, *, engine, code: f"{engine}:{Path(runtime).name if runtime else 'default'}",
+    )
+    monkeypatch.setattr(module._pipeline_runtime, "is_valid_runtime_root", lambda value: str(value) == str(runtime_root))
+    monkeypatch.setattr(module._pipeline_steps, "normalize_runtime_path", lambda value: str(value or ""))
+    monkeypatch.setattr(module._pipeline_steps, "is_runnable_step", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module._pipeline_steps, "step_summary", lambda entry, width=80: entry.get("Q", ""))
+    monkeypatch.setattr(module, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: {"path": "lock", "token": "t"})
+    monkeypatch.setattr(module, "_refresh_pipeline_run_lock", lambda _handle: None)
+    monkeypatch.setattr(module, "_release_pipeline_run_lock", lambda handle, *_args, **_kwargs: releases.append(handle))
+
+    def fake_stream_run_command(env, index_page, cmd, cwd, **kwargs):
+        stream_calls.append({"cmd": cmd, "cwd": cwd, "extra_env": kwargs.get("extra_env")})
+        return "completed"
+
+    env = SimpleNamespace(app="demo", active_app=str(runtime_root), copilot_file=tmp_path / "copilot.py")
+    module.run_all_steps(
+        tmp_path / "lab",
+        "page",
+        tmp_path / "steps" / "lab_steps.toml",
+        tmp_path / "module.py",
+        env,
+        load_all_steps_fn=lambda *_args: [{"D": "desc", "Q": "question", "M": "model", "C": "print(1)", "R": "agi.run"}],
+        stream_run_command_fn=fake_stream_run_command,
+    )
+
+    assert stream_calls
+    assert stream_calls[0]["cmd"].startswith("python-for-active_app_runtime ")
+    assert fake_st.session_state["lab_selected_venv"] == ""
+    assert any(
+        "engine=agi.run, env=agi.run:active_app_runtime" in line
+        for line in fake_st.session_state["page__run_logs"]
+    )
     assert releases == [{"path": "lock", "token": "t"}]

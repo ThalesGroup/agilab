@@ -21,7 +21,8 @@ Fast adoption path:
      - The Space opens the lightweight ``flight_project`` path.
    * - 2. Prove locally
      - Run the source-checkout commands below and stay on the built-in demo.
-     - ``PROJECT`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` works locally.
+     - ``PROJECT`` -> ``ORCHESTRATE`` -> ``PIPELINE`` -> ``ANALYSIS`` works
+       locally.
    * - 3. Record evidence
      - Run ``uv --preview-features extra-build-dependencies run agilab first-proof --json``.
      - ``~/log/execute/flight/run_manifest.json`` reports ``status: pass``.
@@ -41,6 +42,34 @@ Prerequisites
   requirement.
 - If you plan to explore remote workers later, keep SSH access for that later
   step; it is not needed for the first proof path.
+
+Upgrade or first 10 minutes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use one lane and stop when the first-proof manifest passes. Do not mix source,
+package, private-app, and cluster variables during the first 10 minutes.
+
+**Source checkout, including upgrades after a new release**::
+
+   git pull --ff-only
+   ./install.sh --install-apps
+   uv --preview-features extra-build-dependencies run agilab first-proof --json
+
+**Published package install or upgrade**::
+
+   uv --preview-features extra-build-dependencies tool upgrade agilab
+   agilab first-proof --json
+
+If you installed AGILAB inside an activated project environment instead of as a
+``uv`` tool, upgrade that environment explicitly::
+
+   uv pip install --upgrade agilab
+   agilab first-proof --json
+
+The adoption checkpoint is always the same: ``run_manifest.json`` reports
+``status: pass`` and the default ``flight_project`` analysis view opens. If it
+does not pass, stay on this lane and use :doc:`newcomer-troubleshooting`
+before changing install route.
 
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -62,9 +91,10 @@ machine-readable proof record.
    If you also want AGILAB to bootstrap local Ollama-backed models, rerun the
    installer with the model families you want::
 
-      ./install.sh --install-apps --install-local-models qwen,deepseek,gpt-oss
+      ./install.sh --install-apps --install-local-models gpt-oss,qwen3-coder,ministral,phi4-mini
 
-   Supported values are ``mistral``, ``qwen``, ``deepseek``, and ``gpt-oss``.
+   Supported values are ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``,
+   ``qwen3-coder``, ``ministral``, and ``phi4-mini``.
 
 2. **Run the first-proof CLI**::
 
@@ -74,6 +104,8 @@ machine-readable proof record.
    boots the About and ORCHESTRATE pages against the built-in ``flight_project``,
    and writes ``~/log/execute/flight/run_manifest.json`` with command,
    environment, timing, artifact references, and validation status.
+   The source-checkout developer evidence command is the same contract through
+   ``tools/newcomer_first_proof.py --json``.
 
 3. **Launch the web interface**::
 
@@ -86,7 +118,9 @@ machine-readable proof record.
 
    - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
    - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``
-   - ``ANALYSIS`` -> open the default built-in view
+   - ``PIPELINE`` -> inspect the packaged recipe context
+   - ``ANALYSIS`` -> open the default built-in view and, when output exists,
+     the optional ``view_maps_network`` route
 
 5. **Check the first proof outcome**
 
@@ -94,7 +128,8 @@ machine-readable proof record.
 
    - ``~/log/execute/flight/run_manifest.json`` has ``status: pass``
    - fresh output exists under ``~/log/execute/flight/``
-   - you can open the default ``ANALYSIS`` view for ``flight_project``
+   - you can open the default ``ANALYSIS`` view for ``flight_project`` and see
+     the bundled network view as an available route
 
 6. **Only after that, branch into alternative paths**
 
@@ -169,6 +204,13 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
     agilab first-proof --json
     uv run agilab
 
+Optional feature stacks stay out of the base package install. Add
+``agilab[ai]`` for AI assistant features such as OpenAI, Mistral, and
+OpenAI-compatible endpoints like vLLM, and ``agilab[viz]`` for optional
+Plotly/matplotlib visualizations::
+
+    uv pip install "agilab[ai,viz]"
+
 **agi-core demo**:
 
 - Use :doc:`notebook-quickstart` when you intentionally want the notebook-first
@@ -184,8 +226,7 @@ For public built-in apps plus installer-managed root, app/page, and core tests::
 
     ./install.sh --non-interactive --install-apps builtin --test-root --test-apps --test-core
 
-For an external apps repository, including private app repositories available on
-your machine::
+For an external apps repository available on your machine::
 
     ./install.sh --non-interactive \
       --apps-repository /path/to/apps-repository \

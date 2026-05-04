@@ -1,0 +1,38 @@
+{
+  "environment": {
+    "compute_passes": 32,
+    "dtype_contract": "float64-contiguous",
+    "kernel": "_typed_numeric_score_kernel",
+    "platform": "darwin",
+    "python": "3.13.13",
+    "repeats": 3,
+    "rows": 100000,
+    "seed": 42,
+    "warmups": 1
+  },
+  "runtimes": {
+    "cython": {
+      "checksum": 157347.169220882,
+      "max_seconds": 0.002072875009616837,
+      "median_seconds": 0.0020229999936418608,
+      "min_seconds": 0.0020152920042164624,
+      "samples_seconds": [
+        0.002072875009616837,
+        0.0020152920042164624,
+        0.0020229999936418608
+      ]
+    },
+    "python": {
+      "checksum": 157347.16922088206,
+      "max_seconds": 0.6205132920003962,
+      "median_seconds": 0.6201315420039464,
+      "min_seconds": 0.6037139170075534,
+      "samples_seconds": [
+        0.6201315420039464,
+        0.6205132920003962,
+        0.6037139170075534
+      ]
+    }
+  },
+  "speedup_vs_python": 306.54055558723377
+}

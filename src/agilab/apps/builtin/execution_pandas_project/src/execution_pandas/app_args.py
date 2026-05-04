@@ -23,6 +23,7 @@ class ExecutionPandasArgs(BaseModel):
     rows_per_file: int = 100_000
     n_groups: int = 32
     compute_passes: int = 32
+    kernel_mode: Literal["dataframe", "typed_numeric"] = "typed_numeric"
     output_format: Literal["csv", "parquet"] = "csv"
     seed: int = 42
     reset_target: bool = False
@@ -37,6 +38,7 @@ class ExecutionPandasArgsTD(TypedDict, total=False):
     rows_per_file: int
     n_groups: int
     compute_passes: int
+    kernel_mode: str
     output_format: str
     seed: int
     reset_target: bool

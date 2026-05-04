@@ -5,9 +5,9 @@
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-cluster)](https://opensource.org/licenses/BSD-3-Clause)
 [![CI](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg)](https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml)
 [![Coverage](https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agi-cluster.svg)](https://codecov.io/gh/ThalesGroup/agilab?flags%5B0%5D=agi-cluster)
-[![docs](https://img.shields.io/badge/docs-agilab-brightgreen.svg)](https://thalesgroup.github.io/agilab)
+[![Runtime docs](https://img.shields.io/badge/docs-agi--cluster-brightgreen.svg)](https://thalesgroup.github.io/agilab/cluster.html)
 
-`agi-cluster` provides distributed execution orchestration for AGILAB workloads across local and SSH-based backends.
+`agi-cluster` provides distributed execution orchestration across local and SSH-based backends.
 
 ## Quick install
 
@@ -19,10 +19,10 @@ pip install agi-cluster
 
 - Cluster-aware scheduling and job submission
 - Worker lifecycle orchestration
-- Integration glue for larger AGILAB deployments
+- Integration glue for larger distributed runtime deployments
 
 ## Repository
 
 - Source: https://github.com/ThalesGroup/agilab/tree/main/src/agilab/core/agi-cluster
-- Docs: https://thalesgroup.github.io/agilab
+- Docs: https://thalesgroup.github.io/agilab/cluster.html
 - Issues: https://github.com/ThalesGroup/agilab/issues

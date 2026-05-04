@@ -84,7 +84,8 @@ def _copy_missing_worker_sources(
 
     copied_packaged_worker = False
     wenv_worker_src = env_obj.wenv_abs / "src" / target_worker / f"{target_worker}.py"
-    if wenv_worker_src.exists():
+    wenv_worker_pyproject = wenv_worker_src.parent / "pyproject.toml"
+    if wenv_worker_src.exists() and wenv_worker_pyproject.exists():
         env_obj.app_src = env_obj.wenv_abs / "src"
         env_obj.worker_path = wenv_worker_src
         env_obj.worker_pyproject = env_obj.worker_path.parent / "pyproject.toml"

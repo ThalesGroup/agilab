@@ -1,0 +1,42 @@
+schema = "agilab.notebook_import_views.v1"
+app = "meteo_forecast_project"
+description = "App-owned notebook import view declarations for weather forecast artifacts."
+
+[[views]]
+id = "forecast_analysis_artifacts"
+module = "view_forecast_analysis"
+label = "Forecast analysis"
+description = "Inspect forecast metrics and observed-vs-predicted series exported by notebook migrations or meteo runs."
+priority = 10
+required_artifacts = [
+  "*forecast_metrics.json",
+  "*forecast_predictions.csv",
+]
+optional_artifacts = [
+  "*forecast_summary.json",
+  "*forecast_predictions.parquet",
+]
+launch_note = "Open this first when the notebook import produced forecast metrics and predictions."
+
+[views.settings_hints]
+artifact_subpath = "meteo_forecast/forecast_analysis"
+default_view = "view_forecast_analysis"
+
+[[views]]
+id = "forecast_release_decision"
+module = "view_release_decision"
+label = "Forecast release decision"
+description = "Gate forecast artifacts with reusable release-decision evidence and optional run manifests."
+priority = 20
+required_artifacts_any = [
+  "*forecast_metrics.json",
+]
+optional_artifacts = [
+  "*forecast_predictions.csv",
+  "*run_manifest.json",
+  "*promotion_decision.json",
+]
+launch_note = "Use this when the imported notebook is being promoted or compared against prior evidence."
+
+[views.query_params]
+metrics_glob = "**/forecast_metrics.json"

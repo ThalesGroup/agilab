@@ -216,6 +216,36 @@ def test_benchmark_mode_helpers_expose_only_enabled_capabilities():
     assert orchestrate_page_support.benchmark_mode_label(13) == "13: rapids and dask and pool"
 
 
+def test_benchmark_rows_with_delta_percent_adds_relative_gap():
+    rows = orchestrate_page_support.benchmark_rows_with_delta_percent(
+        {
+            "0": {"mode": "python", "seconds": 10.0},
+            "1": {"mode": "pool", "seconds": 12.5},
+            "2": {"mode": "cython", "seconds": "5"},
+        }
+    )
+
+    assert rows["2"]["delta (%)"] == 0.0
+    assert rows["0"]["delta (%)"] == 100.0
+    assert rows["1"]["delta (%)"] == 150.0
+
+
+def test_benchmark_rows_with_delta_percent_handles_zero_and_invalid_seconds():
+    rows = orchestrate_page_support.benchmark_rows_with_delta_percent(
+        {
+            "0": {"mode": "best", "seconds": 0.0},
+            "1": {"mode": "slower", "seconds": 2.0},
+            "2": {"mode": "unknown", "seconds": "n/a"},
+            "meta": "kept",
+        }
+    )
+
+    assert rows["0"]["delta (%)"] == 0.0
+    assert rows["1"]["delta (%)"] is None
+    assert "delta (%)" not in rows["2"]
+    assert rows["meta"] == "kept"
+
+
 def test_benchmark_workers_data_path_requires_shared_path_for_remote_dask(tmp_path):
     local_share = tmp_path / "localshare"
     local_share.mkdir()
@@ -275,6 +305,33 @@ def test_run_mode_helpers_cover_label_generation():
     assert (
         orchestrate_page_support.describe_run_mode([0, 7, 15], True)
         == "Run mode benchmark (selected modes: 0, 7, 15)"
+    )
+
+
+def test_configured_cluster_share_matches_resolved_paths(tmp_path):
+    home = tmp_path / "home"
+    cluster_share = home / "clustershare" / "agi"
+    cluster_share.mkdir(parents=True)
+
+    assert orchestrate_page_support.configured_cluster_share_matches(
+        cluster_share,
+        cluster_share_path="clustershare/agi",
+        home_abs=home,
+    )
+    assert orchestrate_page_support.configured_cluster_share_matches(
+        "clustershare/agi",
+        cluster_share_path=cluster_share,
+        home_abs=home,
+    )
+    assert not orchestrate_page_support.configured_cluster_share_matches(
+        home / "localshare" / "agi",
+        cluster_share_path="clustershare/agi",
+        home_abs=home,
+    )
+    assert not orchestrate_page_support.configured_cluster_share_matches(
+        cluster_share,
+        cluster_share_path="",
+        home_abs=home,
     )
 
 
