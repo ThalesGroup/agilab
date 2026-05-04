@@ -749,7 +749,8 @@ async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp
     )
 
     panels = fake_st.session_state["agilab:pinned_expanders"]
-    buttons = editor_calls[-1]["buttons"]["buttons"]
+    buttons = editor_calls[-1]["buttons"]
+    assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
     assert panels["orchestrate_run_logs"]["title"] == "Run logs: flight_project"
     assert panels["orchestrate_run_logs"]["body"] == "existing log"

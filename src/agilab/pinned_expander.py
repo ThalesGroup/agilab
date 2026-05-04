@@ -59,15 +59,23 @@ def _copy_toolbar_button() -> dict[str, Any]:
 
 
 def code_editor_pin_buttons(
-    base_buttons: Mapping[str, Any] | None = None,
+    base_buttons: Mapping[str, Any] | list[Any] | None = None,
     *,
     pinned: bool,
     pin_response: str = CODE_EDITOR_PIN_RESPONSE,
     unpin_response: str = CODE_EDITOR_UNPIN_RESPONSE,
-) -> dict[str, Any]:
-    """Return code-editor toolbar buttons with Copy plus Pin/Unpin."""
-    buttons = deepcopy(dict(base_buttons or {"buttons": [_copy_toolbar_button()]}))
-    toolbar_buttons = buttons.setdefault("buttons", [])
+) -> list[Any]:
+    """Return the list-shaped code-editor toolbar config with Copy plus Pin/Unpin."""
+    if base_buttons is None:
+        toolbar_buttons = [_copy_toolbar_button()]
+    else:
+        base_payload = deepcopy(base_buttons)
+        if isinstance(base_payload, list):
+            toolbar_buttons = base_payload
+        elif isinstance(base_payload, Mapping) and isinstance(base_payload.get("buttons"), list):
+            toolbar_buttons = base_payload["buttons"]
+        else:
+            raise TypeError("code editor buttons must be a list or an object with a 'buttons' list")
     response_type = unpin_response if pinned else pin_response
     pin_button = {
         "name": "Unpin" if pinned else "Pin",
@@ -91,7 +99,7 @@ def code_editor_pin_buttons(
     }
     insert_at = 1 if toolbar_buttons else 0
     toolbar_buttons.insert(insert_at, pin_button)
-    return buttons
+    return toolbar_buttons
 
 
 def _code_editor_height(text: str, explicit_height: int | None) -> int:

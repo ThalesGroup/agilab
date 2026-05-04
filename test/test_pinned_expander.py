@@ -184,7 +184,8 @@ def test_render_pinnable_code_editor_uses_toolbar_pin() -> None:
         source="PIPELINE",
     )
 
-    buttons = editor_calls[-1]["buttons"]["buttons"]
+    buttons = editor_calls[-1]["buttons"]
+    assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
     panel = fake_st.session_state[pinned_expander.PINNED_EXPANDERS_KEY]["logs"]
     assert panel["title"] == "Logs"
@@ -231,10 +232,12 @@ def test_code_editor_pin_buttons_preserves_base_and_uses_response_types() -> Non
     )
 
     assert base == {"buttons": [{"name": "CopyCustom"}], "meta": {"x": 1}}
-    assert [button["name"] for button in unpin_buttons["buttons"]] == ["CopyCustom", "Unpin"]
-    assert unpin_buttons["buttons"][1]["commands"][1][1] == "custom_unpin"
-    assert [button["name"] for button in pin_buttons["buttons"]] == ["Pin"]
-    assert pin_buttons["buttons"][0]["commands"][1][1] == "custom_pin"
+    assert isinstance(unpin_buttons, list)
+    assert [button["name"] for button in unpin_buttons] == ["CopyCustom", "Unpin"]
+    assert unpin_buttons[1]["commands"][1][1] == "custom_unpin"
+    assert isinstance(pin_buttons, list)
+    assert [button["name"] for button in pin_buttons] == ["Pin"]
+    assert pin_buttons[0]["commands"][1][1] == "custom_pin"
 
 
 def test_upsert_truncates_body_and_combines_caption() -> None:
@@ -369,7 +372,8 @@ def test_render_pinnable_code_editor_unpins_existing_panel_from_toolbar() -> Non
         language="text",
     )
 
-    buttons = editor_calls[-1]["buttons"]["buttons"]
+    buttons = editor_calls[-1]["buttons"]
+    assert isinstance(buttons, list)
     assert response["type"] == pinned_expander.CODE_EDITOR_UNPIN_RESPONSE
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Unpin"]
     assert not pinned_expander.is_pinned_expander(fake_st.session_state, "logs")
