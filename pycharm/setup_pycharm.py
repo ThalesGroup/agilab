@@ -238,21 +238,89 @@ def _candidate_stale_roots(cfg: Config) -> List[Path]:
         Path.home() / cfg.PROJECT_NAME,
     ]
 
-    return [p.resolve() for p in candidates if p.exists() and p.resolve() != cfg.ROOT]
+    out: List[Path] = []
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve(strict=False)
+        except OSError:
+            resolved = candidate
+
+        if resolved == cfg.ROOT:
+            continue
+
+        if resolved.exists():
+            out.append(resolved)
+
+    return sorted(set(out))
 
 
-def _path_variants(path: Path) -> List[str]:
+def _path_variants_without_project_macro(path: Path) -> List[str]:
+    """
+    Return absolute and $USER_HOME$ variants only.
+
+    Important:
+    never return $PROJECT_DIR$ here, otherwise the cleanup may replace
+    existing valid PyCharm macros.
+    """
     raw = str(path)
-    home_macro = raw.replace(str(Path.home()), "$USER_HOME$")
-    project_macro = raw.replace(str(path), "$PROJECT_DIR$")
-    return sorted(set([raw, home_macro, project_macro]))
+    home = str(Path.home())
+
+    variants = [raw]
+
+    if raw.startswith(home):
+        variants.append(raw.replace(home, "$USER_HOME$", 1))
+
+    return sorted(set(v for v in variants if v and "$PROJECT_DIR$" not in v))
+
+
+def _project_macro_for_suffix(suffix: str) -> str:
+    suffix = suffix.strip("/")
+
+    if not suffix:
+        return "$PROJECT_DIR$"
+
+    return f"$PROJECT_DIR$/{suffix}"
+
+
+def _stale_replacement_pairs(cfg: Config) -> List[tuple[str, str]]:
+    """
+    Build replacements from stale checkout paths to the current project macro.
+
+    Example:
+      /Users/agi/PycharmProjects/agilab      -> $PROJECT_DIR$
+      /Users/agi/PycharmProjects/agilab/src  -> $PROJECT_DIR$/src
+
+    Existing $PROJECT_DIR$ values are never used as search keys.
+    """
+    pairs: List[tuple[str, str]] = []
+
+    for stale_root in _candidate_stale_roots(cfg):
+        mappings = [
+            (stale_root, ""),
+            (stale_root / "src", "src"),
+            (stale_root / "src" / cfg.PROJECT_NAME, f"src/{cfg.PROJECT_NAME}"),
+        ]
+
+        for stale_path, suffix in mappings:
+            target = _project_macro_for_suffix(suffix)
+
+            for old in _path_variants_without_project_macro(stale_path):
+                if old == "$PROJECT_DIR$" or old.startswith("$PROJECT_DIR$/"):
+                    continue
+                pairs.append((old, target))
+
+    # Longest first avoids replacing /old/root before /old/root/src.
+    return sorted(set(pairs), key=lambda pair: len(pair[0]), reverse=True)
 
 
 def _split_path_value(value: str) -> List[str]:
     if not value:
         return []
+
+    # PYTHONPATH is normally ":" on macOS/Linux and ";" on Windows.
+    # This is only used for path-like env values, not file:// URLs.
     parts = re.split(r"[:;]", value)
-    return [p for p in parts if p]
+    return [part for part in parts if part]
 
 
 def _join_path_value(parts: List[str], original: str) -> str:
@@ -261,55 +329,107 @@ def _join_path_value(parts: List[str], original: str) -> str:
 
 
 def _clean_path_like_value(value: str, stale_values: List[str]) -> str:
-    parts = _split_path_value(value)
-    if not parts:
-        cleaned = value
-        for stale in stale_values:
-            cleaned = cleaned.replace(stale, "")
-        return cleaned
+    """
+    Remove stale checkout entries from PYTHONPATH-like values.
 
-    cleaned_parts = []
+    This does not replace $PROJECT_DIR$.
+    It only removes old absolute or $USER_HOME$ stale checkout entries.
+    """
+    parts = _split_path_value(value)
+
+    if not parts:
+        return value
+
+    cleaned_parts: List[str] = []
+    seen: set[str] = set()
+
     for part in parts:
         stripped = part.strip()
-        should_drop = False
+
+        is_stale = False
         for stale in stale_values:
             if not stale:
                 continue
-            if stripped == stale or stripped.startswith(stale + os.sep) or stripped.startswith(stale + "/"):
-                should_drop = True
+
+            if stripped == stale:
+                is_stale = True
                 break
-        if not should_drop:
-            cleaned_parts.append(part)
+
+            if stripped.startswith(stale + "/") or stripped.startswith(stale + os.sep):
+                is_stale = True
+                break
+
+        if is_stale:
+            continue
+
+        if stripped in seen:
+            continue
+
+        seen.add(stripped)
+        cleaned_parts.append(part)
 
     return _join_path_value(cleaned_parts, value)
+
+
+def _clean_pythonpath_like_xml_values(text: str, stale_values: List[str]) -> str:
+    """
+    Clean common PyCharm env/option XML shapes.
+
+    Examples:
+      <env name="PYTHONPATH" value="..." />
+      <option name="PYTHONPATH" value="..." />
+      <option name="PYTHON_PATH" value="..." />
+    """
+    path_names = (
+        "PYTHONPATH",
+        "PYTHON_PATH",
+        "PYTHONPATH_VALUE",
+    )
+
+    for path_name in path_names:
+        # name="PYTHONPATH" value="..."
+        pattern_1 = rf'(name="{re.escape(path_name)}"\s+value=")([^"]*)(")'
+        text = re.sub(
+            pattern_1,
+            lambda m: (
+                m.group(1)
+                + _clean_path_like_value(m.group(2), stale_values)
+                + m.group(3)
+            ),
+            text,
+        )
+
+        # value="..." name="PYTHONPATH"
+        pattern_2 = rf'(value=")([^"]*)("\s+name="{re.escape(path_name)}")'
+        text = re.sub(
+            pattern_2,
+            lambda m: (
+                m.group(1)
+                + _clean_path_like_value(m.group(2), stale_values)
+                + m.group(3)
+            ),
+            text,
+        )
+
+    return text
 
 
 def remove_stale_agilab_paths(cfg: Config) -> None:
     """
     Remove stale AGILAB checkout references from PyCharm XML files.
 
-    This fixes errors like:
-      Mixed AGILAB checkout detected...
-      expected /Users/agi/agilab/src/agilab
-      but resolved /Users/agi/PycharmProjects/agilab/src/agilab
+    Important:
+    - never replaces existing $PROJECT_DIR$
+    - converts stale absolute checkout paths to $PROJECT_DIR$ macros
+    - removes stale paths from PYTHONPATH-like values
     """
-    stale_roots = _candidate_stale_roots(cfg)
-    if not stale_roots:
+    replacement_pairs = _stale_replacement_pairs(cfg)
+
+    if not replacement_pairs:
         logging.info("No stale AGILAB checkout roots detected.")
         return
 
-    stale_values: List[str] = []
-
-    for root in stale_roots:
-        variants = [
-            root,
-            root / "src",
-            root / "src" / cfg.PROJECT_NAME,
-        ]
-        for v in variants:
-            stale_values.extend(_path_variants(v))
-
-    stale_values = sorted(set(stale_values), key=len, reverse=True)
+    stale_values = [old for old, _target in replacement_pairs]
 
     xml_files: List[Path] = []
     xml_files.extend(cfg.RUN_CONFIGS_DIR.glob("*.xml"))
@@ -337,23 +457,21 @@ def remove_stale_agilab_paths(cfg: Config) -> None:
 
         original = text
 
-        for stale in stale_values:
-            text = text.replace(stale, str(cfg.ROOT))
+        # Replace only stale absolute/$USER_HOME paths.
+        # Never search for $PROJECT_DIR$.
+        for old, target in replacement_pairs:
+            if old == "$PROJECT_DIR$" or old.startswith("$PROJECT_DIR$/"):
+                continue
+            text = text.replace(old, target)
 
-        # Clean duplicated or stale PYTHONPATH-like XML option values.
-        for attr_name in ("PYTHONPATH", "PYTHON_PATH", "PYTHONPATH_VALUE"):
-            pattern = rf'({attr_name}=")([^"]*)(")'
-            text = re.sub(
-                pattern,
-                lambda m: m.group(1) + _clean_path_like_value(m.group(2), stale_values) + m.group(3),
-                text,
-            )
+        # Remove stale paths from PYTHONPATH-like env values.
+        text = _clean_pythonpath_like_xml_values(text, stale_values)
 
         if text != original:
             try:
                 xml_file.write_text(text, encoding="utf-8")
                 changed_files += 1
-                logging.info("Removed stale AGILAB paths from %s", xml_file)
+                logging.info("Cleaned stale AGILAB paths from %s", xml_file)
             except OSError as exc:
                 logging.warning("Unable to write %s: %s", xml_file, exc)
 
