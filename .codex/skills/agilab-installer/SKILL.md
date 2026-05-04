@@ -32,7 +32,7 @@ Use this skill when working on:
 - Full install with app tests (macOS/Linux):
   - `./install.sh --non-interactive --cluster-ssh-credentials user:pass --apps-repository /path/to/apps-repo --install-apps --test-apps`
 - Full clean source validation from a new public clone:
-  - `root="$HOME/agilab_source_validate_clean_$(date +%Y%m%d_%H%M%S)"; mkdir -p "$root/home"; HOME="$root/home" git clone https://github.com/ThalesGroup/agilab.git "$root/home/agilab"`
+  - `cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/agilab/source_validate"; root="$cache_root/agilab_source_validate_clean_$(date +%Y%m%d_%H%M%S)"; mkdir -p "$root/home"; HOME="$root/home" git clone https://github.com/ThalesGroup/agilab.git "$root/home/agilab"`
   - `cd "$root/home/agilab" && git lfs install --local && git lfs pull`
   - `HOME="$root/home" AGI_LOCAL_DIR="$PWD/localshare" ./install.sh --non-interactive --agi-share-dir "$PWD/clustershare" --install-apps builtin --test-root --test-core --test-apps --skip-offline`
 - Add core suites only when needed:
