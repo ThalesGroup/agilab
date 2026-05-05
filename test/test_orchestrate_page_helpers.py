@@ -1086,18 +1086,68 @@ async def test_install_worker_action_reports_success(tmp_path: Path):
     assert result.data["install_log"] == (
         "=== Install request ===",
         "installing worker",
+        "done",
         "✅ Install complete.",
     )
 
 
 @pytest.mark.asyncio
-async def test_install_worker_action_reports_stderr_failure(tmp_path: Path):
+async def test_install_worker_action_reports_success_with_empty_output(tmp_path: Path):
     module = _load_orchestrate_module()
     local_log: list[str] = []
 
     async def _run_agi(_cmd, log_callback=None, venv=None):
-        log_callback("installing worker")
-        return "", "worker failed"
+        return "", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Cluster installation completed."
+    assert result.detail is None
+    assert result.data["install_log"] == ("✅ Install complete.",)
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_allows_benign_returned_stderr(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        return "", "warning: package manager wrote a non-fatal warning to stderr"
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Cluster installation completed."
+    assert result.detail is None
+    assert result.data["stderr"] == "warning: package manager wrote a non-fatal warning to stderr"
+    assert result.data["install_log"] == (
+        "warning: package manager wrote a non-fatal warning to stderr",
+        "✅ Install complete.",
+    )
+
+
+@pytest.mark.asyncio
+async def test_install_worker_action_reports_fatal_returned_stderr(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        return "", "RuntimeError: Command failed with exit code 1"
 
     env = SimpleNamespace(run_agi=_run_agi)
 
@@ -1110,9 +1160,9 @@ async def test_install_worker_action_reports_stderr_failure(tmp_path: Path):
 
     assert result.status == "error"
     assert result.title == "Cluster installation failed."
-    assert result.detail == "worker failed"
+    assert result.detail == "RuntimeError: Command failed with exit code 1"
     assert result.data["install_log"] == (
-        "installing worker",
+        "RuntimeError: Command failed with exit code 1",
         "❌ Install finished with errors. Check logs above.",
     )
 
@@ -1143,6 +1193,7 @@ async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: P
     assert result.data["install_log"] == (
         "Remote command stderr: error: Permission denied (os error 13)",
         "Failed to update uv on 192.168.20.15 (skipping self update)",
+        "done",
         "✅ Install complete.",
     )
 
