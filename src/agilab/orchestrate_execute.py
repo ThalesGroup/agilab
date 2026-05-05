@@ -269,6 +269,7 @@ async def render_execute_section(
     async def _execute_with_logging(current_expander):
         clear_log()
         st.session_state["run_log_cache"] = ""
+        st.session_state["_last_execute_failed"] = False
         target_expander = current_expander or _ensure_run_log_expander(expanded=True)
         with target_expander:
             log_placeholder = st.empty()
@@ -302,13 +303,28 @@ async def render_execute_section(
                 )
                 return stderr_text
 
+        run_error: Exception | None = None
+        stderr = ""
         with st.spinner("Running AGI..."):
-            stderr = await _run_and_stream()
+            try:
+                stderr = await _run_and_stream()
+            except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
+                run_error = exc
+                stderr = str(exc)
+                st.session_state["_last_execute_failed"] = True
             st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
         with target_expander:
             log_placeholder.empty()
             log_body = st.session_state["run_log_cache"]
-            if str(stderr or "").strip():
+            if run_error is not None:
+                st.error("AGI execution failed.")
+                if log_body:
+                    st.caption("Full run diagnostic")
+                    st.code(log_body, language="text")
+                if str(stderr or "").strip() and str(stderr).strip() not in log_body:
+                    st.caption("Execution error")
+                    st.code(str(stderr), language="text")
+            elif str(stderr or "").strip():
                 display_log(log_body, stderr)
             else:
                 _render_run_log_viewer(log_body, key="orchestrate_run_logs_editor")
@@ -330,15 +346,26 @@ async def render_execute_section(
                 st.session_state["run_log_cache"] = ""
                 st.session_state["log_text"] = ""
                 st.rerun()
-        record_action_history(
-            st.session_state,
-            page_label="ORCHESTRATE",
-            env=env,
-            title="Run finished",
-            status="done",
-            detail=f"Logs saved to {log_file_path}",
-            artifact=log_file_path,
-        )
+        if run_error is not None:
+            record_action_history(
+                st.session_state,
+                page_label="ORCHESTRATE",
+                env=env,
+                title="Run failed",
+                status="error",
+                detail=f"Logs saved to {log_file_path}",
+                artifact=log_file_path,
+            )
+        else:
+            record_action_history(
+                st.session_state,
+                page_label="ORCHESTRATE",
+                env=env,
+                title="Run finished",
+                status="done",
+                detail=f"Logs saved to {log_file_path}",
+                artifact=log_file_path,
+            )
         st.session_state["dataframe_deleted"] = False
         return target_expander
 
@@ -662,7 +689,7 @@ async def render_execute_section(
         run_action = execute_state.run_action
         if run_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
-            if st.session_state.get("benchmark"):
+            if st.session_state.get("benchmark") and not st.session_state.get("_last_execute_failed"):
                 st.session_state["_benchmark_expand"] = True
                 st.rerun()
         else:
@@ -672,9 +699,10 @@ async def render_execute_section(
         combo_action = execute_state.combo_action
         if combo_action.enabled:
             run_log_expander = await _execute_with_logging(run_log_expander)
-            st.session_state["_combo_load_trigger"] = True
-            st.session_state["_combo_export_trigger"] = True
-            st.rerun()
+            if not st.session_state.get("_last_execute_failed"):
+                st.session_state["_combo_load_trigger"] = True
+                st.session_state["_combo_export_trigger"] = True
+                st.rerun()
         else:
             st.error(combo_action.disabled_reason)
 

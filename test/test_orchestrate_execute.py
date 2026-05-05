@@ -704,6 +704,57 @@ async def test_render_execute_section_run_executes_and_records_logs(monkeypatch,
 
 
 @pytest.mark.asyncio
+async def test_render_execute_section_run_failure_keeps_logs_visible(monkeypatch, tmp_path):
+    manager_venv = tmp_path / "project" / ".venv"
+    worker_venv = tmp_path / "wenv" / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "benchmark": True,
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"run_btn": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        if log_callback:
+            log_callback("ConnectionError: scheduler host is invalid")
+        raise RuntimeError("Command failed (exit 1)")
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="flight_project",
+        wenv_abs=tmp_path / "wenv",
+        snippet_tail="pass",
+        run_agi=_run_agi,
+    )
+    deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=deps,
+    )
+
+    assert fake_st.session_state["_last_execute_failed"] is True
+    assert "ConnectionError: scheduler host is invalid" in fake_st.session_state["run_log_cache"]
+    assert any(kind == "error" and msg == "AGI execution failed." for kind, msg in fake_st.messages)
+    assert any(kind == "code" and "ConnectionError: scheduler host is invalid" in msg for kind, msg in fake_st.messages)
+    assert fake_st.session_state.get("_benchmark_expand") is not True
+
+
+@pytest.mark.asyncio
 async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp_path):
     manager_venv = tmp_path / "project" / ".venv"
     worker_venv = tmp_path / "wenv" / ".venv"
