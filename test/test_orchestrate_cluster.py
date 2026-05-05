@@ -378,10 +378,11 @@ def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp
         return str(ipaddress.IPv4Address(test_net_base + offset))
 
     scheduler = host(111)
-    unconfigured_auth_host = host(1)
+    unconfigured_auth_host = host(2)
     known_hosts_auth_host = host(15)
     ssh_config_host = host(130)
     stale_known_hosts_host = host(84)
+    passive_gateway_host = host(1)
     arp_only_host = host(254)
     cache_path.write_text(
         json.dumps(
@@ -411,6 +412,13 @@ def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp
                         "tcp_ssh_open": False,
                     },
                     {
+                        "host": passive_gateway_host,
+                        "status": "ssh-auth-needed",
+                        "sources": ["arp", "cache", "tcp-scan"],
+                        "tcp_ssh_open": True,
+                        "errors": ["Host key verification failed."],
+                    },
+                    {
                         "host": arp_only_host,
                         "status": "no-ssh-port",
                         "sources": ["arp"],
@@ -426,6 +434,40 @@ def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp
     assert defaults == {
         "scheduler": f"{scheduler}:8786",
         "workers": {scheduler: 1, known_hosts_auth_host: 1},
+    }
+
+
+def test_lan_discovery_cluster_defaults_keeps_authenticated_known_hosts_worker(tmp_path):
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "local_hosts": ["192.168.20.111"],
+                "nodes": [
+                    {
+                        "host": "192.168.20.15",
+                        "status": "uv-missing",
+                        "sources": ["arp", "cache", "known-hosts", "tcp-scan"],
+                        "tcp_ssh_open": True,
+                        "ssh_auth": True,
+                    },
+                    {
+                        "host": "192.168.20.1",
+                        "status": "ssh-auth-needed",
+                        "sources": ["arp", "cache", "tcp-scan"],
+                        "tcp_ssh_open": True,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    defaults = orchestrate_cluster._lan_discovery_cluster_defaults(cache_path)
+
+    assert defaults == {
+        "scheduler": "192.168.20.111:8786",
+        "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
     }
 
 
