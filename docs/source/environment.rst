@@ -84,7 +84,14 @@ summarises the supported keys.
      - Request timeout in seconds for the OpenAI-compatible assistant provider.
    * - ``AGI_SHARE_DIR``
      - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
-     - User-facing knob for the shared datasets/outputs root. When cluster mode is enabled, this value is applied to ``AGI_CLUSTER_SHARE`` and must resolve to a mounted, writable shared path on every node. The implicit default is user-scoped so datasets and cluster-visible outputs stay isolated per workspace. Operators can still override it with an explicit mounted path.
+     - User-facing knob for the shared datasets/outputs root. Prefer the relative
+       user-scoped form so mixed macOS/Linux/Windows nodes can resolve it under
+       their own home directory. When cluster mode is enabled, this value is
+       applied to ``AGI_CLUSTER_SHARE``; ORCHESTRATE and remote deployment
+       re-root home-based absolute paths such as ``/Users/<user>/...`` or
+       ``C:\Users\<user>\...`` to the portable suffix before writing worker
+       settings. Operators can still override it with an explicit mounted path
+       such as ``/mnt/agilab`` when the same mount point exists on every node.
    * - ``AGILAB_SHARE_USER``
      - ``USER`` / ``USERNAME`` / ``user``
      - Optional override for the ``<user>`` segment used by the implicit ``clustershare/<user>`` default. The value is sanitised before it is used in a filesystem path.

@@ -122,6 +122,16 @@ worker, writes the remote ``~/.agilab/.env`` ``AGI_CLUSTER_SHARE`` value, mounts
 the scheduler path on the worker when not already mounted, and runs the sentinel
 share check.
 
+The generated SSHFS mount is intentionally non-interactive and conservative:
+it uses ``reconnect``, ``ServerAliveInterval=15``,
+``ServerAliveCountMax=3``, ``BatchMode=yes``,
+``StrictHostKeyChecking=yes``, and ``noexec``. This means workers must already
+trust the scheduler host key in ``known_hosts``; AGILAB will not silently accept
+a new host key during deployment. If an existing mount points to another
+scheduler source, or if a stale/unwritable SSHFS mount is found, AGILAB tries to
+unmount it with ``fusermount3``, ``fusermount``, or ``umount`` before
+remounting.
+
 The same contract is used by ORCHESTRATE ``INSTALL``. Keep ``AGI_CLUSTER_SHARE``
 as the scheduler-side shared root, keep **Workers Data Path** pointing to the
 worker-visible mount target, and let the remote deployment mount the scheduler
@@ -151,8 +161,48 @@ If you mounted the share manually, validate only the shared filesystem contract:
      --remote-cluster-share /path/to/worker/clustershare/agilab-two-node \
      --share-check-only
 
-macOS SSHFS notes
-^^^^^^^^^^^^^^^^^
+SSHFS prerequisites by operating system
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+AGILAB's automatic SSHFS setup runs on each remote worker over SSH. The worker
+must therefore provide a POSIX shell, ``sshfs``, a FUSE implementation, reverse
+SSH back to the scheduler, and a trusted scheduler host key.
+
+Linux worker
+""""""""""""
+
+On Debian or Ubuntu workers:
+
+.. code-block:: bash
+
+   sudo apt-get update
+   sudo apt-get install -y sshfs
+   command -v sshfs
+
+Then verify reverse SSH from the worker to the scheduler account:
+
+.. code-block:: bash
+
+   scheduler_user="<scheduler-user>"
+   scheduler_host="<scheduler-host>"
+   ssh -o BatchMode=yes "$scheduler_user@$scheduler_host" hostname
+
+If host-key trust is missing, verify the scheduler fingerprint out of band, then
+seed the worker ``known_hosts`` file:
+
+.. code-block:: bash
+
+   scheduler_host="<scheduler-host>"
+   mkdir -p ~/.ssh
+   chmod 700 ~/.ssh
+   ssh-keyscan -H -t ed25519,rsa,ecdsa "$scheduler_host" >> ~/.ssh/known_hosts
+
+For Fedora/RHEL-family workers, install the distribution SSHFS/FUSE package
+(``sshfs`` or ``fuse-sshfs`` depending on the release), then rerun the same
+``command -v sshfs`` and reverse-SSH checks.
+
+macOS worker
+""""""""""""
 
 On macOS workers, make the SSHFS prerequisite explicit before running
 ``--setup-share``:
@@ -164,12 +214,97 @@ On macOS workers, make the SSHFS prerequisite explicit before running
 - ensure the worker can SSH back to the scheduler user referenced by
   ``--scheduler``, because the worker-side mount command reads
   ``<scheduler-user>@<scheduler>:/...``
+- ensure the worker trusts the scheduler host key before running
+  ``--setup-share`` or ORCHESTRATE ``INSTALL``. For a new scheduler host, verify
+  the fingerprint out of band, then seed ``known_hosts`` on the worker with
+  ``ssh-keyscan -H <scheduler-host> >> ~/.ssh/known_hosts``.
 
 On older macOS hosts, Homebrew may exist at ``/usr/local/Homebrew/bin/brew``
 without being on the SSH ``PATH``. If ``command -v brew`` is empty, check that
 location before assuming no package manager exists. If ``sshfs`` lands under
 ``/usr/local/bin``, add that directory to the remote user's non-interactive shell
 startup, then re-check with ``ssh <worker> 'command -v sshfs'``.
+
+Typical FUSE-T SSHFS setup:
+
+.. code-block:: bash
+
+   HOMEBREW_NO_AUTO_UPDATE=1 brew install macos-fuse-t/homebrew-cask/fuse-t-sshfs
+   command -v sshfs
+
+If non-interactive SSH cannot see Homebrew binaries, add the Homebrew binary
+directory to the remote user's shell startup:
+
+.. code-block:: bash
+
+   case ":$PATH:" in
+     *:/opt/homebrew/bin:*) ;;
+     *) export PATH="/opt/homebrew/bin:$PATH" ;;
+   esac
+   case ":$PATH:" in
+     *:/usr/local/bin:*) ;;
+     *) export PATH="/usr/local/bin:$PATH" ;;
+   esac
+
+Then verify reverse SSH and host-key trust exactly as for Linux workers.
+
+Windows manager or scheduler
+""""""""""""""""""""""""""""
+
+Windows can be used as an AGILAB UI/manager or scheduler for a cluster whose
+remote workers are Linux/macOS. Install and enable the OpenSSH client, then use
+the same AGILAB doctor commands from PowerShell:
+
+.. code-block:: powershell
+
+   Get-WindowsCapability -Online -Name OpenSSH.Client*
+   Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0
+   ssh -V
+
+Keep the cluster-share setting portable when workers are not Windows:
+
+.. code-block:: powershell
+
+   $env:AGI_SHARE_DIR = "clustershare/agilab-two-node"
+   $env:AGI_CLUSTER_SHARE = "clustershare/agilab-two-node"
+
+Seed SSH host trust from PowerShell when the Windows scheduler must SSH to a
+worker:
+
+.. code-block:: powershell
+
+   $workerHost = "<worker-host>"
+   New-Item -ItemType Directory -Force "$HOME\.ssh" | Out-Null
+   ssh-keyscan -H -t ed25519,rsa,ecdsa $workerHost | Out-File -Append -Encoding ascii "$HOME\.ssh\known_hosts"
+
+Windows as a remote cluster worker is a separate support target and is not
+covered by the automatic SSHFS setup today. The generated remote setup commands
+expect POSIX tools such as ``mount``, ``sshfs``, ``fusermount3``/``fusermount``,
+or ``umount``. If you need a Windows worker, treat it as a manual validation
+target first, for example with WinFsp/SSHFS-Win, and do not rely on
+``--setup-share sshfs --apply`` until AGILAB has explicit Windows-worker
+support.
+
+Cleanup or scheduler switch
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+If a worker is moved to another scheduler, or an SSHFS session is left stale
+after a crash, unmount the old target on the worker before rerunning setup:
+
+.. code-block:: bash
+
+   ssh <worker-user>@<worker-host> '
+     REMOTE_SHARE="$HOME/clustershare/agilab-two-node"
+     fusermount3 -u "$REMOTE_SHARE" 2>/dev/null ||
+       fusermount -u "$REMOTE_SHARE" 2>/dev/null ||
+       umount "$REMOTE_SHARE" 2>/dev/null ||
+       true
+   '
+
+Then rerun ``agilab doctor --cluster --setup-share sshfs --apply`` or
+ORCHESTRATE ``INSTALL``. The automatic installer already attempts this cleanup
+for stale, unexpected-source, or unwritable mounts, but doing it manually makes
+scheduler switches explicit and easier to audit.
 
 Run the cluster proof
 ^^^^^^^^^^^^^^^^^^^^^

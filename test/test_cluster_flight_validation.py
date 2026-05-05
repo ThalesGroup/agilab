@@ -447,6 +447,12 @@ def test_share_setup_script_lines_print_sshfs_commands(tmp_path: Path):
     assert "sshfs" in script
     assert "agi@192.168.3.103:/Users/agi/clustershare/agilab-two-node" in script
     assert "jpm@192.168.3.35" in script
+    assert "-o reconnect" in script
+    assert "-o ServerAliveInterval=15" in script
+    assert "-o StrictHostKeyChecking=yes" in script
+    assert "MOUNT_LINE=$(mount | grep -F" in script
+    assert "stale, unexpected, or unwritable SSHFS mount" in script
+    assert "sudo apt-get install -y sshfs" in script
     assert "--share-check-only" in script
     assert "--remote-cluster-share /Users/jpm/clustershare/agilab-two-node" in script
 
@@ -495,7 +501,12 @@ def test_apply_share_setup_runs_idempotent_remote_commands(tmp_path: Path, monke
     assert "command -v sshfs" in commands[0][-1]
     assert "AGI_CLUSTER_SHARE" in commands[1][-1]
     assert "mkdir -p \"$REMOTE_CLUSTER_SHARE\"" in commands[2][-1]
-    assert "sshfs agi@192.168.3.103:" in commands[3][-1]
+    assert "SCHEDULER_CLUSTER_SHARE=agi@192.168.3.103:" in commands[3][-1]
+    assert "sshfs \"$SCHEDULER_CLUSTER_SHARE\"" in commands[3][-1]
+    assert "-o reconnect" in commands[3][-1]
+    assert "-o ServerAliveInterval=15" in commands[3][-1]
+    assert "-o StrictHostKeyChecking=yes" in commands[3][-1]
+    assert "fusermount3 -u" in commands[3][-1]
 
 
 def test_validation_success_requires_local_visibility_for_remote_runs():

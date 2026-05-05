@@ -216,6 +216,20 @@ Run this from the second Mac:
 
 - ``Permission denied`` / read-only: ensure the exported directory is writable by the mapped
   identity (``nobody`` or another service user).
+- Stale SSHFS mount after a worker crash or scheduler switch: unmount the worker
+  target, then rerun ``agilab doctor --cluster --setup-share sshfs --apply``.
+  AGILAB attempts cleanup automatically when it detects a stale, unexpected, or
+  unwritable SSHFS mount, but manual cleanup is useful when changing scheduler
+  hosts:
+
+  .. code-block:: bash
+
+     REMOTE_SHARE="$HOME/clustershare/agilab-two-node"
+     fusermount3 -u "$REMOTE_SHARE" 2>/dev/null ||
+       fusermount -u "$REMOTE_SHARE" 2>/dev/null ||
+       umount "$REMOTE_SHARE" 2>/dev/null ||
+       true
+
 - Double mounts in ``mount`` output: unmount twice to clear stacked NFS layers, then remount or let
   autofs handle it:
 
