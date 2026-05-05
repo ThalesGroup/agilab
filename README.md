@@ -72,7 +72,7 @@ Start with the public browser preview or the demo chooser:
 ### Try this first
 
 ```bash
-pip install agilab
+python -m pip install --upgrade agilab
 agilab first-proof --json
 agilab
 ```
@@ -143,7 +143,7 @@ The PyPI package is the thinnest public entry point:
 mkdir ~/agi-workspace && cd ~/agi-workspace
 uv venv
 source .venv/bin/activate
-uv pip install agilab
+uv pip install --upgrade agilab
 agilab first-proof --json --max-seconds 60
 uv run agilab
 ```
@@ -153,6 +153,14 @@ check. The clean-install CI matrix enforces that runtime budget on Linux and
 macOS. For the most representative full product run, prefer the source-checkout
 `flight_project` path above because it exercises the same app installation,
 execution, and analysis flow documented in the web UI.
+
+If `agilab` still reports an older version after a package install, check the
+actual executable with `command -v agilab`. A `uv tool` shim such as
+`~/.local/bin/agilab` is upgraded separately:
+
+```bash
+uv --preview-features extra-build-dependencies tool upgrade agilab
+```
 
 Optional feature stacks stay out of the base package install. Add
 `agilab[ai]` for AI assistant features such as OpenAI, Mistral, and
@@ -165,10 +173,11 @@ uv pip install "agilab[ai,viz]"
 
 ## Packaging notes
 
-setup.py is intentionally kept alongside pyproject.toml. Dask requires packages 
-to be distributed to workers in .egg format; setup.py is the build entry point that 
-produces those eggs. pyproject.toml remains the canonical source for PyPI publishing, 
-dependency resolution, and uv-based workflows.
+setup.py is intentionally kept alongside pyproject.toml; it is not a migration
+leftover. pyproject.toml remains canonical for PyPI metadata, dependency
+resolution, and uv workflows. setup.py remains only as the compatibility build
+entry point for the Dask worker path that still emits .egg artifacts. See the
+[package publishing policy](https://thalesgroup.github.io/agilab/package-publishing-policy.html).
 
 ## App Repository Updates
 

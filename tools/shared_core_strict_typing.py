@@ -12,12 +12,14 @@ from typing import Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOTS = {
+    "agi_core": REPO_ROOT / "src/agilab/core/agi-core/src",
     "agi_env": REPO_ROOT / "src/agilab/core/agi-env/src",
     "agi_node": REPO_ROOT / "src/agilab/core/agi-node/src",
     "agi_cluster": REPO_ROOT / "src/agilab/core/agi-cluster/src",
 }
 PROFILES = {
     "support-first": [
+        "agi_core",
         "agi_cluster.agi_distributor.background_jobs_support",
         "agi_cluster.agi_distributor.capacity_support",
         "agi_node.agi_dispatcher.base_worker_path_support",

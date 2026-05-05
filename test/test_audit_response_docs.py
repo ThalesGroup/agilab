@@ -50,10 +50,11 @@ def test_compatibility_matrix_promotes_clean_package_install_evidence() -> None:
 def test_demo_page_keeps_three_generic_demo_routes() -> None:
     demos = (DOCS_SOURCE / "demos.rst").read_text(encoding="utf-8")
 
-    assert "Three short demos" in demos
+    assert "Four short demos" in demos
     assert "Local app proof" in demos
     assert "Distributed worker route" in demos
     assert "MLflow tracking route" in demos
+    assert "Notebook migration route" in demos
     assert "python -m pip install agilab" in demos
     assert "tools/public_proof_scenarios.py --compact" in demos
     assert "--first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json" in demos
@@ -75,7 +76,8 @@ def test_release_proof_page_collects_public_audit_evidence() -> None:
     assert f"{release['package_name']}=={release['package_version']}" in page
     assert release["github_release_tag"] in page
     assert f"repo-guardrails run {ci_runs['release-guardrails']['run_id']}" in page
-    assert f"repo-guardrails run {ci_runs['ci-maintenance-guardrails']['run_id']}" in page
+    assert f"docs-source-guard run {ci_runs['docs-source-guard']['run_id']}" in page
+    assert f"coverage run {ci_runs['coverage']['run_id']}" in page
     assert release["hf_space_commit"] in page
     assert "agilab first-proof --json --max-seconds 60" in page
     assert "does not certify every remote cluster topology" in normalized_page
@@ -86,9 +88,19 @@ def test_release_proof_page_collects_public_audit_evidence() -> None:
 def test_readme_uses_recommended_workbench_positioning() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
-    assert (
-        "AGILAB is a reproducible AI/ML experimentation workbench for "
-        "engineering teams, bridging local interactive development, distributed "
-        "execution, and result analysis"
-    ) in readme
-    assert "not as a replacement for mature orchestration or production MLOps platforms" in readme
+    assert "AGILAB is a reproducible AI/ML workbench for engineering teams." in readme
+    assert "AGILAB complements MLflow." in readme
+    assert "It is not a replacement for MLflow or production\nMLOps platforms." in readme
+
+
+def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
+    policy = (DOCS_SOURCE / "package-publishing-policy.rst").read_text(encoding="utf-8")
+    readme = Path("README.md").read_text(encoding="utf-8")
+
+    assert "Real PyPI publication must not silently auto-create\n``.postN`` releases" in policy
+    assert "multiple same-day post releases should be treated as release\nprocess debt" in policy
+    assert "disallow_untyped_defs = true" in policy
+    assert "runs mypy with ``--strict``" in policy
+    assert "``setup.py`` is intentionally kept alongside ``pyproject.toml``" in policy
+    assert "It is not a\nleftover from an incomplete packaging migration." in policy
+    assert "setup.py is intentionally kept alongside pyproject.toml; it is not a migration\nleftover." in readme
