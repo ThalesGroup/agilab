@@ -233,6 +233,7 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
     assert any("command -v sshfs" in cmd for cmd in ssh_calls)
     assert any("sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\"" in cmd for cmd in ssh_calls)
     mount_cmd = next(cmd for cmd in ssh_calls if "sshfs \"$SCHEDULER_CLUSTER_SHARE\"" in cmd)
+    assert 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; set -e;' in mount_cmd
     assert "-o reconnect" in mount_cmd
     assert "-o ServerAliveInterval=15" in mount_cmd
     assert "-o ServerAliveCountMax=3" in mount_cmd

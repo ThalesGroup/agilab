@@ -388,7 +388,7 @@ def test_lan_discovery_cluster_defaults_accepts_explicit_non_private_lan_cache(t
     }
 
 
-def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp_path):
+def test_lan_discovery_cluster_defaults_uses_only_ready_worker_candidates(tmp_path):
     cache_path = tmp_path / "lan_nodes.json"
     test_net_base = int(ipaddress.IPv4Address(0xC6336400))
 
@@ -414,7 +414,7 @@ def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp
                     },
                     {
                         "host": known_hosts_auth_host,
-                        "status": "ssh-auth-needed",
+                        "status": "ready",
                         "sources": ["arp", "known-hosts", "tcp-scan"],
                         "tcp_ssh_open": True,
                     },
@@ -455,7 +455,7 @@ def test_lan_discovery_cluster_defaults_prefers_configured_worker_candidates(tmp
     }
 
 
-def test_lan_discovery_cluster_defaults_keeps_authenticated_known_hosts_worker(tmp_path):
+def test_lan_discovery_cluster_defaults_skips_non_ready_authenticated_known_hosts_worker(tmp_path):
     cache_path = tmp_path / "lan_nodes.json"
     cache_path.write_text(
         json.dumps(
@@ -485,7 +485,7 @@ def test_lan_discovery_cluster_defaults_keeps_authenticated_known_hosts_worker(t
 
     assert defaults == {
         "scheduler": "192.168.20.111:8786",
-        "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
+        "workers": {"192.168.20.111": 1},
     }
 
 
@@ -515,7 +515,7 @@ def test_lan_discovery_invalid_worker_hosts_reports_passive_cache_gateway(tmp_pa
         encoding="utf-8",
     )
 
-    assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(cache_path) == {"192.168.20.1"}
+    assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(cache_path) == {"192.168.20.1", "192.168.20.15"}
 
 
 def test_lan_discovery_cluster_defaults_reads_cache_from_env_home(tmp_path):
@@ -748,7 +748,7 @@ def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_d
     assert cluster["workers"] == {"10.0.0.11": 2}
 
 
-def test_render_cluster_settings_ui_prunes_stale_passive_lan_worker(monkeypatch, tmp_path):
+def test_render_cluster_settings_ui_prunes_non_ready_lan_workers(monkeypatch, tmp_path):
     app_name = "demo_project"
     widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
     home = tmp_path / "agilab-home"
@@ -829,12 +829,10 @@ def test_render_cluster_settings_ui_prunes_stale_passive_lan_worker(monkeypatch,
     orchestrate_cluster.render_cluster_settings_ui(env, deps)
 
     cluster = fake_st.session_state.app_settings["cluster"]
-    assert cluster["workers"] == {"192.168.20.111": 1, "192.168.20.15": 1}
-    assert json.loads(fake_st.session_state[widget_keys["workers"]]) == {
-        "192.168.20.111": 1,
-        "192.168.20.15": 1,
-    }
+    assert cluster["workers"] == {"192.168.20.111": 1}
+    assert json.loads(fake_st.session_state[widget_keys["workers"]]) == {"192.168.20.111": 1}
     assert "192.168.20.1" not in json.loads(fake_st.session_state[widget_keys["workers"]])
+    assert "192.168.20.15" not in json.loads(fake_st.session_state[widget_keys["workers"]])
 
 
 def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(monkeypatch, tmp_path):

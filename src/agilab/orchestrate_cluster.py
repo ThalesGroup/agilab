@@ -30,15 +30,6 @@ RUN_MODE_LABELS: tuple[str, ...] = (
 )
 LAN_DISCOVERY_CACHE = Path(".agilab") / "lan_nodes.json"
 LAN_READY_STATUSES = {"ready"}
-LAN_CONFIGURED_WORKER_SOURCES = {"ssh-config"}
-LAN_WORKER_CANDIDATE_STATUSES = {
-    "ready",
-    "reverse-ssh-needed",
-    "sshfs-missing",
-    "uv-missing",
-    "python-missing",
-    "ssh-auth-needed",
-}
 
 
 @dataclass(frozen=True)
@@ -373,36 +364,12 @@ def _is_lan_autofill_host(host: str) -> bool:
     return True
 
 
-def _lan_node_sources(node: dict[str, Any]) -> set[str]:
-    sources = node.get("sources")
-    if isinstance(sources, list):
-        return {str(source).strip() for source in sources if str(source).strip()}
-    if isinstance(sources, tuple):
-        return {str(source).strip() for source in sources if str(source).strip()}
-    return set()
-
-
-def _is_known_hosts_worker_candidate(node: dict[str, Any], sources: set[str], status: str) -> bool:
-    if "known-hosts" not in sources or node.get("tcp_ssh_open") is not True:
-        return False
-    if node.get("ssh_auth") is True:
-        return True
-    return status == "ssh-auth-needed"
-
-
 def _is_lan_worker_autofill_candidate(node: dict[str, Any]) -> bool:
     host = str(node.get("host") or "").strip()
     if not _is_lan_autofill_host(host):
         return False
     status = str(node.get("status") or "").strip()
-    if status not in LAN_WORKER_CANDIDATE_STATUSES:
-        return False
-    if status in LAN_READY_STATUSES:
-        return True
-    sources = _lan_node_sources(node)
-    if sources & LAN_CONFIGURED_WORKER_SOURCES:
-        return True
-    return _is_known_hosts_worker_candidate(node, sources, status)
+    return status in LAN_READY_STATUSES
 
 
 def _clear_lan_discovery_cache(cache_path: Path) -> tuple[bool, str]:

@@ -351,6 +351,7 @@ def _classify(
 
 def _remote_probe_command(manager_target: str) -> str:
     lines = [
+        'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"',
         'printf "hostname=%s\\n" "$(hostname 2>/dev/null || true)"',
         'printf "os=%s\\n" "$(uname -s 2>/dev/null || true)"',
         'printf "arch=%s\\n" "$(uname -m 2>/dev/null || true)"',

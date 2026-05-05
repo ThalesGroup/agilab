@@ -28,6 +28,7 @@ _SSHFS_OPTIONS = (
     "StrictHostKeyChecking=yes",
     "noexec",
 )
+_REMOTE_PATH_PREFIX = 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"; '
 
 
 def _resolve_local_share_path(value: str, env: Any) -> Path:
@@ -124,7 +125,8 @@ def _remote_share_mount_command(
     sshfs_options = _sshfs_options_args()
     unmount_snippet = _remote_share_unmount_snippet()
     return (
-        "set -e; "
+        _REMOTE_PATH_PREFIX
+        + "set -e; "
         "mkdir -p \"$HOME/.agilab\"; "
         "if ! command -v sshfs >/dev/null 2>&1; then "
         f"printf '%s\\n' {quote(_SSHFS_INSTALL_HINT)} >&2; exit 70; "
