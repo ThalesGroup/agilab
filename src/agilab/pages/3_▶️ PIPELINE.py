@@ -386,6 +386,15 @@ def on_df_change(module_dir: Path, index_page, df_file=None, steps_file=None) ->
     )
 
 
+def _dataframe_change_callback_args(
+    module_path: Path,
+    index_page: str,
+    df_file_default: str | Path | None,
+    steps_file: Path,
+) -> tuple[Path, str, str | Path | None, Path]:
+    return (module_path, index_page, df_file_default, steps_file)
+
+
 def clean_query(index_page: str) -> None:
     """Reset the query fields in session state."""
     df_value = st.session_state.get("df_file", "") or ""
@@ -871,7 +880,12 @@ def sidebar_controls() -> None:
         key=key_df,
         index=selectbox_index,
         on_change=on_df_change,
-        args=(module_path, df_file_default, index_page_str, steps_file),
+        args=_dataframe_change_callback_args(
+            module_path,
+            index_page_str,
+            df_file_default,
+            steps_file,
+        ),
     )
 
     if st.session_state.get(key_df):

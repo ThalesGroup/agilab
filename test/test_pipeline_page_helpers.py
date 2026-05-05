@@ -254,6 +254,21 @@ def test_pipeline_on_df_change_uses_page_local_load_last_step(tmp_path, monkeypa
     assert steps_file.parent.exists()
 
 
+def test_dataframe_change_callback_args_keep_page_key_before_default(tmp_path):
+    module = _load_pipeline_module()
+    module_path = tmp_path / "demo_module"
+    steps_file = tmp_path / "steps" / "lab_steps.toml"
+
+    result = module._dataframe_change_callback_args(
+        module_path,
+        "demo",
+        tmp_path / "export" / "old.csv",
+        steps_file,
+    )
+
+    assert result == (module_path, "demo", tmp_path / "export" / "old.csv", steps_file)
+
+
 def test_dataframe_picker_syncs_from_selectbox_when_selectbox_changed(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     session_state = {}

@@ -365,6 +365,9 @@ def test_probe_helpers_classify_missing_prerequisites_and_reverse_ssh():
     assert discovery._parse_optional_bool("") is None
     assert "reverse_ssh=" in discovery._remote_probe_command("agi@192.168.3.103")
     assert "gpu=%s" in discovery._remote_probe_command("agi@192.168.3.103")
+    assert 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"' in discovery._remote_probe_command(
+        "agi@192.168.3.103"
+    )
 
 
 def test_candidate_and_host_helpers_handle_edge_cases(tmp_path: Path, monkeypatch):
