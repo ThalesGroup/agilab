@@ -489,10 +489,15 @@ def test_log_indicates_install_failure():
     assert not orchestrate_page_support.log_indicates_install_failure(
         [
             "Remote command stderr: error: Permission denied (os error 13)",
-            "Failed to update uv on 192.168.20.15 (skipping self update)",
+            "Failed to update uv on 192.168.20.15 (skipping self update): Process exited with non-zero exit status 2",
+            "None",
+            "Process finished",
         ]
     )
     assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "Command failed with exit code 1"])
+    assert orchestrate_page_support.log_indicates_install_failure(
+        ["worker deploy failed: Process exited with non-zero exit status 2"]
+    )
     assert not orchestrate_page_support.log_indicates_install_failure([])
 
 

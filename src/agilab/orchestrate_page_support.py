@@ -52,6 +52,17 @@ _INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
     if tokens
 )
 
+_INSTALL_LOG_NON_FATAL_LINE_PATTERNS: tuple[tuple[str, ...], ...] = (
+    ("failed to update uv", "skipping self update"),
+    ("remote command stderr:", "error: permission denied", "os error 13"),
+)
+
+_INSTALL_LOG_NON_FATAL_LINE_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
+    tuple(pattern.lower() for pattern in tokens if pattern)
+    for tokens in _INSTALL_LOG_NON_FATAL_LINE_PATTERNS
+    if tokens
+)
+
 
 def _python_string(value: Any) -> str:
     return json.dumps(str(value))
@@ -895,12 +906,14 @@ def log_indicates_install_failure(lines: list[str]) -> bool:
     if not lines or not _INSTALL_LOG_FATAL_PATTERNS_LOWER:
         return False
 
-    snippet = "\n".join(lines[-200:]).lower()
-    for pattern in _INSTALL_LOG_FATAL_PATTERNS_LOWER:
-        for token in pattern:
-            if token not in snippet:
-                break
-        else:
+    for raw_line in lines[-200:]:
+        line = str(raw_line).lower()
+        if any(
+            all(token in line for token in pattern)
+            for pattern in _INSTALL_LOG_NON_FATAL_LINE_PATTERNS_LOWER
+        ):
+            continue
+        if any(all(token in line for token in pattern) for pattern in _INSTALL_LOG_FATAL_PATTERNS_LOWER):
             return True
     return False
 

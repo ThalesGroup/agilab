@@ -615,10 +615,15 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
     assert not orchestrate_page_support.log_indicates_install_failure(
         [
             "Remote command stderr: error: Permission denied (os error 13)",
-            "Failed to update uv on 192.168.20.15 (skipping self update)",
+            "Failed to update uv on 192.168.20.15 (skipping self update): Process exited with non-zero exit status 2",
+            "None",
+            "Process finished",
         ]
     )
     assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "Command failed with exit code 1"])
+    assert orchestrate_page_support.log_indicates_install_failure(
+        ["worker deploy failed: Process exited with non-zero exit status 2"]
+    )
 
     buffer: list[str] = []
     state = {"active": False}
@@ -1067,7 +1072,7 @@ async def test_install_worker_action_reports_success(tmp_path: Path):
         captured["cmd"] = cmd
         captured["venv"] = venv
         log_callback("installing worker")
-        return "done", ""
+        return "None\nProcess finished", ""
 
     env = SimpleNamespace(run_agi=_run_agi)
 
@@ -1081,13 +1086,14 @@ async def test_install_worker_action_reports_success(tmp_path: Path):
     assert result.status == "success"
     assert result.title == "Cluster installation completed."
     assert captured == {"cmd": "install command", "venv": None}
-    assert result.data["stdout"] == "done"
+    assert result.data["stdout"] == "None\nProcess finished"
     assert result.data["stderr"] == ""
     assert result.data["venv"] == tmp_path
     assert result.data["install_log"] == (
         "=== Install request ===",
         "installing worker",
-        "done",
+        "None",
+        "Process finished",
         "✅ Install complete.",
     )
 
@@ -1175,7 +1181,10 @@ async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: P
 
     async def _run_agi(_cmd, log_callback=None, venv=None):
         log_callback("Remote command stderr: error: Permission denied (os error 13)")
-        log_callback("Failed to update uv on 192.168.20.15 (skipping self update)")
+        log_callback(
+            "Failed to update uv on 192.168.20.15 (skipping self update): "
+            "Process exited with non-zero exit status 2"
+        )
         return "done", ""
 
     env = SimpleNamespace(run_agi=_run_agi)
@@ -1193,7 +1202,8 @@ async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: P
     assert result.data["stderr"] == ""
     assert result.data["install_log"] == (
         "Remote command stderr: error: Permission denied (os error 13)",
-        "Failed to update uv on 192.168.20.15 (skipping self update)",
+        "Failed to update uv on 192.168.20.15 (skipping self update): "
+        "Process exited with non-zero exit status 2",
         "done",
         "✅ Install complete.",
     )
