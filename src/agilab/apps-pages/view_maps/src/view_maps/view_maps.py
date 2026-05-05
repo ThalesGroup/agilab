@@ -926,7 +926,8 @@ def main():
         st.error(f"An error occurred: {e}")
         import traceback
 
-        st.code(traceback.format_exc())
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
 
 
 # -------------------- Main Entry Point -------------------- #

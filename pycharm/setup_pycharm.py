@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import shlex
 import shutil
 import sys
 import subprocess
@@ -18,6 +19,7 @@ class Config:
         self.RUN_CONFIGS_DIR = self.IDEA_DIR / "runConfigurations"
         self.MISC = self.IDEA_DIR / "misc.xml"
         self.MODULES = self.IDEA_DIR / "modules.xml"
+        self.PY_PROJECT_MODEL = self.IDEA_DIR / "pyProjectModel.xml"
         self.AGISPACE = self.ROOT / ".." / "agi-space"
         self.AGI_ENV_DIR = Path.home() / ".agilab"
         self.AGI_ENV_FILE = self.AGI_ENV_DIR / ".env"
@@ -168,7 +170,32 @@ def _allow_sdk_rebind() -> bool:
     return value in {"1", "true", "yes", "on", "force"}
 
 
+def _powershell_single_quote(value: Path) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _sdk_rebind_guidance(root: Path) -> str:
+    unix_command = (
+        f"cd {shlex.quote(str(root))} && "
+        "AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 "
+        "uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py"
+    )
+    powershell_command = (
+        f"Set-Location -LiteralPath {_powershell_single_quote(root)}\n"
+        "$env:AGILAB_PYCHARM_ALLOW_SDK_REBIND = '1'\n"
+        "uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py"
+    )
+    return (
+        "To intentionally switch roots, run one of these from the target checkout:\n"
+        f"macOS/Linux:\n  {unix_command}\n"
+        f"Windows PowerShell:\n  {powershell_command.replace(chr(10), chr(10) + '  ')}"
+    )
+
+
 def content_url_for(cfg: Config, dir_path: Path) -> str:
+    if not dir_path.is_absolute():
+        dir_path = cfg.ROOT / dir_path
+    dir_path = dir_path.expanduser().absolute()
     try:
         rel = dir_path.relative_to(cfg.ROOT)
         return f"file://$MODULE_DIR$/../../{rel.as_posix()}"
@@ -555,6 +582,18 @@ class JdkTable:
 
         return str(project_dir).replace(str(Path.home()), "$USER_HOME$")
 
+    def __venv_dir_for_home(self, home: Path) -> str:
+        home = Path(home)
+        parts = home.parts
+
+        if ".venv" in parts:
+            idx = parts.index(".venv")
+            venv_dir = Path(*parts[: idx + 1])
+        else:
+            venv_dir = home.parent
+
+        return str(venv_dir).replace(str(Path.home()), "$USER_HOME$")
+
     def __jdk_name(self, jdk: ET.Element) -> str:
         name_el = jdk.find("name")
         if name_el is not None:
@@ -692,6 +731,7 @@ class JdkTable:
             "ASSOCIATED_PROJECT_PATH": project_dir,
             "IS_UV": "true",
             "UV_WORKING_DIR": project_dir,
+            "UV_VENV_PATH": self.__venv_dir_for_home(home),
         }
 
         for key, value in expected_attrs.items():
@@ -849,6 +889,9 @@ class Project:
         dir_path: Path,
         source_roots: Iterable[str],
     ) -> bool:
+        if not dir_path.is_absolute():
+            dir_path = self.cfg.ROOT / dir_path
+        dir_path = dir_path.expanduser().absolute()
         existing = {
             (node.get("url"), node.get("isTestSource", "false"))
             for node in content.findall("sourceFolder")
@@ -867,7 +910,17 @@ class Project:
             if key in existing:
                 continue
 
-            ET.SubElement(content, "sourceFolder", {"url": url, "isTestSource": "false"})
+            source_folder = ET.Element("sourceFolder", {"url": url, "isTestSource": "false"})
+            children = list(content)
+            first_exclude_index = next(
+                (idx for idx, child in enumerate(children) if child.tag == "excludeFolder"),
+                None,
+            )
+            if first_exclude_index is None:
+                content.append(source_folder)
+            else:
+                content.insert(first_exclude_index, source_folder)
+            existing.add(key)
             changed = True
 
         return changed
@@ -1109,6 +1162,127 @@ class Project:
 
         return core_iml
 
+    def _module_ref_path(self, module: ET.Element) -> Optional[Path]:
+        raw = (module.get("filepath") or module.get("fileurl") or "").strip()
+        if not raw:
+            return None
+        if raw.startswith("file://"):
+            raw = raw[len("file://") :]
+        raw = raw.replace("$PROJECT_DIR$", str(self.cfg.ROOT))
+        raw = raw.replace("$USER_HOME$", str(Path.home()))
+        try:
+            return Path(raw).expanduser().resolve(strict=False)
+        except OSError:
+            return Path(raw).expanduser()
+
+    def clean_modules_xml(self, allowed_iml_paths: Iterable[Path]) -> None:
+        """Keep checkout-local module entries aligned with generated module files."""
+        allowed = {
+            path.resolve(strict=False)
+            for path in allowed_iml_paths
+        }
+
+        if self.cfg.MODULES.exists():
+            tree = read_xml(self.cfg.MODULES)
+            root = tree.getroot()
+        else:
+            root = ET.Element("project", {"version": "4"})
+            tree = ET.ElementTree(root)
+
+        comp = root.find("./component[@name='ProjectModuleManager']")
+        if comp is None:
+            comp = ET.SubElement(root, "component", {"name": "ProjectModuleManager"})
+
+        modules = comp.find("modules")
+        if modules is None:
+            modules = ET.SubElement(comp, "modules")
+
+        original_entries = list(modules.findall("module"))
+        kept: list[ET.Element] = []
+        seen: set[tuple[str, str]] = set()
+        removed = 0
+
+        for module in original_entries:
+            module_path = self._module_ref_path(module)
+            is_checkout_local = module_path is not None and self.cfg.is_within_repo(module_path)
+            if is_checkout_local and module_path not in allowed:
+                removed += 1
+                continue
+
+            key = (module.get("fileurl", ""), module.get("filepath", ""))
+            if key in seen:
+                removed += 1
+                continue
+            seen.add(key)
+            kept.append(module)
+
+        existing_paths = {
+            self._module_ref_path(module)
+            for module in kept
+        }
+
+        for path in sorted(allowed):
+            if path in existing_paths:
+                continue
+            module = ET.Element(
+                "module",
+                {
+                    "fileurl": self.cfg.as_project_url(path),
+                    "filepath": self.cfg.as_project_macro(path),
+                },
+            )
+            kept.append(module)
+            existing_paths.add(path)
+
+        kept.sort(key=lambda module: module.get("filepath") or module.get("fileurl") or "")
+
+        for module in original_entries:
+            modules.remove(module)
+        for module in kept:
+            modules.append(module)
+
+        if removed or len(kept) != len(original_entries):
+            write_xml(tree, self.cfg.MODULES)
+            logging.info(
+                "Cleaned modules.xml: removed %d stale entry(s), kept %d module entry(s).",
+                removed,
+                len(kept),
+            )
+
+    def clean_stale_module_files(self, allowed_iml_paths: Iterable[Path]) -> None:
+        """Remove stale generated module descriptors that PyCharm can re-import."""
+        allowed = {
+            path.resolve(strict=False)
+            for path in allowed_iml_paths
+        }
+        stale_paths: List[Path] = []
+
+        # Current setup writes generated modules under .idea/modules. Root-level
+        # .idea/*.iml files are stale copies that PyCharm may add back.
+        stale_paths.extend(sorted(self.cfg.IDEA_DIR.glob("*.iml")))
+
+        for path in sorted(self.cfg.MODULES_DIR.glob("*.iml")):
+            resolved = path.resolve(strict=False)
+            if resolved in allowed:
+                continue
+            if "@" in path.stem or ".previous." in path.name:
+                stale_paths.append(path)
+
+        removed = 0
+        for path in sorted(set(stale_paths)):
+            try:
+                if path.resolve(strict=False) in allowed:
+                    continue
+                path.unlink()
+                removed += 1
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                logging.warning("Unable to remove stale PyCharm module descriptor %s: %s", path, exc)
+
+        if removed:
+            logging.info("Removed %d stale PyCharm module descriptor file(s).", removed)
+
     def generate_run_configs_for_apps(self, app_names: List[Path]) -> None:
         if not self.cfg.GEN_SCRIPT.exists():
             logging.info("Missing %s; skipping run configuration generation.", self.cfg.GEN_SCRIPT)
@@ -1139,6 +1313,23 @@ class Project:
                 cwd=str(self.cfg.ROOT),
             )
 
+    def run_config_folder_names(self) -> set[str]:
+        folders_xml = self.cfg.RUN_CONFIGS_DIR / "folders.xml"
+        if not folders_xml.exists():
+            return set()
+
+        try:
+            root = read_xml(folders_xml).getroot()
+        except ET.ParseError as exc:
+            logging.warning("Unable to parse %s: %s", folders_xml, exc)
+            return set()
+
+        return {
+            folder.get("name", "")
+            for folder in root.findall(".//folder")
+            if folder.get("name")
+        }
+
     def python_terminal_settings(self) -> None:
         term_cfg = self.cfg.IDEA_DIR / "python-terminal.xml"
 
@@ -1160,6 +1351,30 @@ class Project:
         option.set("virtualEnvActivate", "false")
 
         write_xml(tree, term_cfg)
+
+    def disable_pyproject_auto_import(self) -> None:
+        """Prevent PyCharm from recreating root-level module descriptors."""
+        if self.cfg.PY_PROJECT_MODEL.exists():
+            tree = read_xml(self.cfg.PY_PROJECT_MODEL)
+            root = tree.getroot()
+        else:
+            root = ET.Element("project", {"version": "4"})
+            tree = ET.ElementTree(root)
+
+        comp = root.find("./component[@name='PyProjectModelSettings']")
+        if comp is None:
+            comp = ET.SubElement(root, "component", {"name": "PyProjectModelSettings"})
+
+        option = comp.find("./option[@name='usePyprojectToml']")
+        if option is None:
+            option = ET.SubElement(comp, "option", {"name": "usePyprojectToml"})
+
+        if option.get("value") == "false":
+            return
+
+        option.set("value", "false")
+        write_xml(tree, self.cfg.PY_PROJECT_MODEL)
+        logging.info("Disabled PyCharm pyproject auto-import in %s", self.cfg.PY_PROJECT_MODEL)
 
 
 def ensure_modules_xml(cfg: Config) -> None:
@@ -1187,6 +1402,36 @@ def build_keep_sdks(cfg: Config) -> List[str]:
     return sorted(set(keep_sdks))
 
 
+def ensure_project_sdk_binding(
+    cfg: Config,
+    jdk_table: JdkTable,
+    model: Project,
+    root_iml: Optional[Path] = None,
+) -> bool:
+    root_py = venv_python_for(cfg.ROOT)
+    if not root_py:
+        return False
+
+    jdk_table.add_jdk(cfg.PROJECT_SDK, root_py)
+    model.set_project_sdk(cfg.PROJECT_SDK)
+    if root_iml is not None:
+        model.set_module_sdk(root_iml, cfg.PROJECT_SDK)
+    return True
+
+
+def select_run_config_apps(model: Project, realized_apps: Iterable[Path]) -> List[Path]:
+    """Avoid dirtying tracked PyCharm folders with local/private app names."""
+    tracked_folders = model.run_config_folder_names()
+    selected = [app for app in realized_apps if app.as_posix() in tracked_folders]
+    skipped = [app for app in realized_apps if app.as_posix() not in tracked_folders]
+    if skipped:
+        logging.info(
+            "Skipping run config generation for app folder(s) not declared in folders.xml: %s",
+            ", ".join(app.as_posix() for app in skipped),
+        )
+    return selected
+
+
 def main() -> int:
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parents[1]
 
@@ -1197,11 +1442,11 @@ def main() -> int:
         logging.error(
             "Refusing to configure PyCharm SDK %s for %s because it is already "
             "bound to another AGILAB source root: %s. Open/run that checkout, "
-            "delete the stale SDK in PyCharm, or intentionally switch roots with "
-            "AGILAB_PYCHARM_ALLOW_SDK_REBIND=1.",
+            "delete the stale SDK in PyCharm, or intentionally switch roots.\n%s",
             cfg.PROJECT_SDK,
             cfg.ROOT,
             ", ".join(str(path) for path in conflicts),
+            _sdk_rebind_guidance(cfg.ROOT),
         )
         return 2
     if conflicts:
@@ -1219,19 +1464,17 @@ def main() -> int:
     remove_stale_agilab_paths(cfg)
 
     model = Project(cfg)
+    model.disable_pyproject_auto_import()
 
-    root_py = venv_python_for(cfg.ROOT)
-    if root_py:
-        jdk_table.add_jdk(cfg.PROJECT_SDK, root_py)
-        model.set_project_sdk(cfg.PROJECT_SDK)
-    else:
+    if not ensure_project_sdk_binding(cfg, jdk_table, model):
         logging.error("Project SDK %s not found.", cfg.PROJECT_SDK)
         return 1
 
     root_iml = model.ensure_root_module_iml()
-    model.set_module_sdk(root_iml, cfg.PROJECT_SDK)
+    ensure_project_sdk_binding(cfg, jdk_table, model, root_iml)
     model.add_module_entry(root_iml)
     model.ensure_module_excludes(root_iml, cfg.ROOT)
+    realized_module_paths: List[Path] = [root_iml]
 
     realized_apps: List[Path] = []
     realized_apps_pages: List[str] = []
@@ -1266,6 +1509,8 @@ def main() -> int:
                 logging.info("Moved IML to match template path: %s", target)
 
         model.ensure_module_excludes(target, app)
+        model.ensure_module_source_folders(target, app, source_roots=("src",))
+        realized_module_paths.append(target)
 
         sdk_app = f"uv ({app.name})"
         jdk_table.add_jdk(sdk_app, app_py)
@@ -1311,6 +1556,7 @@ def main() -> int:
         model.set_module_sdk(iml, sdk_name)
         model.add_module_entry(iml)
         model.ensure_module_excludes(iml, apps_page)
+        realized_module_paths.append(iml)
 
         realized_apps_pages.append(apps_page.name)
 
@@ -1330,6 +1576,7 @@ def main() -> int:
         model.add_module_entry(iml)
         model.ensure_module_excludes(iml, core)
         model.ensure_module_source_folders(iml, core, source_roots=("src",))
+        realized_module_paths.append(iml)
 
         realized_core.append(core.name)
 
@@ -1345,6 +1592,7 @@ def main() -> int:
             model.set_module_sdk(agi_iml, sdk_name)
             model.add_module_entry(agi_iml)
             model.ensure_module_excludes(agi_iml, cfg.AGISPACE)
+            realized_module_paths.append(agi_iml)
         else:
             logging.warning("No virtual environment found for agi-space, skipping SDK assignment.")
     else:
@@ -1353,8 +1601,12 @@ def main() -> int:
     keep_sdks = build_keep_sdks(cfg)
     jdk_table.prune_uv_names(keep_sdks)
 
-    model.generate_run_configs_for_apps(realized_apps)
+    model.generate_run_configs_for_apps(select_run_config_apps(model, realized_apps))
+    ensure_project_sdk_binding(cfg, jdk_table, model, root_iml)
+    model.clean_stale_module_files(realized_module_paths)
+    model.clean_modules_xml(realized_module_paths)
     model.python_terminal_settings()
+    model.disable_pyproject_auto_import()
 
     remove_stale_agilab_paths(cfg)
 

@@ -4939,7 +4939,8 @@ def main():
     except Exception as e:
         st.error(f"An error occurred: {e}")
         import traceback
-        st.code(traceback.format_exc())
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
 
 def update_var(var_key, widget_key):
     st.session_state[var_key] = st.session_state[widget_key]

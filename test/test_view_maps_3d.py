@@ -598,7 +598,11 @@ def test_view_maps_3d_page_bootstrap_reuses_active_app_argument(monkeypatch, tmp
     class _StopCalled(RuntimeError):
         pass
 
+    fake_st = _FakeStreamlit()
     fake_state = _State()
+    fake_st.session_state = fake_state
+    fake_st.sidebar = _FakeSidebar(fake_st)
+    fake_st.stop = lambda: (_ for _ in ()).throw(_StopCalled())
     fake_env = SimpleNamespace(
         is_source_env=True,
         is_worker_env=False,
@@ -615,17 +619,7 @@ def test_view_maps_3d_page_bootstrap_reuses_active_app_argument(monkeypatch, tmp
 
     monkeypatch.setattr(module, "AgiEnv", _fake_agi_env)
     monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app", str(active_app)])
-    monkeypatch.setattr(
-        module,
-        "st",
-        SimpleNamespace(
-            session_state=fake_state,
-            error=lambda message: None,
-            warning=lambda message: None,
-            stop=lambda: (_ for _ in ()).throw(_StopCalled()),
-            render_logo=lambda *_args, **_kwargs: None,
-        ),
-    )
+    monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "_list_dataset_files", lambda *_args, **_kwargs: [])
     (fake_env.AGILAB_EXPORT_ABS / fake_env.target).mkdir(parents=True, exist_ok=True)
 

@@ -349,7 +349,6 @@ def __bary_visualisation(df, selected_format, selected_name, selected_x1, select
     try:
         st.write(st.session_state.loaded_df[[f"{selected_x2}", f"{selected_x1}"]].T)
     except Exception as e:
-        # st.error(f"```{str(e)}```")
         JumpToMain(e)
 
     tables = [f"Normalized {selected_x1}", "Barycentric coordinates"]
@@ -681,7 +680,8 @@ def main():
         st.error(f"An error occurred: {e}")
         import traceback
 
-        st.error(traceback.format_exc())
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
 
 
 # -------------------- Main Entry Point -------------------- #

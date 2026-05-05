@@ -62,6 +62,10 @@ pip-wheel-metadata/
 .idea/dataSources.local.xml
 .idea/sqlDataSources.xml
 .idea/dynamic.xml
+.idea/*.iml
+.idea/modules/
+.idea/modules.xml
+.idea/pyProjectModel.xml
 .idea/runConfigurations/_*.xml
 src/agilab/apps/*_project
 src/agilab/apps/builtin/*_project/src/app_args_form.py

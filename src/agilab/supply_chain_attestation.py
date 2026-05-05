@@ -50,6 +50,8 @@ IGNORED_PAYLOAD_PATH_PARTS = {
     ".egg-info",
     ".venv",
     "__pycache__",
+    "build",
+    "dist",
 }
 
 

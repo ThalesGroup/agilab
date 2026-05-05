@@ -74,11 +74,23 @@ runs. That SDK can point to only one source checkout at a time. If you installed
 or configured AGILAB from one checkout and then open another checkout, do not
 let PyCharm mix ``src/agilab`` from one tree with ``.venv`` from the other.
 
-To intentionally move PyCharm execution to another checkout, run this from the
-target checkout::
+To intentionally move PyCharm execution to another checkout, run the command for
+your shell from the target checkout.
+
+macOS/Linux:
+
+.. code-block:: bash
 
    uv sync
    AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py
+
+Windows PowerShell:
+
+.. code-block:: powershell
+
+   uv sync
+   $env:AGILAB_PYCHARM_ALLOW_SDK_REBIND = "1"
+   uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py
 
 The override is intentionally explicit. Without it, ``setup_pycharm.py`` refuses
 to rebind ``uv (agilab)`` when it detects that the SDK already points to another

@@ -2463,7 +2463,11 @@ def test_view_maps_network_main_handles_errors_and_propagates_reruns(monkeypatch
 
     errors: list[str] = []
     codes: list[str] = []
-    module.st = SimpleNamespace(error=errors.append, code=codes.append)
+    module.st = SimpleNamespace(
+        error=errors.append,
+        caption=lambda _message: None,
+        code=lambda message, **_kwargs: codes.append(message),
+    )
 
     def _raise_runtime():
         raise RuntimeError("boom")

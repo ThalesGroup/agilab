@@ -1128,7 +1128,8 @@ def main() -> None:
         st.error(f"An error occurred: {e}")
         import traceback
 
-        st.code(f"```\n{traceback.format_exc()}\n```")
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
 
 
 if __name__ == "__main__":

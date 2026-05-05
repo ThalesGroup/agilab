@@ -94,8 +94,9 @@ For a single-page adoption checklist, use [ADOPTION.md](ADOPTION.md).
 Run the installable product path with the built-in `flight_project`:
 
 ```bash
-git clone https://github.com/ThalesGroup/agilab.git
-cd agilab
+CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
+git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
+cd "$CHECKOUT"
 ./install.sh --install-apps
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
 ```

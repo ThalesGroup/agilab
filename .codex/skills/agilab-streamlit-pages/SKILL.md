@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-29
+  updated: 2026-05-05
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -92,6 +92,22 @@ Use this skill when editing:
 ## Rerun API
 
 - Do not use `st.experimental_rerun()`; use `st.rerun()`.
+
+## Diagnostics Rendering
+
+- Render long diagnostics and tracebacks as code blocks, not message-box text:
+  - `st.error("Short actionable summary.")`
+  - `st.caption("Full diagnostic")`
+  - `st.code(diagnostic_text, language="text")`
+- Do not embed Markdown code fences inside `st.error()` or `st.code()`.
+- Do not pass `traceback.format_exc()` directly to `st.error()`; Streamlit message
+  boxes collapse readability and can flatten newlines.
+- If a diagnostic arrives as a single long line, format a display-only copy with
+  line breaks or wrapping before passing it to `st.code`; keep the original
+  exception/message unchanged for logs and assertions that depend on exact text.
+- Add a focused helper test for display formatting and keep the repository scan
+  guard in `test/test_streamlit_diagnostic_rendering.py` green when touching
+  diagnostic rendering paths.
 
 ## Key Hygiene
 

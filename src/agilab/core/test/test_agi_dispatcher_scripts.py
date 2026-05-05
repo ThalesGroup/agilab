@@ -2355,6 +2355,7 @@ def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, mon
 
 
 def test_build_create_symlink_for_module_uses_symlink_on_unmanaged_host(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     src_abs = tmp_path / "app-src" / "demo_worker"
     src_abs.mkdir(parents=True, exist_ok=True)
     env = SimpleNamespace(
@@ -2375,10 +2376,12 @@ def test_build_create_symlink_for_module_uses_symlink_on_unmanaged_host(tmp_path
     assert len(links) == 1
     assert created[0][0] == src_abs
     assert created[0][1] == links[0]
+    assert tmp_path in links[0].parents
     assert links[0].name == "demo_worker"
 
 
 def test_build_create_symlink_for_module_falls_back_to_hard_link(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     src_abs = tmp_path / "agi-env" / "agi_env" / "pkg"
     src_abs.mkdir(parents=True, exist_ok=True)
     env = SimpleNamespace(
@@ -2408,10 +2411,12 @@ def test_build_create_symlink_for_module_falls_back_to_hard_link(tmp_path, monke
     assert len(links) == 1
     assert created_hard_links[0][0] == src_abs
     assert created_hard_links[0][1] == links[0]
+    assert tmp_path in links[0].parents
     assert links[0].name == "pkg"
 
 
 def test_build_create_symlink_for_module_uses_agi_node_namespace_for_other_packages(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
     src_abs = tmp_path / "agi-node" / "src" / "agi_node" / "shared" / "pkg"
     src_abs.mkdir(parents=True, exist_ok=True)
     env = SimpleNamespace(
@@ -2432,6 +2437,7 @@ def test_build_create_symlink_for_module_uses_agi_node_namespace_for_other_packa
     assert len(links) == 1
     assert created[0][0] == src_abs
     assert created[0][1] == links[0]
+    assert tmp_path in links[0].parents
     assert links[0].as_posix().endswith("src/agi_node/shared/pkg")
 
 

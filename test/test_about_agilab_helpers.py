@@ -109,6 +109,26 @@ class _FakeStreamlit:
         self.stopped = True
 
 
+class _StoppingStreamlit:
+    def __init__(self):
+        self.events: list[tuple[str, str, object]] = []
+
+    def error(self, body: object, **_kwargs):
+        self.events.append(("error", str(body), None))
+
+    def markdown(self, body: object, **_kwargs):
+        self.events.append(("markdown", str(body), None))
+
+    def caption(self, body: object, **_kwargs):
+        self.events.append(("caption", str(body), None))
+
+    def code(self, body: object, **kwargs):
+        self.events.append(("code", str(body), kwargs.get("language")))
+
+    def stop(self):
+        raise RuntimeError("st.stop")
+
+
 def _make_bootstrap_ports(
     agi_env_cls: object,
     *,
@@ -155,6 +175,72 @@ def test_page_bootstrap_session_env_ready_handles_missing_and_init_flags():
     assert page_bootstrap.session_env_ready({"env": env}) is False
     env.init_done = True
     assert page_bootstrap.session_env_ready({"env": env}) is True
+
+
+def test_import_guard_error_is_rendered_as_code(monkeypatch):
+    fake_st = _StoppingStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    message = (
+        "Mixed AGILAB Python environment detected.\n\n"
+        "How to fix this checkout:\n"
+        "macOS/Linux:\n"
+        "   cd /tmp/current && AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 "
+        "uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py\n\n"
+        "Windows PowerShell:\n"
+        "   Set-Location -LiteralPath 'C:\\current'\n"
+        "   $env:AGILAB_PYCHARM_ALLOW_SDK_REBIND = '1'\n"
+        "   uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py\n"
+        "Full details"
+    )
+    exc = about_agilab._import_guard_module.MixedCheckoutImportError(message)
+
+    with pytest.raises(RuntimeError, match="st.stop"):
+        about_agilab._stop_for_import_guard_error(exc)
+
+    assert fake_st.events[0] == (
+        "error",
+        "AGILAB cannot start because PyCharm/Python is bound to another AGILAB checkout.",
+        None,
+    )
+    assert "What happened" in fake_st.events[1][1]
+    assert fake_st.events[2] == ("caption", "Rebind command (macOS/Linux)", None)
+    assert fake_st.events[3] == (
+        "code",
+        "cd /tmp/current && AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 "
+        "uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py",
+        "bash",
+    )
+    assert fake_st.events[4] == ("caption", "Rebind command (Windows PowerShell)", None)
+    assert fake_st.events[5] == (
+        "code",
+        "Set-Location -LiteralPath 'C:\\current'\n"
+        "$env:AGILAB_PYCHARM_ALLOW_SDK_REBIND = '1'\n"
+        "uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py",
+        "powershell",
+    )
+    assert fake_st.events[6] == ("caption", "Full diagnostic", None)
+    assert fake_st.events[7] == ("code", message, "text")
+
+
+def test_import_guard_single_line_diagnostic_is_wrapped_for_display():
+    message = (
+        "Mixed AGILAB sys.path detected. "
+        "Current file /tmp/current/src/agilab/About_agilab.py belongs to /tmp/current, "
+        "but Python can also resolve AGILAB from /tmp/other via sys.path entry "
+        "'/tmp/other/.venv/lib/python3.13/site-packages'. "
+        "Remove stale PYTHONPATH/PyCharm content roots and relaunch. "
+        "If you intentionally switched checkout, rerun pycharm/setup_pycharm.py from the intended source root."
+    )
+
+    rendered = about_agilab._format_import_guard_diagnostic_for_display(message)
+
+    assert "\n" in rendered
+    assert "Mixed AGILAB sys.path detected." in rendered
+    assert "Current file /tmp/current/src/agilab/About_agilab.py" in rendered
+    assert "but Python can also resolve AGILAB" in rendered
+    assert "Remove stale PYTHONPATH/PyCharm content roots" in rendered
+    assert "If you intentionally switched checkout" in rendered
+    assert " ".join(rendered.split()) == " ".join(message.split())
 
 
 def test_page_bootstrap_load_about_page_module_uses_injected_loader(tmp_path):
