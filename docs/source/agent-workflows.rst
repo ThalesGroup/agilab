@@ -30,6 +30,16 @@ Before a non-trivial change, start with::
 
    uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged
 
+For fast local feedback before a larger parity profile, use the repo-owned
+genetic regression selector::
+
+   ./dev regress
+
+This runs ``tools/ga_regression_selector.py --staged --run``. It optimizes a
+small pytest subset from the changed files and available JUnit timings. Treat it
+as an accelerator for the first local loop, not as a replacement for the
+required gates reported by ``impact_validate.py``.
+
 Then follow the repo rules in:
 
 - ``AGENT_CONVENTIONS.md`` for the short local-agent contract

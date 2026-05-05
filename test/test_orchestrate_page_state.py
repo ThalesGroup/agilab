@@ -131,7 +131,7 @@ def test_orchestrate_page_state_blocks_remote_dask_without_shared_workers_path(t
 
 
 def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
-    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_project"
+    active_app = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
     cmd = "asyncio.run(main())"
 
     state = orchestrate_page_state.build_orchestrate_install_workflow_state(
@@ -153,11 +153,12 @@ def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
 
     assert state.action.enabled is True
     assert state.command_configured is True
-    assert state.runtime_root == active_app.parents[1]
+    assert state.runtime_root == active_app
     assert state.install_command == "await main()"
     assert "cluster_enabled: False" in state.context_lines
     assert "scheduler: None" in state.context_lines
-    assert f"venv: {active_app.parents[1]}" in state.context_lines
+    assert f"runtime: {active_app}" in state.context_lines
+    assert f"venv: {active_app / '.venv'}" in state.context_lines
 
 
 def test_orchestrate_install_workflow_state_uses_core_runtime_root_for_source_env(tmp_path):

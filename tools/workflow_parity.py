@@ -179,6 +179,8 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_app_template_registry.py",
                 "test/test_cluster_flight_validation.py",
                 "test/test_cluster_lan_discovery.py",
+                "test/test_agilab_dev_shortcuts.py",
+                "test/test_ga_regression_selector.py",
                 "test/test_pinned_expander.py",
                 "test/test_venv_linker.py",
                 "test/test_workflow_ui.py",

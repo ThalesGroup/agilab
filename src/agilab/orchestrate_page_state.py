@@ -279,9 +279,22 @@ def _install_runtime_root(
     if (is_source_env or is_worker_env) and agi_cluster_path:
         return Path(agi_cluster_path)
     active_app = _optional_path(active_app_path)
-    if active_app is None or len(active_app.parents) < 2:
+    if active_app is None:
         return None
-    return active_app.parents[1]
+    return active_app
+
+
+def _install_display_venv_path(
+    runtime_root: Path | None,
+    *,
+    is_source_env: bool,
+    is_worker_env: bool,
+) -> Path | None:
+    if runtime_root is None:
+        return None
+    if is_source_env or is_worker_env:
+        return runtime_root
+    return runtime_root / ".venv"
 
 
 def build_orchestrate_install_workflow_state(
@@ -329,7 +342,8 @@ def build_orchestrate_install_workflow_state(
         f"modes_enabled: {mode}",
         f"scheduler: {raw_scheduler if cluster_enabled and raw_scheduler else 'None'}",
         f"workers: {raw_workers if cluster_enabled and raw_workers else 'None'}",
-        f"venv: {runtime_root}",
+        f"runtime: {runtime_root}",
+        f"venv: {_install_display_venv_path(runtime_root, is_source_env=is_source_env, is_worker_env=is_worker_env)}",
         "=== Streaming install logs ===",
     )
     return OrchestrateInstallWorkflowState(

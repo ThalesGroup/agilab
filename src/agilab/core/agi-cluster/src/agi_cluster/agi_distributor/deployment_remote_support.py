@@ -16,6 +16,109 @@ _REMOTE_PLATFORM_PROBE_EXCEPTIONS = (OSError, RuntimeError, ValueError)
 _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS = ("numba==0.62.1", "pyarrow==17.0.0")
 
 
+def _resolve_local_share_path(value: str, env: Any) -> Path:
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path.resolve(strict=False)
+    home = getattr(env, "home_abs", None)
+    base = Path(home).expanduser() if home else Path.home()
+    return (base / path).resolve(strict=False)
+
+
+def _remote_share_assignment(value: str) -> str:
+    cleaned = value.strip() or "clustershare"
+    if cleaned.startswith("~/"):
+        return '"$HOME"/' + quote(cleaned[2:])
+    if cleaned == "~":
+        return '"$HOME"'
+    if PurePosixPath(cleaned).is_absolute():
+        return quote(cleaned)
+    return '"$HOME"/' + quote(cleaned)
+
+
+def _scheduler_host_from_state(agi_cls: Any) -> str:
+    raw_host = getattr(agi_cls, "_scheduler_ip", None) or getattr(agi_cls, "_scheduler", None) or ""
+    host = str(raw_host).strip()
+    if host.startswith("tcp://"):
+        host = host.removeprefix("tcp://")
+    if "@" in host:
+        host = host.rsplit("@", 1)[-1]
+    if host.startswith("[") and "]" in host:
+        return host[1:].split("]", 1)[0]
+    if host.count(":") == 1:
+        host = host.rsplit(":", 1)[0]
+    return host
+
+
+def _scheduler_ssh_target(agi_cls: Any, env: Any) -> str:
+    host = _scheduler_host_from_state(agi_cls)
+    if not host:
+        return ""
+    user = str(getattr(env, "user", "") or "").strip()
+    return f"{user}@{host}" if user else host
+
+
+def _remote_env_update_command(remote_share: str) -> str:
+    line = f"AGI_CLUSTER_SHARE={remote_share!r}"
+    return f"mkdir -p \"$HOME/.agilab\" && printf '%s\\n' {quote(line)} > \"$HOME/.agilab/.env\""
+
+
+def _remote_share_mount_command(
+    *,
+    scheduler_target: str,
+    local_share: Path,
+    remote_share: str,
+) -> str:
+    source = f"{scheduler_target}:{local_share.as_posix()}"
+    return (
+        "set -e; "
+        "mkdir -p \"$HOME/.agilab\"; "
+        "if ! command -v sshfs >/dev/null 2>&1; then "
+        "echo 'sshfs is required to mount AGI_CLUSTER_SHARE on this worker' >&2; exit 70; "
+        "fi; "
+        "REMOTE_CLUSTER_SHARE="
+        + _remote_share_assignment(remote_share)
+        + "; "
+        f"SCHEDULER_CLUSTER_SHARE={quote(source)}; "
+        "mkdir -p \"$REMOTE_CLUSTER_SHARE\"; "
+        "if mount | grep -F -- \"$REMOTE_CLUSTER_SHARE\" >/dev/null 2>&1; then "
+        "echo \"already mounted: $REMOTE_CLUSTER_SHARE\"; "
+        "else sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\" -o noexec; fi; "
+        "test -d \"$REMOTE_CLUSTER_SHARE\" && test -w \"$REMOTE_CLUSTER_SHARE\""
+    )
+
+
+async def _prepare_remote_cluster_share(
+    agi_cls: Any,
+    ip: str,
+    env: Any,
+    remote_share: str,
+    *,
+    log: Any = logger,
+) -> None:
+    local_share_raw = (
+        str(getattr(env, "AGI_CLUSTER_SHARE", "") or "")
+        or str(getattr(env, "envars", {}).get("AGI_CLUSTER_SHARE", "") if isinstance(getattr(env, "envars", None), dict) else "")
+        or remote_share
+    )
+    local_share = _resolve_local_share_path(local_share_raw, env)
+    local_share.mkdir(parents=True, exist_ok=True)
+
+    scheduler_target = _scheduler_ssh_target(agi_cls, env)
+    if not scheduler_target:
+        raise RuntimeError("Cannot mount AGI_CLUSTER_SHARE on remote worker: scheduler host is unknown.")
+
+    await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share))
+    mount_cmd = _remote_share_mount_command(
+        scheduler_target=scheduler_target,
+        local_share=local_share,
+        remote_share=remote_share,
+    )
+    if getattr(env, "verbose", 0) > 0:
+        log.info("Mounting scheduler AGI_CLUSTER_SHARE on remote worker %s with SSHFS", ip)
+    await agi_cls.exec_ssh(ip, mount_cmd)
+
+
 def _parse_version_prefix(version: str) -> tuple[int, ...]:
     parts: list[int] = []
     for raw_part in version.strip().split("."):
@@ -112,10 +215,12 @@ async def deploy_remote_worker(
     uv = cmd_prefix + env.uv_worker
 
     if agi_cls._workers_data_path:
-        await agi_cls.exec_ssh(ip, "mkdir -p .agilab")
-        await agi_cls.exec_ssh(
+        await _prepare_remote_cluster_share(
+            agi_cls,
             ip,
-            f"echo 'AGI_CLUSTER_SHARE=\"{Path(agi_cls._workers_data_path).expanduser().as_posix()}\"' > .agilab/.env",
+            env,
+            str(agi_cls._workers_data_path),
+            log=log,
         )
 
     if env.is_source_env:
