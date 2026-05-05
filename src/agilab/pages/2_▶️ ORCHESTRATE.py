@@ -795,7 +795,7 @@ async def _install_worker_action(
         install_stdout, install_stderr = await env.run_agi(
             install_command,
             log_callback=lambda message: _append_log_lines(local_log, message),
-            venv=venv,
+            venv=None,
         )
     except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError) as exc:
         install_error = exc
