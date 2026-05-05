@@ -37,13 +37,14 @@ from agi_gui.pagelib import (
     get_about_content,
     get_css_text,
     export_df,
-    on_df_change,
+    resolve_selected_df_path,
     render_logo,
     inject_theme,
 )
 from agi_gui.file_picker import agi_file_picker
 from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv, normalize_path
+from agi_env.pagelib_selection_support import on_df_change as _on_df_change_impl
 import_agilab_symbols(
     globals(),
     "agilab.pipeline_views",
@@ -368,6 +369,21 @@ def load_last_step(
                 st.session_state[prompt_key] = q
         else:
             clean_query(index_page)
+
+
+def on_df_change(module_dir: Path, index_page, df_file=None, steps_file=None) -> None:
+    """Update dataframe selection using the PIPELINE page-local step loader."""
+    return _on_df_change_impl(
+        module_dir,
+        index_page,
+        df_file,
+        steps_file,
+        session_state=st.session_state,
+        resolve_selected_df_path_fn=resolve_selected_df_path,
+        load_last_step_fn=load_last_step,
+        logger=logger,
+        path_cls=Path,
+    )
 
 
 def clean_query(index_page: str) -> None:
