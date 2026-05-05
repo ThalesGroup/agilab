@@ -469,6 +469,65 @@ def _lan_discovery_cluster_defaults(
     return defaults
 
 
+def _lan_discovery_invalid_worker_hosts(cache_path: Path | None = None) -> set[str]:
+    if cache_path is None:
+        return set()
+    try:
+        payload = json.loads(cache_path.expanduser().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    if not isinstance(payload, dict):
+        return set()
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list):
+        return set()
+    invalid_hosts: set[str] = set()
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        host = str(node.get("host") or "").strip()
+        if _is_lan_autofill_host(host) and not _is_lan_worker_autofill_candidate(node):
+            invalid_hosts.add(host)
+    return invalid_hosts
+
+
+def _workers_dict(value: Any) -> dict[str, int]:
+    if isinstance(value, dict):
+        result: dict[str, int] = {}
+        for key, raw_count in value.items():
+            try:
+                count = int(raw_count)
+            except (TypeError, ValueError):
+                continue
+            result[str(key)] = count
+        return result
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return {}
+        return _workers_dict(parsed)
+    return {}
+
+
+def _prune_invalid_lan_workers(
+    cluster_params: dict[str, Any],
+    session_state: dict[str, Any],
+    workers_key: str,
+    invalid_hosts: set[str],
+) -> None:
+    if not invalid_hosts:
+        return
+    workers = _workers_dict(session_state.get(workers_key)) or _workers_dict(cluster_params.get("workers"))
+    if not workers:
+        return
+    pruned = {host: count for host, count in workers.items() if host not in invalid_hosts}
+    if pruned == workers:
+        return
+    cluster_params["workers"] = pruned
+    session_state[workers_key] = json.dumps(pruned, indent=2) if pruned else ""
+
+
 def _apply_lan_discovery_defaults(
     cluster_params: dict[str, Any],
     session_state: dict[str, Any],
@@ -492,11 +551,8 @@ def _apply_lan_discovery_defaults(
         session_state[scheduler_key] = scheduler_value
 
     workers = defaults.get("workers")
-    if (
-        isinstance(workers, dict)
-        and workers
-        and should_fill_workers
-        and (force or _is_empty_workers(session_state.get(workers_key)))
+    if isinstance(workers, dict) and workers and should_fill_workers and (
+        force or _is_empty_workers(session_state.get(workers_key))
     ):
         cluster_params["workers"] = workers
         session_state[workers_key] = json.dumps(workers, indent=2)
@@ -633,6 +689,13 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
                 lan_refresh_failed = True
                 st.error(f"LAN discovery refresh failed: {refresh_message}")
         lan_cache_defaults = {} if lan_clear_clicked else _lan_discovery_cluster_defaults(cache_path=lan_cache_path)
+        invalid_lan_workers = set() if lan_clear_clicked else _lan_discovery_invalid_worker_hosts(lan_cache_path)
+        _prune_invalid_lan_workers(
+            cluster_params,
+            st.session_state,
+            widget_keys["workers"],
+            invalid_lan_workers,
+        )
         lan_defaults = lan_cache_defaults
         if cluster_share_candidate is not None:
             lan_defaults = {**lan_defaults, "workers_data_path": str(cluster_share_candidate)}
