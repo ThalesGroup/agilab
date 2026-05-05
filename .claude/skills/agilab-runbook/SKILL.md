@@ -27,6 +27,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   commands.
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
+- **PyCharm source-root switching**: the JetBrains SDK named `uv (agilab)` is global and
+  should point to one AGILAB source checkout at a time. To intentionally switch PyCharm
+  execution to another checkout, run from the target checkout:
+  - `uv sync`
+  - `AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py`
+  Do not rerun full `install.sh` just to switch PyCharm roots; use it only when installer
+  side effects are needed, such as app installation, `.agilab-path` updates, dataset
+  seeding, or install-time tests.
 - **Local-first validation**: do not jump to GitHub Actions when the same check can be run locally.
   Reproduce with the narrowest local command first: targeted `pytest`, isolated coverage commands,
   `py_compile`, Sphinx builds, badge generation, or publish dry-runs. Use CI only for GitHub-only

@@ -16,6 +16,19 @@ You can run the same flows either from PyCharm or from the CLI wrappers in
 ``tools/run_configs``. Non-PyCharm users should launch the ``.sh`` wrappers
 directly from a shell.
 
+If PyCharm reports a mixed AGILAB checkout, or an import such as
+``ModuleNotFoundError: No module named 'agi_gui'`` after you opened another
+source tree, rebind the JetBrains SDK from the checkout you want to run::
+
+   cd /path/to/agilab
+   uv sync
+   AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py
+
+This switches the global ``uv (agilab)`` SDK to that checkout. Rerun full
+``install.sh`` only when you also need installer side effects such as app
+installation, ``.agilab-path`` updates, dataset seeding, or installer test
+suites.
+
 .. include:: troubleshooting.txt
    :code: text
 
