@@ -23,9 +23,8 @@ Page snapshot
 
 Sidebar
 -------
-- ``Read Documentation`` opens this guide in the hosted public docs, and
-  ``Open Local Documentation`` uses the locally generated docs build when
-  available.
+- ``Read Documentation`` opens this guide in the hosted public docs when
+  reachable, and falls back to the locally generated docs build when available.
 - Project selector that keeps the current application in sync with the rest of
   the suite.
 - The currently selected project determines which views are stored inside its
