@@ -365,6 +365,15 @@ def _has_configured_cluster_share(env: Any) -> bool:
 
 def _env_local_share_paths(env: Any) -> tuple[Path, ...]:
     raw_values: list[Any] = []
+    home_abs = getattr(env, "home_abs", Path.home())
+    cluster_share_paths: list[Path] = []
+    cluster_share_text = _clean_share_path_text(_env_cluster_share_value(env))
+    if cluster_share_text.lower() not in {"", "none", "local", "localshare"}:
+        try:
+            cluster_share_paths.append(_resolve_share_candidate(cluster_share_text, home_abs))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+
     local_share = getattr(env, "AGI_LOCAL_SHARE", None)
     env_vars = getattr(env, "envars", None)
     if local_share:
@@ -373,7 +382,16 @@ def _env_local_share_paths(env: Any) -> tuple[Path, ...]:
         raw_values.append(env_vars.get("AGI_LOCAL_SHARE"))
     agi_share_path = getattr(env, "agi_share_path", None)
     if agi_share_path:
-        raw_values.append(agi_share_path)
+        try:
+            agi_share_candidate = _resolve_share_candidate(agi_share_path, home_abs)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            raw_values.append(agi_share_path)
+        else:
+            # In cluster mode AgiEnv.agi_share_path can already be the active
+            # scheduler-side AGI_CLUSTER_SHARE. That path is allowed to be a
+            # normal local filesystem because workers mount it via SSHFS.
+            if agi_share_candidate not in cluster_share_paths:
+                raw_values.append(agi_share_path)
 
     paths: list[Path] = []
     for raw_value in raw_values:
@@ -381,7 +399,7 @@ def _env_local_share_paths(env: Any) -> tuple[Path, ...]:
         if not text:
             continue
         try:
-            paths.append(_resolve_share_candidate(text, getattr(env, "home_abs", Path.home())))
+            paths.append(_resolve_share_candidate(text, home_abs))
         except (OSError, RuntimeError, TypeError, ValueError):
             continue
     return tuple(paths)

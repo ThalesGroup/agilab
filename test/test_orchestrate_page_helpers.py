@@ -1367,6 +1367,37 @@ def test_cluster_args_share_warning_accepts_sshfs_contract_with_local_scheduler_
     assert warning is None
 
 
+def test_cluster_args_share_warning_accepts_cluster_share_as_active_share_path(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+    monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
+    monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
+    local_share = tmp_path / "localshare" / "agi"
+    scheduler_share = tmp_path / "clustershare" / "agi"
+    local_share.mkdir(parents=True)
+    scheduler_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=scheduler_share,
+        agi_share_path_abs=scheduler_share,
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={
+            "AGI_LOCAL_SHARE": str(local_share),
+            "AGI_CLUSTER_SHARE": str(scheduler_share),
+        },
+    )
+
+    warning = module._cluster_args_share_warning(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": str(scheduler_share),
+        },
+    )
+
+    assert warning is None
+
+
 def test_cluster_args_share_warning_rejects_cluster_share_that_points_to_local_share(monkeypatch, tmp_path):
     module = _load_orchestrate_module()
     monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
