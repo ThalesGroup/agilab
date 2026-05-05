@@ -94,7 +94,7 @@ Advanced scenarios such as `data_io_2026_project`,
 | Distributed (Dask) | Beta |
 | MLflow | Beta |
 | Production | Experimental |
-| Agents RL | Roadmap |
+| RL examples | Example available |
 
 AGILAB is most mature in the bridge between notebook experimentation and
 reproducible AI applications: local execution, environment control, and
@@ -257,13 +257,12 @@ and [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positi
 The strategic score movement rule is tracked in the
 [strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html).
 
-One forward-looking improvement area is elasticity. AGILAB is currently strongest
-at the `Train -> Test -> Evidence` loop: run a pipeline, inspect artifacts, and
-compare outcomes. A later differentiator would be multi-agent reinforcement
-learning for active mesh optimization, where aircraft, UAVs, or satellites are
-not just moving nodes but active agents that can adapt flight paths or routing
-to improve network evidence. That is a roadmap direction, not a shipped
-capability claim.
+One forward-looking improvement area is elasticity. AGILAB already ships
+reproducible RL-style examples such as `uav_relay_queue_project`, where routing
+policy choices produce inspectable queue and network evidence. The roadmap
+direction is broader multi-agent reinforcement learning for active mesh
+optimization, where aircraft, UAVs, or satellites are not just moving nodes but
+active agents that adapt flight paths or routing to improve network KPIs.
 
 ## Read Next
 
