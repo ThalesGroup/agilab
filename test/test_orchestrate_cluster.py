@@ -471,6 +471,35 @@ def test_lan_discovery_cluster_defaults_keeps_authenticated_known_hosts_worker(t
     }
 
 
+def test_lan_discovery_invalid_worker_hosts_reports_passive_cache_gateway(tmp_path):
+    cache_path = tmp_path / "lan_nodes.json"
+    cache_path.write_text(
+        json.dumps(
+            {
+                "local_hosts": ["192.168.20.111"],
+                "nodes": [
+                    {
+                        "host": "192.168.20.1",
+                        "status": "ssh-auth-needed",
+                        "sources": ["arp", "cache", "tcp-scan"],
+                        "tcp_ssh_open": True,
+                    },
+                    {
+                        "host": "192.168.20.15",
+                        "status": "uv-missing",
+                        "sources": ["arp", "cache", "known-hosts", "tcp-scan"],
+                        "tcp_ssh_open": True,
+                        "ssh_auth": True,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert orchestrate_cluster._lan_discovery_invalid_worker_hosts(cache_path) == {"192.168.20.1"}
+
+
 def test_lan_discovery_cluster_defaults_reads_cache_from_env_home(tmp_path):
     home = tmp_path / "agilab-home"
     cache_path = home / ".agilab" / "lan_nodes.json"
@@ -537,6 +566,7 @@ def test_refresh_lan_discovery_cache_runs_discovery_with_scheduler_ssh_target(mo
 
 def _disable_lan_defaults(monkeypatch):
     monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_cluster_defaults", lambda *_, **__: {})
+    monkeypatch.setattr(orchestrate_cluster, "_lan_discovery_invalid_worker_hosts", lambda *_, **__: set())
 
 
 def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(monkeypatch, tmp_path):
@@ -698,6 +728,95 @@ def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_d
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["scheduler"] == "10.0.0.10:8786"
     assert cluster["workers"] == {"10.0.0.11": 2}
+
+
+def test_render_cluster_settings_ui_prunes_stale_passive_lan_worker(monkeypatch, tmp_path):
+    app_name = "demo_project"
+    widget_keys = orchestrate_cluster.cluster_widget_keys(app_name)
+    home = tmp_path / "agilab-home"
+    cache_path = home / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "local_hosts": ["192.168.20.111"],
+                "nodes": [
+                    {
+                        "host": "192.168.20.1",
+                        "status": "ssh-auth-needed",
+                        "sources": ["arp", "cache", "tcp-scan"],
+                        "tcp_ssh_open": True,
+                    },
+                    {
+                        "host": "192.168.20.15",
+                        "status": "uv-missing",
+                        "sources": ["arp", "cache", "known-hosts", "tcp-scan"],
+                        "tcp_ssh_open": True,
+                        "ssh_auth": True,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stale_workers = {
+        "192.168.20.1": 1,
+        "192.168.20.111": 1,
+        "192.168.20.15": 1,
+    }
+    fake_st = _FakeStreamlit(
+        widget_values={
+            widget_keys["cluster_enabled"]: True,
+            widget_keys["cython"]: False,
+            widget_keys["pool"]: False,
+            widget_keys["rapids"]: False,
+            widget_keys["use_key"]: True,
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "scheduler": "192.168.20.111:8786",
+                    "workers": stale_workers,
+                }
+            },
+            widget_keys["workers"]: json.dumps(stale_workers, indent=2),
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    share = tmp_path / "cluster-share"
+    share.mkdir()
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: json.loads(raw),
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app=app_name,
+        home_abs=home,
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["workers"] == {"192.168.20.111": 1, "192.168.20.15": 1}
+    assert json.loads(fake_st.session_state[widget_keys["workers"]]) == {
+        "192.168.20.111": 1,
+        "192.168.20.15": 1,
+    }
+    assert "192.168.20.1" not in json.loads(fake_st.session_state[widget_keys["workers"]])
 
 
 def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(monkeypatch, tmp_path):
