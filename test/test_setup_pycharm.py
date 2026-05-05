@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
 import xml.etree.ElementTree as ET
 
 
@@ -68,6 +69,32 @@ def test_jdk_table_allows_same_agilab_source_root(tmp_path: Path) -> None:
     assert table.conflicting_source_roots("uv (agilab)", current_root) == []
 
 
+def test_jdk_table_rewrites_stale_uv_venv_path(tmp_path: Path) -> None:
+    current_root = _make_agilab_source_root(tmp_path / "current")
+    old_root = _make_agilab_source_root(tmp_path / "old")
+    current_python = current_root / ".venv" / "bin" / "python"
+    current_python.parent.mkdir(parents=True)
+    current_python.write_text("", encoding="utf-8")
+    jdk_table = _jdk_table_with_agilab_sdk(tmp_path, current_root)
+    text = jdk_table.read_text(encoding="utf-8")
+    text = text.replace(
+        f'UV_WORKING_DIR="{current_root}"',
+        f'UV_WORKING_DIR="{current_root}" UV_VENV_PATH="{old_root / ".venv"}"',
+    )
+    jdk_table.write_text(text, encoding="utf-8")
+
+    table = setup_pycharm.JdkTable.__new__(setup_pycharm.JdkTable)
+    table.sdk_type = "Python SDK"
+    table.jdk_tables = [jdk_table]
+
+    table.add_jdk("uv (agilab)", current_python)
+
+    root = ET.parse(jdk_table).getroot()
+    additional = root.find("./component[@name='ProjectJdkTable']/jdk/additional")
+    assert additional is not None
+    assert additional.get("UV_VENV_PATH") == str(current_root / ".venv")
+
+
 def test_set_project_sdk_writes_project_root_manager_and_black(tmp_path: Path) -> None:
     cfg = setup_pycharm.Config(root=tmp_path)
     cfg.create_directories()
@@ -90,6 +117,38 @@ def test_set_project_sdk_writes_project_root_manager_and_black(tmp_path: Path) -
     assert black_sdk.get("value") == "uv (agilab)"
 
 
+def test_ensure_project_sdk_binding_reapplies_root_sdk(tmp_path: Path) -> None:
+    root = tmp_path / "agilab"
+    root.mkdir()
+    cfg = setup_pycharm.Config(root=root)
+    root_python = root / ".venv" / "bin" / "python"
+    root_python.parent.mkdir(parents=True)
+    root_python.write_text("", encoding="utf-8")
+    root_iml = root / ".idea" / "modules" / "agilab.iml"
+    calls = SimpleNamespace(jdk=[], project=[], module=[])
+
+    class FakeJdkTable:
+        def add_jdk(self, name: str, home: Path) -> None:
+            calls.jdk.append((name, home))
+
+    class FakeProject:
+        def set_project_sdk(self, name: str) -> None:
+            calls.project.append(name)
+
+        def set_module_sdk(self, path: Path, name: str) -> None:
+            calls.module.append((path, name))
+
+    assert setup_pycharm.ensure_project_sdk_binding(
+        cfg,
+        FakeJdkTable(),
+        FakeProject(),
+        root_iml,
+    )
+    assert calls.jdk == [("uv (agilab)", root_python.absolute())]
+    assert calls.project == ["uv (agilab)"]
+    assert calls.module == [(root_iml, "uv (agilab)")]
+
+
 def test_write_module_minimal_can_declare_source_root(tmp_path: Path) -> None:
     cfg = setup_pycharm.Config(root=tmp_path)
     cfg.create_directories()
@@ -108,6 +167,166 @@ def test_write_module_minimal_can_declare_source_root(tmp_path: Path) -> None:
 
     assert source_folder is not None
     assert source_folder.get("isTestSource") == "false"
+
+
+def test_content_url_for_resolves_relative_paths_from_project_root(tmp_path: Path) -> None:
+    cfg = setup_pycharm.Config(root=tmp_path)
+
+    assert setup_pycharm.content_url_for(cfg, Path("demo/src")) == (
+        "file://$MODULE_DIR$/../../demo/src"
+    )
+
+
+def test_content_url_for_keeps_project_macro_for_symlinked_app_path(tmp_path: Path) -> None:
+    cfg = setup_pycharm.Config(root=tmp_path / "agilab")
+    cfg.ROOT.mkdir()
+    external = tmp_path / "apps_repo" / "demo_project"
+    external.mkdir(parents=True)
+    link = cfg.ROOT / "src" / "agilab" / "apps" / "demo_project"
+    link.parent.mkdir(parents=True)
+    try:
+        link.symlink_to(external, target_is_directory=True)
+    except OSError:
+        return
+
+    assert setup_pycharm.content_url_for(cfg, link / "src") == (
+        "file://$MODULE_DIR$/../../src/agilab/apps/demo_project/src"
+    )
+
+
+def test_ensure_source_folders_preserves_existing_exclude_order(tmp_path: Path) -> None:
+    cfg = setup_pycharm.Config(root=tmp_path)
+    project = setup_pycharm.Project(cfg)
+    app = tmp_path / "demo"
+    (app / "src").mkdir(parents=True)
+    content = ET.Element(
+        "content",
+        {"url": "file://$MODULE_DIR$/../../demo"},
+    )
+    for name in (".venv", "build", "dist"):
+        ET.SubElement(content, "excludeFolder", {"url": f"file://$MODULE_DIR$/../../demo/{name}"})
+
+    assert project._ensure_source_folders(content, Path("demo"), ("src",))
+
+    children = [(child.tag, child.get("url")) for child in list(content)]
+    assert children == [
+        ("sourceFolder", "file://$MODULE_DIR$/../../demo/src"),
+        ("excludeFolder", "file://$MODULE_DIR$/../../demo/.venv"),
+        ("excludeFolder", "file://$MODULE_DIR$/../../demo/build"),
+        ("excludeFolder", "file://$MODULE_DIR$/../../demo/dist"),
+    ]
+
+
+def test_clean_modules_xml_prunes_local_stale_duplicates_and_keeps_external(tmp_path: Path) -> None:
+    cfg = setup_pycharm.Config(root=tmp_path)
+    cfg.create_directories()
+    project = setup_pycharm.Project(cfg)
+    allowed = cfg.MODULES_DIR / "agilab.iml"
+    allowed.parent.mkdir(parents=True, exist_ok=True)
+    allowed.write_text("<module />", encoding="utf-8")
+    external = tmp_path.parent / "external.iml"
+
+    cfg.MODULES.write_text(
+        f"""<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/agilab@1.iml" filepath="$PROJECT_DIR$/.idea/agilab@1.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/agilab.iml" filepath="$PROJECT_DIR$/.idea/modules/agilab.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/agilab.iml" filepath="$PROJECT_DIR$/.idea/modules/agilab.iml" />
+      <module fileurl="file://{external}" filepath="{external}" />
+    </modules>
+  </component>
+</project>
+""",
+        encoding="utf-8",
+    )
+
+    project.clean_modules_xml([allowed])
+
+    tree = ET.parse(cfg.MODULES)
+    modules = tree.getroot().findall("./component[@name='ProjectModuleManager']/modules/module")
+    entries = [(module.get("fileurl"), module.get("filepath")) for module in modules]
+    assert entries == [
+        ("file://$PROJECT_DIR$/.idea/modules/agilab.iml", "$PROJECT_DIR$/.idea/modules/agilab.iml"),
+        (f"file://{external}", str(external)),
+    ]
+
+
+def test_clean_stale_module_files_removes_root_and_numbered_copies(tmp_path: Path) -> None:
+    cfg = setup_pycharm.Config(root=tmp_path)
+    cfg.create_directories()
+    project = setup_pycharm.Project(cfg)
+    allowed = cfg.MODULES_DIR / "agilab.iml"
+    unknown = cfg.MODULES_DIR / "custom_project.iml"
+    stale_root = cfg.IDEA_DIR / "agilab@1.iml"
+    stale_numbered = cfg.MODULES_DIR / "view-maps@2.iml"
+    stale_previous = cfg.MODULES_DIR / "view_maps.previous.20260501222857.iml"
+
+    for path in (allowed, unknown, stale_root, stale_numbered, stale_previous):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("<module />", encoding="utf-8")
+
+    project.clean_stale_module_files([allowed])
+
+    assert allowed.exists()
+    assert unknown.exists()
+    assert not stale_root.exists()
+    assert not stale_numbered.exists()
+    assert not stale_previous.exists()
+
+
+def test_select_run_config_apps_skips_local_private_folders(tmp_path: Path) -> None:
+    cfg = setup_pycharm.Config(root=tmp_path)
+    cfg.create_directories()
+    project = setup_pycharm.Project(cfg)
+    folders_xml = cfg.RUN_CONFIGS_DIR / "folders.xml"
+    folders_xml.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<component name="RunManager">
+  <folder name="flight_project" />
+  <folder name="builtin/mycode_project" />
+</component>
+""",
+        encoding="utf-8",
+    )
+
+    selected = setup_pycharm.select_run_config_apps(
+        project,
+        [
+            Path("flight_project"),
+            Path("flowsynth_project"),
+            Path("builtin/mycode_project"),
+        ],
+    )
+
+    assert selected == [Path("flight_project"), Path("builtin/mycode_project")]
+
+
+def test_disable_pyproject_auto_import_turns_off_pyproject_module_sync(tmp_path: Path) -> None:
+    cfg = setup_pycharm.Config(root=tmp_path)
+    cfg.create_directories()
+    project = setup_pycharm.Project(cfg)
+    cfg.PY_PROJECT_MODEL.write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PyProjectModelSettings">
+    <option name="showConfigurationNotification" value="false" />
+    <option name="usePyprojectToml" value="true" />
+  </component>
+</project>
+""",
+        encoding="utf-8",
+    )
+
+    project.disable_pyproject_auto_import()
+
+    tree = ET.parse(cfg.PY_PROJECT_MODEL)
+    option = tree.getroot().find(
+        "./component[@name='PyProjectModelSettings']/option[@name='usePyprojectToml']"
+    )
+    assert option is not None
+    assert option.get("value") == "false"
 
 
 def _read_generated_config(tmp_path: Path, name: str) -> ET.Element:

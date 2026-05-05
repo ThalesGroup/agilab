@@ -6,6 +6,7 @@
 import json
 import os
 import importlib.util
+import textwrap
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
@@ -24,37 +25,127 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 assert_agilab_checkout_alignment = _import_guard_module.assert_agilab_checkout_alignment
 assert_python_environment_alignment = _import_guard_module.assert_python_environment_alignment
+assert_sys_path_checkout_alignment = _import_guard_module.assert_sys_path_checkout_alignment
 import_agilab_module = _import_guard_module.import_agilab_module
 
-assert_agilab_checkout_alignment(__file__)
-assert_python_environment_alignment(__file__)
 
-_about_env_editor = import_agilab_module(
+def _extract_import_guard_rebind_commands(message: str) -> List[tuple[str, str, str]]:
+    labels = {
+        "macOS/Linux:": ("Rebind command (macOS/Linux)", "bash"),
+        "Windows PowerShell:": ("Rebind command (Windows PowerShell)", "powershell"),
+    }
+    commands: List[tuple[str, str, str]] = []
+    lines = message.splitlines()
+    index = 0
+    while index < len(lines):
+        label = labels.get(lines[index].strip())
+        if label is None:
+            index += 1
+            continue
+        command_lines: List[str] = []
+        index += 1
+        while index < len(lines) and lines[index].startswith("   "):
+            command_lines.append(lines[index][3:])
+            index += 1
+        if command_lines:
+            caption, language = label
+            commands.append((caption, "\n".join(command_lines).strip(), language))
+
+    if commands:
+        return commands
+
+    for line in message.splitlines():
+        command = line.strip()
+        if command.startswith("cd ") and "AGILAB_PYCHARM_ALLOW_SDK_REBIND=1" in command:
+            return [("Rebind command", command, "bash")]
+    return []
+
+
+def _format_import_guard_diagnostic_for_display(message: str) -> str:
+    """Keep full startup diagnostics readable inside Streamlit code blocks."""
+    stripped = message.strip()
+    if "\n" in stripped:
+        return stripped
+
+    readable = stripped
+    for old, new in (
+        (". Current file ", ".\nCurrent file "),
+        (", but Python ", ",\nbut Python "),
+        (". Remove stale ", ".\nRemove stale "),
+        (". If you intentionally ", ".\nIf you intentionally "),
+        (" The stale entry ", "\nThe stale entry "),
+        (". Open/run ", ".\nOpen/run "),
+        (". To intentionally ", ".\nTo intentionally "),
+    ):
+        readable = readable.replace(old, new)
+
+    return "\n".join(
+        textwrap.fill(line, width=110, break_long_words=False, break_on_hyphens=False)
+        if len(line) > 110 and not line.startswith(("   ", "\t"))
+        else line
+        for line in readable.splitlines()
+    )
+
+
+def _stop_for_import_guard_error(exc: BaseException) -> None:
+    message = str(exc)
+    rebind_commands = _extract_import_guard_rebind_commands(message)
+
+    st.error("AGILAB cannot start because PyCharm/Python is bound to another AGILAB checkout.")
+    st.markdown(
+        "**What happened:** this Streamlit run is using AGILAB code from one checkout "
+        "and the Python SDK or import path from another checkout. Stop the current run, "
+        "then rebind PyCharm to the checkout you want to launch."
+    )
+    for caption, command, language in rebind_commands:
+        st.caption(caption)
+        st.code(command, language=language)
+    st.caption("Full diagnostic")
+    st.code(_format_import_guard_diagnostic_for_display(message), language="text")
+    st.stop()
+    raise exc
+
+
+def _import_agilab_module_or_stop(*args: Any, **kwargs: Any) -> Any:
+    try:
+        return import_agilab_module(*args, **kwargs)
+    except _import_guard_module.MixedCheckoutImportError as exc:
+        _stop_for_import_guard_error(exc)
+
+
+try:
+    assert_python_environment_alignment(__file__)
+    assert_sys_path_checkout_alignment(__file__)
+    assert_agilab_checkout_alignment(__file__)
+except _import_guard_module.MixedCheckoutImportError as exc:
+    _stop_for_import_guard_error(exc)
+
+_about_env_editor = _import_agilab_module_or_stop(
     "agilab.about_page.env_editor",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "about_page" / "env_editor.py",
     fallback_name="agilab_about_page_env_editor_fallback",
 )
-_about_layout = import_agilab_module(
+_about_layout = _import_agilab_module_or_stop(
     "agilab.about_page.layout",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "about_page" / "layout.py",
     fallback_name="agilab_about_page_layout_fallback",
 )
-_about_onboarding = import_agilab_module(
+_about_onboarding = _import_agilab_module_or_stop(
     "agilab.about_page.onboarding",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "about_page" / "onboarding.py",
     fallback_name="agilab_about_page_onboarding_fallback",
 )
-_about_bootstrap = import_agilab_module(
+_about_bootstrap = _import_agilab_module_or_stop(
     "agilab.about_page.bootstrap",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "about_page" / "bootstrap.py",
     fallback_name="agilab_about_page_bootstrap_fallback",
 )
 
-_env_file_utils_module = import_agilab_module(
+_env_file_utils_module = _import_agilab_module_or_stop(
     "agilab.env_file_utils",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "env_file_utils.py",
@@ -62,7 +153,7 @@ _env_file_utils_module = import_agilab_module(
 )
 _load_env_file_map = _env_file_utils_module.load_env_file_map
 
-_page_docs_module = import_agilab_module(
+_page_docs_module = _import_agilab_module_or_stop(
     "agilab.page_docs",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "page_docs.py",
@@ -70,7 +161,7 @@ _page_docs_module = import_agilab_module(
 )
 render_page_docs_access = _page_docs_module.render_page_docs_access
 
-_pinned_expander_module = import_agilab_module(
+_pinned_expander_module = _import_agilab_module_or_stop(
     "agilab.pinned_expander",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "pinned_expander.py",
@@ -78,7 +169,7 @@ _pinned_expander_module = import_agilab_module(
 )
 render_pinned_expanders = _pinned_expander_module.render_pinned_expanders
 
-_workflow_ui_module = import_agilab_module(
+_workflow_ui_module = _import_agilab_module_or_stop(
     "agilab.workflow_ui",
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parent / "workflow_ui.py",

@@ -18,11 +18,27 @@ directly from a shell.
 
 If PyCharm reports a mixed AGILAB checkout, or an import such as
 ``ModuleNotFoundError: No module named 'agi_gui'`` after you opened another
-source tree, rebind the JetBrains SDK from the checkout you want to run::
+source tree, rebind the JetBrains SDK from the checkout you want to run.
 
-   cd /path/to/agilab
+macOS/Linux:
+
+.. code-block:: bash
+
+   CHECKOUT="${AGILAB_CHECKOUT:-/path/to/checkout}"
+   cd "$CHECKOUT"
    uv sync
    AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py
+
+Windows PowerShell:
+
+.. code-block:: powershell
+
+   $checkout = $env:AGILAB_CHECKOUT
+   if (-not $checkout) { $checkout = "C:\path\to\checkout" }
+   Set-Location -LiteralPath $checkout
+   uv sync
+   $env:AGILAB_PYCHARM_ALLOW_SDK_REBIND = "1"
+   uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py
 
 This switches the global ``uv (agilab)`` SDK to that checkout. Rerun full
 ``install.sh`` only when you also need installer side effects such as app
@@ -228,7 +244,7 @@ When you run install.sh it may looks like it is freezed at some point.
    Using CPython 3.xx.xx
    Creating virtual environment at: .venv
    Resolved xxx packages in xxms
-   Building agi-cluster @ file:///Users/<user>/agilab/src/agilab/core/agi-cluster
+   Building agi-cluster @ file:///path/to/checkout/src/agilab/core/agi-cluster
 
 The sync keeps “freezing” because uv still has to build some heavy dependencies (most notably numba/llvmlite) from
   source. Those wheels are only pre-built for a few Python versions; with 3.13 they do not exist yet, and even on
@@ -240,7 +256,7 @@ Unfortunatly when NumPy/Numba falls back to compiling from source you won’t se
 ------------------------
 
 while running uv into a project from another one:
-warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/Users/<user>/agilab/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
+warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/path/to/checkout/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
 This is not a problem this because we dynamically change the venv. Just ignore it.
 
 <Python> Python

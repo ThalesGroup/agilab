@@ -38,5 +38,7 @@ with open(snippet_file, "r") as snippet:
         ) from err
 
     except Exception as err:
-        st.error(f"```{snippet_file}: {err}\n{traceback.format_exc()}```")
+        st.error(f"Failed to run snippet `{snippet_file}`: {err}")
+        st.caption("Full traceback")
+        st.code(f"{snippet_file}: {err}\n{traceback.format_exc()}", language="text")
 st.session_state.data = df

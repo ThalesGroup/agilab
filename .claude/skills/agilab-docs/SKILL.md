@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-29
+  updated: 2026-05-05
 ---
 
 # Docs Skill (AGILAB)
@@ -119,6 +119,14 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Public mirror sync (from `agilab` repo root):
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
+- Docs alignment check without editing files:
+  - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --delete`
+  - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
+  - Treat the canonical source and public mirror as locally aligned only when the
+    dry run reports `create: 0`, `update: 0`, `delete: 0` and the stamp check is OK.
+  - A dirty Git status can still be aligned locally; it means the aligned docs are
+    uncommitted/unpublished. Online docs require commit, push, and a successful
+    Pages publication before they can be called aligned.
 - Public docs parity build (from `agilab` repo root):
   - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
 - Local Sphinx build (from `../thales_agilab` repo root):

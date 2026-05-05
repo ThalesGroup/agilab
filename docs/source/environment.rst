@@ -12,8 +12,10 @@ summarises the supported keys.
      - Default
      - Purpose
    * - ``APPS_PATH``
-     - ``~/agilab/src/agilab/apps``
+     - ``$AGILAB_CHECKOUT/src/agilab/apps`` in source checkouts
      - Root directory containing app projects; used when selecting the active app.
+       Replace ``$AGILAB_CHECKOUT`` with the checkout you are actually running;
+       AGILAB does not require the source tree directory to be named ``agilab``.
    * - ``APP_DEFAULT``
      - ``flight_project``
      - App loaded when no explicit project is provided.

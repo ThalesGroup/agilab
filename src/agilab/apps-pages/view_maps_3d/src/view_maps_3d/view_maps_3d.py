@@ -92,16 +92,36 @@ def _vm3d_key(name: str) -> str:
 
 
 def _list_dataset_files(base_dir: Path, ext_choice: str = "all") -> list[Path]:
-    files: list[Path] = []
+    candidates: list[tuple[int, Path]] = []
     extensions = DATASET_EXTENSIONS if ext_choice == "all" else (f".{ext_choice}",)
-    for ext in extensions:
-        files.extend(find_files(base_dir, ext=ext))
+    for extension_index, ext in enumerate(extensions):
+        candidates.extend(
+            (extension_index, file)
+            for file in find_files(base_dir, ext=ext)
+            if isinstance(file, Path)
+        )
+
+    file_counts: dict[Path, int] = {}
+    for _, file in candidates:
+        file_counts[file] = file_counts.get(file, 0) + 1
+    has_duplicate_discovery = any(count > 1 for count in file_counts.values())
+
+    def _relative_key(file: Path) -> str:
+        try:
+            return file.relative_to(base_dir).as_posix()
+        except Exception:
+            return file.as_posix()
+
+    sort_key = (
+        (lambda item: (item[0], _relative_key(item[1])))
+        if has_duplicate_discovery
+        else (lambda item: _relative_key(item[1]))
+    )
+
     # De-duplicate while keeping deterministic ordering for widget defaults.
     visible: list[Path] = []
     seen: set[Path] = set()
-    for file in sorted(files, key=lambda path: Path(path).relative_to(base_dir).as_posix()):
-        if not isinstance(file, Path):
-            continue
+    for _, file in sorted(candidates, key=sort_key):
         try:
             parts = file.relative_to(base_dir).parts
         except Exception:
@@ -566,7 +586,8 @@ def page():
     if "projects" not in st.session_state:
         st.session_state["projects"] = env.projects
     if "beamdir" not in st.session_state:
-        base_share = env.share_root_path()
+        share_root_path = getattr(env, "share_root_path", None)
+        base_share = Path(share_root_path()) if callable(share_root_path) else Path(env.AGILAB_EXPORT_ABS)
         st.session_state["beamdir"] = Path(view_settings.get("beamdir") or (base_share / env.target.replace("_project", "")))
     if "coltype" not in st.session_state:
         st.session_state["coltype"] = view_settings.get("coltype", var[0])
@@ -1321,7 +1342,8 @@ def main():
         st.error(f"An error occurred: {e}")
         import traceback
 
-        st.code(traceback.format_exc())
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
 
 
 # -------------------- Main Entry Point -------------------- #

@@ -186,7 +186,7 @@ Use this runbook whenever you:
 - **Flight dependencies**: Follow the project’s own metadata for Streamlit/matplotlib/OpenAI—no extra
   trimming beyond the flight worker manifest.
 - **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
-  `~/agilab` checkout is absent. Agents can only reference packaged assets inside the
+  source checkout is absent. Agents can only reference packaged assets inside the
   virtual environment—never repository-relative paths.
 - **App settings workspace**: `src/.../app_settings.toml` is now a versioned seed only.
   Mutable per-user settings live under `~/.agilab/apps/<app>/app_settings.toml`, and
@@ -241,8 +241,7 @@ Use this runbook whenever you:
   their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.
 - **Docs source of truth**: Editable docs sources live in the sibling docs
-  checkout `../thales_agilab/docs/source` (for this machine:
-  `/Users/agi/PycharmProjects/thales_agilab/docs/source`). Treat
+  checkout `../thales_agilab/docs/source` relative to the active AGILAB checkout. Treat
   `docs/source` in this repo as a managed public mirror, not as a second
   authoring tree.
 - **Docs mirror sync**: Refresh the public mirror with
@@ -339,7 +338,8 @@ or lost its `~/.ssh` state.
    ```
 3. Re-bootstrap user auth on the remote node. Preferred path: copy the manager public key:
    ```bash
-   ssh-copy-id agi@192.168.20.130
+   worker_user="<worker-user>"
+   ssh-copy-id "$worker_user@192.168.20.130"
    ```
    If `ssh-copy-id` is unavailable, append the public key manually on the remote:
    ```bash
@@ -355,26 +355,35 @@ or lost its `~/.ssh` state.
    Expected: `PubkeyAuthentication yes`. Password auth can stay enabled as a bootstrap fallback only.
 5. Verify access before rerunning AGILAB:
    ```bash
-   ssh agi@192.168.20.130 'echo ok'
+   worker_user="<worker-user>"
+   ssh "$worker_user@192.168.20.130" 'echo ok'
    ```
 6. Recreate cluster-share prerequisites on the reinstalled Linux node:
    ```bash
-   mkdir -p /home/agi/.agilab /home/agi/clustershare /home/agi/localshare
-   cat > /home/agi/.agilab/.env <<'EOF'
-   AGI_CLUSTER_SHARE=/home/agi/clustershare
-   AGI_LOCAL_SHARE=/home/agi/localshare
+   worker_user="<worker-user>"
+   worker_home="/home/$worker_user"
+   mkdir -p "$worker_home/.agilab" "$worker_home/clustershare" "$worker_home/localshare"
+   cat > "$worker_home/.agilab/.env" <<EOF
+   AGI_CLUSTER_SHARE=$worker_home/clustershare
+   AGI_LOCAL_SHARE=$worker_home/localshare
    EOF
    ```
 7. Remount shared cluster storage if this cluster uses SSHFS from `.111` to `.130`:
    ```bash
+   worker_user="<worker-user>"
+   manager_user="<manager-user>"
+   worker_home="/home/$worker_user"
+   manager_share="/path/to/manager/clustershare"
    sudo apt-get update && sudo apt-get install -y sshfs
-   mkdir -p /home/agi/clustershare
-   sshfs agi@192.168.20.111:/Users/agi/clustershare /home/agi/clustershare
+   mkdir -p "$worker_home/clustershare"
+   sshfs "$manager_user@192.168.20.111:$manager_share" "$worker_home/clustershare"
    mount | grep clustershare
    ```
 8. Verify the node can still reach the scheduler/manager peer non-interactively:
    ```bash
-   ssh agi@192.168.20.130 'ssh -o BatchMode=yes agi@192.168.20.111 hostname'
+   worker_user="<worker-user>"
+   manager_user="<manager-user>"
+   ssh "$worker_user@192.168.20.130" "ssh -o BatchMode=yes $manager_user@192.168.20.111 hostname"
    ```
 9. Only after these SSH and share checks pass, rerun `AGI.install(...)` / cluster pipelines.
 
@@ -385,14 +394,18 @@ sentinel check on a macOS worker.
 
 1. Check the real remote state from a non-interactive SSH command:
    ```bash
-   ssh <user>@<worker_ip> 'printf "path=%s\n" "$PATH"; command -v sshfs || true; /usr/local/Homebrew/bin/brew --version 2>/dev/null | head -1 || true'
+   worker_user="<worker-user>"
+   worker_ip="<worker-ip>"
+   ssh "$worker_user@$worker_ip" 'printf "path=%s\n" "$PATH"; command -v sshfs || true; /usr/local/Homebrew/bin/brew --version 2>/dev/null | head -1 || true'
    ```
 2. On older Intel macOS hosts, Homebrew may exist at `/usr/local/Homebrew/bin/brew`
    even when `command -v brew` is empty. Use that explicit path before assuming
    no package manager exists.
 3. Prefer a normal interactive install of FUSE-T SSHFS or macFUSE plus SSHFS:
    ```bash
-   ssh -t <user>@<worker_ip> 'HOMEBREW_NO_AUTO_UPDATE=1 /usr/local/Homebrew/bin/brew install macos-fuse-t/homebrew-cask/fuse-t-sshfs'
+   worker_user="<worker-user>"
+   worker_ip="<worker-ip>"
+   ssh -t "$worker_user@$worker_ip" 'HOMEBREW_NO_AUTO_UPDATE=1 /usr/local/Homebrew/bin/brew install macos-fuse-t/homebrew-cask/fuse-t-sshfs'
    ```
    This can require an admin password because it installs a package.
 4. Ensure `sshfs` is visible to non-interactive zsh. If it is installed under
@@ -408,19 +421,28 @@ sentinel check on a macOS worker.
    created on the worker, so the worker must authenticate back to the scheduler
    account used in the mount source:
    ```bash
-   ssh <user>@<worker_ip> 'ssh -o BatchMode=yes <manager_user>@<manager_ip> hostname'
+   worker_user="<worker-user>"
+   worker_ip="<worker-ip>"
+   manager_user="<manager-user>"
+   manager_ip="<manager-ip>"
+   ssh "$worker_user@$worker_ip" "ssh -o BatchMode=yes $manager_user@$manager_ip hostname"
    ```
 6. If reverse SSH fails with a host-key error, refresh the manager key on the
    worker. If it fails with `Permission denied`, add the worker public key to
    the manager account’s `~/.ssh/authorized_keys`.
 7. Rerun the narrow gate before any full cluster validation:
    ```bash
+   manager_ip="<manager-ip>"
+   worker_user="<worker-user>"
+   worker_ip="<worker-ip>"
+   local_shared_path="/path/to/local/shared/path"
+   remote_mount_path="/path/to/remote/mount/path"
    uv --preview-features extra-build-dependencies run agilab doctor \
      --cluster \
-     --scheduler <manager_ip> \
-     --workers <user>@<worker_ip> \
-     --cluster-share <local_shared_path> \
-     --remote-cluster-share <remote_mount_path> \
+     --scheduler "$manager_ip" \
+     --workers "$worker_user@$worker_ip" \
+     --cluster-share "$local_shared_path" \
+     --remote-cluster-share "$remote_mount_path" \
      --share-check-only
    ```
 

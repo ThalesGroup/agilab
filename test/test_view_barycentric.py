@@ -712,7 +712,12 @@ def test_view_barycentric_main_reports_missing_app_and_page_errors(monkeypatch, 
     monkeypatch.setattr(
         module,
         "st",
-        SimpleNamespace(session_state=_State(), error=errors.append),
+        SimpleNamespace(
+            session_state=_State(),
+            error=errors.append,
+            caption=lambda _message: None,
+            code=lambda _message, **_kwargs: None,
+        ),
     )
     monkeypatch.setattr(module.sys, "argv", ["view_barycentric.py", "--active-app", str(tmp_path / "missing_app")])
     with pytest.raises(SystemExit):
@@ -738,7 +743,12 @@ def test_view_barycentric_main_reports_missing_app_and_page_errors(monkeypatch, 
     monkeypatch.setattr(
         module,
         "st",
-        SimpleNamespace(session_state=_State(), error=errors.append),
+        SimpleNamespace(
+            session_state=_State(),
+            error=errors.append,
+            caption=lambda _message: None,
+            code=lambda _message, **_kwargs: None,
+        ),
     )
     monkeypatch.setattr(module.sys, "argv", ["view_barycentric.py", "--active-app", str(active_app)])
     module.main()
@@ -956,7 +966,16 @@ def test_view_barycentric_main_reports_outer_exception(monkeypatch) -> None:
     errors: list[str] = []
 
     monkeypatch.setattr(module.argparse, "ArgumentParser", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("arg boom")))
-    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=_State(), error=errors.append))
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            session_state=_State(),
+            error=errors.append,
+            caption=lambda _message: None,
+            code=lambda _message, **_kwargs: None,
+        ),
+    )
 
     module.main()
 

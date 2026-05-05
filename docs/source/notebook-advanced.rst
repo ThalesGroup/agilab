@@ -63,8 +63,9 @@ From the AGILab repository root:
 
 .. code-block:: bash
 
-   git clone https://github.com/ThalesGroup/agilab.git
-   cd agilab
+   CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
+   git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
+   cd "$CHECKOUT"
    ./install.sh --install-apps
    uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
 

@@ -24,6 +24,7 @@ from typing import Union
 import asyncio
 import shlex
 import importlib.util
+import traceback
 from urllib.parse import urlencode
 import shutil
 
@@ -1117,6 +1118,8 @@ async def _render_selected_view_route(current_page: str | None) -> bool:
         await render_view_page(Path(current_page))
     except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as exc:
         st.error(f"Failed to render view: {exc}")
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
     return True
 
 

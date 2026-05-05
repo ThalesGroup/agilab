@@ -101,7 +101,17 @@ def test_resolve_discovered_views_skips_broken_entry(tmp_path: Path, monkeypatch
 def test_render_selected_view_route_reports_error(monkeypatch):
     module = _load_analysis_module()
     errors: list[str] = []
-    monkeypatch.setattr(module, "st", SimpleNamespace(error=lambda message: errors.append(str(message))))
+    captions: list[str] = []
+    code_blocks: list[tuple[str, str | None]] = []
+    monkeypatch.setattr(
+        module,
+        "st",
+        SimpleNamespace(
+            error=lambda message: errors.append(str(message)),
+            caption=lambda message: captions.append(str(message)),
+            code=lambda body, language=None: code_blocks.append((str(body), language)),
+        ),
+    )
 
     async def _raise_render(_path: Path):
         raise RuntimeError("broken view")
@@ -112,6 +122,10 @@ def test_render_selected_view_route_reports_error(monkeypatch):
 
     assert handled is True
     assert errors == ["Failed to render view: broken view"]
+    assert captions == ["Full traceback"]
+    assert code_blocks
+    assert "RuntimeError: broken view" in code_blocks[0][0]
+    assert code_blocks[0][1] == "text"
 
 
 def test_render_selected_view_route_ignores_main_route():
