@@ -484,6 +484,73 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
 
 
+def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui_env):
+    """Robot-style INSTALL regression for handled remote uv self-update warnings."""
+
+    at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py", default_timeout=30)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    at.session_state["env"] = env
+    at.session_state["app_settings"] = {
+        "args": {},
+        "cluster": {
+            "cluster_enabled": True,
+            "cython": True,
+            "pool": True,
+            "scheduler": "192.168.20.111:8786",
+            "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
+            "workers_data_path": str(mock_ui_env["apps_dir"].parent / "clustershare"),
+        },
+    }
+    _seed_env_editor_state(at, env)
+    calls: list[dict[str, object]] = []
+
+    async def _fake_run_agi(self, code, log_callback=None, venv=None, type=None):
+        calls.append({"code": code, "venv": venv, "type": type})
+        if "AGI.install" in code:
+            assert venv is None
+            (self.active_app / ".venv").mkdir(parents=True, exist_ok=True)
+            (self.wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+            if log_callback is not None:
+                log_callback("Remote command stderr: error: Permission denied (os error 13)")
+                log_callback(
+                    "Failed to update uv on 192.168.20.15 (skipping self update): "
+                    "Process exited with non-zero exit status 2"
+                )
+            return "None\nProcess finished", ""
+        assert "AGI.run" in code
+        assert venv is not None
+        if log_callback is not None:
+            log_callback("run completed")
+        return "{'ok': True}", ""
+
+    with patch.object(AgiEnv, "run_agi", _fake_run_agi):
+        at.run()
+        assert not at.exception
+        at.button(key="install_btn").click().run()
+        assert not at.exception
+        install_success_rendered = any("Cluster installation completed." in str(item.value) for item in at.success)
+        install_failure_rendered = any("Cluster installation failed." in str(item.value) for item in at.error)
+        install_log_rendered = any("✅ Install complete." in str(item.value) for item in at.code)
+        benign_warning_rendered = any(
+            "Process exited with non-zero exit status 2" in str(item.value) for item in at.code
+        )
+        at.run()
+        assert not at.exception
+        at.button(key="run_btn").click().run()
+
+    assert not at.exception
+    assert len(calls) == 2
+    assert "AGI.install" in str(calls[0]["code"])
+    assert "AGI.run" in str(calls[1]["code"])
+    assert install_success_rendered is True
+    assert install_failure_rendered is False
+    assert install_log_rendered is True
+    assert benign_warning_rendered is True
+    assert any("run completed" in str(item.value) for item in at.code)
+
+
 def test_execute_page_cluster_toggle_off_persists_false_to_workspace(mock_ui_env):
     at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
 
