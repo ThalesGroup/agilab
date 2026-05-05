@@ -380,11 +380,15 @@ try {
             }
 
             Write-Host "Installing packages from local source tree..."
+            $localCorePaths = @()
             foreach ($pkg in $Packages) {
                 $corePath = Join-Path (Join-Path $AgiInstallPath "core") $pkg
                 if (Test-Path -LiteralPath $corePath) {
-                    Invoke-UvPreview -Args @("pip", "install", "--upgrade", "--no-deps", $corePath)
+                    $localCorePaths += $corePath
                 }
+            }
+            if ($localCorePaths.Count -gt 0) {
+                Invoke-UvPreview -Args (@("pip", "install", "--upgrade") + $localCorePaths)
             }
             Invoke-UvPreview -Args @("pip", "install", "--upgrade", "--no-deps", $AgiInstallRoot)
         }
@@ -482,4 +486,3 @@ if ($venvPython) {
     Write-Warning "Python interpreter not found in $Venv; skipping package list."
 }
 Write-Host "===================================="
-

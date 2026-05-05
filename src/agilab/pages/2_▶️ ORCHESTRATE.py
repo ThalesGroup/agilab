@@ -352,6 +352,17 @@ def _env_cluster_share_value(env: Any) -> Any:
     return cluster_share_path
 
 
+def _has_configured_cluster_share(env: Any) -> bool:
+    text = _clean_share_path_text(_env_cluster_share_value(env))
+    if text.lower() in {"", "none", "local", "localshare"}:
+        return False
+    try:
+        candidate = _resolve_share_candidate(text, getattr(env, "home_abs", Path.home()))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return True
+    return not _path_points_to_local_share(candidate, env)
+
+
 def _env_local_share_paths(env: Any) -> tuple[Path, ...]:
     raw_values: list[Any] = []
     local_share = getattr(env, "AGI_LOCAL_SHARE", None)
@@ -508,7 +519,6 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
 
     is_symlink = share_candidate.is_symlink()
     looks_shared = _looks_like_shared_path(share_candidate) or _looks_like_shared_path(share_resolved)
-    cluster_share_path = _env_cluster_share_value(env)
     workers_data_path = _clean_share_path_text(cluster_params.get("workers_data_path"))
     has_worker_share_path = workers_data_path.lower() not in {"", "none", "local", "localshare"}
     try:
@@ -516,12 +526,9 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
         has_worker_share_path = has_worker_share_path and not _path_points_to_local_share(worker_path, env)
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
-    configured_cluster_share = _configured_cluster_share_matches(
-        share_resolved,
-        cluster_share_path=cluster_share_path,
-        home_abs=getattr(env, "home_abs", Path.home()),
-    )
-    if is_symlink or looks_shared or (configured_cluster_share and has_worker_share_path):
+    # SSHFS cluster-share contract: the scheduler-side AGI_CLUSTER_SHARE can be a
+    # normal local filesystem; remote workers mount it at Workers Data Path.
+    if is_symlink or looks_shared or (has_worker_share_path and _has_configured_cluster_share(env)):
         return None
 
     fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
@@ -530,7 +537,8 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
     return (
         f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
         f"(detected fstype: `{fstype}`) "
-        "Set `AGI_CLUSTER_SHARE` and `Workers Data Path` to the shared mount used by workers, "
+        "Set `AGI_CLUSTER_SHARE` to the scheduler-side source path and `Workers Data Path` "
+        "to the worker-side SSHFS/shared mount target, "
         "or set `AGI_SHARE_DIR` to a shared mount/symlink when not using the cluster-share contract."
         f"{extra}"
     )

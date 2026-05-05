@@ -1340,6 +1340,59 @@ def test_cluster_args_share_warning_accepts_configured_cluster_share(tmp_path):
     assert warning is None
 
 
+def test_cluster_args_share_warning_accepts_sshfs_contract_with_local_scheduler_source(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+    monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
+    monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
+    local_share = tmp_path / "localshare" / "agi"
+    scheduler_share = tmp_path / "clustershare" / "agi"
+    local_share.mkdir(parents=True)
+    scheduler_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=Path("localshare/agi"),
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={},
+    )
+
+    warning = module._cluster_args_share_warning(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": "/home/agi/clustershare/agi",
+        },
+    )
+
+    assert warning is None
+
+
+def test_cluster_args_share_warning_rejects_cluster_share_that_points_to_local_share(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+    monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
+    monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
+    local_share = tmp_path / "localshare" / "agi"
+    local_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=Path("localshare/agi"),
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(local_share),
+        envars={},
+    )
+
+    warning = module._cluster_args_share_warning(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": "/home/agi/clustershare/agi",
+        },
+    )
+
+    assert warning is not None
+    assert "worker-side SSHFS/shared mount target" in warning
+
+
 def test_cluster_args_share_warning_reports_stale_local_workers_path(monkeypatch, tmp_path):
     module = _load_orchestrate_module()
     monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
@@ -1363,6 +1416,7 @@ def test_cluster_args_share_warning_reports_stale_local_workers_path(monkeypatch
 
     assert warning is not None
     assert "appears local" in warning
+    assert "worker-side SSHFS/shared mount target" in warning
     assert str(local_share) in warning
 
 

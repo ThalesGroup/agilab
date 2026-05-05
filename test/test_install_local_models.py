@@ -8,6 +8,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SH = REPO_ROOT / "install.sh"
 INSTALL_ENDUSER_SH = REPO_ROOT / "tools" / "install_enduser.sh"
+INSTALL_ENDUSER_PS1 = REPO_ROOT / "tools" / "install_enduser.ps1"
 APPS_INSTALL_PY = REPO_ROOT / "src" / "agilab" / "apps" / "install.py"
 
 
@@ -164,3 +165,12 @@ def test_installers_expose_and_wire_install_local_models_flag() -> None:
     assert "--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini" in enduser_text
     assert 'setup_requested_local_models "$requested_local_models" "requested local models"' in root_text
     assert 'install_requested_local_models "${INSTALL_LOCAL_MODELS}"' in enduser_text
+
+
+def test_windows_enduser_local_source_installs_core_packages_with_dependencies() -> None:
+    ps1_text = INSTALL_ENDUSER_PS1.read_text(encoding="utf-8")
+
+    assert "$localCorePaths = @()" in ps1_text
+    assert 'Invoke-UvPreview -Args (@("pip", "install", "--upgrade") + $localCorePaths)' in ps1_text
+    assert 'Invoke-UvPreview -Args @("pip", "install", "--upgrade", "--no-deps", $corePath)' not in ps1_text
+    assert 'Invoke-UvPreview -Args @("pip", "install", "--upgrade", "--no-deps", $AgiInstallRoot)' in ps1_text

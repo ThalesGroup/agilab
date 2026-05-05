@@ -174,10 +174,12 @@ async def _ensure_project_venv(
     *,
     run_fn: Callable[..., Any],
     os_name: str = os.name,
+    python_version: str | None = None,
 ) -> None:
     if _project_venv_python(project, os_name=os_name).exists():
         return
-    cmd = f'{uv_cmd} venv --allow-existing "{project / ".venv"}"'
+    python_arg = f" --python {python_version}" if python_version else ""
+    cmd = f'{uv_cmd} venv --allow-existing{python_arg} "{project / ".venv"}"'
     await run_fn(cmd, project)
 
 
@@ -189,14 +191,23 @@ async def _install_into_project_venv(
     run_fn: Callable[..., Any],
     os_name: str = os.name,
     editable: bool = False,
+    no_deps: bool = True,
+    python_version: str | None = None,
 ) -> None:
-    await _ensure_project_venv(uv_cmd, project, run_fn=run_fn, os_name=os_name)
+    await _ensure_project_venv(
+        uv_cmd,
+        project,
+        run_fn=run_fn,
+        os_name=os_name,
+        python_version=python_version,
+    )
     venv_python = _project_venv_python(project, os_name=os_name)
     package_spec = str(package_ref)
     editable_flag = "-e " if editable else ""
+    no_deps_flag = "--no-deps " if no_deps else ""
     cmd = (
         f'{uv_cmd} pip install --python "{venv_python}" '
-        f'--upgrade --no-deps {editable_flag}"{package_spec}"'
+        f'--upgrade {no_deps_flag}{editable_flag}"{package_spec}"'
     )
     await run_fn(cmd, project)
 
@@ -703,7 +714,13 @@ async def deploy_local_worker(
                     continue
             install_spec = _resolve_install_spec(project_path, package_name)
             if install_spec:
-                await _install_into_project_venv(uv, app_path, install_spec, run_fn=run_fn)
+                await _install_into_project_venv(
+                    uv,
+                    app_path,
+                    install_spec,
+                    run_fn=run_fn,
+                    no_deps=package_name not in {"agi-env", "agi-node", "agi-cluster"},
+                )
 
         resources_src = env_project / "src/agi_env/resources"
         if not resources_src.exists():
@@ -879,8 +896,16 @@ async def deploy_local_worker(
         if env_whl is None:
             raise RuntimeError(cmd)
 
-        cmd = f"{uv_worker} {offline_flag}pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.agi_env}\""
-        await run_fn(cmd, wenv_abs)
+        uv_worker_install = f"{uv_worker} {offline_flag}".rstrip()
+        await _install_into_project_venv(
+            uv_worker_install,
+            wenv_abs,
+            env.agi_env,
+            run_fn=run_fn,
+            editable=True,
+            no_deps=bool(editable_flags),
+            python_version=env.pyvers_worker,
+        )
 
         menv = env.agi_node
         cmd = f"{uv} {offline_flag}--project \"{menv}\" build --wheel"
@@ -891,12 +916,26 @@ async def deploy_local_worker(
             raise RuntimeError(cmd)
         shutil.copy2(whl, wenv_abs)
 
-        cmd = f"{uv_worker} {offline_flag}pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.agi_node}\""
-        await run_fn(cmd, wenv_abs)
+        await _install_into_project_venv(
+            uv_worker_install,
+            wenv_abs,
+            env.agi_node,
+            run_fn=run_fn,
+            editable=True,
+            no_deps=bool(editable_flags),
+            python_version=env.pyvers_worker,
+        )
 
     editable_flags = "--no-deps " if env.is_source_env else ""
-    cmd = f"{uv_worker} pip install --project \"{wenv_abs}\" {editable_flags}-e \"{env.active_app}\""
-    await run_fn(cmd, wenv_abs)
+    await _install_into_project_venv(
+        uv_worker,
+        wenv_abs,
+        env.active_app,
+        run_fn=run_fn,
+        editable=True,
+        no_deps=bool(editable_flags),
+        python_version=env.pyvers_worker,
+    )
 
     dest = wenv_abs / "src" / env.target_worker
     os.makedirs(dest, exist_ok=True)
