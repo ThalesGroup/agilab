@@ -802,7 +802,12 @@ async def _install_worker_action(
         install_stderr = str(exc)
         _append_log_lines(local_log, f"ERROR: {install_stderr}")
 
-    error_flag = bool(str(install_stderr or "").strip()) or install_error is not None
+    if install_stderr and install_error is None:
+        _append_log_lines(local_log, install_stderr)
+    if install_stdout:
+        _append_log_lines(local_log, install_stdout)
+
+    error_flag = install_error is not None
     if not error_flag and _log_indicates_install_failure(local_log):
         error_flag = True
         if not str(install_stderr or "").strip():
