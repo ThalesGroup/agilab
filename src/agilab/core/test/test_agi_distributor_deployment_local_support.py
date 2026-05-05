@@ -219,6 +219,38 @@ async def test_install_into_project_venv_reuses_existing_target_python(tmp_path)
     ]
 
 
+@pytest.mark.asyncio
+async def test_install_into_project_venv_can_resolve_dependencies_with_worker_python(tmp_path):
+    calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+
+    await deployment_local_support._install_into_project_venv(
+        "uv --offline",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        editable=True,
+        no_deps=False,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv --offline venv --allow-existing --python 3.13 "{tmp_path / ".venv"}"',
+            tmp_path,
+        ),
+        (
+            f'uv --offline pip install --python "{tmp_path / ".venv" / "bin" / "python"}" '
+            f'--upgrade -e "{package_path}"',
+            tmp_path,
+        ),
+    ]
+
+
 def test_project_venv_python_uses_windows_layout(tmp_path):
     assert deployment_local_support._project_venv_python(tmp_path, os_name="nt") == (
         tmp_path / ".venv" / "Scripts" / "python.exe"
@@ -1217,6 +1249,12 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
         f'add --editable "{env_project}" "{node_project}"' in cmd and str(wenv_abs) in cmd
         for cmd, _ in commands
     )
+    manager_python = app_path / ".venv" / "bin" / "python"
+    assert any(
+        f'pip install --python "{manager_python}" --upgrade "{cluster_project}"' in cmd
+        for cmd, _ in commands
+    )
+    assert not any(f'--no-deps "{cluster_project}"' in cmd and str(app_path) in cwd for cmd, cwd in commands)
     assert not any("add agi-env" in cmd and str(wenv_abs) in cmd for cmd, _ in commands)
     assert any("config-file uv_config.toml" in cmd for cmd, _ in commands)
     assert any("pip install --python" in cmd and str(wenv_abs / ".venv") in cmd for cmd, _ in commands)
@@ -1683,9 +1721,24 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
         f'uv --offline --project {wenv_abs} add --editable "{agi_env}" "{agi_node}"' in cmd
         for cmd, _ in commands
     )
-    assert any(f'uv --offline pip install --project "{wenv_abs}" --no-deps -e "{agi_env}"' in cmd for cmd, _ in commands)
-    assert any(f'uv --offline pip install --project "{wenv_abs}" --no-deps -e "{agi_node}"' in cmd for cmd, _ in commands)
-    assert any(f'pip install --project "{wenv_abs}" --no-deps -e "{app_path}"' in cmd for cmd, _ in commands)
+    worker_python = wenv_abs / ".venv" / "bin" / "python"
+    assert any(
+        f'uv --offline venv --allow-existing --python 3.13 "{wenv_abs / ".venv"}"' in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        f'uv --offline pip install --python "{worker_python}" --upgrade --no-deps -e "{agi_env}"' in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        f'uv --offline pip install --python "{worker_python}" --upgrade --no-deps -e "{agi_node}"' in cmd
+        for cmd, _ in commands
+    )
+    assert any(
+        f'uv pip install --python "{worker_python}" --upgrade --no-deps -e "{app_path}"' in cmd
+        for cmd, _ in commands
+    )
+    assert not any(f'pip install --project "{wenv_abs}"' in cmd for cmd, _ in commands)
     assert (wenv_abs / "agi_node-0.0.2-py3-none-any.whl").exists()
     assert not (wenv_abs / "agi_node-0.0.1-py3-none-any.whl").exists()
 
