@@ -30,13 +30,20 @@ RUN_MODE_LABELS: tuple[str, ...] = (
 )
 
 _INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
-    # ("connection to", "timed out"),
-    # ("failed to connect",),
-    # ("connection refused",),
-    # ("no route to host",),
-    # ("ssh_exchange_identification",),
-    # ("broken pipe",),
-    ("error",),
+    ("traceback",),
+    ("unhandled exception",),
+    ("command failed with exit code",),
+    ("process exited with non-zero exit status",),
+    ("non-zero exit status",),
+    ("install finished with errors",),
+    ("worker start hook failed",),
+    ("connection to", "timed out"),
+    ("failed to connect",),
+    ("connection refused",),
+    ("no route to host",),
+    ("ssh_exchange_identification",),
+    ("broken pipe",),
+    ("timeout expired",),
 )
 
 _INSTALL_LOG_FATAL_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
@@ -884,7 +891,7 @@ def app_install_status(env: Any) -> dict[str, Any]:
 
 
 def log_indicates_install_failure(lines: list[str]) -> bool:
-    """Return True when install logs likely indicate transport failure."""
+    """Return True when install logs likely indicate fatal install failure."""
     if not lines or not _INSTALL_LOG_FATAL_PATTERNS_LOWER:
         return False
 
