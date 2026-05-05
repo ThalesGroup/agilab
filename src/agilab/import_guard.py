@@ -103,6 +103,49 @@ def assert_agilab_checkout_alignment(current_file: str | Path, package_name: str
     return expected_root
 
 
+def _source_root_for_package_root(package_root: Path) -> Path | None:
+    if len(package_root.parents) < 2:
+        return None
+    source_root = package_root.parents[1]
+    if (source_root / "src" / "agilab" / "About_agilab.py").exists():
+        return source_root.resolve(strict=False)
+    return None
+
+
+def _source_root_for_python_executable(executable: str | Path) -> Path | None:
+    executable_path = _resolve_path(executable)
+    parts = executable_path.parts
+    if ".venv" not in parts:
+        return None
+    idx = parts.index(".venv")
+    if idx == 0:
+        return None
+    source_root = Path(*parts[:idx]).resolve(strict=False)
+    if (source_root / "src" / "agilab" / "About_agilab.py").exists():
+        return source_root
+    return None
+
+
+def assert_python_environment_alignment(current_file: str | Path, package_name: str = "agilab") -> Path:
+    """Reject source runs that use a Python venv from another AGILAB checkout."""
+    expected_package_root = resolve_package_root(current_file, package_name=package_name)
+    expected_source_root = _source_root_for_package_root(expected_package_root)
+    actual_source_root = _source_root_for_python_executable(sys.executable)
+    if (
+        expected_source_root is not None
+        and actual_source_root is not None
+        and actual_source_root != expected_source_root
+    ):
+        raise MixedCheckoutImportError(
+            "Mixed AGILAB Python environment detected. "
+            f"Current file {Path(current_file).resolve()} belongs to {expected_source_root}, "
+            f"but Python is running from {actual_source_root}. "
+            "Rerun pycharm/setup_pycharm.py from the intended checkout or select the matching "
+            "uv SDK in PyCharm."
+        )
+    return expected_package_root
+
+
 def _load_module_from_path(module_name: str, fallback_path: str | Path, fallback_name: str | None = None) -> ModuleType:
     module_path = _resolve_path(fallback_path)
     synthetic_name = fallback_name or f"{module_name.replace('.', '_')}_fallback"

@@ -23,9 +23,11 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 assert_agilab_checkout_alignment = _import_guard_module.assert_agilab_checkout_alignment
+assert_python_environment_alignment = _import_guard_module.assert_python_environment_alignment
 import_agilab_module = _import_guard_module.import_agilab_module
 
 assert_agilab_checkout_alignment(__file__)
+assert_python_environment_alignment(__file__)
 
 _about_env_editor = import_agilab_module(
     "agilab.about_page.env_editor",

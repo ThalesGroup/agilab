@@ -156,6 +156,18 @@ def venv_python_for(project_dir: Path) -> Optional[Path]:
     return None
 
 
+def _is_agilab_source_root(path: Path) -> bool:
+    return (
+        (path / "pyproject.toml").exists()
+        and (path / "src" / "agilab" / "About_agilab.py").exists()
+    )
+
+
+def _allow_sdk_rebind() -> bool:
+    value = os.environ.get("AGILAB_PYCHARM_ALLOW_SDK_REBIND", "").strip().lower()
+    return value in {"1", "true", "yes", "on", "force"}
+
+
 def content_url_for(cfg: Config, dir_path: Path) -> str:
     try:
         rel = dir_path.relative_to(cfg.ROOT)
@@ -566,6 +578,61 @@ class JdkTable:
             return str(Path(path).expanduser().resolve())
         except Exception:
             return str(path)
+
+    def __expand_jetbrains_path(self, path: str) -> Path:
+        expanded = path.replace("$USER_HOME$", str(Path.home()))
+        return Path(expanded).expanduser().resolve(strict=False)
+
+    def __project_root_from_home_path(self, home_path: str) -> Optional[Path]:
+        if not home_path:
+            return None
+        path = self.__expand_jetbrains_path(home_path)
+        parts = path.parts
+        if ".venv" not in parts:
+            return None
+        idx = parts.index(".venv")
+        if idx == 0:
+            return None
+        return Path(*parts[:idx]).resolve(strict=False)
+
+    def __project_root_for_jdk(self, jdk: ET.Element) -> Optional[Path]:
+        additional = jdk.find("additional")
+        if additional is not None:
+            for attr in ("ASSOCIATED_PROJECT_PATH", "UV_WORKING_DIR"):
+                value = additional.get(attr, "").strip()
+                if value:
+                    return self.__expand_jetbrains_path(value)
+        return self.__project_root_from_home_path(self.__jdk_home(jdk))
+
+    def conflicting_source_roots(self, name: str, root: Path) -> List[Path]:
+        target_root = root.resolve(strict=False)
+        conflicts: List[Path] = []
+
+        if not _is_agilab_source_root(target_root):
+            return conflicts
+
+        for jdk_table in self.jdk_tables:
+            if not jdk_table.exists():
+                continue
+            try:
+                tree = read_xml(jdk_table)
+            except ET.ParseError:
+                continue
+            comp = tree.getroot().find("./component[@name='ProjectJdkTable']")
+            if comp is None:
+                continue
+            for jdk in comp.findall("jdk"):
+                if self.__jdk_name(jdk) != name:
+                    continue
+                project_root = self.__project_root_for_jdk(jdk)
+                if project_root is None:
+                    continue
+                if project_root == target_root:
+                    continue
+                if _is_agilab_source_root(project_root):
+                    conflicts.append(project_root)
+
+        return sorted(set(conflicts))
 
     def __ensure_child_value(self, parent: ET.Element, tag: str, value: str) -> bool:
         el = parent.find(tag)
@@ -1124,13 +1191,34 @@ def main() -> int:
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).parents[1]
 
     cfg = Config(root=path)
+    jdk_table = JdkTable(cfg.PROJECT_SDK_TYPE)
+    conflicts = jdk_table.conflicting_source_roots(cfg.PROJECT_SDK, cfg.ROOT)
+    if conflicts and not _allow_sdk_rebind():
+        logging.error(
+            "Refusing to configure PyCharm SDK %s for %s because it is already "
+            "bound to another AGILAB source root: %s. Open/run that checkout, "
+            "delete the stale SDK in PyCharm, or intentionally switch roots with "
+            "AGILAB_PYCHARM_ALLOW_SDK_REBIND=1.",
+            cfg.PROJECT_SDK,
+            cfg.ROOT,
+            ", ".join(str(path) for path in conflicts),
+        )
+        return 2
+    if conflicts:
+        logging.warning(
+            "Rebinding PyCharm SDK %s from %s to %s because "
+            "AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 is set.",
+            cfg.PROJECT_SDK,
+            ", ".join(str(path) for path in conflicts),
+            cfg.ROOT,
+        )
+
     cfg.create_directories()
     ensure_modules_xml(cfg)
 
     remove_stale_agilab_paths(cfg)
 
     model = Project(cfg)
-    jdk_table = JdkTable(cfg.PROJECT_SDK_TYPE)
 
     root_py = venv_python_for(cfg.ROOT)
     if root_py:

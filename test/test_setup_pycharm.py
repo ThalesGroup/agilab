@@ -15,6 +15,59 @@ sys.modules[SPEC.name] = setup_pycharm
 SPEC.loader.exec_module(setup_pycharm)
 
 
+def _make_agilab_source_root(path: Path) -> Path:
+    (path / "src" / "agilab").mkdir(parents=True)
+    (path / "src" / "agilab" / "About_agilab.py").write_text("", encoding="utf-8")
+    (path / "pyproject.toml").write_text("[project]\nname = \"agilab\"\n", encoding="utf-8")
+    return path
+
+
+def _jdk_table_with_agilab_sdk(path: Path, project_root: Path) -> Path:
+    jdk_table = path / "jdk.table.xml"
+    jdk_table.write_text(
+        f"""<?xml version="1.0" encoding="UTF-8"?>
+<application>
+    <component name="ProjectJdkTable">
+        <jdk version="2">
+            <name value="uv (agilab)" />
+            <type value="Python SDK" />
+            <homePath value="{project_root / ".venv" / "bin" / "python"}" />
+            <additional ASSOCIATED_PROJECT_PATH="{project_root}" IS_UV="true" UV_WORKING_DIR="{project_root}">
+                <setting name="FLAVOR_ID" value="UvSdkFlavor" />
+                <setting name="FLAVOR_DATA" value="{{}}" />
+            </additional>
+        </jdk>
+    </component>
+</application>
+""",
+        encoding="utf-8",
+    )
+    return jdk_table
+
+
+def test_jdk_table_detects_conflicting_agilab_source_root(tmp_path: Path) -> None:
+    current_root = _make_agilab_source_root(tmp_path / "current")
+    other_root = _make_agilab_source_root(tmp_path / "other")
+    jdk_table = _jdk_table_with_agilab_sdk(tmp_path, other_root)
+
+    table = setup_pycharm.JdkTable.__new__(setup_pycharm.JdkTable)
+    table.sdk_type = "Python SDK"
+    table.jdk_tables = [jdk_table]
+
+    assert table.conflicting_source_roots("uv (agilab)", current_root) == [other_root.resolve()]
+
+
+def test_jdk_table_allows_same_agilab_source_root(tmp_path: Path) -> None:
+    current_root = _make_agilab_source_root(tmp_path / "current")
+    jdk_table = _jdk_table_with_agilab_sdk(tmp_path, current_root)
+
+    table = setup_pycharm.JdkTable.__new__(setup_pycharm.JdkTable)
+    table.sdk_type = "Python SDK"
+    table.jdk_tables = [jdk_table]
+
+    assert table.conflicting_source_roots("uv (agilab)", current_root) == []
+
+
 def test_set_project_sdk_writes_project_root_manager_and_black(tmp_path: Path) -> None:
     cfg = setup_pycharm.Config(root=tmp_path)
     cfg.create_directories()

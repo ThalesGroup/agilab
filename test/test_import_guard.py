@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+import sys
+
+import pytest
 
 _IMPORT_GUARD_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "import_guard.py"
 _IMPORT_GUARD_SPEC = importlib.util.spec_from_file_location("agilab_import_guard_test", _IMPORT_GUARD_PATH)
@@ -9,6 +12,14 @@ if _IMPORT_GUARD_SPEC is None or _IMPORT_GUARD_SPEC.loader is None:
     raise ModuleNotFoundError(f"Unable to load import_guard.py from {_IMPORT_GUARD_PATH}")
 import_guard = importlib.util.module_from_spec(_IMPORT_GUARD_SPEC)
 _IMPORT_GUARD_SPEC.loader.exec_module(import_guard)
+
+
+def _make_source_package(root: Path) -> Path:
+    package = root / "src" / "agilab"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "About_agilab.py").write_text("", encoding="utf-8")
+    return package
 
 
 def test_import_agilab_module_loads_local_fallback() -> None:
@@ -48,6 +59,28 @@ def test_import_agilab_symbols_remains_backward_compatible() -> None:
 
     assert module.VALUE == 11
     assert target_globals["loaded_value"] == 11
+
+
+def test_python_environment_alignment_rejects_other_source_root(tmp_path, monkeypatch) -> None:
+    current_package = _make_source_package(tmp_path / "current")
+    other_root = tmp_path / "other"
+    _make_source_package(other_root)
+    current_file = current_package / "About_agilab.py"
+
+    monkeypatch.setattr(sys, "executable", str(other_root / ".venv" / "bin" / "python"))
+
+    with pytest.raises(import_guard.MixedCheckoutImportError, match="Mixed AGILAB Python environment"):
+        import_guard.assert_python_environment_alignment(current_file)
+
+
+def test_python_environment_alignment_allows_matching_source_root(tmp_path, monkeypatch) -> None:
+    current_root = tmp_path / "current"
+    current_package = _make_source_package(current_root)
+    current_file = current_package / "About_agilab.py"
+
+    monkeypatch.setattr(sys, "executable", str(current_root / ".venv" / "bin" / "python"))
+
+    assert import_guard.assert_python_environment_alignment(current_file) == current_package.resolve()
 
 
 def test_pipeline_run_controls_uses_explicit_module_aliases() -> None:

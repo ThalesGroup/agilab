@@ -88,6 +88,15 @@ Use this runbook whenever you:
 - **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
   the CLI wrappers with `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py` and commit
   the results (`tools/run_configs/`).
+- **PyCharm source-root switching**: The global JetBrains SDK named `uv (agilab)` is bound
+  to one AGILAB source checkout at a time. To intentionally switch PyCharm execution to
+  another checkout, run from the target checkout:
+  `uv sync` then
+  `AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py`.
+  Without the override, `setup_pycharm.py` must refuse cross-checkout rebinding so a run
+  cannot silently execute `/path/A/src/agilab/About_agilab.py` with `/path/B/.venv`.
+  Rerun full `install.sh` only when you also need installer side effects such as app
+  installation, `.agilab-path` updates, dataset seeding, or install-time tests.
 - **VS Code parity**: If you work from VS Code, regenerate local tasks and debug launches from the same
   `.idea/runConfigurations/*.xml` source with
   `uv --preview-features extra-build-dependencies run python tools/generate_vscode_tasks.py`.

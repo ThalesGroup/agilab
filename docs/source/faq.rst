@@ -67,6 +67,25 @@ Regenerating IDE run configurations
 Wrap it (and ``setup_pycharm.py``) in a single helper command—e.g. ``just run-configs`` or ``make
 run-configs``—so developers and CI regenerate configs consistently from the same entry point.
 
+Switching PyCharm to another source checkout
+--------------------------------------------
+PyCharm uses a global JetBrains SDK named ``uv (agilab)`` for AGILAB source
+runs. That SDK can point to only one source checkout at a time. If you installed
+or configured AGILAB from one checkout and then open another checkout, do not
+let PyCharm mix ``src/agilab`` from one tree with ``.venv`` from the other.
+
+To intentionally move PyCharm execution to another checkout, run this from the
+target checkout::
+
+   uv sync
+   AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py
+
+The override is intentionally explicit. Without it, ``setup_pycharm.py`` refuses
+to rebind ``uv (agilab)`` when it detects that the SDK already points to another
+AGILAB source root. You only need to rerun full ``install.sh`` when you also
+want installer side effects such as app installation, ``.agilab-path`` updates,
+dataset seeding, or install-time tests.
+
 Using run configurations without PyCharm
 ----------------------------------------
 For shell-only workflows, use the checked-in wrappers under
