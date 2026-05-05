@@ -97,6 +97,41 @@ read_env_var() {
     return 0
 }
 
+looks_ephemeral_validation_path() {
+    local path="${1:-}"
+    case "$path" in
+        *"/agilab-release-check-"*|*"/agilab-fresh-install-"*|*"/agilab_source_validate_clean_"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+guard_ephemeral_validation_env() {
+    if [[ "${AGILAB_ALLOW_EPHEMERAL_ENV_WRITE:-0}" == "1" ]]; then
+        return 0
+    fi
+
+    local suspect=""
+    local candidate
+    for candidate in "${AGI_INSTALL_PATH:-}" "${AGI_SHARE_DIR:-}" "${AGI_LOCAL_DIR:-}"; do
+        if looks_ephemeral_validation_path "$candidate"; then
+            suspect="$candidate"
+            break
+        fi
+    done
+
+    [[ -n "$suspect" ]] || return 0
+    if looks_ephemeral_validation_path "$HOME"; then
+        return 0
+    fi
+
+    echo -e "${RED}Refusing to persist ephemeral validation paths into the real user environment.${NC}"
+    echo -e "${YELLOW}Detected path:${NC} $suspect"
+    echo -e "${YELLOW}HOME:${NC} $HOME"
+    echo "Run release/fresh-install validation with an isolated HOME under the validation root,"
+    echo "or set AGILAB_ALLOW_EPHEMERAL_ENV_WRITE=1 if this is intentional."
+    exit 1
+}
+
 USER_ENV_FILE="$HOME/.agilab/.env"
 REPO_ENV_FILE="$AGI_INSTALL_PATH/.agilab/.env"
 ENV_SHARE_USER="$(read_env_var "$USER_ENV_FILE" AGI_SHARE_DIR)"
@@ -1208,6 +1243,7 @@ fi
 find . \( -name ".venv" -o -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
 
 check_internet
+guard_ephemeral_validation_env
 ensure_share_dir "$AGI_SHARE_DIR" "$AGI_LOCAL_DIR"
 set_locale
 verify_share_dir

@@ -56,6 +56,12 @@ warn() {{
     return completed.stdout.strip()
 
 
+def _extract_until_marker(script_text: str, function_name: str, marker: str) -> str:
+    start = script_text.index(f"{function_name}() {{")
+    end = script_text.index(marker, start)
+    return script_text[start:end]
+
+
 def test_root_installer_normalizes_requested_local_models_and_deduplicates_aliases() -> None:
     normalized = _run_shell_function(
         INSTALL_SH,
@@ -119,6 +125,65 @@ USER='alice@example.com' default_agi_share_dir
 
     assert completed.stdout.strip() == "clustershare/alice_example.com"
     assert 'AGI_SHARE_DIR="${AGI_SHARE_DIR:-clustershare}"' not in script_text
+
+
+def test_root_installer_refuses_ephemeral_validation_paths_with_real_home() -> None:
+    script_text = INSTALL_SH.read_text(encoding="utf-8")
+    function_body = "\n".join(
+        [
+            _extract_function(script_text, "looks_ephemeral_validation_path", "guard_ephemeral_validation_env"),
+            _extract_until_marker(script_text, "guard_ephemeral_validation_env", "\nUSER_ENV_FILE="),
+        ]
+    )
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+RED=''
+YELLOW=''
+NC=''
+HOME=/home/agilab-user
+AGI_INSTALL_PATH=/home/agilab-user/agilab-release-check-demo/agilab
+AGI_SHARE_DIR=/home/agilab-user/agilab-release-check-demo/agilab/clustershare
+AGI_LOCAL_DIR=/home/agilab-user/agilab-release-check-demo/agilab/localshare
+{function_body}
+guard_ephemeral_validation_env
+"""
+    completed = subprocess.run(
+        ["bash", "-c", bash_script],
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert "Refusing to persist ephemeral validation paths" in completed.stdout
+
+
+def test_root_installer_allows_ephemeral_validation_paths_with_isolated_home() -> None:
+    script_text = INSTALL_SH.read_text(encoding="utf-8")
+    function_body = "\n".join(
+        [
+            _extract_function(script_text, "looks_ephemeral_validation_path", "guard_ephemeral_validation_env"),
+            _extract_until_marker(script_text, "guard_ephemeral_validation_env", "\nUSER_ENV_FILE="),
+        ]
+    )
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+RED=''
+YELLOW=''
+NC=''
+HOME=/home/agilab-user/agilab-release-check-demo/home
+AGI_INSTALL_PATH=/home/agilab-user/agilab-release-check-demo/agilab
+AGI_SHARE_DIR=/home/agilab-user/agilab-release-check-demo/agilab/clustershare
+AGI_LOCAL_DIR=/home/agilab-user/agilab-release-check-demo/agilab/localshare
+{function_body}
+guard_ephemeral_validation_env
+"""
+    completed = subprocess.run(
+        ["bash", "-c", bash_script],
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0
 
 
 def test_app_installer_uses_same_user_scoped_share_default() -> None:
