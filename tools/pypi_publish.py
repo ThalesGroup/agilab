@@ -301,11 +301,13 @@ def builtin_app_pyprojects() -> List[pathlib.Path]:
     base = REPO_ROOT / "src/agilab" / "apps" / "builtin"
     if not base.exists():
         return []
-    return sorted(
+    candidates = {
         path
-        for path in base.glob("*_project/pyproject.toml")
+        for pattern in ("*_project/pyproject.toml", "*_project/src/*_worker/pyproject.toml")
+        for path in base.glob(pattern)
         if path.is_file()
-    )
+    }
+    return sorted(candidates)
 
 
 def sync_builtin_app_versions(new_version: str, pins: Dict[str, str] | None = None) -> List[pathlib.Path]:

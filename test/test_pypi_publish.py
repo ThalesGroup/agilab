@@ -831,6 +831,20 @@ def test_find_docs_repository_uses_docs_repository_env_name(tmp_path, monkeypatc
     assert source == "env:DOCS_REPOSITORY"
 
 
+def test_builtin_app_pyprojects_includes_worker_manifests(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+
+    app_pyproject = tmp_path / "src/agilab/apps/builtin/demo_project/pyproject.toml"
+    worker_pyproject = tmp_path / "src/agilab/apps/builtin/demo_project/src/demo_worker/pyproject.toml"
+    app_pyproject.parent.mkdir(parents=True)
+    worker_pyproject.parent.mkdir(parents=True)
+    app_pyproject.write_text("[project]\nname='demo_project'\nversion='1.0.0'\n", encoding="utf-8")
+    worker_pyproject.write_text("[project]\nname='demo_worker'\nversion='1.0.0'\n", encoding="utf-8")
+
+    assert module.builtin_app_pyprojects() == [app_pyproject, worker_pyproject]
+
+
 def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
