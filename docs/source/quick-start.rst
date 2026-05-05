@@ -80,9 +80,8 @@ machine-readable proof record.
 
 1. **Clone the repository and install the built-in apps**::
 
-       CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
-       git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
-       cd "$CHECKOUT"
+       git clone https://github.com/ThalesGroup/agilab.git
+       cd agilab
        ./install.sh --install-apps
 
    This is the narrow source-checkout path. It installs the public built-in
@@ -242,8 +241,8 @@ failed validation can still be inspected without polluting ``$HOME``::
 
     cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/agilab/source_validate"
     root="$cache_root/agilab_source_validate_clean_$(date +%Y%m%d_%H%M%S)"
-    mkdir -p "$root/home" "$root/checkouts"
-    HOME="$root/home" git clone https://github.com/ThalesGroup/agilab.git "$root/checkouts/source"
+    mkdir -p "$root/home"
+    HOME="$root/home" git clone https://github.com/ThalesGroup/agilab.git "$root/home/agilab"
 
 This workspace is separate from a normal install. A normal installer run uses
 the real ``$HOME`` and creates worker environments under ``~/wenv``; a clean

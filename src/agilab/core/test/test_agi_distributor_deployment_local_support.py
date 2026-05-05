@@ -1624,7 +1624,8 @@ async def test_deploy_local_worker_infers_repo_root_to_avoid_rewriting_source_ap
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_source_env_branch(tmp_path):
+async def test_deploy_local_worker_source_env_branch(tmp_path, monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
     (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
@@ -1745,6 +1746,7 @@ async def test_deploy_local_worker_source_env_branch(tmp_path):
 
 @pytest.mark.asyncio
 async def test_deploy_local_worker_source_env_offline_manager_overlay_for_external_app(tmp_path, monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     repo_root = tmp_path / "repo" / "src" / "agilab"
     env_project = repo_root / "core" / "agi-env"
     node_project = repo_root / "core" / "agi-node"
@@ -1900,6 +1902,7 @@ path = "../sat_trajectory_project"
 
 @pytest.mark.asyncio
 async def test_deploy_local_worker_offline_manager_overlay_preserves_local_sources(tmp_path, monkeypatch):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     repo_root = tmp_path / "repo" / "src" / "agilab"
     env_project = repo_root / "core" / "agi-env"
     node_project = repo_root / "core" / "agi-node"
