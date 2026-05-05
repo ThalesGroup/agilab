@@ -90,16 +90,18 @@ Advanced scenarios such as `data_io_2026_project`,
 | Capability | Status |
 |---|---|
 | Local run | Stable |
-| UI Streamlit | Stable |
-| Distributed (Dask) | Beta |
+| Distributed (Dask) | Stable |
+| UI Streamlit | Beta |
 | MLflow | Beta |
 | Production | Experimental |
 | RL examples | Example available |
 
 AGILAB is most mature in the bridge between notebook experimentation and
 reproducible AI applications: local execution, environment control, and
-analysis. Production-grade MLOps features are delivered through integrations
-and are not yet a packaged platform claim.
+analysis. Distributed execution is mature in the core runtime; remote cluster
+mounts, credentials, and hardware stacks remain environment-dependent.
+Production-grade MLOps features are delivered through integrations and are not
+yet a packaged platform claim.
 
 ## Choose Your Path
 
