@@ -42,11 +42,6 @@ Start with the public browser preview or the demo chooser:
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
 </p>
 
-### Recommended positioning
-
-- **AGILAB = environment + execution + reproducibility**
-- **MLflow = experiment tracking + model registry + deployment metadata**
-
 ### Try this first
 
 ```bash

@@ -28,6 +28,25 @@ def to_bool_flag(value: Any, default: bool = False) -> bool:
     return default
 
 
+def snippet_apps_path(env: Any) -> str:
+    apps_path = getattr(env, "apps_path", "")
+    app = str(getattr(env, "app", "") or "")
+    active_app = getattr(env, "active_app", None)
+
+    if isinstance(active_app, Path) and active_app.parent.name == "builtin":
+        return str(active_app.parent)
+
+    if apps_path and app:
+        try:
+            candidate = Path(str(apps_path)) / "builtin" / app
+            if candidate.exists():
+                return str(candidate.parent)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+
+    return str(apps_path)
+
+
 def safe_service_start_template(env: AgiEnv, marker: str) -> str:
     """Build an idempotent AGI.serve(start) snippet for PIPELINE import."""
     settings: Dict[str, Any] = {}
@@ -68,7 +87,7 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
             return json.dumps(value)
         return json.dumps(value)
 
-    apps_path_lit = _safe_literal(str(env.apps_path))
+    apps_path_lit = _safe_literal(snippet_apps_path(env))
     app_lit = _safe_literal(str(env.app))
     scheduler_lit = _safe_literal(scheduler)
     workers_lit = _safe_literal(workers) if workers is None else f"json.loads({json.dumps(json.dumps(workers))})"

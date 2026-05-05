@@ -181,8 +181,39 @@ async def test_install_into_project_venv_uses_target_python(tmp_path):
 
     assert calls == [
         (
+            f'uv venv --allow-existing "{tmp_path / ".venv"}"',
+            tmp_path,
+        ),
+        (
             f'uv pip install --python "{tmp_path / ".venv" / "bin" / "python"}" '
             f'--upgrade --no-deps "{package_path}"',
+            tmp_path,
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_into_project_venv_reuses_existing_target_python(tmp_path):
+    calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps "{package_path}"',
             tmp_path,
         ),
     ]
@@ -1173,7 +1204,9 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     )
 
     manager_toml = (app_path / "pyproject.toml").read_text(encoding="utf-8")
+    worker_toml = (wenv_abs / "pyproject.toml").read_text(encoding="utf-8")
     assert "pip" in manager_toml
+    assert "pip==" not in worker_toml
     assert (wenv_abs / "src" / "demo_worker" / "dataset.7z").exists()
     assert (wenv_abs / "src" / "demo_worker" / "Trajectory.7z").exists() is False
     assert (

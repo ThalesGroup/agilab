@@ -95,6 +95,26 @@ def test_jdk_table_rewrites_stale_uv_venv_path(tmp_path: Path) -> None:
     assert additional.get("UV_VENV_PATH") == str(current_root / ".venv")
 
 
+def test_ensure_agilab_path_marker_rewrites_stale_checkout_marker(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    current_root = _make_agilab_source_root(tmp_path / "current")
+    old_root = _make_agilab_source_root(tmp_path / "old")
+    marker = tmp_path / "home" / ".local" / "share" / "agilab" / ".agilab-path"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(f"{old_root / 'src' / 'agilab'}\n", encoding="utf-8")
+    monkeypatch.setattr(
+        setup_pycharm,
+        "agilab_installation_marker_path",
+        lambda: marker,
+    )
+    cfg = setup_pycharm.Config(root=current_root)
+
+    assert setup_pycharm.ensure_agilab_path_marker(cfg)
+    assert marker.read_text(encoding="utf-8") == f"{current_root / 'src' / 'agilab'}\n"
+
+
 def test_set_project_sdk_writes_project_root_manager_and_black(tmp_path: Path) -> None:
     cfg = setup_pycharm.Config(root=tmp_path)
     cfg.create_directories()

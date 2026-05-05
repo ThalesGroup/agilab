@@ -166,6 +166,34 @@ def test_build_service_snippet_embeds_core_parameters():
     assert "foo=1, bar=2" in snippet
 
 
+def test_build_service_snippet_preserves_builtin_apps_path(tmp_path):
+    apps_path = tmp_path / "apps"
+    builtin_apps = apps_path / "builtin"
+    (builtin_apps / "flight_project").mkdir(parents=True)
+
+    snippet = orchestrate_services.build_service_snippet(
+        env=SimpleNamespace(apps_path=apps_path, app="flight_project", is_source_env=True),
+        verbose=2,
+        service_action="status",
+        service_mode=7,
+        scheduler="None",
+        workers="None",
+        service_poll_interval=1.5,
+        service_shutdown_on_stop=True,
+        service_stop_timeout=42.0,
+        service_heartbeat_timeout=9.5,
+        service_cleanup_done_ttl_hours=24.0,
+        service_cleanup_failed_ttl_hours=48.0,
+        service_cleanup_heartbeat_ttl_hours=12.0,
+        service_cleanup_done_max_files=11,
+        service_cleanup_failed_max_files=22,
+        service_cleanup_heartbeat_max_files=33,
+        args_serialized="",
+    )
+
+    assert f'APPS_PATH = "{builtin_apps}"' in snippet
+
+
 def test_build_service_snippet_does_not_inject_source_core_paths_for_source_env():
     snippet = orchestrate_services.build_service_snippet(
         env=SimpleNamespace(apps_path="/repo/src/agilab/apps", app="demo", is_source_env=True),

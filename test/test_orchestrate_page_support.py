@@ -143,6 +143,42 @@ def test_build_distribution_snippet_omits_blank_args_payload():
     assert ",\n        \n" not in snippet
 
 
+def test_orchestrate_snippets_preserve_builtin_apps_path(tmp_path: Path):
+    apps_path = tmp_path / "apps"
+    builtin_apps = apps_path / "builtin"
+    (builtin_apps / "flight_project").mkdir(parents=True)
+    env = SimpleNamespace(apps_path=apps_path, app="flight_project", is_source_env=True)
+
+    run_snippet = orchestrate_page_support.build_run_snippet(
+        env=env,
+        verbose=1,
+        run_mode=0,
+        scheduler="None",
+        workers="None",
+        run_args={},
+    )
+    distrib_snippet = orchestrate_page_support.build_distribution_snippet(
+        env=env,
+        verbose=1,
+        scheduler="None",
+        workers="None",
+        args_serialized="",
+    )
+    install_snippet = orchestrate_page_support.build_install_snippet(
+        env=env,
+        verbose=1,
+        mode=0,
+        scheduler="None",
+        workers="None",
+        workers_data_path="None",
+    )
+
+    expected = f'APPS_PATH = "{builtin_apps}"'
+    assert expected in run_snippet
+    assert expected in distrib_snippet
+    assert expected in install_snippet
+
+
 def test_merge_app_settings_sources_merges_args_but_keeps_cluster_file_backed():
     merged = orchestrate_page_support.merge_app_settings_sources(
         {
