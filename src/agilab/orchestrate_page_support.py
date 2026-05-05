@@ -50,6 +50,25 @@ def _python_string(value: Any) -> str:
     return json.dumps(str(value))
 
 
+def snippet_apps_path(env: Any) -> str:
+    apps_path = getattr(env, "apps_path", "")
+    app = str(getattr(env, "app", "") or "")
+    active_app = getattr(env, "active_app", None)
+
+    if isinstance(active_app, Path) and active_app.parent.name == "builtin":
+        return str(active_app.parent)
+
+    if apps_path and app:
+        try:
+            candidate = Path(str(apps_path)) / "builtin" / app
+            if candidate.exists():
+                return str(candidate.parent)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+
+    return str(apps_path)
+
+
 def strip_ansi(text: str) -> str:
     if not text:
         return ""
@@ -295,7 +314,7 @@ def build_run_snippet(
         "from agi_env import AgiEnv",
         snippet_contract_block(app=str(env.app), generator="agilab.orchestrate"),
         "",
-        f"APPS_PATH = {_python_string(env.apps_path)}",
+        f"APPS_PATH = {_python_string(snippet_apps_path(env))}",
         f"APP = {_python_string(env.app)}",
         f"RUN_PARAMS = {_json_load_expr(params)}",
         f"RUN_STEPS_PAYLOAD = {_json_load_expr(steps)}",
@@ -587,7 +606,7 @@ def _build_agi_snippet(
             "from agi_env import AgiEnv",
             snippet_contract_block(app=str(env.app), generator="agilab.orchestrate"),
             "",
-            f"APPS_PATH = {_python_string(env.apps_path)}",
+            f"APPS_PATH = {_python_string(snippet_apps_path(env))}",
             f"APP = {_python_string(env.app)}",
             "",
             "async def main():",

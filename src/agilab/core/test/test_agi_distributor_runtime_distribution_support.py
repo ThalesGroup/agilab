@@ -474,6 +474,34 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
     assert "import asyncio" in calls["run_async"][0][0]
     assert "if __name__ == '__main__':" in calls["run_async"][0][0]
 
+    calls["run_async"].clear()
+    builtin_apps = Path("/tmp/repo/src/agilab/apps/builtin")
+    AGI.env = SimpleNamespace(
+        wenv_abs=wenv_abs,
+        envars={},
+        debug=False,
+        verbose=2,
+        app="flight_project",
+        apps_path=builtin_apps.parent,
+        active_app=builtin_apps / "flight_project",
+        target_worker="flight_worker",
+        uv="uv",
+        uv_worker="uv-worker",
+        pyvers_worker="3.13",
+    )
+
+    await runtime_distribution_support.run_local(
+        AGI,
+        base_worker_cls=_Worker,
+        validate_worker_uv_sources_fn=lambda _path: None,
+        run_async_fn=_fake_run_async,
+    )
+
+    assert (
+        "AgiEnv(apps_path=Path('/tmp/repo/src/agilab/apps/builtin'), "
+        "app='flight_project', verbose=2)"
+    ) in calls["run_async"][0][0]
+
 
 @pytest.mark.asyncio
 async def test_start_returns_false_when_scheduler_bootstrap_fails(monkeypatch, tmp_path):

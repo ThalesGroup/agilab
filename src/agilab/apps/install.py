@@ -93,13 +93,33 @@ def _seed_example_scripts(app_slug: str) -> None:
 
     for source in sorted(examples_dir.glob("AGI_*.py")):
         destination = execute_dir / source.name
-        if destination.exists():
+        if destination.exists() and not _should_refresh_example_script(destination):
             continue
         try:
             shutil.copy2(source, destination)
             print(f"[INFO] Seeded {destination} from examples.")
         except OSError as exc:
             print(f"[WARN] Unable to copy {source} to {destination}: {exc}")
+
+
+def _should_refresh_example_script(destination: Path) -> bool:
+    """Return True when an existing seeded helper is known-stale."""
+
+    try:
+        text = destination.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    return _has_stale_builtin_apps_root(text)
+
+
+def _has_stale_builtin_apps_root(text: str) -> bool:
+    """Detect old built-in helper snippets that missed the ``builtin`` root."""
+
+    stale_marker_root = 'return Path(marker.read_text(encoding="utf-8").strip()) / "apps"'
+    current_marker_root = (
+        'return Path(marker.read_text(encoding="utf-8").strip()) / "apps" / "builtin"'
+    )
+    return stale_marker_root in text and current_marker_root not in text
 
 
 def _seed_lab_steps(app_slug: str) -> None:

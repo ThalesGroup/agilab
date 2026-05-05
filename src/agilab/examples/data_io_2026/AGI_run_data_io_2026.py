@@ -16,7 +16,7 @@ def agilab_apps_path() -> Path:
             "AGILAB is not initialized. Run the AGILAB installer or "
             "`agilab first-proof --json` before this example."
         )
-    return Path(marker.read_text(encoding="utf-8").strip()) / "apps"
+    return Path(marker.read_text(encoding="utf-8").strip()) / "apps" / "builtin"
 
 
 async def main():

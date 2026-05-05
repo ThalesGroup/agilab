@@ -168,6 +168,19 @@ def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
     return project / ".venv" / "bin" / "python"
 
 
+async def _ensure_project_venv(
+    uv_cmd: str,
+    project: Path,
+    *,
+    run_fn: Callable[..., Any],
+    os_name: str = os.name,
+) -> None:
+    if _project_venv_python(project, os_name=os_name).exists():
+        return
+    cmd = f'{uv_cmd} venv --allow-existing "{project / ".venv"}"'
+    await run_fn(cmd, project)
+
+
 async def _install_into_project_venv(
     uv_cmd: str,
     project: Path,
@@ -177,6 +190,7 @@ async def _install_into_project_venv(
     os_name: str = os.name,
     editable: bool = False,
 ) -> None:
+    await _ensure_project_venv(uv_cmd, project, run_fn=run_fn, os_name=os_name)
     venv_python = _project_venv_python(project, os_name=os_name)
     package_spec = str(package_ref)
     editable_flag = "-e " if editable else ""
@@ -735,17 +749,6 @@ async def deploy_local_worker(
             "PIP_EXTRA_INDEX_URL=https://pypi.org/simple; "
         )
 
-    if (not env.is_source_env) and (not env.is_worker_env) and dep_versions:
-        _update_pyproject_dependencies(
-            wenv_abs / "pyproject.toml",
-            dependency_info,
-            worker_pyprojects,
-            dep_versions,
-            filter_to_worker=True,
-        )
-
-    _force_remove(wenv_abs / ".venv", env_logger=getattr(env, "logger", None))
-
     worker_core_add_specs: list[str] = []
     if env.is_source_env:
         worker_core_add_specs = [str(env.agi_env), str(env.agi_node)]
@@ -765,6 +768,22 @@ async def deploy_local_worker(
             )
             if spec
         ]
+
+    if (
+        (not env.is_source_env)
+        and (not env.is_worker_env)
+        and dep_versions
+        and not worker_core_add_specs
+    ):
+        _update_pyproject_dependencies(
+            wenv_abs / "pyproject.toml",
+            dependency_info,
+            worker_pyprojects,
+            dep_versions,
+            filter_to_worker=True,
+        )
+
+    _force_remove(wenv_abs / ".venv", env_logger=getattr(env, "logger", None))
 
     if worker_core_add_specs:
         for cmd_worker in _build_worker_core_add_commands(

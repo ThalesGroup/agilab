@@ -495,6 +495,43 @@ def test_packaged_examples_use_public_api_and_modern_runner() -> None:
         assert "open(f\"{Path.home()}" not in text
 
 
+def test_packaged_builtin_examples_resolve_builtin_apps_root() -> None:
+    stale_root = 'return Path(marker.read_text(encoding="utf-8").strip()) / "apps"\n'
+    current_root = 'return Path(marker.read_text(encoding="utf-8").strip()) / "apps" / "builtin"'
+
+    for script in _expected_script_paths():
+        text = script.read_text(encoding="utf-8")
+
+        assert current_root in text
+        assert stale_root not in text
+
+
+def test_seed_example_scripts_refreshes_stale_builtin_helper(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    destination = tmp_path / "log" / "execute" / "flight" / "AGI_run_flight.py"
+    destination.parent.mkdir(parents=True)
+    destination.write_text(
+        "\n".join(
+            [
+                "from pathlib import Path",
+                "",
+                "def agilab_apps_path() -> Path:",
+                '    marker = Path.home() / ".local/share/agilab/.agilab-path"',
+                '    return Path(marker.read_text(encoding="utf-8").strip()) / "apps"',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    module._seed_example_scripts("flight")
+
+    text = destination.read_text(encoding="utf-8")
+    assert ' / "apps" / "builtin"' in text
+    assert text == (EXAMPLES_ROOT / "flight" / "AGI_run_flight.py").read_text(encoding="utf-8")
+
+
 def test_packaged_run_and_install_examples_import_with_fake_home(tmp_path: Path, monkeypatch) -> None:
     agilab_path = tmp_path / ".local" / "share" / "agilab"
     agilab_path.mkdir(parents=True)
@@ -581,7 +618,7 @@ def test_packaged_example_main_bodies_build_public_requests(tmp_path: Path, monk
 
         assert result["ok"] is True
         env_kwargs = calls["env_kwargs"]
-        assert env_kwargs["apps_path"] == ROOT / "src/agilab/apps"
+        assert env_kwargs["apps_path"] == ROOT / "src/agilab/apps/builtin"
         assert str(env_kwargs["app"]).endswith("_project")
         assert env_kwargs["verbose"] == 1
         if script.name.startswith("AGI_install_"):

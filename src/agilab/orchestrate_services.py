@@ -47,6 +47,25 @@ SERVICE_SESSION_DEFAULTS: dict[str, Any] = {
 }
 
 
+def snippet_apps_path(env: Any) -> str:
+    apps_path = getattr(env, "apps_path", "")
+    app = str(getattr(env, "app", "") or "")
+    active_app = getattr(env, "active_app", None)
+
+    if isinstance(active_app, Path) and active_app.parent.name == "builtin":
+        return str(active_app.parent)
+
+    if apps_path and app:
+        try:
+            candidate = Path(str(apps_path)) / "builtin" / app
+            if candidate.exists():
+                return str(candidate.parent)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            pass
+
+    return str(apps_path)
+
+
 @dataclass(frozen=True)
 class OrchestrateServiceDeps:
     reset_traceback_skip: Callable[[], None]
@@ -278,7 +297,7 @@ import asyncio
 from agi_cluster.agi_distributor import AGI
 from agi_env import AgiEnv
 
-APPS_PATH = "{env.apps_path}"
+APPS_PATH = "{snippet_apps_path(env)}"
 APP = "{env.app}"
 
 async def main():

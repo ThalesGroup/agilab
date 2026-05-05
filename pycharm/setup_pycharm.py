@@ -192,6 +192,45 @@ def _sdk_rebind_guidance(root: Path) -> str:
     )
 
 
+def agilab_installation_marker_path(
+    *,
+    os_name: str = os.name,
+    home: Path | None = None,
+    localappdata: str | None = None,
+) -> Path:
+    """Return the persisted AGILAB source/install marker path."""
+
+    if os_name == "nt":
+        appdata_root = Path(localappdata or os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        return appdata_root / "agilab" / ".agilab-path"
+    return (home or Path.home()) / ".local" / "share" / "agilab" / ".agilab-path"
+
+
+def ensure_agilab_path_marker(cfg: Config) -> bool:
+    """
+    Keep runtime source discovery aligned with the PyCharm checkout.
+
+    The dispatcher reads this marker when resolving local AGILAB core packages.
+    A stale marker can make a newly rebound PyCharm checkout install core
+    packages from an older clone.
+    """
+
+    if not _is_agilab_source_root(cfg.ROOT):
+        return False
+
+    marker = agilab_installation_marker_path()
+    expected = cfg.ROOT / "src" / "agilab"
+    current = marker.read_text(encoding="utf-8").strip() if marker.exists() else ""
+
+    if current == str(expected):
+        return False
+
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(f"{expected}\n", encoding="utf-8")
+    logging.info("Updated AGILAB installation marker %s -> %s", marker, expected)
+    return True
+
+
 def content_url_for(cfg: Config, dir_path: Path) -> str:
     if not dir_path.is_absolute():
         dir_path = cfg.ROOT / dir_path
@@ -1462,6 +1501,7 @@ def main() -> int:
     ensure_modules_xml(cfg)
 
     remove_stale_agilab_paths(cfg)
+    ensure_agilab_path_marker(cfg)
 
     model = Project(cfg)
     model.disable_pyproject_auto_import()

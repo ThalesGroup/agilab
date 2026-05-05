@@ -125,10 +125,14 @@ def sanitize_worker_upload_artifacts(wenv_abs: Path, *, log: Any = logger) -> li
 
 
 def _manager_apps_path(env: Any) -> Path | None:
+    active_app = getattr(env, "active_app", None)
+    if isinstance(active_app, Path):
+        parent = active_app.parent
+        if parent.name == "builtin":
+            return parent
     apps_path = getattr(env, "apps_path", None)
     if isinstance(apps_path, Path):
         return apps_path
-    active_app = getattr(env, "active_app", None)
     if isinstance(active_app, Path):
         return active_app.parent
     return None

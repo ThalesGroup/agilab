@@ -1089,6 +1089,23 @@ data_out = "output"
     assert "data_in" in snippet and "data_out" in snippet
 
 
+def test_safe_service_start_template_preserves_builtin_apps_path(tmp_path):
+    settings = tmp_path / "app_settings.toml"
+    settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    apps_path = tmp_path / "apps"
+    builtin_apps = apps_path / "builtin"
+    (builtin_apps / "flight_project").mkdir(parents=True)
+    env = SimpleNamespace(
+        app_settings_file=settings,
+        apps_path=apps_path,
+        app="flight_project",
+    )
+
+    snippet = pipeline_runtime.safe_service_start_template(env, "# AUTO")
+
+    assert f'APPS_PATH = "{builtin_apps}"' in snippet
+
+
 def test_ensure_safe_service_template_preserves_manual_file(tmp_path):
     steps_file = tmp_path / "lab_steps.toml"
     steps_file.write_text("", encoding="utf-8")
