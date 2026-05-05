@@ -612,7 +612,13 @@ def test_orchestrate_page_support_log_filters_and_display_helpers():
     )
     assert orchestrate_page_support.filter_warning_messages(log) == "normal warning\nfinal"
     assert not orchestrate_page_support.log_indicates_install_failure(["all good", "installation complete"])
-    assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "error", "connection"])
+    assert not orchestrate_page_support.log_indicates_install_failure(
+        [
+            "Remote command stderr: error: Permission denied (os error 13)",
+            "Failed to update uv on 192.168.20.15 (skipping self update)",
+        ]
+    )
+    assert orchestrate_page_support.log_indicates_install_failure(["TRACEBACK", "Command failed with exit code 1"])
 
     buffer: list[str] = []
     state = {"active": False}
@@ -1112,14 +1118,43 @@ async def test_install_worker_action_reports_stderr_failure(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_install_worker_action_allows_benign_worker_stderr_log(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("Remote command stderr: error: Permission denied (os error 13)")
+        log_callback("Failed to update uv on 192.168.20.15 (skipping self update)")
+        return "done", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Cluster installation completed."
+    assert result.detail is None
+    assert result.data["stderr"] == ""
+    assert result.data["install_log"] == (
+        "Remote command stderr: error: Permission denied (os error 13)",
+        "Failed to update uv on 192.168.20.15 (skipping self update)",
+        "✅ Install complete.",
+    )
+
+
+@pytest.mark.asyncio
 async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path):
     module = _load_orchestrate_module()
     local_log: list[str] = []
 
     async def _run_agi(_cmd, log_callback=None, venv=None):
         log_callback("TRACEBACK")
-        log_callback("error")
-        log_callback("connection")
+        log_callback("RuntimeError: Command failed with exit code 1")
         return "", ""
 
     env = SimpleNamespace(run_agi=_run_agi)
@@ -1132,7 +1167,7 @@ async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path
     )
 
     assert result.status == "error"
-    assert result.detail == "Detected connection failure in install logs."
+    assert result.detail == "Detected install failure in logs."
     assert "rerun INSTALL" in str(result.next_action)
 
 

@@ -806,7 +806,7 @@ async def _install_worker_action(
     if not error_flag and _log_indicates_install_failure(local_log):
         error_flag = True
         if not str(install_stderr or "").strip():
-            install_stderr = "Detected connection failure in install logs."
+            install_stderr = "Detected install failure in logs."
 
     status_line = (
         "✅ Install complete."
