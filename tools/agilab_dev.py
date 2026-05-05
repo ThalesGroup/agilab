@@ -47,6 +47,10 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command == "test":
         return [[*UV_RUN, "pytest", "-q", *args]]
 
+    if command in {"regress", "ga-regress"}:
+        forwarded = args or ["--staged", "--run"]
+        return [_uv_python("tools/ga_regression_selector.py", *forwarded)]
+
     if command in {"flow", "profile"}:
         profiles, extras = _split_leading_values(args, command_name=command)
         profile_args: list[str] = []
@@ -79,6 +83,7 @@ def _usage() -> str:
     return """Usage:
   ./dev [--print-only] impact [impact_validate args]
   ./dev [--print-only] test [pytest args]
+  ./dev [--print-only] regress [ga_regression_selector args]
   ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
   ./dev [--print-only] badge|guard [coverage_badge_guard args]
   ./dev [--print-only] docs
@@ -87,6 +92,7 @@ def _usage() -> str:
 High-frequency mappings:
   impact    -> Analyze changed files and list the required local validations; defaults to --staged.
   test      -> Run targeted pytest with -q while keeping all extra pytest arguments.
+  regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
   badge     -> Check that coverage badge inputs are fresh for the files changed locally.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.

@@ -37,9 +37,10 @@ Before configuring distributed workers, make sure the environment is ready:
 - Use the real login user for each worker. Do not assume ``agi`` unless that
   host really exposes an ``agi`` account. Prefer explicit ``user@host``
   notation whenever the username is not obvious.
-- A shared writable cluster path is mounted on every node with the same
-  effective location. In cluster mode, do not rely on ``AGI_LOCAL_SHARE`` as a
-  fallback.
+- A shared writable cluster path is visible on every node. The scheduler-side
+  root is ``AGI_CLUSTER_SHARE``; remote workers can see the same backing storage
+  through an SSHFS mount at **Workers Data Path**. In cluster mode, do not rely
+  on ``AGI_LOCAL_SHARE`` as a fallback.
 - In multi-user environments, each operator uses a separate cluster-share root.
   Do not let several users write into the same ``AGI_CLUSTER_SHARE`` tree.
 - ``uv`` and the required Python runtime are available on the manager and the
@@ -293,8 +294,11 @@ Use these habits to keep distributed runs predictable:
 
 - Start with one local scheduler and one remote worker before scaling to many
   nodes.
-- Keep ``AGI_CLUSTER_SHARE`` mounted and writable on every node at the same
-  effective path.
+- Treat ``AGI_CLUSTER_SHARE`` as the scheduler-side source path and
+  **Workers Data Path** as the worker-side SSHFS mount target. These paths may
+  differ on mixed operating systems, for example a macOS scheduler path mounted
+  under a Linux worker home directory, but they must expose the same backing
+  storage after SSHFS is mounted.
 - Keep cluster share and local share conceptually separate. In cluster mode,
   outputs should land on the shared cluster path, not silently on local-only
   storage.
@@ -316,8 +320,9 @@ Common distributed setup failures usually fall into one of these categories:
   host trust.
 - **Workers do not join the scheduler**: verify the scheduler host is reachable
   from the workers and that the worker host definitions are correct.
-- **Outputs go to the wrong place**: verify cluster mode is enabled and the
-  shared cluster path is mounted consistently across nodes.
+- **Outputs go to the wrong place**: verify cluster mode is enabled, the
+  scheduler ``AGI_CLUSTER_SHARE`` is mounted on each remote worker with SSHFS,
+  and **Workers Data Path** matches the worker-visible mount target.
 - **Remote import errors after a successful install**: verify the worker
   environment was rebuilt from the current app and that dependencies are
   declared in the correct ``pyproject.toml`` scope.

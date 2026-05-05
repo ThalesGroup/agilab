@@ -43,6 +43,37 @@ def test_test_shortcut_keeps_pytest_arguments():
     ]
 
 
+def test_regress_shortcut_defaults_to_staged_ga_run():
+    assert agilab_dev.planned_commands(["regress"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/ga_regression_selector.py",
+            "--staged",
+            "--run",
+        ]
+    ]
+
+
+def test_regress_shortcut_keeps_selector_arguments():
+    assert agilab_dev.planned_commands(["regress", "--files", "src/agilab/pipeline_ai.py", "--json"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/ga_regression_selector.py",
+            "--files",
+            "src/agilab/pipeline_ai.py",
+            "--json",
+        ]
+    ]
+
+
 def test_workflow_profile_shortcut_repeats_profile_flags_and_keeps_options():
     assert agilab_dev.planned_commands(["flow", "agi-gui", "docs", "--keep-going"]) == [
         [
@@ -109,7 +140,7 @@ def test_skills_shortcut_syncs_then_validates_and_generates():
 
 
 def test_legacy_mnemonic_aliases_are_removed():
-    for alias in ("iv", "pt", "wp", "bg", "ds", "sk"):
+    for alias in ("iv", "pt", "wp", "bg", "ds", "sk", "ga"):
         try:
             agilab_dev.planned_commands([alias])
         except SystemExit as exc:

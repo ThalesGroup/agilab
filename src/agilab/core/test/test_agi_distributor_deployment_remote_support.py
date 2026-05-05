@@ -169,6 +169,69 @@ async def test_deploy_remote_worker_installs_dask_runtime_when_dask_mode_enabled
 
 
 @pytest.mark.asyncio
+async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tmp_path):
+    dist_abs = tmp_path / "dist"
+    dist_abs.mkdir(parents=True, exist_ok=True)
+    (dist_abs / "demo_worker-0.0.1.egg").write_text("x", encoding="utf-8")
+
+    scheduler_share = tmp_path / "scheduler-share"
+    remote_share = "/home/agi/clustershare/agi"
+    env = SimpleNamespace(
+        wenv_abs=tmp_path / "worker_env",
+        wenv_rel=Path("worker_env"),
+        dist_rel=Path("worker_env/dist"),
+        dist_abs=dist_abs,
+        pyvers_worker="3.13",
+        envars={"AGI_CLUSTER_SHARE": str(scheduler_share)},
+        uv_worker="uv",
+        is_source_env=False,
+        app="demo_app",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        verbose=1,
+        user="agi",
+    )
+    ssh_calls: list[str] = []
+
+    async def _fake_exec_ssh(_ip, cmd):
+        ssh_calls.append(cmd)
+        return "ok"
+
+    async def _fake_send(_env, _ip, _files, _remote_path, user=None, password=None):
+        del user, password
+
+    async def _fake_send_file(_env, _ip, _local_path, _remote_path, user=None, password=None):
+        del user, password
+
+    agi_cls = SimpleNamespace(
+        _mode=0,
+        DASK_MODE=4,
+        _rapids_enabled=False,
+        _workers_data_path=remote_share,
+        _scheduler_ip="192.168.20.111",
+        exec_ssh=_fake_exec_ssh,
+        send_files=_fake_send,
+        send_file=_fake_send_file,
+    )
+
+    await _call_deploy_remote_worker(
+        agi_cls,
+        "192.168.20.15",
+        env,
+        Path("worker_env"),
+        " --extra pandas-worker",
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=deployment_remote_support.logger,
+    )
+
+    assert scheduler_share.is_dir()
+    assert any("AGI_CLUSTER_SHARE=" in cmd and "/home/agi/clustershare/agi" in cmd for cmd in ssh_calls)
+    assert any("command -v sshfs" in cmd for cmd in ssh_calls)
+    assert any("sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\"" in cmd for cmd in ssh_calls)
+    assert any("agi@192.168.20.111:" in cmd and str(scheduler_share) in cmd for cmd in ssh_calls)
+
+
+@pytest.mark.asyncio
 async def test_deploy_remote_worker_prepins_dependencies_for_legacy_intel_macos(tmp_path):
     dist_abs = tmp_path / "dist"
     dist_abs.mkdir(parents=True, exist_ok=True)
@@ -288,6 +351,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     agi_cls = SimpleNamespace(
         _rapids_enabled=True,
         _workers_data_path=str(tmp_path / "share"),
+        _scheduler_ip="10.0.0.1",
         exec_ssh=_fake_exec,
         send_files=_fake_send,
         send_file=_fake_send_file,

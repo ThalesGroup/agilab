@@ -122,6 +122,13 @@ worker, writes the remote ``~/.agilab/.env`` ``AGI_CLUSTER_SHARE`` value, mounts
 the scheduler path on the worker when not already mounted, and runs the sentinel
 share check.
 
+The same contract is used by ORCHESTRATE ``INSTALL``. Keep ``AGI_CLUSTER_SHARE``
+as the scheduler-side shared root, keep **Workers Data Path** pointing to the
+worker-visible mount target, and let the remote deployment mount the scheduler
+share with ``sshfs`` before worker post-install hooks read datasets or write
+outputs. Do not clear the cluster-share path just because workers are remote;
+fix SSHFS, reverse SSH, or mount permissions instead.
+
 To inspect the commands without applying changes:
 
 .. code-block:: bash
