@@ -1080,9 +1080,10 @@ async def test_install_worker_action_reports_success(tmp_path: Path):
 
     assert result.status == "success"
     assert result.title == "Cluster installation completed."
-    assert captured == {"cmd": "install command", "venv": tmp_path}
+    assert captured == {"cmd": "install command", "venv": None}
     assert result.data["stdout"] == "done"
     assert result.data["stderr"] == ""
+    assert result.data["venv"] == tmp_path
     assert result.data["install_log"] == (
         "=== Install request ===",
         "installing worker",
