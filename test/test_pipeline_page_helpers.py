@@ -11,6 +11,17 @@ import pytest
 from streamlit.errors import StreamlitAPIException
 
 
+class _SessionState(dict):
+    def __getattr__(self, name: str):
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+    def __setattr__(self, name: str, value):
+        self[name] = value
+
+
 def _prime_current_agilab_package() -> None:
     src_root = Path(__file__).resolve().parents[1] / "src"
     package_root = src_root / "agilab"
@@ -211,6 +222,36 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     module._render_notebook_download_button(notebook_path, "pipeline-export")
 
     assert errors == ["Failed to prepare notebook export: download failed"]
+
+
+def test_pipeline_on_df_change_uses_page_local_load_last_step(tmp_path, monkeypatch):
+    module = _load_pipeline_module()
+    export_root = tmp_path / "export"
+    selected_rel = Path("demo/new.csv")
+    steps_file = tmp_path / "steps" / "lab_steps.toml"
+    session_state = _SessionState(
+        {
+            "env": SimpleNamespace(AGILAB_EXPORT_ABS=export_root),
+            "demo": [0, "old"],
+            "demodf": selected_rel,
+        }
+    )
+    loaded: list[tuple[Path, Path, str]] = []
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
+    monkeypatch.setattr(
+        module,
+        "load_last_step",
+        lambda module_dir, steps_path, page_key: loaded.append((module_dir, steps_path, page_key)),
+    )
+
+    module.on_df_change(Path("demo_module"), "demo", None, steps_file)
+
+    assert session_state["df_file"] == export_root / selected_rel
+    assert session_state["demodf_file"] == export_root / selected_rel
+    assert "demo" not in session_state
+    assert session_state["page_broken"] is True
+    assert loaded == [(Path("demo_module"), steps_file, "demo")]
+    assert steps_file.parent.exists()
 
 
 def test_dataframe_picker_syncs_from_selectbox_when_selectbox_changed(tmp_path, monkeypatch):
