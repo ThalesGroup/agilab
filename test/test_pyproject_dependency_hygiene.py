@@ -150,6 +150,28 @@ def test_builtin_app_manifests_depend_on_core_packages_not_core_internals() -> N
             assert (app_root / raw_path).resolve(strict=False).exists()
 
 
+def test_builtin_worker_manifests_have_resolvable_core_sources() -> None:
+    worker_pyprojects = sorted((REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/src/*_worker/pyproject.toml"))
+    assert worker_pyprojects
+    core_worker_pyprojects: list[Path] = []
+
+    for pyproject in worker_pyprojects:
+        data = _load_pyproject(pyproject)
+        deps = _dependency_names(pyproject)
+        if deps.isdisjoint({"agi-env", "agi-node"}):
+            continue
+        core_worker_pyprojects.append(pyproject)
+        assert {"agi-env", "agi-node"} <= deps, pyproject
+
+        sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+        for package in ("agi-env", "agi-node"):
+            raw_path = sources.get(package, {}).get("path")
+            assert raw_path, f"{pyproject}: missing local source for {package}"
+            assert (pyproject.parent / raw_path).resolve(strict=False).exists(), f"{pyproject}: {package} -> {raw_path}"
+
+    assert core_worker_pyprojects
+
+
 def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
     stale_by_manifest = {
         "src/agilab/core/agi-env/pyproject.toml": {
