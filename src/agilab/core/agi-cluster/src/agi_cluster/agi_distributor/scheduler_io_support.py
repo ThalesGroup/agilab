@@ -13,6 +13,44 @@ _DECODE_BYTES_EXCEPTIONS = (UnicodeDecodeError,)
 _READ_STDERR_RETRY_EXCEPTIONS = (OSError, RuntimeError)
 
 
+def _parse_scheduler_string(raw_scheduler: str) -> tuple[str, Optional[int]]:
+    scheduler = raw_scheduler.strip()
+    if "://" in scheduler:
+        scheduler = scheduler.split("://", 1)[1]
+    if "/" in scheduler:
+        scheduler = scheduler.split("/", 1)[0]
+    if "@" in scheduler:
+        scheduler = scheduler.rsplit("@", 1)[1]
+
+    if scheduler.startswith("["):
+        host_end = scheduler.find("]")
+        if host_end == -1:
+            raise ValueError("Scheduler address is not valid")
+        host = scheduler[1:host_end]
+        remainder = scheduler[host_end + 1 :]
+        if not remainder:
+            return host, None
+        if remainder.startswith(":") and remainder[1:].isdigit():
+            return host, _validate_scheduler_port(remainder[1:])
+        raise ValueError("Scheduler address is not valid")
+
+    if scheduler.count(":") == 1:
+        host, port_text = scheduler.rsplit(":", 1)
+        if host and port_text.isdigit():
+            return host, _validate_scheduler_port(port_text)
+        if host and port_text:
+            raise ValueError("Scheduler port is not valid")
+
+    return scheduler, None
+
+
+def _validate_scheduler_port(port_text: str) -> int:
+    port = int(port_text)
+    if not 0 < port < 65536:
+        raise ValueError("Scheduler port is not valid")
+    return port
+
+
 def get_default_local_ip(
     *,
     socket_factory: Callable[..., Any] = socket.socket,
@@ -63,7 +101,9 @@ def get_scheduler(
     elif not isinstance(ip_sched, str):
         raise ValueError("Scheduler ip address is not valid")
     else:
-        ip = ip_sched
+        ip, explicit_port = _parse_scheduler_string(ip_sched)
+        if explicit_port is not None:
+            port = explicit_port
     agi_cls._scheduler = f"{ip}:{port}"
     return ip, port
 

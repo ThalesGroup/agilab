@@ -118,6 +118,41 @@ def test_get_scheduler_accepts_explicit_string_ip():
     assert agi_cls._scheduler == "192.168.0.10:7001"
 
 
+def test_get_scheduler_accepts_explicit_string_endpoint():
+    agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None)
+    ip, port = scheduler_io_support.get_scheduler(
+        agi_cls,
+        "tcp://agi@192.168.0.10:8786",
+        find_free_port_fn=lambda: 7001,
+        gethostbyname_fn=lambda _host: "127.0.0.1",
+    )
+    assert (ip, port) == ("192.168.0.10", 8786)
+    assert agi_cls._scheduler == "192.168.0.10:8786"
+
+
+def test_get_scheduler_accepts_bracketed_ipv6_endpoint():
+    agi_cls = SimpleNamespace(_workers={"10.0.0.2": 2}, _scheduler=None)
+    ip, port = scheduler_io_support.get_scheduler(
+        agi_cls,
+        "[2001:db8::1]:8786",
+        find_free_port_fn=lambda: 7001,
+        gethostbyname_fn=lambda _host: "127.0.0.1",
+    )
+    assert (ip, port) == ("2001:db8::1", 8786)
+    assert agi_cls._scheduler == "2001:db8::1:8786"
+
+
+def test_get_scheduler_rejects_invalid_endpoint_port():
+    agi_cls = SimpleNamespace(_workers=None, _scheduler=None)
+    with pytest.raises(ValueError, match="Scheduler port is not valid"):
+        scheduler_io_support.get_scheduler(
+            agi_cls,
+            "192.168.0.10:notaport",
+            find_free_port_fn=lambda: 6000,
+            gethostbyname_fn=lambda _host: "127.0.0.1",
+        )
+
+
 def test_get_scheduler_rejects_invalid_type():
     agi_cls = SimpleNamespace(_workers=None, _scheduler=None)
     with pytest.raises(ValueError, match="Scheduler ip address is not valid"):
