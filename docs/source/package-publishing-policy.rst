@@ -67,3 +67,47 @@ If AGILAB later embeds the ``agi_node`` and ``agi_cluster`` Python modules
 directly into a single wheel, that migration must update dependency metadata,
 installer tests, notebook examples, and the release preflight before the
 standalone runtime packages can be retired from the public publish flow.
+
+Release cadence and post releases
+---------------------------------
+
+AGILAB uses date-based public versions. A normal public release should advance
+to a deliberate new version. Real PyPI publication must not silently auto-create
+``.postN`` releases when a version collision is detected; the release tool is
+expected to stop and require an explicit version choice instead.
+
+``.postN`` releases are acceptable only as corrective packaging releases for an
+already published date-based version. They are not the standard delivery
+cadence, and multiple same-day post releases should be treated as release
+process debt to review, not as a velocity metric. TestPyPI rehearsals are the
+exception: retry-oriented ``.postN`` bumps are allowed there because TestPyPI is
+often reused during dry runs.
+
+Typing policy
+-------------
+
+The root package and core runtime packages set ``disallow_untyped_defs = true``
+for project code. The repository also keeps a curated strict slice runnable via
+``tools/shared_core_strict_typing.py`` or the ``shared-core-typing`` workflow
+profile; that slice includes ``agi-core`` and selected shared support modules
+and runs mypy with ``--strict``.
+
+``ignore_missing_imports = true`` is still used at package boundaries to avoid
+making third-party stub availability a blocker for runtime development. That
+setting should not be read as permission for untyped AGILAB APIs: new public
+runtime code should remain typed, and the curated strict slice should expand as
+shared APIs stabilize.
+
+Packaging notes
+---------------
+
+``setup.py`` is intentionally kept alongside ``pyproject.toml``. It is not a
+leftover from an incomplete packaging migration. ``pyproject.toml`` remains the
+canonical source for PyPI metadata, dependency resolution, and uv-based
+workflows, while ``setup.py`` is the compatibility build entry point used by the
+Dask worker distribution path that still emits ``.egg`` artifacts.
+
+Removing ``setup.py`` is valid only after the worker distribution path no
+longer depends on egg packaging, and that migration must update the build
+helpers, installer tests, distributed execution tests, and release preflight in
+the same change.

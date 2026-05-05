@@ -294,7 +294,9 @@ jobs:
             test/test_pipeline_ai.py \
             test/test_pipeline_editor.py \
             test/test_pipeline_lab.py \
+            test/test_pipeline_mistral.py \
             test/test_pipeline_openai.py \
+            test/test_pipeline_openai_compatible.py \
             test/test_pipeline_run_controls.py \
             test/test_pipeline_runtime.py \
             test/test_pipeline_service_guard.py \
@@ -322,6 +324,7 @@ jobs:
             test/test_view*.py
 
           run_gui_chunk reports \
+            test/test_ci_provider_artifacts.py \
             test/test_*_report.py \
             test/test_*_workflow.py
 

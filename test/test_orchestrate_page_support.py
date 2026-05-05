@@ -67,12 +67,14 @@ def test_build_install_and_run_snippets_embed_expected_values():
 
     assert 'APP = "demo_project"' in install_snippet
     assert "modes_enabled=7" in install_snippet
+    assert 'scheduler="127.0.0.1"' in install_snippet
     assert 'workers_data_path="/tmp/share"' in install_snippet
     assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in install_snippet
     assert "# app: demo_project" in install_snippet
     assert "require_supported_snippet_api(AGILAB_SNIPPET_API)" in install_snippet
     assert "RunRequest(" in run_snippet
     assert "mode=15" in run_snippet
+    assert 'scheduler="127.0.0.1:8786"' in run_snippet
     assert 'workers_data_path="/tmp/share"' in run_snippet
     assert "rapids_enabled=True" in run_snippet
     assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
@@ -115,6 +117,31 @@ def test_build_agi_snippets_do_not_inject_source_core_paths_for_source_env():
     assert "def _inject_source_core_paths() -> None:" not in run_snippet
     assert "def _inject_source_core_paths() -> None:" not in distrib_snippet
     assert "def _inject_source_core_paths() -> None:" not in install_snippet
+
+
+def test_build_install_snippet_strips_scheduler_port_only_for_install() -> None:
+    env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
+
+    install_snippet = orchestrate_page_support.build_install_snippet(
+        env=env,
+        verbose=1,
+        mode=15,
+        scheduler='"192.168.20.111:8786"',
+        workers="{'192.168.20.111': 1, '192.168.20.15': 1}",
+        workers_data_path='"/cluster/share"',
+    )
+    run_snippet = orchestrate_page_support.build_run_snippet(
+        env=env,
+        verbose=1,
+        run_mode=15,
+        scheduler='"192.168.20.111:8786"',
+        workers="{'192.168.20.111': 1, '192.168.20.15': 1}",
+        workers_data_path='"/cluster/share"',
+        run_args={},
+    )
+
+    assert 'scheduler="192.168.20.111"' in install_snippet
+    assert 'scheduler="192.168.20.111:8786"' in run_snippet
 
     non_source_snippet = orchestrate_page_support.build_run_snippet(
         env=SimpleNamespace(apps_path="/repo/src/agilab/apps", app="demo_project", is_source_env=False),

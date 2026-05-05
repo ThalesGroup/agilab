@@ -31,6 +31,7 @@ def test_resolve_modules_appends_unique_extra_modules():
     )
 
     assert modules == [
+        "agi_core",
         "agi_cluster.agi_distributor.background_jobs_support",
         "agi_cluster.agi_distributor.capacity_support",
         "agi_node.agi_dispatcher.base_worker_path_support",
@@ -60,6 +61,7 @@ def test_build_mypy_env_combines_required_source_roots():
 
     env = module.build_mypy_env(
         [
+            "agi_core",
             "agi_env.defaults",
             "agi_node.agi_dispatcher.base_worker_service_support",
             "agi_cluster.agi_distributor.entrypoint_support",
@@ -68,6 +70,7 @@ def test_build_mypy_env_combines_required_source_roots():
     )
 
     parts = env["MYPYPATH"].split(module.os.pathsep)
+    assert str(module.SOURCE_ROOTS["agi_core"]) in parts
     assert str(module.SOURCE_ROOTS["agi_env"]) in parts
     assert str(module.SOURCE_ROOTS["agi_node"]) in parts
     assert str(module.SOURCE_ROOTS["agi_cluster"]) in parts
@@ -86,4 +89,5 @@ def test_print_only_emits_command_and_mypypath():
     assert completed.returncode == 0
     assert "MYPYPATH=" in completed.stdout
     assert "-m mypy --strict" in completed.stdout
+    assert "-m agi_core" in completed.stdout
     assert "agi_node.agi_dispatcher.base_worker_execution_support" in completed.stdout

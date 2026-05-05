@@ -247,6 +247,28 @@ def optional_python_expr(enabled: bool, value: Any) -> str:
     return repr(value)
 
 
+def _install_scheduler_expr(scheduler: str) -> str:
+    """Return the scheduler expression expected by ``AGI.install``.
+
+    The ORCHESTRATE UI stores scheduler addresses as ``HOST:PORT`` because run
+    mode needs the Dask scheduler endpoint. The install path only needs the
+    scheduler host to stage worker environments and validates it as an IP.
+    """
+
+    if scheduler in ("", "None"):
+        return scheduler
+    try:
+        value = json.loads(scheduler)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return scheduler
+    if not isinstance(value, str):
+        return scheduler
+    host, sep, port = value.strip().rpartition(":")
+    if sep and host and port.isdigit():
+        return _python_string(host)
+    return scheduler
+
+
 def build_install_snippet(
     *,
     env: Any,
@@ -263,7 +285,7 @@ def build_install_snippet(
         arguments=(
             "app_env",
             f"modes_enabled={mode!r}",
-            f"scheduler={scheduler}",
+            f"scheduler={_install_scheduler_expr(scheduler)}",
             f"workers={workers}",
             f"workers_data_path={workers_data_path}",
         ),

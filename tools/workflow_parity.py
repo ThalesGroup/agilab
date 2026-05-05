@@ -194,7 +194,9 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_pipeline_ai.py",
                 "test/test_pipeline_editor.py",
                 "test/test_pipeline_lab.py",
+                "test/test_pipeline_mistral.py",
                 "test/test_pipeline_openai.py",
+                "test/test_pipeline_openai_compatible.py",
                 "test/test_pipeline_run_controls.py",
                 "test/test_pipeline_runtime.py",
                 "test/test_pipeline_service_guard.py",
@@ -226,7 +228,14 @@ def _agi_gui_profile() -> list[CommandSpec]:
             ],
         ),
         _agi_gui_coverage_chunk("views", ["test/test_view*.py"]),
-        _agi_gui_coverage_chunk("reports", ["test/test_*_report.py", "test/test_*_workflow.py"]),
+        _agi_gui_coverage_chunk(
+            "reports",
+            [
+                "test/test_ci_provider_artifacts.py",
+                "test/test_*_report.py",
+                "test/test_*_workflow.py",
+            ],
+        ),
         CommandSpec(
             label="agi-gui coverage xml",
             argv=[
