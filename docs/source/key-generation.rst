@@ -33,9 +33,9 @@ In the rest of the guide, I would refer to:
 - Worker: The remote machine that accepts SSH connections.
 - Remote account: The user account on the worker machine used for SSH login.
 
-Use the real remote account name for your cluster. In the command examples,
-set ``remote_user`` to that account instead of hardcoding a workstation-specific
-login.
+Use the real remote account name for your cluster. Do not replace
+``<remote account>`` with ``agi`` unless the worker machine actually exposes an
+``agi`` login.
 
 1. Generate the keys
 ~~~~~~~~~~~~~~~~~~~~
@@ -149,9 +149,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: bash
 
-           manager$ remote_user="worker-user"
-           worker_ip="192.0.2.20"
-           ssh-copy-id -i ~/.ssh/id_ed25519 "$remote_user@$worker_ip"
+           manager$ ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker ip>
 
         Worker Windows:
 
@@ -161,9 +159,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: bash
 
-            manager$ remote_user="worker-user"
-            worker_ip="192.0.2.20"
-            cat ~/.ssh/id_ed25519.pub | ssh "$remote_user@$worker_ip" powershell -NoProfile -Command "Add-Content -Encoding ascii -Path \"\$env:USERPROFILE\\.ssh\\authorized_keys\" -Value '([Console]::In.ReadToEnd())'"
+            manager$ cat ~/.ssh/id_ed25519.pub | ssh <remote account>@<worker ip> powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\<remote account>\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
 
     .. tab:: **Manager Windows**
 
@@ -175,9 +171,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: powershell
 
-           manager$ $remoteUser = "worker-user"
-           $workerIp = "192.0.2.20"
-           Get-Content -Raw "$env:USERPROFILE\.ssh\id_ed25519.pub" | ssh "$remoteUser@$workerIp" "cat >> ~/.ssh/authorized_keys"
+           manager$ Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | ssh <remote account>@<worker ip> "cat >> ~/.ssh/authorized_keys"
 
         Worker Windows:
 
@@ -187,9 +181,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: powershell
 
-           manager$ $remoteUser = "worker-user"
-           $workerIp = "192.0.2.20"
-           Get-Content -Raw "$env:USERPROFILE\.ssh\id_ed25519.pub" | ssh "$remoteUser@$workerIp" powershell -NoProfile -Command "Add-Content -Encoding ascii -Path \"`$env:USERPROFILE\\.ssh\\authorized_keys\" -Value '([Console]::In.ReadToEnd())'"
+           manager$ Get-Content -Raw "${env:USERPROFILE}\\.ssh\\id_ed25519.pub" | ssh <remote account>@<worker ip> powershell -NoProfile -Command "Add-Content -Encoding ascii -Path 'C:\\Users\\<remote account>\\.ssh\\authorized_keys' -Value '([Console]::In.ReadToEnd())'"
 
 3.2 Verification
 ^^^^^^^^^^^^^^^^
@@ -204,9 +196,7 @@ Follow these steps to add your key to the `authorized_keys` file of each workers
 
         .. code-block:: bash
 
-            manager$ remote_user="worker-user"
-            worker_ip="192.0.2.20"
-            ssh "$remote_user@$worker_ip"
+            manager$ ssh <remote account>@<worker ip>
 
 
 .. admonition:: Success
@@ -218,7 +208,7 @@ Bidirectional trust between worker Macs
 
 When two macOS workers must talk to each other (for example ``<worker_a_ip>`` and ``<worker_b_ip>``),
 install the same SSH key pair on both hosts so either side can ``ssh`` without a password prompt.
-Set ``remote_user`` to the login account used on both workers:
+Assuming the login user is ``<remote account>`` (adjust if yours differs):
 
 1. Enable Remote Login on each Mac if it is not already on::
 
@@ -226,23 +216,16 @@ Set ``remote_user`` to the login account used on both workers:
 
 2. From ``<worker_a_ip>`` push the public key to ``<worker_b_ip>``::
 
-       remote_user="worker-user"
-       worker_b_ip="192.0.2.22"
-       ssh-copy-id -i ~/.ssh/id_ed25519 "$remote_user@$worker_b_ip"
+       ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker_b_ip>
 
 3. From ``<worker_b_ip>`` push the same key back to ``<worker_a_ip>``::
 
-       remote_user="worker-user"
-       worker_a_ip="192.0.2.21"
-       ssh-copy-id -i ~/.ssh/id_ed25519 "$remote_user@$worker_a_ip"
+       ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker_a_ip>
 
 4. Verify both directions once so the host keys land in ``~/.ssh/known_hosts``::
 
-       remote_user="worker-user"
-       worker_a_ip="192.0.2.21"
-       worker_b_ip="192.0.2.22"
-       ssh "$remote_user@$worker_b_ip" hostname
-       ssh "$remote_user@$worker_a_ip" hostname
+       ssh <remote account>@<worker_b_ip> hostname
+       ssh <remote account>@<worker_a_ip> hostname
 
 Each command should print the remote ``hostname`` without asking for a password. If either side still
 prompts, re-run ``ssh-copy-id`` and make sure ``~/.ssh/authorized_keys`` on the target contains the
@@ -258,17 +241,14 @@ enough. Validate the reverse direction before running ``agilab doctor
 
 .. code-block:: bash
 
-   manager_user="<manager-user>"
-   manager_ip="<manager-ip>"
-   ssh -o BatchMode=yes "$manager_user@$manager_ip" hostname
+   worker$ ssh -o BatchMode=yes <manager account>@<manager_ip> hostname
 
 If this fails with a host-key error, refresh the manager key on the worker:
 
 .. code-block:: bash
 
-   manager_ip="<manager-ip>"
-   ssh-keygen -R "$manager_ip" -f ~/.ssh/known_hosts
-   ssh-keyscan -H -t ed25519,rsa,ecdsa "$manager_ip" >> ~/.ssh/known_hosts
+   worker$ ssh-keygen -R <manager_ip> -f ~/.ssh/known_hosts
+   worker$ ssh-keyscan -H -t ed25519,rsa,ecdsa <manager_ip> >> ~/.ssh/known_hosts
 
 If this fails with ``Permission denied``, add the worker public key to the
 manager account:
@@ -278,7 +258,7 @@ manager account:
    worker$ ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
    worker$ cat ~/.ssh/id_ed25519.pub
 
-Append that public key to ``~/.ssh/authorized_keys`` for the manager account
+Append that public key to ``~/.ssh/authorized_keys`` for ``<manager account>``
 on the manager, then rerun the reverse SSH command. Keep ``~/.ssh`` at
 ``0700`` and ``authorized_keys`` at ``0600``.
 
@@ -291,16 +271,13 @@ trust first, then restore user-key authentication:
 1. Verify the new SSH host key fingerprint out of band.
 2. On the manager, remove the stale host key and register the new one::
 
-      worker_ip="<worker-ip>"
-      ssh-keygen -R "$worker_ip"
-      ssh-keyscan -H -t ed25519 "$worker_ip" >> ~/.ssh/known_hosts
-      ssh-keygen -F "$worker_ip" -f ~/.ssh/known_hosts
+      ssh-keygen -R <worker_ip>
+      ssh-keyscan -H -t ed25519 <worker_ip> >> ~/.ssh/known_hosts
+      ssh-keygen -F <worker_ip> -f ~/.ssh/known_hosts
 
 3. Re-push the manager public key to the rebuilt worker::
 
-      remote_user="<remote-user>"
-      worker_ip="<worker-ip>"
-      ssh-copy-id -i ~/.ssh/id_ed25519 "$remote_user@$worker_ip"
+      ssh-copy-id -i ~/.ssh/id_ed25519 <remote account>@<worker_ip>
 
 4. If ``ssh-copy-id`` is unavailable, recreate ``~/.ssh/authorized_keys`` on the
    worker manually and keep strict permissions::
@@ -312,9 +289,7 @@ trust first, then restore user-key authentication:
 
 5. Verify passwordless access again before relaunching AGILAB::
 
-      remote_user="<remote-user>"
-      worker_ip="<worker-ip>"
-      ssh "$remote_user@$worker_ip" hostname
+      ssh <remote account>@<worker_ip> hostname
 
 If the worker also lost its AGILAB cluster mount, restore ``~/.agilab/.env`` and
 remount the configured user-scoped ``clustershare/<user>`` path before rerunning

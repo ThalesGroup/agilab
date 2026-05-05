@@ -35,6 +35,8 @@
 # AGILAB
 
 AGILAB is a reproducible AI/ML workbench for engineering teams.
+It is an AI/ML experimentation workbench for reproducible project setup,
+environment management, execution, and result analysis.
 
 It turns notebooks and scripts into reproducible apps with:
 
@@ -44,8 +46,10 @@ It turns notebooks and scripts into reproducible apps with:
 - **visible experiment evidence**
 - **optional MLflow integration**
 
-AGILAB complements MLflow. It is not a replacement for MLflow or production
+AGILAB complements MLflow.
+It is not a replacement for MLflow or production
 MLOps platforms.
+For mature orchestration framing, position it as a reproducibility layer, not as a replacement for mature orchestration or production MLOps platforms.
 
 It owns the execution and reproducibility layer around tracking, packaging, and
 analysis.
@@ -59,7 +63,7 @@ Start with the public browser preview or the demo chooser:
 
 - [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
 - [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
-- [Local quick start](https://thalesgroup.github.io/agilab/quick-start.html)
+- [Local quick start](#quick-start)
 - [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
 
 ## [Quick Start](https://thalesgroup.github.io/agilab/quick-start.html)
@@ -106,7 +110,7 @@ yet a packaged platform claim.
 ## Choose Your Path
 
 1. Preview the product quickly: [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
-2. Learn notebook migration: [Notebook Migration Demo](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html)
+2. Understand notebook-to-app migration: [Notebook Migration Demo](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html)
 3. Prove local flow: [First Run](#first-run)
 4. Verify package installation: [Published Package](#published-package)
 5. Audit external apps and evidence: [App Repository Updates](#app-repository-updates) and [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html)
@@ -262,6 +266,7 @@ Current CODEX 5.5 working summary, refreshed from the public KPI bundle:
 <!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->
 
 These are public experimentation-workbench scores, not production MLOps claims.
+They cover project setup, environment management, execution, and result analysis.
 The evidence and limits are maintained in the
 [compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
 and [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html).

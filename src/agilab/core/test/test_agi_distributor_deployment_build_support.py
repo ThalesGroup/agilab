@@ -273,7 +273,8 @@ async def test_build_lib_local_uses_free_threading_uv_prefix(monkeypatch, tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_build_lib_local_uses_editable_core_installs_in_source_env(tmp_path):
+async def test_build_lib_local_uses_editable_core_installs_in_source_env(monkeypatch, tmp_path):
+    monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
     env = _build_env(tmp_path)
     env.is_source_env = True
     env.envars = {"AGI_INTERNET_ON": "0"}

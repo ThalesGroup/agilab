@@ -43,6 +43,8 @@ agilab
 The public AGILAB Space is the fastest browser preview. It opens the lightweight
 `flight_project` path by default and also exposes the
 `meteo_forecast_project` notebook-migration demo with forecast analysis views.
+Understand notebook-to-app migration with the Notebook Migration Demo:
+https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html
 Advanced scenarios such as `data_io_2026_project`,
 `execution_pandas_project`, `execution_polars_project`, and
 `uav_relay_queue_project` are collected in the Advanced Proof Pack:

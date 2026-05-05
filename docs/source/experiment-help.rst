@@ -96,15 +96,13 @@ not just a static dump of code cells.
 
   .. code-block:: bash
 
-     CHECKOUT="${AGILAB_CHECKOUT:-/path/to/checkout}"
-     uv --project "$CHECKOUT" run --with jupyterlab jupyter lab exported_notebooks/<module>/lab_steps.ipynb
+     uv --project /path/to/agilab run --with jupyterlab jupyter lab exported_notebooks/<module>/lab_steps.ipynb
 
   or execute it headlessly with:
 
   .. code-block:: bash
 
-     CHECKOUT="${AGILAB_CHECKOUT:-/path/to/checkout}"
-     uv --project "$CHECKOUT" run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace exported_notebooks/<module>/lab_steps.ipynb
+     uv --project /path/to/agilab run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace exported_notebooks/<module>/lab_steps.ipynb
 
 * The exported notebook keeps the recorded per-step runtime and environment
   metadata instead of flattening the whole pipeline into one implicit kernel
