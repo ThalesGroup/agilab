@@ -150,6 +150,24 @@ def test_compute_benchmark_run_mode_lists_enabled_capability_combinations():
     ) == list(range(16))
 
 
+def test_home_relative_share_text_strips_host_specific_home_prefix(tmp_path):
+    env = SimpleNamespace(home_abs=tmp_path / "home" / "agi")
+
+    assert (
+        orchestrate_cluster._home_relative_share_text(env.home_abs / "clustershare" / "agi", env)
+        == "clustershare/agi"
+    )
+    assert (
+        orchestrate_cluster._home_relative_share_text(r"C:\Users\agi\clustershare\agi", env)
+        == "clustershare/agi"
+    )
+    assert (
+        orchestrate_cluster._home_relative_share_text("/Users/agi/clustershare/agi", env)
+        == "clustershare/agi"
+    )
+    assert orchestrate_cluster._home_relative_share_text("/mnt/agilab/share", env) == "/mnt/agilab/share"
+
+
 def test_resolve_project_change_args_override_only_preserves_matching_ui_args():
     assert orchestrate_page_support.resolve_project_change_args_override(
         is_args_from_ui=True,
@@ -665,10 +683,10 @@ def test_render_cluster_settings_ui_populates_empty_cluster_from_lan_discovery(m
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["scheduler"] == "192.168.3.103:8786"
     assert cluster["workers"] == {"192.168.3.35": 1}
-    assert cluster["workers_data_path"] == str(share)
+    assert cluster["workers_data_path"] == "clustershare"
     assert fake_st.session_state["cluster_scheduler__demo_project"] == "192.168.3.103:8786"
     assert fake_st.session_state["cluster_workers__demo_project"] == '{\n  "192.168.3.35": 1\n}'
-    assert fake_st.session_state["cluster_workers_data_path__demo_project"] == str(share)
+    assert fake_st.session_state["cluster_workers_data_path__demo_project"] == "clustershare"
 
 
 def test_render_cluster_settings_ui_preserves_explicit_cluster_values_over_lan_discovery(monkeypatch, tmp_path):
@@ -893,10 +911,10 @@ def test_render_cluster_settings_ui_refresh_replaces_stale_lan_discovery_state(m
     cluster = fake_st.session_state.app_settings["cluster"]
     assert cluster["scheduler"] == "192.168.3.103:8786"
     assert cluster["workers"] == {"192.168.3.35": 1}
-    assert cluster["workers_data_path"] == str(share)
+    assert cluster["workers_data_path"] == "clustershare"
     assert fake_st.session_state[widget_keys["scheduler"]] == "192.168.3.103:8786"
     assert fake_st.session_state[widget_keys["workers"]] == '{\n  "192.168.3.35": 1\n}'
-    assert fake_st.session_state[widget_keys["workers_data_path"]] == str(share)
+    assert fake_st.session_state[widget_keys["workers_data_path"]] == "clustershare"
     assert refresh_calls
     assert refresh_calls[0][1]["remote_user"] == "agi"
     assert refresh_calls[0][1]["scheduler"] == "10.0.0.10:8786"
@@ -1105,8 +1123,8 @@ def test_render_cluster_settings_ui_replaces_stale_local_workers_data_path(monke
     orchestrate_cluster.render_cluster_settings_ui(env, deps)
 
     cluster = fake_st.session_state.app_settings["cluster"]
-    assert cluster["workers_data_path"] == str(cluster_share)
-    assert fake_st.session_state[widget_keys["workers_data_path"]] == str(cluster_share)
+    assert cluster["workers_data_path"] == "clustershare/agi"
+    assert fake_st.session_state[widget_keys["workers_data_path"]] == "clustershare/agi"
 
 
 def test_render_cluster_settings_ui_uses_ssh_key_auth_and_resolved_share(monkeypatch, tmp_path):

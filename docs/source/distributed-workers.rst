@@ -299,6 +299,11 @@ Use these habits to keep distributed runs predictable:
   differ on mixed operating systems, for example a macOS scheduler path mounted
   under a Linux worker home directory, but they must expose the same backing
   storage after SSHFS is mounted.
+- Keep worker SSHFS prerequisites explicit: ``sshfs`` must be installed, the
+  worker must be able to SSH back to the scheduler, and the scheduler host key
+  should already be present in the worker ``known_hosts`` file. AGILAB uses
+  reconnect/keepalive options and strict host-key checking rather than silently
+  accepting new scheduler keys.
 - Keep cluster share and local share conceptually separate. In cluster mode,
   outputs should land on the shared cluster path, not silently on local-only
   storage.

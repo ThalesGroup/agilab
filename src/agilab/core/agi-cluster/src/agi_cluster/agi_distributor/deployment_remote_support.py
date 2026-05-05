@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 from pathlib import Path, PurePosixPath
 from shlex import quote
@@ -14,6 +15,19 @@ logger = logging.getLogger(__name__)
 _REMOTE_RAPIDS_CHECK_EXCEPTIONS = (ConnectionError, OSError, RuntimeError)
 _REMOTE_PLATFORM_PROBE_EXCEPTIONS = (OSError, RuntimeError, ValueError)
 _LEGACY_INTEL_MACOS_DEPENDENCY_SPECS = ("numba==0.62.1", "pyarrow==17.0.0")
+_SSHFS_INSTALL_HINT = (
+    "sshfs is required to mount AGI_CLUSTER_SHARE on this worker. "
+    "Install sshfs first: Debian/Ubuntu: sudo apt-get install -y sshfs; "
+    "macOS: install macFUSE/FUSE-T SSHFS and ensure sshfs is visible to non-interactive SSH."
+)
+_SSHFS_OPTIONS = (
+    "reconnect",
+    "ServerAliveInterval=15",
+    "ServerAliveCountMax=3",
+    "BatchMode=yes",
+    "StrictHostKeyChecking=yes",
+    "noexec",
+)
 
 
 def _resolve_local_share_path(value: str, env: Any) -> Path:
@@ -34,6 +48,43 @@ def _remote_share_assignment(value: str) -> str:
     if PurePosixPath(cleaned).is_absolute():
         return quote(cleaned)
     return '"$HOME"/' + quote(cleaned)
+
+
+def _sshfs_options_args() -> str:
+    return " ".join(f"-o {quote(option)}" for option in _SSHFS_OPTIONS)
+
+
+def _remote_share_unmount_snippet() -> str:
+    return (
+        "if command -v fusermount3 >/dev/null 2>&1; then "
+        "fusermount3 -u \"$REMOTE_CLUSTER_SHARE\" || true; "
+        "elif command -v fusermount >/dev/null 2>&1; then "
+        "fusermount -u \"$REMOTE_CLUSTER_SHARE\" || true; "
+        "else umount \"$REMOTE_CLUSTER_SHARE\" || true; fi"
+    )
+
+
+def _home_relative_share_setting(value: str, env: Any) -> str:
+    cleaned = str(value or "").strip() or "clustershare"
+    normalized = cleaned.replace("\\", "/")
+
+    for raw_home in (getattr(env, "home_abs", None), Path.home()):
+        if not raw_home:
+            continue
+        try:
+            home = Path(raw_home).expanduser().resolve(strict=False)
+            candidate = Path(cleaned).expanduser()
+            if candidate.is_absolute():
+                relative = candidate.resolve(strict=False).relative_to(home)
+                if relative.parts:
+                    return relative.as_posix()
+        except (OSError, RuntimeError, TypeError, ValueError):
+            continue
+
+    home_match = re.match(r"^(?:[A-Za-z]:)?/(?:Users|home)/[^/]+/(.+)$", normalized)
+    if home_match:
+        return home_match.group(1)
+    return cleaned
 
 
 def _scheduler_host_from_state(agi_cls: Any) -> str:
@@ -70,20 +121,33 @@ def _remote_share_mount_command(
     remote_share: str,
 ) -> str:
     source = f"{scheduler_target}:{local_share.as_posix()}"
+    sshfs_options = _sshfs_options_args()
+    unmount_snippet = _remote_share_unmount_snippet()
     return (
         "set -e; "
         "mkdir -p \"$HOME/.agilab\"; "
         "if ! command -v sshfs >/dev/null 2>&1; then "
-        "echo 'sshfs is required to mount AGI_CLUSTER_SHARE on this worker' >&2; exit 70; "
+        f"printf '%s\\n' {quote(_SSHFS_INSTALL_HINT)} >&2; exit 70; "
         "fi; "
         "REMOTE_CLUSTER_SHARE="
         + _remote_share_assignment(remote_share)
         + "; "
         f"SCHEDULER_CLUSTER_SHARE={quote(source)}; "
         "mkdir -p \"$REMOTE_CLUSTER_SHARE\"; "
-        "if mount | grep -F -- \"$REMOTE_CLUSTER_SHARE\" >/dev/null 2>&1; then "
+        "MOUNT_LINE=$(mount | grep -F -- \"$REMOTE_CLUSTER_SHARE\" || true); "
+        "if [ -n \"$MOUNT_LINE\" ]; then "
+        "if printf '%s\\n' \"$MOUNT_LINE\" | grep -F -- \"$SCHEDULER_CLUSTER_SHARE\" >/dev/null 2>&1 "
+        "&& test -d \"$REMOTE_CLUSTER_SHARE\" && test -w \"$REMOTE_CLUSTER_SHARE\"; then "
         "echo \"already mounted: $REMOTE_CLUSTER_SHARE\"; "
-        "else sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\" -o noexec; fi; "
+        "else "
+        "echo \"stale, unexpected, or unwritable SSHFS mount: $REMOTE_CLUSTER_SHARE; remounting\" >&2; "
+        + unmount_snippet
+        + "; "
+        f"sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\" {sshfs_options}; "
+        "fi; "
+        "else "
+        f"sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\" {sshfs_options}; "
+        "fi; "
         "test -d \"$REMOTE_CLUSTER_SHARE\" && test -w \"$REMOTE_CLUSTER_SHARE\""
     )
 
@@ -108,11 +172,12 @@ async def _prepare_remote_cluster_share(
     if not scheduler_target:
         raise RuntimeError("Cannot mount AGI_CLUSTER_SHARE on remote worker: scheduler host is unknown.")
 
-    await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share))
+    remote_share_setting = _home_relative_share_setting(remote_share, env)
+    await agi_cls.exec_ssh(ip, _remote_env_update_command(remote_share_setting))
     mount_cmd = _remote_share_mount_command(
         scheduler_target=scheduler_target,
         local_share=local_share,
-        remote_share=remote_share,
+        remote_share=remote_share_setting,
     )
     if getattr(env, "verbose", 0) > 0:
         log.info("Mounting scheduler AGI_CLUSTER_SHARE on remote worker %s with SSHFS", ip)

@@ -30,6 +30,19 @@ DEFAULT_DATASET_REL = Path("localshare/flight_cluster_validation/dataset/csv")
 DEFAULT_OUTPUT_REL = Path("flight_cluster_validation/dataframe_cluster_validation")
 DEFAULT_AIRCRAFT = tuple(range(60, 76))
 SHARE_SENTINEL_DIR = Path(".agilab_cluster_doctor")
+SSHFS_INSTALL_HINT = (
+    "sshfs is required to mount AGI_CLUSTER_SHARE on this worker. "
+    "Install sshfs first: Debian/Ubuntu: sudo apt-get install -y sshfs; "
+    "macOS: install macFUSE/FUSE-T SSHFS and ensure sshfs is visible to non-interactive SSH."
+)
+SSHFS_OPTIONS = (
+    "reconnect",
+    "ServerAliveInterval=15",
+    "ServerAliveCountMax=3",
+    "BatchMode=yes",
+    "StrictHostKeyChecking=yes",
+    "noexec",
+)
 
 
 @dataclass(frozen=True)
@@ -714,6 +727,20 @@ def _remote_env_update_command(plan: ValidationPlan) -> str:
     return "python3 - <<'PY'\n" + _remote_env_update_script(plan) + "\nPY"
 
 
+def _sshfs_options_args() -> str:
+    return " ".join(f"-o {shlex.quote(option)}" for option in SSHFS_OPTIONS)
+
+
+def _remote_share_unmount_snippet() -> str:
+    return (
+        "if command -v fusermount3 >/dev/null 2>&1; then "
+        "fusermount3 -u \"$REMOTE_CLUSTER_SHARE\" || true; "
+        "elif command -v fusermount >/dev/null 2>&1; then "
+        "fusermount -u \"$REMOTE_CLUSTER_SHARE\" || true; "
+        "else umount \"$REMOTE_CLUSTER_SHARE\" || true; fi"
+    )
+
+
 def _remote_share_setup_commands(
     plan: ValidationPlan,
     *,
@@ -723,19 +750,34 @@ def _remote_share_setup_commands(
     scheduler_target = _scheduler_ssh_target(plan, local_user=local_user)
     source = f"{scheduler_target}:{local_root.as_posix()}"
     remote_assignment = _remote_share_assignment(plan.remote_cluster_share_setting)
-    sshfs_check_command = 'mkdir -p "$HOME"/.agilab && command -v sshfs >/dev/null'
+    sshfs_options = _sshfs_options_args()
+    unmount_snippet = _remote_share_unmount_snippet()
+    sshfs_check_command = (
+        'mkdir -p "$HOME"/.agilab && '
+        "if ! command -v sshfs >/dev/null 2>&1; then "
+        f"printf '%s\\n' {shlex.quote(SSHFS_INSTALL_HINT)} >&2; exit 70; "
+        "fi"
+    )
     mkdir_command = (
         "REMOTE_CLUSTER_SHARE="
         + remote_assignment
         + '; mkdir -p "$REMOTE_CLUSTER_SHARE"'
     )
     mount_command = (
-        "REMOTE_CLUSTER_SHARE="
+        f"SCHEDULER_CLUSTER_SHARE={shlex.quote(source)}; REMOTE_CLUSTER_SHARE="
         + remote_assignment
-        + '; if mount | grep -F -- "$REMOTE_CLUSTER_SHARE" >/dev/null; then '
+        + '; MOUNT_LINE=$(mount | grep -F -- "$REMOTE_CLUSTER_SHARE" || true); '
+        + 'if [ -n "$MOUNT_LINE" ]; then '
+        + 'if printf \'%s\\n\' "$MOUNT_LINE" | grep -F -- "$SCHEDULER_CLUSTER_SHARE" >/dev/null 2>&1 '
+        + '&& test -d "$REMOTE_CLUSTER_SHARE" && test -w "$REMOTE_CLUSTER_SHARE"; then '
         + 'echo "already mounted: $REMOTE_CLUSTER_SHARE"; else '
-        + f"sshfs {shlex.quote(source)} "
-        + '"$REMOTE_CLUSTER_SHARE" -o noexec; fi'
+        + 'echo "stale, unexpected, or unwritable SSHFS mount: $REMOTE_CLUSTER_SHARE; remounting" >&2; '
+        + unmount_snippet
+        + "; "
+        + 'sshfs "$SCHEDULER_CLUSTER_SHARE" '
+        + f'"$REMOTE_CLUSTER_SHARE" {sshfs_options}; fi; else '
+        + 'sshfs "$SCHEDULER_CLUSTER_SHARE" '
+        + f'"$REMOTE_CLUSTER_SHARE" {sshfs_options}; fi'
     )
     return sshfs_check_command, mkdir_command, mount_command
 

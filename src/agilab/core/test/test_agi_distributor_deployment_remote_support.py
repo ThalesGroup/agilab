@@ -175,7 +175,7 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
     (dist_abs / "demo_worker-0.0.1.egg").write_text("x", encoding="utf-8")
 
     scheduler_share = tmp_path / "scheduler-share"
-    remote_share = "/home/agi/clustershare/agi"
+    remote_share = "/Users/agi/clustershare/agi"
     env = SimpleNamespace(
         wenv_abs=tmp_path / "worker_env",
         wenv_rel=Path("worker_env"),
@@ -190,6 +190,7 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
         post_install_rel="demo.post_install",
         verbose=1,
         user="agi",
+        home_abs=Path("/Users/agi"),
     )
     ssh_calls: list[str] = []
 
@@ -225,9 +226,23 @@ async def test_deploy_remote_worker_mounts_scheduler_cluster_share_with_sshfs(tm
     )
 
     assert scheduler_share.is_dir()
-    assert any("AGI_CLUSTER_SHARE=" in cmd and "/home/agi/clustershare/agi" in cmd for cmd in ssh_calls)
+    remote_env_cmd = next(cmd for cmd in ssh_calls if "AGI_CLUSTER_SHARE=" in cmd)
+    assert "clustershare/agi" in remote_env_cmd
+    assert "/Users/agi/clustershare/agi" not in remote_env_cmd
+    assert not any("/Users/agi/clustershare/agi" in cmd and "REMOTE_CLUSTER_SHARE" in cmd for cmd in ssh_calls)
     assert any("command -v sshfs" in cmd for cmd in ssh_calls)
     assert any("sshfs \"$SCHEDULER_CLUSTER_SHARE\" \"$REMOTE_CLUSTER_SHARE\"" in cmd for cmd in ssh_calls)
+    mount_cmd = next(cmd for cmd in ssh_calls if "sshfs \"$SCHEDULER_CLUSTER_SHARE\"" in cmd)
+    assert "-o reconnect" in mount_cmd
+    assert "-o ServerAliveInterval=15" in mount_cmd
+    assert "-o ServerAliveCountMax=3" in mount_cmd
+    assert "-o BatchMode=yes" in mount_cmd
+    assert "-o StrictHostKeyChecking=yes" in mount_cmd
+    assert "-o noexec" in mount_cmd
+    assert "MOUNT_LINE=$(mount | grep -F" in mount_cmd
+    assert "stale, unexpected, or unwritable SSHFS mount" in mount_cmd
+    assert "fusermount3 -u" in mount_cmd
+    assert "sudo apt-get install -y sshfs" in mount_cmd
     assert any("agi@192.168.20.111:" in cmd and str(scheduler_share) in cmd for cmd in ssh_calls)
 
 
