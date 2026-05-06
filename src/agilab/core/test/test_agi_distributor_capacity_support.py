@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -320,6 +321,106 @@ async def test_benchmark_dask_modes_maps_best_rapids_node_modes(monkeypatch):
     assert runs["13:best-node"]["mode"] == "m13"
     assert env.hw_rapids_capable is None
     assert AGI._rapids_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_uses_fresh_class_rapids_capability(monkeypatch):
+    env = _mycode_env()
+    env.envars.pop("10.0.0.3", None)
+    monkeypatch.setattr(AgiEnv, "envars", {"10.0.0.3": "hw_rapids_capable"})
+    modes_seen: list[int] = []
+    runs = {}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        return None
+
+    async def _distribute():
+        modes_seen.append(int(AGI._mode))
+        return f"m{AGI._mode} {float(AGI._mode)}"
+
+    def _update_capacity():
+        AGI._capacity = {
+            "10.0.0.2:4100": 1.0,
+            "10.0.0.3:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"10.0.0.2": 1, "10.0.0.3": 1},
+        ),
+        mode_range=[4],
+        rapids_mode_mask=AGI._RAPIDS_SET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert modes_seen == [4, 12]
+    assert runs["12:best-node"]["node"] == "10.0.0.3"
+    assert runs["12:best-node"]["mode"] == "m12"
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_warns_when_best_rapids_capability_unknown(
+    monkeypatch,
+    caplog,
+):
+    env = _mycode_env()
+    unknown_best_host = "203.0.113.3"
+    env.envars.pop(unknown_best_host, None)
+    monkeypatch.delenv(unknown_best_host, raising=False)
+    monkeypatch.setattr(AgiEnv, "envars", {})
+    modes_seen: list[int] = []
+    runs = {}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        return None
+
+    async def _distribute():
+        modes_seen.append(int(AGI._mode))
+        return f"m{AGI._mode} {float(AGI._mode)}"
+
+    def _update_capacity():
+        AGI._capacity = {
+            "203.0.113.2:4100": 1.0,
+            f"{unknown_best_host}:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    caplog.set_level(logging.WARNING, logger=capacity_support.logger.name)
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"203.0.113.2": 1, unknown_best_host: 1},
+        ),
+        mode_range=[4],
+        rapids_mode_mask=AGI._RAPIDS_SET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert modes_seen == [4, 4]
+    assert runs["4:best-node"]["node"] == unknown_best_host
+    assert "capability for best node 203.0.113.3 is unknown" in caplog.text
 
 
 @pytest.mark.asyncio
