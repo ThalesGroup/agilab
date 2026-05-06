@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,6 +22,27 @@ from agi_cluster.agi_distributor import deployment_remote_support, uv_source_sup
 )
 def test_is_legacy_intel_macos_scope(system, machine, product_version, expected):
     assert deployment_remote_support._is_legacy_intel_macos(system, machine, product_version) is expected
+
+
+def _rapids_probe_output(capable: bool) -> str:
+    return json.dumps(
+        {
+            "rapids_capable": capable,
+            "probe": "nvidia-smi",
+            "gpus": ["NVIDIA A100"] if capable else [],
+        }
+    )
+
+
+def test_parse_remote_rapids_probe_accepts_log_wrapped_json():
+    output = "banner\nagilab.cli.rapids_probe " + _rapids_probe_output(True) + "\n"
+
+    assert deployment_remote_support._parse_remote_rapids_probe(output) is True
+
+
+def test_parse_remote_rapids_probe_rejects_missing_json():
+    with pytest.raises(ValueError, match="Remote RAPIDS probe did not return JSON"):
+        deployment_remote_support._parse_remote_rapids_probe("no json here")
 
 
 async def _call_deploy_remote_worker(
@@ -340,6 +362,7 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
     )
     sent = []
     ssh = []
+    env_vars = []
 
     async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
         del user, password
@@ -360,8 +383,8 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
 
     async def _fake_exec(ip, cmd):
         ssh.append((ip, cmd))
-        if cmd.strip() == "nvidia-smi":
-            return "NVIDIA-SMI"
+        if "rapids-probe" in cmd:
+            return _rapids_probe_output(True)
         return "ok"
 
     agi_cls = SimpleNamespace(
@@ -379,12 +402,14 @@ async def test_deploy_remote_worker_source_env_with_rapids(monkeypatch, tmp_path
         env,
         Path("wenv"),
         " --extra pandas-worker",
-        set_env_var_fn=lambda *_a, **_k: None,
+        set_env_var_fn=lambda *args: env_vars.append(args),
         log=deployment_remote_support.logger,
     )
 
     assert any(".agilab/.env" in cmd for _, cmd in ssh)
-    assert any("nvidia-smi" == cmd for _, cmd in ssh)
+    assert any("rapids-probe" in cmd for _, cmd in ssh)
+    assert not any("nvidia-smi" == cmd.strip() for _, cmd in ssh)
+    assert ("10.0.0.2", "hw_rapids_capable") in env_vars
     assert any(any(item["name"] == "agi_env-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
     assert any(any(item["name"] == "agi_node-0.0.1-py3-none-any.whl" for item in payload) for _, payload, _ in sent)
     assert any("python -m demo.post_install" in cmd for _, cmd in ssh)
@@ -505,7 +530,7 @@ async def test_deploy_remote_worker_rapids_probe_propagates_unexpected_value_err
     )
 
     async def _fake_exec(ip, cmd):
-        if cmd.strip() == "nvidia-smi":
+        if "rapids-probe" in cmd:
             raise ValueError("unexpected rapids probe bug")
         return "ok"
 
@@ -715,8 +740,8 @@ async def test_deploy_remote_worker_rapids_false_and_temp_pth_cleanup_missing(mo
 
     async def _fake_exec(ip, cmd):
         ssh_calls.append((ip, cmd))
-        if cmd.strip() == "nvidia-smi":
-            return ""
+        if "rapids-probe" in cmd:
+            return _rapids_probe_output(False)
         return "ok"
 
     async def _fake_send(_env, ip, files, remote_path, user=None, password=None):
@@ -749,9 +774,9 @@ async def test_deploy_remote_worker_rapids_false_and_temp_pth_cleanup_missing(mo
         log=mock.Mock(),
     )
 
-    assert any(cmd == "nvidia-smi" for _ip, cmd in ssh_calls)
+    assert any("rapids-probe" in cmd for _ip, cmd in ssh_calls)
     assert env.hw_rapids_capable is False
-    assert env_vars == []
+    assert env_vars == [("10.0.0.2", "no_rapids_hw")]
 
 
 @pytest.mark.asyncio
@@ -776,8 +801,8 @@ async def test_deploy_remote_worker_rapids_runtime_error_is_logged(tmp_path):
     )
 
     async def _fake_exec(_ip, cmd):
-        if cmd.strip() == "nvidia-smi":
-            raise RuntimeError("nvidia-smi unavailable")
+        if "rapids-probe" in cmd:
+            raise RuntimeError("rapids probe unavailable")
         return "ok"
 
     async def _fake_send(*_args, **_kwargs):
@@ -792,7 +817,7 @@ async def test_deploy_remote_worker_rapids_runtime_error_is_logged(tmp_path):
     )
     log = mock.Mock()
 
-    with pytest.raises(RuntimeError, match="nvidia-smi unavailable"):
+    with pytest.raises(RuntimeError, match="rapids probe unavailable"):
         await _call_deploy_remote_worker(
             agi_cls,
             "10.0.0.2",

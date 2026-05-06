@@ -526,6 +526,43 @@ def test_python_version_handles_linux_and_unknown_platform(monkeypatch):
     assert cli_mod.python_version().endswith("-plan9-x86_64-none")
 
 
+def test_rapids_probe_detects_nvidia_gpu(monkeypatch):
+    monkeypatch.setattr(cli_mod.shutil, "which", lambda _name: "/usr/bin/nvidia-smi")
+    monkeypatch.setattr(cli_mod, "_NVIDIA_SMI_CANDIDATES", ("nvidia-smi",))
+    monkeypatch.setattr(
+        cli_mod,
+        "_run_nvidia_smi_probe",
+        lambda executable: SimpleNamespace(
+            returncode=0,
+            stdout="GPU 0: NVIDIA RTX 4090 (UUID: GPU-demo)\n",
+            stderr="",
+            args=[executable, "-L"],
+        ),
+    )
+
+    result = cli_mod.rapids_probe()
+
+    assert result["rapids_capable"] is True
+    assert result["command"] == "/usr/bin/nvidia-smi"
+    assert result["gpus"] == ["NVIDIA RTX 4090"]
+
+
+def test_rapids_probe_reports_false_when_nvidia_smi_missing(monkeypatch):
+    monkeypatch.setattr(cli_mod.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(cli_mod, "_NVIDIA_SMI_CANDIDATES", ("nvidia-smi",))
+    monkeypatch.setattr(
+        cli_mod,
+        "_run_nvidia_smi_probe",
+        lambda _executable: (_ for _ in ()).throw(FileNotFoundError("nvidia-smi")),
+    )
+
+    result = cli_mod.rapids_probe()
+
+    assert result["rapids_capable"] is False
+    assert result["command"] is None
+    assert result["attempts"][0]["command"] == "nvidia-smi"
+
+
 def _run_cli_as_main(monkeypatch, args):
     monkeypatch.setattr(sys, "argv", [str(Path(cli_mod.__file__))] + args)
     return runpy.run_path(str(Path(cli_mod.__file__)), run_name="__main__")
@@ -553,6 +590,23 @@ def test_cli_main_unzip_missing_arg_exits(monkeypatch):
 
 def test_cli_main_platform_runs(monkeypatch):
     _run_cli_as_main(monkeypatch, ["platform"])
+
+
+def test_cli_main_rapids_probe_runs(monkeypatch, capfd):
+    import shutil as shutil_mod
+    import subprocess as subprocess_mod
+
+    monkeypatch.setattr(shutil_mod, "which", lambda _name: None)
+    monkeypatch.setattr(
+        subprocess_mod,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(FileNotFoundError("nvidia-smi")),
+    )
+
+    _run_cli_as_main(monkeypatch, ["rapids-probe"])
+
+    output = capfd.readouterr().out
+    assert '"rapids_capable": false' in output
 
 
 def test_cli_main_clean_runs_with_arg(monkeypatch, tmp_path):

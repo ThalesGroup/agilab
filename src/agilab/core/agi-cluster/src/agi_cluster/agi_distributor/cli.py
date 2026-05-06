@@ -2,6 +2,7 @@ import os
 import sys
 import signal
 import logging
+import json
 from pathlib import Path
 from tempfile import gettempdir
 import shutil
@@ -23,6 +24,7 @@ Commands:
   unzip <wenv_path>        Unzip resources into the given wenv directory
   threaded                 Run the Python threads test
   platform                 Show Python platform/version info
+  rapids-probe             Probe NVIDIA/RAPIDS hardware capability as JSON
 
 Examples:
   python cli.py kill
@@ -31,6 +33,7 @@ Examples:
   python cli.py unzip /path/to/wenv
   python cli.py threaded
   python cli.py platform
+  python cli.py rapids-probe
 """
 
 # --- Tunables for speed ---
@@ -40,12 +43,20 @@ POLL_INTERVAL = float(os.environ.get("CLI_POLL_INTERVAL", "0.02"))
 GRACE_TOTAL = float(os.environ.get("CLI_GRACE_TOTAL", "0.30"))
 FREETHREADED_THRESHOLD = float(os.environ.get("CLI_FREETHREADED_THRESHOLD", "0.80"))
 BASELINE_TARGET_S = float(os.environ.get("CLI_BASELINE_TARGET_S", "0.15"))  # target single-thread work
+RAPIDS_PROBE_TIMEOUT = float(os.environ.get("CLI_RAPIDS_PROBE_TIMEOUT", "3.0"))
 
 logger = logging.getLogger(__name__)
 
 _PROCESS_LIST_EXCEPTIONS = (OSError, subprocess.SubprocessError)
 _CLEAN_EXCEPTIONS = (OSError,)
 _UNZIP_EXCEPTIONS = (OSError, zipfile.BadZipFile)
+_RAPIDS_PROBE_EXCEPTIONS = (OSError, subprocess.SubprocessError, subprocess.TimeoutExpired)
+_NVIDIA_SMI_CANDIDATES = (
+    "nvidia-smi",
+    "/usr/bin/nvidia-smi",
+    "/usr/local/bin/nvidia-smi",
+    "/usr/local/cuda/bin/nvidia-smi",
+)
 
 # ---------------- helpers ----------------
 def clean(wenv=None):
@@ -295,6 +306,81 @@ def python_version():
     logger.info(tag)
     return tag
 
+
+def _nvidia_smi_candidates():
+    resolved = shutil.which("nvidia-smi")
+    seen = set()
+    if resolved:
+        seen.add(resolved)
+        yield resolved
+
+    for candidate in _NVIDIA_SMI_CANDIDATES:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        yield candidate
+
+
+def _gpu_names_from_nvidia_smi(output: str) -> list[str]:
+    names = []
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("GPU ") and ":" in line:
+            line = line.split(":", 1)[1].strip()
+        if " (UUID:" in line:
+            line = line.split(" (UUID:", 1)[0].strip()
+        names.append(line)
+    return names
+
+
+def _run_nvidia_smi_probe(executable: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [executable, "-L"],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=RAPIDS_PROBE_TIMEOUT,
+    )
+
+
+def rapids_probe() -> dict:
+    """Return a JSON-serialisable RAPIDS hardware capability probe."""
+    attempts = []
+    for executable in _nvidia_smi_candidates():
+        try:
+            result = _run_nvidia_smi_probe(executable)
+        except _RAPIDS_PROBE_EXCEPTIONS as exc:
+            attempts.append({"command": executable, "ok": False, "error": str(exc)})
+            continue
+
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        if result.returncode == 0 and stdout:
+            return {
+                "rapids_capable": True,
+                "probe": "nvidia-smi",
+                "command": executable,
+                "gpus": _gpu_names_from_nvidia_smi(stdout),
+            }
+        attempts.append(
+            {
+                "command": executable,
+                "ok": False,
+                "returncode": result.returncode,
+                "stderr": stderr[-500:],
+            }
+        )
+
+    return {
+        "rapids_capable": False,
+        "probe": "nvidia-smi",
+        "command": None,
+        "gpus": [],
+        "attempts": attempts,
+    }
+
 # ---------------- main ----------------
 if __name__ == "__main__":
     if len(sys.argv) == 1:
@@ -331,6 +417,9 @@ if __name__ == "__main__":
 
     elif cmd == "platform":
         python_version()
+
+    elif cmd == "rapids-probe":
+        print(json.dumps(rapids_probe(), sort_keys=True))
 
     else:
         print(f"Unknown command: {cmd}\n{USAGE}")
