@@ -1142,6 +1142,10 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         at.session_state["env"] = env
         at.run()
         assert not at.exception
+        assert at.sidebar.text_input(key="project_filter").label == "Filter projects"
+        project_select = at.sidebar.selectbox(key="lab_dir_selectbox")
+        assert project_select.label == "Project name"
+        assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
 
         initial_lab = at.session_state["lab_dir_selectbox"]
         target_lab = (
@@ -1158,6 +1162,45 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert Path(at.session_state["steps_file"]).parent.name == target_lab
         assert Path(str(at.session_state["index_page"])).parts[0] == target_lab
         assert at.text_area(key=f"{target_lab}_lab_steps.toml_q_step_0").value == expected_prompt
+
+
+def test_pipeline_page_project_filter_shortlists_projects(mock_ui_env, tmp_path):
+    export_root = tmp_path / "export"
+    flight_lab = export_root / "flight_project"
+    trainer_lab = export_root / "sb3_trainer_project"
+    flight_lab.mkdir(parents=True, exist_ok=True)
+    trainer_lab.mkdir(parents=True, exist_ok=True)
+    (flight_lab / "lab_steps.toml").write_text(
+        '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        encoding="utf-8",
+    )
+    (trainer_lab / "lab_steps.toml").write_text(
+        '[[sb3_trainer_project]]\nD = ""\nQ = "trainer prompt"\nM = "dummy-model"\nC = "print(2)"\nR = "runpy"\n',
+        encoding="utf-8",
+    )
+
+    with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
+        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env.init_done = True
+        env.AGILAB_EXPORT_ABS = export_root
+        env.envars["AGI_EXPORT_DIR"] = str(export_root)
+        env.target = "flight_project"
+        env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+        env.get_projects = MagicMock(return_value=["flight_project", "sb3_trainer_project"])
+
+        at.session_state["env"] = env
+        at.run()
+        assert not at.exception
+
+        at.sidebar.text_input(key="project_filter").set_value("sb3").run()
+        assert not at.exception
+
+        filtered_select = at.sidebar.selectbox(key="lab_dir_selectbox")
+        assert filtered_select.label == "Project name"
+        assert list(filtered_select.options) == ["sb3_trainer_project"]
+        assert at.session_state["lab_dir_selectbox"] == "sb3_trainer_project"
+        assert Path(at.session_state["steps_file"]).parent.name == "sb3_trainer_project"
 
 
 def test_experiment_page_save_step_persists_prompt(mock_ui_env, tmp_path):

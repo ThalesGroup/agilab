@@ -17,6 +17,12 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import tomllib        # For reading TOML files
 
+PIPELINE_PROJECT_LABEL = "Project name"
+PIPELINE_PROJECT_HELP = (
+    "Choose the project workspace whose pipeline steps and exported artifacts "
+    "you want to inspect or edit."
+)
+
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
 if _import_guard_spec is None or _import_guard_spec.loader is None:
@@ -44,6 +50,7 @@ from agi_gui.pagelib import (
 from agi_gui.file_picker import agi_file_picker
 from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv, normalize_path
+from agi_env.pagelib_navigation_support import build_project_selection
 from agi_env.pagelib_selection_support import on_df_change as _on_df_change_impl
 import_agilab_symbols(
     globals(),
@@ -753,13 +760,30 @@ def sidebar_controls() -> None:
         # Avoid selecting the top-level "apps" directory; prefer the active app/target.
         persisted_lab = normalized_target
 
-    st.session_state["lab_dir"] = st.sidebar.selectbox(
-        "Lab directory",
-        modules,
-        index=modules.index(persisted_lab),
+    project_filter = st.sidebar.text_input("Filter projects", key="project_filter")
+    project_selection = build_project_selection(modules, persisted_lab, project_filter, limit=50)
+    project_options = project_selection.shortlist
+    project_index = project_selection.default_index
+    if not project_options:
+        st.sidebar.info("No projects match that filter; keeping the current project.")
+        project_options = [persisted_lab] if persisted_lab in modules else modules[:1]
+        project_index = 0
+    elif project_selection.needs_caption:
+        st.sidebar.caption(
+            f"Showing first {len(project_options)} of {project_selection.total_matches} matches"
+        )
+
+    selected_lab = st.sidebar.selectbox(
+        PIPELINE_PROJECT_LABEL,
+        project_options,
+        index=project_index,
         on_change=lambda: on_lab_change(st.session_state.lab_dir_selectbox),
         key="lab_dir_selectbox",
+        help=PIPELINE_PROJECT_HELP,
     )
+    st.session_state["lab_dir"] = selected_lab
+    if selected_lab != persisted_lab:
+        on_lab_change(selected_lab)
     if requested_lab and st.session_state.get("lab_dir_selectbox") == requested_lab:
         st.session_state.pop("_requested_lab_dir", None)
 
@@ -857,7 +881,7 @@ def sidebar_controls() -> None:
         allow_dirs=False,
         recursive=True,
         container=st.sidebar,
-        help="Browse files under the active lab export directory.",
+        help="Browse files under the active project workspace export directory.",
     )
     if picked_df:
         try:
