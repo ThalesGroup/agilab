@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import json
 import os
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +64,7 @@ class _FakeStreamlit:
         self._multiselects = multiselects or {}
         self.messages: list[tuple[str, str]] = []
         self.button_calls: list[tuple[str, dict[str, object]]] = []
+        self.graphviz_sources: list[str] = []
 
     def fragment(self, func):
         return func
@@ -102,6 +104,7 @@ class _FakeStreamlit:
         return list(value)
 
     def graphviz_chart(self, chart, width=None):
+        self.graphviz_sources.append(str(chart))
         self.messages.append(("graphviz", str(bool(chart))))
 
     def metric(self, label, value, delta=None, help=None):
@@ -696,6 +699,112 @@ def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch
     assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
     assert any(kind == "success" and "flight_context" in message for kind, message in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
+
+
+def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_dag_path": "docs/source/data/multi_app_dag_sample.json",
+        }
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    state_path = tmp_path / ".agilab" / "runner_state.json"
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text(
+        json.dumps(
+            {
+                "source": {"dag_path": "docs/source/data/multi_app_dag_flight_sample.json"},
+                "summary": {},
+                "units": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(state_path)
+    assert state["source"]["dag_path"] == "docs/source/data/multi_app_dag_sample.json"
+    assert state["summary"]["runnable_unit_ids"] == ["queue_baseline"]
+    assert state["summary"]["blocked_unit_ids"] == ["relay_followup"]
+    assert fake_st.graphviz_sources
+    assert "queue_baseline" in fake_st.graphviz_sources[-1]
+    assert "artifact:queue_metrics" in fake_st.graphviz_sources[-1]
+
+
+def test_global_runner_panel_reset_rebuilds_matching_runner_state(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_reset": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    state_path = tmp_path / ".agilab" / "runner_state.json"
+    proof = pipeline_lab.persist_runner_state(
+        repo_root=Path.cwd(),
+        output_path=state_path,
+        dag_path=Path("docs/source/data/multi_app_dag_flight_sample.json"),
+    )
+    dispatched = pipeline_lab.dispatch_next_runnable(proof.runner_state)
+    pipeline_lab.write_runner_state(state_path, dispatched.state)
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(state_path)
+    assert state["run_status"] == "planned"
+    assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
+    assert state["summary"]["running_unit_ids"] == []
+
+
+def test_global_runner_artifact_handoffs_mark_available_and_missing():
+    rows = pipeline_lab._artifact_handoffs_for_display(
+        {
+            "artifacts": [{"artifact": "ready_metrics", "status": "available"}],
+            "units": [
+                {
+                    "id": "consumer",
+                    "app": "downstream_project",
+                    "artifact_dependencies": [
+                        {
+                            "artifact": "ready_metrics",
+                            "from": "producer",
+                            "from_app": "upstream_project",
+                            "source_path": "analysis/ready.json",
+                            "handoff": "Use validated metrics.",
+                        },
+                        {
+                            "artifact": "missing_metrics",
+                            "from": "producer",
+                            "from_app": "upstream_project",
+                            "source_path": "analysis/missing.json",
+                            "handoff": "Use later metrics.",
+                        },
+                    ],
+                }
+            ],
+        }
+    )
+
+    assert [row["status"] for row in rows] == ["available", "missing"]
+    assert rows[0]["from_app"] == "upstream_project"
+    assert rows[1]["to"] == "consumer"
+
+
+def test_global_runner_error_diagnostic_renders_as_code(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_lab,
+        "_load_or_create_global_runner_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dag\nline 2")),
+    )
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    assert ("error", "Global DAG runner preview is unavailable.") in fake_st.messages
+    assert ("caption", "Full diagnostic") in fake_st.messages
+    assert ("code", "bad dag\nline 2") in fake_st.messages
 
 
 def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_path):

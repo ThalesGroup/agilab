@@ -147,6 +147,7 @@ logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
 GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_flight_sample.json")
+GLOBAL_DAG_EMPTY_STATE = "No global DAG units are available."
 
 
 def _normalize_editor_text(raw: Optional[str]) -> str:
@@ -207,22 +208,73 @@ def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
     return fallback_path if fallback_path.is_file() else None
 
 
+def _repo_relative_text(path: Path, repo_root: Path) -> str:
+    try:
+        return path.resolve(strict=False).relative_to(repo_root.resolve(strict=False)).as_posix()
+    except ValueError:
+        return str(path.expanduser())
+
+
+def _resolve_global_dag_input(raw_value: Any, repo_root: Path) -> Path | None:
+    raw_text = str(raw_value or "").strip()
+    if not raw_text:
+        return None
+    candidate = Path(raw_text).expanduser()
+    return candidate if candidate.is_absolute() else repo_root / candidate
+
+
 def _global_runner_state_path(lab_dir: Path) -> Path:
     return lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
 
 
-def _load_or_create_global_runner_state(env: AgiEnv, lab_dir: Path) -> tuple[dict[str, Any], Path, Path | None]:
+def _runner_state_dag_matches(
+    state: Dict[str, Any],
+    dag_path: Path | None,
+    repo_root: Path,
+) -> bool:
+    if dag_path is None:
+        return True
+    source = state.get("source", {})
+    if not isinstance(source, dict):
+        return False
+    current = str(source.get("dag_path", "") or "").strip()
+    expected = _repo_relative_text(dag_path, repo_root)
+    return current == expected or current == str(dag_path)
+
+
+def _load_or_create_global_runner_state(
+    env: AgiEnv,
+    lab_dir: Path,
+    dag_path: Path | None = None,
+    *,
+    reset: bool = False,
+) -> tuple[dict[str, Any], Path, Path | None]:
     repo_root = _repo_root_for_global_dag()
-    dag_path = _global_runner_dag_path(env, repo_root)
+    dag_path = dag_path or _global_runner_dag_path(env, repo_root)
     state_path = _global_runner_state_path(lab_dir)
-    if state_path.is_file():
-        return load_runner_state(state_path), state_path, dag_path
+    if state_path.is_file() and not reset:
+        state = load_runner_state(state_path)
+        if _runner_state_dag_matches(state, dag_path, repo_root):
+            return state, state_path, dag_path
     proof = persist_runner_state(
         repo_root=repo_root,
         output_path=state_path,
         dag_path=dag_path,
     )
     return proof.runner_state, state_path, dag_path
+
+
+def _available_artifact_ids(state: Dict[str, Any]) -> set[str]:
+    artifacts = state.get("artifacts", [])
+    if not isinstance(artifacts, list):
+        return set()
+    return {
+        str(artifact.get("artifact", "")).strip()
+        for artifact in artifacts
+        if isinstance(artifact, dict)
+        and artifact.get("status") == "available"
+        and str(artifact.get("artifact", "")).strip()
+    }
 
 
 def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
@@ -233,31 +285,174 @@ def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
     for unit in units:
         if not isinstance(unit, dict):
             continue
+        operator_ui = unit.get("operator_ui", {})
+        blocked_by = operator_ui.get("blocked_by_artifacts", []) if isinstance(operator_ui, dict) else []
         rows.append(
             {
                 "unit": str(unit.get("id", "")),
                 "app": str(unit.get("app", "")),
                 "status": str(unit.get("dispatch_status", "")),
                 "depends_on": ", ".join(str(item) for item in unit.get("depends_on", []) if str(item)),
+                "blocked_by": ", ".join(
+                    str(item)
+                    for item in blocked_by
+                    if str(item)
+                ),
             }
         )
     return rows
 
 
-def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str: str) -> None:
-    try:
-        state, state_path, dag_path = _load_or_create_global_runner_state(env, lab_dir)
-    except Exception as exc:
-        st.caption(f"Global DAG runner preview is unavailable: {exc}")
-        return
+def _artifact_handoffs_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
+    available = _available_artifact_ids(state)
+    units = state.get("units", [])
+    if not isinstance(units, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for unit in units:
+        if not isinstance(unit, dict):
+            continue
+        target_id = str(unit.get("id", ""))
+        target_app = str(unit.get("app", ""))
+        dependencies = unit.get("artifact_dependencies", [])
+        if not isinstance(dependencies, list):
+            continue
+        for dependency in dependencies:
+            if not isinstance(dependency, dict):
+                continue
+            artifact_id = str(dependency.get("artifact", "")).strip()
+            if not artifact_id:
+                continue
+            rows.append(
+                {
+                    "artifact": artifact_id,
+                    "from": str(dependency.get("from", "")),
+                    "from_app": str(dependency.get("from_app", "")),
+                    "to": target_id,
+                    "to_app": target_app,
+                    "status": "available" if artifact_id in available else "missing",
+                    "source_path": str(dependency.get("source_path", "")),
+                    "handoff": str(dependency.get("handoff", "")),
+                }
+            )
+    return rows
 
-    summary = state.get("summary", {})
-    if not isinstance(summary, dict):
-        summary = {}
+
+def _dot_quote(value: Any) -> str:
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _global_dag_dot(state: Dict[str, Any]) -> str:
+    units = state.get("units", [])
+    if not isinstance(units, list) or not units:
+        return ""
+    available = _available_artifact_ids(state)
+    lines = [
+        "digraph AGILABGlobalDAG {",
+        "  rankdir=LR;",
+        '  graph [bgcolor="transparent", pad="0.25", nodesep="0.6", ranksep="0.75"];',
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, margin="0.08,0.05"];',
+        '  edge [fontname="Helvetica", fontsize=9, color="#6b7280"];',
+    ]
+    status_colors = {
+        "runnable": "#dcfce7",
+        "running": "#dbeafe",
+        "completed": "#e0f2fe",
+        "blocked": "#fef3c7",
+        "failed": "#fee2e2",
+    }
+    artifact_nodes: dict[str, str] = {}
+    for unit in units:
+        if not isinstance(unit, dict):
+            continue
+        unit_id = str(unit.get("id", ""))
+        if not unit_id:
+            continue
+        status = str(unit.get("dispatch_status", ""))
+        app = str(unit.get("app", ""))
+        label = f"{unit_id}\\n{app}\\n{status}"
+        fill = status_colors.get(status, "#f8fafc")
+        lines.append(f"  {_dot_quote(unit_id)} [label={_dot_quote(label)}, fillcolor={_dot_quote(fill)}];")
+        for artifact in unit.get("produces", []):
+            if not isinstance(artifact, dict):
+                continue
+            artifact_id = str(artifact.get("artifact", "")).strip()
+            if not artifact_id:
+                continue
+            artifact_nodes[artifact_id] = "available" if artifact_id in available else "planned"
+            lines.append(f"  {_dot_quote(unit_id)} -> {_dot_quote('artifact:' + artifact_id)};")
+        dependencies = unit.get("artifact_dependencies", [])
+        if isinstance(dependencies, list):
+            for dependency in dependencies:
+                if not isinstance(dependency, dict):
+                    continue
+                artifact_id = str(dependency.get("artifact", "")).strip()
+                if not artifact_id:
+                    continue
+                artifact_nodes.setdefault(artifact_id, "available" if artifact_id in available else "missing")
+                lines.append(f"  {_dot_quote('artifact:' + artifact_id)} -> {_dot_quote(unit_id)};")
+    for artifact_id, status in sorted(artifact_nodes.items()):
+        fill = "#dcfce7" if status == "available" else "#fff7ed" if status == "missing" else "#f8fafc"
+        label = f"{artifact_id}\\n{status}"
+        lines.append(
+            f"  {_dot_quote('artifact:' + artifact_id)} "
+            f"[label={_dot_quote(label)}, shape=note, fillcolor={_dot_quote(fill)}];"
+        )
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str: str) -> None:
     with st.expander("Global DAG runner", expanded=False):
+        repo_root = _repo_root_for_global_dag()
+        default_dag_path = _global_runner_dag_path(env, repo_root)
+        dag_input_key = f"{index_page_str}_global_runner_dag_path"
+        if dag_input_key not in st.session_state:
+            st.session_state[dag_input_key] = (
+                _repo_relative_text(default_dag_path, repo_root)
+                if default_dag_path is not None
+                else ""
+            )
+
         st.caption("Operator preview only: dispatch changes state, but does not execute apps or synthesize artifacts.")
-        if dag_path is not None:
-            st.caption(f"DAG contract: `{dag_path}`")
+        dag_text = st.text_input(
+            "DAG contract",
+            key=dag_input_key,
+            help="Path to an `agilab.multi_app_dag.v1` JSON file. Relative paths resolve from the AGILAB checkout root.",
+        )
+        dag_path = _resolve_global_dag_input(dag_text, repo_root)
+        reset_clicked = action_button(
+            st,
+            "Reset preview state",
+            key=f"{index_page_str}_global_runner_reset",
+            kind="reset",
+            help="Rebuild the preview runner state from the selected DAG contract.",
+        )
+
+        try:
+            state, state_path, dag_path = _load_or_create_global_runner_state(
+                env,
+                lab_dir,
+                dag_path=dag_path,
+                reset=reset_clicked,
+            )
+        except Exception as exc:
+            st.error("Global DAG runner preview is unavailable.")
+            st.caption("Full diagnostic")
+            st.code(str(exc), language="text")
+            return
+
+        summary = state.get("summary", {})
+        if not isinstance(summary, dict):
+            summary = {}
+        source = state.get("source", {})
+        if not isinstance(source, dict):
+            source = {}
+        dag_label = str(source.get("dag_path", "")) or (
+            _repo_relative_text(dag_path, repo_root) if dag_path is not None else ""
+        )
+        if dag_label:
+            st.caption(f"DAG contract: `{dag_label}`")
         st.caption(f"State file: `{state_path}`")
         planned_col, running_col, completed_col, failed_col = st.columns(4)
         planned_col.metric("Planned", int(summary.get("planned_count", 0) or 0))
@@ -265,11 +460,20 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
         failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
 
+        dag_dot = _global_dag_dot(state)
+        if dag_dot:
+            st.graphviz_chart(dag_dot, width="stretch")
+
         rows = _state_units_for_display(state)
         if rows:
             st.dataframe(rows, hide_index=True, width="stretch")
         else:
-            st.caption("No global DAG units are available.")
+            st.caption(GLOBAL_DAG_EMPTY_STATE)
+
+        artifact_rows = _artifact_handoffs_for_display(state)
+        if artifact_rows:
+            st.caption("Artifact handoffs")
+            st.dataframe(artifact_rows, hide_index=True, width="stretch")
 
         dispatch_clicked = action_button(
             st,
