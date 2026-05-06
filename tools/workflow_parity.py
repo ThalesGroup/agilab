@@ -16,6 +16,7 @@ from typing import Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+AGI_GUI_COVERAGE_CHUNKS = ("support", "pipeline", "robots", "pages", "views", "reports")
 
 
 @dataclass
@@ -239,6 +240,26 @@ def _agi_gui_profile() -> list[CommandSpec]:
             ],
         ),
         CommandSpec(
+            label="agi-gui coverage combine",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--group",
+                "dev",
+                "python",
+                "-m",
+                "coverage",
+                "combine",
+                "--data-file=.coverage.agi-gui",
+                *(f"test-results/coverage-agi-gui-{chunk}.db" for chunk in AGI_GUI_COVERAGE_CHUNKS),
+            ],
+            env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+            timeout_seconds=5 * 60,
+            ensure_dirs=["test-results"],
+        ),
+        CommandSpec(
             label="agi-gui coverage xml",
             argv=[
                 "uv",
@@ -267,6 +288,12 @@ def _agi_gui_profile() -> list[CommandSpec]:
 def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool = False) -> CommandSpec:
     expanded_targets = _expand_repo_globs(targets)
     junit_path = f"test-results/junit-agi-gui-{label}.xml"
+    data_file = f"test-results/coverage-agi-gui-{label}.db"
+    clean_paths = [
+        ".coverage.agi-gui",
+        "coverage-agi-gui.xml",
+        *(f"test-results/coverage-agi-gui-{chunk}.db" for chunk in AGI_GUI_COVERAGE_CHUNKS),
+    ]
     return CommandSpec(
         label=f"agi-gui coverage ({label})",
         argv=[
@@ -281,8 +308,7 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
             "coverage",
             "run",
             "--rcfile=.coveragerc.agi-gui",
-            "--data-file=.coverage.agi-gui",
-            "--append",
+            f"--data-file={data_file}",
             "-m",
             "pytest",
             "-q",
@@ -299,11 +325,7 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
         env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
         timeout_seconds=8 * 60,
         ensure_dirs=["test-results"],
-        remove_paths=(
-            [".coverage.agi-gui", "coverage-agi-gui.xml", junit_path]
-            if clean
-            else [junit_path]
-        ),
+        remove_paths=[*clean_paths, junit_path] if clean else [data_file, junit_path],
     )
 
 
