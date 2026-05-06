@@ -81,25 +81,48 @@ def _best_single_node_workers(agi_cls: Any, workers: Mapping[str, int]) -> dict[
     return {host: 1} if host else {}
 
 
-def _truthy_rapids_capability(value: Any) -> bool:
+_TRUE_RAPIDS_CAPABILITIES = {"1", "true", "yes", "on", "hw_rapids_capable"}
+_FALSE_RAPIDS_CAPABILITIES = {"0", "false", "no", "off", "no_rapids_hw"}
+
+
+def _rapids_capability_value(value: Any) -> bool | None:
     if isinstance(value, bool):
         return value
     normalized = str(value or "").strip().lower()
-    return normalized in {"1", "true", "yes", "on", "hw_rapids_capable"}
+    if normalized in _TRUE_RAPIDS_CAPABILITIES:
+        return True
+    if normalized in _FALSE_RAPIDS_CAPABILITIES:
+        return False
+    return None
+
+
+def _rapids_capability_sources(env: AgiEnv) -> list[Mapping[str, Any]]:
+    sources: list[Mapping[str, Any]] = []
+    for source in (os.environ, getattr(type(env), "envars", None), getattr(env, "envars", None)):
+        if isinstance(source, Mapping) and all(source is not existing for existing in sources):
+            sources.append(source)
+    return sources
+
+
+def _worker_rapids_capability(env: AgiEnv, host: str) -> bool | None:
+    normalized_host = _worker_host(host)
+    for envars in _rapids_capability_sources(env):
+        for key, value in envars.items():
+            if _worker_host(key) != normalized_host:
+                continue
+            capability = _rapids_capability_value(value)
+            if capability is not None:
+                return capability
+    try:
+        if env.is_local(normalized_host):
+            return _rapids_capability_value(getattr(env, "hw_rapids_capable", None))
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        pass
+    return None
 
 
 def _worker_rapids_capable(env: AgiEnv, host: str) -> bool:
-    normalized_host = _worker_host(host)
-    envars = getattr(env, "envars", {}) or {}
-    for key, value in envars.items():
-        if _worker_host(key) == normalized_host:
-            return _truthy_rapids_capability(value)
-    try:
-        if env.is_local(normalized_host):
-            return _truthy_rapids_capability(getattr(env, "hw_rapids_capable", False))
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        pass
-    return False
+    return _worker_rapids_capability(env, host) is True
 
 
 def _best_single_node_modes(
@@ -122,6 +145,30 @@ def _rapids_run_mode_bit(agi_cls: Any) -> int:
     except (AttributeError, TypeError, ValueError):
         bit = 0
     return bit or 8
+
+
+def _rapids_requested_for_best_node(
+    agi_cls: Any,
+    mode_range: List[int],
+    rapids_mode_mask: int,
+) -> bool:
+    rapids_bit = _rapids_run_mode_bit(agi_cls)
+    return bool(
+        rapids_mode_mask == agi_cls._RAPIDS_SET
+        or any(int(mode) & rapids_bit for mode in mode_range)
+    )
+
+
+def _auto_rapids_requires_best_node_capability(
+    agi_cls: Any,
+    mode_range: List[int],
+    rapids_mode_mask: int,
+) -> bool:
+    rapids_bit = _rapids_run_mode_bit(agi_cls)
+    return bool(
+        rapids_mode_mask == agi_cls._RAPIDS_SET
+        and any(not (int(mode) & rapids_bit) for mode in mode_range)
+    )
 
 
 async def benchmark(
@@ -271,7 +318,30 @@ async def benchmark_dask_modes(
             if best_workers and _node_count(workers_dict) > 1:
                 previous_hw_rapids_capable = getattr(env, "hw_rapids_capable", None)
                 previous_rapids_enabled = getattr(agi_cls, "_rapids_enabled", False)
-                rapids_capable = _worker_rapids_capable(env, best_host)
+                rapids_capability = _worker_rapids_capability(env, best_host)
+                rapids_capable = rapids_capability is True
+                if (
+                    _rapids_requested_for_best_node(agi_cls, mode_range, rapids_mode_mask)
+                    and not rapids_capable
+                    and _auto_rapids_requires_best_node_capability(
+                        agi_cls,
+                        mode_range,
+                        rapids_mode_mask,
+                    )
+                ):
+                    if rapids_capability is False:
+                        logger.warning(
+                            "RAPIDS requested for best-node benchmark, but best node %s is marked as not RAPIDS-capable; "
+                            "running non-RAPIDS best-node modes.",
+                            best_host,
+                        )
+                    else:
+                        logger.warning(
+                            "RAPIDS requested for best-node benchmark, but capability for best node %s is unknown; "
+                            "run INSTALL with RAPIDS enabled or refresh hardware discovery, then rerun the benchmark. "
+                            "Running non-RAPIDS best-node modes.",
+                            best_host,
+                        )
                 best_modes = _best_single_node_modes(
                     mode_range,
                     rapids_capable=rapids_capable,
