@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-05-05
+  updated: 2026-05-06
 ---
 
 # AGILab runbook (Agent Skill)
@@ -128,6 +128,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`
 - Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
   - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
+  - Real PyPI does not auto-select `.postN` when the date version already exists. If `YYYY.MM.DD` is already published, choose an explicit version such as `--version YYYY.MM.DD.post1`; dry-run that exact command first, then publish with the same explicit version.
   - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
   - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.
 
@@ -149,6 +150,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - PyPI simple index: `https://pypi.org/simple/agilab/`
   - GitHub Release: `gh release list --limit 5` and `gh release view <tag>`
   - GitHub static badge: `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
+- Verify the published wheel from outside the repo checkout so imports cannot resolve to local source:
+  - `cd /tmp && uv run --refresh-package agilab --no-project --with agilab==<version> python -c "import importlib.metadata as m; print(m.version('agilab'))"`
+- If the release is followed by a Hugging Face deploy, refresh release proof metadata with the live Space commit after runtime cutover, then sync and push both docs repos:
+  - `uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --docs-source ../thales_agilab/docs/source --refresh-from-local --hf-space-commit <space-sha> --render --check --compact`
+  - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --source ../thales_agilab/docs/source --target docs/source --apply --delete`
 - If the version changes, update the static badge and GitHub Release in the same commit series as the version bump so `main`, PyPI, the README, and release metadata stay aligned.
 
 ## CI workflow lessons

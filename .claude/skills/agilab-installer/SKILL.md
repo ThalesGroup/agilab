@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-28
+  updated: 2026-05-06
 ---
 
 # AGILAB Installer Skill
@@ -125,6 +125,22 @@ Use this skill when working on:
     - manager install and worker build succeed
     - failure appears later at `uv add agi-env` / `uv add agi-node` or worker `uv sync`
     - the error mentions an unsatisfiable transitive dependency conflict from the copied worker project
+
+- **Worker manifest has unresolved local `uv` sources**
+  - Error shape: copied worker install reports unresolved local sources such as
+    `agi-env -> ../../../core/agi-env` or asks to rerun `AGI.install` because `_uv_sources`
+    is stale or incomplete.
+  - First check whether the source worker manifest path resolves from its own directory:
+    `python - <<'PY' ... (Path('<worker-pyproject>').parent / raw_path).resolve().exists() ... PY`
+  - For built-in apps, app-root manifests and nested worker manifests sit at different depths.
+    App-root `pyproject.toml` can use `../../../core/agi-env`, but
+    `src/<app>_worker/pyproject.toml` currently needs `../../../../../core/agi-env`
+    and `../../../../../core/agi-node` to resolve from the worker directory.
+  - Add or run dependency-hygiene coverage for this class before publishing:
+    `uv --preview-features extra-build-dependencies run pytest -q -o addopts= test/test_pyproject_dependency_hygiene.py`
+  - If the release publisher missed nested worker manifests, update `tools/pypi_publish.py`
+    so `builtin_app_pyprojects()` includes both `*_project/pyproject.toml` and
+    `*_project/src/*_worker/pyproject.toml`.
 
 - **Dataset extraction wipes seeded files**
   - Avoid mtime heuristics on extracted files; use a stamp file tied to the archive.
