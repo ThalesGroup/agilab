@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib.util
+import json
 import py_compile
 import subprocess
 import sys
@@ -22,6 +23,7 @@ EXAMPLE_APPS = {
 }
 EXAMPLE_PREVIEWS = {
     "inter_project_dag": ("preview_inter_project_dag.py", "flight_to_meteo_dag.json"),
+    "mlflow_auto_tracking": ("preview_mlflow_auto_tracking.py", "sample_run_config.json"),
     "notebook_to_dask": (
         "preview_notebook_to_dask.py",
         "notebook_to_dask_sample.ipynb",
@@ -283,6 +285,8 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/*/AGI_*.py" in package_data
     assert "examples/inter_project_dag/*.py" in package_data
     assert "examples/inter_project_dag/*.json" in package_data
+    assert "examples/mlflow_auto_tracking/*.py" in package_data
+    assert "examples/mlflow_auto_tracking/*.json" in package_data
     assert "examples/notebook_to_dask/*.py" in package_data
     assert "examples/notebook_to_dask/*.json" in package_data
     assert "examples/notebook_to_dask/*.toml" in package_data
@@ -407,6 +411,35 @@ def test_service_mode_preview_builds_health_gate_operator_summary(tmp_path: Path
     assert summary["artifacts"]["health_json"] == "service/mycode/health.json"
     assert summary["real_service_execution"] is False
     assert (tmp_path / "service_operator_preview.json").is_file()
+
+
+def test_mlflow_auto_tracking_preview_writes_local_evidence_without_mlflow(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "mlflow_auto_tracking" / "preview_mlflow_auto_tracking.py"
+    module_name = "agilab_mlflow_auto_tracking_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.run_preview(
+        config_path=EXAMPLES_ROOT / "mlflow_auto_tracking" / "sample_run_config.json",
+        output_dir=tmp_path / "mlflow_auto_tracking",
+        backend="none",
+    )
+
+    assert summary["example"] == "mlflow_auto_tracking"
+    assert summary["tracker_backend"] == "none"
+    assert summary["tracking"]["status"] == "skipped"
+    assert summary["registry_created_by_agilab"] is False
+    assert summary["logged_metrics"] == ["coverage_ratio", "forecast_mae", "forecast_rmse"]
+    run_summary = Path(summary["local_evidence"]["run_summary"])
+    assert run_summary.is_file()
+    artifact = json.loads(run_summary.read_text(encoding="utf-8"))
+    assert artifact["app"] == "meteo_forecast_project"
+    assert artifact["pipeline"] == "notebook_migration_forecast"
+    assert (tmp_path / "mlflow_auto_tracking" / "mlflow_tracking_preview.json").is_file()
 
 
 def test_notebook_to_dask_preview_builds_migration_contract(tmp_path: Path) -> None:

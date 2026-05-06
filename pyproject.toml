@@ -307,6 +307,8 @@ agilab = [
     "examples/*/AGI_*.py",
     "examples/inter_project_dag/*.py",
     "examples/inter_project_dag/*.json",
+    "examples/mlflow_auto_tracking/*.py",
+    "examples/mlflow_auto_tracking/*.json",
     "examples/notebook_to_dask/*.py",
     "examples/notebook_to_dask/*.json",
     "examples/notebook_to_dask/*.toml",

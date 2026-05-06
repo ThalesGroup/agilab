@@ -47,7 +47,8 @@ What each route is for
   when you want the deeper packaged proof routes: ``data_io_2026_project``,
   ``execution_pandas_project`` / ``execution_polars_project``, UAV queue
   analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
-  ``inter_project_dag`` previews, :doc:`data-connectors`, and
+  ``inter_project_dag`` previews, ``mlflow_auto_tracking`` previews,
+  :doc:`data-connectors`, and
   :doc:`release-proof`.
 - **Industrial optimization examples**: use
   :doc:`industrial-optimization-examples` when your apps repository includes
@@ -98,10 +99,16 @@ The static scenario contract is available as JSON:
   certification of every possible remote topology.
 
 **MLflow tracking route**
-  Use a project with pipeline steps, enable MLflow tracking in the run
-  environment, then execute the pipeline and open ANALYSIS. The demo objective
-  is to show that AGILAB keeps setup, execution, artifacts, and visible results
-  together while MLflow remains the tracking system of record when it is used.
+  Start with the packaged preview when you want a short, deterministic proof:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py --output-dir /tmp/mlflow_auto_tracking_preview
+
+  Add ``--with mlflow`` to the ``uv`` command when you want the same evidence
+  logged into a local MLflow store. The demo objective is to show that AGILAB
+  keeps setup, execution, artifacts, and visible results together while MLflow
+  remains the tracking system of record when it is used.
 
   Stop when the pipeline artifacts and the MLflow run link point to the same
   experiment evidence.
