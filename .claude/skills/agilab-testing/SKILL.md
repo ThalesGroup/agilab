@@ -147,6 +147,10 @@ validation, release, and Hugging Face sync in one flow.
 - After release, verify package publication with a network-level check such as
   `curl https://pypi.org/pypi/agilab/json`, because local Python SSL trust can
   differ from the actual PyPI publication state.
+- Root package dependencies must install on the full clean public install matrix
+  (Windows, macOS, Linux). Platform-specific packages such as Apple MLX must
+  carry environment markers in `pyproject.toml`, otherwise the released wheel can
+  pass local macOS validation and still fail `repo-guardrails` on Windows.
 - Verify installed package content from outside the repo checkout with
   `uv run --refresh-package agilab --no-project --with agilab==<version> ...`.
   Running this from the repo can import local source and give a false pass.
