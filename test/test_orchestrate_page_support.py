@@ -291,7 +291,9 @@ def test_benchmark_mode_helpers_expose_only_enabled_capabilities():
     assert column_config["mode"]["label"] == "mode"
     assert "4-slot execution signature" in column_config["mode"]["help"]
     assert "Dask/cluster" in column_config["mode"]["help"]
+    assert "process or thread backend" in column_config["mode"]["help"]
     assert "`r d c p`" in orchestrate_page_support.BENCHMARK_MODE_LEGEND_MARKDOWN
+    assert "worker pool" in orchestrate_page_support.BENCHMARK_MODE_LEGEND_MARKDOWN
     assert "`____` local Python" in orchestrate_page_support.BENCHMARK_MODE_LEGEND_MARKDOWN
     assert "`_d__` Dask only" in orchestrate_page_support.BENCHMARK_MODE_LEGEND_MARKDOWN
 
