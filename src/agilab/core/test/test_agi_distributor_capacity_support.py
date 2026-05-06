@@ -77,7 +77,14 @@ async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
 
     async def _fake_bench_dask(_env, request, _modes, _mask, runs, **_kwargs):
         assert request.workers == {"127.0.0.1": 1}
-        runs[4] = {"nodes": 1, "mode": "mode4", "timing": "4 seconds", "seconds": 4.0}
+        runs[4] = {
+            "variant": "cluster",
+            "nodes": 1,
+            "node": "cluster",
+            "mode": "mode4",
+            "timing": "4 seconds",
+            "seconds": 4.0,
+        }
 
     monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
     monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
@@ -95,6 +102,8 @@ async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
     assert data["4"]["order"] == 3
     assert data["0"]["nodes"] == 1
     assert data["4"]["nodes"] == 1
+    assert data["0"]["variant"] == "local"
+    assert data["4"]["variant"] == "cluster"
     assert AGI._best_mode[env.target]["mode"] == data["0"]["mode"]
     assert env.benchmark.exists()
     assert AGI._mode_auto is False
@@ -247,9 +256,70 @@ async def test_benchmark_dask_modes_can_add_best_single_node_run(monkeypatch):
         {"10.0.0.3": 1},
     ]
     assert runs[4]["nodes"] == 2
+    assert runs[4]["variant"] == "cluster"
     assert runs["4:best-node"]["nodes"] == 1
+    assert runs["4:best-node"]["variant"] == "best-node"
+    assert runs["4:best-node"]["node"] == "10.0.0.3"
     assert runs["4:best-node"]["seconds"] == 1.5
     assert AGI._workers == {"10.0.0.2": 1, "10.0.0.3": 1}
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_maps_best_rapids_node_modes(monkeypatch):
+    env = _mycode_env()
+    env.envars["10.0.0.3"] = "hw_rapids_capable"
+    worker_snapshots: list[dict[str, int]] = []
+    modes_seen: list[int] = []
+    runs = {}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        return None
+
+    async def _distribute():
+        worker_snapshots.append(dict(AGI._workers))
+        modes_seen.append(int(AGI._mode))
+        return f"m{AGI._mode} {float(AGI._mode)}"
+
+    def _update_capacity():
+        AGI._capacity = {
+            "10.0.0.2:4100": 1.0,
+            "10.0.0.3:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"10.0.0.2": 1, "10.0.0.3": 1},
+        ),
+        mode_range=[4, 5],
+        rapids_mode_mask=AGI._RAPIDS_RESET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert modes_seen == [4, 5, 12, 13]
+    assert worker_snapshots == [
+        {"10.0.0.2": 1, "10.0.0.3": 1},
+        {"10.0.0.2": 1, "10.0.0.3": 1},
+        {"10.0.0.3": 1},
+        {"10.0.0.3": 1},
+    ]
+    assert runs["12:best-node"]["node"] == "10.0.0.3"
+    assert runs["13:best-node"]["node"] == "10.0.0.3"
+    assert runs["12:best-node"]["mode"] == "m12"
+    assert runs["13:best-node"]["mode"] == "m13"
+    assert env.hw_rapids_capable is None
+    assert AGI._rapids_enabled is False
 
 
 @pytest.mark.asyncio
