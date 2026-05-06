@@ -10,12 +10,13 @@ metadata:
 
 Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.
 
-The current source of truth is:
-- `/Users/agi/thales_agilab/huggingface/README.md`
-- `/Users/agi/thales_agilab/huggingface/README.advanced.md`
-- `/Users/agi/thales_agilab/huggingface/hf_space_deploy.sh`
-- `/Users/agi/thales_agilab/huggingface/Dockerfile`
-- `/Users/agi/thales_agilab/huggingface/seed_hf_app_settings.py`
+The current source of truth is the sibling apps/docs checkout, normally
+`../thales_agilab` relative to the public `agilab` checkout:
+- `<apps-repo>/huggingface/README.md`
+- `<apps-repo>/huggingface/README.advanced.md`
+- `<apps-repo>/huggingface/hf_space_deploy.sh`
+- `<apps-repo>/huggingface/Dockerfile`
+- `<apps-repo>/huggingface/seed_hf_app_settings.py`
 
 Do not default to a generic “lightweight one-page demo” plan when the repo already defines a concrete Space contract.
 
@@ -28,7 +29,7 @@ The official Space is currently:
   profile
 - launched on port `7860`
 - backed by the AGILAB Streamlit interface
-- built from the public `agilab` repo plus the private `thales_agilab/huggingface` packaging bundle
+- built from the public `agilab` repo plus the sibling apps/docs `huggingface` packaging bundle
 
 Treat `first-proof` as the default target unless the user explicitly asks for
 the advanced companion Space.
@@ -99,10 +100,10 @@ Use the documented flow:
 2. Authenticate with either:
    - `hf auth login`
    - or `HF_TOKEN` in the environment
-3. Run the deploy script from the sibling private repo:
+3. Run the deploy script from the sibling apps/docs repo:
 
 ```bash
-./huggingface/hf_space_deploy.sh \
+<apps-repo>/huggingface/hf_space_deploy.sh \
   --profile first-proof \
   --agilab-path </path/to/agilab> \
   --space <user>/agilab \
@@ -112,7 +113,7 @@ Use the documented flow:
 For an existing Space:
 
 ```bash
-./huggingface/hf_space_deploy.sh \
+<apps-repo>/huggingface/hf_space_deploy.sh \
   --profile first-proof \
   --agilab-path </path/to/agilab> \
   --space <user>/agilab
@@ -121,7 +122,7 @@ For an existing Space:
 For the heavier companion Space:
 
 ```bash
-./huggingface/hf_space_deploy.sh \
+<apps-repo>/huggingface/hf_space_deploy.sh \
   --profile advanced \
   --agilab-path </path/to/agilab> \
   --space <user>/agilab-advanced \
@@ -142,7 +143,7 @@ Do not replace this with hand-written deployment steps unless the user explicitl
 Before touching the Space deployment, verify:
 
 1. The public `agilab` checkout exists and is the intended source tree.
-2. The sibling `thales_agilab/huggingface` bundle exists and matches the intended Space contract.
+2. The sibling apps/docs `huggingface` bundle exists and matches the intended Space contract.
 3. `hf auth whoami` succeeds, or `HF_TOKEN` is present.
 4. The current README, Dockerfile, and deploy script still agree on:
    - SDK type
@@ -164,24 +165,27 @@ Clean worktree pattern when private app symlinks are present:
 
 ```bash
 tmpdir=$(mktemp -d /tmp/agilab-hf-public.XXXXXX)
+apps_repo="../thales_agilab"
+space_owner="<space-owner>"
 git worktree add --detach "$tmpdir" origin/main
 git -C "$tmpdir" lfs install --local
 git -C "$tmpdir" lfs pull
 find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort
-/Users/agi/thales_agilab/huggingface/hf_space_deploy.sh \
+"$apps_repo/huggingface/hf_space_deploy.sh" \
   --profile first-proof \
   --agilab-path "$tmpdir" \
-  --space jpmorard/agilab
+  --space "$space_owner/agilab"
 ```
 
-Use `--profile advanced --space jpmorard/agilab-advanced` for the heavier
+Use `--profile advanced --space "$space_owner/agilab-advanced"` for the heavier
 Advanced Proof Pack companion Space.
 
 After upload, verify the Space cutover separately from the file upload:
 
 ```bash
-hf spaces info jpmorard/agilab --format json
-curl -I -L --max-time 20 https://jpmorard-agilab.hf.space/
+space_owner="<space-owner>"
+hf spaces info "$space_owner/agilab" --format json
+curl -I -L --max-time 20 "https://${space_owner}-agilab.hf.space/"
 ```
 
 If the fix is about a deployed file, download that exact file from the Space and
@@ -198,12 +202,14 @@ Runtime cutover check:
 ```bash
 python3 - <<'PY'
 import json
+import os
 import subprocess
 import time
 
+space = os.environ.get("AGILAB_HF_SPACE", "<space-owner>/agilab")
 for attempt in range(1, 31):
     info = json.loads(subprocess.check_output(
-        ["hf", "spaces", "info", "jpmorard/agilab", "--format", "json"],
+        ["hf", "spaces", "info", space, "--format", "json"],
         text=True,
     ))
     runtime = info.get("runtime") or {}
@@ -224,8 +230,8 @@ If the Space is stuck in `RUNNING_BUILDING` or `RUNNING_APP_STARTING`, inspect
 the relevant logs before making another upload:
 
 ```bash
-hf spaces logs jpmorard/agilab --build --tail 120
-hf spaces logs jpmorard/agilab --tail 160
+hf spaces logs <space-owner>/agilab --build --tail 120
+hf spaces logs <space-owner>/agilab --tail 160
 ```
 
 For worker-install failures, look for local-source staging evidence in the build
@@ -246,15 +252,15 @@ Space commit after the smoke passes, then sync and push both docs repos:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
-  --docs-source /Users/agi/thales_agilab/docs/source \
+  --docs-source ../thales_agilab/docs/source \
   --refresh-from-local \
   --hf-space-commit <space-sha> \
   --render \
   --check \
   --compact
 uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
-  --source /Users/agi/thales_agilab/docs/source \
-  --target /Users/agi/agilab/docs/source \
+  --source ../thales_agilab/docs/source \
+  --target docs/source \
   --apply \
   --delete
 ```
@@ -266,7 +272,7 @@ passes, and release proof records that Space SHA.
 ## When Editing the Space Contract
 
 If the user asks to change the Space behavior:
-- update the private `thales_agilab/huggingface` bundle first
+- update the sibling apps/docs `huggingface` bundle first
 - then update public docs and AGILAB links
 - then validate the deploy command path
 

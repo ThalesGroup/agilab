@@ -1,9 +1,9 @@
 ---
 name: plan-before-code
 description: Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.
-license: Private local skill
+license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-16
+  updated: 2026-05-06
 ---
 
 # Plan Before Code

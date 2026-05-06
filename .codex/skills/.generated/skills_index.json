@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-06T04:59:32Z",
+  "generated_at_utc": "2026-05-06T07:41:02Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -41,7 +41,7 @@
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": "2026-05-06",
       "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
-      "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is:\n- `/Users/agi/thales_agilab/huggingface/README.md`"
+      "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is the sibling apps/docs checkout, normally\n`../thales_agilab` relative to the public `agilab` checkout:"
     },
     {
       "name": "agilab-installer",
@@ -142,8 +142,8 @@
     {
       "name": "plan-before-code",
       "description": "Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.",
-      "license": "Private local skill",
-      "updated": "2026-04-16",
+      "license": "BSD-3-Clause (see repo LICENSE)",
+      "updated": "2026-05-06",
       "path": ".codex/skills/plan-before-code/SKILL.md",
       "body_preview": "# Plan Before Code\nUse this skill to force a planning pass before coding.\nThe goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits,\nand catch bad assumptions before touching files."
     },
@@ -151,7 +151,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-29",
+      "updated": "2026-05-06",
       "path": ".codex/skills/repo-skill-maintenance/SKILL.md",
       "body_preview": "# Repo Skill Maintenance\nUse this skill when working on the shared skill trees in `agilab`.\nThe goal is to keep one canonical source for shared skills, keep the repo Codex\nmirror valid, and avoid the accidental bulk-sync regressions that can overwrite"
     },
