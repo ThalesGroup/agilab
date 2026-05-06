@@ -1,5 +1,8 @@
 import importlib.util
+import hashlib
+import json
 import logging
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -143,11 +146,25 @@ load_runner_state = _global_runner_state_module.load_runner_state
 persist_runner_state = _global_runner_state_module.persist_runner_state
 write_runner_state = _global_runner_state_module.write_runner_state
 
+_multi_app_dag_module = import_agilab_module(
+    "agilab.multi_app_dag",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "multi_app_dag.py",
+    fallback_name="agilab_multi_app_dag_fallback",
+)
+validate_multi_app_dag = _multi_app_dag_module.validate_multi_app_dag
+builtin_app_names = _multi_app_dag_module.builtin_app_names
+MULTI_APP_DAG_SCHEMA = _multi_app_dag_module.SCHEMA
+
 logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
 GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_flight_sample.json")
 GLOBAL_DAG_EMPTY_STATE = "No global DAG units are available."
+GLOBAL_DAG_DRAFT_DIRNAME = "global_dags"
+GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
+GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
+GLOBAL_DAG_EDGE_COLUMNS = ["from", "to", "artifact", "handoff"]
 
 
 def _normalize_editor_text(raw: Optional[str]) -> str:
@@ -208,6 +225,10 @@ def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
     return fallback_path if fallback_path.is_file() else None
 
 
+def _global_dag_draft_dir(lab_dir: Path) -> Path:
+    return lab_dir / ".agilab" / GLOBAL_DAG_DRAFT_DIRNAME
+
+
 def _repo_relative_text(path: Path, repo_root: Path) -> str:
     try:
         return path.resolve(strict=False).relative_to(repo_root.resolve(strict=False)).as_posix()
@@ -221,6 +242,499 @@ def _resolve_global_dag_input(raw_value: Any, repo_root: Path) -> Path | None:
         return None
     candidate = Path(raw_text).expanduser()
     return candidate if candidate.is_absolute() else repo_root / candidate
+
+
+def _global_dag_label(path_text: str, repo_root: Path) -> str:
+    path = _resolve_global_dag_input(path_text, repo_root)
+    if path is None:
+        return "No DAG selected"
+    fallback = _repo_relative_text(path, repo_root)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return fallback
+    if not isinstance(payload, dict):
+        return fallback
+    label = str(payload.get("label", "") or payload.get("dag_id", "")).strip()
+    return f"{label} - {fallback}" if label else fallback
+
+
+def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
+    paths: list[Path] = []
+    docs_data_dir = repo_root / "docs" / "source" / "data"
+    if docs_data_dir.is_dir():
+        paths.extend(sorted(docs_data_dir.glob("multi_app_dag*.json")))
+    draft_dir = _global_dag_draft_dir(lab_dir)
+    if draft_dir.is_dir():
+        paths.extend(sorted(draft_dir.glob("*.json")))
+
+    options: list[str] = []
+    seen: set[str] = set()
+    for path in paths:
+        option = _repo_relative_text(path, repo_root)
+        if option in seen:
+            continue
+        seen.add(option)
+        options.append(option)
+    return options
+
+
+def _global_dag_editor_text(path: Path | None) -> str:
+    if path is None or not path.is_file():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
+def _global_dag_payload_from_text(editor_text: str) -> tuple[dict[str, Any] | None, str]:
+    try:
+        payload = json.loads(editor_text)
+    except json.JSONDecodeError as exc:
+        return None, f"Invalid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}"
+    if not isinstance(payload, dict):
+        return None, "DAG contract must be a JSON object."
+    return payload, ""
+
+
+def _load_global_dag_payload(path: Path | None) -> tuple[dict[str, Any], str]:
+    editor_text = _global_dag_editor_text(path)
+    if not editor_text.strip():
+        return _empty_global_dag_payload(), "No DAG contract is selected."
+    payload, error = _global_dag_payload_from_text(editor_text)
+    if error or payload is None:
+        return _empty_global_dag_payload(), error
+    return payload, ""
+
+
+def _global_dag_validation_error(editor_text: str, repo_root: Path) -> str:
+    payload, error = _global_dag_payload_from_text(editor_text)
+    if error or payload is None:
+        return error
+
+    validation = validate_multi_app_dag(payload, repo_root=repo_root)
+    if validation.ok:
+        return ""
+    return "\n".join(
+        f"{issue.location}: {issue.message}"
+        for issue in validation.issues
+    )
+
+
+def _portable_global_dag_stem(payload: dict[str, Any], fallback: str) -> str:
+    raw_name = str(payload.get("dag_id", "") or payload.get("label", "") or fallback).strip()
+    stem = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw_name).strip(".-")
+    return stem or "global-dag-draft"
+
+
+def _save_global_dag_draft(lab_dir: Path, editor_text: str, repo_root: Path) -> tuple[Path | None, str]:
+    validation_error = _global_dag_validation_error(editor_text, repo_root)
+    if validation_error:
+        return None, validation_error
+    payload = json.loads(editor_text)
+    assert isinstance(payload, dict)
+    draft_dir = _global_dag_draft_dir(lab_dir)
+    draft_dir.mkdir(parents=True, exist_ok=True)
+    draft_path = draft_dir / f"{_portable_global_dag_stem(payload, 'global-dag-draft')}.json"
+    draft_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return draft_path, ""
+
+
+def _empty_global_dag_payload() -> dict[str, Any]:
+    return {
+        "schema": MULTI_APP_DAG_SCHEMA,
+        "dag_id": "new-global-dag",
+        "label": "New global DAG",
+        "description": "",
+        "execution": {
+            "mode": "sequential_dependency_order",
+            "runner_status": "contract_only",
+        },
+        "nodes": [],
+        "edges": [],
+    }
+
+
+def _global_dag_source_token(path_text: str) -> str:
+    raw = path_text or "empty"
+    compact = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw).strip(".-")[:28]
+    checksum = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:8]
+    return f"{compact or 'dag'}-{checksum}"
+
+
+def _clean_global_dag_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    return "" if text.lower() == "nan" else text
+
+
+def _editor_rows(value: Any, columns: list[str]) -> list[dict[str, str]]:
+    if isinstance(value, pd.DataFrame):
+        records = value.to_dict("records")
+    elif isinstance(value, list):
+        records = value
+    else:
+        records = []
+
+    rows: list[dict[str, str]] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        row = {column: _clean_global_dag_cell(record.get(column)) for column in columns}
+        if any(row.values()):
+            rows.append(row)
+    return rows
+
+
+def _rows_dataframe(rows: list[dict[str, str]], columns: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(rows, columns=columns)
+
+
+def _global_dag_editor_tables(payload: dict[str, Any]) -> dict[str, pd.DataFrame]:
+    nodes = payload.get("nodes", [])
+    if not isinstance(nodes, list):
+        nodes = []
+
+    node_rows: list[dict[str, str]] = []
+    produces_rows: list[dict[str, str]] = []
+    consumes_rows: list[dict[str, str]] = []
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        node_id = _clean_global_dag_cell(node.get("id"))
+        node_rows.append(
+            {
+                "id": node_id,
+                "app": _clean_global_dag_cell(node.get("app")),
+                "purpose": _clean_global_dag_cell(node.get("purpose")),
+            }
+        )
+        for artifact in node.get("produces", []) if isinstance(node.get("produces"), list) else []:
+            if isinstance(artifact, dict):
+                produces_rows.append(
+                    {
+                        "node": node_id,
+                        "id": _clean_global_dag_cell(artifact.get("id")),
+                        "kind": _clean_global_dag_cell(artifact.get("kind")),
+                        "path": _clean_global_dag_cell(artifact.get("path")),
+                    }
+                )
+        for artifact in node.get("consumes", []) if isinstance(node.get("consumes"), list) else []:
+            if isinstance(artifact, dict):
+                consumes_rows.append(
+                    {
+                        "node": node_id,
+                        "id": _clean_global_dag_cell(artifact.get("id")),
+                        "kind": _clean_global_dag_cell(artifact.get("kind")),
+                        "path": _clean_global_dag_cell(artifact.get("path")),
+                    }
+                )
+
+    edge_rows = [
+        {
+            "from": _clean_global_dag_cell(edge.get("from")),
+            "to": _clean_global_dag_cell(edge.get("to")),
+            "artifact": _clean_global_dag_cell(edge.get("artifact")),
+            "handoff": _clean_global_dag_cell(edge.get("handoff")),
+        }
+        for edge in payload.get("edges", [])
+        if isinstance(edge, dict)
+    ]
+    return {
+        "nodes": _rows_dataframe(node_rows, GLOBAL_DAG_NODE_COLUMNS),
+        "produces": _rows_dataframe(produces_rows, GLOBAL_DAG_ARTIFACT_COLUMNS),
+        "consumes": _rows_dataframe(consumes_rows, GLOBAL_DAG_ARTIFACT_COLUMNS),
+        "edges": _rows_dataframe(edge_rows, GLOBAL_DAG_EDGE_COLUMNS),
+    }
+
+
+def _artifacts_by_node(rows: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
+    grouped: dict[str, list[dict[str, str]]] = {}
+    for row in rows:
+        node_id = row.get("node", "")
+        artifact_id = row.get("id", "")
+        artifact_path = row.get("path", "")
+        if not node_id or not artifact_id or not artifact_path:
+            continue
+        artifact = {
+            "id": artifact_id,
+            "kind": row.get("kind", ""),
+            "path": artifact_path,
+        }
+        grouped.setdefault(node_id, []).append(
+            {key: value for key, value in artifact.items() if value}
+        )
+    return grouped
+
+
+def _default_stage_id_for_app(app_name: str) -> str:
+    stage_id = app_name.removesuffix("_project")
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", stage_id).strip("_.-") or app_name
+
+
+def _stage_label(stage_id: str, stages: dict[str, dict[str, str]]) -> str:
+    stage = stages.get(stage_id, {})
+    app = stage.get("app", "")
+    purpose = stage.get("purpose", "")
+    details = " - ".join(item for item in (app, purpose) if item)
+    return f"{stage_id} ({details})" if details else stage_id
+
+
+def _global_dag_stage_options(repo_root: Path, payload: dict[str, Any]) -> dict[str, dict[str, str]]:
+    stages: dict[str, dict[str, str]] = {}
+    nodes = payload.get("nodes", [])
+    for node in nodes if isinstance(nodes, list) else []:
+        if not isinstance(node, dict):
+            continue
+        stage_id = _clean_global_dag_cell(node.get("id"))
+        if not stage_id:
+            continue
+        stages[stage_id] = {
+            "id": stage_id,
+            "app": _clean_global_dag_cell(node.get("app")),
+            "purpose": _clean_global_dag_cell(node.get("purpose")),
+        }
+
+    for app_name in sorted(builtin_app_names(repo_root)):
+        stage_id = _default_stage_id_for_app(app_name)
+        if stage_id in stages:
+            stage_id = app_name
+        if stage_id in stages:
+            continue
+        stages[stage_id] = {
+            "id": stage_id,
+            "app": app_name,
+            "purpose": f"Run {app_name.removesuffix('_project').replace('_', ' ')}.",
+        }
+    return stages
+
+
+def _selected_stage_rows(stage_ids: list[str], stages: dict[str, dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {
+            "id": stage["id"],
+            "app": stage["app"],
+            "purpose": stage.get("purpose", ""),
+        }
+        for stage_id in stage_ids
+        if (stage := stages.get(stage_id))
+    ]
+
+
+def _global_dag_existing_handoffs(payload: dict[str, Any]) -> dict[tuple[str, str, str], str]:
+    edges = payload.get("edges", [])
+    handoffs: dict[tuple[str, str, str], str] = {}
+    for edge in edges if isinstance(edges, list) else []:
+        if not isinstance(edge, dict):
+            continue
+        source = _clean_global_dag_cell(edge.get("from"))
+        target = _clean_global_dag_cell(edge.get("to"))
+        artifact = _clean_global_dag_cell(edge.get("artifact"))
+        if source and target and artifact:
+            handoffs[(source, target, artifact)] = _clean_global_dag_cell(edge.get("handoff"))
+    return handoffs
+
+
+def _global_dag_artifact_options(
+    stage_ids: list[str],
+    tables: dict[str, pd.DataFrame],
+) -> dict[str, dict[str, str]]:
+    selected_stage_set = set(stage_ids)
+    options: dict[str, dict[str, str]] = {}
+    for row in _editor_rows(tables["produces"], GLOBAL_DAG_ARTIFACT_COLUMNS):
+        node_id = row["node"]
+        artifact_id = row["id"]
+        if node_id not in selected_stage_set or not artifact_id:
+            continue
+        options[f"{node_id}::{artifact_id}"] = row
+
+    for node_id in stage_ids:
+        if any(option["node"] == node_id for option in options.values()):
+            continue
+        artifact_id = f"{node_id}_summary"
+        options[f"{node_id}::{artifact_id}"] = {
+            "node": node_id,
+            "id": artifact_id,
+            "kind": "summary_metrics",
+            "path": f"{node_id}/summary.json",
+        }
+    return options
+
+
+def _artifact_option_label(option_key: str, artifact_options: dict[str, dict[str, str]]) -> str:
+    artifact = artifact_options.get(option_key, {})
+    node_id = artifact.get("node", option_key)
+    artifact_id = artifact.get("id", "")
+    kind = artifact.get("kind", "")
+    path = artifact.get("path", "")
+    suffix = ", ".join(item for item in (kind, path) if item)
+    return f"{node_id} -> {artifact_id} ({suffix})" if suffix else f"{node_id} -> {artifact_id}"
+
+
+def _handoff_key(source: str, target: str, artifact_id: str) -> str:
+    return f"{source}::{target}::{artifact_id}"
+
+
+def _parse_handoff_key(option_key: str) -> tuple[str, str, str]:
+    parts = option_key.split("::", 2)
+    if len(parts) != 3:
+        return "", "", ""
+    return parts[0], parts[1], parts[2]
+
+
+def _global_dag_handoff_options(
+    stage_ids: list[str],
+    artifact_options: dict[str, dict[str, str]],
+    payload: dict[str, Any],
+) -> dict[str, dict[str, str]]:
+    existing_handoffs = _global_dag_existing_handoffs(payload)
+    options: dict[str, dict[str, str]] = {}
+    for artifact in artifact_options.values():
+        source = artifact["node"]
+        artifact_id = artifact["id"]
+        for target in stage_ids:
+            if target == source:
+                continue
+            handoff = existing_handoffs.get(
+                (source, target, artifact_id),
+                f"Use {artifact_id} from {source} in {target}.",
+            )
+            option_key = _handoff_key(source, target, artifact_id)
+            options[option_key] = {
+                "from": source,
+                "to": target,
+                "artifact": artifact_id,
+                "handoff": handoff,
+            }
+    return options
+
+
+def _handoff_option_label(option_key: str, handoff_options: dict[str, dict[str, str]]) -> str:
+    handoff = handoff_options.get(option_key, {})
+    source = handoff.get("from", "")
+    target = handoff.get("to", "")
+    artifact = handoff.get("artifact", "")
+    return f"{source} -> {target} via {artifact}"
+
+
+def _default_artifact_keys(artifact_options: dict[str, dict[str, str]], tables: dict[str, pd.DataFrame]) -> list[str]:
+    existing = {
+        f"{row['node']}::{row['id']}"
+        for row in _editor_rows(tables["produces"], GLOBAL_DAG_ARTIFACT_COLUMNS)
+        if row["node"] and row["id"]
+    }
+    defaults = [key for key in artifact_options if key in existing]
+    return defaults or list(artifact_options)
+
+
+def _default_handoff_keys(
+    handoff_options: dict[str, dict[str, str]],
+    payload: dict[str, Any],
+) -> list[str]:
+    defaults: list[str] = []
+    for source, target, artifact in _global_dag_existing_handoffs(payload):
+        option_key = _handoff_key(source, target, artifact)
+        if option_key in handoff_options:
+            defaults.append(option_key)
+    return defaults
+
+
+def _selected_artifact_rows(
+    artifact_keys: list[str],
+    artifact_options: dict[str, dict[str, str]],
+) -> list[dict[str, str]]:
+    return [artifact_options[key] for key in artifact_keys if key in artifact_options]
+
+
+def _selected_handoff_rows(
+    handoff_keys: list[str],
+    handoff_options: dict[str, dict[str, str]],
+) -> list[dict[str, str]]:
+    return [handoff_options[key] for key in handoff_keys if key in handoff_options]
+
+
+def _consumes_rows_from_handoffs(
+    handoff_rows: list[dict[str, str]],
+    artifact_options: dict[str, dict[str, str]],
+) -> list[dict[str, str]]:
+    artifact_by_source_id = {
+        (artifact["node"], artifact["id"]): artifact
+        for artifact in artifact_options.values()
+    }
+    seen: set[tuple[str, str]] = set()
+    rows: list[dict[str, str]] = []
+    for handoff in handoff_rows:
+        source = handoff["from"]
+        target = handoff["to"]
+        artifact_id = handoff["artifact"]
+        if (target, artifact_id) in seen:
+            continue
+        artifact = artifact_by_source_id.get((source, artifact_id), {})
+        rows.append(
+            {
+                "node": target,
+                "id": artifact_id,
+                "kind": artifact.get("kind", ""),
+                "path": artifact.get("path", ""),
+            }
+        )
+        seen.add((target, artifact_id))
+    return rows
+
+
+def _global_dag_payload_from_visual_editor(
+    base_payload: dict[str, Any],
+    *,
+    dag_id: str,
+    label: str,
+    description: str,
+    nodes_value: Any,
+    produces_value: Any,
+    consumes_value: Any,
+    edges_value: Any,
+) -> dict[str, Any]:
+    produces_by_node = _artifacts_by_node(_editor_rows(produces_value, GLOBAL_DAG_ARTIFACT_COLUMNS))
+    consumes_by_node = _artifacts_by_node(_editor_rows(consumes_value, GLOBAL_DAG_ARTIFACT_COLUMNS))
+    nodes = []
+    for row in _editor_rows(nodes_value, GLOBAL_DAG_NODE_COLUMNS):
+        node_id = row.get("id", "")
+        if not node_id:
+            continue
+        node = {
+            "id": node_id,
+            "app": row.get("app", ""),
+            "purpose": row.get("purpose", ""),
+        }
+        if produces_by_node.get(node_id):
+            node["produces"] = produces_by_node[node_id]
+        if consumes_by_node.get(node_id):
+            node["consumes"] = consumes_by_node[node_id]
+        nodes.append({key: value for key, value in node.items() if value})
+
+    edges = [
+        {key: value for key, value in row.items() if value}
+        for row in _editor_rows(edges_value, GLOBAL_DAG_EDGE_COLUMNS)
+    ]
+    payload = dict(base_payload)
+    payload.update(
+        {
+            "schema": MULTI_APP_DAG_SCHEMA,
+            "dag_id": dag_id.strip(),
+            "label": label.strip(),
+            "description": description.strip(),
+            "execution": payload.get("execution") if isinstance(payload.get("execution"), dict) else {
+                "mode": "sequential_dependency_order",
+                "runner_status": "contract_only",
+            },
+            "nodes": nodes,
+            "edges": edges,
+        }
+    )
+    return payload
 
 
 def _global_runner_state_path(lab_dir: Path) -> Path:
@@ -406,21 +920,224 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
     with st.expander("Global DAG runner", expanded=False):
         repo_root = _repo_root_for_global_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
+        library_key = f"{index_page_str}_global_runner_library"
         dag_input_key = f"{index_page_str}_global_runner_dag_path"
-        if dag_input_key not in st.session_state:
-            st.session_state[dag_input_key] = (
-                _repo_relative_text(default_dag_path, repo_root)
-                if default_dag_path is not None
-                else ""
+        library_options = _global_dag_library_options(repo_root, lab_dir)
+        default_dag_text = (
+            _repo_relative_text(default_dag_path, repo_root)
+            if default_dag_path is not None
+            else ""
+        )
+        if library_key not in st.session_state or st.session_state[library_key] not in library_options:
+            st.session_state[library_key] = (
+                default_dag_text
+                if default_dag_text in library_options
+                else library_options[0] if library_options else ""
             )
+        if dag_input_key not in st.session_state:
+            st.session_state[dag_input_key] = ""
 
         st.caption("Operator preview only: dispatch changes state, but does not execute apps or synthesize artifacts.")
-        dag_text = st.text_input(
-            "DAG contract",
-            key=dag_input_key,
-            help="Path to an `agilab.multi_app_dag.v1` JSON file. Relative paths resolve from the AGILAB checkout root.",
+        st.caption(
+            "Build a multi-app DAG from stages and artifact handoffs. AGILAB saves the JSON contract for you."
         )
+        st.markdown("**1. Choose a starting point**")
+        selected_dag_text = st.selectbox(
+            "DAG template or saved draft",
+            library_options or [""],
+            key=library_key,
+            format_func=lambda value: _global_dag_label(value, repo_root),
+            help="Choose a checked-in sample or one of your saved workspace drafts.",
+        )
+        show_custom_path = st.checkbox(
+            "Use a custom DAG path",
+            key=f"{index_page_str}_global_runner_show_custom_path",
+            help="Only needed when the DAG JSON is outside the template/draft library.",
+        )
+        override_dag_text = ""
+        if show_custom_path:
+            override_dag_text = st.text_input(
+                "Custom DAG path",
+                key=dag_input_key,
+                help=(
+                    "Leave empty to use the selected sample/draft. Relative paths resolve from "
+                    "the AGILAB checkout root."
+                ),
+            )
+        dag_text = str(override_dag_text or selected_dag_text or "").strip()
         dag_path = _resolve_global_dag_input(dag_text, repo_root)
+        base_payload, load_error = _load_global_dag_payload(dag_path)
+        if load_error:
+            st.warning(load_error)
+
+        token = _global_dag_source_token(dag_text)
+        metadata_keys = {
+            "dag_id": f"{index_page_str}_global_runner_dag_id_{token}",
+            "label": f"{index_page_str}_global_runner_label_{token}",
+            "description": f"{index_page_str}_global_runner_description_{token}",
+        }
+        st.session_state.setdefault(metadata_keys["dag_id"], str(base_payload.get("dag_id", "")))
+        st.session_state.setdefault(metadata_keys["label"], str(base_payload.get("label", "")))
+        st.session_state.setdefault(metadata_keys["description"], str(base_payload.get("description", "")))
+
+        st.markdown("**2. Describe the DAG**")
+        metadata_cols = st.columns([1, 1], gap="medium")
+        dag_id = metadata_cols[0].text_input(
+            "DAG id",
+            key=metadata_keys["dag_id"],
+            help="Portable identifier used as the saved draft file name.",
+        )
+        label = metadata_cols[1].text_input(
+            "Readable name",
+            key=metadata_keys["label"],
+            help="Short label displayed in selectors and reports.",
+        )
+        description = st.text_area(
+            "Purpose",
+            key=metadata_keys["description"],
+            height=80,
+            help="One sentence explaining why these apps are connected.",
+        )
+
+        tables = _global_dag_editor_tables(base_payload)
+        stage_options = _global_dag_stage_options(repo_root, base_payload)
+        stage_option_ids = list(stage_options)
+        default_stage_ids = [
+            row["id"]
+            for row in _editor_rows(tables["nodes"], GLOBAL_DAG_NODE_COLUMNS)
+            if row["id"] in stage_options
+        ]
+        if not default_stage_ids:
+            default_stage_ids = stage_option_ids[:2]
+        table_keys = {
+            "stages": f"{index_page_str}_global_runner_stages_{token}",
+            "produces": f"{index_page_str}_global_runner_produces_{token}",
+            "consumes": f"{index_page_str}_global_runner_consumes_{token}",
+            "edges": f"{index_page_str}_global_runner_edges_{token}",
+        }
+        selected_stage_ids = st.session_state.get(table_keys["stages"])
+        if (
+            not isinstance(selected_stage_ids, list)
+            or any(stage_id not in stage_options for stage_id in selected_stage_ids)
+        ):
+            st.session_state[table_keys["stages"]] = default_stage_ids
+
+        st.markdown("**3. Define stages**")
+        selected_stage_ids = st.multiselect(
+            "Stages",
+            stage_option_ids,
+            key=table_keys["stages"],
+            format_func=lambda stage_id: _stage_label(stage_id, stage_options),
+            help="Choose app-level stages from checked-in DAG templates and built-in apps.",
+        )
+        selected_stage_rows = _selected_stage_rows(selected_stage_ids, stage_options)
+        nodes_value = selected_stage_rows
+        if selected_stage_rows:
+            st.dataframe(selected_stage_rows, hide_index=True, width="stretch")
+        else:
+            st.warning("Select at least two stages to form a valid multi-app DAG.")
+
+        st.markdown("**4. Define artifacts**")
+        artifact_options = _global_dag_artifact_options(selected_stage_ids, tables)
+        artifact_option_keys = list(artifact_options)
+        default_artifact_keys = _default_artifact_keys(artifact_options, tables)
+        selected_artifact_keys = st.session_state.get(table_keys["produces"])
+        if (
+            not isinstance(selected_artifact_keys, list)
+            or any(key not in artifact_options for key in selected_artifact_keys)
+        ):
+            st.session_state[table_keys["produces"]] = default_artifact_keys
+        selected_artifact_keys = st.multiselect(
+            "Produced artifacts",
+            artifact_option_keys,
+            key=table_keys["produces"],
+            format_func=lambda key: _artifact_option_label(key, artifact_options),
+            help="Choose artifacts exposed by the selected stages. No node ids need to be typed.",
+        )
+        produces_value = _selected_artifact_rows(selected_artifact_keys, artifact_options)
+        if produces_value:
+            st.dataframe(produces_value, hide_index=True, width="stretch")
+        else:
+            st.warning("Select at least one produced artifact before connecting stages.")
+
+        st.markdown("**5. Connect stages**")
+        selected_artifact_options = {
+            key: artifact_options[key]
+            for key in selected_artifact_keys
+            if key in artifact_options
+        }
+        handoff_options = _global_dag_handoff_options(
+            selected_stage_ids,
+            selected_artifact_options,
+            base_payload,
+        )
+        handoff_option_keys = list(handoff_options)
+        default_handoff_keys = _default_handoff_keys(handoff_options, base_payload)
+        selected_handoff_keys = st.session_state.get(table_keys["edges"])
+        if (
+            not isinstance(selected_handoff_keys, list)
+            or any(key not in handoff_options for key in selected_handoff_keys)
+        ):
+            st.session_state[table_keys["edges"]] = default_handoff_keys
+        selected_handoff_keys = st.multiselect(
+            "Stage connections",
+            handoff_option_keys,
+            key=table_keys["edges"],
+            format_func=lambda key: _handoff_option_label(key, handoff_options),
+            help="Choose artifact handoffs between selected stages instead of typing from/to ids.",
+        )
+        edges_value = _selected_handoff_rows(selected_handoff_keys, handoff_options)
+        consumes_value = _consumes_rows_from_handoffs(edges_value, selected_artifact_options)
+        if edges_value:
+            st.dataframe(edges_value, hide_index=True, width="stretch")
+        else:
+            st.warning("Select at least one stage connection to create a runnable cross-app DAG.")
+        if consumes_value:
+            st.caption("Consumed artifacts inferred from selected connections")
+            st.dataframe(consumes_value, hide_index=True, width="stretch")
+
+        visual_payload = _global_dag_payload_from_visual_editor(
+            base_payload,
+            dag_id=dag_id,
+            label=label,
+            description=description,
+            nodes_value=nodes_value,
+            produces_value=produces_value,
+            consumes_value=consumes_value,
+            edges_value=edges_value,
+        )
+        editor_text = json.dumps(visual_payload, indent=2) + "\n"
+
+        show_json_preview = st.checkbox(
+            "Show generated JSON",
+            key=f"{index_page_str}_global_runner_show_json_preview",
+            help="For review, export, or code review. Normal editing stays in the fields above.",
+        )
+        if show_json_preview:
+            st.caption("Read-only contract generated from the fields above.")
+            st.code(editor_text, language="json")
+            st.download_button(
+                "Download DAG JSON",
+                data=editor_text,
+                file_name=f"{_portable_global_dag_stem(visual_payload, 'global-dag-draft')}.json",
+                mime="application/json",
+                key=f"{index_page_str}_global_runner_download_json",
+            )
+
+        validate_clicked = action_button(
+            st,
+            "Check DAG",
+            key=f"{index_page_str}_global_runner_validate",
+            kind="check",
+            help="Check schema, app names, dependencies, and artifact handoffs before saving.",
+        )
+        save_clicked = action_button(
+            st,
+            "Save as workspace DAG",
+            key=f"{index_page_str}_global_runner_save_draft",
+            kind="save",
+            help="Save the DAG contract to this project workspace and rebuild the preview state from it.",
+        )
         reset_clicked = action_button(
             st,
             "Reset preview state",
@@ -428,6 +1145,26 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             kind="reset",
             help="Rebuild the preview runner state from the selected DAG contract.",
         )
+        if validate_clicked:
+            validation_error = _global_dag_validation_error(editor_text, repo_root)
+            if validation_error:
+                st.error("DAG draft is not valid.")
+                st.caption("Validation details")
+                st.code(validation_error, language="text")
+            else:
+                st.success("DAG draft is valid.")
+
+        if save_clicked:
+            draft_path, validation_error = _save_global_dag_draft(lab_dir, editor_text, repo_root)
+            if validation_error:
+                st.error("DAG draft was not saved.")
+                st.caption("Validation details")
+                st.code(validation_error, language="text")
+            else:
+                assert draft_path is not None
+                dag_path = draft_path
+                reset_clicked = True
+                st.success(f"Saved DAG draft to `{draft_path}` and selected it for this preview.")
 
         try:
             state, state_path, dag_path = _load_or_create_global_runner_state(
