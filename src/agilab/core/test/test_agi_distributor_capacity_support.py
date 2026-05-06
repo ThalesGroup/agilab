@@ -75,9 +75,9 @@ async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
         mode = request.mode
         return f"mode{mode} {float(mode) + 1.0}"
 
-    async def _fake_bench_dask(_env, request, _modes, _mask, runs):
+    async def _fake_bench_dask(_env, request, _modes, _mask, runs, **_kwargs):
         assert request.workers == {"127.0.0.1": 1}
-        runs[4] = {"mode": "mode4", "timing": "4 seconds", "seconds": 4.0}
+        runs[4] = {"nodes": 1, "mode": "mode4", "timing": "4 seconds", "seconds": 4.0}
 
     monkeypatch.setattr(BaseWorker, "_is_cython_installed", staticmethod(lambda _env: True))
     monkeypatch.setattr(AGI, "run", staticmethod(_fake_run))
@@ -93,6 +93,8 @@ async def test_benchmark_records_runs_and_writes_output(monkeypatch, tmp_path):
     assert data["0"]["order"] == 1
     assert data["1"]["order"] == 2
     assert data["4"]["order"] == 3
+    assert data["0"]["nodes"] == 1
+    assert data["4"]["nodes"] == 1
     assert AGI._best_mode[env.target]["mode"] == data["0"]["mode"]
     assert env.benchmark.exists()
     assert AGI._mode_auto is False
@@ -192,6 +194,62 @@ async def test_benchmark_dask_modes_records_runs_and_stops(monkeypatch):
     assert calls["update"] == 2
     assert runs[4]["seconds"] == 2.0
     assert runs[5]["seconds"] == 1.0
+    assert runs[4]["nodes"] == 1
+
+
+@pytest.mark.asyncio
+async def test_benchmark_dask_modes_can_add_best_single_node_run(monkeypatch):
+    env = _mycode_env()
+    calls = {"start": 0, "stop": 0, "update": 0}
+    worker_snapshots: list[dict[str, int]] = []
+    runs = {}
+    sequence = iter(["m4-full 3.0", "m4-best 1.5"])
+
+    async def _start(_scheduler):
+        calls["start"] += 1
+        return True
+
+    async def _stop():
+        calls["stop"] += 1
+
+    async def _distribute():
+        worker_snapshots.append(dict(AGI._workers))
+        return next(sequence)
+
+    def _update_capacity():
+        calls["update"] += 1
+        AGI._capacity = {
+            "10.0.0.2:4100": 1.0,
+            "10.0.0.3:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"10.0.0.2": 1, "10.0.0.3": 1},
+        ),
+        mode_range=[4],
+        rapids_mode_mask=AGI._RAPIDS_RESET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert calls == {"start": 1, "stop": 1, "update": 2}
+    assert worker_snapshots == [
+        {"10.0.0.2": 1, "10.0.0.3": 1},
+        {"10.0.0.3": 1},
+    ]
+    assert runs[4]["nodes"] == 2
+    assert runs["4:best-node"]["nodes"] == 1
+    assert runs["4:best-node"]["seconds"] == 1.5
+    assert AGI._workers == {"10.0.0.2": 1, "10.0.0.3": 1}
 
 
 @pytest.mark.asyncio

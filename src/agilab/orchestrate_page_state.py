@@ -64,6 +64,7 @@ class OrchestratePageState:
     benchmark_enabled: bool
     available_benchmark_modes: tuple[int, ...]
     selected_benchmark_modes: tuple[int, ...]
+    benchmark_best_single_node: bool
     run_mode: int | list[int]
     run_mode_label: str
     verbose: int
@@ -608,6 +609,7 @@ def build_orchestrate_page_state(
     *,
     cluster_params: Mapping[str, Any],
     selected_benchmark_modes: Sequence[Any],
+    benchmark_best_single_node: bool = False,
     local_share_path: Any = None,
     deps: OrchestratePageStateDeps,
 ) -> OrchestratePageState:
@@ -623,6 +625,9 @@ def build_orchestrate_page_state(
         deps.sanitize_benchmark_modes(selected_benchmark_modes, available_modes)
     )
     benchmark_enabled = bool(sanitized_modes)
+    benchmark_best_single_node = bool(
+        benchmark_best_single_node and any(int(mode) & 4 for mode in sanitized_modes)
+    )
     run_mode = deps.resolve_requested_run_mode(
         cluster_params,
         cluster_enabled=cluster_enabled,
@@ -659,6 +664,7 @@ def build_orchestrate_page_state(
         benchmark_enabled=benchmark_enabled,
         available_benchmark_modes=available_modes,
         selected_benchmark_modes=sanitized_modes,
+        benchmark_best_single_node=benchmark_best_single_node,
         run_mode=run_mode,
         run_mode_label=run_mode_label,
         verbose=_coerce_verbose(cluster_params.get("verbose", 1)),

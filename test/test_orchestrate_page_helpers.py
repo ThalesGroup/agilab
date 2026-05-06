@@ -409,6 +409,7 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
         workers="{'127.0.0.1': 2}",
         workers_data_path='"/tmp/share"',
         rapids_enabled=True,
+        benchmark_best_single_node=True,
         run_args={"foo": "bar", "n": 2},
     )
     distrib_snippet = orchestrate_page_support.build_distribution_snippet(
@@ -426,6 +427,7 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     assert "mode=15" in run_snippet
     assert 'workers_data_path="/tmp/share"' in run_snippet
     assert "rapids_enabled=True" in run_snippet
+    assert "benchmark_best_single_node=True" in run_snippet
     assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
     assert "get_distrib" in distrib_snippet
     assert "workers=None" in distrib_snippet
@@ -450,6 +452,9 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
         orchestrate_page_support.describe_run_mode([0, 7, 15], True)
         == "Run mode benchmark (selected modes: 0, 7, 15)"
     )
+    assert orchestrate_page_support.order_benchmark_display_columns(
+        ["order", "mode", "nodes", "seconds"]
+    ) == ["order", "nodes", "mode", "seconds"]
 
 
 def test_orchestrate_page_support_distribution_plan_helpers():
