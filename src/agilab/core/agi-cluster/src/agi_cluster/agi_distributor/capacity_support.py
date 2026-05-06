@@ -130,10 +130,19 @@ def _best_single_node_modes(
     *,
     rapids_capable: bool,
     rapids_mode_bit: int,
+    prefer_requested_rapids: bool = False,
 ) -> list[int]:
     modes: list[int] = []
+    requested_modes = {int(mode) for mode in mode_range}
     for mode in mode_range:
-        best_mode = int(mode) | rapids_mode_bit if rapids_capable else int(mode)
+        mode_int = int(mode)
+        if (
+            prefer_requested_rapids
+            and not (mode_int & rapids_mode_bit)
+            and (mode_int | rapids_mode_bit) in requested_modes
+        ):
+            continue
+        best_mode = mode_int | rapids_mode_bit if rapids_capable else mode_int
         if best_mode not in modes:
             modes.append(best_mode)
     return modes
@@ -346,6 +355,11 @@ async def benchmark_dask_modes(
                     mode_range,
                     rapids_capable=rapids_capable,
                     rapids_mode_bit=_rapids_run_mode_bit(agi_cls),
+                    prefer_requested_rapids=_rapids_requested_for_best_node(
+                        agi_cls,
+                        mode_range,
+                        rapids_mode_mask,
+                    ),
                 )
                 try:
                     if rapids_capable:
