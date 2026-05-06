@@ -280,8 +280,8 @@ def test_benchmark_mode_helpers_expose_only_enabled_capabilities():
     ) == [1, 13]
     assert orchestrate_page_support.benchmark_mode_label(13) == "13: rapids and dask and pool"
     assert orchestrate_page_support.order_benchmark_display_columns(
-        ["order", "mode", "nodes", "seconds"]
-    ) == ["order", "nodes", "mode", "seconds"]
+        ["order", "mode", "nodes", "node", "variant", "seconds"]
+    ) == ["order", "variant", "nodes", "node", "mode", "seconds"]
     fake_column_config = SimpleNamespace(
         TextColumn=lambda label, **kwargs: {"label": label, **kwargs}
     )

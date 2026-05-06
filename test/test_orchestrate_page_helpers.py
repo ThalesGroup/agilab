@@ -453,8 +453,8 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
         == "Run mode benchmark (selected modes: 0, 7, 15)"
     )
     assert orchestrate_page_support.order_benchmark_display_columns(
-        ["order", "mode", "nodes", "seconds"]
-    ) == ["order", "nodes", "mode", "seconds"]
+        ["order", "mode", "nodes", "node", "variant", "seconds"]
+    ) == ["order", "variant", "nodes", "node", "mode", "seconds"]
 
 
 def test_orchestrate_page_support_distribution_plan_helpers():
