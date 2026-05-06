@@ -13,16 +13,16 @@ Repository material
 
 The source material lives in:
 
-- ``examples/notebook_migrations/skforecast_meteo_fr/notebooks/01_prepare_meteo_series.ipynb``
-- ``examples/notebook_migrations/skforecast_meteo_fr/notebooks/02_backtest_temperature_forecast.ipynb``
-- ``examples/notebook_migrations/skforecast_meteo_fr/notebooks/03_compare_predictions.ipynb``
+- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/notebooks/01_prepare_meteo_series.ipynb``
+- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/notebooks/02_backtest_temperature_forecast.ipynb``
+- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/notebooks/03_compare_predictions.ipynb``
 
 The migrated AGILAB shape is illustrated by:
 
-- ``examples/notebook_migrations/skforecast_meteo_fr/migrated_project/lab_steps.toml``
-- ``examples/notebook_migrations/skforecast_meteo_fr/migrated_project/pipeline_view.dot``
-- ``examples/notebook_migrations/skforecast_meteo_fr/analysis_artifacts/forecast_metrics.json``
-- ``examples/notebook_migrations/skforecast_meteo_fr/analysis_artifacts/forecast_predictions.csv``
+- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/migrated_project/lab_steps.toml``
+- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/migrated_project/pipeline_view.dot``
+- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/analysis_artifacts/forecast_metrics.json``
+- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/analysis_artifacts/forecast_predictions.csv``
 
 The same migration material is mirrored under
 ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr`` so packaged

@@ -311,6 +311,7 @@ agilab = [
     "examples/notebook_to_dask/*.json",
     "examples/notebook_to_dask/*.toml",
     "examples/notebook_to_dask/*.ipynb",
+    "examples/notebook_quickstart/*.ipynb",
     "examples/notebook_migrations/*/README.md",
     "examples/notebook_migrations/*/analysis_artifacts/*.csv",
     "examples/notebook_migrations/*/analysis_artifacts/*.json",

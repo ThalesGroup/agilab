@@ -314,6 +314,7 @@ def test_package_data_includes_app_installer_for_with_install() -> None:
 
     assert "apps/install.py" in package_data
     assert "examples/*/AGI_*.py" in package_data
+    assert "examples/notebook_quickstart/*.ipynb" in package_data
 
 
 def test_package_data_includes_flight_dataset_archive_for_execute() -> None:
