@@ -23,11 +23,14 @@ def _ensure_repo_on_path(repo_root: Path) -> None:
     package = sys.modules.get("agilab")
     package_path = str(src_root / "agilab")
     package_paths = getattr(package, "__path__", None)
-    if package_paths is not None and package_path not in list(package_paths):
-        try:
-            package_paths.append(package_path)
-        except AttributeError:
-            package.__path__ = [*package_paths, package_path]
+    if package_paths is not None:
+        existing_paths = [str(path) for path in package_paths if str(path) != package_path]
+        package.__path__ = [package_path, *existing_paths]
+    submodule = sys.modules.get("agilab.supply_chain_attestation")
+    local_submodule = (src_root / "agilab/supply_chain_attestation.py").resolve()
+    submodule_file = getattr(submodule, "__file__", None)
+    if submodule_file and Path(submodule_file).resolve() != local_submodule:
+        sys.modules.pop("agilab.supply_chain_attestation", None)
 
 
 _ensure_repo_on_path(REPO_ROOT)
@@ -139,12 +142,14 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "supply_chain_attestation_core_alignment",
             "Supply-chain attestation core alignment",
             summary.get("core_component_count") == 4
-            and summary.get("aligned_core_versions") is True
+            and summary.get("core_release_graph_aligned") is True
             and summary.get("pinned_core_dependency_count", 0) >= 1,
-            "bundled AGI core package versions align with the root package",
+            "bundled AGI core package versions or exact release pins align with the root package",
             evidence=[row.get("path", "") for row in state.get("core_components", [])],
             details={
                 "core_versions": summary.get("core_versions", {}),
+                "aligned_core_versions": summary.get("aligned_core_versions"),
+                "core_release_graph_aligned": summary.get("core_release_graph_aligned"),
                 "pinned_core_dependencies": summary.get("pinned_core_dependencies", []),
             },
         ),
@@ -152,12 +157,14 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "supply_chain_attestation_page_lib_alignment",
             "Supply-chain attestation page library alignment",
             summary.get("page_lib_component_count") == 1
-            and summary.get("aligned_page_lib_versions") is True
+            and summary.get("page_lib_release_graph_aligned") is True
             and summary.get("pinned_page_lib_dependency_count", 0) >= 1,
-            "published AGILAB page libraries align with the root package",
+            "published AGILAB page libraries or exact release pins align with the root package",
             evidence=[row.get("path", "") for row in state.get("page_lib_components", [])],
             details={
                 "page_lib_versions": summary.get("page_lib_versions", {}),
+                "aligned_page_lib_versions": summary.get("aligned_page_lib_versions"),
+                "page_lib_release_graph_aligned": summary.get("page_lib_release_graph_aligned"),
                 "pinned_page_lib_dependencies": summary.get("pinned_page_lib_dependencies", []),
             },
         ),
@@ -317,8 +324,10 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "license_present": summary.get("license_present"),
             "core_component_count": summary.get("core_component_count"),
             "aligned_core_versions": summary.get("aligned_core_versions"),
+            "core_release_graph_aligned": summary.get("core_release_graph_aligned"),
             "page_lib_component_count": summary.get("page_lib_component_count"),
             "aligned_page_lib_versions": summary.get("aligned_page_lib_versions"),
+            "page_lib_release_graph_aligned": summary.get("page_lib_release_graph_aligned"),
             "builtin_app_pyproject_count": summary.get("builtin_app_pyproject_count"),
             "package_data_pattern_count": summary.get("package_data_pattern_count"),
             "builtin_payload_file_count": summary.get("builtin_payload_file_count"),

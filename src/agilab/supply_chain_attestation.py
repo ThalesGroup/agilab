@@ -174,6 +174,21 @@ def _dependency_name(dependency: str) -> str:
     return parts[0] if parts else ""
 
 
+def _aligned_rows_for_package(
+    rows: list[dict[str, Any]],
+    *,
+    package: str,
+    dependencies: set[str],
+) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if row.get("package") == package
+        and row.get("dependency") in dependencies
+        and row.get("aligned") is True
+    ]
+
+
 def _internal_dependency_constraint_rows(
     package_metadata: Mapping[str, Mapping[str, Any]],
     expected_versions: Mapping[str, str],
@@ -329,6 +344,22 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
         row for row in internal_dependency_pins if not row["aligned"]
     ]
     aligned_internal_dependency_pins = not mismatched_internal_dependency_pins
+    aligned_root_core_pins = _aligned_rows_for_package(
+        internal_dependency_pins,
+        package="agilab",
+        dependencies=set(CORE_PYPROJECTS),
+    )
+    aligned_root_page_lib_pins = _aligned_rows_for_package(
+        internal_dependency_pins,
+        package="agilab",
+        dependencies=set(PAGE_LIB_PYPROJECTS),
+    )
+    core_release_graph_aligned = aligned_core_versions or (
+        aligned_internal_dependency_pins and bool(aligned_root_core_pins)
+    )
+    page_lib_release_graph_aligned = aligned_page_lib_versions or (
+        aligned_internal_dependency_pins and bool(aligned_root_page_lib_pins)
+    )
     mismatched_builtin_app_versions = [
         row for row in app_pyprojects if row.get("version") != root_version
     ]
@@ -367,12 +398,20 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
         }
         for path in missing_files
     ]
-    if not aligned_core_versions:
+    if not core_release_graph_aligned:
         issues.append(
             {
                 "level": "error",
                 "location": "core.version_alignment",
-                "message": "bundled AGI core package versions do not align",
+                "message": "bundled AGI core package versions or exact release pins do not align",
+            }
+        )
+    if not page_lib_release_graph_aligned:
+        issues.append(
+            {
+                "level": "error",
+                "location": "page_lib.version_alignment",
+                "message": "AGILAB page library versions or exact release pins do not align",
             }
         )
     for row in mismatched_internal_dependency_pins:
@@ -453,9 +492,11 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
             "core_component_count": len(core_components),
             "core_versions": core_versions,
             "aligned_core_versions": aligned_core_versions,
+            "core_release_graph_aligned": core_release_graph_aligned,
             "page_lib_component_count": len(page_lib_components),
             "page_lib_versions": page_lib_versions,
             "aligned_page_lib_versions": aligned_page_lib_versions,
+            "page_lib_release_graph_aligned": page_lib_release_graph_aligned,
             "builtin_app_pyproject_count": len(app_pyprojects),
             "package_data_pattern_count": len(package_data_patterns),
             "package_data_patterns": package_data_patterns,

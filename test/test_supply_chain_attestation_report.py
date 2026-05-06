@@ -35,8 +35,10 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
     assert report["summary"]["license_present"] is True
     assert report["summary"]["core_component_count"] == 4
     assert report["summary"]["aligned_core_versions"] is True
+    assert report["summary"]["core_release_graph_aligned"] is True
     assert report["summary"]["page_lib_component_count"] == 1
     assert report["summary"]["aligned_page_lib_versions"] is True
+    assert report["summary"]["page_lib_release_graph_aligned"] is True
     assert report["summary"]["aligned_internal_dependency_pins"] is True
     assert report["summary"]["mismatched_internal_dependency_pin_count"] == 0
     assert report["summary"]["builtin_app_pyproject_count"] == 8
@@ -81,7 +83,9 @@ def test_supply_chain_attestation_records_core_and_app_manifests() -> None:
     assert state["run_status"] == "validated"
     assert state["summary"]["package_name"] == "agilab"
     assert state["summary"]["aligned_core_versions"] is True
+    assert state["summary"]["core_release_graph_aligned"] is True
     assert state["summary"]["aligned_page_lib_versions"] is True
+    assert state["summary"]["page_lib_release_graph_aligned"] is True
     assert state["summary"]["aligned_internal_dependency_pins"] is True
     assert state["summary"]["mismatched_internal_dependency_pin_count"] == 0
     assert state["summary"]["aligned_builtin_app_versions"] is True
@@ -186,7 +190,9 @@ def test_supply_chain_attestation_rejects_stale_internal_dependency_pin(
 
     assert state["run_status"] == "invalid"
     assert state["summary"]["aligned_core_versions"] is True
+    assert state["summary"]["core_release_graph_aligned"] is True
     assert state["summary"]["aligned_page_lib_versions"] is True
+    assert state["summary"]["page_lib_release_graph_aligned"] is True
     assert state["summary"]["aligned_internal_dependency_pins"] is False
     assert state["summary"]["mismatched_internal_dependency_pin_count"] == 1
     mismatch = state["summary"]["mismatched_internal_dependency_pins"][0]
@@ -202,6 +208,76 @@ def test_supply_chain_attestation_rejects_stale_internal_dependency_pin(
         issue["location"] == "dependencies.agilab.agi-core"
         for issue in state["issues"]
     )
+
+
+def test_supply_chain_attestation_accepts_partial_umbrella_post_release(
+    tmp_path: Path,
+) -> None:
+    core = _load_module(CORE_PATH, "supply_chain_attestation_core_partial_release_test_module")
+
+    root_version = "2026.04.30.post4"
+    library_version = "2026.04.30.post3"
+    files = {
+        "pyproject.toml": (
+            "[project]\n"
+            "name = 'agilab'\n"
+            f"version = '{root_version}'\n"
+            f"dependencies = ['agi-core=={library_version}', 'agi-gui=={library_version}']\n"
+        ),
+        "src/agilab/core/agi-core/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-core'\n"
+            f"version = '{library_version}'\n"
+            f"dependencies = ['agi-env=={library_version}', 'agi-node=={library_version}', 'agi-cluster=={library_version}']\n"
+        ),
+        "src/agilab/core/agi-env/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-env'\n"
+            f"version = '{library_version}'\n"
+            "dependencies = []\n"
+        ),
+        "src/agilab/core/agi-cluster/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-cluster'\n"
+            f"version = '{library_version}'\n"
+            f"dependencies = ['agi-env=={library_version}', 'agi-node=={library_version}']\n"
+        ),
+        "src/agilab/core/agi-node/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-node'\n"
+            f"version = '{library_version}'\n"
+            f"dependencies = ['agi-env=={library_version}']\n"
+        ),
+        "src/agilab/lib/agi-gui/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-gui'\n"
+            f"version = '{library_version}'\n"
+            f"dependencies = ['agi-env=={library_version}']\n"
+        ),
+        "src/agilab/apps/builtin/demo_project/pyproject.toml": (
+            "[project]\n"
+            "name = 'demo-project'\n"
+            f"version = '{root_version}'\n"
+            f"dependencies = ['agi-env>={library_version}', 'agi-node>={library_version}']\n"
+        ),
+        "uv.lock": "",
+        "LICENSE": "license\n",
+        "README.pypi.md": "readme\n",
+    }
+    for relative_path, content in files.items():
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    state = core.build_supply_chain_attestation(tmp_path)
+
+    assert state["run_status"] == "validated"
+    assert state["summary"]["aligned_core_versions"] is False
+    assert state["summary"]["core_release_graph_aligned"] is True
+    assert state["summary"]["aligned_page_lib_versions"] is False
+    assert state["summary"]["page_lib_release_graph_aligned"] is True
+    assert state["summary"]["aligned_internal_dependency_pins"] is True
+    assert state["summary"]["mismatched_internal_dependency_pin_count"] == 0
 
 
 def test_supply_chain_attestation_rejects_stale_builtin_app_release_metadata(
