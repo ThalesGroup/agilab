@@ -39,6 +39,10 @@ What belongs here
      - App-to-app artifact handoff without private infrastructure: one app
        produces an explicit artifact contract that another app can consume.
      - Run ``src/agilab/examples/inter_project_dag/preview_inter_project_dag.py``.
+   * - ``mlflow_auto_tracking`` packaged preview
+     - Optional experiment memory: AGILAB writes local evidence first, then logs
+       params, metrics, and artifacts through MLflow when the backend is present.
+     - Run ``src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py``.
    * - ``service_mode`` packaged preview
      - Persistent worker lifecycle and health gates: start, status, health,
        and stop are presented as explicit operator actions.
@@ -72,10 +76,13 @@ Run these in this order when you need a compact but convincing evaluation pass:
    effects. The Cython proof is kernel-scoped and records its dtype contract.
 3. **Network analysis**: ``uav_relay_queue_project``. This is the best visual
    story because the same run can feed queue analysis and generic network maps.
-4. **Operator path**: :doc:`service-mode` plus ``service_mode`` preview. This
+4. **Tracking memory**: ``mlflow_auto_tracking`` preview. This is the best
+   MLOps story because AGILAB keeps execution evidence local and uses MLflow as
+   the optional system of record instead of competing with it.
+5. **Operator path**: :doc:`service-mode` plus ``service_mode`` preview. This
    is the best operations story because it shows persistent workers and health
    thresholds without hiding lifecycle actions.
-5. **Trust close-out**: :doc:`release-proof`. This is the best ending slide
+6. **Trust close-out**: :doc:`release-proof`. This is the best ending slide
    because it ties demo claims back to release, CI, package, and docs evidence.
 
 How to demo it
@@ -104,6 +111,11 @@ Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
   lifecycle and health thresholds are explicit. Do not claim production service
   certification from the preview.
 
+**Tracking lane**
+  ``mlflow_auto_tracking`` preview. Stop when the local evidence bundle and the
+  tracking status show the same params, metrics, and artifact path. If MLflow is
+  not installed, the expected status is ``skipped`` with an installation hint.
+
 **Industrial optimization lane**
   :doc:`industrial-optimization-examples`. Stop when the reviewer can see the
   active-mesh or queue-routing artifact contract, optional MLflow tracking
@@ -125,6 +137,8 @@ What not to claim
 - Do not claim the Active Mesh Optimization example is full decentralized
   MARL. It is a compact centralized-policy route that makes the agent/action
   contract visible for later hardening.
+- Do not present ``mlflow_auto_tracking`` as an AGILAB model registry. It is an
+  adapter proof that keeps MLflow as the tracking and registry system when used.
 
 Related pages
 -------------

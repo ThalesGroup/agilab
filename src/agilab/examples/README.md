@@ -21,6 +21,7 @@ the command shape stable.
 | 6 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
 | 7 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Read-only DAG contract: app nodes, artifact handoff, and runner-state preview. |
 | 8 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
+| 9 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
 
 ## What To Notice
 
@@ -38,6 +39,8 @@ the command shape stable.
   pipeline view in the packaged examples tree.
 - `service_mode/preview_service_mode.py` explains persistent-worker operations
   and health gates without starting a service.
+- `mlflow_auto_tracking/preview_mlflow_auto_tracking.py` shows the intended
+  tracker abstraction without creating a parallel AGILAB model registry.
 - `data_in` and `data_out` are share-root relative paths, so examples stay
   portable across machines.
 - Run modes use named AGI constants instead of magic numbers, and keep Cython
@@ -68,4 +71,6 @@ programmatic calls. Use `inter_project_dag` when you want to understand how
 project-level app runs can be connected by explicit artifact contracts. Use
 `notebook_to_dask` when you want to evaluate a notebook migration before
 creating an app or running Dask. Use `service_mode` before enabling persistent
-workers for an already-working app.
+workers for an already-working app. Use `mlflow_auto_tracking` when you want
+to show tracking as optional memory around AGILAB execution, not a competing
+experiment system.
