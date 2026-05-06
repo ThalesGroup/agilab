@@ -62,6 +62,7 @@ def test_build_install_and_run_snippets_embed_expected_values():
         workers="{'127.0.0.1': 2}",
         workers_data_path='"/tmp/share"',
         rapids_enabled=True,
+        benchmark_best_single_node=True,
         run_args={"foo": "bar", "n": 2},
     )
 
@@ -77,6 +78,7 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert 'scheduler="127.0.0.1:8786"' in run_snippet
     assert 'workers_data_path="/tmp/share"' in run_snippet
     assert "rapids_enabled=True" in run_snippet
+    assert "benchmark_best_single_node=True" in run_snippet
     assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
     assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in run_snippet
 
@@ -277,6 +279,9 @@ def test_benchmark_mode_helpers_expose_only_enabled_capabilities():
         [0, 1, 13],
     ) == [1, 13]
     assert orchestrate_page_support.benchmark_mode_label(13) == "13: rapids and dask and pool"
+    assert orchestrate_page_support.order_benchmark_display_columns(
+        ["order", "mode", "nodes", "seconds"]
+    ) == ["order", "nodes", "mode", "seconds"]
     fake_column_config = SimpleNamespace(
         TextColumn=lambda label, **kwargs: {"label": label, **kwargs}
     )

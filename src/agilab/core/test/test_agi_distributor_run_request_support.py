@@ -43,11 +43,16 @@ def test_step_request_requires_mapping_args() -> None:
 def test_run_request_with_execution_updates_only_runtime_controls() -> None:
     request = RunRequest(params={"seed": 0}, mode=0, scheduler="127.0.0.1")
 
-    updated = request.with_execution(mode=4, workers={"127.0.0.1": 1})
+    updated = request.with_execution(
+        mode=4,
+        workers={"127.0.0.1": 1},
+        benchmark_best_single_node=True,
+    )
 
     assert updated.params == {"seed": 0}
     assert updated.mode == 4
     assert updated.workers == {"127.0.0.1": 1}
+    assert updated.benchmark_best_single_node is True
     assert request.mode == 0
     with pytest.raises(TypeError, match="Unknown execution field"):
         request.with_execution(params={"seed": 1})

@@ -554,7 +554,9 @@ class AGI:
         request: RunRequest,
         mode_range: List[int],
         rapids_mode_mask: int,
-        runs: Dict[int, Dict[str, Any]],
+        runs: Dict[int | str, Dict[str, Any]],
+        *,
+        include_best_single_node: bool = False,
     ) -> None:
         await capacity_support.benchmark_dask_modes(
             AGI,
@@ -563,6 +565,7 @@ class AGI:
             mode_range,
             rapids_mode_mask,
             runs,
+            include_best_single_node=include_best_single_node,
         )
 
     @staticmethod
@@ -657,6 +660,7 @@ class AGI:
             run_path_fn=runpy.run_path,
             sys_module=sys,
             path_cls=Path,
+            detect_export_cmd_fn=AGI._detect_export_cmd,
             log=logger,
         )
 

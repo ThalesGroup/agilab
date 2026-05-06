@@ -5,7 +5,7 @@ import pickle
 from copy import deepcopy
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, cast
+from typing import Any, Callable, Dict, List, Mapping, cast
 
 import humanize
 import numpy as np
@@ -40,6 +40,90 @@ def _manager_path(env: AgiEnv) -> Path:
     return manager_path
 
 
+def _worker_host(worker: Any) -> str:
+    value = str(worker or "").strip()
+    if "://" in value:
+        value = value.rsplit("://", 1)[-1]
+    if "@" in value:
+        value = value.rsplit("@", 1)[-1]
+    if value.startswith("[") and "]" in value:
+        return value[1:value.index("]")]
+    if value.count(":") == 1:
+        value = value.split(":", 1)[0]
+    return value
+
+
+def _node_count(workers: Mapping[str, int] | None) -> int:
+    if not workers:
+        return 1
+    hosts = {_worker_host(worker) for worker in workers if _worker_host(worker)}
+    return max(len(hosts), 1)
+
+
+def _best_single_node_host(agi_cls: Any, workers: Mapping[str, int]) -> str:
+    for worker, _capacity in sorted(
+        (getattr(agi_cls, "_capacity", {}) or {}).items(),
+        key=lambda item: item[1],
+        reverse=True,
+    ):
+        host = _worker_host(worker)
+        if host:
+            return host
+    for host in workers:
+        worker_host = _worker_host(host)
+        if worker_host:
+            return worker_host
+    return ""
+
+
+def _best_single_node_workers(agi_cls: Any, workers: Mapping[str, int]) -> dict[str, int]:
+    host = _best_single_node_host(agi_cls, workers)
+    return {host: 1} if host else {}
+
+
+def _truthy_rapids_capability(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    normalized = str(value or "").strip().lower()
+    return normalized in {"1", "true", "yes", "on", "hw_rapids_capable"}
+
+
+def _worker_rapids_capable(env: AgiEnv, host: str) -> bool:
+    normalized_host = _worker_host(host)
+    envars = getattr(env, "envars", {}) or {}
+    for key, value in envars.items():
+        if _worker_host(key) == normalized_host:
+            return _truthy_rapids_capability(value)
+    try:
+        if env.is_local(normalized_host):
+            return _truthy_rapids_capability(getattr(env, "hw_rapids_capable", False))
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        pass
+    return False
+
+
+def _best_single_node_modes(
+    mode_range: List[int],
+    *,
+    rapids_capable: bool,
+    rapids_mode_bit: int,
+) -> list[int]:
+    modes: list[int] = []
+    for mode in mode_range:
+        best_mode = int(mode) | rapids_mode_bit if rapids_capable else int(mode)
+        if best_mode not in modes:
+            modes.append(best_mode)
+    return modes
+
+
+def _rapids_run_mode_bit(agi_cls: Any) -> int:
+    try:
+        bit = int(getattr(agi_cls, "_RAPIDS_SET")) ^ int(getattr(agi_cls, "_RAPIDS_RESET"))
+    except (TypeError, ValueError):
+        bit = 0
+    return bit or 8
+
+
 async def benchmark(
     agi_cls: Any,
     env: AgiEnv,
@@ -56,7 +140,7 @@ async def benchmark(
         raise TypeError("Benchmark mode must be None, an int, or a list of ints.")
     benchmark_modes = benchmark_modes or list(range(8))
     rapids_mode_mask = agi_cls._RAPIDS_SET if request.rapids_enabled else agi_cls._RAPIDS_RESET
-    runs: Dict[int, Dict[str, Any]] = {}
+    runs: Dict[int | str, Dict[str, Any]] = {}
 
     benchmark_path = _benchmark_path(env)
 
@@ -76,12 +160,22 @@ async def benchmark(
     local_modes = [mode for mode in benchmark_modes if not (mode & agi_cls.DASK_MODE)]
     dask_modes = [mode for mode in benchmark_modes if mode & agi_cls.DASK_MODE]
 
-    async def _record(run_value: str, key: int) -> None:
+    async def _record(
+        run_value: str,
+        key: int | str,
+        *,
+        nodes: int,
+        variant: str,
+        node: str,
+    ) -> None:
         runtime = run_value.split()
         if len(runtime) < 2:
             raise ValueError(f"Unexpected run format: {run_value}")
         runtime_float = float(runtime[1])
         runs[key] = {
+            "variant": variant,
+            "nodes": nodes,
+            "node": node,
             "mode": runtime[0],
             "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
             "seconds": runtime_float,
@@ -94,7 +188,7 @@ async def benchmark(
             request=request.with_execution(mode=run_mode),
         )
         if isinstance(run, str):
-            await _record(run, mode)
+            await _record(run, mode, nodes=1, variant="local", node="local")
 
     if dask_modes:
         await agi_cls._benchmark_dask_modes(
@@ -103,6 +197,7 @@ async def benchmark(
             dask_modes,
             rapids_mode_mask,
             runs,
+            include_best_single_node=request.benchmark_best_single_node,
         )
 
     ordered_runs = sorted(runs.items(), key=lambda item: item[1]["seconds"])
@@ -133,9 +228,12 @@ async def benchmark_dask_modes(
     request: RunRequest,
     mode_range: List[int],
     rapids_mode_mask: int,
-    runs: Dict[int, Dict[str, Any]],
+    runs: Dict[int | str, Dict[str, Any]],
+    *,
+    include_best_single_node: bool = False,
 ) -> None:
     workers_dict = request.workers or agi_cls._worker_default
+    cluster_node_count = _node_count(workers_dict)
 
     agi_cls.env = env
     agi_cls.target_path = _manager_path(env)
@@ -160,11 +258,55 @@ async def benchmark_dask_modes(
                     raise ValueError(f"Unexpected run format: {run}")
                 runtime_float = float(runtime[1])
                 runs[mode] = {
+                    "variant": "cluster",
+                    "nodes": cluster_node_count,
+                    "node": "cluster",
                     "mode": runtime[0],
                     "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
                     "seconds": runtime_float,
                 }
+        if include_best_single_node:
+            best_host = _best_single_node_host(agi_cls, workers_dict)
+            best_workers = {best_host: 1} if best_host else {}
+            if best_workers and _node_count(workers_dict) > 1:
+                previous_hw_rapids_capable = getattr(env, "hw_rapids_capable", None)
+                previous_rapids_enabled = getattr(agi_cls, "_rapids_enabled", False)
+                rapids_capable = _worker_rapids_capable(env, best_host)
+                best_modes = _best_single_node_modes(
+                    mode_range,
+                    rapids_capable=rapids_capable,
+                    rapids_mode_bit=_rapids_run_mode_bit(agi_cls),
+                )
+                try:
+                    if rapids_capable:
+                        # RAPIDS is encoded in the run mode here; keep the
+                        # display helper from adding another RAPIDS bit.
+                        env.hw_rapids_capable = False
+                    for mode in best_modes:
+                        run_mode = mode if rapids_capable else mode & rapids_mode_mask
+                        agi_cls._mode = run_mode
+                        agi_cls._workers = dict(best_workers)
+                        agi_cls._rapids_enabled = rapids_capable or previous_rapids_enabled
+                        run = await agi_cls._distribute()
+                        agi_cls._update_capacity()
+                        if isinstance(run, str):
+                            runtime = run.split()
+                            if len(runtime) < 2:
+                                raise ValueError(f"Unexpected run format: {run}")
+                            runtime_float = float(runtime[1])
+                            runs[f"{mode}:best-node"] = {
+                                "variant": "best-node",
+                                "nodes": 1,
+                                "node": best_host,
+                                "mode": runtime[0],
+                                "timing": humanize.precisedelta(timedelta(seconds=runtime_float)),
+                                "seconds": runtime_float,
+                            }
+                finally:
+                    env.hw_rapids_capable = previous_hw_rapids_capable
+                    agi_cls._rapids_enabled = previous_rapids_enabled
     finally:
+        agi_cls._workers = workers_dict
         await agi_cls._stop()
 
 

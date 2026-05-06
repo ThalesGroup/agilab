@@ -51,6 +51,7 @@ import_agilab_symbols(
         "merge_app_settings_sources": "merge_app_settings_sources",
         "optional_python_expr": "optional_python_expr",
         "optional_string_expr": "optional_string_expr",
+        "order_benchmark_display_columns": "order_benchmark_display_columns",
         "resolve_requested_run_mode": "resolve_requested_run_mode",
         "resolve_project_change_args_override": "resolve_project_change_args_override",
         "sanitize_benchmark_modes": "sanitize_benchmark_modes",
@@ -1391,9 +1392,12 @@ async def _render_run_panels(
                 optional_python_expr=optional_python_expr,
             )
             benchmark_modes_key = f"benchmark_modes__{env.app}"
+            benchmark_best_node_key = f"benchmark_best_single_node__{env.app}"
+            st.session_state.setdefault(benchmark_best_node_key, False)
             run_state = build_orchestrate_page_state(
                 cluster_params=cluster_params,
                 selected_benchmark_modes=st.session_state.get(benchmark_modes_key, []),
+                benchmark_best_single_node=bool(st.session_state.get(benchmark_best_node_key, False)),
                 local_share_path=local_share_path,
                 deps=run_state_deps,
             )
@@ -1413,9 +1417,20 @@ async def _render_run_panels(
                     "the single mode defined by the optimization toggles."
                 ),
             )
+            selected_dask_benchmark = any(int(mode) & 4 for mode in selected_benchmark_modes)
+            benchmark_best_single_node = st.checkbox(
+                "Add best single-node Dask run",
+                key=benchmark_best_node_key,
+                disabled=not selected_dask_benchmark,
+                help=(
+                    "When benchmarking cluster modes, add one comparison run that uses "
+                    "only the highest-capacity machine discovered in the current cluster."
+                ),
+            )
             run_state = build_orchestrate_page_state(
                 cluster_params=cluster_params,
                 selected_benchmark_modes=selected_benchmark_modes,
+                benchmark_best_single_node=benchmark_best_single_node,
                 local_share_path=local_share_path,
                 deps=run_state_deps,
             )
@@ -1444,6 +1459,7 @@ async def _render_run_panels(
                     workers=workers,
                     workers_data_path=run_state.workers_data_path,
                     rapids_enabled=run_state.rapids_enabled,
+                    benchmark_best_single_node=run_state.benchmark_best_single_node,
                     run_args=st.session_state.app_settings.get("args", {}),
                 )
                 st.code(cmd, language="python")
@@ -1462,6 +1478,10 @@ async def _render_run_panels(
                         df_nonempty = benchmark_df.dropna(how="all")
                         if not df_nonempty.empty:
                             df_nonempty = df_nonempty.loc[:, df_nonempty.notna().any(axis=0)]
+                            df_nonempty = df_nonempty.loc[
+                                :,
+                                order_benchmark_display_columns(list(df_nonempty.columns)),
+                            ]
                         if not df_nonempty.empty and df_nonempty.shape[1] > 0:
                             date_value = _benchmark_display_date(env.benchmark, date_value)
 
@@ -1594,6 +1614,7 @@ async def page() -> None:
         st.session_state.pop("_benchmark_expand", None)
         st.session_state.pop("benchmark", None)
         st.session_state.pop(f"benchmark_modes__{previous_project}", None)
+        st.session_state.pop(f"benchmark_best_single_node__{previous_project}", None)
         st.session_state.pop("is_args_from_ui", None)
         _clear_cached_distribution()
         initialize_app_settings(args_override=args_override)

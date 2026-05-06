@@ -213,6 +213,7 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
     local_runs: list[tuple[str, str]] = []
     remote_runs: list[tuple[str, str]] = []
     copied: list[tuple[Path, Path]] = []
+    detected: list[str] = []
     log = mock.Mock()
 
     async def _fake_run(cmd, cwd):
@@ -225,6 +226,10 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
 
     def _fake_copy(src, dst):
         copied.append((Path(src), Path(dst)))
+
+    async def _fake_detect_export_cmd(ip):
+        detected.append(ip)
+        return 'export PATH="$HOME/.local/bin:$PATH";'
 
     original_unlink = Path.unlink
 
@@ -242,6 +247,7 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
             gethostbyname_fn=lambda _name: "127.0.0.1",
             run_fn=_fake_run,
             copy_fn=_fake_copy,
+            detect_export_cmd_fn=_fake_detect_export_cmd,
             log=log,
         )
         await cleanup_support.kill_processes(
@@ -251,13 +257,22 @@ async def test_kill_processes_cleans_pid_files_and_handles_local_and_remote_path
             gethostbyname_fn=lambda _name: "127.0.0.1",
             run_fn=_fake_run,
             copy_fn=_fake_copy,
+            detect_export_cmd_fn=_fake_detect_export_cmd,
             log=log,
         )
 
     assert copied
     assert local_runs
     assert any("cli.py' kill 999" in cmd for cmd, _cwd in local_runs)
-    assert remote_runs == [("10.0.0.2", "uv run --no-sync python 'wenv/cli.py' kill")]
+    assert remote_runs == [
+        (
+            "10.0.0.2",
+            'export PATH="$HOME/.local/bin:$PATH";uv run --no-sync python '
+            "'wenv/cli.py' kill",
+        )
+    ]
+    assert detected == ["10.0.0.2"]
+    assert env.envars["10.0.0.2_CMD_PREFIX"] == 'export PATH="$HOME/.local/bin:$PATH";'
     assert not (wenv_parent / "ok.pid").exists()
     assert log.warning.called
     assert log.info.called

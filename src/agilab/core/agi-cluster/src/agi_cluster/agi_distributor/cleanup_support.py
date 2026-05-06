@@ -19,6 +19,27 @@ from agi_env import AgiEnv
 
 logger = logging.getLogger(__name__)
 REMOVE_DIR_RETRY_EXCEPTIONS = (OSError, shutil.Error)
+CMD_PREFIX_LOOKUP_EXCEPTIONS = (ConnectionError, OSError, RuntimeError, TimeoutError)
+
+
+async def _remote_cmd_prefix(
+    env: Any,
+    ip: str,
+    *,
+    detect_export_cmd_fn: Optional[Callable[[str], Awaitable[str]]] = None,
+) -> str:
+    cmd_prefix = str(env.envars.get(f"{ip}_CMD_PREFIX", "") or "")
+    if cmd_prefix or env.is_local(ip) or detect_export_cmd_fn is None:
+        return cmd_prefix
+
+    try:
+        cmd_prefix = str(await detect_export_cmd_fn(ip) or "")
+    except CMD_PREFIX_LOOKUP_EXCEPTIONS:
+        return ""
+
+    if cmd_prefix:
+        env.envars[f"{ip}_CMD_PREFIX"] = cmd_prefix
+    return cmd_prefix
 
 
 def remove_dir_forcefully(
@@ -61,6 +82,7 @@ async def kill_processes(
     run_path_fn: Callable[..., Any] = runpy.run_path,
     sys_module: Any = sys,
     path_cls: type[Path] = Path,
+    detect_export_cmd_fn: Optional[Callable[[str], Awaitable[str]]] = None,
     log: Any = logger,
 ) -> Optional[Any]:
     env = agi_cls.env
@@ -84,7 +106,11 @@ async def kill_processes(
     cmds: list[str] = []
     cli_rel = env.wenv_rel.parent / "cli.py"
     cli_abs = env.wenv_abs.parent / cli_rel.name
-    cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+    cmd_prefix = await _remote_cmd_prefix(
+        env,
+        ip,
+        detect_export_cmd_fn=detect_export_cmd_fn,
+    )
     kill_prefix = f"{cmd_prefix}{uv} run --no-sync python"
     if env.is_local(ip):
         if not cli_abs.exists():

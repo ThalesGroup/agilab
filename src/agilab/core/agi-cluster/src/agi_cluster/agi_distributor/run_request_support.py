@@ -54,6 +54,7 @@ class RunRequest:
     verbose: int = 0
     mode: RunMode = None
     rapids_enabled: bool = False
+    benchmark_best_single_node: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.params, Mapping):
@@ -95,6 +96,7 @@ class RunRequest:
             "verbose",
             "mode",
             "rapids_enabled",
+            "benchmark_best_single_node",
         }
         unknown = set(updates) - allowed
         if unknown:

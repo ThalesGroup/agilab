@@ -56,6 +56,7 @@ def test_orchestrate_page_state_defaults_to_single_run():
     assert state.benchmark_enabled is False
     assert state.available_benchmark_modes == (0, 1)
     assert state.selected_benchmark_modes == ()
+    assert state.benchmark_best_single_node is False
     assert state.run_mode == 1
     assert state.run_mode_label == "Run mode 1: pool of process"
     assert state.verbose == 2
@@ -76,12 +77,14 @@ def test_orchestrate_page_state_sanitizes_benchmark_modes_and_preserves_run_list
             "workers_data_path": "/mnt/shared/agilab",
         },
         selected_benchmark_modes=[15, "bad", 7, 0, 99, "7"],
+        benchmark_best_single_node=True,
         deps=_deps(),
     )
 
     assert state.status is orchestrate_page_state.OrchestrateWorkflowStatus.BENCHMARK
     assert state.benchmark_enabled is True
     assert state.selected_benchmark_modes == (0, 7, 15)
+    assert state.benchmark_best_single_node is True
     assert state.run_mode == [0, 7, 15]
     assert state.run_mode_label == "Run mode benchmark (selected modes: 0, 7, 15)"
     assert state.scheduler == '"tcp://scheduler:8786"'
@@ -89,6 +92,24 @@ def test_orchestrate_page_state_sanitizes_benchmark_modes_and_preserves_run_list
     assert state.workers_data_path == '"/mnt/shared/agilab"'
     assert state.rapids_enabled is True
     assert state.can_run is True
+
+
+def test_orchestrate_page_state_ignores_best_single_node_without_dask_benchmark():
+    state = orchestrate_page_state.build_orchestrate_page_state(
+        cluster_params={
+            "cluster_enabled": False,
+            "pool": True,
+            "cython": False,
+            "rapids": False,
+        },
+        selected_benchmark_modes=[1],
+        benchmark_best_single_node=True,
+        deps=_deps(),
+    )
+
+    assert state.benchmark_enabled is True
+    assert state.selected_benchmark_modes == (1,)
+    assert state.benchmark_best_single_node is False
 
 
 def test_orchestrate_page_state_drops_cluster_modes_when_cluster_is_disabled():

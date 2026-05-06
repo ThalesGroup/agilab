@@ -356,6 +356,7 @@ def build_run_snippet(
     run_args: Mapping[str, Any] | None,
     workers_data_path: str = "None",
     rapids_enabled: bool = False,
+    benchmark_best_single_node: bool = False,
 ) -> str:
     params, steps, data_in, data_out, reset_target = _split_run_request_payload(run_args)
     workers_data_path_expr = workers_data_path if workers_data_path not in ("", None) else "None"
@@ -392,6 +393,7 @@ def build_run_snippet(
         f"        workers={workers},",
         f"        workers_data_path={workers_data_path_expr},",
         f"        rapids_enabled={bool(rapids_enabled)!r},",
+        f"        benchmark_best_single_node={bool(benchmark_best_single_node)!r},",
         "    )",
         "    res = await AGI.run(app_env, request=request)",
         "    print(res)",
@@ -509,6 +511,17 @@ def compute_benchmark_run_mode(
 
 def benchmark_modes_include_cluster(modes: Sequence[int]) -> bool:
     return any(int(mode) & _DASK_MODE_BIT for mode in modes)
+
+
+def order_benchmark_display_columns(columns: Sequence[Any]) -> list[Any]:
+    """Return display columns with nodes immediately before mode when present."""
+    ordered = list(columns)
+    if "nodes" not in ordered or "mode" not in ordered:
+        return ordered
+    ordered.remove("nodes")
+    mode_index = ordered.index("mode")
+    ordered.insert(mode_index, "nodes")
+    return ordered
 
 
 def benchmark_dataframe_column_config(column_config_module: Any) -> dict[str, Any]:
