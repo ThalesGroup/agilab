@@ -1691,28 +1691,37 @@ def handle_project_selection():
     select_project(projects, env.app)
     env = st.session_state["env"]
 
+    st.sidebar.markdown("### Project actions")
+    st.sidebar.caption("Export creates a portable archive of the selected project.")
+
     # Export Button
     if st.sidebar.button(
-        "Export",
+        "Export project",
         type="primary",
         width="stretch",
-        help=f"this will export your project under  {(env.export_apps / env.app).with_suffix('.zip')}",
+        help=f"Export to {(env.export_apps / env.app).with_suffix('.zip')}",
     ):
         handle_export_project()
 
+    _render_project_workspace_overview(env)
+    st.markdown("### Edit project files")
+    st.caption(
+        "Open only the file group you need. Runtime installation and execution stay in ORCHESTRATE."
+    )
+
     # Keep all sections visible; each renderer handles its own absence checks.
     sections = [
-        ("README", lambda: _render_readme(env)),
-        ("PYTHON-ENV", lambda: _render_python_env(env)),
-        ("PYTHON-ENV-WORKER", lambda: _render_worker_python_env(env)),
-        ("PYTHON-ENV-EXTRA", lambda: _render_uv_env(env)),
-        ("EXPORT-APP-FILTER", lambda: _render_gitignore(env)),
-        ("PRE-PROMPT", lambda: _render_pre_prompt(env)),
-        ("APP-SETTINGS", lambda: _render_app_settings(env)),
-        ("APP-ARGS", lambda: _render_app_args_module(env)),
-        ("APP-ARGS-FORM", lambda: _render_args_ui(env)),
-        ("MANAGER", lambda: _render_manager(env)),
-        ("WORKER", lambda: _render_worker(env)),
+        ("Documentation / README", lambda: _render_readme(env)),
+        ("Configuration / app settings", lambda: _render_app_settings(env)),
+        ("Configuration / arguments model", lambda: _render_app_args_module(env)),
+        ("Configuration / arguments UI", lambda: _render_args_ui(env)),
+        ("Runtime / manager environment", lambda: _render_python_env(env)),
+        ("Runtime / worker environment", lambda: _render_worker_python_env(env)),
+        ("Runtime / uv overrides", lambda: _render_uv_env(env)),
+        ("Runtime / export filter", lambda: _render_gitignore(env)),
+        ("AI / pre-prompt", lambda: _render_pre_prompt(env)),
+        ("Code / manager", lambda: _render_manager(env)),
+        ("Code / worker", lambda: _render_worker(env)),
     ]
 
     for label, render_fn in sections:
@@ -1723,6 +1732,99 @@ def handle_project_selection():
 
 
 
+
+
+def _safe_display_path(value) -> str:
+    if value in (None, ""):
+        return "not configured"
+    try:
+        return str(Path(value).expanduser())
+    except (TypeError, ValueError, RuntimeError):
+        return str(value)
+
+
+def _status_label(path: Path | None, *, file: bool = False, venv: bool = False) -> str:
+    if path is None:
+        return "not configured"
+    try:
+        candidate = Path(path)
+    except TypeError:
+        return "not configured"
+    if venv:
+        python_bin = candidate / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        if python_bin.exists():
+            return "ready"
+        if _path_exists_or_symlink(candidate):
+            return "incomplete"
+        return "missing"
+    if file:
+        return "ready" if candidate.exists() and candidate.is_file() else "missing"
+    return "ready" if _path_exists_or_symlink(candidate) else "missing"
+
+
+def _path_metric_value(path: Path | None, *, file: bool = False, venv: bool = False) -> tuple[str, str]:
+    status = _status_label(path, file=file, venv=venv)
+    display = _safe_display_path(path)
+    return status, display
+
+
+def _latest_project_mtime(project_root: Path | None) -> str:
+    if project_root is None or not project_root.exists():
+        return "unknown"
+    try:
+        latest = project_root.stat().st_mtime
+        ignored_dirs = {".venv", "__pycache__", ".git"}
+        for root, dirs, files in os.walk(project_root):
+            dirs[:] = [dirname for dirname in dirs if dirname not in ignored_dirs]
+            for name in files:
+                latest = max(latest, (Path(root) / name).stat().st_mtime)
+    except OSError:
+        return "unknown"
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(latest))
+
+
+def _render_overview_metric(label: str, value: str, caption: str) -> None:
+    st.metric(label, value)
+    st.caption(caption)
+
+
+def _render_project_workspace_overview(env) -> None:
+    st.markdown("### Project workspace")
+    st.caption("Identity, editable files, and runtime readiness for the active project.")
+
+    active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
+    manager_venv = active_app / ".venv" if active_app is not None else None
+    worker_venv = Path(getattr(env, "wenv_abs", "")) if getattr(env, "wenv_abs", None) else None
+    settings_file = Path(getattr(env, "app_settings_file", "")) if getattr(env, "app_settings_file", None) else None
+    readme_file = active_app / "README.md" if active_app is not None else None
+
+    project_status, project_path = _path_metric_value(active_app)
+    manager_status, manager_path = _path_metric_value(manager_venv, venv=True)
+    worker_status, worker_path = _path_metric_value(worker_venv, venv=True)
+    settings_status, settings_path = _path_metric_value(settings_file, file=True)
+
+    top_cols = st.columns(4)
+    with top_cols[0]:
+        _render_overview_metric("Project", str(getattr(env, "app", "unknown")), project_status)
+    with top_cols[1]:
+        _render_overview_metric("Target", str(getattr(env, "target", "unknown")), "runtime module")
+    with top_cols[2]:
+        _render_overview_metric("Manager env", manager_status, manager_path)
+    with top_cols[3]:
+        _render_overview_metric("Worker env", worker_status, worker_path)
+
+    bottom_cols = st.columns(4)
+    with bottom_cols[0]:
+        _render_overview_metric("Settings", settings_status, settings_path)
+    with bottom_cols[1]:
+        readme_status, readme_path = _path_metric_value(readme_file, file=True)
+        _render_overview_metric("README", readme_status, readme_path)
+    with bottom_cols[2]:
+        share_path = _safe_display_path(getattr(env, "app_data_rel", None))
+        share_status = "configured" if share_path != "not configured" else "missing"
+        _render_overview_metric("Data/share", share_status, share_path)
+    with bottom_cols[3]:
+        _render_overview_metric("Last change", _latest_project_mtime(active_app), project_path)
 
 
 def _expander_icon(label: str) -> str:
@@ -1740,6 +1842,11 @@ def _expander_icon(label: str) -> str:
         "APP-ARGS-FORM": "🔧",
         "MANAGER": "🐍",
         "WORKER": "🐍",
+        "DOCUMENTATION": "📘",
+        "CONFIGURATION": "🔧",
+        "RUNTIME": "⚙️",
+        "AI": "⚙️",
+        "CODE": "🐍",
     }
     normalized = label.strip().upper().replace("‑", "-")
     for key, icon in mapping.items():
@@ -2186,7 +2293,10 @@ def handle_project_creation():
     """
     Handle the 'Create' tab in the sidebar for project creation.
     """
-    st.header("Create New Project")
+    st.header("Clone project")
+    st.caption(
+        "Create a new project from an existing template. Use a working clone for real development."
+    )
     env = st.session_state["env"]
 
     # choose a template (relative project name, e.g. "flight_project")
@@ -2271,7 +2381,11 @@ def handle_project_rename():
     """
     env = st.session_state["env"]
     current = env.app
-    st.header(f"Rename Project '{current}'")
+    st.header("Project maintenance")
+    st.warning(
+        f"Rename moves the active project '{current}' and updates AGILAB to the new name."
+    )
+    st.sidebar.caption("Maintenance action: rename the active project.")
 
     # — no on_change here —
     raw = st.sidebar.text_input(
@@ -2307,8 +2421,12 @@ def handle_project_delete():
     """
     Handle the 'Delete' tab in the sidebar for deleting projects.
     """
-    st.header("Delete Project")
+    st.header("Danger zone")
     env = st.session_state["env"]
+    st.warning(
+        f"Deleting '{env.app}' removes the project directory, worker environment, logs, and generated data when AGILAB owns them."
+    )
+    st.sidebar.caption("Danger zone: destructive project removal.")
 
     # Confirmation checkbox
     confirm_delete = st.checkbox(
@@ -2348,6 +2466,8 @@ def handle_project_import():
     Handle the 'Import' tab in the sidebar for project loading.
     """
     env = st.session_state["env"]
+    st.header("Import project archive")
+    st.caption("Restore a project from a previously exported AGILAB archive.")
     selected_archive = compact_choice(
         st.sidebar,
         f"From {env.export_apps}",
@@ -2501,11 +2621,14 @@ def page():
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
 
+    st.sidebar.markdown("### Workspace")
+    st.sidebar.caption("Select the project workflow. Destructive actions are grouped last.")
+
     # Sidebar: Project selection, creation, loading
     sidebar_selection = compact_choice(
         st.sidebar,
         "Project action",
-        ["Edit", "Clone", "Rename", "Delete", "Import"],
+        ["Edit", "Clone", "Import", "Rename", "Delete"],
         key="sidebar_selection",
         label_visibility="collapsed",
         fallback="radio",

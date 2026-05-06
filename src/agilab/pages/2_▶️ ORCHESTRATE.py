@@ -1033,6 +1033,171 @@ def _app_install_status(env: Any) -> dict[str, Any]:
     return _orchestrate_app_install_status(env)
 
 
+def _coerce_worker_slots(value: Any) -> int | None:
+    try:
+        slots = int(value)
+    except (TypeError, ValueError):
+        return None
+    return slots if slots > 0 else None
+
+
+def _workers_summary(workers: Any) -> str:
+    if isinstance(workers, dict):
+        if not workers:
+            return "no workers configured"
+        slot_values = [_coerce_worker_slots(value) for value in workers.values()]
+        known_slots = [value for value in slot_values if value is not None]
+        node_count = len(workers)
+        if len(known_slots) == node_count:
+            total_slots = sum(known_slots)
+            node_suffix = "s" if node_count != 1 else ""
+            slot_suffix = "s" if total_slots != 1 else ""
+            return f"{node_count} node{node_suffix}, {total_slots} worker slot{slot_suffix}"
+        return f"{node_count} node{'s' if node_count != 1 else ''}, worker slots incomplete"
+
+    text = str(workers or "").strip()
+    if text in {"", "{}", "None", "none"}:
+        return "no workers configured"
+    return "custom workers configured"
+
+
+def _is_local_worker_host(host: Any) -> bool:
+    text = str(host or "").strip().lower()
+    if not text:
+        return False
+    if text.startswith("tcp://"):
+        text = text.split("://", 1)[1]
+    if "@" in text:
+        text = text.rsplit("@", 1)[-1]
+    if text.startswith("[") and "]" in text:
+        text = text[1:text.index("]")]
+    elif text.count(":") == 1:
+        text = text.rsplit(":", 1)[0]
+    return text in {"localhost", "127.0.0.1", "::1", socket.gethostname().lower()}
+
+
+def _cluster_mode_label(cluster_params: dict[str, Any]) -> str:
+    if not bool(cluster_params.get("cluster_enabled", False)):
+        return "Local"
+
+    workers = cluster_params.get("workers", {})
+    worker_hosts = tuple(workers) if isinstance(workers, dict) else ()
+    nonlocal_workers = [host for host in worker_hosts if not _is_local_worker_host(host)]
+    return "LAN cluster" if nonlocal_workers else "Local Dask demo"
+
+
+def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
+    manager_ready = bool(install_status.get("manager_ready"))
+    worker_ready = bool(install_status.get("worker_ready"))
+    if manager_ready and worker_ready:
+        return "Ready", "Manager and worker environments are installed."
+    if manager_ready:
+        return "Needs INSTALL", "Worker environment is missing or stale."
+    if worker_ready:
+        return "Needs INSTALL", "Manager environment is missing or stale."
+    return "Needs INSTALL", "Manager and worker environments are not installed yet."
+
+
+def _next_orchestrate_action(
+    *,
+    cluster_params: dict[str, Any],
+    install_status: dict[str, Any],
+    execution_view: str,
+    show_run: bool,
+) -> str:
+    manager_ready = bool(install_status.get("manager_ready"))
+    worker_ready = bool(install_status.get("worker_ready"))
+    if not manager_ready or not worker_ready:
+        return "Run INSTALL."
+    if execution_view == "Serve" and not bool(cluster_params.get("cluster_enabled", False)):
+        return "Enable Cluster before service mode."
+    if not show_run:
+        return "Refresh runtime state, then run."
+    return "Review arguments, then EXECUTE."
+
+
+def _enabled_runtime_features(cluster_params: dict[str, Any]) -> str:
+    labels = [
+        label
+        for key, label in (("pool", "pool"), ("cython", "cython"), ("rapids", "rapids"))
+        if bool(cluster_params.get(key, False))
+    ]
+    return ", ".join(labels) if labels else "standard"
+
+
+def _scheduler_summary(cluster_params: dict[str, Any]) -> str:
+    if not bool(cluster_params.get("cluster_enabled", False)):
+        return "Scheduler: local"
+    scheduler = str(cluster_params.get("scheduler") or "").strip()
+    return f"Scheduler: {scheduler or 'not set'}"
+
+
+def _active_app_label(env: Any) -> str:
+    app_name = str(getattr(env, "app", "") or "").strip()
+    if app_name:
+        return app_name
+    try:
+        active_app = Path(getattr(env, "active_app", ""))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return "not selected"
+    return active_app.name or "not selected"
+
+
+def _render_readiness_cell(label: str, value: str, detail: str = "") -> None:
+    st.markdown(f"**{label}**")
+    st.caption(value)
+    if detail:
+        st.caption(detail)
+
+
+def _render_orchestrate_readiness_panel(
+    env: Any,
+    *,
+    app_settings: dict[str, Any],
+    install_status: dict[str, Any],
+    show_run: bool,
+) -> None:
+    """Render a compact, read-only summary before the detailed controls."""
+    cluster_params = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
+    if not isinstance(cluster_params, dict):
+        cluster_params = {}
+    mode_label = _cluster_mode_label(cluster_params)
+    runtime_label, runtime_detail = _runtime_status_label(install_status)
+    execution_view = str(
+        st.session_state.get(f"orchestrate_execution_view__{getattr(env, 'app', '')}", "Run now")
+        or "Run now"
+    )
+    next_action = _next_orchestrate_action(
+        cluster_params=cluster_params,
+        install_status=install_status,
+        execution_view=execution_view,
+        show_run=show_run,
+    )
+
+    with st.container(border=True):
+        st.markdown("### Run readiness")
+        st.caption("Check what will run, where it will run, and the next action before opening advanced controls.")
+        project_col, mode_col, runtime_col, next_col = st.columns([1.2, 1.5, 1.5, 1.4])
+        with project_col:
+            _render_readiness_cell(
+                "Active app",
+                _active_app_label(env),
+            )
+        with mode_col:
+            _render_readiness_cell(
+                "Mode",
+                mode_label,
+                f"{_scheduler_summary(cluster_params)}\n"
+                f"Workers: {_workers_summary(cluster_params.get('workers', {}))}\n"
+                f"Capabilities: {_enabled_runtime_features(cluster_params)}",
+            )
+        with runtime_col:
+            _render_readiness_cell("Runtime", runtime_label, runtime_detail)
+        with next_col:
+            _render_readiness_cell("Next action", next_action, f"Execution view: {execution_view}")
+        st.caption("Flow: target and resources -> arguments -> distribution preview -> run or serve -> outputs.")
+
+
 async def _render_deployment_panel(
     env: Any,
     *,
@@ -1042,8 +1207,10 @@ async def _render_deployment_panel(
 ) -> int:
     """Render the deployment expander and return the effective verbose level."""
     verbose = initial_verbose
-    with st.expander("1. Runtime setup and install", expanded=True):
-        st.caption("Choose local or cluster capabilities, then install the manager and worker environments.")
+    with st.expander("1. Target, resources, and install", expanded=True):
+        st.caption(
+            "Choose local, local Dask, or LAN cluster resources, then install the manager and worker environments."
+        )
         if install_status["manager_ready"] and not install_status["worker_ready"]:
             st.warning(
                 "Manager environment detected, but the worker environment is missing. "
@@ -1103,11 +1270,12 @@ async def _render_deployment_panel(
             raw_workers=raw_workers,
             timestamp=datetime.now().isoformat(timespec="seconds"),
         )
-        st.code(cmd, language="python")
+        with st.expander("Generated INSTALL snippet", expanded=False):
+            st.code(cmd, language="python")
         if not install_state.action.enabled:
             st.caption(install_state.action.disabled_reason)
 
-        install_expanded = st.session_state.get("_install_logs_expanded", True)
+        install_expanded = st.session_state.get("_install_logs_expanded", False)
         log_expander = st.expander("Install logs", expanded=install_expanded)
         with log_expander:
             log_placeholder = st.empty()
@@ -1167,8 +1335,11 @@ async def _render_distribution_panel(
 
     module = env.target
 
-    with st.expander(f"2. Configure {module} arguments", expanded=True):
-        st.caption("Set the input, output, and app-specific parameters that will be passed to the run.")
+    with st.expander(f"2. Configure run arguments for {module}", expanded=True):
+        st.caption(
+            "Set the input, output, and app-specific parameters passed to INSTALL, "
+            "CHECK distribute, RUN, or service mode."
+        )
         app_args_form = env.app_args_form
         cluster_params = st.session_state.app_settings.setdefault("cluster", {})
         args_env = _app_args_env_for_cluster(env, cluster_params)
@@ -1215,7 +1386,7 @@ async def _render_distribution_panel(
             del st.session_state["app_settings"]
             st.rerun()
 
-    with st.expander("3. Verify distribution workplan", expanded=False):
+    with st.expander("3. Preview distribution workplan", expanded=False):
         st.caption("Preview how the current arguments will be partitioned across available workers.")
         cluster_params = st.session_state.app_settings["cluster"]
         enabled = cluster_params.get("cluster_enabled", False)
@@ -1235,7 +1406,8 @@ async def _render_distribution_panel(
             cmd=cmd,
             worker_env_path=getattr(env, "wenv_abs", None),
         )
-        st.code(cmd, language="python")
+        with st.expander("Generated CHECK distribute snippet", expanded=False):
+            st.code(cmd, language="python")
         if not distribution_state.action.enabled:
             st.caption(distribution_state.action.disabled_reason)
         if st.button(
@@ -1386,9 +1558,9 @@ async def _render_run_panels(
     workers = optional_python_expr(enabled, cluster_params.get("workers"))
 
     if show_run_panel:
-        st.markdown("#### 4. Choose execution strategy")
-        st.caption("Select one-shot execution or service mode, then tune benchmark and runtime options.")
-        with st.expander("Execution options", expanded=True):
+        st.markdown("#### 4. Run or serve")
+        st.caption("Use the selected execution view, then keep benchmark and generated-code details available on demand.")
+        with st.expander("Run options", expanded=True):
             cluster_params = st.session_state.app_settings["cluster"]
             try:
                 local_share_path = env.share_root_path()
@@ -1419,26 +1591,27 @@ async def _render_run_panels(
             if st.session_state.get(benchmark_modes_key) != selected_benchmark_modes:
                 st.session_state[benchmark_modes_key] = selected_benchmark_modes
 
-            selected_benchmark_modes = st.multiselect(
-                "Benchmark modes",
-                options=list(run_state.available_benchmark_modes),
-                key=benchmark_modes_key,
-                format_func=benchmark_mode_label,
-                help=(
-                    "Select the exact execution modes to benchmark. Leave empty to run "
-                    "the single mode defined by the optimization toggles."
-                ),
-            )
-            selected_dask_benchmark = any(int(mode) & 4 for mode in selected_benchmark_modes)
-            benchmark_best_single_node = st.checkbox(
-                "Add best single-node Dask run",
-                key=benchmark_best_node_key,
-                disabled=not selected_dask_benchmark,
-                help=(
-                    "When benchmarking cluster modes, add one comparison run that uses "
-                    "only the highest-capacity machine discovered in the current cluster."
-                ),
-            )
+            with st.expander("Advanced benchmark options", expanded=False):
+                selected_benchmark_modes = st.multiselect(
+                    "Benchmark modes",
+                    options=list(run_state.available_benchmark_modes),
+                    key=benchmark_modes_key,
+                    format_func=benchmark_mode_label,
+                    help=(
+                        "Select the exact execution modes to benchmark. Leave empty to run "
+                        "the single mode defined by the optimization toggles."
+                    ),
+                )
+                selected_dask_benchmark = any(int(mode) & 4 for mode in selected_benchmark_modes)
+                benchmark_best_single_node = st.checkbox(
+                    "Add best single-node Dask run",
+                    key=benchmark_best_node_key,
+                    disabled=not selected_dask_benchmark,
+                    help=(
+                        "When benchmarking cluster modes, add one comparison run that uses "
+                        "only the highest-capacity machine discovered in the current cluster."
+                    ),
+                )
             run_state = build_orchestrate_page_state(
                 cluster_params=cluster_params,
                 selected_benchmark_modes=selected_benchmark_modes,
@@ -1474,10 +1647,11 @@ async def _render_run_panels(
                     benchmark_best_single_node=run_state.benchmark_best_single_node,
                     run_args=st.session_state.app_settings.get("args", {}),
                 )
-                st.code(cmd, language="python")
+                with st.expander("Generated RUN snippet", expanded=False):
+                    st.code(cmd, language="python")
 
             expand_benchmark = st.session_state.pop("_benchmark_expand", False)
-            with st.expander("Benchmark results", expanded=expand_benchmark):
+            with st.expander("Observe benchmark results", expanded=expand_benchmark):
                 try:
                     if env.benchmark.exists():
                         with open(env.benchmark, "r") as f:
@@ -1691,6 +1865,13 @@ async def page() -> None:
         st.session_state.app_settings = _write_app_settings_toml(env.app_settings_file, app_settings)
         load_toml_file.clear()
     st.session_state["cluster_verbose"] = selected_verbose_int
+
+    _render_orchestrate_readiness_panel(
+        env,
+        app_settings=app_settings,
+        install_status=install_status,
+        show_run=show_run,
+    )
 
     verbose = await _render_deployment_panel(
         env,

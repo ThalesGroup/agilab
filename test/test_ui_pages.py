@@ -462,6 +462,10 @@ def test_execute_page_cluster_settings(mock_ui_env):
     at.run()
     assert not at.exception
     _assert_docs_actions_absent(at)
+    assert any("Run readiness" in str(item.value) for item in at.markdown)
+    assert any("Active app" in str(item.value) for item in at.markdown)
+    assert any("Next action" in str(item.value) for item in at.markdown)
+    assert any("target and resources -> arguments -> distribution preview" in str(item.value) for item in at.caption)
 
     app_state_name = _current_app_state_name(at)
     enabled_toggle_key = f"cluster_enabled__{app_state_name}"
@@ -862,6 +866,12 @@ def test_edit_page_load(mock_ui_env):
     
     at.run()
     assert not at.exception
+    markdown_values = [item.value for item in at.markdown]
+    assert any("Project workspace" in value for value in markdown_values)
+    assert any("Edit project files" in value for value in markdown_values)
+    assert any(button.label == "Export project" for button in at.sidebar.button)
+    metric_labels = [metric.label for metric in at.metric]
+    assert {"Project", "Manager env", "Worker env"}.issubset(metric_labels)
     _assert_docs_actions_absent(at)
 
 
