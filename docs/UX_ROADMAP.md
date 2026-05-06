@@ -33,7 +33,7 @@ Target horizon: `0-6 weeks`
 
 - Add an `Environment Health` summary panel.
 - Scope: app path resolution, share path validity, cluster share vs local share, API key presence, worker install availability, and app settings path provenance.
-- Best starting surfaces: [AGENTS.md](/Users/agi/PycharmProjects/agilab/AGENTS.md), [PROJECT page](/Users/agi/PycharmProjects/agilab/src/agilab/pages/1_▶️%20PROJECT.py), and [ORCHESTRATE page](/Users/agi/PycharmProjects/agilab/src/agilab/pages/2_▶️%20ORCHESTRATE.py).
+- Best starting surfaces: [AGENTS.md](/Users/agi/PycharmProjects/agilab/AGENTS.md), [PROJECT page](/Users/agi/PycharmProjects/agilab/src/agilab/pages/1_PROJECT.py), and [ORCHESTRATE page](/Users/agi/PycharmProjects/agilab/src/agilab/pages/2_ORCHESTRATE.py).
 
 - Standardize long-action feedback across install, execute, service health, and project clone/rename.
 - Every action should emit start, current step, success summary, classified failure, and next action.

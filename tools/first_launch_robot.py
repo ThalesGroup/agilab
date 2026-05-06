@@ -14,7 +14,7 @@ from typing import Any, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ABOUT_PAGE = REPO_ROOT / "src" / "agilab" / "About_agilab.py"
+ABOUT_PAGE = REPO_ROOT / "src" / "agilab" / "main_page.py"
 DEFAULT_ACTIVE_APP = REPO_ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_project"
 DEFAULT_APPS_PATH = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 SCHEMA = "agilab.first_launch_robot.v1"

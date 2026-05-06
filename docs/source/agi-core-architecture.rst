@@ -56,7 +56,7 @@ Execution flow
 
 Typical call stack when a user clicks **RUN** on the ORCHESTRATE page:
 
-1. ``src/agilab/pages/2_▶️ ORCHESTRATE.py`` collects form values and calls
+1. ``src/agilab/pages/2_ORCHESTRATE.py`` collects form values and calls
    ``agi_core.apps.loader.build_work_plan``.
 2. ``agi_core.apps`` builds an ``AppManifest`` and passes it to
    ``framework_api.AGILabSession``.

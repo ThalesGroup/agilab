@@ -27,7 +27,7 @@ then select it from the `PROJECT` page:
 
 ```bash
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 ```
 
 Keep the first check local before enabling cluster execution.

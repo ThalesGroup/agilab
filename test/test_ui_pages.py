@@ -257,6 +257,14 @@ def _all_button_labels(at: AppTest) -> list[str]:
     return labels
 
 
+def _element_labels(container) -> list[str]:
+    return [
+        str(label)
+        for item in container
+        if (label := getattr(item, "label", None)) is not None
+    ]
+
+
 def _assert_docs_actions_present(at: AppTest) -> None:
     labels = _all_button_labels(at)
     assert "Read Documentation" in labels
@@ -334,7 +342,7 @@ def load_args_from_toml(path):
 
 
     # Mock CLI argv for AGILAB main page
-    test_argv = ["About_agilab.py", "--apps-path", str(apps_dir), "--active-app", "flight_project"]
+    test_argv = ["main_page.py", "--apps-path", str(apps_dir), "--active-app", "flight_project"]
     monkeypatch.setattr(
         credential_store_support,
         "_load_keyring_module",
@@ -357,6 +365,7 @@ def load_args_from_toml(path):
             # Prevent developer-shell secrets from leaking into AppTest runs and
             # triggering keychain storage paths during first-run initialization.
             "CLUSTER_CREDENTIALS": "",
+            "AGILAB_RUNTIME_DIAGNOSTICS_VERBOSE": "1",
             "IS_SOURCE_ENV": "1",
             # Keep Streamlit AppTest runs off the macOS keychain so they never
             # block on an interactive credential prompt during local/CI preflight.
@@ -374,7 +383,7 @@ def load_args_from_toml(path):
 def test_agilab_main_page_env_editor(mock_ui_env):
     """Test the main AGILAB page and interacting with the .env editor form."""
     home_root = mock_ui_env["apps_dir"].parent
-    at = _app_test("src/agilab/About_agilab.py")
+    at = _app_test("src/agilab/main_page.py")
 
     # Run the app to initialize
     with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
@@ -390,6 +399,10 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     assert "env_editor_new_key" in [ti.key for ti in at.text_input]
     assert "env_editor_new_value" in [ti.key for ti in at.text_input]
     assert at.text_input(key="env_editor_val_CLUSTER_CREDENTIALS").value == ""
+    assert "Runtime diagnostics" in _element_labels(at)
+    assert "Diagnostics level" in _element_labels(at)
+    assert "Runtime diagnostics" not in _element_labels(at.sidebar)
+    assert "Diagnostics level" not in _element_labels(at.sidebar)
     _assert_docs_actions_present(at)
     
     # Set values in the text inputs
@@ -417,13 +430,25 @@ def test_agilab_main_page_env_editor(mock_ui_env):
 
 def test_agilab_main_page_shows_agilab_version(mock_ui_env):
     home_root = mock_ui_env["apps_dir"].parent
-    at = _app_test("src/agilab/About_agilab.py")
+    at = _app_test("src/agilab/main_page.py")
 
     with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
         at.run()
 
     assert not at.exception
     assert not any(str(caption.value).startswith("AGILAB version: v") for caption in at.sidebar.caption)
+
+
+def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
+    source = Path("src/agilab/main_page.py").read_text(encoding="utf-8")
+
+    assert "st.navigation(_navigation_pages()).run()" in source
+    assert 'title="About AGILAB"' in source
+    assert 'visibility="hidden"' in source
+    assert 'title="PROJECT"' in source
+    assert 'title="ORCHESTRATE"' in source
+    assert 'title="PIPELINE"' in source
+    assert 'title="ANALYSIS"' in source
 
 
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
@@ -434,7 +459,7 @@ def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
     if "127.0.0.1_PYTHON_VERSION" not in existing:
         env_file.write_text(existing.rstrip("\n") + "\n127.0.0.1_PYTHON_VERSION=3.12\n", encoding="utf-8")
 
-    at = _app_test("src/agilab/About_agilab.py")
+    at = _app_test("src/agilab/main_page.py")
     with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
         at.run()
 
@@ -449,12 +474,16 @@ def test_execute_page_cluster_settings(mock_ui_env):
     """Test the EXECUTE page cluster settings interactivity."""
     
     # For execute page we need an initialized env in session_state
-    at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     
     # Pre-inject environment into session state
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    runenv = Path(env.runenv)
+    runenv.mkdir(parents=True, exist_ok=True)
+    (runenv / "run_20260506_010203.log").write_text("first run\n", encoding="utf-8")
+    (runenv / "run_20260506_020304.log").write_text("second run\n", encoding="utf-8")
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
     _seed_env_editor_state(at, env)
@@ -462,13 +491,23 @@ def test_execute_page_cluster_settings(mock_ui_env):
     at.run()
     assert not at.exception
     _assert_docs_actions_absent(at)
-    assert all("Run readiness" not in str(item.value) for item in at.markdown)
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "Run readiness" not in markdown_text
     assert all("Check what will run" not in str(item.value) for item in at.caption)
-    assert all("Active project" not in str(item.value) for item in at.markdown)
-    assert any("Next action" in str(item.value) for item in at.markdown)
+    assert "Runtime module" in markdown_text
+    assert "Manager env" in markdown_text
+    assert "Worker env" in markdown_text
+    assert "Runs" in markdown_text
+    assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
+    assert "Settings</div>" not in markdown_text
+    assert "Next action" not in markdown_text
+    assert all("Active project" not in str(item.value) for item in at.sidebar.markdown)
     assert all("Flow:" not in str(item.value) for item in at.caption)
     assert all("runtime resources -> arguments -> distribution preview" not in str(item.value) for item in at.caption)
     assert all("active project and runtime resources" not in str(item.value) for item in at.caption)
+    assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
+    assert "Runtime diagnostics" not in _element_labels(at.sidebar)
+    assert "Diagnostics level" not in _element_labels(at.sidebar)
 
     app_state_name = _current_app_state_name(at)
     enabled_toggle_key = f"cluster_enabled__{app_state_name}"
@@ -494,7 +533,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
 def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui_env):
     """Robot-style INSTALL regression for handled remote uv self-update warnings."""
 
-    at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py", default_timeout=30)
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py", default_timeout=30)
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -559,7 +598,7 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
 
 
 def test_execute_page_cluster_toggle_off_persists_false_to_workspace(mock_ui_env):
-    at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
 
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
@@ -745,7 +784,7 @@ def test_flight_app_args_form_hf_seed_dataset_missing_is_informational(monkeypat
 
 def test_explore_page_multiselect(mock_ui_env):
     """Test the EXPLORE page multiselect and button rendering."""
-    at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
@@ -759,13 +798,23 @@ def test_explore_page_multiselect(mock_ui_env):
     markdown_values = [item.value for item in at.markdown]
     assert all("Analysis workspace" not in value for value in markdown_values)
     assert any("Analysis views" in value for value in markdown_values)
-    assert all("Project evidence, available outputs" not in str(item.value) for item in at.caption)
-    metric_labels = [metric.label for metric in at.metric]
-    assert "Output files" in metric_labels
-    assert "Default view" in metric_labels
-    assert "Recommended" not in metric_labels
-    assert "Project" not in metric_labels
-    assert "Artifacts" not in metric_labels
+    caption_values = [str(item.value) for item in at.caption]
+    assert all("Project evidence, available outputs" not in value for value in caption_values)
+    assert all("Choose the project whose analysis artifacts" not in value for value in caption_values)
+    assert all("Open the view" not in value for value in caption_values)
+    assert all("Output root" not in value for value in caption_values)
+    assert all("Examples:" not in value for value in caption_values)
+    assert all("Entrypoint" not in value for value in caption_values)
+    markdown_text = "\n".join(markdown_values)
+    assert "Output files" in markdown_text
+    assert "Default view" in markdown_text
+    assert "agilab-header-value--incomplete" in markdown_text
+    assert "Recommended" not in markdown_text
+    assert "Project</div>" not in markdown_text
+    assert "Artifacts" not in markdown_text
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "### Active project" not in sidebar_markdown
+    assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
     
     # Check that 'dummy_view' is an option in the multiselect
     selection_key = f"view_selection__flight_project"
@@ -783,7 +832,7 @@ def test_explore_page_multiselect(mock_ui_env):
 
 
 def test_explore_page_default_view_does_not_mutate_widget_state_after_render(mock_ui_env):
-    """Default view auto-routing must hydrate the multiselect key before widget render."""
+    """Default views hydrate quick-access cards without auto-opening a view."""
     page_path = mock_ui_env["pages_dir"] / "view_default.py"
     page_path.write_text(
         "import streamlit as st\n\n"
@@ -802,7 +851,7 @@ def test_explore_page_default_view_does_not_mutate_widget_state_after_render(moc
         encoding="utf-8",
     )
 
-    at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     home_root = mock_ui_env["apps_dir"].parent
     with patch.dict(os.environ, {"HOME": str(home_root), "SPACE_ID": "test/agilab"}, clear=False):
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
@@ -822,11 +871,80 @@ def test_explore_page_default_view_does_not_mutate_widget_state_after_render(moc
 
     assert not at.exception
     assert at.session_state["view_selection__flight_project"] == ["view_default"]
+    assert at.query_params.get("current_page") in (None, "", "main")
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "Analysis views" in markdown_text
+    assert "default view rendered" not in markdown_text
+
+
+def test_explore_page_default_view_setting_persists(mock_ui_env):
+    """ANALYSIS view cards let users set multiple default views."""
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.query_params["current_page"] = "main"
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    at.session_state["env"] = env
+
+    at.run()
+
+    assert not at.exception
+    selection_key = "view_selection__flight_project"
+    at.multiselect(key=selection_key).select("view_maps").select("view_barycentric").run()
+
+    assert not at.exception
+    view_maps_default = next(
+        checkbox
+        for checkbox in at.checkbox
+        if checkbox.label == "Default" and "view_maps" in str(checkbox.help)
+    )
+    view_maps_default.set_value(True).run()
+
+    assert not at.exception
+    view_barycentric_default = next(
+        checkbox
+        for checkbox in at.checkbox
+        if checkbox.label == "Default" and "view_barycentric" in str(checkbox.help)
+    )
+    view_barycentric_default.set_value(True).run()
+
+    assert not at.exception
+    settings_file = env.resolve_user_app_settings_file("flight_project")
+    with settings_file.open("rb") as f:
+        settings_payload = tomllib.load(f)
+    pages_payload = settings_payload["pages"]
+    assert pages_payload["default_views"] == ["view_maps", "view_barycentric"]
+    assert pages_payload["default_view"] == "view_maps"
+    assert "view_maps" in pages_payload["view_module"]
+    assert "view_barycentric" in pages_payload["view_module"]
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "Default view" in markdown_text
+    assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
+    assert "view_maps" in markdown_text
+    assert "view_barycentric" in markdown_text
+
+    reloaded = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    reloaded.query_params["current_page"] = "main"
+    reloaded.session_state["env"] = env
+    reloaded.run()
+
+    assert not reloaded.exception
+    reloaded_defaults = [
+        checkbox
+        for checkbox in reloaded.checkbox
+        if checkbox.label == "Default"
+        and checkbox.value
+        and ("view_maps" in str(checkbox.help) or "view_barycentric" in str(checkbox.help))
+    ]
+    assert {str(checkbox.help).split("Use ", 1)[1].split(" as", 1)[0] for checkbox in reloaded_defaults} == {
+        "view_maps",
+        "view_barycentric",
+    }
+    reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
+    assert "agilab-header-value agilab-header-value--ready'>2</div>" in reloaded_markdown
 
 
 def test_experiment_page_load(mock_ui_env):
     """Test that the EXPERIMENT page loads without exceptions."""
-    at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py")
+    at = _app_test("src/agilab/pages/3_PIPELINE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -841,6 +959,17 @@ def test_experiment_page_load(mock_ui_env):
     at.run()
     assert not at.exception
     _assert_docs_actions_absent(at)
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "Pipeline steps" in markdown_text
+    assert "Runnable" in markdown_text
+    assert "Output files" in markdown_text
+    assert "Dataframes" in markdown_text
+    assert "Pipeline graph" in markdown_text
+    assert "Updated" in markdown_text
+    sidebar_text = "\n".join(str(item.value) for item in [*at.sidebar.markdown, *at.sidebar.caption])
+    assert "Inspect experiment runs separately from pipeline execution." not in sidebar_text
+    assert "Start it from Edit." not in sidebar_text
+    assert "MLflow" not in sidebar_text
 
 
 def test_pipeline_page_restores_missing_export_steps_from_project_source(mock_ui_env):
@@ -852,7 +981,7 @@ def test_pipeline_page_restores_missing_export_steps_from_project_source(mock_ui
     target_steps = mock_ui_env["export_dir"] / "flight" / "lab_steps.toml"
     assert not target_steps.exists()
 
-    at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py")
+    at = _app_test("src/agilab/pages/3_PIPELINE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -869,7 +998,7 @@ def test_pipeline_page_restores_missing_export_steps_from_project_source(mock_ui
 
 def test_edit_page_load(mock_ui_env):
     """Test that the EDIT page loads without exceptions."""
-    at = _app_test("src/agilab/pages/1_▶️ PROJECT.py")
+    at = _app_test("src/agilab/pages/1_PROJECT.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -884,16 +1013,34 @@ def test_edit_page_load(mock_ui_env):
     assert all("Identity, editable files" not in str(item.value) for item in at.caption)
     assert any("Edit project files" in value for value in markdown_values)
     assert any(button.label == "Export project" for button in at.sidebar.button)
-    metric_labels = [metric.label for metric in at.metric]
-    assert {"Runtime module", "Manager env", "Worker env"}.issubset(metric_labels)
-    assert "Project" not in metric_labels
-    assert "README" not in metric_labels
+    markdown_text = "\n".join(markdown_values)
+    assert "Source files" in markdown_text
+    assert "Source LOC" in markdown_text
+    assert "Functions" in markdown_text
+    assert "Classes" in markdown_text
+    assert "Docs/config" in markdown_text
+    assert "Runtime module" not in markdown_text
+    assert "Manager env" not in markdown_text
+    assert "Worker env" not in markdown_text
+    assert "Project</div>" not in markdown_text
+    assert "Project workspace" not in markdown_text
+    assert "README" not in markdown_text
+    assert all("Open only the file group you need" not in str(item.value) for item in at.caption)
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "### Active project" not in sidebar_markdown
+    assert "Project</div>" not in sidebar_markdown
+    assert "workspace ready" not in sidebar_markdown
+    assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
+    assert "Runtime diagnostics" not in _element_labels(at)
+    assert "Diagnostics level" not in _element_labels(at)
+    assert "Runtime diagnostics" not in _element_labels(at.sidebar)
+    assert "Diagnostics level" not in _element_labels(at.sidebar)
     _assert_docs_actions_absent(at)
 
 
 def test_project_sidebar_orders_active_project_before_actions():
-    """The sidebar should start with project identity before action selection."""
-    source = Path("src/agilab/pages/1_▶️ PROJECT.py").read_text(encoding="utf-8")
+    """The sidebar should start with selection controls before project actions."""
+    source = Path("src/agilab/pages/1_PROJECT.py").read_text(encoding="utf-8")
     page_body = source[source.index("def page():"):]
 
     active_project_index = page_body.index("_render_active_project_sidebar(env)")
@@ -902,19 +1049,26 @@ def test_project_sidebar_orders_active_project_before_actions():
 
     assert active_project_index < export_index < action_index
     assert "Project workflow" not in source
+    assert "### Active project" not in source
+    assert "_render_sidebar_project_metric" not in source
+    assert "workspace ready" not in source
+    assert "_render_project_software_metrics(env)" in source
+    assert "_render_edit_project_metric" not in source
     assert "Choose what to do with the active project" not in source
     assert "Actions below apply to this selected project" not in source
     assert "Export creates a portable archive" not in source
     assert "Project workspace" not in source
     assert "Identity, editable files" not in source
-    assert "Runtime module" in source
+    assert "_render_project_workspace_overview" not in source
+    assert "Python package used by RUN/ORCHESTRATE" not in source
+    assert "Source LOC" in source
     assert "Project Name (no suffix)" not in source
     assert "New Project Name (no suffix)" not in source
 
 
 def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
     """Test that the EXECUTE page hydrates the Cython checkbox from app settings."""
-    at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -935,7 +1089,7 @@ def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
 
 def test_execute_page_workers_data_path(mock_ui_env):
     """Test setting the workers data path when cluster is enabled."""
-    at = _app_test("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -976,7 +1130,7 @@ def test_execute_service_snippet_maps_runtime_health_settings():
 
 def test_explore_page_multiple_views_selected(mock_ui_env):
     """Test selecting multiple views and verifying a button is rendered for each."""
-    at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
@@ -997,7 +1151,7 @@ def test_explore_page_multiple_views_selected(mock_ui_env):
 
 def test_explore_page_deselect_view(mock_ui_env):
     """Test selecting then deselecting a view removes its button."""
-    at = _app_test("src/agilab/pages/4_▶️ ANALYSIS.py")
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     at.session_state["env"] = env
@@ -1065,7 +1219,7 @@ def test_app_args_form_exposes_only_file_source(mock_ui_env):
 
 def test_agilab_main_page_theme_injection(mock_ui_env):
     """Test that the main page injects theme CSS on load."""
-    at = _app_test("src/agilab/About_agilab.py")
+    at = _app_test("src/agilab/main_page.py")
     at.run()
     assert not at.exception
 
@@ -1077,7 +1231,7 @@ def test_agilab_main_page_theme_injection(mock_ui_env):
 
 
 def test_agilab_main_page_missing_openai_key_stays_silent_on_first_launch(mock_ui_env):
-    at = _app_test("src/agilab/About_agilab.py")
+    at = _app_test("src/agilab/main_page.py")
 
     with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
         at.run()
@@ -1091,7 +1245,7 @@ def test_agilab_main_page_missing_openai_key_stays_silent_on_first_launch(mock_u
 
 def test_experiment_page_missing_openai_key(mock_ui_env):
     """Test that EXPERIMENT page handles a missing OpenAI API key gracefully."""
-    at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py")
+    at = _app_test("src/agilab/pages/3_PIPELINE.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
 
     at.session_state["env"] = env
@@ -1123,7 +1277,7 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1177,7 +1331,7 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1189,11 +1343,27 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         at.session_state["env"] = env
         at.run()
         assert not at.exception
-        assert at.sidebar.text_input(key="project_filter").label == "Filter projects"
+        assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
+        assert [selectbox.label for selectbox in at.sidebar.selectbox][0] == "Project name"
+        assert "Runtime diagnostics" not in _element_labels(at.sidebar)
+        assert "Diagnostics level" not in _element_labels(at.sidebar)
         project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert project_select.label == "Active project"
+        assert project_select.label == "Project name"
+        assert "Type in the dropdown to search." in str(project_select.help)
+        sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+        sidebar_caption = "\n".join(str(item.value) for item in at.sidebar.caption)
+        assert "### Active project" not in sidebar_markdown
+        assert "Choose the project workspace whose pipeline steps and artifacts are shown below." not in sidebar_caption
+        assert "Inspect experiment runs separately from pipeline execution." not in sidebar_caption
+        assert "Start it from Edit." not in sidebar_caption
+        assert "MLflow" not in sidebar_markdown
         assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
         assert at.session_state["lab_dir_selectbox"] == project_select.value
+        markdown_text = "\n".join(str(item.value) for item in at.markdown)
+        assert "Pipeline steps" in markdown_text
+        assert "agilab-header-value agilab-header-value--ready'>1/1</div>" in markdown_text
+        assert "Pipeline graph" in markdown_text
+        assert "stages / dependencies" in markdown_text
 
         initial_lab = at.session_state["lab_dir_selectbox"]
         target_lab = (
@@ -1213,7 +1383,7 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert at.text_area(key=f"{target_lab}_lab_steps.toml_q_step_0").value == expected_prompt
 
 
-def test_pipeline_page_project_filter_shortlists_projects(mock_ui_env, tmp_path):
+def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
     flight_lab = export_root / "flight_project"
     trainer_lab = export_root / "sb3_trainer_project"
@@ -1229,7 +1399,7 @@ def test_pipeline_page_project_filter_shortlists_projects(mock_ui_env, tmp_path)
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1242,12 +1412,14 @@ def test_pipeline_page_project_filter_shortlists_projects(mock_ui_env, tmp_path)
         at.run()
         assert not at.exception
 
-        at.sidebar.text_input(key="project_filter").set_value("sb3").run()
-        assert not at.exception
+        assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
+        project_select = at.sidebar.selectbox(key="project_selectbox")
+        assert project_select.label == "Project name"
+        assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
 
-        filtered_select = at.sidebar.selectbox(key="project_selectbox")
-        assert filtered_select.label == "Active project"
-        assert list(filtered_select.options) == ["sb3_trainer_project"]
+        project_select.set_value("sb3_trainer_project").run()
+
+        assert not at.exception
         assert at.session_state["project_selectbox"] == "sb3_trainer_project"
         assert at.session_state["lab_dir_selectbox"] == "sb3_trainer_project"
         assert Path(at.session_state["steps_file"]).parent.name == "sb3_trainer_project"
@@ -1269,7 +1441,7 @@ def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_en
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1305,7 +1477,7 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1336,7 +1508,7 @@ def test_experiment_page_save_step_persists_prompt(mock_ui_env, tmp_path):
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1384,7 +1556,7 @@ R = "runpy"
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1411,7 +1583,7 @@ R = "runpy"
 
 def test_edit_page_project_selectbox(mock_ui_env):
     """Test that the EDIT page has a project selectbox with available projects."""
-    at = _app_test("src/agilab/pages/1_▶️ PROJECT.py")
+    at = _app_test("src/agilab/pages/1_PROJECT.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -1432,10 +1604,11 @@ def test_edit_page_project_selectbox(mock_ui_env):
         f"errors={[e.value for e in at.error]})"
     )
     assert "project_selectbox" in selectbox_keys
+    assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 
 def test_clone_page_exposes_environment_strategy(mock_ui_env):
-    at = _app_test("src/agilab/pages/1_▶️ PROJECT.py")
+    at = _app_test("src/agilab/pages/1_PROJECT.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()

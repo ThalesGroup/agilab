@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "About_agilab.py"
+MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "main_page.py"
 SPEC = importlib.util.spec_from_file_location("agilab_about_helpers", MODULE_PATH)
 assert SPEC and SPEC.loader
 about_agilab = importlib.util.module_from_spec(SPEC)
@@ -41,6 +41,20 @@ class _FakeExpander:
     def __exit__(self, exc_type, exc, tb):
         self._streamlit.events.append(("exit_expander", self._label))
         return False
+
+    def caption(self, body: object):
+        self._streamlit.events.append(("caption", str(body)))
+
+    def markdown(self, body: object, **_kwargs):
+        self._streamlit.events.append(("markdown", str(body)))
+
+    def selectbox(self, label: str, options, **kwargs):
+        self._streamlit.events.append(("selectbox", label))
+        key = kwargs.get("key")
+        if key and key in self._streamlit.session_state:
+            return self._streamlit.session_state[key]
+        index = int(kwargs.get("index", 0) or 0)
+        return list(options)[index]
 
 
 class _FakeSidebar:
@@ -225,7 +239,7 @@ def test_import_guard_error_is_rendered_as_code(monkeypatch):
 def test_import_guard_single_line_diagnostic_is_wrapped_for_display():
     message = (
         "Mixed AGILAB sys.path detected. "
-        "Current file /tmp/current/src/agilab/About_agilab.py belongs to /tmp/current, "
+        "Current file /tmp/current/src/agilab/main_page.py belongs to /tmp/current, "
         "but Python can also resolve AGILAB from /tmp/other via sys.path entry "
         "'/tmp/other/.venv/lib/python3.13/site-packages'. "
         "Remove stale PYTHONPATH/PyCharm content roots and relaunch. "
@@ -236,7 +250,7 @@ def test_import_guard_single_line_diagnostic_is_wrapped_for_display():
 
     assert "\n" in rendered
     assert "Mixed AGILAB sys.path detected." in rendered
-    assert "Current file /tmp/current/src/agilab/About_agilab.py" in rendered
+    assert "Current file /tmp/current/src/agilab/main_page.py" in rendered
     assert "but Python can also resolve AGILAB" in rendered
     assert "Remove stale PYTHONPATH/PyCharm content roots" in rendered
     assert "If you intentionally switched checkout" in rendered
@@ -256,14 +270,14 @@ def test_page_bootstrap_load_about_page_module_uses_injected_loader(tmp_path):
     result = page_bootstrap.load_about_page_module(current_file, load_module=fake_load_module)
 
     assert result is imported
-    assert calls[0][0] == ("agilab.About_agilab",)
+    assert calls[0][0] == ("agilab.main_page",)
     assert calls[0][1]["current_file"] == current_file
-    assert calls[0][1]["fallback_path"] == current_file.parents[1] / "About_agilab.py"
+    assert calls[0][1]["fallback_path"] == current_file.parents[1] / "main_page.py"
 
 
 def test_page_bootstrap_load_about_page_module_falls_back_to_file(tmp_path, monkeypatch):
     current_file = tmp_path / "agilab" / "pages" / "page.py"
-    about_file = tmp_path / "agilab" / "About_agilab.py"
+    about_file = tmp_path / "agilab" / "main_page.py"
     current_file.parent.mkdir(parents=True)
     about_file.write_text("def main():\n    return 'ok'\n", encoding="utf-8")
 
@@ -290,7 +304,7 @@ def test_page_bootstrap_load_about_page_module_falls_back_when_import_lacks_main
     monkeypatch,
 ):
     current_file = tmp_path / "agilab" / "pages" / "page.py"
-    about_file = tmp_path / "agilab" / "About_agilab.py"
+    about_file = tmp_path / "agilab" / "main_page.py"
     current_file.parent.mkdir(parents=True)
     about_file.write_text("def main():\n    return 'fallback'\n", encoding="utf-8")
 
@@ -316,13 +330,13 @@ def test_page_bootstrap_load_about_page_module_reports_missing_fallback_spec(tmp
     )
     monkeypatch.setattr(page_bootstrap.importlib.util, "spec_from_file_location", lambda *_args: None)
 
-    with pytest.raises(ModuleNotFoundError, match="Unable to load About_agilab"):
+    with pytest.raises(ModuleNotFoundError, match="Unable to load main_page"):
         page_bootstrap.load_about_page_module(current_file)
 
 
 def test_page_bootstrap_load_about_page_module_rejects_fallback_without_main(tmp_path, monkeypatch):
     current_file = tmp_path / "agilab" / "pages" / "page.py"
-    about_file = tmp_path / "agilab" / "About_agilab.py"
+    about_file = tmp_path / "agilab" / "main_page.py"
     current_file.parent.mkdir(parents=True)
     about_file.write_text("VALUE = 1\n", encoding="utf-8")
 
@@ -332,7 +346,7 @@ def test_page_bootstrap_load_about_page_module_rejects_fallback_without_main(tmp
         lambda _name: (_ for _ in ()).throw(ImportError("missing")),
     )
 
-    with pytest.raises(ModuleNotFoundError, match="Unable to import About_agilab"):
+    with pytest.raises(ModuleNotFoundError, match="Unable to import main_page"):
         page_bootstrap.load_about_page_module(current_file)
 
 
@@ -1577,6 +1591,8 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
     assert "grid-template-columns:max-content .45rem minmax(0,1fr);" in sidebar_markup
     assert "color:#72d6b4;" in sidebar_markup
+    assert "color:#ffbe5e;" in sidebar_markup
+    assert "agilab-sidebar-system-value--ready" in sidebar_markup
     assert "Active project: flight_project" in sidebar_markup
     assert "Scheduler: 10.0.0.1:8786" in sidebar_markup
     assert "Mode: enabled (dask)" in sidebar_markup
@@ -1655,13 +1671,16 @@ def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch)
     about_agilab.page(env)
 
     env_expander = _event_index(fake_st.events, "expander", "Environment Variables")
+    diagnostics_expander = _event_index(fake_st.events, "expander", "Runtime diagnostics:False")
     expanders = [body for kind, body in fake_st.events if kind == "expander"]
     assert any("Environment Variables" in label for label in expanders)
+    assert "Runtime diagnostics:False" in expanders
     assert "Installed package versions:False" not in expanders
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
     docs_button = _event_index(fake_st.events, "sidebar.button", "Read Documentation")
     sidebar_grid = _event_index(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
+    assert env_expander < diagnostics_expander
     sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
     assert "Active project: flight_project" in sidebar_markup
     assert "Scheduler: 192.168.20.111:8786" in sidebar_markup
@@ -1675,6 +1694,29 @@ def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch)
     assert docs_button < sidebar_grid < env_expander
     assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert env_expander >= 0
+
+
+def test_navigation_page_file_runner_executes_guarded_page_main(tmp_path, monkeypatch) -> None:
+    marker = tmp_path / "page-ran.txt"
+    page_file = tmp_path / "sample_page.py"
+    page_file.write_text(
+        "from pathlib import Path\n"
+        "def main():\n"
+        f"    Path({str(marker)!r}).write_text('ok', encoding='utf-8')\n"
+        "if __name__ == '__main__':\n"
+        "    raise RuntimeError('guard should not be executed by import wrapper')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        about_agilab,
+        "_ensure_navigation_environment",
+        lambda *_args, **_kwargs: object(),
+    )
+
+    runner = about_agilab._page_file_runner(page_file)
+    runner()
+
+    assert marker.read_text(encoding="utf-8") == "ok"
 
 
 def test_active_app_cluster_information_prefers_active_app_settings_file(tmp_path, monkeypatch):

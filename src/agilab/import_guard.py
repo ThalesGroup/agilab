@@ -108,14 +108,14 @@ def _source_root_for_package_root(package_root: Path, package_name: str = "agila
     if len(package_root.parents) < 2:
         return None
     source_root = package_root.parents[1]
-    if (source_root / "src" / package_name / "About_agilab.py").exists():
+    if (source_root / "src" / package_name / "main_page.py").exists():
         return source_root.resolve(strict=False)
     return None
 
 
 def _source_root_from_candidate(candidate: Path, package_name: str = "agilab") -> Path | None:
     candidate_root = candidate.resolve(strict=False)
-    if (candidate_root / "src" / package_name / "About_agilab.py").exists():
+    if (candidate_root / "src" / package_name / "main_page.py").exists():
         return candidate_root
     return None
 

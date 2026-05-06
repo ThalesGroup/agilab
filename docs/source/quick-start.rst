@@ -110,7 +110,7 @@ machine-readable proof record.
 
 3. **Launch the web interface**::
 
-       uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+       uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 
 4. **Keep the first run local and use the built-in flight demo**
 

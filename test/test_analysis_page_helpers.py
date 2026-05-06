@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
-MODULE_PATH = Path("src/agilab/pages/4_▶️ ANALYSIS.py")
+MODULE_PATH = Path("src/agilab/pages/4_ANALYSIS.py")
 STATE_MODULE_PATH = Path("src/agilab/analysis_page_state.py")
 
 
@@ -421,10 +421,11 @@ def test_analysis_page_state_defaults_flight_to_view_maps_and_excludes_network(t
 
     assert "view_maps_network" not in state.view_names
     assert state.default_view_name == "view_maps"
+    assert state.default_view_names == ("view_maps",)
     assert state.widget_selection == ("view_maps",)
     assert state.selected_views == ("view_maps",)
     assert state.config_view_module == ("view_maps",)
-    assert state.default_route_path == view_maps
+    assert state.default_route_path is None
 
 
 def test_analysis_page_state_sanitizes_stale_session_selection_before_widget(tmp_path: Path):
@@ -450,7 +451,33 @@ def test_analysis_page_state_sanitizes_stale_session_selection_before_widget(tmp
 
     assert state.view_names == ("view_maps",)
     assert state.widget_selection == ("view_maps",)
-    assert state.default_route_path == view_maps
+    assert state.default_route_path is None
+
+
+def test_analysis_page_state_supports_multiple_default_views(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    view_maps = tmp_path / "view_maps.py"
+    view_barycentric = tmp_path / "view_barycentric.py"
+
+    state = state_module.build_analysis_view_selection_state(
+        pages_cfg={
+            "default_views": ["view_maps", "view_barycentric"],
+            "view_module": [],
+        },
+        current_page=None,
+        configured_views=[],
+        resolved_pages={
+            "view_maps": view_maps,
+            "view_barycentric": view_barycentric,
+        },
+        custom_view_lookup={},
+    )
+
+    assert state.default_view_name == "view_maps"
+    assert state.default_view_names == ("view_maps", "view_barycentric")
+    assert state.widget_selection == ("view_maps", "view_barycentric")
+    assert state.config_view_module == ("view_maps", "view_barycentric")
+    assert state.default_route_path is None
 
 
 def test_analysis_page_state_keeps_custom_selection_as_resolved_config_path(tmp_path: Path):
@@ -472,6 +499,31 @@ def test_analysis_page_state_keeps_custom_selection_as_resolved_config_path(tmp_
     assert state.selected_views == (custom_key,)
     assert state.config_view_module == (str(custom_view.resolve()),)
     assert state.default_route_path is None
+
+
+def test_analysis_page_state_uses_default_only_before_explicit_session_selection(tmp_path: Path):
+    state_module = _load_analysis_state_module()
+    default_view = tmp_path / "view_barycentric.py"
+
+    initial_state = state_module.build_analysis_view_selection_state(
+        pages_cfg={"default_view": "view_barycentric", "view_module": []},
+        current_page="main",
+        configured_views=[],
+        resolved_pages={"view_barycentric": default_view},
+        custom_view_lookup={},
+    )
+    explicit_state = state_module.build_analysis_view_selection_state(
+        pages_cfg={"default_view": "view_barycentric", "view_module": []},
+        current_page="main",
+        configured_views=[],
+        resolved_pages={"view_barycentric": default_view},
+        custom_view_lookup={},
+        session_selection=[],
+        has_session_selection=True,
+    )
+
+    assert initial_state.config_view_module == ("view_barycentric",)
+    assert explicit_state.config_view_module == ()
 
 
 def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path):

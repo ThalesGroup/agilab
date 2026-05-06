@@ -9,6 +9,7 @@ import socket
 import runpy
 import ast
 import json
+import html
 import logging
 import subprocess
 from functools import lru_cache
@@ -114,11 +115,19 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.page_project_selector",
+    {
+        "render_project_selector": "render_project_selector",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
+    fallback_name="agilab_page_project_selector_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.runtime_diagnostics",
     {
-        "coerce_diagnostics_verbose": "coerce_diagnostics_verbose",
-        "diagnostics_widget_key": "diagnostics_widget_key",
-        "render_runtime_diagnostics_control": "render_runtime_diagnostics_control",
+        "global_diagnostics_verbose": "global_diagnostics_verbose",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "runtime_diagnostics.py",
@@ -244,7 +253,7 @@ import_agilab_symbols(
 )
 # Project Libraries:
 from agi_gui.pagelib import (
-    background_services_enabled, get_about_content, render_logo, activate_mlflow, init_custom_ui, select_project,
+    background_services_enabled, get_about_content, render_logo, activate_mlflow, init_custom_ui, on_project_change,
     inject_theme, is_valid_ip, render_dataframe_preview, resolve_active_app
 )
 
@@ -1098,56 +1107,117 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
     return "Needs INSTALL", "Manager and worker environments are not installed yet."
 
 
-def _next_orchestrate_action(
-    *,
-    cluster_params: dict[str, Any],
-    install_status: dict[str, Any],
-    execution_view: str,
-    show_run: bool,
-) -> str:
-    manager_ready = bool(install_status.get("manager_ready"))
-    worker_ready = bool(install_status.get("worker_ready"))
-    if not manager_ready or not worker_ready:
-        return "Run INSTALL."
-    if execution_view == "Serve" and not bool(cluster_params.get("cluster_enabled", False)):
-        return "Enable Cluster before service mode."
-    if not show_run:
-        return "Refresh runtime state, then run."
-    return "Review arguments, then EXECUTE."
+_INCOMPLETE_HEADER_VALUE_TOKENS = (
+    "incomplete",
+    "missing",
+    "no run",
+    "needs install",
+    "not configured",
+    "not selected",
+    "not set",
+    "unknown",
+)
 
 
-def _enabled_runtime_features(cluster_params: dict[str, Any]) -> str:
-    labels = [
-        label
-        for key, label in (("pool", "pool"), ("cython", "cython"), ("rapids", "rapids"))
-        if bool(cluster_params.get(key, False))
-    ]
-    return ", ".join(labels) if labels else "standard"
+def _header_value_state(value: str, caption: str = "") -> str:
+    normalized = f"{value or ''} {caption or ''}".strip().lower()
+    if not normalized:
+        return "incomplete"
+    if any(token in normalized for token in _INCOMPLETE_HEADER_VALUE_TOKENS):
+        return "incomplete"
+    return "ready"
 
 
-def _scheduler_summary(cluster_params: dict[str, Any]) -> str:
-    if not bool(cluster_params.get("cluster_enabled", False)):
-        return "Scheduler: local"
-    scheduler = str(cluster_params.get("scheduler") or "").strip()
-    return f"Scheduler: {scheduler or 'not set'}"
+def _render_header_value_card(label: str, value: str, caption: str) -> None:
+    state = _header_value_state(value, caption)
+    st.markdown(
+        (
+            f"<div class='agilab-header-card agilab-header-card--{state}'>"
+            f"<div class='agilab-header-label'>{html.escape(label)}</div>"
+            f"<div class='agilab-header-value agilab-header-value--{state}'>{html.escape(str(value))}</div>"
+            f"<div class='agilab-header-caption'>{html.escape(caption)}</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
 
 
-def _active_app_label(env: Any) -> str:
-    app_name = str(getattr(env, "app", "") or "").strip()
-    if app_name:
-        return app_name
+def _safe_display_path(value: Any) -> str:
+    if value in (None, ""):
+        return "not configured"
     try:
-        active_app = Path(getattr(env, "active_app", ""))
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return "not selected"
-    return active_app.name or "not selected"
+        return str(Path(value).expanduser())
+    except (TypeError, ValueError, RuntimeError):
+        return str(value)
 
 
-def _render_readiness_cell(label: str, value: str, detail: str = "") -> None:
-    st.markdown(f"**{label}**")
-    st.caption(value)
-    if detail:
-        st.caption(detail)
+def _path_status(path: Any, *, venv: bool = False, file: bool = False) -> tuple[str, str]:
+    if path in (None, ""):
+        return "not configured", "not configured"
+    try:
+        candidate = Path(path)
+    except (TypeError, ValueError, RuntimeError):
+        return "not configured", str(path)
+    if venv:
+        python_bin = candidate / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        if python_bin.exists():
+            return "ready", _safe_display_path(candidate)
+        if candidate.exists() or candidate.is_symlink():
+            return "incomplete", _safe_display_path(candidate)
+        return "missing", _safe_display_path(candidate)
+    if file:
+        status = "ready" if candidate.exists() and candidate.is_file() else "missing"
+        return status, _safe_display_path(candidate)
+    status = "ready" if candidate.exists() or candidate.is_symlink() else "missing"
+    return status, _safe_display_path(candidate)
+
+
+def _latest_project_mtime(project_root: Path | None) -> str:
+    if project_root is None or not project_root.exists():
+        return "unknown"
+    try:
+        latest = project_root.stat().st_mtime
+        ignored_dirs = {".venv", "__pycache__", ".git"}
+        for root, dirs, files in os.walk(project_root):
+            dirs[:] = [dirname for dirname in dirs if dirname not in ignored_dirs]
+            for name in files:
+                latest = max(latest, (Path(root) / name).stat().st_mtime)
+    except OSError:
+        return "unknown"
+    return datetime.fromtimestamp(latest).strftime("%Y-%m-%d %H:%M")
+
+
+def _run_history_summary(env: Any) -> tuple[str, str]:
+    """Return the number of ORCHESTRATE run logs and the latest run timestamp."""
+    runenv = getattr(env, "runenv", None)
+    if runenv:
+        log_dir = Path(runenv)
+    else:
+        app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "app")
+        log_dir = Path.home() / "log" / "execute" / app_name
+
+    try:
+        run_logs = sorted(path for path in log_dir.glob("run_*.log") if path.is_file())
+    except OSError:
+        return "0", "run log directory unavailable"
+
+    if not run_logs:
+        return "0", "no run logs yet"
+
+    latest: Path | None = None
+    latest_mtime: float | None = None
+    for run_log in run_logs:
+        try:
+            mtime = run_log.stat().st_mtime
+        except OSError:
+            continue
+        if latest_mtime is None or mtime > latest_mtime:
+            latest = run_log
+            latest_mtime = mtime
+    if latest is None or latest_mtime is None:
+        return str(len(run_logs)), "latest run log unavailable"
+    latest_label = datetime.fromtimestamp(latest_mtime).strftime("%Y-%m-%d %H:%M")
+    return str(len(run_logs)), f"latest {latest_label}"
 
 
 def _render_orchestrate_readiness_panel(
@@ -1157,37 +1227,35 @@ def _render_orchestrate_readiness_panel(
     install_status: dict[str, Any],
     show_run: bool,
 ) -> None:
-    """Render a compact, read-only summary before the detailed controls."""
-    cluster_params = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
-    if not isinstance(cluster_params, dict):
-        cluster_params = {}
-    mode_label = _cluster_mode_label(cluster_params)
-    runtime_label, runtime_detail = _runtime_status_label(install_status)
-    execution_view = str(
-        st.session_state.get(f"orchestrate_execution_view__{getattr(env, 'app', '')}", "Run now")
-        or "Run now"
-    )
-    next_action = _next_orchestrate_action(
-        cluster_params=cluster_params,
-        install_status=install_status,
-        execution_view=execution_view,
-        show_run=show_run,
-    )
+    """Render the same project runtime header used by the PROJECT page."""
+    del app_settings, show_run
+    active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
+    manager_status, manager_path = _path_status(install_status.get("manager_venv"), venv=True)
+    worker_status, worker_path = _path_status(install_status.get("worker_venv"), venv=True)
+    run_count, run_caption = _run_history_summary(env)
 
     with st.container(border=True):
-        mode_col, runtime_col, next_col = st.columns([1.5, 1.5, 1.4])
-        with mode_col:
-            _render_readiness_cell(
-                "Mode",
-                mode_label,
-                f"{_scheduler_summary(cluster_params)}\n"
-                f"Workers: {_workers_summary(cluster_params.get('workers', {}))}\n"
-                f"Capabilities: {_enabled_runtime_features(cluster_params)}",
+        top_cols = st.columns(3)
+        with top_cols[0]:
+            _render_header_value_card(
+                "Runtime module",
+                str(getattr(env, "target", "unknown")),
+                "Python package used by INSTALL/RUN",
             )
-        with runtime_col:
-            _render_readiness_cell("Runtime", runtime_label, runtime_detail)
-        with next_col:
-            _render_readiness_cell("Next action", next_action, f"Execution view: {execution_view}")
+        with top_cols[1]:
+            _render_header_value_card("Manager env", manager_status, manager_path)
+        with top_cols[2]:
+            _render_header_value_card("Worker env", worker_status, worker_path)
+
+        bottom_cols = st.columns(3)
+        with bottom_cols[0]:
+            _render_header_value_card("Runs", run_count, run_caption)
+        with bottom_cols[1]:
+            share_path = _safe_display_path(getattr(env, "app_data_rel", None))
+            share_status = "configured" if share_path != "not configured" else "missing"
+            _render_header_value_card("Data/share", share_status, share_path)
+        with bottom_cols[2]:
+            _render_header_value_card("Last change", _latest_project_mtime(active_app), _safe_display_path(active_app))
 
 
 async def _render_deployment_panel(
@@ -1762,7 +1830,7 @@ async def page() -> None:
     if current_project not in projects:
         current_project = projects[0] if projects else None
     previous_project = current_project
-    select_project(projects, current_project)
+    render_project_selector(st, projects, current_project, on_change=on_project_change)
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed or env.app != previous_project:
         _set_active_app_query_param(env.app)
@@ -1840,22 +1908,12 @@ async def page() -> None:
     show_run = st.session_state["show_run"] if _is_app_installed(env) else False
     install_status = _app_install_status(env)
 
-    cluster_params = app_settings.setdefault("cluster", {})
-    current_verbose = coerce_diagnostics_verbose(cluster_params.get("verbose", 1))
-    with st.sidebar.expander("Runtime diagnostics", expanded=False) as diagnostics_container:
-        selected_verbose_int = render_runtime_diagnostics_control(
-            st,
-            diagnostics_container,
-            app_settings,
-            app_name=app_state_name,
-            compact_choice_fn=compact_choice,
-            key=diagnostics_widget_key(app_state_name),
-        )
-        diagnostics_container.caption("Quiet=0, Standard=1, Detailed=2, Debug=3.")
-
-    if selected_verbose_int != current_verbose:
-        st.session_state.app_settings = _write_app_settings_toml(env.app_settings_file, app_settings)
-        load_toml_file.clear()
+    selected_verbose_int = global_diagnostics_verbose(
+        session_state=st.session_state,
+        envars=getattr(env, "envars", None),
+        environ=os.environ,
+        settings=app_settings if isinstance(app_settings, dict) else None,
+    )
     st.session_state["cluster_verbose"] = selected_verbose_int
 
     _render_orchestrate_readiness_panel(

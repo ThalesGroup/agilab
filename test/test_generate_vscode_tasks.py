@@ -24,7 +24,7 @@ def test_generate_vscode_configs_build_shell_tasks_launches_and_inputs(tmp_path:
   <configuration name="agilab run (dev)" type="PythonConfigurationType" factoryName="Python">
     <option name="MODULE_MODE" value="true" />
     <option name="SCRIPT_NAME" value="streamlit" />
-    <option name="PARAMETERS" value="run $PROJECT_DIR$/src/agilab/About_agilab.py -- --openai-api-key &quot;your-key&quot;" />
+    <option name="PARAMETERS" value="run $PROJECT_DIR$/src/agilab/main_page.py -- --openai-api-key &quot;your-key&quot;" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <envs>
       <env name="PYTHONUNBUFFERED" value="1" />
@@ -70,7 +70,7 @@ def test_generate_vscode_configs_build_shell_tasks_launches_and_inputs(tmp_path:
     assert len(tasks) == 3
 
     streamlit_task = next(task for task in tasks if task["label"] == "agilab run (dev)")
-    assert streamlit_task["command"].startswith("uv run streamlit run ${workspaceFolder}/src/agilab/About_agilab.py")
+    assert streamlit_task["command"].startswith("uv run streamlit run ${workspaceFolder}/src/agilab/main_page.py")
     assert streamlit_task["options"]["cwd"] == "${workspaceFolder}"
     assert streamlit_task["options"]["env"]["PYTHONUNBUFFERED"] == "1"
 
@@ -99,7 +99,7 @@ def test_generate_vscode_configs_build_shell_tasks_launches_and_inputs(tmp_path:
     assert streamlit_launch["module"] == "streamlit"
     assert streamlit_launch["args"] == [
         "run",
-        "${workspaceFolder}/src/agilab/About_agilab.py",
+        "${workspaceFolder}/src/agilab/main_page.py",
         "--",
         "--openai-api-key",
         "your-key",

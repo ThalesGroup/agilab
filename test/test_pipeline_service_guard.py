@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 
 def _load_pipeline_module():
-    module_path = Path("src/agilab/pages/3_▶️ PIPELINE.py")
+    module_path = Path("src/agilab/pages/3_PIPELINE.py")
     spec = importlib.util.spec_from_file_location("agilab_pipeline_page_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

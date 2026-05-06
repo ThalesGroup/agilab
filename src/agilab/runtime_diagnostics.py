@@ -8,6 +8,7 @@ import tomli_w
 import tomllib
 
 
+GLOBAL_DIAGNOSTICS_ENV_KEY = "AGILAB_RUNTIME_DIAGNOSTICS_VERBOSE"
 DIAGNOSTICS_LEVELS: tuple[tuple[str, int, str], ...] = (
     ("Quiet", 0, "Show only essential progress and failures."),
     ("Standard", 1, "Show normal progress, warnings, and concise failures."),
@@ -49,6 +50,29 @@ def diagnostics_widget_key(app_name: Any) -> str:
     app_text = str(app_name or "default").strip() or "default"
     safe = "".join(ch if ch.isalnum() or ch in {"_", "-", "."} else "_" for ch in app_text)
     return f"runtime_diagnostics_level__{safe}"
+
+
+def global_diagnostics_verbose(
+    *,
+    session_state: Any = None,
+    envars: Mapping[str, Any] | None = None,
+    environ: Mapping[str, Any] | None = None,
+    settings: Mapping[str, Any] | None = None,
+    default: int = DEFAULT_DIAGNOSTICS_VERBOSE,
+) -> int:
+    """Resolve the project-agnostic diagnostics level with legacy TOML fallback."""
+    for source in (session_state, envars, environ):
+        if source is None:
+            continue
+        value = _state_get(source, GLOBAL_DIAGNOSTICS_ENV_KEY)
+        if value is not None:
+            return coerce_diagnostics_verbose(value, default=default)
+
+    if settings:
+        cluster = settings.get("cluster")
+        if isinstance(cluster, Mapping):
+            return coerce_diagnostics_verbose(cluster.get("verbose"), default=default)
+    return default
 
 
 def update_settings_diagnostics(

@@ -437,10 +437,10 @@ examples/
         AGI_run_mycode.py
 pages/
     __pycache__/ [excluded]
-    1_▶️ PROJECT.py
-    2_▶️ ORCHESTRATE.py
-    3_▶️ PIPELINE.py
-    4_▶️ ANALYSIS.py
+    1_PROJECT.py
+    2_ORCHESTRATE.py
+    3_PIPELINE.py
+    4_ANALYSIS.py
 resources/
     help/
         __pycache__/ [excluded]
@@ -468,7 +468,7 @@ test/
     test_streamlit.sh
 .gitignore
 __init__.py
-About_agilab.py
+main_page.py
 agi_codex.py
 install_apps.ps1
 install_apps.sh

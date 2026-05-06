@@ -59,8 +59,8 @@ def _streamlit_smoke(python_bin: Path, site_packages: Path, *, env: dict[str, st
         from agi_env import AgiEnv
 
         site_packages = Path({str(site_packages)!r})
-        about_page = site_packages / "agilab" / "About_agilab.py"
-        orchestrate_page = site_packages / "agilab" / "pages" / "2_▶️ ORCHESTRATE.py"
+        about_page = site_packages / "agilab" / "main_page.py"
+        orchestrate_page = site_packages / "agilab" / "pages" / "2_ORCHESTRATE.py"
         apps_path = Path.home() / "agi-space" / "apps"
 
         def assert_clean(page_name, app_test):

@@ -27,17 +27,17 @@ def load_about_page_module(
 ) -> Any:
     """Load the About page module from the active checkout or packaged install."""
     current_path = Path(current_file).resolve()
-    about_path = current_path.parents[1] / "About_agilab.py"
+    about_path = current_path.parents[1] / "main_page.py"
     if load_module is not None:
         return load_module(
-            "agilab.About_agilab",
+            "agilab.main_page",
             current_file=current_file,
             fallback_path=about_path,
             fallback_name="agilab_about_fallback",
         )
 
     try:
-        module = importlib.import_module("agilab.About_agilab")
+        module = importlib.import_module("agilab.main_page")
         if hasattr(module, "main"):
             return module
     except (ImportError, ModuleNotFoundError):
@@ -45,11 +45,11 @@ def load_about_page_module(
 
     spec = importlib.util.spec_from_file_location("agilab_about_fallback", about_path)
     if spec is None or spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load About_agilab page module from {about_path}")
+        raise ModuleNotFoundError(f"Unable to load main_page page module from {about_path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     if not hasattr(module, "main"):
-        raise ModuleNotFoundError("Unable to import About_agilab page module.")
+        raise ModuleNotFoundError("Unable to import main_page page module.")
     return module
 
 

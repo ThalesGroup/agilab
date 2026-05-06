@@ -18,7 +18,7 @@
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="RUN_TOOL" value="true" />
     <option name="SCRIPT_NAME" value="streamlit" />
-    <option name="PARAMETERS" value="run $PROJECT_DIR$/src/agilab/About_agilab.py -- --openai-api-key &quot;your-key&quot; --apps-path $PROJECT_DIR$/src/agilab/apps" />
+    <option name="PARAMETERS" value="run $PROJECT_DIR$/src/agilab/main_page.py -- --openai-api-key &quot;your-key&quot; --apps-path $PROJECT_DIR$/src/agilab/apps" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="true" />

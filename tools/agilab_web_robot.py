@@ -236,7 +236,7 @@ def build_streamlit_command(
     apps_path: Path | str,
     port: int,
 ) -> list[str]:
-    about_page = REPO_ROOT / "src/agilab/About_agilab.py"
+    about_page = REPO_ROOT / "src/agilab/main_page.py"
     return [
         *UV_RUN_STREAMLIT,
         "run",

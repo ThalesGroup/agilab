@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 
-MODULE_PATH = Path("src/agilab/pages/1_▶️ PROJECT.py")
+MODULE_PATH = Path("src/agilab/pages/1_PROJECT.py")
 
 
 def _load_project_module():
@@ -46,6 +46,19 @@ def test_finalize_cloned_project_environment_detaches_shared_venv(tmp_path: Path
     assert "without sharing" in message
     assert not dest_venv.exists()
     assert not dest_venv.is_symlink()
+
+
+def test_project_software_metric_summary_counts_repository_tests_for_builtin_flight():
+    module = _load_project_module()
+    project_root = Path("src/agilab/apps/builtin/flight_project")
+
+    repo_test_names = {path.name for path in module._iter_repo_project_test_files(project_root)}
+    summary = module._project_software_metric_summary(project_root)
+
+    assert "test_cluster_flight_validation.py" in repo_test_names
+    assert "test_flight_project_runtime_args.py" in repo_test_names
+    assert "test_notebook_import_preflight.py" not in repo_test_names
+    assert summary["test_files"] >= len(repo_test_names) > 0
 
 
 def test_finalize_cloned_project_environment_keeps_shared_venv(tmp_path: Path):

@@ -170,18 +170,42 @@ def quick_logo(resources_path: Path) -> None:
                 --agilab-ink: #f7f2e8;
                 --agilab-muted: rgba(247, 242, 232, 0.74);
                 --agilab-line: rgba(255, 255, 255, 0.16);
+                position: relative;
+                isolation: isolate;
+                overflow: hidden;
                 width: 100%;
                 box-sizing: border-box;
-                margin: 1rem 0 1.15rem;
+                margin: 0.55rem 0 1.05rem;
                 padding: clamp(1.15rem, 2.6vw, 2rem);
                 border: 1px solid var(--agilab-line);
-                border-radius: 24px;
+                border-radius: 26px;
                 color: var(--agilab-ink);
                 background:
                   radial-gradient(circle at 0% 0%, rgba(255, 190, 94, 0.28), transparent 34%),
+                  radial-gradient(circle at 100% 0%, rgba(114, 214, 180, 0.18), transparent 30%),
                   linear-gradient(135deg, #08111f 0%, #132b33 58%, #263019 100%);
-                box-shadow: 0 20px 52px rgba(7, 17, 31, 0.24);
+                box-shadow: 0 22px 58px rgba(7, 17, 31, 0.24), inset 0 1px 0 rgba(255,255,255,0.08);
                 font-family: "Aptos Display", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+              }}
+              .agilab-hero::before {{
+                content: "";
+                position: absolute;
+                inset: 0.75rem 0.85rem auto;
+                height: 1px;
+                border-radius: 999px;
+                background: linear-gradient(90deg, rgba(255,210,138,0.72), rgba(114,214,180,0.54), transparent);
+                z-index: -1;
+              }}
+              .agilab-hero::after {{
+                content: "";
+                position: absolute;
+                right: -8rem;
+                bottom: -10rem;
+                width: 22rem;
+                height: 22rem;
+                border-radius: 999px;
+                background: radial-gradient(circle, rgba(255,255,255,0.08), transparent 65%);
+                z-index: -1;
               }}
               .agilab-hero__brand {{
                 display: inline-flex;
@@ -218,7 +242,7 @@ def quick_logo(resources_path: Path) -> None:
               }}
               .agilab-hero__body {{
                 display: grid;
-                grid-template-columns: minmax(230px, 0.82fr) minmax(410px, 1.18fr);
+                grid-template-columns: minmax(260px, 0.86fr) minmax(420px, 1.14fr);
                 gap: clamp(1.1rem, 3vw, 2.2rem);
                 align-items: center;
               }}
@@ -284,7 +308,7 @@ def quick_logo(resources_path: Path) -> None:
               .agilab-hero__legal-sep {{
                 color: rgba(247, 242, 232, 0.24);
               }}
-              @media (max-width: 900px) {{
+              @media (max-width: 1040px) {{
                 .agilab-hero__body {{
                   grid-template-columns: 1fr;
                 }}
@@ -1251,11 +1275,20 @@ def _sidebar_system_information_html(lines: list[tuple[str, str]]) -> str:
         escaped_label = html.escape(label)
         escaped_value = html.escape(value)
         escaped_aria_label = html.escape(f"{label}: {value}", quote=True)
+        normalized_value = str(value).strip().lower()
+        value_state = (
+            "incomplete"
+            if any(
+                token in normalized_value
+                for token in ("missing", "not configured", "not detected", "unknown", "unavailable", "unreachable")
+            )
+            else "ready"
+        )
         rows.append(
             f"<div class='agilab-sidebar-system-row' aria-label='{escaped_aria_label}'>"
             f"<span class='agilab-sidebar-system-label'>{escaped_label}</span>"
             "<span class='agilab-sidebar-system-colon'>:</span>"
-            f"<span class='agilab-sidebar-system-value'>{escaped_value}</span>"
+            f"<span class='agilab-sidebar-system-value agilab-sidebar-system-value--{value_state}'>{escaped_value}</span>"
             "</div>"
         )
     return (
@@ -1282,9 +1315,14 @@ def _sidebar_system_information_html(lines: list[tuple[str, str]]) -> str:
         "text-align:center;"
         "}"
         ".agilab-sidebar-system-value {"
-        "color:#72d6b4;"
         "font-weight:650;"
         "overflow-wrap:anywhere;"
+        "}"
+        ".agilab-sidebar-system-value--ready {"
+        "color:#72d6b4;"
+        "}"
+        ".agilab-sidebar-system-value--incomplete {"
+        "color:#ffbe5e;"
         "}"
         "</style>"
         "<div class='agilab-sidebar-system'>"

@@ -548,7 +548,7 @@ def page():
                 "or launch with --active-app <active_app>."
             )
             if hasattr(st, "page_link"):
-                st.page_link("1_▶️ PROJECT.py", label="Open PROJECT page")
+                st.page_link("1_PROJECT.py", label="Open PROJECT page")
             elif hasattr(st, "info"):
                 st.info(
                     "Open PROJECT from the AGILAB left panel, then return here from ANALYSIS."

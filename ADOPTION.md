@@ -32,7 +32,7 @@ Run this source-checkout path before trying private apps or cluster mode:
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 ```
 
 In the web UI, stay on the built-in `flight_project`:

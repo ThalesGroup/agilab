@@ -3,13 +3,13 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-05
+  updated: 2026-05-06
 ---
 
 # Streamlit Pages Skill (AGILAB)
 
 Use this skill when editing:
-- `src/agilab/About_agilab.py`
+- `src/agilab/main_page.py`
 - `src/agilab/pages/*.py`
 - `src/agilab/apps-pages/*/src/*/*.py`
 - custom `app_args_form.py` views in AGILAB-managed app repos
@@ -62,6 +62,32 @@ Use this skill when editing:
   - current preview from present inputs
   - last generated metric from persisted output
 - Do not write preview-only values back into `app_settings.toml` unless they are real app args.
+
+## Cross-Page UX and KPI Headers
+
+- Keep sidebar text short and action-oriented. Remove labels that only restate the active
+  project/page or explain obvious scope such as "actions below apply to this project".
+- Prefer page headers with a few read-only KPI cards over status banners that say
+  `ready`, `not set`, or `missing` without useful context.
+- Use the same visual semantics across pages:
+  - green only for verified positive values
+  - amber for incomplete, missing, or no-evidence-yet values
+  - neutral for identity or purely informational values
+- Do not color a value green just because it is present when the value means "no run",
+  "not configured", or "no artifact discovered".
+- Use product-facing labels instead of internal implementation terms:
+  - `Pipeline graph` instead of `DAG shape`
+  - `Stages` and `dependencies` instead of graph-only jargon such as nodes and edges
+  - `Project name` when the widget selects a project
+- Derived header values must be computed locally from existing evidence when possible.
+  For example, count ORCHESTRATE runs from `run_*.log` files under the app run
+  environment instead of adding another persisted setting.
+- When a generic page has no app-specific semantic data, show an honest fallback such
+  as execution steps, output files, or discovered dataframes rather than inventing a
+  domain-specific metric.
+- Update focused page tests when changing visible labels, header cards, or sidebar
+  structure. Grep old wording before closing the task so stale copy does not survive in
+  tests, docs, or screenshots.
 
 ## App-Specific Page Defaults
 

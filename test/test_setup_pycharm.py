@@ -18,7 +18,7 @@ SPEC.loader.exec_module(setup_pycharm)
 
 def _make_agilab_source_root(path: Path) -> Path:
     (path / "src" / "agilab").mkdir(parents=True)
-    (path / "src" / "agilab" / "About_agilab.py").write_text("", encoding="utf-8")
+    (path / "src" / "agilab" / "main_page.py").write_text("", encoding="utf-8")
     (path / "pyproject.toml").write_text("[project]\nname = \"agilab\"\n", encoding="utf-8")
     return path
 

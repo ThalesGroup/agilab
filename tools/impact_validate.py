@@ -38,7 +38,7 @@ GUI_PREFIXES = (
 GUI_TOP_LEVEL_PREFIXES = (
     "src/agilab/orchestrate_",
     "src/agilab/pipeline_",
-    "src/agilab/About_agilab.py",
+    "src/agilab/main_page.py",
 )
 TEST_PREFIXES = (
     "test/",

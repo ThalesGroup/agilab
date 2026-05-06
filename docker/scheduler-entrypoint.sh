@@ -27,4 +27,4 @@ if [[ -n "${DOCKER_WORKERS:-}" ]]; then
 fi
 
 exec uv --preview-features extra-build-dependencies run streamlit run \
-    /app/src/agilab/About_agilab.py -- --apps-path /app/src/agilab/apps
+    /app/src/agilab/main_page.py -- --apps-path /app/src/agilab/apps

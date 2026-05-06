@@ -96,7 +96,7 @@ Failure 4: the web UI or About/ORCHESTRATE smoke fails
 
 Symptom:
 
-- ``streamlit run src/agilab/About_agilab.py`` fails
+- ``streamlit run src/agilab/main_page.py`` fails
 - the newcomer proof command reports a failing ``source ui smoke`` step
 - About or ORCHESTRATE raises exceptions during AppTest startup
 
@@ -106,7 +106,7 @@ Recovery::
 
 If that fails, run the pages directly::
 
-    uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+    uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 
 Then verify the built-in app can be resolved by path::
 
