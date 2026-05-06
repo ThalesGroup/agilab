@@ -15,17 +15,17 @@ Use these when you intentionally want GitHub ``main`` instead of the current
 published package.
 
 .. image:: https://colab.research.google.com/assets/colab-badge.svg
-   :target: https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb
+   :target: https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb
    :alt: Open In Colab
 
 .. image:: https://kaggle.com/static/images/open-in-kaggle.svg
-   :target: https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb
+   :target: https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb
    :alt: Open In Kaggle
 
 - Colab source route:
-  `Open First Run In Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
+  `Open First Run In Colab <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_first_run_source.ipynb>`_
 - Kaggle source route:
-  `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb>`_
+  `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run_source.ipynb>`_
 
 Both launchers clone the repository, prepare an isolated runtime venv, and run
 the built-in MyCode example app (internal id ``mycode_project``) without
@@ -36,12 +36,12 @@ Kaggle note: enable Internet in the notebook settings for the first install.
 Other notebook entry points
 ---------------------------
 
-- `Benchmark <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb>`_
+- `Benchmark <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_benchmark_source.ipynb>`_
   benchmarks the built-in MyCode example app across the default AGILAB mode
   sweep and renders a ranked comparison table.
-- `Data + DAG <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
+- `Data + DAG <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_data_dag.ipynb>`_
   is the advanced source notebook for a data-worker app and a DAG-style app.
-- `Worker Paths <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb>`_
+- `Worker Paths <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_worker_paths.ipynb>`_
   is the advanced source notebook for worker-class and source-path inspection.
 
 Published-package variants
@@ -50,11 +50,11 @@ Published-package variants
 Use these when you explicitly want the current PyPI release but still want the
 broader notebook matrix rather than the newcomer quickstart.
 
-- `First Run (PyPI, Colab) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
-- `First Run (PyPI, Kaggle) <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb>`_
-- `Benchmark (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
-- `Data + DAG (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb>`_
-- `Worker Paths (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb>`_
+- `First Run (PyPI, Colab) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_first_run.ipynb>`_
+- `First Run (PyPI, Kaggle) <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb>`_
+- `Benchmark (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_benchmark.ipynb>`_
+- `Data + DAG (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_data_dag_pypi.ipynb>`_
+- `Worker Paths (PyPI) <https://colab.research.google.com/github/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_colab_worker_paths_pypi.ipynb>`_
 
 Repository launch flow
 ----------------------
@@ -67,7 +67,7 @@ From the AGILab repository root:
    git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
    cd "$CHECKOUT"
    ./install.sh --install-apps
-   uv run --with jupyterlab jupyter lab examples/notebook_quickstart/agi_core_first_run.ipynb
+   uv run --with jupyterlab jupyter lab src/agilab/examples/notebook_quickstart/agi_core_first_run.ipynb
 
 If you also want local Ollama-backed models available in the same source
 checkout, rerun the installer with the families you want::
@@ -78,7 +78,7 @@ Supported values are ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``,
 ``qwen3-coder``, ``ministral``, and ``phi4-mini``.
 
 The notebook file lives in the repository at
-``examples/notebook_quickstart/agi_core_first_run.ipynb``.
+``src/agilab/examples/notebook_quickstart/agi_core_first_run.ipynb``.
 
 Minimal source-checkout notebook cells
 --------------------------------------

@@ -68,7 +68,7 @@ Current public matrix
      - Does not certify every remote topology or deployment policy
    * - Notebook quickstart
      - documented
-     - ``examples/notebook_quickstart/agi_core_first_run.ipynb``
+     - ``src/agilab/examples/notebook_quickstart/agi_core_first_run.ipynb``
      - Public notebook-first route for users who intentionally start from
        ``agi-core``
      - Not the recommended first proof path

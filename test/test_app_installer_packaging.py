@@ -287,6 +287,7 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/notebook_to_dask/*.json" in package_data
     assert "examples/notebook_to_dask/*.toml" in package_data
     assert "examples/notebook_to_dask/*.ipynb" in package_data
+    assert "examples/notebook_quickstart/*.ipynb" in package_data
     assert "examples/notebook_migrations/*/README.md" in package_data
     assert "examples/notebook_migrations/*/analysis_artifacts/*.csv" in package_data
     assert "examples/notebook_migrations/*/analysis_artifacts/*.json" in package_data

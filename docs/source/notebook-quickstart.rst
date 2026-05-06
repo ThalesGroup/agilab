@@ -13,10 +13,10 @@ Start here
 Use the Kaggle launcher first:
 
 .. image:: https://kaggle.com/static/images/open-in-kaggle.svg
-   :target: https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb
+   :target: https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb
    :alt: Open In Kaggle
 
-- `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb>`_
+- `Open First Run In Kaggle <https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb>`_
 
 This launcher installs the published AGILAB runtime packages into an isolated
 Kaggle venv under ``/kaggle/working`` and runs the built-in MyCode example app

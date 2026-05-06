@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 import importlib.util
 import re
+import subprocess
 import sys
 from pathlib import Path
 import tomllib
@@ -35,11 +36,11 @@ COMPATIBILITY_DOC = Path("docs/source/compatibility-matrix.rst")
 COMPATIBILITY_MATRIX = Path("docs/source/data/compatibility_matrix.toml")
 RELEASE_PROOF_MANIFEST = Path("docs/source/data/release_proof.toml")
 DOCS_SOURCE = Path("docs/source")
-METEO_NOTEBOOK_MIGRATION = Path("examples/notebook_migrations/skforecast_meteo_fr")
-PACKAGED_METEO_NOTEBOOK_MIGRATION = Path("src/agilab/examples/notebook_migrations/skforecast_meteo_fr")
+NOTEBOOK_EXAMPLES = Path("src/agilab/examples")
+METEO_NOTEBOOK_MIGRATION = NOTEBOOK_EXAMPLES / "notebook_migrations/skforecast_meteo_fr"
 PUBLIC_HF_SPACE_URL = "https://huggingface.co/spaces/jpmorard/agilab"
 PUBLIC_HF_SPACE_BADGE = "https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge"
-AGI_CORE_NOTEBOOK_URL = "https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"
+AGI_CORE_NOTEBOOK_URL = "https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"
 AGI_CORE_NOTEBOOK_BADGE = "https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge"
 HF_RUNTIME_URL = "https://jpmorard-agilab.hf.space"
 QUICK_START_URL = "https://thalesgroup.github.io/agilab/quick-start.html"
@@ -82,6 +83,15 @@ def _load_notebook_pipeline_import_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_public_examples_do_not_use_root_examples_tree() -> None:
+    tracked_root_examples = subprocess.check_output(
+        ["git", "ls-files", "examples"],
+        text=True,
+    ).splitlines()
+
+    assert tracked_root_examples == []
 
 
 @lru_cache(maxsize=1)
@@ -286,12 +296,7 @@ def test_meteo_notebook_migration_assets_are_complete_and_packaged() -> None:
 
     for relative_path in required_files:
         source = METEO_NOTEBOOK_MIGRATION / relative_path
-        packaged = PACKAGED_METEO_NOTEBOOK_MIGRATION / relative_path
         assert source.is_file(), f"Missing repository meteo migration asset: {source}"
-        assert packaged.is_file(), f"Missing packaged meteo migration asset: {packaged}"
-        assert (
-            packaged.read_bytes() == source.read_bytes()
-        ), f"Packaged meteo migration asset drifted: {packaged}"
 
     package_data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"][
         "package-data"
@@ -304,6 +309,31 @@ def test_meteo_notebook_migration_assets_are_complete_and_packaged() -> None:
         "examples/notebook_migrations/*/migrated_project/*.dot",
     ):
         assert pattern in package_data
+
+
+def test_notebook_quickstart_assets_are_packaged_from_agilab_package_tree() -> None:
+    notebook_dir = NOTEBOOK_EXAMPLES / "notebook_quickstart"
+    required_notebooks = (
+        "agi_core_colab_benchmark.ipynb",
+        "agi_core_colab_benchmark_source.ipynb",
+        "agi_core_colab_data_dag.ipynb",
+        "agi_core_colab_data_dag_pypi.ipynb",
+        "agi_core_colab_first_run.ipynb",
+        "agi_core_colab_first_run_source.ipynb",
+        "agi_core_colab_worker_paths.ipynb",
+        "agi_core_colab_worker_paths_pypi.ipynb",
+        "agi_core_first_run.ipynb",
+        "agi_core_kaggle_first_run.ipynb",
+        "agi_core_kaggle_first_run_source.ipynb",
+    )
+
+    for notebook in required_notebooks:
+        assert (notebook_dir / notebook).is_file(), notebook
+
+    package_data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"][
+        "package-data"
+    ]["agilab"]
+    assert "examples/notebook_quickstart/*.ipynb" in package_data
 
 
 def test_meteo_forecast_project_declares_notebook_import_views() -> None:
@@ -322,7 +352,7 @@ def test_meteo_forecast_project_declares_notebook_import_views() -> None:
         {
             "source": {
                 "source_notebook": (
-                    "examples/notebook_migrations/skforecast_meteo_fr/notebooks/"
+                    "src/agilab/examples/notebook_migrations/skforecast_meteo_fr/notebooks/"
                     "03_compare_predictions.ipynb"
                 )
             }
