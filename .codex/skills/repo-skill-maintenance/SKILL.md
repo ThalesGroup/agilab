@@ -3,7 +3,7 @@ name: repo-skill-maintenance
 description: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, and drift checks. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling Claude/Codex skill copies without overwriting unrelated skills.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-29
+  updated: 2026-05-06
 ---
 
 # Repo Skill Maintenance
@@ -24,6 +24,27 @@ newer Codex-specific content.
 
 Do not hand-edit both repo trees for the same shared skill.
 
+## Placement policy
+
+Repo-managed skills in this public checkout must be:
+
+- AGILAB-specific
+- cross-repo reusable for AGILAB work
+- or direct support for this repository's workflow, validation, docs, release,
+  packaging, UI, or example maintenance
+
+Keep these out of the public repo-managed trees:
+
+- personal productivity skills
+- private CV, recruiting, or career skills
+- non-AGILAB domain skills
+- skills whose examples depend on private customer/program context
+- machine-local skills with hard-coded usernames, absolute private paths, or
+  personal service accounts
+
+Use `~/.codex/skills/` for personal local skills and the relevant private repo
+for private-domain skills.
+
 ## When to use
 
 - Add a new shared repo skill
@@ -41,6 +62,9 @@ Do not hand-edit both repo trees for the same shared skill.
    - system/plugin-managed skill
    If the skill is personal, career-related, or otherwise not an AGILAB workflow asset,
    stop and keep it out of the repo-managed trees.
+   If the skill belongs in the public repo but needs local examples, use placeholders
+   such as `<repo>`, `<apps-repo>`, `<space-owner>`, `$HOME`, or relative paths instead
+   of maintainer-specific absolute paths.
 2. For shared repo skills, edit `.claude/skills/<skill>/` first.
 3. Keep the skill self-contained:
    - `SKILL.md`

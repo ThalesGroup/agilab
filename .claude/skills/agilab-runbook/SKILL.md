@@ -19,12 +19,13 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
 - **Process ownership**: treat existing terminals, Codex CLI sessions, dev servers, and other long-running processes as user-owned unless this turn started them. Do not use broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool sessions created for the active task. Do not use Codex CLI control shortcuts such as `/stop`, Esc interruption, or terminal-close actions to manage background terminals unless the terminal/session was created by this active task and its identity is verified. A status banner that says a background terminal is running is not ownership proof. If a port is busy, choose another port or ask before stopping its owner; do not try to "pause" another Codex CLI session from here.
 - **High-frequency shortcuts**: prefer `./dev <shortcut>` for repeated local validation loops. The
-  top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`, `flow` for one
-  or more workflow parity profiles, `badge` for the fresh coverage-badge guard, and `docs` for docs
-  mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
-  narrow pytest slice, `flow` matches local GitHub workflow profiles, `badge` catches stale coverage
-  badges, and `docs` keeps the public mirror aligned. Add `--print-only` to inspect the expanded
-  commands.
+  top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`, `regress` for
+  GA-selected fast regression subsets, `flow` for one or more workflow parity profiles, `badge` for
+  the fresh coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact`
+  tells you what must be validated, `test` runs the narrow pytest slice, `regress` optimizes a likely
+  regression subset from changed files and optional JUnit timings, `flow` matches local GitHub
+  workflow profiles, `badge` catches stale coverage badges, and `docs` keeps the public mirror
+  aligned. Add `--print-only` to inspect the expanded commands.
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 - **PyCharm source-root switching**: the JetBrains SDK named `uv (agilab)` is global and
@@ -58,6 +59,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - which targeted tests are required
   - whether installer repros are mandatory
   - whether generated artifacts must be refreshed
+- **Install-log startup check**: before launching flows after installer changes or a reported install
+  failure, inspect the latest installer log for errors. On macOS/Linux:
+  `dir="$HOME/log/install_logs"; f=$(ls -1t "$dir"/*.log 2>/dev/null | head -1); [ -n "$f" ] && echo "Log: $f" && grep -Eai "error|exception|traceback|failed|fatal|denied|missing|not found" "$f" | tail -n 25 || echo "No logs found."`
+  On Windows PowerShell:
+  `($d = "$HOME\log\install_logs"); $f = Get-ChildItem -LiteralPath $d -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1; if ($f) { Write-Host "Log:" $f.FullName; Select-String -LiteralPath $f.FullName -Pattern '(?i)(error|exception|traceback|failed|fatal|denied|missing|not found)' | Select-Object -Last 25 | ForEach-Object { $_.Line } } else { Write-Host "No logs found." }`
 - **Clone policy**: in the PROJECT page, keep two clone classes explicit:
   - temporary clones may share the source `.venv` by symlink for lightweight local experiments
   - working clones should detach `.venv` and rerun `INSTALL` before `EXECUTE`
@@ -69,8 +75,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   Prefer app-local fixes first. If a core edit looks necessary, stop and explain the required files,
   blast radius, and validation plan before making the change.
 - **Docs source of truth**: edit docs in the sibling repo
-  `../thales_agilab/docs/source` (machine path:
-  `/Users/agi/PycharmProjects/thales_agilab/docs/source`).
+  `../thales_agilab/docs/source` relative to the active AGILAB checkout.
 - **Generated docs in this repo**: treat `docs/html` (including `docs/html/_sources`)
   as build output only. Do not hand-edit files in `docs/html`; always edit source
   first and regenerate from `../thales_agilab/docs/source`.
@@ -78,6 +83,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
 - **Streamlit API**: do not add `st.experimental_rerun()`; use `st.rerun`.
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
+- **Skill placement guardrail**: repo-managed skills under `.claude/skills/` and `.codex/skills/`
+  must stay AGILAB-specific, cross-repo reusable for AGILAB work, or directly support this
+  repository’s workflows. Personal skills or skills for non-AGILAB domains belong in
+  `~/.codex/skills/` or the relevant private repo.
 - **Repository update requests**: when the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan before executing it. The plan should be a fenced `bash` block
   with concrete `git -C <repo>` commands for each targeted checkout. Use the fast path by default:
@@ -201,9 +210,9 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     - or recreate `~/.ssh/authorized_keys` with `0700` / `0600` permissions
 - If cluster mode depends on shared storage, restore the node’s `.agilab/.env` and remount the share before blaming AGILAB:
   - Linux node example:
-    - `AGI_CLUSTER_SHARE=/home/agi/clustershare`
-    - `AGI_LOCAL_SHARE=/home/agi/localshare`
-    - `sshfs agi@192.168.20.111:/Users/agi/clustershare /home/agi/clustershare`
+    - `AGI_CLUSTER_SHARE=/home/<worker-user>/clustershare`
+    - `AGI_LOCAL_SHARE=/home/<worker-user>/localshare`
+    - `sshfs <manager-user>@<manager-ip>:/path/to/manager/clustershare /home/<worker-user>/clustershare`
 - For macOS SSHFS workers:
   - `command -v brew` can miss Intel Homebrew; check `/usr/local/Homebrew/bin/brew` before assuming Homebrew is absent.
   - Prefer an interactive package install of FUSE-T SSHFS or macFUSE plus SSHFS; the package step may need an admin password.

@@ -50,7 +50,7 @@ Write the figure goal in one sentence before editing:
 
 - "Show how actor, critic, environment, and rollout storage interact during PPO training."
 - "Show the difference between edge-level PPO-GNN and path-level actor-critic routing."
-- "Show the end-to-end FCAS data flow from scenario generation to evaluation artifacts."
+- "Show the end-to-end airborne network data flow from scenario generation to evaluation artifacts."
 
 If the message is not crisp, the geometry will drift.
 
