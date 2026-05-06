@@ -22,6 +22,10 @@ def _requirement_name(requirement: str) -> str:
     return re.split(r"\s|\[|<|>|=|!|~", requirement, maxsplit=1)[0].lower()
 
 
+def _project_version(pyproject_path: Path) -> str:
+    return tomllib.loads(pyproject_path.read_text())["project"]["version"]
+
+
 def _run_python(script: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     package_src = str(AGI_ENV_ROOT / "src")
@@ -51,12 +55,10 @@ def test_agi_env_declares_no_streamlit_or_ui_extra() -> None:
 
 def test_agi_gui_declares_streamlit_ui_runtime() -> None:
     data = tomllib.loads((AGI_GUI_ROOT / "pyproject.toml").read_text())
-    root_data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
-    version = root_data["project"]["version"]
 
     dependencies = data["project"]["dependencies"]
 
-    assert f"agi-env=={version}" in dependencies
+    assert f"agi-env=={_project_version(AGI_ENV_ROOT / 'pyproject.toml')}" in dependencies
     assert any(
         _requirement_name(dependency) == "streamlit" and ">=1.56.0" in dependency
         for dependency in dependencies
@@ -66,10 +68,9 @@ def test_agi_gui_declares_streamlit_ui_runtime() -> None:
 
 def test_agilab_declares_agi_gui_for_full_ui_runtime() -> None:
     data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
-    version = data["project"]["version"]
 
     dependencies = data["project"]["dependencies"]
-    assert f"agi-gui=={version}" in dependencies
+    assert f"agi-gui=={_project_version(AGI_GUI_ROOT / 'pyproject.toml')}" in dependencies
     assert all("agi-env[ui]" not in dependency for dependency in dependencies)
 
 

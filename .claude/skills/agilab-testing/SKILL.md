@@ -151,6 +151,14 @@ validation, release, and Hugging Face sync in one flow.
   (Windows, macOS, Linux). Platform-specific packages such as Apple MLX must
   carry environment markers in `pyproject.toml`, otherwise the released wheel can
   pass local macOS validation and still fail `repo-guardrails` on Windows.
+- For partial umbrella patch releases, do not make release-preflight tests assume
+  every internal package version equals the root `agilab` version. The umbrella
+  may publish a metadata-only post release while exact-pinning already-published
+  core libraries; assert exact internal pins and marker correctness instead.
+- Real PyPI pre-upload must run the external install matrix guard from the built
+  wheel artifacts. It should dry-run `uv pip install` for Windows, Linux, and
+  macOS x64 before upload so `repo-guardrails` cannot be the first place a bad
+  platform marker or resolver failure appears.
 - Verify installed package content from outside the repo checkout with
   `uv run --refresh-package agilab --no-project --with agilab==<version> ...`.
   Running this from the repo can import local source and give a false pass.

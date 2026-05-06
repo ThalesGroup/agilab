@@ -39,9 +39,12 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.parser import Parser
 from typing import Dict, List, Tuple
 from html.parser import HTMLParser
 
@@ -61,6 +64,8 @@ def _ensure_pkgs():
 
 _ensure_pkgs()
 from tomlkit import parse as toml_parse, dumps as toml_dumps  # type: ignore
+from packaging.markers import default_environment  # type: ignore
+from packaging.requirements import InvalidRequirement, Requirement  # type: ignore
 from packaging.version import Version, InvalidVersion  # type: ignore
 
 # upload-state flags (set by twine_upload)
@@ -616,6 +621,118 @@ def run_pre_upload_release_guard(
         ],
         cwd=REPO_ROOT,
     )
+
+
+EXTERNAL_INSTALL_PLATFORMS: tuple[str, ...] = (
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+)
+
+NON_APPLE_SILICON_MARKER_ENVS: dict[str, dict[str, str]] = {
+    "windows-x64": {
+        "os_name": "nt",
+        "platform_machine": "AMD64",
+        "platform_system": "Windows",
+        "sys_platform": "win32",
+    },
+    "linux-x64": {
+        "os_name": "posix",
+        "platform_machine": "x86_64",
+        "platform_system": "Linux",
+        "sys_platform": "linux",
+    },
+    "macos-x64": {
+        "os_name": "posix",
+        "platform_machine": "x86_64",
+        "platform_system": "Darwin",
+        "sys_platform": "darwin",
+    },
+}
+APPLE_SILICON_ONLY_REQUIREMENTS: set[str] = {"mlx", "mlx-lm"}
+
+
+def _wheel_files(files: List[str]) -> list[pathlib.Path]:
+    return sorted(pathlib.Path(file) for file in files if str(file).endswith(".whl"))
+
+
+def _wheel_requires_dist(wheel_path: pathlib.Path) -> list[str]:
+    with zipfile.ZipFile(wheel_path) as archive:
+        metadata_paths = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+        if len(metadata_paths) != 1:
+            raise SystemExit(
+                f"ERROR: {wheel_path.name} must contain exactly one dist-info/METADATA file "
+                f"for release dependency validation; found {len(metadata_paths)}."
+            )
+        metadata = Parser().parsestr(archive.read(metadata_paths[0]).decode("utf-8", "replace"))
+    return list(metadata.get_all("Requires-Dist") or [])
+
+
+def _marker_env(overrides: dict[str, str]) -> dict[str, str]:
+    env = default_environment()
+    env.update(overrides)
+    return env
+
+
+def validate_wheel_external_machine_metadata(files: List[str]) -> None:
+    """Catch platform-scoped dependency mistakes before a wheel reaches PyPI."""
+    violations: list[str] = []
+    for wheel_path in _wheel_files(files):
+        for raw_requirement in _wheel_requires_dist(wheel_path):
+            try:
+                requirement = Requirement(raw_requirement)
+            except InvalidRequirement as exc:
+                violations.append(f"{wheel_path.name}: invalid Requires-Dist {raw_requirement!r}: {exc}")
+                continue
+            if requirement.name.lower() not in APPLE_SILICON_ONLY_REQUIREMENTS:
+                continue
+            for env_name, env_overrides in NON_APPLE_SILICON_MARKER_ENVS.items():
+                marker = requirement.marker
+                if marker is None or marker.evaluate(_marker_env(env_overrides)):
+                    violations.append(
+                        f"{wheel_path.name}: {requirement} must be excluded on {env_name}; "
+                        "Apple MLX dependencies are only valid on darwin/arm64"
+                    )
+
+    if violations:
+        raise SystemExit(
+            "ERROR: release artifact dependency metadata is not external-machine safe:\n- "
+            + "\n- ".join(violations)
+        )
+
+
+def run_pre_upload_external_install_guard(cfg: Cfg, files: List[str]) -> None:
+    """Dry-run the built wheels against external install platforms before upload."""
+    if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
+        return
+    wheels = _wheel_files(files)
+    if not wheels:
+        raise SystemExit("ERROR: Real PyPI release requires wheel artifacts for external install matrix validation.")
+
+    validate_wheel_external_machine_metadata(files)
+
+    with tempfile.TemporaryDirectory(prefix="agilab-release-install-matrix-") as tmp_dir:
+        tmp_root = pathlib.Path(tmp_dir)
+        for platform in EXTERNAL_INSTALL_PLATFORMS:
+            target = tmp_root / platform
+            print(f"[preflight] External install matrix guard: {platform}")
+            run(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--dry-run",
+                    "--target",
+                    str(target),
+                    "--python-version",
+                    "3.13",
+                    "--python-platform",
+                    platform,
+                    *(str(path) for path in wheels),
+                ],
+                cwd=REPO_ROOT,
+                timeout=300,
+            )
 
 
 def split_base_and_post(ver: str) -> Tuple[str, int | None]:
@@ -2206,6 +2323,7 @@ def main():
                 print("  -", f)
             return
 
+        run_pre_upload_external_install_guard(cfg, all_files)
         run_pre_upload_release_guard(
             cfg,
             planned_tag=planned_tag,
@@ -2267,6 +2385,7 @@ def main():
                 update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
                 uv_build_repo_root(cfg.dist)
                 all_files2.extend(dist_files_root())
+            run_pre_upload_external_install_guard(cfg, all_files2)
             run_pre_upload_release_guard(
                 cfg,
                 planned_tag=planned_tag,

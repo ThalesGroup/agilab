@@ -3,8 +3,11 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 import sys
+import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+
+import pytest
 
 
 MODULE_PATH = Path("tools/pypi_publish.py").resolve()
@@ -47,6 +50,20 @@ def _base_cfg(module, **overrides):
     }
     values.update(overrides)
     return module.Cfg(**values)
+
+
+def _write_wheel_metadata(path: Path, *, requires_dist: list[str]) -> None:
+    metadata = "\n".join(
+        [
+            "Metadata-Version: 2.1",
+            "Name: agilab",
+            "Version: 2026.5.5",
+            *(f"Requires-Dist: {requirement}" for requirement in requires_dist),
+            "",
+        ]
+    )
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("agilab-2026.5.5.dist-info/METADATA", metadata)
 
 
 def test_shields_badge_uses_stable_cache_endpoint() -> None:
@@ -399,6 +416,52 @@ def test_run_release_preflight_cleans_stale_coverage_before_workflow(tmp_path, m
     assert calls[0][1] == tmp_path
     assert calls[0][2] == [False, False, False]
     assert "tools/workflow_parity.py" in calls[0][0]
+
+
+def test_validate_wheel_external_machine_metadata_rejects_unmarked_mlx(tmp_path) -> None:
+    module = _load_pypi_publish()
+    wheel = tmp_path / "agilab-2026.5.5-py3-none-any.whl"
+    _write_wheel_metadata(wheel, requires_dist=["mlx>=0.31.2", "mlx-lm>=0.31.3"])
+
+    with pytest.raises(SystemExit, match="external-machine safe"):
+        module.validate_wheel_external_machine_metadata([str(wheel)])
+
+
+def test_validate_wheel_external_machine_metadata_accepts_apple_silicon_marked_mlx(tmp_path) -> None:
+    module = _load_pypi_publish()
+    wheel = tmp_path / "agilab-2026.5.5-py3-none-any.whl"
+    marker = 'sys_platform == "darwin" and platform_machine == "arm64"'
+    _write_wheel_metadata(
+        wheel,
+        requires_dist=[f"mlx>=0.31.2; {marker}", f"mlx-lm>=0.31.3; {marker}"],
+    )
+
+    module.validate_wheel_external_machine_metadata([str(wheel)])
+
+
+def test_pre_upload_external_install_guard_dry_runs_release_wheel_matrix(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    wheel = tmp_path / "agilab-2026.5.5-py3-none-any.whl"
+    _write_wheel_metadata(wheel, requires_dist=[])
+    calls: list[list[str]] = []
+
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "EXTERNAL_INSTALL_PLATFORMS", ("x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu"))
+    monkeypatch.setattr(module, "run", lambda cmd, **_kwargs: calls.append(cmd))
+
+    module.run_pre_upload_external_install_guard(
+        _base_cfg(module, repo="pypi", git_tag=True, git_commit_version=True, git_reset_on_failure=True),
+        [str(wheel), str(tmp_path / "agilab-2026.5.5.tar.gz")],
+    )
+
+    assert len(calls) == 2
+    assert all("--dry-run" in call for call in calls)
+    assert all("--python-version" in call and "3.13" in call for call in calls)
+    assert [call[call.index("--python-platform") + 1] for call in calls] == [
+        "x86_64-pc-windows-msvc",
+        "x86_64-unknown-linux-gnu",
+    ]
+    assert all(str(wheel) in call for call in calls)
 
 
 def test_compute_unified_version_rejects_auto_post_when_latest_release_is_newer_on_pypi(monkeypatch) -> None:
@@ -1283,6 +1346,11 @@ def test_main_runs_release_preflight_before_build(tmp_path, monkeypatch) -> None
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
     monkeypatch.setattr(
         module,
+        "run_pre_upload_external_install_guard",
+        lambda *_args, **_kwargs: order.append("external-install-guard"),
+    )
+    monkeypatch.setattr(
+        module,
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
@@ -1294,7 +1362,7 @@ def test_main_runs_release_preflight_before_build(tmp_path, monkeypatch) -> None
 
     module.main()
 
-    assert order[:4] == ["preflight", "badge", "build", "pre-upload-guard"]
+    assert order[:5] == ["preflight", "badge", "build", "external-install-guard", "pre-upload-guard"]
 
 
 def test_main_dry_run_restores_release_files(tmp_path, monkeypatch) -> None:
@@ -1561,6 +1629,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: order.append("badge"))
     monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: order.append("build"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "run_pre_upload_external_install_guard", lambda *_args, **_kwargs: order.append("external-install-guard"))
     monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "next_free_post_for_all", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not auto-post for pypi")))
     monkeypatch.setattr(module, "update_release_proof_references", lambda *_args, **_kwargs: None)
@@ -1574,7 +1643,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     else:
         raise AssertionError("main() should reject real PyPI upload collisions")
 
-    assert order == ["badge", "build", "commit", "reset"]
+    assert order == ["badge", "build", "external-install-guard", "commit", "reset"]
 
 
 def test_twine_upload_reports_summary_and_skip_existing(monkeypatch, capsys) -> None:
@@ -1722,6 +1791,11 @@ def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
     monkeypatch.setattr(
         module,
+        "run_pre_upload_external_install_guard",
+        lambda *_args, **_kwargs: order.append("external-install-guard"),
+    )
+    monkeypatch.setattr(
+        module,
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
@@ -1735,6 +1809,7 @@ def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
 
     assert order == [
         "preflight",
+        "external-install-guard",
         "pre-upload-guard",
         "release-refs",
         "commit",
@@ -1801,6 +1876,11 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
     monkeypatch.setattr(
         module,
+        "run_pre_upload_external_install_guard",
+        lambda *_args, **_kwargs: order.append("external-install-guard"),
+    )
+    monkeypatch.setattr(
+        module,
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
@@ -1815,6 +1895,7 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
 
     assert order == [
         "preflight",
+        "external-install-guard",
         "pre-upload-guard",
         "release-refs",
         "commit",
@@ -2135,6 +2216,11 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
     monkeypatch.setattr(
         module,
+        "run_pre_upload_external_install_guard",
+        lambda *_args, **_kwargs: order.append("external-install-guard"),
+    )
+    monkeypatch.setattr(
+        module,
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
@@ -2150,6 +2236,7 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
 
     assert order == [
         "preflight",
+        "external-install-guard",
         "pre-upload-guard",
         "gen-docs",
         "release-refs",
