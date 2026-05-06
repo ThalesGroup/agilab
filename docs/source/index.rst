@@ -91,6 +91,7 @@ references, and example projects.
 
    demos
    execution-playground
+   industrial-optimization-examples
    notebook-migration-skforecast-meteo
    mycode-project
 

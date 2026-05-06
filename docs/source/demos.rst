@@ -49,6 +49,11 @@ What each route is for
   analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
   ``inter_project_dag`` previews, :doc:`data-connectors`, and
   :doc:`release-proof`.
+- **Industrial optimization examples**: use
+  :doc:`industrial-optimization-examples` when your apps repository includes
+  ``sb3_trainer_project`` and you want the advanced SB3 routes: Active Mesh
+  Optimization, MLflow auto-tracking, multi-app DAGs, resilience/failure
+  injection, and train-then-serve contracts.
 - **Quick start**: the safest truthful first proof of the full product path.
   Use :doc:`quick-start` if you want the recommended local run instead of a
   public demo.
@@ -142,5 +147,6 @@ See also
 - :doc:`notebook-quickstart`
 - :doc:`notebook-migration-skforecast-meteo`
 - :doc:`advanced-proof-pack`
+- :doc:`industrial-optimization-examples`
 - :doc:`newcomer-guide`
 - :doc:`compatibility-matrix`
