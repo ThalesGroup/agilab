@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import subprocess
+
+
+MODULE_PATH = Path("tools/install_release_proof_package.py").resolve()
+
+
+def _load_module():
+    spec = importlib.util.spec_from_file_location(
+        "install_release_proof_package_test_module",
+        MODULE_PATH,
+    )
+    assert spec is not None
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_release_package_spec_reads_manifest_version(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest = tmp_path / "release_proof.toml"
+    manifest.write_text(
+        "[release]\n"
+        'package_name = "agilab"\n'
+        'package_version = "2026.05.05.post2"\n',
+        encoding="utf-8",
+    )
+
+    assert module.release_package_spec(manifest) == (
+        "agilab",
+        "2026.05.05.post2",
+        "agilab==2026.05.05.post2",
+    )
+
+
+def test_install_with_retry_uses_exact_spec_and_refreshes_index(monkeypatch) -> None:
+    module = _load_module()
+    install_calls: list[list[str]] = []
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        module.metadata,
+        "version",
+        lambda _package_name: "2026.5.5.post2",
+    )
+
+    def runner(cmd: list[str]) -> subprocess.CompletedProcess[str]:
+        install_calls.append(cmd)
+        return subprocess.CompletedProcess(
+            cmd,
+            returncode=1 if len(install_calls) == 1 else 0,
+        )
+
+    rc = module.install_with_retry(
+        "agilab",
+        "agilab==2026.05.05.post2",
+        retries=2,
+        delay_seconds=0.25,
+        runner=runner,
+        sleeper=sleeps.append,
+        diagnose=False,
+    )
+
+    assert rc == 0
+    assert [call[-1] for call in install_calls] == [
+        "agilab==2026.05.05.post2",
+        "agilab==2026.05.05.post2",
+    ]
+    assert all("--no-cache-dir" in call for call in install_calls)
+    assert sleeps == [0.25]
