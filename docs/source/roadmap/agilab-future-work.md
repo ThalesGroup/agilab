@@ -323,6 +323,11 @@ Current shipped baseline:
   `relay_followup` as `blocked`, and records transition, retry,
   partial-rerun, operator-message, and provenance metadata without executing
   apps
+- the PIPELINE page now includes a `Global DAG runner` preview expander that
+  can select a `agilab.multi_app_dag.v1` contract, reset the persisted preview
+  state, render app/artifact dependencies, list artifact handoffs, and dispatch
+  the next runnable unit into `running` state without claiming live app
+  execution
 - `tools/global_pipeline_dispatch_state_report.py --compact` writes and reads
   back a persisted dispatch-state JSON proof, records `queue_baseline`
   completion, publishes `queue_metrics`, marks `relay_followup` runnable, and

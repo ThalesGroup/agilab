@@ -355,6 +355,12 @@ to the same contract, artifact names, stable node IDs, and provenance.
   ``tools/global_pipeline_runner_state_report.py --compact``; it records
   retry and partial-rerun metadata plus operator-facing readiness messages
   without claiming live app execution
+- the PIPELINE page exposes the same runner-state contract in a
+  ``Global DAG runner`` preview expander; operators can select a
+  ``agilab.multi_app_dag.v1`` JSON contract, reset the persisted preview
+  state, inspect the app/artifact graph, review missing or available handoffs,
+  and dispatch the next runnable unit into ``running`` state without claiming
+  that the downstream app has executed
 - the global DAG dispatch state report writes and reads back a
   persisted run-state JSON proof with
   ``tools/global_pipeline_dispatch_state_report.py --compact``; it records
