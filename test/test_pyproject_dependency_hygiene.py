@@ -4,6 +4,7 @@ import tomllib
 from pathlib import Path
 import sys
 
+from packaging.markers import default_environment
 from packaging.requirements import Requirement
 
 
@@ -93,6 +94,45 @@ def test_root_runtime_dependencies_have_explicit_version_policy() -> None:
             violations.append(f"{requirement}: missing lower bound or compatible version floor")
 
     assert violations == []
+
+
+def test_root_apple_silicon_dependencies_are_platform_marked() -> None:
+    requirements = {requirement.name.lower(): requirement for requirement in _dependencies(REPO_ROOT / "pyproject.toml")}
+
+    windows_env = default_environment()
+    windows_env.update(
+        {
+            "os_name": "nt",
+            "platform_machine": "AMD64",
+            "platform_system": "Windows",
+            "sys_platform": "win32",
+        }
+    )
+    linux_env = default_environment()
+    linux_env.update(
+        {
+            "os_name": "posix",
+            "platform_machine": "x86_64",
+            "platform_system": "Linux",
+            "sys_platform": "linux",
+        }
+    )
+    mac_arm_env = default_environment()
+    mac_arm_env.update(
+        {
+            "os_name": "posix",
+            "platform_machine": "arm64",
+            "platform_system": "Darwin",
+            "sys_platform": "darwin",
+        }
+    )
+
+    for name in ("mlx", "mlx-lm"):
+        requirement = requirements[name]
+        assert requirement.marker is not None
+        assert requirement.marker.evaluate(windows_env) is False
+        assert requirement.marker.evaluate(linux_env) is False
+        assert requirement.marker.evaluate(mac_arm_env) is True
 
 
 def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
