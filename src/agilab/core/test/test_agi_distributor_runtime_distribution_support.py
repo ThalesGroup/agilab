@@ -184,6 +184,105 @@ async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_ensure_remote_cluster_shares_remounts_remote_workers_only():
+    calls = []
+    agi = SimpleNamespace(
+        env=SimpleNamespace(is_local=lambda ip: ip in {"127.0.0.1", "192.168.20.111"}),
+        _workers={"192.168.20.111": 1, "192.168.20.15": 1},
+        _workers_data_path="clustershare/agi",
+    )
+
+    async def _fake_prepare(agi_cls, ip, env, remote_share, *, log):
+        calls.append((agi_cls, ip, env, remote_share, log))
+
+    mounted = await runtime_distribution_support.ensure_remote_cluster_shares(
+        agi,
+        prepare_remote_cluster_share_fn=_fake_prepare,
+        log="logger",
+    )
+
+    assert mounted == ["192.168.20.15"]
+    assert [(ip, remote_share) for _, ip, _, remote_share, _ in calls] == [
+        ("192.168.20.15", "clustershare/agi")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_start_remounts_remote_cluster_share_before_worker_processes(monkeypatch, tmp_path):
+    wenv_abs = tmp_path / "worker_env"
+    (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "dist" / "demo.egg").write_text("x", encoding="utf-8")
+    events: list[str] = []
+
+    AGI.env = SimpleNamespace(
+        is_local=lambda ip: ip == "192.168.20.111",
+        envars={},
+        uv="uv",
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+    )
+    AGI._mode = AGI.DASK_MODE
+    AGI._mode_auto = False
+    AGI._workers = {"192.168.20.111": 1, "192.168.20.15": 1}
+    AGI._workers_data_path = "clustershare/agi"
+    AGI._scheduler = "192.168.20.111:8786"
+    AGI._scheduler_ip = "192.168.20.111"
+    AGI._worker_init_error = False
+
+    class _Client:
+        def upload_file(self, _path):
+            events.append("upload")
+
+    async def _fake_start_scheduler(_scheduler):
+        events.append("scheduler")
+        return True
+
+    async def _fake_detect(_ip):
+        return 'export PATH="$HOME/.local/bin:$PATH"; '
+
+    async def _fake_sync(timeout=60):
+        events.append("sync")
+        return None
+
+    async def _fake_build_remote():
+        return None
+
+    def _fake_exec_ssh_async(ip, _cmd):
+        events.append(f"worker:{ip}")
+        return None
+
+    async def _fake_prepare(_agi_cls, ip, _env, remote_share, *, log):
+        del log
+        events.append(f"mount:{ip}:{remote_share}")
+
+    monkeypatch.setattr(AGI, "_dask_client", _Client())
+    monkeypatch.setattr(AGI, "_start_scheduler", staticmethod(_fake_start_scheduler))
+    monkeypatch.setattr(AGI, "_detect_export_cmd", staticmethod(_fake_detect))
+    monkeypatch.setattr(AGI, "_sync", staticmethod(_fake_sync))
+    monkeypatch.setattr(AGI, "_build_lib_remote", staticmethod(_fake_build_remote))
+    monkeypatch.setattr(AGI, "exec_ssh_async", staticmethod(_fake_exec_ssh_async))
+    monkeypatch.setattr(
+        AGI,
+        "_exec_bg",
+        staticmethod(lambda _cmd, _cwd: events.append("worker:192.168.20.111")),
+    )
+    monkeypatch.setattr(
+        runtime_distribution_support.deployment_remote_support,
+        "_prepare_remote_cluster_share",
+        _fake_prepare,
+    )
+
+    await runtime_distribution_support.start(
+        AGI,
+        "192.168.20.111",
+        set_env_var_fn=lambda *_args, **_kwargs: None,
+        create_task_fn=lambda _value: None,
+    )
+
+    assert events.index("mount:192.168.20.15:clustershare/agi") < events.index("worker:192.168.20.15")
+
+
+@pytest.mark.asyncio
 async def test_start_propagates_unexpected_detect_export_bug(monkeypatch, tmp_path):
     wenv_abs = tmp_path / "worker_env"
     wenv_abs.mkdir(parents=True, exist_ok=True)
@@ -634,6 +733,8 @@ async def test_distribute_wraps_payloads_and_logs_worker_outputs(monkeypatch):
     )
 
     assert result == "mode=4 0.0"
+    first_submit = calls["submit"][0]
+    assert first_submit[2]["app"] == "demo_project"
     assert calls["submit"][1][1][0] == ["step"]
     assert calls["submit"][1][1][1] == [{"meta": 1}]
 
