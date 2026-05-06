@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.05.post1"
+version = "2026.05.05.post2"
 name = "agilab"
 description = "AGILAB is a reproducible AI/ML workbench for engineering teams."
 requires-python = ">=3.11"
@@ -62,6 +62,8 @@ agilab = "agilab.lab_run:main"
 ai = ["openai>=2.32.0"]
 viz = ["matplotlib>=3.10.0", "plotly>=6.7.0"]
 offline = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
+
+
 
 
 

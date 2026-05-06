@@ -1,6 +1,6 @@
 [project]
 name = "flight_project"
-version = "2026.05.05.post1"
+version = "2026.05.05.post2"
 description = "Built-in AGILab example app (flight telemetry preprocessing)"
 requires-python = ">=3.11"
 dependencies = ["agi-env>=2026.05.05.post1", "agi-node>=2026.05.05.post1", "polars[rtcompat]", "pydantic", "py7zr", "streamlit>=1.56.0"]
