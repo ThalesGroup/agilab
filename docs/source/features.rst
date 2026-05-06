@@ -357,10 +357,12 @@ to the same contract, artifact names, stable node IDs, and provenance.
   without claiming live app execution
 - the PIPELINE page exposes the same runner-state contract in a
   ``Global DAG runner`` preview expander; operators can select a
-  ``agilab.multi_app_dag.v1`` JSON contract, reset the persisted preview
-  state, inspect the app/artifact graph, review missing or available handoffs,
-  and dispatch the next runnable unit into ``running`` state without claiming
-  that the downstream app has executed
+  ``agilab.multi_app_dag.v1`` contract, edit stages and artifact handoffs
+  through selector-driven workspace drafts and read-only summaries, validate
+  it without hand-editing docs files, reset the persisted preview state,
+  inspect the app/artifact graph, review missing or available handoffs, and
+  dispatch the next runnable unit into ``running`` state without claiming that
+  the downstream app has executed
 - the global DAG dispatch state report writes and reads back a
   persisted run-state JSON proof with
   ``tools/global_pipeline_dispatch_state_report.py --compact``; it records

@@ -56,15 +56,36 @@ class _Ctx:
         return getattr(self._owner, name)
 
 
+class _FakeColumnConfig:
+    @staticmethod
+    def SelectboxColumn(label, **kwargs):
+        return {"type": "selectbox", "label": label, **kwargs}
+
+
 class _FakeStreamlit:
-    def __init__(self, session_state=None, *, buttons=None, selectboxes=None, multiselects=None):
+    def __init__(
+        self,
+        session_state=None,
+        *,
+        buttons=None,
+        selectboxes=None,
+        multiselects=None,
+        checkboxes=None,
+        data_editors=None,
+    ):
         self.session_state = _State(session_state or {})
         self._buttons = buttons or {}
         self._selectboxes = selectboxes or {}
         self._multiselects = multiselects or {}
+        self._checkboxes = checkboxes or {}
+        self._data_editors = data_editors or {}
         self.messages: list[tuple[str, str]] = []
         self.button_calls: list[tuple[str, dict[str, object]]] = []
+        self.data_editor_calls: list[tuple[str, dict[str, object]]] = []
         self.graphviz_sources: list[str] = []
+        self.multiselect_calls: list[tuple[str, list[object], str | None]] = []
+        self.text_area_labels: list[str] = []
+        self.column_config = _FakeColumnConfig()
 
     def fragment(self, func):
         return func
@@ -77,6 +98,9 @@ class _FakeStreamlit:
 
     def caption(self, message):
         self.messages.append(("caption", str(message)))
+
+    def markdown(self, message, **_kwargs):
+        self.messages.append(("markdown", str(message)))
 
     def code(self, message, language=None):
         self.messages.append(("code", str(message)))
@@ -99,6 +123,7 @@ class _FakeStreamlit:
         return [_Ctx(self) for _ in range(count)]
 
     def multiselect(self, _label, options, key=None, format_func=None, help=None):
+        self.multiselect_calls.append((str(_label), list(options), key))
         value = self._multiselects.get(key, self.session_state.get(key, list(options)))
         self.session_state[key] = list(value)
         return list(value)
@@ -125,12 +150,30 @@ class _FakeStreamlit:
         return value
 
     def text_area(self, _label, key=None, placeholder=None, label_visibility=None, on_change=None, **_kwargs):
+        self.text_area_labels.append(str(_label))
         self.session_state.setdefault(key, "")
         return self.session_state[key]
 
     def text_input(self, _label, value="", disabled=False, key=None, **_kwargs):
         self.session_state.setdefault(key, value)
         return self.session_state[key]
+
+    def checkbox(self, _label, value=False, key=None, **_kwargs):
+        lookup_key = key or _label
+        checked = self._checkboxes.get(lookup_key, self.session_state.get(lookup_key, value))
+        self.session_state[lookup_key] = bool(checked)
+        return bool(checked)
+
+    def data_editor(self, data, key=None, **_kwargs):
+        self.data_editor_calls.append((str(key), dict(_kwargs)))
+        if key in self._data_editors:
+            value = self._data_editors[key]
+        else:
+            value = self.session_state.get(key, data)
+        self.session_state[key] = value
+        length = len(value) if hasattr(value, "__len__") else "unknown"
+        self.messages.append(("data_editor", f"{key}={length}"))
+        return value
 
     def button(self, _label, key=None, **_kwargs):
         self.button_calls.append((str(key or _label), dict(_kwargs)))
@@ -705,7 +748,8 @@ def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypat
     fake_st = _FakeStreamlit(
         {
             "demo_global_runner_dag_path": "docs/source/data/multi_app_dag_sample.json",
-        }
+        },
+        checkboxes={"demo_global_runner_show_custom_path": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
@@ -754,6 +798,65 @@ def test_global_runner_panel_reset_rebuilds_matching_runner_state(monkeypatch, t
     assert state["run_status"] == "planned"
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
     assert state["summary"]["running_unit_ids"] == []
+
+
+def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch, tmp_path):
+    selected = "docs/source/data/multi_app_dag_flight_sample.json"
+    token = pipeline_lab._global_dag_source_token(selected)
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_library": selected,
+            "demo_global_runner_dag_path": "",
+            f"demo_global_runner_dag_id_{token}": "flight-dag-edited",
+            f"demo_global_runner_label_{token}": "Edited flight DAG",
+        },
+        buttons={"demo_global_runner_save_draft": True},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    draft_path = tmp_path / ".agilab" / "global_dags" / "flight-dag-edited.json"
+    assert draft_path.is_file()
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["source"]["dag_path"] == str(draft_path)
+    assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
+    assert any(kind == "success" and "Saved DAG draft" in message for kind, message in fake_st.messages)
+    assert "Edit DAG JSON draft" not in fake_st.text_area_labels
+    assert any(label == "Stages" for label, _options, _key in fake_st.multiselect_calls)
+    assert any(
+        label == "Produced artifacts" and key == f"demo_global_runner_produces_{token}"
+        for label, _options, key in fake_st.multiselect_calls
+    )
+    assert any(
+        label == "Stage connections" and key == f"demo_global_runner_edges_{token}"
+        for label, _options, key in fake_st.multiselect_calls
+    )
+    assert not fake_st.data_editor_calls
+
+
+def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, tmp_path):
+    selected = "docs/source/data/multi_app_dag_flight_sample.json"
+    token = pipeline_lab._global_dag_source_token(selected)
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_library": selected,
+            "demo_global_runner_dag_path": "",
+            f"demo_global_runner_dag_id_{token}": "",
+        },
+        buttons={"demo_global_runner_validate": True},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    assert ("error", "DAG draft is not valid.") in fake_st.messages
+    assert ("caption", "Validation details") in fake_st.messages
+    assert any(kind == "code" and "dag_id is required" in message for kind, message in fake_st.messages)
+    assert not (tmp_path / ".agilab" / "global_dags").exists()
+    assert "Edit DAG JSON draft" not in fake_st.text_area_labels
 
 
 def test_global_runner_artifact_handoffs_mark_available_and_missing():
