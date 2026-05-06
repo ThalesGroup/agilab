@@ -52,6 +52,12 @@ What belongs here
      - Public trust evidence: PyPI package, GitHub release, CI guardrails,
        docs-source integrity, and hosted-demo evidence in one page.
      - See :doc:`release-proof`.
+   * - Optional SB3 industrial optimization examples
+     - Advanced app-repository routes for active mesh optimization, MLflow
+       auto-tracking, multi-app DAGs, resilience/failure injection, and
+       train-then-serve policy contracts.
+     - See :doc:`industrial-optimization-examples` when
+       ``sb3_trainer_project`` is installed.
 
 Recommended order
 -----------------
@@ -98,6 +104,12 @@ Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
   lifecycle and health thresholds are explicit. Do not claim production service
   certification from the preview.
 
+**Industrial optimization lane**
+  :doc:`industrial-optimization-examples`. Stop when the reviewer can see the
+  active-mesh or queue-routing artifact contract, optional MLflow tracking
+  status, resilience comparison, or service contract without confusing those
+  examples with the default hosted first proof.
+
 What not to claim
 -----------------
 
@@ -110,6 +122,9 @@ What not to claim
   Polars already manages native internal parallelism.
 - Do not claim the UAV examples are full research simulators. They are compact
   public scenarios shaped to prove AGILAB workflow value.
+- Do not claim the Active Mesh Optimization example is full decentralized
+  MARL. It is a compact centralized-policy route that makes the agent/action
+  contract visible for later hardening.
 
 Related pages
 -------------
@@ -118,6 +133,7 @@ Related pages
 - :doc:`agilab-demo`
 - :doc:`execution-playground`
 - :doc:`data-connectors`
+- :doc:`industrial-optimization-examples`
 - :doc:`service-mode`
 - :doc:`release-proof`
 - :doc:`compatibility-matrix`
