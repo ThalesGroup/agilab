@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from zipfile import BadZipFile, ZipFile
 
+from agi_cluster.agi_distributor import deployment_remote_support
+
 
 logger = logging.getLogger(__name__)
 
@@ -268,6 +270,8 @@ async def start(
     if not await agi_cls._start_scheduler(scheduler):
         return False
 
+    await ensure_remote_cluster_shares(agi_cls)
+
     for i, (ip, n) in enumerate(agi_cls._workers.items()):
         is_local = env.is_local(ip)
         cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
@@ -371,6 +375,41 @@ async def sync(
     log.info("All workers successfully attached to scheduler")
 
 
+async def ensure_remote_cluster_shares(
+    agi_cls: Any,
+    *,
+    prepare_remote_cluster_share_fn: Callable[..., Any] | None = None,
+    log: Any = logger,
+) -> list[str]:
+    """Revalidate SSHFS-backed worker shares before Dask workers start.
+
+    Remote mounts can disappear after an install while the worker venv remains valid.
+    Reusing the install-time mount routine here keeps RUN idempotent and prevents
+    workers from reading an empty local directory with a stale `AGI_CLUSTER_SHARE`.
+    """
+    remote_share = str(getattr(agi_cls, "_workers_data_path", "") or "").strip()
+    if not remote_share:
+        return []
+
+    if prepare_remote_cluster_share_fn is None:
+        prepare_remote_cluster_share_fn = deployment_remote_support._prepare_remote_cluster_share
+
+    env = agi_cls.env
+    mounted: list[str] = []
+    for ip in sorted(getattr(agi_cls, "_workers", {}) or {}):
+        if env.is_local(ip):
+            continue
+        await prepare_remote_cluster_share_fn(
+            agi_cls,
+            ip,
+            env,
+            remote_share,
+            log=log,
+        )
+        mounted.append(ip)
+    return mounted
+
+
 def scale_cluster(agi_cls: Any, *, log: Any = logger) -> None:
     if not agi_cls._dask_workers:
         return
@@ -427,7 +466,7 @@ async def distribute(
             client.submit(
                 base_worker_cls._new,
                 env=0 if env.debug else None,
-                app=env.target_worker,
+                app=_manager_app_name(env),
                 mode=agi_cls._mode,
                 verbose=agi_cls.verbose,
                 worker_id=dask_workers.index(worker),
