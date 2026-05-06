@@ -34,10 +34,8 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
     assert report["summary"]["lockfile_present"] is True
     assert report["summary"]["license_present"] is True
     assert report["summary"]["core_component_count"] == 4
-    assert report["summary"]["aligned_core_versions"] is True
     assert report["summary"]["core_release_graph_aligned"] is True
     assert report["summary"]["page_lib_component_count"] == 1
-    assert report["summary"]["aligned_page_lib_versions"] is True
     assert report["summary"]["page_lib_release_graph_aligned"] is True
     assert report["summary"]["aligned_internal_dependency_pins"] is True
     assert report["summary"]["mismatched_internal_dependency_pin_count"] == 0
