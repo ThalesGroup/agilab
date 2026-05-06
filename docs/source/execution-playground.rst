@@ -80,7 +80,7 @@ runtime shape for every dataframe library:
      - AGILAB pool implementation
      - Performance reading
    * - ``execution_pandas_project``
-     - process pool
+     - process-backed worker pool
      - Pandas can benefit when independent file partitions are spread across
        worker processes, especially for Python-bound or mixed Python/native
        sections.
@@ -197,7 +197,8 @@ The compact ``code`` column uses the order ``r d c p``:
 - ``r`` = RAPIDS requested
 - ``d`` = Dask / cluster topology
 - ``c`` = Cython requested
-- ``p`` = pool / local fan-out requested
+- ``p`` = worker pool / local fan-out requested; the backend may be process-
+  or thread-based depending on the worker implementation
 
 In the versioned benchmark artifacts shipped with the repository, the ``r...``
 and ``rd...`` modes are still **CPU-only** because neither node exposed NVIDIA
@@ -254,8 +255,8 @@ execution_pandas_project
 Use this app when you want the benchmark to read as a process-oriented baseline.
 
 - Worker family: ``ExecutionPandasWorker`` over ``PandasWorker``
-- Story to tell: how far a process pool, Cython typed kernel, and Dask path go
-  on the same workload
+- Story to tell: how far a process-backed worker pool, Cython typed kernel,
+  and Dask path go on the same workload
 - What to inspect in AGILAB: install/distribution state in **ORCHESTRATE**, then
   the benchmark table and exported artifacts for the ``_d__`` family
 - Practical reading: this app is the easiest way to show that "more workers"
