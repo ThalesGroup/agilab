@@ -4,8 +4,13 @@
   --agilab-primary: #4A90E2;
   --agilab-primary-soft: rgba(74, 144, 226, 0.15);
   --agilab-primary-focus: rgba(74, 144, 226, 0.2);
+  --agilab-value: #72d6b4;
   --agilab-on-primary: #FFFFFF;
   --agilab-neutral-border: rgba(0, 0, 0, 0.25);
+}
+
+[data-testid="stMetricValue"] {
+  color: var(--agilab-value) !important;
 }
 
 [data-testid="stButton"] button,

@@ -283,7 +283,7 @@ def cluster_share_startup_error_message(exc: BaseException) -> str:
     """Return a user-facing recovery message for stale/broken cluster settings."""
     return (
         f"{exc}\n\n"
-        "Cluster mode is enabled for the active app, but the configured cluster share "
+        "Cluster mode is enabled for the active project, but the configured cluster share "
         "is not available. Mount or create a writable `AGI_CLUSTER_SHARE`, then reload "
         "AGILAB. You can also disable the stale cluster setting for this app and reload."
     )

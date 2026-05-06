@@ -20,7 +20,7 @@ import time
 import hashlib
 import re
 import inspect
-from typing import Union
+from typing import Any, Union
 import asyncio
 import shlex
 import importlib.util
@@ -92,6 +92,87 @@ from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
 logger = logging.getLogger(__name__)
 
+_ANALYSIS_VIEW_PROFILES = {
+    "view_maps": (
+        "Map evidence",
+        "Inspect trajectories, positions, and geographic consistency after a flight run.",
+        "Start here for flight_project outputs.",
+    ),
+    "view_maps_3d": (
+        "3D cartography",
+        "Explore altitude-aware trajectories and spatial relationships.",
+        "Use after the 2D map confirms the right dataset.",
+    ),
+    "view_maps_network": (
+        "Network topology",
+        "Inspect nodes, links, routing overlays, and connectivity metrics.",
+        "Use for network-centric apps, not the default flight map.",
+    ),
+    "view_barycentric": (
+        "Trade-off view",
+        "Compare two axes and expose balance, drift, or outlier behavior.",
+        "Use when you need a compact comparison plot.",
+    ),
+    "view_training_analysis": (
+        "Training evidence",
+        "Compare training runs, metrics, tags, and learning curves.",
+        "Use after SB3, GA, or PPO training produces run artifacts.",
+    ),
+    "view_inference_analysis": (
+        "Inference evidence",
+        "Inspect routed demand, latency, bearer mix, and delivered traffic.",
+        "Use after inference or network simulation exports allocations.",
+    ),
+    "view_release_decision": (
+        "Release decision",
+        "Aggregate run evidence into pass/fail release support.",
+        "Use before publishing a demo, package, or validation result.",
+    ),
+    "view_forecast_analysis": (
+        "Forecast evidence",
+        "Review forecast metrics and predictions.",
+        "Use after a forecasting pipeline writes analysis artifacts.",
+    ),
+    "view_uav_queue_analysis": (
+        "Queue resilience",
+        "Review UAV queue metrics, delivery, and overload symptoms.",
+        "Use for failure-injection and queue-behavior examples.",
+    ),
+    "view_uav_relay_queue_analysis": (
+        "Relay queue resilience",
+        "Compare relay queue behavior across runs and degraded conditions.",
+        "Use for relay-network resilience analysis.",
+    ),
+    "view_data_io_decision": (
+        "Data decision",
+        "Inspect data ingestion decisions and feature evidence.",
+        "Use for data-quality and source-selection examples.",
+    ),
+    "view_autoencoder_latenspace": (
+        "Latent-space view",
+        "Inspect reduced-dimensional embeddings and clustering behavior.",
+        "Use after dimensionality-reduction workflows.",
+    ),
+    "view_autoencoder_latentspace": (
+        "Latent-space view",
+        "Inspect reduced-dimensional embeddings and clustering behavior.",
+        "Use after dimensionality-reduction workflows.",
+    ),
+}
+
+_ANALYSIS_ARTIFACT_SUFFIXES = {
+    ".csv",
+    ".json",
+    ".jsonl",
+    ".parquet",
+    ".npz",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".svg",
+    ".html",
+}
+
 _MINIMAL_PAGE_TEMPLATE_PYPROJECT = """[project]
 name = "view-{module_slug}"
 version = "0.1.0"
@@ -151,7 +232,7 @@ def _load_project_env(active_app: str):
 
     active_app_path = Path(active_app).expanduser().resolve()
     if not active_app_path.exists():
-        st.error(f"Provided active app path does not exist: {active_app_path}")
+        st.error(f"Provided active project path does not exist: {active_app_path}")
         st.stop()
 
     return AgiEnv(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
@@ -544,7 +625,7 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
 
     if active_app_path is None:
         st.error(
-            "Could not determine the active app. Please select a project first or set AGILAB_APP."
+            "Could not determine the active project. Please select a project first or set AGILAB_APP."
         )
         st.stop()
 
@@ -1204,6 +1285,263 @@ def _view_label(option_id: str, builtin_names: set[str]) -> str:
     return f"{path.name} (custom)"
 
 
+def _resolve_view_path(
+    view_name: str,
+    resolved_pages: dict[str, Path],
+    custom_view_lookup: dict[str, Path],
+) -> Path | None:
+    return resolved_pages.get(view_name) or custom_view_lookup.get(view_name)
+
+
+def _analysis_view_profile(view_name: str) -> tuple[str, str, str]:
+    normalized = _normalize_view_name(Path(str(view_name)).stem)
+    if normalized in _ANALYSIS_VIEW_PROFILES:
+        return _ANALYSIS_VIEW_PROFILES[normalized]
+    return (
+        "Custom analysis",
+        "Open a project-specific Streamlit analysis page.",
+        "Use this when a packaged view does not fit the artifact.",
+    )
+
+
+def _safe_analysis_path(value: Any) -> Path | None:
+    if value in (None, ""):
+        return None
+    try:
+        return Path(value).expanduser()
+    except (TypeError, ValueError, RuntimeError):
+        return None
+
+
+def _active_analysis_data_root(env: Any) -> Path | None:
+    for attr in ("app_data_rel", "app_data_abs"):
+        path = _safe_analysis_path(getattr(env, attr, None))
+        if path is not None:
+            return path
+    return None
+
+
+def _scan_analysis_artifacts(root: Path | None, *, limit: int = 5000) -> dict[str, Any]:
+    if root is None:
+        return {"count": 0, "latest": None, "examples": [], "root": None, "exists": False, "truncated": False}
+    try:
+        root = root.expanduser()
+    except (OSError, RuntimeError):
+        return {"count": 0, "latest": None, "examples": [], "root": root, "exists": False, "truncated": False}
+    if not root.exists():
+        return {"count": 0, "latest": None, "examples": [], "root": root, "exists": False, "truncated": False}
+
+    ignored_dirs = {".venv", "venv", "__pycache__", ".git", ".pytest_cache", ".mypy_cache"}
+    count = 0
+    latest: float | None = None
+    examples: list[str] = []
+    truncated = False
+    try:
+        for current_root, dirs, files in os.walk(root):
+            dirs[:] = sorted(dirname for dirname in dirs if dirname not in ignored_dirs and not dirname.startswith("."))
+            for filename in sorted(files):
+                path = Path(current_root) / filename
+                if path.suffix.lower() not in _ANALYSIS_ARTIFACT_SUFFIXES:
+                    continue
+                count += 1
+                if len(examples) < 3:
+                    try:
+                        examples.append(path.relative_to(root).as_posix())
+                    except ValueError:
+                        examples.append(path.name)
+                try:
+                    latest = max(latest or path.stat().st_mtime, path.stat().st_mtime)
+                except OSError:
+                    pass
+                if count >= limit:
+                    truncated = True
+                    raise StopIteration
+    except StopIteration:
+        pass
+    except OSError:
+        return {"count": count, "latest": latest, "examples": examples, "root": root, "exists": True, "truncated": truncated}
+    return {"count": count, "latest": latest, "examples": examples, "root": root, "exists": True, "truncated": truncated}
+
+
+def _format_analysis_latest(timestamp: float | None) -> str:
+    if timestamp is None:
+        return "no artifact yet"
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(timestamp))
+
+
+def _render_analysis_metric(label: str, value: str, caption: str) -> None:
+    st.metric(label, value)
+    st.caption(caption)
+
+
+def _render_analysis_workspace_overview(
+    env: Any,
+    *,
+    selection_state: Any,
+    available_view_count: int,
+) -> None:
+    artifact_summary = _scan_analysis_artifacts(_active_analysis_data_root(env))
+    artifact_count = int(artifact_summary["count"])
+    selected_count = len(getattr(selection_state, "selected_views", ()) or ())
+    default_view = getattr(selection_state, "default_view_name", None) or "Not configured"
+    data_root = artifact_summary["root"]
+
+    with st.container(border=True):
+        cols = st.columns(3)
+        with cols[0]:
+            suffix = "+" if artifact_summary["truncated"] else ""
+            _render_analysis_metric("Output files", f"{artifact_count}{suffix}", _format_analysis_latest(artifact_summary["latest"]))
+        with cols[1]:
+            _render_analysis_metric("Views", f"{selected_count} selected", f"{available_view_count} available")
+        with cols[2]:
+            _render_analysis_metric("Default view", default_view, "view opened by default")
+
+        root_label = str(data_root) if data_root is not None else "not configured"
+        st.caption(f"Output root: `{root_label}`")
+        if artifact_summary["examples"]:
+            st.caption("Examples: " + ", ".join(f"`{item}`" for item in artifact_summary["examples"]))
+        elif not artifact_summary["exists"]:
+            st.info("No analysis data root exists yet. Run ORCHESTRATE or PIPELINE first, then refresh ANALYSIS.")
+        else:
+            st.info("No output files detected yet. Run a pipeline or export results before opening analysis views.")
+
+
+def _render_analysis_view_cards(
+    *,
+    selected_views: list[str],
+    resolved_pages: dict[str, Path],
+    custom_view_lookup: dict[str, Path],
+    selection_state: Any,
+) -> None:
+    st.markdown("### Analysis views")
+    st.caption("Open the view that matches the evidence you want to inspect.")
+    if not selected_views:
+        st.info("No analysis view selected. Use Manage analysis views below to choose one.")
+        return
+
+    builtin_names = set(resolved_pages.keys())
+    cols = st.columns(min(len(selected_views), 3) or 1)
+    for index, view_name in enumerate(selected_views):
+        view_path = _resolve_view_path(view_name, resolved_pages, custom_view_lookup)
+        if view_path is None:
+            st.error(f"Page '{view_name}' not found.")
+            continue
+        title, purpose, next_action = _analysis_view_profile(view_name)
+        display_label = _view_label(view_name, builtin_names)
+        is_default = view_name == getattr(selection_state, "default_view_name", None)
+        with cols[index % len(cols)]:
+            with st.container(border=True):
+                st.markdown(f"#### {display_label}")
+                st.caption(title)
+                st.write(purpose)
+                st.caption(next_action)
+                if is_default:
+                    st.caption("Recommended for this project.")
+                st.caption(f"Entrypoint: `{view_path.name}`")
+                if st.button(
+                    f"Open {display_label}",
+                    type="primary" if is_default else "secondary",
+                    width="stretch",
+                    key=f"analysis_open_view__{_short_page_token(view_path)}",
+                ):
+                    view_str = str(view_path.resolve())
+                    st.session_state["current_page"] = view_str
+                    st.query_params["current_page"] = view_str
+                    st.rerun()
+
+
+def _render_custom_analysis_page_authoring(
+    *,
+    project: str | None,
+    pages_root: Path,
+    clone_source_paths: list[str],
+    clone_source_labels: dict[str, str],
+    custom_view_lookup: dict[str, Path],
+    all_available_views: list[str],
+) -> list[str]:
+    with st.expander("Advanced: create or import analysis page", expanded=False):
+        template_tab, add_tab = st.tabs(["Create from template", "Import Streamlit page"])
+
+        with add_tab:
+            st.caption("Import a Streamlit page from disk.")
+            st.text_input(
+                "Streamlit page folder or Python file path",
+                placeholder="/path/to/your_page or /path/to/page.py",
+                key=f"analysis_custom_view_input__{project or 'default'}",
+            )
+            add_custom_view = st.button(
+                "Import",
+                type="secondary",
+                key=f"analysis_add_custom_view__{project or 'default'}",
+                width="stretch",
+            )
+            if add_custom_view:
+                st.info("Import streamlit page is not implemented yet.")
+
+        with template_tab:
+            st.caption("Create a minimal analysis page and open it directly from this configuration.")
+            template_name = st.text_input(
+                "Page name",
+                placeholder="my_analysis_view",
+                key=f"analysis_template_view_name__{project or 'default'}",
+            )
+            clone_source = compact_choice(
+                st,
+                "Clone from existing apps-page (optional)",
+                clone_source_paths,
+                format_func=lambda value: clone_source_labels.get(value, value),
+                key=f"analysis_template_clone_source__{project or 'default'}",
+                inline_limit=5,
+            )
+            create_template_view = st.button(
+                "Create",
+                type="primary",
+                key=f"analysis_create_template_view__{project or 'default'}",
+                width="stretch",
+            )
+            if create_template_view:
+                if not template_name.strip():
+                    st.error("Page name must not be empty.")
+                elif not pages_root:
+                    st.error("AGILAB pages root is not available.")
+                else:
+                    normalized_name = _normalize_page_name(template_name)
+                    page_name = _next_page_name(
+                        normalized_name or "analysis_view",
+                        pages_root,
+                    )
+                    try:
+                        entrypoint_path = _create_analysis_page_bundle(
+                            pages_root, page_name, clone_source
+                        )
+                    except (FileNotFoundError, OSError, shutil.Error, ValueError, RuntimeError) as e:
+                        st.error(f"Failed to create template page: {e}")
+                    else:
+                        entry_key = str(entrypoint_path)
+                        custom_view_lookup[entry_key] = entrypoint_path
+                        all_available_views = sorted(set(all_available_views) | {entry_key})
+                        selection_key = f"view_selection__{project or 'default'}"
+                        selected_for_project = list(st.session_state.get(selection_key, []))
+                        if entry_key not in selected_for_project:
+                            selected_for_project.append(entry_key)
+                        st.session_state[selection_key] = selected_for_project
+                        bundle_root = entrypoint_path.parent
+                        if entrypoint_path.parent.name == "src" and len(entrypoint_path.parents) > 2:
+                            bundle_root = entrypoint_path.parent.parent
+                        elif (
+                            entrypoint_path.parent.name == page_name
+                            and entrypoint_path.parent.parent.name == "src"
+                            and len(entrypoint_path.parents) > 2
+                        ):
+                            bundle_root = entrypoint_path.parent.parent.parent
+                        st.success(
+                            "Created page bundle at "
+                            f"`{bundle_root.as_posix()}` and selected it."
+                        )
+                        st.rerun()
+    return all_available_views
+
+
 def _is_hosted_analysis_runtime(env: AgiEnv) -> bool:
     """Return True when the current AGILAB runtime is hosted behind a public HF Space."""
     envars = getattr(env, "envars", {}) or {}
@@ -1321,6 +1659,8 @@ async def main():
     # Sidebar: project selection
     projects = env.projects
     current_project = env.app if env.app in projects else (projects[0] if projects else None)
+    st.sidebar.markdown("### Active project")
+    st.sidebar.caption("Choose the project whose analysis artifacts and views are shown below.")
     select_project(projects, current_project)  # may be updated by select_project
     if env.app:
         st.query_params["active_app"] = env.app
@@ -1377,87 +1717,6 @@ async def main():
             clone_source_paths.append(path_str)
             clone_source_labels[path_str] = label
 
-    with st.expander("Add custom analysis page", expanded=False):
-        template_tab, add_tab = st.tabs(["Create from template", "Import Streamlit page"])
-
-        with add_tab:
-            st.caption("Import a Streamlit page from disk.")
-            custom_view_input = st.text_input(
-                "Streamlit page folder or Python file path",
-                placeholder="/path/to/your_page or /path/to/page.py",
-                key=f"analysis_custom_view_input__{project or 'default'}",
-            )
-            add_custom_view = st.button(
-                "Import",
-                type="secondary",
-                key=f"analysis_add_custom_view__{project or 'default'}",
-                width="stretch",
-            )
-            if add_custom_view:
-                st.info("Import streamlit page is not implemented yet.")
-
-        with template_tab:
-            st.caption("Create a minimal analysis page and open it directly from this configuration.")
-            template_name = st.text_input(
-                "Page name",
-                placeholder="my_analysis_view",
-                key=f"analysis_template_view_name__{project or 'default'}",
-            )
-            clone_source = compact_choice(
-                st,
-                "Clone from existing apps-page (optional)",
-                clone_source_paths,
-                format_func=lambda value: clone_source_labels.get(value, value),
-                key=f"analysis_template_clone_source__{project or 'default'}",
-                inline_limit=5,
-            )
-            create_template_view = st.button(
-                "Create",
-                type="primary",
-                key=f"analysis_create_template_view__{project or 'default'}",
-                width="stretch",
-            )
-            if create_template_view:
-                if not template_name.strip():
-                    st.error("Page name must not be empty.")
-                elif not pages_root:
-                    st.error("AGILAB pages root is not available.")
-                else:
-                    normalized_name = _normalize_page_name(template_name)
-                    page_name = _next_page_name(
-                        normalized_name or "analysis_view",
-                        pages_root,
-                    )
-                    try:
-                        entrypoint_path = _create_analysis_page_bundle(
-                            pages_root, page_name, clone_source
-                        )
-                    except (FileNotFoundError, OSError, shutil.Error, ValueError, RuntimeError) as e:
-                        st.error(f"Failed to create template page: {e}")
-                    else:
-                        entry_key = str(entrypoint_path)
-                        custom_view_lookup[entry_key] = entrypoint_path
-                        all_available_views = sorted(set(all_available_views) | {entry_key})
-                        selection_key = f"view_selection__{project or 'default'}"
-                        selected_for_project = list(st.session_state.get(selection_key, []))
-                        if entry_key not in selected_for_project:
-                            selected_for_project.append(entry_key)
-                        st.session_state[selection_key] = selected_for_project
-                        bundle_root = entrypoint_path.parent
-                        if entrypoint_path.parent.name == "src" and len(entrypoint_path.parents) > 2:
-                            bundle_root = entrypoint_path.parent.parent
-                        elif (
-                            entrypoint_path.parent.name == page_name
-                            and entrypoint_path.parent.parent.name == "src"
-                            and len(entrypoint_path.parents) > 2
-                        ):
-                            bundle_root = entrypoint_path.parent.parent.parent
-                        st.success(
-                            "Created page bundle at "
-                            f"`{bundle_root.as_posix()}` and selected it."
-                        )
-                        st.rerun()
-
     selection_key = f"view_selection__{project or 'default'}"
     pages_cfg = cfg.get("pages", {})
     pages_cfg = pages_cfg if isinstance(pages_cfg, dict) else {}
@@ -1475,15 +1734,21 @@ async def main():
     if st.session_state.get(selection_key) != widget_selection:
         st.session_state[selection_key] = widget_selection
 
-    # Styling is handled globally in resources/theme.css. No per-page override here to avoid double borders.
-
-    selected_views = st.multiselect(
-        "Choose pages for analyzing the selected project",
-        view_names,
-        key=selection_key,
-        format_func=lambda option: _view_label(option, set(resolved_pages.keys())),
-        help="Selected pages are shown as quick-access shortcuts on the AGILAB start screen."
+    _render_analysis_workspace_overview(
+        env,
+        selection_state=selection_state,
+        available_view_count=len(view_names),
     )
+
+    with st.expander("Manage analysis views", expanded=False):
+        st.caption("Choose which analysis views appear as quick-access cards for this project.")
+        selected_views = st.multiselect(
+            "Analysis views",
+            view_names,
+            key=selection_key,
+            format_func=lambda option: _view_label(option, set(resolved_pages.keys())),
+            help="Selected views are persisted in the active project's app settings.",
+        )
 
     selection_state = build_analysis_view_selection_state(
         pages_cfg=pages_cfg,
@@ -1507,26 +1772,21 @@ async def main():
         st.query_params["current_page"] = view_str
         st.rerun()
 
-    # Show buttons for the selected pages
-    st.divider()
-    cols = st.columns(min(len(selected_views), 4) or 1)
+    _render_analysis_view_cards(
+        selected_views=selected_views,
+        resolved_pages=resolved_pages,
+        custom_view_lookup=custom_view_lookup,
+        selection_state=selection_state,
+    )
 
-    if selected_views:
-        for i, view_name in enumerate(selected_views):
-            view_path = resolved_pages.get(view_name)
-            if not view_path:
-                view_path = custom_view_lookup.get(view_name)
-            if not view_path:
-                st.error(f"Page '{view_name}' not found.")
-                continue
-            with cols[i % len(cols)]:
-                if st.button(view_name, type="primary", width="stretch"):
-                    view_str = str(view_path.resolve())
-                    st.session_state["current_page"] = view_str
-                    st.query_params["current_page"] = view_str
-                    st.rerun()
-    else:
-        st.write("No Page selected. Pick some above.")
+    _render_custom_analysis_page_authoring(
+        project=project,
+        pages_root=pages_root,
+        clone_source_paths=clone_source_paths,
+        clone_source_labels=clone_source_labels,
+        custom_view_lookup=custom_view_lookup,
+        all_available_views=all_available_views,
+    )
 
 async def render_view_page(view_path: Path):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""

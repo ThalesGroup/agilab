@@ -497,6 +497,28 @@ def test_clone_source_label_falls_back_to_absolute_path(tmp_path: Path):
     assert label == f"view_demo ({page_file})"
 
 
+def test_analysis_view_profile_describes_known_and_custom_views():
+    module = _load_analysis_module()
+
+    assert module._analysis_view_profile("view_maps")[0] == "Map evidence"
+    assert module._analysis_view_profile("/tmp/custom_page.py")[0] == "Custom analysis"
+
+
+def test_scan_analysis_artifacts_counts_supported_outputs(tmp_path: Path):
+    module = _load_analysis_module()
+    data_root = tmp_path / "export" / "flight"
+    (data_root / "dataset").mkdir(parents=True)
+    (data_root / "dataset" / "tracks.csv").write_text("x\n", encoding="utf-8")
+    (data_root / "dataset" / "summary.json").write_text("{}\n", encoding="utf-8")
+    (data_root / "dataset" / "notes.txt").write_text("ignore\n", encoding="utf-8")
+
+    summary = module._scan_analysis_artifacts(data_root)
+
+    assert summary["count"] == 2
+    assert summary["examples"] == ["dataset/summary.json", "dataset/tracks.csv"]
+    assert summary["exists"] is True
+
+
 def test_terminate_process_quietly_ignores_timeout():
     module = _load_analysis_module()
 

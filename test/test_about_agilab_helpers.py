@@ -1577,7 +1577,7 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
     assert "grid-template-columns:max-content .45rem minmax(0,1fr);" in sidebar_markup
     assert "color:#72d6b4;" in sidebar_markup
-    assert "Active app: flight_project" in sidebar_markup
+    assert "Active project: flight_project" in sidebar_markup
     assert "Scheduler: 10.0.0.1:8786" in sidebar_markup
     assert "Mode: enabled (dask)" in sidebar_markup
     assert "CPU: 32 cores" in sidebar_markup
@@ -1663,7 +1663,7 @@ def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch)
     docs_button = _event_index(fake_st.events, "sidebar.button", "Read Documentation")
     sidebar_grid = _event_index(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
     sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
-    assert "Active app: flight_project" in sidebar_markup
+    assert "Active project: flight_project" in sidebar_markup
     assert "Scheduler: 192.168.20.111:8786" in sidebar_markup
     assert "Mode: enabled (dask, pool)" in sidebar_markup
     assert "Share: /home/agi/clustershare" in sidebar_markup
@@ -1717,7 +1717,7 @@ workers_data_path = "/fresh/share"
         )
     )
 
-    assert lines["Active app"] == "flight_project"
+    assert lines["Active project"] == "flight_project"
     assert lines["Scheduler"] == "fresh.scheduler:8786"
     assert lines["Mode"] == "enabled (dask, cython)"
     assert lines["Share"] == "/fresh/share"
@@ -2174,14 +2174,14 @@ def test_render_sidebar_system_information_refresh_button_clears_probe_caches(mo
     monkeypatch.setattr(
         layout,
         "active_app_cluster_information_lines",
-        lambda _env: [("Active app", "flight_project")],
+        lambda _env: [("Active project", "flight_project")],
     )
 
     layout.render_sidebar_system_information(SimpleNamespace(app="flight_project"))
 
     assert cleared == [True]
     assert ("sidebar.button", "Refresh cluster info") in fake_st.events
-    assert "Active app: flight_project" in _event_body(
+    assert "Active project: flight_project" in _event_body(
         fake_st.events,
         "sidebar.markdown",
         "agilab-sidebar-system",

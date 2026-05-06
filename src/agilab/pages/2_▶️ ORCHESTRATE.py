@@ -1175,14 +1175,7 @@ def _render_orchestrate_readiness_panel(
     )
 
     with st.container(border=True):
-        st.markdown("### Run readiness")
-        st.caption("Check what will run, where it will run, and the next action before opening advanced controls.")
-        project_col, mode_col, runtime_col, next_col = st.columns([1.2, 1.5, 1.5, 1.4])
-        with project_col:
-            _render_readiness_cell(
-                "Active app",
-                _active_app_label(env),
-            )
+        mode_col, runtime_col, next_col = st.columns([1.5, 1.5, 1.4])
         with mode_col:
             _render_readiness_cell(
                 "Mode",
@@ -1195,9 +1188,6 @@ def _render_orchestrate_readiness_panel(
             _render_readiness_cell("Runtime", runtime_label, runtime_detail)
         with next_col:
             _render_readiness_cell("Next action", next_action, f"Execution view: {execution_view}")
-        st.caption(
-            "Flow: active app and runtime resources -> arguments -> distribution preview -> run or serve -> outputs."
-        )
 
 
 async def _render_deployment_panel(
@@ -1209,7 +1199,7 @@ async def _render_deployment_panel(
 ) -> int:
     """Render the deployment expander and return the effective verbose level."""
     verbose = initial_verbose
-    with st.expander("1. Active app, resources, and install", expanded=True):
+    with st.expander("1. Resources and install", expanded=True):
         st.caption(
             "Choose local, local Dask, or LAN cluster resources, then install the manager and worker environments."
         )

@@ -108,8 +108,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert all("coverage" in command.argv for command in agi_gui_chunks)
     assert all("--append" not in command.argv for command in agi_gui_chunks)
     assert "--data-file=test-results/coverage-agi-gui-support.db" in agi_gui_commands[0].argv
-    assert "combine" in agi_gui_combine.argv
-    assert "test-results/coverage-agi-gui-pipeline.db" in agi_gui_combine.argv
+    agi_gui_combine_argv = " ".join(agi_gui_combine.argv)
+    assert "'coverage', 'combine'" in agi_gui_combine_argv
+    assert "--keep" in agi_gui_combine_argv
+    assert "test-results/coverage-agi-gui-pipeline.db" in agi_gui_combine_argv
     assert "coverage-agi-gui.xml" in agi_gui_xml.argv
     assert "src/agilab/lib/agi-gui/test" in agi_gui_argv
     assert "test/test_about_agilab_helpers.py" in agi_gui_argv

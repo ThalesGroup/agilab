@@ -28,6 +28,8 @@ def test_new_choice_widgets_use_agilab_blue_theme() -> None:
 
     assert theme_config["theme"]["primaryColor"] == "#4A90E2"
     assert "--agilab-primary: #4A90E2;" in theme_css
+    assert "--agilab-value: #72d6b4;" in theme_css
+    assert '[data-testid="stMetricValue"]' in theme_css
     assert '[data-testid="stButtonGroup"]' in theme_css
     assert '[role="radio"][aria-checked="true"]' in theme_css
     assert '[role="checkbox"][aria-checked="true"]' in theme_css
