@@ -1687,22 +1687,6 @@ def handle_project_selection():
         st.warning("No projects available.")
         return
 
-    # Sidebar project selection
-    select_project(projects, env.app)
-    env = st.session_state["env"]
-
-    st.sidebar.markdown("### Project actions")
-    st.sidebar.caption("Export creates a portable archive of the selected project.")
-
-    # Export Button
-    if st.sidebar.button(
-        "Export project",
-        type="primary",
-        width="stretch",
-        help=f"Export to {(env.export_apps / env.app).with_suffix('.zip')}",
-    ):
-        handle_export_project()
-
     _render_project_workspace_overview(env)
     st.markdown("### Edit project files")
     st.caption(
@@ -1732,6 +1716,32 @@ def handle_project_selection():
 
 
 
+
+
+def _render_active_project_sidebar(env) -> None:
+    projects = list(getattr(env, "projects", []) or [])
+    st.sidebar.markdown("### Active project")
+    if not projects:
+        st.sidebar.info("No projects available.")
+        return
+
+    select_project(projects, env.app)
+    env = st.session_state["env"]
+    st.session_state["_env"] = env
+    st.sidebar.caption("Actions below apply to this selected project unless stated otherwise.")
+
+
+def _render_sidebar_export_action(env) -> None:
+    if not getattr(env, "app", None):
+        return
+    st.sidebar.caption("Export creates a portable archive of the active project.")
+    if st.sidebar.button(
+        "Export project",
+        type="secondary",
+        width="stretch",
+        help=f"Export to {(env.export_apps / env.app).with_suffix('.zip')}",
+    ):
+        handle_export_project()
 
 
 def _safe_display_path(value) -> str:
@@ -1807,7 +1817,11 @@ def _render_project_workspace_overview(env) -> None:
     with top_cols[0]:
         _render_overview_metric("Project", str(getattr(env, "app", "unknown")), project_status)
     with top_cols[1]:
-        _render_overview_metric("Target", str(getattr(env, "target", "unknown")), "runtime module")
+        _render_overview_metric(
+            "Runtime module",
+            str(getattr(env, "target", "unknown")),
+            "Python package used by RUN/ORCHESTRATE",
+        )
     with top_cols[2]:
         _render_overview_metric("Manager env", manager_status, manager_path)
     with top_cols[3]:
@@ -2079,7 +2093,7 @@ def _create_project_clone_action(
         return ActionResult.error(
             f"Project '{new_name}' could not be cloned.",
             detail=str(exc),
-            next_action="Check the clone source, target path, and filesystem permissions.",
+            next_action="Check the clone source, destination path, and filesystem permissions.",
             data={
                 "new_name": new_name,
                 "dest_root": dest_root,
@@ -2090,7 +2104,7 @@ def _create_project_clone_action(
     if not dest_root.exists():
         return ActionResult.error(
             f"Error while creating '{new_name}'.",
-            next_action="Check the clone source, target path, and filesystem permissions.",
+            next_action="Check the clone source, destination path, and filesystem permissions.",
             data={"new_name": new_name, "dest_root": dest_root},
         )
 
@@ -2153,7 +2167,7 @@ def _rename_project_action(
         return ActionResult.error(
             f"Project '{current}' could not be cloned to '{new_name}'.",
             detail=str(exc),
-            next_action="Check the source project, target path, and filesystem permissions.",
+            next_action="Check the source project, destination path, and filesystem permissions.",
             data={
                 "current": current,
                 "new_name": new_name,
@@ -2165,7 +2179,7 @@ def _rename_project_action(
     if not dest_path.exists():
         return ActionResult.error(
             f"Error: Project '{new_name}' not found after renaming.",
-            next_action="Check the clone source, target path, and filesystem permissions.",
+            next_action="Check the source project, destination path, and filesystem permissions.",
             data={"current": current, "new_name": new_name, "dest_path": dest_path},
         )
 
@@ -2325,7 +2339,11 @@ def handle_project_creation():
     )
     st.sidebar.caption(CLONE_ENV_STRATEGY_CAPTIONS[clone_env_strategy])
 
-    raw = st.sidebar.text_input("Project Name (no suffix)", key="clone_dest").strip()
+    raw = st.sidebar.text_input(
+        "New project base name",
+        key="clone_dest",
+        help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
+    ).strip()
 
     create_clicked = st.sidebar.button("Create", type="primary", width="stretch")
     if create_clicked:
@@ -2342,7 +2360,7 @@ def handle_project_creation():
                 name="Create project",
                 start_message=f"Creating project '{raw or '<empty>'}'...",
                 failure_title="Project creation failed.",
-                failure_next_action="Check the clone source, target path, and filesystem permissions.",
+                failure_next_action="Check the clone source, destination path, and filesystem permissions.",
             ),
             lambda: _create_project_clone_action(
                 env,
@@ -2389,9 +2407,9 @@ def handle_project_rename():
 
     # — no on_change here —
     raw = st.sidebar.text_input(
-        "New Project Name (no suffix)",
+        "Rename active project to",
         key="clone_dest",
-        help="Enter the base name for your new project; '_project' will be appended if needed."
+        help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
     ).strip()
 
     rename_clicked = st.sidebar.button("Rename", type="primary", width="stretch")
@@ -2408,7 +2426,7 @@ def handle_project_rename():
                 name="Rename project",
                 start_message=f"Renaming project '{current}'...",
                 failure_title="Project rename failed.",
-                failure_next_action="Check the target name, clone source, and filesystem permissions.",
+                failure_next_action="Check the destination name, source project, and filesystem permissions.",
             ),
             lambda: _rename_project_action(env, raw_project_name=raw),
             on_success=_activate_renamed_project,
@@ -2470,18 +2488,20 @@ def handle_project_import():
     st.caption("Restore a project from a previously exported AGILAB archive.")
     selected_archive = compact_choice(
         st.sidebar,
-        f"From {env.export_apps}",
+        "Archive to import",
         st.session_state["archives"],
         key="archive",
         help="Select one of the previously exported projects to load it.",
         inline_limit=5,
     )
+    st.sidebar.caption(f"Export archive folder: {env.export_apps}")
 
     if selected_archive == "-- Select a file --":
         st.info("Please select a file from the sidebar to continue.")
         # Optionally, you can disable other parts of the app here
     else:
         import_target = selected_archive.replace(".zip", "")
+        st.sidebar.caption(f"Will restore as project: {import_target}")
         st.sidebar.checkbox(
             "Clean",
             key="clean_import",
@@ -2505,7 +2525,7 @@ def handle_project_import():
                     name="Import project",
                     start_message=f"Importing project '{import_target}'...",
                     failure_title="Project import failed.",
-                    failure_next_action="Check the archive, target path, and filesystem permissions.",
+                    failure_next_action="Check the archive, destination path, and filesystem permissions.",
                 ),
                 lambda: _import_project_action(
                     env,
@@ -2621,8 +2641,12 @@ def page():
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
 
-    st.sidebar.markdown("### Workspace")
-    st.sidebar.caption("Select the project workflow. Destructive actions are grouped last.")
+    _render_active_project_sidebar(env)
+    env = st.session_state["env"]
+    _render_sidebar_export_action(env)
+
+    st.sidebar.markdown("### Project workflow")
+    st.sidebar.caption("Choose what to do with the active project. Destructive actions are grouped last.")
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = compact_choice(
