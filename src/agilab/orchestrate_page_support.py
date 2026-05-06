@@ -454,6 +454,38 @@ def _benchmark_seconds(value: Any) -> float | None:
         return None
 
 
+def _best_node_rapids_counterpart_key(key: str) -> str | None:
+    mode_text, separator, suffix = key.partition(":")
+    if separator != ":" or suffix != "best-node":
+        return None
+    try:
+        mode = int(mode_text)
+    except ValueError:
+        return None
+    if mode & _RAPIDS_MODE_BIT:
+        return None
+    return f"{mode | _RAPIDS_MODE_BIT}:best-node"
+
+
+def _drop_shadowed_best_node_non_rapids_rows(rows: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(rows)
+    for key, row in list(rows.items()):
+        if not isinstance(row, Mapping):
+            continue
+        counterpart_key = _best_node_rapids_counterpart_key(key)
+        if counterpart_key is None:
+            continue
+        counterpart = rows.get(counterpart_key)
+        if not isinstance(counterpart, Mapping):
+            continue
+        if row.get("variant") != "best-node" or counterpart.get("variant") != "best-node":
+            continue
+        if str(row.get("node", "")) != str(counterpart.get("node", "")):
+            continue
+        normalized.pop(key, None)
+    return normalized
+
+
 def benchmark_rows_with_delta_percent(raw: Mapping[str, Any]) -> dict[str, Any]:
     """Return benchmark rows augmented with a display-only percent delta."""
     rows: dict[str, Any] = {}
@@ -467,6 +499,14 @@ def benchmark_rows_with_delta_percent(raw: Mapping[str, Any]) -> dict[str, Any]:
         if seconds is not None:
             numeric_seconds.append(seconds)
         rows[str(key)] = row
+    rows = _drop_shadowed_best_node_non_rapids_rows(rows)
+    numeric_seconds = [
+        seconds
+        for row in rows.values()
+        if isinstance(row, Mapping)
+        for seconds in [_benchmark_seconds(row.get("seconds"))]
+        if seconds is not None
+    ]
 
     if not numeric_seconds:
         return rows

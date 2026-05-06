@@ -328,6 +328,35 @@ def test_benchmark_rows_with_delta_percent_handles_zero_and_invalid_seconds():
     assert rows["meta"] == "kept"
 
 
+def test_benchmark_rows_hide_best_node_non_rapids_when_rapids_counterpart_exists():
+    rows = orchestrate_page_support.benchmark_rows_with_delta_percent(
+        {
+            "4:best-node": {
+                "variant": "best-node",
+                "node": "192.0.2.10",
+                "mode": "_d__",
+                "seconds": 2.0,
+            },
+            "12:best-node": {
+                "variant": "best-node",
+                "node": "192.0.2.10",
+                "mode": "rd__",
+                "seconds": 1.0,
+            },
+            "4": {
+                "variant": "cluster",
+                "node": "cluster",
+                "mode": "_d__",
+                "seconds": 3.0,
+            },
+        }
+    )
+
+    assert "4:best-node" not in rows
+    assert rows["12:best-node"]["delta (%)"] == 0.0
+    assert rows["4"]["delta (%)"] == 200.0
+
+
 def test_benchmark_workers_data_path_requires_shared_path_for_remote_dask(tmp_path):
     local_share = tmp_path / "localshare"
     local_share.mkdir()

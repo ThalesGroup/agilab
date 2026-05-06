@@ -424,6 +424,57 @@ async def test_benchmark_dask_modes_warns_when_best_rapids_capability_unknown(
 
 
 @pytest.mark.asyncio
+async def test_benchmark_dask_modes_deduplicates_requested_best_rapids_counterparts(monkeypatch):
+    env = _mycode_env()
+    unknown_best_host = "203.0.113.3"
+    monkeypatch.setattr(AgiEnv, "envars", {})
+    modes_seen: list[int] = []
+    runs = {}
+
+    async def _start(_scheduler):
+        return True
+
+    async def _stop():
+        return None
+
+    async def _distribute():
+        modes_seen.append(int(AGI._mode))
+        return f"m{AGI._mode} {float(AGI._mode)}"
+
+    def _update_capacity():
+        AGI._capacity = {
+            "203.0.113.2:4100": 1.0,
+            f"{unknown_best_host}:4200": 2.5,
+        }
+
+    monkeypatch.setattr(AGI, "_start", staticmethod(_start))
+    monkeypatch.setattr(AGI, "_stop", staticmethod(_stop))
+    monkeypatch.setattr(AGI, "_distribute", staticmethod(_distribute))
+    monkeypatch.setattr(AGI, "_update_capacity", staticmethod(_update_capacity))
+
+    await capacity_support.benchmark_dask_modes(
+        AGI,
+        env,
+        request=RunRequest(
+            scheduler="127.0.0.1",
+            workers={"203.0.113.2": 1, unknown_best_host: 1},
+        ),
+        mode_range=[4, 5, 6, 12, 13, 14],
+        rapids_mode_mask=AGI._RAPIDS_SET,
+        runs=runs,
+        include_best_single_node=True,
+    )
+
+    assert modes_seen == [4, 5, 6, 12, 13, 14, 12, 13, 14]
+    assert "4:best-node" not in runs
+    assert "5:best-node" not in runs
+    assert "6:best-node" not in runs
+    assert runs["12:best-node"]["mode"] == "m12"
+    assert runs["13:best-node"]["mode"] == "m13"
+    assert runs["14:best-node"]["mode"] == "m14"
+
+
+@pytest.mark.asyncio
 async def test_benchmark_dask_modes_stops_even_when_run_format_is_invalid(monkeypatch):
     env = _mycode_env()
     calls = {"stop": 0}
