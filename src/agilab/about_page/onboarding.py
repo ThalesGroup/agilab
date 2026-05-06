@@ -122,10 +122,10 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
         project_detail = "`flight_project` is missing from the app list."
     elif state["current_app_matches"]:
         project_status = "Done"
-        project_detail = "Active app is `flight_project`."
+        project_detail = "Active project is `flight_project`."
     else:
         project_status = "Next"
-        project_detail = f"Active app is `{active_app}`; choose `flight_project`."
+        project_detail = f"Active project is `{active_app}`; choose `flight_project`."
 
     if state["run_manifest_loaded"] or state["run_output_detected"]:
         run_status = "Done"
@@ -480,7 +480,7 @@ def _first_proof_overview_html(
           <div class="agilab-proof__rail">{cards_html}</div>
           <div class="agilab-proof__meta">
             <span>Route: {escape(route)}</span>
-            <span>Active app: {escape(active_app)}</span>
+            <span>Active project: {escape(active_app)}</span>
             <span>PROJECT / ORCHESTRATE / ANALYSIS</span>
           </div>
         </section>

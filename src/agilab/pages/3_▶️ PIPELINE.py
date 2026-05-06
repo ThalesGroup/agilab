@@ -17,7 +17,7 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import tomllib        # For reading TOML files
 
-PIPELINE_PROJECT_LABEL = "Project name"
+PIPELINE_PROJECT_LABEL = "Active project"
 PIPELINE_PROJECT_HELP = (
     "Choose the project workspace whose pipeline steps and exported artifacts "
     "you want to inspect or edit."
@@ -820,6 +820,8 @@ def sidebar_controls() -> None:
         # Avoid selecting the top-level "apps" directory; prefer the active app/target.
         persisted_lab = normalized_target
 
+    st.sidebar.markdown("### Active project")
+    st.sidebar.caption("Choose the project workspace whose pipeline steps and artifacts are shown below.")
     project_filter = st.sidebar.text_input("Filter projects", key="project_filter")
     project_selection = build_project_selection(modules, persisted_lab, project_filter, limit=50)
     project_options = project_selection.shortlist

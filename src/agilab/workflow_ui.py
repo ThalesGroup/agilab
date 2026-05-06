@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -94,25 +93,8 @@ def restore_project_ui_state(
 
 
 def render_page_context(streamlit: Any, *, page_label: str, env: Any | None = None) -> None:
-    """Render a compact persistent context rail in the sidebar."""
-    sidebar = getattr(streamlit, "sidebar", streamlit)
-    expander_factory = getattr(sidebar, "expander", None)
-    context_manager = (
-        expander_factory("Context", expanded=False)
-        if callable(expander_factory)
-        else nullcontext(sidebar)
-    )
-    with context_manager as context:
-        _call_container_method(context, "caption", f"Page: {page_label}")
-        app_name = _as_text(getattr(env, "app", ""))
-        target_name = _as_text(getattr(env, "target", ""))
-        mode = _as_text(getattr(env, "mode", ""))
-        if app_name:
-            _call_container_method(context, "caption", f"Project: {app_name}")
-        if target_name and target_name != app_name:
-            _call_container_method(context, "caption", f"Target: {target_name}")
-        if mode:
-            _call_container_method(context, "caption", f"Mode: {mode}")
+    """Compatibility hook; page context is intentionally not rendered."""
+    return None
 
 
 def _download_log_button(

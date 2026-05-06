@@ -96,16 +96,14 @@ class _FakeStreamlit:
         self.events.append(("image", str(body)))
 
 
-def test_render_page_context_shows_page_and_project() -> None:
+def test_render_page_context_is_silent() -> None:
     fake_st = _FakeStreamlit()
     env = SimpleNamespace(app="flight_project", target="flight_worker", mode="Run now")
 
     workflow_ui.render_page_context(fake_st, page_label="ORCHESTRATE", env=env)
 
-    assert ("sidebar.expander", "Context:False") in fake_st.events
-    assert ("caption", "Page: ORCHESTRATE") in fake_st.events
-    assert ("caption", "Project: flight_project") in fake_st.events
-    assert ("caption", "Target: flight_worker") in fake_st.events
+    assert ("sidebar.expander", "Context:False") not in fake_st.events
+    assert fake_st.events == []
 
 
 def test_render_log_actions_can_download_and_clear() -> None:
@@ -304,7 +302,7 @@ def test_project_state_and_basic_render_edge_cases(monkeypatch, tmp_path) -> Non
             events.append(("caption", str(body)))
 
     workflow_ui.render_page_context(SimpleNamespace(sidebar=_CaptionOnly()), page_label="ABOUT", env=env)
-    assert ("caption", "Mode: Serve") in events
+    assert events == []
 
     fake_st = _FakeStreamlit()
     workflow_ui.render_log_actions(fake_st, body="only download", download_key="dl", file_name="run.log")

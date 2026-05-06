@@ -462,10 +462,13 @@ def test_execute_page_cluster_settings(mock_ui_env):
     at.run()
     assert not at.exception
     _assert_docs_actions_absent(at)
-    assert any("Run readiness" in str(item.value) for item in at.markdown)
-    assert any("Active app" in str(item.value) for item in at.markdown)
+    assert all("Run readiness" not in str(item.value) for item in at.markdown)
+    assert all("Check what will run" not in str(item.value) for item in at.caption)
+    assert all("Active project" not in str(item.value) for item in at.markdown)
     assert any("Next action" in str(item.value) for item in at.markdown)
-    assert any("active app and runtime resources -> arguments -> distribution preview" in str(item.value) for item in at.caption)
+    assert all("Flow:" not in str(item.value) for item in at.caption)
+    assert all("runtime resources -> arguments -> distribution preview" not in str(item.value) for item in at.caption)
+    assert all("active project and runtime resources" not in str(item.value) for item in at.caption)
 
     app_state_name = _current_app_state_name(at)
     enabled_toggle_key = f"cluster_enabled__{app_state_name}"
@@ -753,6 +756,16 @@ def test_explore_page_multiselect(mock_ui_env):
     at.run()
     assert not at.exception
     _assert_docs_actions_absent(at)
+    markdown_values = [item.value for item in at.markdown]
+    assert all("Analysis workspace" not in value for value in markdown_values)
+    assert any("Analysis views" in value for value in markdown_values)
+    assert all("Project evidence, available outputs" not in str(item.value) for item in at.caption)
+    metric_labels = [metric.label for metric in at.metric]
+    assert "Output files" in metric_labels
+    assert "Default view" in metric_labels
+    assert "Recommended" not in metric_labels
+    assert "Project" not in metric_labels
+    assert "Artifacts" not in metric_labels
     
     # Check that 'dummy_view' is an option in the multiselect
     selection_key = f"view_selection__flight_project"
@@ -766,7 +779,7 @@ def test_explore_page_multiselect(mock_ui_env):
     
     # Ensure that the button was created for it
     btns = [b.label for b in at.button]
-    assert "view_maps" in btns
+    assert "Open view_maps" in btns
 
 
 def test_explore_page_default_view_does_not_mutate_widget_state_after_render(mock_ui_env):
@@ -867,24 +880,33 @@ def test_edit_page_load(mock_ui_env):
     at.run()
     assert not at.exception
     markdown_values = [item.value for item in at.markdown]
-    assert any("Project workspace" in value for value in markdown_values)
+    assert all("Project workspace" not in value for value in markdown_values)
+    assert all("Identity, editable files" not in str(item.value) for item in at.caption)
     assert any("Edit project files" in value for value in markdown_values)
     assert any(button.label == "Export project" for button in at.sidebar.button)
     metric_labels = [metric.label for metric in at.metric]
-    assert {"Project", "Runtime module", "Manager env", "Worker env"}.issubset(metric_labels)
+    assert {"Runtime module", "Manager env", "Worker env"}.issubset(metric_labels)
+    assert "Project" not in metric_labels
+    assert "README" not in metric_labels
     _assert_docs_actions_absent(at)
 
 
-def test_project_sidebar_orders_active_project_before_workflow():
+def test_project_sidebar_orders_active_project_before_actions():
     """The sidebar should start with project identity before action selection."""
     source = Path("src/agilab/pages/1_▶️ PROJECT.py").read_text(encoding="utf-8")
     page_body = source[source.index("def page():"):]
 
     active_project_index = page_body.index("_render_active_project_sidebar(env)")
     export_index = page_body.index("_render_sidebar_export_action(env)")
-    workflow_index = page_body.index('st.sidebar.markdown("### Project workflow")')
+    action_index = page_body.index('"Project action"')
 
-    assert active_project_index < export_index < workflow_index
+    assert active_project_index < export_index < action_index
+    assert "Project workflow" not in source
+    assert "Choose what to do with the active project" not in source
+    assert "Actions below apply to this selected project" not in source
+    assert "Export creates a portable archive" not in source
+    assert "Project workspace" not in source
+    assert "Identity, editable files" not in source
     assert "Runtime module" in source
     assert "Project Name (no suffix)" not in source
     assert "New Project Name (no suffix)" not in source
@@ -969,8 +991,8 @@ def test_explore_page_multiple_views_selected(mock_ui_env):
     assert not at.exception
 
     btns = [b.label for b in at.button]
-    assert "view_maps" in btns
-    assert "view_barycentric" in btns
+    assert "Open view_maps" in btns
+    assert "Open view_barycentric" in btns
 
 
 def test_explore_page_deselect_view(mock_ui_env):
@@ -994,8 +1016,8 @@ def test_explore_page_deselect_view(mock_ui_env):
     assert not at.exception
 
     btns = [b.label for b in at.button]
-    assert "view_maps" not in btns
-    assert "view_barycentric" in btns
+    assert "Open view_maps" not in btns
+    assert "Open view_barycentric" in btns
 
 
 def test_app_args_form_no_changes(mock_ui_env):
@@ -1169,7 +1191,7 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert not at.exception
         assert at.sidebar.text_input(key="project_filter").label == "Filter projects"
         project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert project_select.label == "Project name"
+        assert project_select.label == "Active project"
         assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
         assert at.session_state["lab_dir_selectbox"] == project_select.value
 
@@ -1224,7 +1246,7 @@ def test_pipeline_page_project_filter_shortlists_projects(mock_ui_env, tmp_path)
         assert not at.exception
 
         filtered_select = at.sidebar.selectbox(key="project_selectbox")
-        assert filtered_select.label == "Project name"
+        assert filtered_select.label == "Active project"
         assert list(filtered_select.options) == ["sb3_trainer_project"]
         assert at.session_state["project_selectbox"] == "sb3_trainer_project"
         assert at.session_state["lab_dir_selectbox"] == "sb3_trainer_project"

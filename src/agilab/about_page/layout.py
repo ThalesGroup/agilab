@@ -1233,7 +1233,7 @@ def active_app_cluster_information_lines(env: Any) -> list[tuple[str, str]]:
         workers_data_path = "not used"
 
     lines = [
-        ("Active app", app_name),
+        ("Active project", app_name),
         ("Scheduler", scheduler_display),
         ("Mode", _cluster_mode_label(cluster_params)),
         ("Share", workers_data_path),

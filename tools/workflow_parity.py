@@ -239,26 +239,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_*_workflow.py",
             ],
         ),
-        CommandSpec(
-            label="agi-gui coverage combine",
-            argv=[
-                "uv",
-                "--preview-features",
-                "extra-build-dependencies",
-                "run",
-                "--group",
-                "dev",
-                "python",
-                "-m",
-                "coverage",
-                "combine",
-                "--data-file=.coverage.agi-gui",
-                *(f"test-results/coverage-agi-gui-{chunk}.db" for chunk in AGI_GUI_COVERAGE_CHUNKS),
-            ],
-            env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
-            timeout_seconds=5 * 60,
-            ensure_dirs=["test-results"],
-        ),
+        _agi_gui_coverage_combine(),
         CommandSpec(
             label="agi-gui coverage xml",
             argv=[
@@ -283,6 +264,43 @@ def _agi_gui_profile() -> list[CommandSpec]:
         ),
     ]
     return commands
+
+
+def _agi_gui_coverage_combine() -> CommandSpec:
+    chunk_paths = [
+        f"test-results/coverage-agi-gui-{chunk}.db"
+        for chunk in AGI_GUI_COVERAGE_CHUNKS
+    ]
+    combine_code = (
+        "from pathlib import Path\n"
+        "import subprocess, sys\n"
+        f"paths = {chunk_paths!r}\n"
+        "existing = [path for path in paths if Path(path).exists()]\n"
+        "missing = [path for path in paths if not Path(path).exists()]\n"
+        "if missing:\n"
+        "    print('Missing agi-gui coverage chunks: ' + ', '.join(missing))\n"
+        "    sys.exit(1)\n"
+        "cmd = [sys.executable, '-m', 'coverage', 'combine', '--keep', "
+        "'--data-file=.coverage.agi-gui', *paths]\n"
+        "sys.exit(subprocess.run(cmd, check=False).returncode)\n"
+    )
+    return CommandSpec(
+        label="agi-gui coverage combine",
+        argv=[
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--group",
+            "dev",
+            "python",
+            "-c",
+            combine_code,
+        ],
+        env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+        timeout_seconds=5 * 60,
+        ensure_dirs=["test-results"],
+    )
 
 
 def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool = False) -> CommandSpec:

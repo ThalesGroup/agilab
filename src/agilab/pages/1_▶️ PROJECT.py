@@ -1728,13 +1728,11 @@ def _render_active_project_sidebar(env) -> None:
     select_project(projects, env.app)
     env = st.session_state["env"]
     st.session_state["_env"] = env
-    st.sidebar.caption("Actions below apply to this selected project unless stated otherwise.")
 
 
 def _render_sidebar_export_action(env) -> None:
     if not getattr(env, "app", None):
         return
-    st.sidebar.caption("Export creates a portable archive of the active project.")
     if st.sidebar.button(
         "Export project",
         type="secondary",
@@ -1799,45 +1797,36 @@ def _render_overview_metric(label: str, value: str, caption: str) -> None:
 
 
 def _render_project_workspace_overview(env) -> None:
-    st.markdown("### Project workspace")
-    st.caption("Identity, editable files, and runtime readiness for the active project.")
-
     active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
     manager_venv = active_app / ".venv" if active_app is not None else None
     worker_venv = Path(getattr(env, "wenv_abs", "")) if getattr(env, "wenv_abs", None) else None
     settings_file = Path(getattr(env, "app_settings_file", "")) if getattr(env, "app_settings_file", None) else None
-    readme_file = active_app / "README.md" if active_app is not None else None
 
-    project_status, project_path = _path_metric_value(active_app)
+    project_path = _safe_display_path(active_app)
     manager_status, manager_path = _path_metric_value(manager_venv, venv=True)
     worker_status, worker_path = _path_metric_value(worker_venv, venv=True)
     settings_status, settings_path = _path_metric_value(settings_file, file=True)
 
-    top_cols = st.columns(4)
+    top_cols = st.columns(3)
     with top_cols[0]:
-        _render_overview_metric("Project", str(getattr(env, "app", "unknown")), project_status)
-    with top_cols[1]:
         _render_overview_metric(
             "Runtime module",
             str(getattr(env, "target", "unknown")),
             "Python package used by RUN/ORCHESTRATE",
         )
-    with top_cols[2]:
+    with top_cols[1]:
         _render_overview_metric("Manager env", manager_status, manager_path)
-    with top_cols[3]:
+    with top_cols[2]:
         _render_overview_metric("Worker env", worker_status, worker_path)
 
-    bottom_cols = st.columns(4)
+    bottom_cols = st.columns(3)
     with bottom_cols[0]:
         _render_overview_metric("Settings", settings_status, settings_path)
     with bottom_cols[1]:
-        readme_status, readme_path = _path_metric_value(readme_file, file=True)
-        _render_overview_metric("README", readme_status, readme_path)
-    with bottom_cols[2]:
         share_path = _safe_display_path(getattr(env, "app_data_rel", None))
         share_status = "configured" if share_path != "not configured" else "missing"
         _render_overview_metric("Data/share", share_status, share_path)
-    with bottom_cols[3]:
+    with bottom_cols[2]:
         _render_overview_metric("Last change", _latest_project_mtime(active_app), project_path)
 
 
@@ -1976,7 +1965,7 @@ def _render_app_settings(env):
 def _render_app_args_module(env):
     target = env.target
     if not target:
-        st.warning("Active app module not resolved; argument helpers unavailable.")
+        st.warning("Runtime module not resolved; argument helpers unavailable.")
         return
 
     module_name = f"{target}_args.py"
@@ -2644,9 +2633,6 @@ def page():
     _render_active_project_sidebar(env)
     env = st.session_state["env"]
     _render_sidebar_export_action(env)
-
-    st.sidebar.markdown("### Project workflow")
-    st.sidebar.caption("Choose what to do with the active project. Destructive actions are grouped last.")
 
     # Sidebar: Project selection, creation, loading
     sidebar_selection = compact_choice(
