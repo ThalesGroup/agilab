@@ -35,7 +35,7 @@ def test_build_streamlit_command_uses_source_ui_and_active_app() -> None:
         "run",
         "streamlit",
     ]
-    assert "src/agilab/About_agilab.py" in joined
+    assert "src/agilab/main_page.py" in joined
     assert "--server.port 8899" in joined
     assert "--active-app" in command
     assert str(module.DEFAULT_ACTIVE_APP) in command

@@ -41,7 +41,7 @@ def _prime_current_agilab_package() -> None:
 
 def _load_pipeline_module():
     _prime_current_agilab_package()
-    module_path = Path("src/agilab/pages/3_▶️ PIPELINE.py")
+    module_path = Path("src/agilab/pages/3_PIPELINE.py")
     spec = importlib.util.spec_from_file_location("agilab_pipeline_page_helper_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -62,7 +62,7 @@ def _load_pipeline_module_with_mixed_checkout(monkeypatch, stale_root: Path):
     spec.submodule_search_locations = [str(stale_root)]
     pkg.__spec__ = spec
     monkeypatch.setitem(sys.modules, "agilab", pkg)
-    module_path = Path("src/agilab/pages/3_▶️ PIPELINE.py")
+    module_path = Path("src/agilab/pages/3_PIPELINE.py")
     spec = importlib.util.spec_from_file_location("agilab_pipeline_page_mixed_checkout_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -254,99 +254,50 @@ def test_pipeline_on_df_change_uses_page_local_load_last_step(tmp_path, monkeypa
     assert steps_file.parent.exists()
 
 
-def test_dataframe_change_callback_args_keep_page_key_before_default(tmp_path):
-    module = _load_pipeline_module()
-    module_path = tmp_path / "demo_module"
-    steps_file = tmp_path / "steps" / "lab_steps.toml"
-
-    result = module._dataframe_change_callback_args(
-        module_path,
-        "demo",
-        tmp_path / "export" / "old.csv",
-        steps_file,
-    )
-
-    assert result == (module_path, "demo", tmp_path / "export" / "old.csv", steps_file)
-
-
-def test_dataframe_picker_syncs_from_selectbox_when_selectbox_changed(tmp_path, monkeypatch):
+def test_dataframe_picker_apply_hydrates_initial_picker_selection(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     session_state = {}
     monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
 
     export_root = tmp_path / "export"
     df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
-    picker_key = "demo/dataframe_picker"
-    selectbox_key = "demodf"
-    old_abs = str((export_root / df_files_rel[0]).resolve(strict=False))
-    new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
-    session_state[selectbox_key] = df_files_rel[1]
-    session_state[f"{picker_key}:selected_paths"] = [old_abs]
-    session_state[f"{picker_key}:last_applied"] = old_abs
-
-    module._sync_dataframe_picker_from_selectbox(
-        picker_key=picker_key,
-        selectbox_key=selectbox_key,
-        df_files_rel=df_files_rel,
-        export_root=export_root,
-    )
-
-    assert session_state[selectbox_key] == df_files_rel[1]
-    assert session_state[f"{picker_key}:selected_paths"] == [new_abs]
-    assert session_state[f"{picker_key}:last_applied"] == new_abs
-
-
-def test_dataframe_picker_apply_ignores_stale_picker_after_selectbox_sync(tmp_path, monkeypatch):
-    module = _load_pipeline_module()
-    session_state = {}
-    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
-
-    export_root = tmp_path / "export"
-    df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
-    picker_key = "demo/dataframe_picker"
-    selectbox_key = "demodf"
-    new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
-    session_state[selectbox_key] = df_files_rel[1]
-    session_state[f"{picker_key}:last_applied"] = new_abs
+    dataframe_key = "demodf"
 
     applied = module._apply_dataframe_picker_selection(
         export_root / df_files_rel[1],
-        picker_key=picker_key,
-        selectbox_key=selectbox_key,
+        dataframe_key=dataframe_key,
         df_files_rel=df_files_rel,
         export_root=export_root,
     )
 
     assert applied is False
-    assert session_state[selectbox_key] == df_files_rel[1]
+    assert session_state[dataframe_key] == df_files_rel[1]
+    assert session_state["demodf_file"] == str((export_root / df_files_rel[1]).resolve(strict=False))
+    assert session_state["df_file"] == str((export_root / df_files_rel[1]).resolve(strict=False))
 
 
-def test_dataframe_picker_apply_updates_selectbox_when_picker_changed(tmp_path, monkeypatch):
+def test_dataframe_picker_apply_updates_dataframe_state_when_picker_changed(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     session_state = {}
     monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
 
     export_root = tmp_path / "export"
     df_files_rel = [Path("demo/old.csv"), Path("demo/new.csv")]
-    picker_key = "demo/dataframe_picker"
-    selectbox_key = "demodf"
-    old_abs = str((export_root / df_files_rel[0]).resolve(strict=False))
+    dataframe_key = "demodf"
     new_abs = str((export_root / df_files_rel[1]).resolve(strict=False))
-    session_state[selectbox_key] = df_files_rel[0]
-    session_state[f"{picker_key}:last_applied"] = old_abs
+    session_state[dataframe_key] = df_files_rel[0]
 
     applied = module._apply_dataframe_picker_selection(
         export_root / df_files_rel[1],
-        picker_key=picker_key,
-        selectbox_key=selectbox_key,
+        dataframe_key=dataframe_key,
         df_files_rel=df_files_rel,
         export_root=export_root,
     )
 
     assert applied is True
-    assert session_state[selectbox_key] == df_files_rel[1]
-    assert session_state[f"{picker_key}:selected_paths"] == [new_abs]
-    assert session_state[f"{picker_key}:last_applied"] == new_abs
+    assert session_state[dataframe_key] == df_files_rel[1]
+    assert session_state["demodf_file"] == new_abs
+    assert session_state["df_file"] == new_abs
 
 
 def test_load_about_page_module_uses_imported_module(monkeypatch):

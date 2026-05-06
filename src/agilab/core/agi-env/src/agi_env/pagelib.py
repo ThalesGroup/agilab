@@ -423,7 +423,6 @@ def get_css_text():
     return read_css_text(st.session_state["env"].st_resources)
 
 
-@st.cache_resource
 def inject_theme(base_path: Path | None = None) -> None:
     css = read_theme_css(base_path, module_file=__file__)
     if css is not None:

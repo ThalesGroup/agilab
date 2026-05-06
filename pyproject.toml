@@ -424,7 +424,7 @@ disable_warnings = ["module-not-imported"]
 
 [tool.coverage.report]
 omit = [
-    "src/agilab/About_agilab.py",
+    "src/agilab/main_page.py",
     "src/agilab/lab_run.py",
     "src/agilab/pages/*.py",
 ]

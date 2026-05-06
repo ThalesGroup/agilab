@@ -126,7 +126,7 @@ CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
 git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
 cd "$CHECKOUT"
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 ```
 
 Follow the in-app pages from `PROJECT` to `ANALYSIS`. To collect the same check

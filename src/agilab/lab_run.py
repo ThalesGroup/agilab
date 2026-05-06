@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # Determine the target script (adjust path if necessary)
-    target_script = str(Path(__file__).parent /"About_agilab.py")
+    target_script = str(Path(__file__).parent /"main_page.py")
 
     # Build the base argument list for Streamlit.
     new_argv = ["streamlit", "run", target_script]

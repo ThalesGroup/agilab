@@ -17,6 +17,7 @@ import shutil
 import json
 import time
 import zipfile
+import html
 from pathlib import Path
 import ast
 import re
@@ -41,7 +42,6 @@ from agi_gui.pagelib import (
     get_templates,
     get_projects_zip,
     on_project_change,
-    select_project,
     render_logo,
     activate_mlflow
 )
@@ -86,6 +86,14 @@ _workflow_ui_module = import_agilab_module(
     fallback_name="agilab_workflow_ui_fallback",
 )
 render_page_context = _workflow_ui_module.render_page_context
+
+_page_project_selector_module = import_agilab_module(
+    "agilab.page_project_selector",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
+    fallback_name="agilab_page_project_selector_fallback",
+)
+render_project_selector = _page_project_selector_module.render_project_selector
 
 _action_execution_module = import_agilab_module(
     "agilab.action_execution",
@@ -1687,11 +1695,8 @@ def handle_project_selection():
         st.warning("No projects available.")
         return
 
-    _render_project_workspace_overview(env)
+    _render_project_software_metrics(env)
     st.markdown("### Edit project files")
-    st.caption(
-        "Open only the file group you need. Runtime installation and execution stay in ORCHESTRATE."
-    )
 
     # Keep all sections visible; each renderer handles its own absence checks.
     sections = [
@@ -1720,12 +1725,11 @@ def handle_project_selection():
 
 def _render_active_project_sidebar(env) -> None:
     projects = list(getattr(env, "projects", []) or [])
-    st.sidebar.markdown("### Active project")
     if not projects:
         st.sidebar.info("No projects available.")
         return
 
-    select_project(projects, env.app)
+    render_project_selector(st, projects, env.app, on_change=on_project_change)
     env = st.session_state["env"]
     st.session_state["_env"] = env
 
@@ -1751,83 +1755,197 @@ def _safe_display_path(value) -> str:
         return str(value)
 
 
-def _status_label(path: Path | None, *, file: bool = False, venv: bool = False) -> str:
-    if path is None:
-        return "not configured"
+_INCOMPLETE_HEADER_VALUE_TOKENS = (
+    "incomplete",
+    "missing",
+    "not configured",
+    "not selected",
+    "not set",
+    "unknown",
+)
+
+
+def _header_value_state(value: str, caption: str = "") -> str:
+    normalized = f"{value or ''} {caption or ''}".strip().lower()
+    if not normalized:
+        return "incomplete"
+    if any(token in normalized for token in _INCOMPLETE_HEADER_VALUE_TOKENS):
+        return "incomplete"
+    return "ready"
+
+
+def _render_metric_card(container, label: str, value: str, caption: str) -> None:
+    state = _header_value_state(value, caption)
+    container.markdown(
+        (
+            f"<div class='agilab-header-card agilab-header-card--{state}'>"
+            f"<div class='agilab-header-label'>{html.escape(label)}</div>"
+            f"<div class='agilab-header-value agilab-header-value--{state}'>{html.escape(str(value))}</div>"
+            f"<div class='agilab-header-caption'>{html.escape(caption)}</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _render_project_metric(label: str, value: str, caption: str) -> None:
+    _render_metric_card(st, label, value, caption)
+
+
+_SOFTWARE_METRIC_EXCLUDED_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "htmlcov",
+    "venv",
+}
+_SOFTWARE_METRIC_DOC_SUFFIXES = {".md", ".rst"}
+_SOFTWARE_METRIC_CONFIG_SUFFIXES = {".cfg", ".ini", ".json", ".toml", ".yaml", ".yml"}
+_SOFTWARE_METRIC_CONFIG_NAMES = {".env", ".gitignore", "Dockerfile"}
+
+
+def _iter_project_metric_files(project_root: Path):
     try:
-        candidate = Path(path)
+        root = Path(project_root)
     except TypeError:
-        return "not configured"
-    if venv:
-        python_bin = candidate / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
-        if python_bin.exists():
-            return "ready"
-        if _path_exists_or_symlink(candidate):
-            return "incomplete"
-        return "missing"
-    if file:
-        return "ready" if candidate.exists() and candidate.is_file() else "missing"
-    return "ready" if _path_exists_or_symlink(candidate) else "missing"
-
-
-def _path_metric_value(path: Path | None, *, file: bool = False, venv: bool = False) -> tuple[str, str]:
-    status = _status_label(path, file=file, venv=venv)
-    display = _safe_display_path(path)
-    return status, display
-
-
-def _latest_project_mtime(project_root: Path | None) -> str:
-    if project_root is None or not project_root.exists():
-        return "unknown"
-    try:
-        latest = project_root.stat().st_mtime
-        ignored_dirs = {".venv", "__pycache__", ".git"}
-        for root, dirs, files in os.walk(project_root):
-            dirs[:] = [dirname for dirname in dirs if dirname not in ignored_dirs]
-            for name in files:
-                latest = max(latest, (Path(root) / name).stat().st_mtime)
-    except OSError:
-        return "unknown"
-    return time.strftime("%Y-%m-%d %H:%M", time.localtime(latest))
-
-
-def _render_overview_metric(label: str, value: str, caption: str) -> None:
-    st.metric(label, value)
-    st.caption(caption)
-
-
-def _render_project_workspace_overview(env) -> None:
-    active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
-    manager_venv = active_app / ".venv" if active_app is not None else None
-    worker_venv = Path(getattr(env, "wenv_abs", "")) if getattr(env, "wenv_abs", None) else None
-    settings_file = Path(getattr(env, "app_settings_file", "")) if getattr(env, "app_settings_file", None) else None
-
-    project_path = _safe_display_path(active_app)
-    manager_status, manager_path = _path_metric_value(manager_venv, venv=True)
-    worker_status, worker_path = _path_metric_value(worker_venv, venv=True)
-    settings_status, settings_path = _path_metric_value(settings_file, file=True)
-
-    top_cols = st.columns(3)
-    with top_cols[0]:
-        _render_overview_metric(
-            "Runtime module",
-            str(getattr(env, "target", "unknown")),
-            "Python package used by RUN/ORCHESTRATE",
+        return
+    if not root.exists():
+        return
+    for current_root, dirs, files in os.walk(root):
+        dirs[:] = sorted(
+            dirname
+            for dirname in dirs
+            if dirname not in _SOFTWARE_METRIC_EXCLUDED_DIRS and not dirname.startswith(".")
         )
-    with top_cols[1]:
-        _render_overview_metric("Manager env", manager_status, manager_path)
-    with top_cols[2]:
-        _render_overview_metric("Worker env", worker_status, worker_path)
+        for filename in sorted(files):
+            yield Path(current_root) / filename
 
-    bottom_cols = st.columns(3)
-    with bottom_cols[0]:
-        _render_overview_metric("Settings", settings_status, settings_path)
-    with bottom_cols[1]:
-        share_path = _safe_display_path(getattr(env, "app_data_rel", None))
-        share_status = "configured" if share_path != "not configured" else "missing"
-        _render_overview_metric("Data/share", share_status, share_path)
-    with bottom_cols[2]:
-        _render_overview_metric("Last change", _latest_project_mtime(active_app), project_path)
+
+def _python_source_line_count(source: str) -> int:
+    return sum(1 for line in source.splitlines() if line.strip() and not line.lstrip().startswith("#"))
+
+
+def _is_test_file(path: Path, project_root: Path) -> bool:
+    try:
+        rel = path.relative_to(project_root)
+    except ValueError:
+        rel = path
+    return path.name.startswith("test_") or "test" in rel.parts or "tests" in rel.parts
+
+
+def _project_metric_tokens(project_root: Path) -> tuple[str, ...]:
+    tokens = {project_root.name}
+    if project_root.name.endswith("_project"):
+        tokens.add(project_root.name.removesuffix("_project"))
+    src_root = project_root / "src"
+    if src_root.exists():
+        for child in sorted(src_root.iterdir()):
+            if child.is_dir() and (child / "__init__.py").exists():
+                tokens.add(child.name)
+    return tuple(sorted(token.lower().replace("-", "_") for token in tokens if len(token) >= 3))
+
+
+def _test_filename_matches_project_token(path: Path, tokens: tuple[str, ...]) -> bool:
+    stem_parts = path.stem.lower().replace("-", "_").split("_")
+    for token in tokens:
+        token_parts = token.split("_")
+        token_len = len(token_parts)
+        if any(stem_parts[index:index + token_len] == token_parts for index in range(len(stem_parts) - token_len + 1)):
+            return True
+    return False
+
+
+def _iter_repo_project_test_files(project_root: Path):
+    repo_root = Path(__file__).resolve().parents[3]
+    repo_tests = repo_root / "test"
+    if not repo_tests.exists():
+        return
+    try:
+        project_root.resolve().relative_to(repo_root.resolve())
+    except ValueError:
+        return
+    tokens = _project_metric_tokens(project_root)
+    if not tokens:
+        return
+    for path in sorted(repo_tests.glob("test_*.py")):
+        if _test_filename_matches_project_token(path, tokens):
+            yield path
+
+
+def _project_software_metric_summary(project_root: Path | None) -> dict[str, int] | None:
+    if project_root is None or not project_root.exists():
+        return None
+    summary = {
+        "source_files": 0,
+        "source_lines": 0,
+        "test_files": 0,
+        "functions": 0,
+        "classes": 0,
+        "docs_config": 0,
+    }
+    counted_tests: set[Path] = set()
+    for path in _iter_project_metric_files(project_root):
+        suffix = path.suffix.lower()
+        if suffix in _SOFTWARE_METRIC_DOC_SUFFIXES:
+            summary["docs_config"] += 1
+        if suffix in _SOFTWARE_METRIC_CONFIG_SUFFIXES or path.name in _SOFTWARE_METRIC_CONFIG_NAMES:
+            summary["docs_config"] += 1
+        if suffix != ".py":
+            continue
+        is_test = _is_test_file(path, project_root)
+        if is_test:
+            summary["test_files"] += 1
+            counted_tests.add(path.resolve())
+        else:
+            summary["source_files"] += 1
+        try:
+            source = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if not is_test:
+            summary["source_lines"] += _python_source_line_count(source)
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            continue
+        summary["functions"] += sum(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) for node in ast.walk(tree))
+        summary["classes"] += sum(isinstance(node, ast.ClassDef) for node in ast.walk(tree))
+    for path in _iter_repo_project_test_files(project_root):
+        resolved = path.resolve()
+        if resolved in counted_tests:
+            continue
+        summary["test_files"] += 1
+        counted_tests.add(resolved)
+    return summary
+
+
+def _render_project_software_metrics(env) -> None:
+    active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
+    summary = _project_software_metric_summary(active_app)
+    if summary is None:
+        _render_project_metric("Software metrics", "missing", _safe_display_path(active_app))
+        return
+    with st.container(border=True):
+        top_cols = st.columns(3)
+        with top_cols[0]:
+            _render_project_metric("Source files", str(summary["source_files"]), "Python modules excluding tests")
+        with top_cols[1]:
+            _render_project_metric("Source LOC", str(summary["source_lines"]), "non-empty, non-comment Python lines")
+        with top_cols[2]:
+            _render_project_metric("Tests", str(summary["test_files"]), "test_*.py and test/ files")
+
+        bottom_cols = st.columns(3)
+        with bottom_cols[0]:
+            _render_project_metric("Functions", str(summary["functions"]), "sync and async definitions")
+        with bottom_cols[1]:
+            _render_project_metric("Classes", str(summary["classes"]), "Python class definitions")
+        with bottom_cols[2]:
+            _render_project_metric("Docs/config", str(summary["docs_config"]), "docs, TOML, JSON, YAML")
 
 
 def _expander_icon(label: str) -> str:

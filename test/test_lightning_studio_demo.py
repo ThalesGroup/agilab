@@ -17,7 +17,7 @@ def test_find_repo_root_discovers_checkout_from_nested_path(tmp_path: Path) -> N
     repo_root = tmp_path / "agilab"
     nested = repo_root / "examples" / "demo"
     (repo_root / "src" / "agilab").mkdir(parents=True)
-    (repo_root / "src" / "agilab" / "About_agilab.py").write_text("pass\n", encoding="utf-8")
+    (repo_root / "src" / "agilab" / "main_page.py").write_text("pass\n", encoding="utf-8")
     (repo_root / "pyproject.toml").write_text("[project]\nname='agilab'\n", encoding="utf-8")
     nested.mkdir(parents=True)
 
@@ -60,7 +60,7 @@ def test_build_streamlit_command_targets_about_page_and_default_app(tmp_path: Pa
         "streamlit",
         "run",
     ]
-    assert cmd[6] == str((repo_root / "src" / "agilab" / "About_agilab.py").resolve())
+    assert cmd[6] == str((repo_root / "src" / "agilab" / "main_page.py").resolve())
     assert "--server.address" in cmd
     assert "0.0.0.0" in cmd
     assert "--server.port" in cmd

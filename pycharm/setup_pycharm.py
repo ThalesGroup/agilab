@@ -161,7 +161,7 @@ def venv_python_for(project_dir: Path) -> Optional[Path]:
 def _is_agilab_source_root(path: Path) -> bool:
     return (
         (path / "pyproject.toml").exists()
-        and (path / "src" / "agilab" / "About_agilab.py").exists()
+        and (path / "src" / "agilab" / "main_page.py").exists()
     )
 
 

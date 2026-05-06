@@ -95,7 +95,7 @@ Use this runbook whenever you:
   `uv sync` then
   `AGILAB_PYCHARM_ALLOW_SDK_REBIND=1 uv --preview-features extra-build-dependencies run python pycharm/setup_pycharm.py`.
   Without the override, `setup_pycharm.py` must refuse cross-checkout rebinding so a run
-  cannot silently execute `/path/A/src/agilab/About_agilab.py` with `/path/B/.venv`.
+  cannot silently execute `/path/A/src/agilab/main_page.py` with `/path/B/.venv`.
   Rerun full `install.sh` only when you also need installer side effects such as app
   installation, `.agilab-path` updates, dataset seeding, or install-time tests.
 - **VS Code parity**: If you work from VS Code, regenerate local tasks and debug launches from the same
@@ -452,8 +452,8 @@ sentinel check on a macOS worker.
 
 | Group | Config name | Entry | Args | Workdir | Env | How to run | Interpreter |
 |---|---|---|---|---|---|---|---|
-| agilab | agilab run (dev) | streamlit | run $PROJECT_DIR$/src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-path $PROJECT_DIR$/src/agilab/apps | $PROJECT_DIR$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1;IS_SOURCE_ENV=1 | cd $PROJECT_DIR$ && uv run streamlit run $PROJECT_DIR$/src/agilab/About_agilab.py -- --openai-api-key "your-key" --apps-path $PROJECT_DIR$/src/agilab/apps | uv (agilab) |
-| agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/About_agilab.py -- --openai-api-key "your-key" | $PROJECT_DIR$/../agi-space | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/About_agilab.py -- --openai-api-key "your-key" | uv (agi-space) |
+| agilab | agilab run (dev) | streamlit | run $PROJECT_DIR$/src/agilab/main_page.py -- --openai-api-key "your-key" --apps-path $PROJECT_DIR$/src/agilab/apps | $PROJECT_DIR$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1;IS_SOURCE_ENV=1 | cd $PROJECT_DIR$ && uv run streamlit run $PROJECT_DIR$/src/agilab/main_page.py -- --openai-api-key "your-key" --apps-path $PROJECT_DIR$/src/agilab/apps | uv (agilab) |
+| agilab | agilab run (enduser) | streamlit | run .venv/lib/python3.13/site-packages/agilab/main_page.py -- --openai-api-key "your-key" | $PROJECT_DIR$/../agi-space | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$/../agi-space && uv run streamlit run .venv/lib/python3.13/site-packages/agilab/main_page.py -- --openai-api-key "your-key" | uv (agi-space) |
 | agilab | app_script gen | $PROJECT_DIR$/pycharm/gen_app_script.py | $Prompt:Enter app manager name:flight$ |  | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | uv run python $PROJECT_DIR$/pycharm/gen_app_script.py $Prompt:Enter app manager name:flight$ | uv (agi-cluster) |
 | agilab | apps-pages launcher | $PROJECT_DIR$/tools/apps_pages_launcher.py | --active-app $PROJECT_DIR$/src/agilab/apps/builtin/flight_project | $PROJECT_DIR$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/apps_pages_launcher.py --active-app $PROJECT_DIR$/src/agilab/apps/builtin/flight_project | uv (agilab) |
 | agilab | apps-pages smoke | $PROJECT_DIR$/tools/smoke_preinit.py | --active-app $PROJECT_DIR$/src/agilab/apps/builtin/flight_project --timeout 20 | $PROJECT_DIR$ | PYTHONUNBUFFERED=1;UV_NO_SYNC=1 | cd $PROJECT_DIR$ && uv run python $PROJECT_DIR$/tools/smoke_preinit.py --active-app $PROJECT_DIR$/src/agilab/apps/builtin/flight_project --timeout 20 | uv (agilab) |

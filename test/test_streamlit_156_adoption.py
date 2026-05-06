@@ -28,8 +28,20 @@ def test_new_choice_widgets_use_agilab_blue_theme() -> None:
 
     assert theme_config["theme"]["primaryColor"] == "#4A90E2"
     assert "--agilab-primary: #4A90E2;" in theme_css
-    assert "--agilab-value: #72d6b4;" in theme_css
-    assert '[data-testid="stMetricValue"]' in theme_css
+    assert "--agilab-value-ready: #72d6b4;" in theme_css
+    assert "--agilab-value-incomplete: #ffbe5e;" in theme_css
+    assert ".agilab-header-value--ready" in theme_css
+    assert ".agilab-header-value--incomplete" in theme_css
+    assert "padding: clamp(1.25rem, 2.2vw, 1.85rem);" in theme_css
+    assert "gap: 1.15rem !important;" in theme_css
+    assert "gap: 1.15rem;" in theme_css
+    assert "align-items: stretch;" in theme_css
+    assert "grid-template-rows: auto minmax(1.65rem, 1fr) auto;" in theme_css
+    assert '[data-testid="stVerticalBlock"]:has(> [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] .agilab-header-card)' in theme_css
+    assert '[data-testid="stElementContainer"]:has(.agilab-header-card)' in theme_css
+    assert "margin-bottom: 0 !important;" in theme_css
+    assert "stVerticalBlockBorderWrapper" not in theme_css
+    assert '[data-testid="stMetricValue"]' not in theme_css
     assert '[data-testid="stButtonGroup"]' in theme_css
     assert '[role="radio"][aria-checked="true"]' in theme_css
     assert '[role="checkbox"][aria-checked="true"]' in theme_css

@@ -245,7 +245,7 @@ def _score_test(path: str, changed_files: Sequence[str], guessed_tests: set[str]
         if changed.startswith("src/agilab/pipeline_") and "test_pipeline" in path:
             score += 35.0
             reasons.append("pipeline surface")
-        if changed.startswith("src/agilab/About_agilab.py") and "test_about" in path:
+        if changed.startswith("src/agilab/main_page.py") and "test_about" in path:
             score += 35.0
             reasons.append("about page surface")
         if changed.startswith("src/agilab/apps-pages/"):

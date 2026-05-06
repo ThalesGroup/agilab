@@ -3,12 +3,15 @@
 # All rights reserved.
 # Co-author: Codex cli
 """Streamlit entry point for the AGILab interactive lab."""
+import asyncio
+import inspect
 import json
 import os
 import importlib.util
 import textwrap
+import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
 from agi_env.pagelib_resource_support import about_content_payload as _about_content_payload
 
@@ -153,6 +156,17 @@ _env_file_utils_module = _import_agilab_module_or_stop(
 )
 _load_env_file_map = _env_file_utils_module.load_env_file_map
 
+_runtime_diagnostics_module = _import_agilab_module_or_stop(
+    "agilab.runtime_diagnostics",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "runtime_diagnostics.py",
+    fallback_name="agilab_runtime_diagnostics_fallback",
+)
+GLOBAL_DIAGNOSTICS_ENV_KEY = _runtime_diagnostics_module.GLOBAL_DIAGNOSTICS_ENV_KEY
+diagnostics_widget_key = _runtime_diagnostics_module.diagnostics_widget_key
+global_diagnostics_verbose = _runtime_diagnostics_module.global_diagnostics_verbose
+render_runtime_diagnostics_control = _runtime_diagnostics_module.render_runtime_diagnostics_control
+
 _page_docs_module = _import_agilab_module_or_stop(
     "agilab.page_docs",
     current_file=__file__,
@@ -192,6 +206,7 @@ st.session_state.setdefault("env_editor_feedback", None)
 
 from agi_env.credential_store_support import store_cluster_credentials
 from agi_gui.ui_support import detect_agilab_version, read_theme_css, store_last_active_app
+from agi_gui.ux_widgets import compact_choice
 
 FIRST_PROOF_PROJECT = _about_onboarding.FIRST_PROOF_PROJECT
 FIRST_PROOF_COMPATIBILITY_SLICE = _about_onboarding.FIRST_PROOF_COMPATIBILITY_SLICE
@@ -469,6 +484,46 @@ def _upsert_env_var(path: Path, key: str, value: str) -> None:
     _about_env_editor._upsert_env_var(path, key, value)
 
 
+def _global_runtime_diagnostics_verbose(env: Any) -> int:
+    return global_diagnostics_verbose(
+        session_state=st.session_state,
+        envars=getattr(env, "envars", None),
+        environ=os.environ,
+        default=1,
+    )
+
+
+def _store_global_runtime_diagnostics_verbose(env: Any, verbose: int) -> None:
+    value = str(verbose)
+    _upsert_env_var(ENV_FILE_PATH, GLOBAL_DIAGNOSTICS_ENV_KEY, value)
+    os.environ[GLOBAL_DIAGNOSTICS_ENV_KEY] = value
+    if hasattr(env, "envars") and isinstance(env.envars, dict):
+        env.envars[GLOBAL_DIAGNOSTICS_ENV_KEY] = value
+    st.session_state[GLOBAL_DIAGNOSTICS_ENV_KEY] = value
+    st.session_state["cluster_verbose"] = verbose
+
+
+def _render_global_runtime_diagnostics(env: Any) -> None:
+    current_verbose = _global_runtime_diagnostics_verbose(env)
+    settings: Dict[str, Any] = {"cluster": {"verbose": current_verbose}}
+    with st.expander("Runtime diagnostics", expanded=False) as diagnostics_container:
+        diagnostics_container.caption(
+            "Global log detail reused by ORCHESTRATE, PIPELINE, generated snippets, and CLI runs."
+        )
+        selected_verbose = render_runtime_diagnostics_control(
+            st,
+            diagnostics_container,
+            settings,
+            app_name="global",
+            compact_choice_fn=compact_choice,
+            key=diagnostics_widget_key("global"),
+        )
+    if selected_verbose != current_verbose:
+        _store_global_runtime_diagnostics_verbose(env, selected_verbose)
+    else:
+        st.session_state["cluster_verbose"] = selected_verbose
+
+
 def _refresh_env_from_file(env: Any) -> None:
     _sync_env_editor_module()
     _about_env_editor._refresh_env_from_file(env)
@@ -505,6 +560,8 @@ def page(env: Any) -> None:
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env)
 
+    _render_global_runtime_diagnostics(env)
+
     _sync_layout_module()
     _about_layout.render_footer()
     if "TABLE_MAX_ROWS" not in st.session_state:
@@ -513,34 +570,14 @@ def page(env: Any) -> None:
         st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 
 
-# ------------------------- Main Entrypoint -------------------------
+def _about_resources_path() -> Path:
+    return Path(__file__).resolve().parent / "resources"
 
-def main() -> None:
-    """Initialise the Streamlit app, bootstrap the environment and display the UI."""
-    st.set_page_config(
-        page_title="AGILab",
-        menu_items=get_about_content(),
-        layout="wide",
-    )
-    resources_path = Path(__file__).resolve().parent / "resources"
+
+def _ensure_navigation_environment(resources_path: Path, *, rerun_after_bootstrap: bool) -> Any | None:
+    """Bootstrap AGILAB once before a navigation page renders project-specific UI."""
     os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(resources_path / "config.toml"))
-    try:
-        inject_theme(resources_path)
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
-        # Non-fatal: UI will still load without custom theme
-        st.warning(f"Theme injection skipped: {e}")
     st.session_state.setdefault("first_run", True)
-    _pre_render_reset()
-
-    # Always set background style
-    st.markdown(
-        """<style>
-        body { background: #f6f8fa !important; }
-        </style>""",
-        unsafe_allow_html=True
-    )
-
-    # ---- Initialize if needed (on cold start, or if 'env' key lost) ----
     if st.session_state.get("first_run", True) or "env" not in st.session_state:
         with st.spinner("Initializing environment..."):
             result = _about_bootstrap.bootstrap_page_environment(
@@ -555,12 +592,11 @@ def main() -> None:
                 store_cluster_credentials=store_cluster_credentials,
             )
             if result.handled_recovery:
-                return
-            if result.should_rerun:
+                return None
+            if result.should_rerun or rerun_after_bootstrap:
                 st.rerun()
-                return
+                return None
 
-    # ---- After init, always show banner+intro and then main UI ----
     env = st.session_state['env']
     _refresh_env_from_file(env)
     _sync_active_app_from_query(env)
@@ -568,10 +604,90 @@ def main() -> None:
         store_last_active_app(Path(env.apps_path) / env.app)
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
+    return env
+
+
+# ------------------------- Main Entrypoint -------------------------
+
+def _render_about_page_entry() -> None:
+    """Initialise the About page and display the landing UI."""
+    st.set_page_config(
+        page_title="AGILab",
+        menu_items=get_about_content(),
+        layout="wide",
+    )
+    resources_path = _about_resources_path()
+    try:
+        inject_theme(resources_path)
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
+        # Non-fatal: UI will still load without custom theme
+        st.warning(f"Theme injection skipped: {e}")
+    _pre_render_reset()
+
+    # Always set background style
+    st.markdown(
+        """<style>
+        body { background: #f6f8fa !important; }
+        </style>""",
+        unsafe_allow_html=True
+    )
+
+    env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
+    if env is None:
+        return
     show_banner_and_intro(resources_path, env)
     openai_status_banner(env)
     # Quick hint for operators: where to check install errors
     page(env)
+
+
+def _navigation_pages() -> list[Any]:
+    """Return the supported visible pages while keeping About hidden from the page list."""
+    root = Path(__file__).resolve().parent
+    pages_root = root / "pages"
+    return [
+        st.Page(
+            _render_about_page_entry,
+            title="About AGILAB",
+            url_path="",
+            default=True,
+            visibility="hidden",
+        ),
+        st.Page(_page_file_runner(pages_root / "1_PROJECT.py"), title="PROJECT", url_path="PROJECT"),
+        st.Page(_page_file_runner(pages_root / "2_ORCHESTRATE.py"), title="ORCHESTRATE", url_path="ORCHESTRATE"),
+        st.Page(_page_file_runner(pages_root / "3_PIPELINE.py"), title="PIPELINE", url_path="PIPELINE"),
+        st.Page(_page_file_runner(pages_root / "4_ANALYSIS.py"), title="ANALYSIS", url_path="ANALYSIS"),
+    ]
+
+
+def _page_file_runner(page_file: Path) -> Callable[[], None]:
+    """Run a guarded Streamlit page file through ``st.Page`` without changing the page contract."""
+
+    def _run_page() -> None:
+        if _ensure_navigation_environment(_about_resources_path(), rerun_after_bootstrap=True) is None:
+            return
+        module_name = f"_agilab_streamlit_page_{abs(hash(page_file.resolve()))}"
+        spec = importlib.util.spec_from_file_location(module_name, page_file)
+        if spec is None or spec.loader is None:
+            raise ModuleNotFoundError(f"Unable to load page from {page_file}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        spec.loader.exec_module(module)
+        main_fn = getattr(module, "main", None)
+        if main_fn is None:
+            raise AttributeError(f"Page {page_file} does not expose a main() function")
+        if inspect.iscoroutinefunction(main_fn):
+            asyncio.run(main_fn())
+        else:
+            main_fn()
+
+    _run_page.__name__ = f"run_{page_file.stem}"
+    return _run_page
+
+
+def main() -> None:
+    """Initialise AGILAB navigation and run the selected Streamlit page."""
+    st.navigation(_navigation_pages()).run()
 
 
 # ----------------- Run App -----------------

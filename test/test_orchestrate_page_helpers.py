@@ -123,7 +123,7 @@ def _load_orchestrate_page_helpers_module_with_import_failures(monkeypatch, name
 
 def _load_orchestrate_module():
     _prime_current_agilab_package()
-    module_path = Path("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    module_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -145,7 +145,7 @@ def _load_orchestrate_module_with_mixed_checkout(monkeypatch, stale_root: Path):
     pkg.__spec__ = spec_pkg
     monkeypatch.setitem(sys.modules, "agilab", pkg)
 
-    module_path = Path("src/agilab/pages/2_▶️ ORCHESTRATE.py")
+    module_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
     spec = importlib.util.spec_from_file_location("agilab_orchestrate_page_importerror_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

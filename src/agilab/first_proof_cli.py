@@ -154,8 +154,8 @@ def _preinit_smoke_command(active_app: Path) -> ProofCommand:
 
 
 def _ui_smoke_code(active_app: Path) -> str:
-    about_page = PACKAGE_ROOT / "About_agilab.py"
-    orchestrate_page = PACKAGE_ROOT / "pages" / "2_▶️ ORCHESTRATE.py"
+    about_page = PACKAGE_ROOT / "main_page.py"
+    orchestrate_page = PACKAGE_ROOT / "pages" / "2_ORCHESTRATE.py"
     apps_path = _apps_path_for_active_app(active_app)
     return textwrap.dedent(
         f"""

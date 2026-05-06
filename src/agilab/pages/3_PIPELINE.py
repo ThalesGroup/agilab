@@ -2,12 +2,14 @@ import logging
 import os
 import json
 import traceback
+import html
 from pathlib import Path
 import importlib
 import importlib.util
 import sys
 import sysconfig
 import subprocess
+import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
@@ -17,10 +19,10 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import tomllib        # For reading TOML files
 
-PIPELINE_PROJECT_LABEL = "Active project"
+PIPELINE_PROJECT_LABEL = "Project name"
 PIPELINE_PROJECT_HELP = (
-    "Choose the project workspace whose pipeline steps and exported artifacts "
-    "you want to inspect or edit."
+    "Project workspace whose pipeline steps and exported artifacts are shown below. "
+    "Type in the dropdown to search."
 )
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
@@ -50,7 +52,6 @@ from agi_gui.pagelib import (
 from agi_gui.file_picker import agi_file_picker
 from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv, normalize_path
-from agi_env.pagelib_navigation_support import build_project_selection
 from agi_env.pagelib_selection_support import on_df_change as _on_df_change_impl
 import_agilab_symbols(
     globals(),
@@ -98,11 +99,8 @@ import_agilab_symbols(
     globals(),
     "agilab.runtime_diagnostics",
     {
-        "coerce_diagnostics_verbose": "coerce_diagnostics_verbose",
-        "diagnostics_widget_key": "diagnostics_widget_key",
+        "global_diagnostics_verbose": "global_diagnostics_verbose",
         "load_settings_file": "load_runtime_diagnostics_settings_file",
-        "persist_diagnostics_verbose": "persist_runtime_diagnostics_verbose",
-        "render_runtime_diagnostics_control": "render_runtime_diagnostics_control",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "runtime_diagnostics.py",
@@ -407,15 +405,6 @@ def on_df_change(module_dir: Path, index_page, df_file=None, steps_file=None) ->
     )
 
 
-def _dataframe_change_callback_args(
-    module_path: Path,
-    index_page: str,
-    df_file_default: str | Path | None,
-    steps_file: Path,
-) -> tuple[Path, str, str | Path | None, Path]:
-    return (module_path, index_page, df_file_default, steps_file)
-
-
 def clean_query(index_page: str) -> None:
     """Reset the query fields in session state."""
     df_value = st.session_state.get("df_file", "") or ""
@@ -457,40 +446,14 @@ def _resolve_dataframe_selection(
     return relative_path, str((export_root_resolved / relative_path).resolve(strict=False))
 
 
-def _sync_dataframe_picker_from_selectbox(
-    *,
-    picker_key: str,
-    selectbox_key: str,
-    df_files_rel: List[Path],
-    export_root: Path,
-) -> None:
-    """Keep the picker cache aligned when the legacy selectbox changes."""
-    selected = _resolve_dataframe_selection(
-        st.session_state.get(selectbox_key),
-        df_files_rel=df_files_rel,
-        export_root=export_root,
-    )
-    if selected is None:
-        return
-
-    _, selected_abs = selected
-    picker_applied_key = f"{picker_key}:last_applied"
-    if st.session_state.get(picker_applied_key) == selected_abs:
-        return
-
-    st.session_state[f"{picker_key}:selected_paths"] = [selected_abs]
-    st.session_state[picker_applied_key] = selected_abs
-
-
 def _apply_dataframe_picker_selection(
     picked_df: str | Path | None,
     *,
-    picker_key: str,
-    selectbox_key: str,
+    dataframe_key: str,
     df_files_rel: List[Path],
     export_root: Path,
 ) -> bool:
-    """Apply a picker selection only when the picker changed."""
+    """Apply a picker selection and return whether it changed the active dataframe."""
     selected = _resolve_dataframe_selection(
         picked_df,
         df_files_rel=df_files_rel,
@@ -500,14 +463,16 @@ def _apply_dataframe_picker_selection(
         return False
 
     picked_df_rel, picked_abs = selected
-    picker_applied_key = f"{picker_key}:last_applied"
-    if st.session_state.get(picker_applied_key) == picked_abs:
-        return False
-
-    st.session_state[selectbox_key] = picked_df_rel
-    st.session_state[f"{picker_key}:selected_paths"] = [picked_abs]
-    st.session_state[picker_applied_key] = picked_abs
-    return True
+    current_selection = _resolve_dataframe_selection(
+        st.session_state.get(dataframe_key),
+        df_files_rel=df_files_rel,
+        export_root=export_root,
+    )
+    current_df_rel = current_selection[0] if current_selection else None
+    st.session_state[dataframe_key] = picked_df_rel
+    st.session_state[f"{dataframe_key}_file"] = picked_abs
+    st.session_state["df_file"] = picked_abs
+    return current_df_rel is not None and current_df_rel != picked_df_rel
 
 
 @st.cache_data(show_spinner=False)
@@ -796,8 +761,6 @@ def sidebar_controls() -> None:
             return None
         return str(val)
 
-    configure_assistant_engine(env)
-
     last_active = _load_last_active_app_name(modules)
     normalized_target = _normalize_lab_choice(env.target, modules)
     if project_changed:
@@ -820,21 +783,9 @@ def sidebar_controls() -> None:
         # Avoid selecting the top-level "apps" directory; prefer the active app/target.
         persisted_lab = normalized_target
 
-    st.sidebar.markdown("### Active project")
-    st.sidebar.caption("Choose the project workspace whose pipeline steps and artifacts are shown below.")
-    project_filter = st.sidebar.text_input("Filter projects", key="project_filter")
-    project_selection = build_project_selection(modules, persisted_lab, project_filter, limit=50)
-    project_options = project_selection.shortlist
-    project_index = project_selection.default_index
-    if not project_options:
-        st.sidebar.info("No projects match that filter; keeping the current project.")
-        project_options = [persisted_lab] if persisted_lab in modules else modules[:1]
-        project_index = 0
-    elif project_selection.needs_caption:
-        st.sidebar.caption(
-            f"Showing first {len(project_options)} of {project_selection.total_matches} matches"
-        )
-
+    st.session_state.pop("project_filter", None)
+    project_options = modules
+    project_index = modules.index(persisted_lab) if persisted_lab in modules else 0
     if st.session_state.get("project_selectbox") not in project_options:
         st.session_state.pop("project_selectbox", None)
     selected_lab = st.sidebar.selectbox(
@@ -852,28 +803,19 @@ def sidebar_controls() -> None:
     if requested_lab and st.session_state.get("lab_dir_selectbox") == requested_lab:
         st.session_state.pop("_requested_lab_dir", None)
 
+    configure_assistant_engine(env)
+
     try:
         diagnostics_settings_file = env.resolve_user_app_settings_file(selected_lab)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         diagnostics_settings_file = getattr(env, "app_settings_file", None)
     diagnostics_settings = load_runtime_diagnostics_settings_file(diagnostics_settings_file)
-    current_diagnostics_verbose = coerce_diagnostics_verbose(
-        diagnostics_settings.get("cluster", {}).get("verbose", 1)
-        if isinstance(diagnostics_settings.get("cluster"), dict)
-        else 1
+    selected_diagnostics_verbose = global_diagnostics_verbose(
+        session_state=st.session_state,
+        envars=getattr(env, "envars", None),
+        environ=os.environ,
+        settings=diagnostics_settings,
     )
-    with st.sidebar.expander("Runtime diagnostics", expanded=False) as diagnostics_container:
-        selected_diagnostics_verbose = render_runtime_diagnostics_control(
-            st,
-            diagnostics_container,
-            diagnostics_settings,
-            app_name=selected_lab,
-            compact_choice_fn=compact_choice,
-            key=diagnostics_widget_key(selected_lab),
-        )
-        diagnostics_container.caption("Quiet=0, Standard=1, Detailed=2, Debug=3.")
-    if selected_diagnostics_verbose != current_diagnostics_verbose:
-        persist_runtime_diagnostics_verbose(diagnostics_settings_file, selected_diagnostics_verbose)
     st.session_state["cluster_verbose"] = selected_diagnostics_verbose
 
     steps_file_name = st.session_state["steps_file_name"]
@@ -953,14 +895,8 @@ def sidebar_controls() -> None:
     elif df_files_rel:
         picker_default = Agi_export_abs / df_files_rel[index]
     picker_key = f"{index_page_str}:dataframe_picker"
-    _sync_dataframe_picker_from_selectbox(
-        picker_key=picker_key,
-        selectbox_key=key_df,
-        df_files_rel=df_files_rel,
-        export_root=Agi_export_abs,
-    )
     picked_df = agi_file_picker(
-        "Browse dataframe",
+        "Dataframe",
         roots={lab_root: lab_dir},
         key=picker_key,
         patterns="*",
@@ -970,7 +906,7 @@ def sidebar_controls() -> None:
         allow_dirs=False,
         recursive=True,
         container=st.sidebar,
-        help="Browse files under the active project workspace export directory.",
+        help="Browse and filter files under the active project workspace export directory.",
     )
     if picked_df:
         try:
@@ -978,32 +914,26 @@ def sidebar_controls() -> None:
         except ValueError:
             st.sidebar.warning("Selected dataframe is outside the export directory.")
         else:
-            _apply_dataframe_picker_selection(
+            dataframe_changed = _apply_dataframe_picker_selection(
                 picked_df_rel,
-                picker_key=picker_key,
-                selectbox_key=key_df,
+                dataframe_key=key_df,
                 df_files_rel=df_files_rel,
                 export_root=Agi_export_abs,
             )
-    selectbox_index = None if key_df in st.session_state or not df_files_rel else index
-
-    st.sidebar.selectbox(
-        "Dataframe",
-        df_files_rel,
-        key=key_df,
-        index=selectbox_index,
-        on_change=on_df_change,
-        args=_dataframe_change_callback_args(
-            module_path,
-            index_page_str,
-            df_file_default,
-            steps_file,
-        ),
-    )
-
-    if st.session_state.get(key_df):
-        st.session_state["df_file"] = str(Agi_export_abs / st.session_state[key_df])
+            if dataframe_changed:
+                st.session_state.pop(index_page_str, None)
+                st.session_state.page_broken = True
     else:
+        st.session_state.pop(key_df, None)
+        st.session_state.pop(f"{key_df}_file", None)
+        st.session_state["df_file"] = None
+    if _resolve_dataframe_selection(
+        st.session_state.get(key_df),
+        df_files_rel=df_files_rel,
+        export_root=Agi_export_abs,
+    ) is None:
+        st.session_state.pop(key_df, None)
+        st.session_state.pop(f"{key_df}_file", None)
         st.session_state["df_file"] = None
 
     # Persist sidebar selections into query params for reloads
@@ -1013,7 +943,7 @@ def sidebar_controls() -> None:
             "index_page": str(st.session_state.get("index_page", "")),
             "lab_llm_provider": st.session_state.get("lab_llm_provider", ""),
             "gpt_oss_endpoint": st.session_state.get("gpt_oss_endpoint", ""),
-            "df_file": st.session_state.get("df_file", ""),
+            "df_file": st.session_state.get("df_file") or "",
             # Keep other pages (e.g., Explore) aware of the current project
             "active_app": st.session_state.get("lab_dir_selectbox", ""),
         }
@@ -1049,23 +979,20 @@ def sidebar_controls() -> None:
 
 def mlflow_controls() -> None:
     """Display MLflow UI controls in sidebar."""
+    if not st.session_state.get("server_started"):
+        return
+
     st.sidebar.divider()
     st.sidebar.subheader("MLflow")
-    st.sidebar.caption("Inspect experiment runs separately from pipeline execution.")
-
-    if st.session_state.get("server_started"):
-        mlflow_port = st.session_state.get("mlflow_port", 5000)
-        mlflow_url = f"http://localhost:{mlflow_port}"
-        st.sidebar.markdown(f"**Status:** running  \n**Port:** `{mlflow_port}`")
-        st.sidebar.link_button(
-            "Open UI",
-            mlflow_url,
-            help=f"Open the MLflow UI in a new tab on port {mlflow_port}.",
-            width="stretch",
-        )
-    elif not st.session_state.get("server_started"):
-        st.sidebar.markdown("**Status:** stopped")
-        st.sidebar.caption("Start it from Edit.")
+    mlflow_port = st.session_state.get("mlflow_port", 5000)
+    mlflow_url = f"http://localhost:{mlflow_port}"
+    st.sidebar.markdown(f"**Status:** running  \n**Port:** `{mlflow_port}`")
+    st.sidebar.link_button(
+        "Open UI",
+        mlflow_url,
+        help=f"Open the MLflow UI in a new tab on port {mlflow_port}.",
+        width="stretch",
+    )
 
 
 def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
@@ -1095,6 +1022,263 @@ def _caption_once(key: str, message: str) -> None:
         return
     st.caption(message)
     st.session_state[notice_key] = True
+
+
+_PIPELINE_HEADER_INCOMPLETE_TOKENS = (
+    "incomplete",
+    "missing",
+    "no output",
+    "not available",
+    "not configured",
+    "not selected",
+    "not set",
+    "unknown",
+)
+_PIPELINE_DATAFRAME_SUFFIXES = {
+    ".csv",
+    ".feather",
+    ".json",
+    ".jsonl",
+    ".parquet",
+    ".pickle",
+    ".pkl",
+    ".pq",
+    ".tsv",
+    ".xls",
+    ".xlsx",
+}
+_PIPELINE_OUTPUT_EXCLUDED_NAMES = {
+    STEPS_FILE_NAME,
+    "notebook_import_pipeline_view.json",
+    "pipeline_view.dot",
+    "pipeline_view.json",
+}
+_PIPELINE_OUTPUT_EXCLUDED_DIRS = {
+    ".git",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+}
+
+
+def _pipeline_header_value_state(value: str, caption: str = "") -> str:
+    normalized = f"{value or ''} {caption or ''}".strip().lower()
+    if not normalized:
+        return "incomplete"
+    if any(token in normalized for token in _PIPELINE_HEADER_INCOMPLETE_TOKENS):
+        return "incomplete"
+    return "ready"
+
+
+def _render_pipeline_header_card(
+    label: str,
+    value: str,
+    caption: str = "",
+    *,
+    state: str | None = None,
+) -> None:
+    visual_state = state or _pipeline_header_value_state(value, caption)
+    st.markdown(
+        (
+            f"<div class='agilab-header-card agilab-header-card--{visual_state}'>"
+            f"<div class='agilab-header-label'>{html.escape(label)}</div>"
+            f"<div class='agilab-header-value agilab-header-value--{visual_state}'>"
+            f"{html.escape(str(value))}</div>"
+            f"<div class='agilab-header-caption'>{html.escape(caption)}</div>"
+            "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def _format_pipeline_timestamp(timestamp: float | None, *, empty: str) -> str:
+    if timestamp is None:
+        return empty
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(timestamp))
+
+
+def _scan_pipeline_output_files(root: Path, *, limit: int = 500) -> dict[str, Any]:
+    if not root.exists():
+        return {"count": 0, "dataframes": 0, "latest": None, "truncated": False}
+    count = 0
+    dataframes = 0
+    latest: float | None = None
+    truncated = False
+    try:
+        for current_root, dirs, files in os.walk(root):
+            dirs[:] = sorted(dirname for dirname in dirs if dirname not in _PIPELINE_OUTPUT_EXCLUDED_DIRS)
+            for filename in sorted(files):
+                if filename.startswith(".") or filename in _PIPELINE_OUTPUT_EXCLUDED_NAMES:
+                    continue
+                path = Path(current_root) / filename
+                count += 1
+                if path.suffix.lower() in _PIPELINE_DATAFRAME_SUFFIXES:
+                    dataframes += 1
+                try:
+                    latest = max(latest or path.stat().st_mtime, path.stat().st_mtime)
+                except OSError:
+                    pass
+                if count >= limit:
+                    truncated = True
+                    raise StopIteration
+    except StopIteration:
+        pass
+    except OSError:
+        pass
+    return {"count": count, "dataframes": dataframes, "latest": latest, "truncated": truncated}
+
+
+def _latest_pipeline_workspace_mtime(root: Path, steps_file: Path) -> float | None:
+    candidates: list[Path] = [steps_file]
+    if root.exists():
+        try:
+            for current_root, dirs, files in os.walk(root):
+                dirs[:] = sorted(dirname for dirname in dirs if dirname not in _PIPELINE_OUTPUT_EXCLUDED_DIRS)
+                for filename in sorted(files):
+                    if filename.startswith("."):
+                        continue
+                    candidates.append(Path(current_root) / filename)
+        except OSError:
+            pass
+    latest: float | None = None
+    for path in candidates:
+        try:
+            latest = max(latest or path.stat().st_mtime, path.stat().st_mtime)
+        except OSError:
+            continue
+    return latest
+
+
+def _pipeline_graph_shape_from_json(source: Path) -> tuple[int, int] | None:
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    nodes = payload.get("nodes")
+    edges = payload.get("edges", payload.get("links"))
+    node_count = len(nodes) if isinstance(nodes, list) else 0
+    edge_count = len(edges) if isinstance(edges, list) else 0
+    if node_count or edge_count:
+        return node_count, edge_count
+    return None
+
+
+def _pipeline_graph_shape_from_dot(dot: str) -> tuple[int, int] | None:
+    if not dot.strip():
+        return None
+    nodes: set[str] = set()
+    edge_count = 0
+    edge_re = re.compile(r'^\s*("?[\w:.\-/]+"?)\s*->\s*("?[\w:.\-/]+"?)', re.MULTILINE)
+    node_re = re.compile(r'^\s*("?[\w:.\-/]+"?)\s*\[', re.MULTILINE)
+    for match in edge_re.finditer(dot):
+        edge_count += 1
+        nodes.add(match.group(1).strip('"'))
+        nodes.add(match.group(2).strip('"'))
+    for match in node_re.finditer(dot):
+        node = match.group(1).strip('"')
+        if node not in {"graph", "node", "edge"}:
+            nodes.add(node)
+    if nodes or edge_count:
+        return len(nodes), edge_count
+    return None
+
+
+def _pipeline_graph_shape_summary(
+    *,
+    conceptual_source: Path | None,
+    conceptual_dot: str,
+    execution_nodes: int,
+) -> tuple[str, str, str]:
+    shape: tuple[int, int] | None = None
+    if conceptual_source and conceptual_source.suffix.lower() == ".json":
+        shape = _pipeline_graph_shape_from_json(conceptual_source)
+    if shape is None and conceptual_dot:
+        shape = _pipeline_graph_shape_from_dot(conceptual_dot)
+
+    if shape is not None:
+        nodes, links = shape
+        source_label = conceptual_source.name if conceptual_source else "conceptual view"
+        return f"{nodes}/{links}", f"{source_label}: stages / dependencies", "ready" if nodes else "incomplete"
+
+    execution_links = max(execution_nodes - 1, 0)
+    return (
+        f"{execution_nodes}/{execution_links}",
+        "execution order: stages / dependencies",
+        "ready" if execution_nodes else "incomplete",
+    )
+
+
+def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, steps_file: Path) -> None:
+    steps = get_steps_list(lab_dir, steps_file)
+    total_steps = len(steps)
+    dict_steps = [entry for entry in steps if isinstance(entry, dict)]
+    displayable_steps = sum(1 for entry in dict_steps if _is_displayable_step(entry))
+    runnable_steps = sum(1 for entry in dict_steps if _is_runnable_step(entry))
+    output_summary = _scan_pipeline_output_files(lab_dir)
+    output_count = int(output_summary["count"])
+    dataframe_count = int(output_summary["dataframes"])
+    output_suffix = "+" if output_summary["truncated"] else ""
+    conceptual_source, conceptual_dot = load_pipeline_conceptual_dot(env, lab_dir)
+    graph_value, graph_caption, graph_state = _pipeline_graph_shape_summary(
+        conceptual_source=conceptual_source,
+        conceptual_dot=conceptual_dot,
+        execution_nodes=displayable_steps,
+    )
+    workspace_updated = _latest_pipeline_workspace_mtime(lab_dir, steps_file)
+
+    with st.container(border=True):
+        top_cols = st.columns(3)
+        with top_cols[0]:
+            _render_pipeline_header_card(
+                "Pipeline steps",
+                f"{displayable_steps}/{total_steps}",
+                "visible / stored",
+                state="ready" if total_steps else "incomplete",
+            )
+        with top_cols[1]:
+            _render_pipeline_header_card(
+                "Runnable",
+                str(runnable_steps),
+                "steps with executable code",
+                state="ready" if runnable_steps else "incomplete",
+            )
+        with top_cols[2]:
+            _render_pipeline_header_card(
+                "Output files",
+                f"{output_count}{output_suffix}",
+                _format_pipeline_timestamp(output_summary["latest"], empty="no output yet"),
+                state="ready" if output_count else "incomplete",
+            )
+
+        bottom_cols = st.columns(3)
+        with bottom_cols[0]:
+            _render_pipeline_header_card(
+                "Dataframes",
+                str(dataframe_count),
+                "previewable table files",
+                state="ready" if dataframe_count else "incomplete",
+            )
+        with bottom_cols[1]:
+            _render_pipeline_header_card(
+                "Pipeline graph",
+                graph_value,
+                graph_caption,
+                state=graph_state,
+            )
+        with bottom_cols[2]:
+            _render_pipeline_header_card(
+                "Updated",
+                _format_pipeline_timestamp(workspace_updated, empty="not available"),
+                lab_dir.name,
+                state="neutral" if workspace_updated else "incomplete",
+            )
 
 
 def _load_about_page_module():
@@ -1135,6 +1319,7 @@ def page() -> None:
         st.info(f"Restored missing Pipeline steps from `{restored_source}`.")
 
     nsteps = len(get_steps_list(lab_dir, steps_file))
+    _render_pipeline_workspace_overview(env, lab_dir, steps_file)
     st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", "", nsteps])
     st.session_state.setdefault(f"{index_page_str}__details", {})
     st.session_state.setdefault(f"{index_page_str}__venv_map", {})

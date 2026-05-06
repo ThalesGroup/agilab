@@ -12,6 +12,8 @@ class AnalysisViewSelectionState:
     view_names: tuple[str, ...]
     default_view_name: str | None
     default_view_path: Path | None
+    default_view_names: tuple[str, ...]
+    default_view_paths: tuple[Path, ...]
     widget_selection: tuple[str, ...]
     selected_views: tuple[str, ...]
     config_view_module: tuple[str, ...]
@@ -92,6 +94,37 @@ def _resolve_default_view(
     return None, None
 
 
+def _configured_default_values(pages_cfg: Mapping[str, Any]) -> list[str]:
+    raw_defaults = pages_cfg.get("default_views")
+    defaults = _coerce_string_list(raw_defaults)
+    raw_default = pages_cfg.get("default_view")
+    if isinstance(raw_default, str) and raw_default.strip():
+        defaults.append(raw_default)
+    return _dedupe_preserve_order(defaults)
+
+
+def _resolve_default_views(
+    pages_cfg: Mapping[str, Any],
+    available_views: Sequence[str],
+    resolved_pages: Mapping[str, Path],
+    custom_view_lookup: Mapping[str, Path],
+) -> tuple[tuple[str, ...], tuple[Path, ...]]:
+    names: list[str] = []
+    paths: list[Path] = []
+    for configured_default in _configured_default_values(pages_cfg):
+        default_name, default_path = _resolve_default_view(
+            configured_default,
+            available_views,
+            resolved_pages,
+            custom_view_lookup,
+        )
+        if default_name is None or default_path is None or default_name in names:
+            continue
+        names.append(default_name)
+        paths.append(default_path)
+    return tuple(names), tuple(paths)
+
+
 def _coerce_string_list(value: Any) -> list[str]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         return []
@@ -139,39 +172,38 @@ def build_analysis_view_selection_state(
     else:
         view_names = all_view_names
 
-    default_view_name, default_view_path = _resolve_default_view(
-        pages_cfg.get("default_view"),
+    default_view_names, default_view_paths = _resolve_default_views(
+        pages_cfg,
         view_names,
         resolved_pages,
         custom_view_lookup,
     )
+    default_view_name = default_view_names[0] if default_view_names else None
+    default_view_path = default_view_paths[0] if default_view_paths else None
 
+    stale_session_selection = False
     if has_session_selection:
-        selection = [value for value in _coerce_string_list(session_selection) if value in view_names]
+        session_values = _coerce_string_list(session_selection)
+        selection = [value for value in session_values if value in view_names]
+        stale_session_selection = bool(session_values) and not selection
     else:
         selection = _configured_view_options(configured_views, view_names, resolved_pages)
 
-    default_available = (
-        not current_page
-        and default_view_name
-        and default_view_path is not None
-    )
-    should_prepend_default = (
-        default_available
-        and default_view_name not in selection
-    )
-    if should_prepend_default:
-        selection = [default_view_name, *selection]
+    if not has_session_selection or stale_session_selection:
+        for default_view_name in reversed(default_view_names):
+            if default_view_name not in selection:
+                selection = [default_view_name, *selection]
 
     selection = _dedupe_preserve_order(selection)
-    default_route_path = Path(default_view_path) if default_available else None
 
     return AnalysisViewSelectionState(
         view_names=tuple(view_names),
-        default_view_name=default_view_name,
+        default_view_name=default_view_names[0] if default_view_names else None,
         default_view_path=default_view_path,
+        default_view_names=default_view_names,
+        default_view_paths=default_view_paths,
         widget_selection=tuple(selection),
         selected_views=tuple(selection),
         config_view_module=_config_view_module(selection, resolved_pages),
-        default_route_path=default_route_path,
+        default_route_path=None,
     )

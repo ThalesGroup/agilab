@@ -318,7 +318,7 @@ How to run it
 
    .. code-block:: bash
 
-      uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py
+      uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 
 2. In **PROJECT**, select ``src/agilab/apps/builtin/execution_pandas_project``.
 3. In **ORCHESTRATE**, run **INSTALL** once, then **EXECUTE**.

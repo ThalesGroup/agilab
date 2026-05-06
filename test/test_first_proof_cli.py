@@ -17,15 +17,29 @@ sys.path.insert(0, str(ROOT / "src"))
 
 
 def _load_module():
+    previous_package = sys.modules.get("agilab")
     sys.modules.pop("agilab.first_proof_cli", None)
     package = types.ModuleType("agilab")
     package.__path__ = [str(ROOT / "src" / "agilab")]  # type: ignore[attr-defined]
+    package.__file__ = str(ROOT / "src" / "agilab" / "__init__.py")
+    package.__package__ = "agilab"
+    package.__spec__ = importlib.util.spec_from_file_location(
+        "agilab",
+        ROOT / "src" / "agilab" / "__init__.py",
+        submodule_search_locations=[str(ROOT / "src" / "agilab")],
+    )
     sys.modules["agilab"] = package
     spec = importlib.util.spec_from_file_location("agilab.first_proof_cli", MODULE_PATH)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        if previous_package is None:
+            sys.modules.pop("agilab", None)
+        else:
+            sys.modules["agilab"] = previous_package
     return module
 
 

@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-04-29T00:00:00Z",
+  "created_at": "2026-05-06T00:00:00Z",
   "kind": "agilab.screenshot_manifest",
   "root": "docs/source/_static/page-shots",
   "schema": "agilab.screenshot_manifest.v1",
@@ -8,20 +8,22 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-04-29T00:00:00Z",
-      "height_px": 900,
+      "created_at": "2026-05-06T00:00:00Z",
+      "height_px": 910,
       "image_path": "analysis-page.png",
       "page": "analysis",
       "project": "",
-      "sha256": "46ffe8a7c7437ae99edeb16895de7e2e1fcdc7aa9f52f86d96c42f668ecfaf12",
-      "size_bytes": 327417,
+      "sha256": "59b75ee8cd208bbd3a432f4045a67ab7b4e99cced4b565651dfea53afc973be4",
+      "size_bytes": 229088,
       "source_command": [
-        "python",
-        "tools/generate_screenshot_manifest.py",
-        "--root",
-        "docs/source/_static/page-shots",
-        "--output",
-        "docs/source/_static/page-shots/screenshot_manifest.json"
+        "playwright",
+        "page-shot",
+        "capture",
+        "current",
+        "Streamlit",
+        "UI",
+        "via",
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 1600
@@ -29,20 +31,22 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-04-29T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 1310,
       "image_path": "core-pages-overview.png",
       "page": "core-pages-overview",
       "project": "",
-      "sha256": "4d92e4811a0b89fe4e30c940b805e1a4c7c59c2247db254aef93bb6ac11756f1",
-      "size_bytes": 454083,
+      "sha256": "0bc004234fac7e3916eef918edc4cdee05438fb028ad6426c306d019ca36168a",
+      "size_bytes": 643024,
       "source_command": [
-        "python",
-        "tools/generate_screenshot_manifest.py",
-        "--root",
-        "docs/source/_static/page-shots",
-        "--output",
-        "docs/source/_static/page-shots/screenshot_manifest.json"
+        "playwright",
+        "page-shot",
+        "capture",
+        "current",
+        "Streamlit",
+        "UI",
+        "via",
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 2086
@@ -50,20 +54,22 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-04-29T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 910,
       "image_path": "orchestrate-page.png",
       "page": "orchestrate",
       "project": "",
-      "sha256": "f41824a149840cffd44664d59d86bf9dbaf6ca85f62e15760fb260d79b40889f",
-      "size_bytes": 115779,
+      "sha256": "521513f15ffe13e616f2fbf843e9ab391aaabf2a09d74b13d9b72277d0608ce6",
+      "size_bytes": 385945,
       "source_command": [
-        "python",
-        "tools/generate_screenshot_manifest.py",
-        "--root",
-        "docs/source/_static/page-shots",
-        "--output",
-        "docs/source/_static/page-shots/screenshot_manifest.json"
+        "playwright",
+        "page-shot",
+        "capture",
+        "current",
+        "Streamlit",
+        "UI",
+        "via",
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 1600
@@ -71,20 +77,22 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-04-29T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 910,
       "image_path": "pipeline-page.png",
       "page": "pipeline",
       "project": "",
-      "sha256": "3ce44dd472c3c0c82e8ee35c3c97d0d923f251edc43fb87f3566429ed0b2cc65",
-      "size_bytes": 96102,
+      "sha256": "1ee9c8a1ba29c7a2088b28dd0c03f5dbe041d486f6da5b9296f1505e5a30a113",
+      "size_bytes": 379292,
       "source_command": [
-        "python",
-        "tools/generate_screenshot_manifest.py",
-        "--root",
-        "docs/source/_static/page-shots",
-        "--output",
-        "docs/source/_static/page-shots/screenshot_manifest.json"
+        "playwright",
+        "page-shot",
+        "capture",
+        "current",
+        "Streamlit",
+        "UI",
+        "via",
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 1600
@@ -92,31 +100,35 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-04-29T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 910,
       "image_path": "project-page.png",
       "page": "project",
       "project": "",
-      "sha256": "91e792b67bc2897775b27be55ff0e755121310d32216e43dd7407f54167794a9",
-      "size_bytes": 67117,
+      "sha256": "4e2ffbbc02cc614d6e3f80825c45152eaa303019501082ffafb01c857f997f0d",
+      "size_bytes": 274996,
       "source_command": [
-        "python",
-        "tools/generate_screenshot_manifest.py",
-        "--root",
-        "docs/source/_static/page-shots",
-        "--output",
-        "docs/source/_static/page-shots/screenshot_manifest.json"
+        "playwright",
+        "page-shot",
+        "capture",
+        "current",
+        "Streamlit",
+        "UI",
+        "via",
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 1600
     }
   ],
   "source_command": [
-    "python",
-    "tools/generate_screenshot_manifest.py",
-    "--root",
-    "docs/source/_static/page-shots",
-    "--output",
-    "docs/source/_static/page-shots/screenshot_manifest.json"
+    "playwright",
+    "page-shot",
+    "capture",
+    "current",
+    "Streamlit",
+    "UI",
+    "via",
+    "src/agilab/main_page.py"
   ]
 }

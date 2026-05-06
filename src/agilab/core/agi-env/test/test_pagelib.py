@@ -585,6 +585,26 @@ def test_inject_theme_renders_theme_stylesheet(tmp_path, monkeypatch):
     assert markdown_calls == [("<style>body { color: red; }\n</style>", True)]
 
 
+def test_inject_theme_rereads_theme_stylesheet(tmp_path, monkeypatch):
+    theme_path = tmp_path / "theme.css"
+    theme_path.write_text("body { color: red; }\n", encoding="utf-8")
+    markdown_calls: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        pagelib,
+        "st",
+        SimpleNamespace(markdown=lambda text, unsafe_allow_html=False: markdown_calls.append((text, unsafe_allow_html))),
+    )
+
+    pagelib.inject_theme(base_path=tmp_path)
+    theme_path.write_text("body { color: blue; }\n", encoding="utf-8")
+    pagelib.inject_theme(base_path=tmp_path)
+
+    assert markdown_calls == [
+        ("<style>body { color: red; }\n</style>", True),
+        ("<style>body { color: blue; }\n</style>", True),
+    ]
+
+
 def test_inject_theme_falls_back_to_binary_decode_when_text_read_fails(tmp_path, monkeypatch):
     theme_path = tmp_path / "theme.css"
     theme_path.write_bytes(b"\xffbody { color: blue; }\n")

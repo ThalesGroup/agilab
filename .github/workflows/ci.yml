@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile \
-            src/agilab/About_agilab.py \
+            src/agilab/main_page.py \
             src/agilab/first_proof_cli.py \
             src/agilab/orchestrate_execute.py \
             src/agilab/pipeline_openai.py \

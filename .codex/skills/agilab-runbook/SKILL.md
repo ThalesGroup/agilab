@@ -131,7 +131,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
 - Impact triage for planned paths:
   - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files src/agilab/orchestrate_execute.py test/test_orchestrate_execute.py`
-- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py -- --openai-api-key "…" --apps-path src/agilab/apps`
+- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py -- --openai-api-key "…" --apps-path src/agilab/apps`
 - Apps-pages smoke: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/smoke_preinit.py --active-app src/agilab/apps/builtin/flight_project --timeout 20`
 - Apps-pages regression (AppTest): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
 - Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`

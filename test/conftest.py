@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import importlib.util
 import shutil
 import sys
 from unittest.mock import patch
@@ -25,6 +26,31 @@ from agi_env import AgiEnv
 
 
 REAL_HOME = Path.home().resolve()
+REPO_ROOT = Path(__file__).resolve().parents[1]
+AGILAB_PACKAGE_ROOT = REPO_ROOT / "src" / "agilab"
+
+
+def _ensure_agilab_package_spec() -> None:
+    """Keep synthetic test-package shims compatible with importlib.find_spec."""
+    package = sys.modules.get("agilab")
+    if package is None or not hasattr(package, "__path__"):
+        return
+    if getattr(package, "__spec__", None) is not None:
+        return
+    package.__spec__ = importlib.util.spec_from_file_location(
+        "agilab",
+        AGILAB_PACKAGE_ROOT / "__init__.py",
+        submodule_search_locations=[str(AGILAB_PACKAGE_ROOT)],
+    )
+    package.__file__ = str(AGILAB_PACKAGE_ROOT / "__init__.py")
+    package.__package__ = "agilab"
+
+
+@pytest.fixture(autouse=True)
+def normalize_agilab_package_spec_for_root_tests():
+    _ensure_agilab_package_spec()
+    yield
+    _ensure_agilab_package_spec()
 
 
 @pytest.fixture(autouse=True)

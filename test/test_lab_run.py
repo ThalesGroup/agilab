@@ -46,7 +46,7 @@ def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
     assert captured == [[
         "streamlit",
         "run",
-        str(Path(lab_run.__file__).resolve().parent / "About_agilab.py"),
+        str(Path(lab_run.__file__).resolve().parent / "main_page.py"),
         "--",
         "--apps-path",
         str(tmp_path / "apps"),

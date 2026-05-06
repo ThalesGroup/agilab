@@ -156,8 +156,8 @@ def _preinit_smoke_command() -> ProofCommand:
 
 
 def _ui_smoke_code(active_app: Path) -> str:
-    about_page = REPO_ROOT / "src/agilab/About_agilab.py"
-    orchestrate_page = REPO_ROOT / "src/agilab/pages/2_▶️ ORCHESTRATE.py"
+    about_page = REPO_ROOT / "src/agilab/main_page.py"
+    orchestrate_page = REPO_ROOT / "src/agilab/pages/2_ORCHESTRATE.py"
     apps_path = active_app.parent
     return textwrap.dedent(
         f"""
@@ -497,7 +497,7 @@ def render_human(
     if success:
         lines.append("next:")
         lines.append(
-            "  uv --preview-features extra-build-dependencies run streamlit run src/agilab/About_agilab.py"
+            "  uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py"
         )
         lines.append("  then follow PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS with flight_project")
     else:

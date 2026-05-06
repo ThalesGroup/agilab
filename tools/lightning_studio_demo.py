@@ -16,7 +16,7 @@ DEFAULT_RUNTIME_DIR = ".lightning_studio_runtime"
 def find_repo_root(start: Path) -> Path:
     start = start.expanduser().resolve()
     for candidate in (start, *start.parents):
-        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "agilab" / "About_agilab.py").is_file():
+        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "agilab" / "main_page.py").is_file():
             return candidate
     raise RuntimeError(
         f"Could not find the AGILAB repository root from {start}. "
@@ -59,7 +59,7 @@ def build_streamlit_command(repo_root: Path, *, active_app: str, port: int) -> l
         "run",
         "streamlit",
         "run",
-        str((repo_root / "src" / "agilab" / "About_agilab.py").resolve()),
+        str((repo_root / "src" / "agilab" / "main_page.py").resolve()),
         "--server.address",
         "0.0.0.0",
         "--server.port",
