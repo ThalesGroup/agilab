@@ -1,0 +1,17 @@
+run_mode,nodes,mode,timing,seconds,order,delta,delta (%),topology
+0,1,python,0.89 seconds,0.885,14,0.345,63.89,local only
+1,1,pool of process,0.58 seconds,0.585,6,0.045,8.33,local only
+2,1,cython,0.91 seconds,0.910,16,0.370,68.52,local only
+3,1,pool and cython,0.57 seconds,0.575,3,0.035,6.48,local only
+4,2,dask,0.54 seconds,0.540,1,0.000,0.00,2-node cluster (1 local + 1 remote macOS worker)
+5,2,dask and pool,0.61 seconds,0.613,12,0.073,13.52,2-node cluster (1 local + 1 remote macOS worker)
+6,2,dask and cython,0.56 seconds,0.561,2,0.021,3.89,2-node cluster (1 local + 1 remote macOS worker)
+7,2,dask and pool and cython,0.58 seconds,0.583,5,0.043,7.96,2-node cluster (1 local + 1 remote macOS worker)
+8,1,rapids,0.86 seconds,0.860,13,0.320,59.26,local only
+9,1,rapids and pool,0.58 seconds,0.585,7,0.045,8.33,local only
+10,1,rapids and cython,0.89 seconds,0.885,15,0.345,63.89,local only
+11,1,rapids and pool and cython,0.57 seconds,0.575,4,0.035,6.48,local only
+12,2,rapids and dask,0.59 seconds,0.586,8,0.046,8.52,2-node cluster (1 local + 1 remote macOS worker)
+13,2,rapids and dask and pool,0.60 seconds,0.596,11,0.056,10.37,2-node cluster (1 local + 1 remote macOS worker)
+14,2,rapids and dask and cython,0.59 seconds,0.589,10,0.049,9.07,2-node cluster (1 local + 1 remote macOS worker)
+15,2,rapids and dask and pool and cython,0.59 seconds,0.588,9,0.048,8.89,2-node cluster (1 local + 1 remote macOS worker)
