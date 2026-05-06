@@ -48,7 +48,7 @@ What each route is for
   ``execution_pandas_project`` / ``execution_polars_project``, UAV queue
   analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
   ``inter_project_dag`` previews, ``mlflow_auto_tracking`` previews,
-  :doc:`data-connectors`, and
+  ``resilience_failure_injection`` previews, :doc:`data-connectors`, and
   :doc:`release-proof`.
 - **Industrial optimization examples**: use
   :doc:`industrial-optimization-examples` when your apps repository includes
@@ -112,6 +112,18 @@ The static scenario contract is available as JSON:
 
   Stop when the pipeline artifacts and the MLflow run link point to the same
   experiment evidence.
+
+**Resilience failure-injection route**
+  Use the packaged preview when the demo objective is strategy comparison under
+  a controlled degradation event:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py --output /tmp/resilience_preview.json
+
+  Stop when the route ranking before failure, route ranking after failure, and
+  recommended fixed/replanned/search/policy response are visible in the same
+  JSON payload. The preview is deterministic and does not train a real policy.
 
 **Notebook migration route**
   Use the packaged migration example when the demo objective is notebook

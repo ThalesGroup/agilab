@@ -321,6 +321,8 @@ agilab = [
     "examples/notebook_migrations/*/migrated_project/*.dot",
     "examples/notebook_migrations/*/migrated_project/*.toml",
     "examples/notebook_migrations/*/notebooks/*.ipynb",
+    "examples/resilience_failure_injection/*.py",
+    "examples/resilience_failure_injection/*.json",
     "examples/service_mode/*.py",
     "examples/service_mode/*.json",
     "pages/*.py",

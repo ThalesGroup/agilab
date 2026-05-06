@@ -22,6 +22,7 @@ the command shape stable.
 | 7 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Read-only DAG contract: app nodes, artifact handoff, and runner-state preview. |
 | 8 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
 | 9 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
+| 10 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
 
 ## What To Notice
 
@@ -41,6 +42,9 @@ the command shape stable.
   and health gates without starting a service.
 - `mlflow_auto_tracking/preview_mlflow_auto_tracking.py` shows the intended
   tracker abstraction without creating a parallel AGILAB model registry.
+- `resilience_failure_injection/preview_resilience_failure_injection.py` shows
+  how a failure event and strategy comparison can be made explicit before a
+  real trainer or simulator run.
 - `data_in` and `data_out` are share-root relative paths, so examples stay
   portable across machines.
 - Run modes use named AGI constants instead of magic numbers, and keep Cython
@@ -73,4 +77,6 @@ project-level app runs can be connected by explicit artifact contracts. Use
 creating an app or running Dask. Use `service_mode` before enabling persistent
 workers for an already-working app. Use `mlflow_auto_tracking` when you want
 to show tracking as optional memory around AGILAB execution, not a competing
-experiment system.
+experiment system. Use `resilience_failure_injection` when you want to explain
+fixed versus adaptive behavior on the same degraded scenario before training or
+serving a policy.

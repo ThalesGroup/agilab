@@ -43,6 +43,11 @@ What belongs here
      - Optional experiment memory: AGILAB writes local evidence first, then logs
        params, metrics, and artifacts through MLflow when the backend is present.
      - Run ``src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py``.
+   * - ``resilience_failure_injection`` packaged preview
+     - Resilience comparison: inject one relay degradation event, then compare
+       fixed, replanned, search-based, and active-policy responses on the same
+       scenario contract.
+     - Run ``src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py``.
    * - ``service_mode`` packaged preview
      - Persistent worker lifecycle and health gates: start, status, health,
        and stop are presented as explicit operator actions.
@@ -79,10 +84,13 @@ Run these in this order when you need a compact but convincing evaluation pass:
 4. **Tracking memory**: ``mlflow_auto_tracking`` preview. This is the best
    MLOps story because AGILAB keeps execution evidence local and uses MLflow as
    the optional system of record instead of competing with it.
-5. **Operator path**: :doc:`service-mode` plus ``service_mode`` preview. This
+5. **Resilience comparison**: ``resilience_failure_injection`` preview. This is
+   the best strategy-comparison story because fixed, ILP-style, GA-style, and
+   PPO-style responses are scored against one injected event.
+6. **Operator path**: :doc:`service-mode` plus ``service_mode`` preview. This
    is the best operations story because it shows persistent workers and health
    thresholds without hiding lifecycle actions.
-6. **Trust close-out**: :doc:`release-proof`. This is the best ending slide
+7. **Trust close-out**: :doc:`release-proof`. This is the best ending slide
    because it ties demo claims back to release, CI, package, and docs evidence.
 
 How to demo it
@@ -115,6 +123,11 @@ Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
   ``mlflow_auto_tracking`` preview. Stop when the local evidence bundle and the
   tracking status show the same params, metrics, and artifact path. If MLflow is
   not installed, the expected status is ``skipped`` with an installation hint.
+
+**Resilience lane**
+  ``resilience_failure_injection`` preview. Stop when the fixed route degrades,
+  the post-failure route ranking is explicit, and the adaptive response wins
+  without implying a certified MARL benchmark.
 
 **Industrial optimization lane**
   :doc:`industrial-optimization-examples`. Stop when the reviewer can see the

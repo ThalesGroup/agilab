@@ -1,0 +1,97 @@
+{
+  "schema": "agilab.example.resilience_failure_injection.v1",
+  "scenario": "uav_relay_queue_resilience_preview",
+  "objective": "Compare route strategies after a relay degradation event without training a model.",
+  "failure_event": {
+    "id": "jam_relay_alpha",
+    "description": "Relay alpha is degraded by interference during a queue-heavy interval.",
+    "affected_relays": ["relay_alpha"],
+    "delivery_penalty": 0.4,
+    "latency_penalty_ms": 35.0,
+    "risk_penalty": 0.35
+  },
+  "routes": [
+    {
+      "id": "alpha_fast",
+      "label": "Fast path through relay alpha",
+      "relays": ["relay_alpha"],
+      "latency_ms": 42.0,
+      "delivery_ratio": 0.94,
+      "risk": 0.16,
+      "energy_cost": 61.0,
+      "control_cost": 0.0
+    },
+    {
+      "id": "beta_balanced",
+      "label": "Balanced path through relay beta",
+      "relays": ["relay_beta"],
+      "latency_ms": 51.0,
+      "delivery_ratio": 0.9,
+      "risk": 0.09,
+      "energy_cost": 56.0,
+      "control_cost": 0.0
+    },
+    {
+      "id": "gamma_robust",
+      "label": "High-margin path through relay gamma",
+      "relays": ["relay_gamma"],
+      "latency_ms": 65.0,
+      "delivery_ratio": 0.86,
+      "risk": 0.04,
+      "energy_cost": 50.0,
+      "control_cost": 0.0
+    },
+    {
+      "id": "delta_active_mesh",
+      "label": "Active mesh repositioning through relay delta",
+      "relays": ["relay_delta"],
+      "latency_ms": 58.0,
+      "delivery_ratio": 0.92,
+      "risk": 0.07,
+      "energy_cost": 68.0,
+      "control_cost": 8.0
+    }
+  ],
+  "strategies": [
+    {
+      "id": "fixed_low_latency",
+      "family": "fixed",
+      "description": "Keep the pre-failure low-latency route.",
+      "selection": "fixed",
+      "route_id": "alpha_fast"
+    },
+    {
+      "id": "ilp_replan",
+      "family": "ilp",
+      "description": "Re-score all known routes after the event and choose the best feasible route.",
+      "selection": "best_after_failure"
+    },
+    {
+      "id": "ga_guarded_search",
+      "family": "ga",
+      "description": "Prefer post-failure score, but penalize high-risk and high-control-cost candidates.",
+      "selection": "best_after_failure",
+      "risk_guard": 0.12,
+      "control_guard": 4.0
+    },
+    {
+      "id": "ppo_active_mesh_policy",
+      "family": "ppo",
+      "description": "Represent an active-mesh policy response by moving relay delta to improve delivery under failure.",
+      "selection": "route",
+      "route_id": "delta_active_mesh",
+      "policy_adjustment": {
+        "delivery_bonus": 0.08,
+        "latency_bonus_ms": 8.0,
+        "risk_bonus": 0.01
+      }
+    }
+  ],
+  "score_weights": {
+    "delivery": 120.0,
+    "latency_ms": -0.55,
+    "risk": -35.0,
+    "energy_cost": -0.12,
+    "control_cost": -0.5
+  }
+}

@@ -30,6 +30,10 @@ EXAMPLE_PREVIEWS = {
         "lab_steps.toml",
         "pipeline_view.json",
     ),
+    "resilience_failure_injection": (
+        "preview_resilience_failure_injection.py",
+        "sample_scenario.json",
+    ),
     "service_mode": ("preview_service_mode.py", "sample_health_running.json"),
 }
 APP_SOURCE_SUFFIXES = {
@@ -299,6 +303,8 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/notebook_migrations/*/migrated_project/*.dot" in package_data
     assert "examples/notebook_migrations/*/migrated_project/*.toml" in package_data
     assert "examples/notebook_migrations/*/notebooks/*.ipynb" in package_data
+    assert "examples/resilience_failure_injection/*.py" in package_data
+    assert "examples/resilience_failure_injection/*.json" in package_data
     assert "examples/service_mode/*.py" in package_data
     assert "examples/service_mode/*.json" in package_data
 
@@ -440,6 +446,39 @@ def test_mlflow_auto_tracking_preview_writes_local_evidence_without_mlflow(tmp_p
     assert artifact["app"] == "meteo_forecast_project"
     assert artifact["pipeline"] == "notebook_migration_forecast"
     assert (tmp_path / "mlflow_auto_tracking" / "mlflow_tracking_preview.json").is_file()
+
+
+def test_resilience_failure_injection_preview_recommends_adaptive_response(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "resilience_failure_injection" / "preview_resilience_failure_injection.py"
+    module_name = "agilab_resilience_failure_injection_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.build_preview(
+        scenario_path=EXAMPLES_ROOT / "resilience_failure_injection" / "sample_scenario.json",
+        output_path=tmp_path / "resilience_preview.json",
+    )
+
+    assert summary["example"] == "resilience_failure_injection"
+    assert summary["comparison"]["failure_event"]["id"] == "jam_relay_alpha"
+    assert summary["comparison"]["baseline_ranking"][0]["route_id"] == "alpha_fast"
+    assert summary["comparison"]["degraded_ranking"][0]["route_id"] == "beta_balanced"
+    assert summary["comparison"]["recommended_strategy"]["strategy_id"] == "ppo_active_mesh_policy"
+    assert summary["comparison"]["recommended_strategy"]["policy_adjusted"] is True
+    fixed_strategy = next(
+        item
+        for item in summary["comparison"]["strategy_comparison"]
+        if item["strategy_id"] == "fixed_low_latency"
+    )
+    assert fixed_strategy["failure_affected"] is True
+    assert fixed_strategy["score_delta"] < 0
+    assert summary["real_policy_training"] is False
+    assert "certified MARL" in summary["claim_boundary"]
+    assert (tmp_path / "resilience_preview.json").is_file()
 
 
 def test_notebook_to_dask_preview_builds_migration_contract(tmp_path: Path) -> None:
