@@ -40,4 +40,3 @@ dev = [
     "pytest-asyncio",
     "licensecheck",
 ]
-
