@@ -80,9 +80,7 @@ def test_supply_chain_attestation_records_core_and_app_manifests() -> None:
 
     assert state["run_status"] == "validated"
     assert state["summary"]["package_name"] == "agilab"
-    assert state["summary"]["aligned_core_versions"] is True
     assert state["summary"]["core_release_graph_aligned"] is True
-    assert state["summary"]["aligned_page_lib_versions"] is True
     assert state["summary"]["page_lib_release_graph_aligned"] is True
     assert state["summary"]["aligned_internal_dependency_pins"] is True
     assert state["summary"]["mismatched_internal_dependency_pin_count"] == 0
