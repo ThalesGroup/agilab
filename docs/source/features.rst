@@ -274,8 +274,10 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/security_hygiene_report.py --compact`` in
   ``agilab.security_hygiene.v1`` mode; it checks the public security policy,
   lockfile presence, optional AI dependency boundary, static supply-chain proof
-  tools, and documented ``pip-audit`` plus CycloneDX SBOM command contracts
-  while treating scan artifacts as optional operator-provided evidence
+  tools, documented ``pip-audit`` plus CycloneDX SBOM command contracts, and
+  operator-provided scan artifacts; CI runs it with
+  ``--require-scan-artifacts`` so missing, invalid, or vulnerable audit payloads
+  fail the guardrail
 - the public proof scenario report validates
   ``tools/public_proof_scenarios.py --compact`` in
   ``agilab.public_proof_scenarios.v1`` mode; it records the three bounded
