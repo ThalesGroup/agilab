@@ -31,13 +31,14 @@ RUN_MODE_LABELS: tuple[str, ...] = (
 
 BENCHMARK_MODE_COLUMN_HELP = (
     "Mode is a 4-slot execution signature: r=RAPIDS/GPU, d=Dask/cluster, "
-    "c=Cython build, p=process pool. _ means disabled."
+    "c=Cython build, p=worker pool (process or thread backend). _ means disabled."
 )
 
 BENCHMARK_MODE_LEGEND_MARKDOWN = (
     "**Mode legend**  \n"
     "`mode` is a 4-slot execution signature: `r d c p`.  \n"
-    "`r` RAPIDS/GPU, `d` Dask/cluster, `c` Cython build, `p` process pool.  \n"
+    "`r` RAPIDS/GPU, `d` Dask/cluster, `c` Cython build, "
+    "`p` worker pool (process or thread backend).  \n"
     "`_` means that slot is disabled. Examples: `____` local Python, "
     "`_d__` Dask only, `__cp` Cython + pool, `rdcp` full acceleration."
 )
