@@ -45,15 +45,16 @@ apps repository. It now covers five complementary proof routes:
 How to run it
 -------------
 
-If you only need the public, deterministic teaching route, start with the
-packaged preview:
+If you only need the public, deterministic teaching routes, start with the
+packaged previews:
 
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py --output /tmp/resilience_preview.json
+   uv --preview-features extra-build-dependencies run python src/agilab/examples/train_then_serve/preview_train_then_serve.py --output-dir /tmp/train_then_serve_preview
 
 Use the app-repository route below when you need real trainer artifacts rather
-than the read-only scenario comparison.
+than the read-only scenario comparison or service-handoff contract.
 
 1. Install or link the apps repository that contains ``sb3_trainer_project``.
 2. Open AGILAB, select ``sb3_trainer_project`` in ``PROJECT``, then run

@@ -48,8 +48,8 @@ What each route is for
   ``execution_pandas_project`` / ``execution_polars_project``, UAV queue
   analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
   ``inter_project_dag`` previews, ``mlflow_auto_tracking`` previews,
-  ``resilience_failure_injection`` previews, :doc:`data-connectors`, and
-  :doc:`release-proof`.
+  ``resilience_failure_injection`` previews, ``train_then_serve`` previews,
+  :doc:`data-connectors`, and :doc:`release-proof`.
 - **Industrial optimization examples**: use
   :doc:`industrial-optimization-examples` when your apps repository includes
   ``sb3_trainer_project`` and you want the advanced SB3 routes: Active Mesh
@@ -124,6 +124,18 @@ The static scenario contract is available as JSON:
   Stop when the route ranking before failure, route ranking after failure, and
   recommended fixed/replanned/search/policy response are visible in the same
   JSON payload. The preview is deterministic and does not train a real policy.
+
+**Train-then-serve route**
+  Use the packaged preview when the demo objective is the handoff from
+  experiment evidence to a service-ready contract:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python src/agilab/examples/train_then_serve/preview_train_then_serve.py --output-dir /tmp/train_then_serve_preview
+
+  Stop when ``service_contract.json``, ``prediction_sample.json``, and
+  ``service_health.json`` are visible. The preview is deterministic and does
+  not start persistent workers.
 
 **Notebook migration route**
   Use the packaged migration example when the demo objective is notebook

@@ -9,6 +9,8 @@ import sys
 import tomllib
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "src/agilab/apps/install.py"
@@ -35,6 +37,7 @@ EXAMPLE_PREVIEWS = {
         "sample_scenario.json",
     ),
     "service_mode": ("preview_service_mode.py", "sample_health_running.json"),
+    "train_then_serve": ("preview_train_then_serve.py", "sample_policy_run.json"),
 }
 APP_SOURCE_SUFFIXES = {
     ".7z",
@@ -307,6 +310,8 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/resilience_failure_injection/*.json" in package_data
     assert "examples/service_mode/*.py" in package_data
     assert "examples/service_mode/*.json" in package_data
+    assert "examples/train_then_serve/*.py" in package_data
+    assert "examples/train_then_serve/*.json" in package_data
 
 
 def test_packaged_builtin_app_prompt_seeds_are_included_as_package_data() -> None:
@@ -479,6 +484,116 @@ def test_resilience_failure_injection_preview_recommends_adaptive_response(tmp_p
     assert summary["real_policy_training"] is False
     assert "certified MARL" in summary["claim_boundary"]
     assert (tmp_path / "resilience_preview.json").is_file()
+
+
+def _load_train_then_serve_preview_module():
+    script = EXAMPLES_ROOT / "train_then_serve" / "preview_train_then_serve.py"
+    module_name = "agilab_train_then_serve_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_train_then_serve_preview_exports_service_contract(tmp_path: Path) -> None:
+    module = _load_train_then_serve_preview_module()
+
+    summary = module.run_preview(
+        config_path=EXAMPLES_ROOT / "train_then_serve" / "sample_policy_run.json",
+        output_dir=tmp_path / "train_then_serve",
+    )
+
+    assert summary["example"] == "train_then_serve"
+    assert summary["selected_relay"] == "relay_beta"
+    assert summary["service_ready"] is True
+    assert summary["real_training"] is False
+    assert summary["real_service_started"] is False
+
+    contract_path = Path(summary["artifacts"]["service_contract"])
+    health_path = Path(summary["artifacts"]["service_health"])
+    prediction_path = Path(summary["artifacts"]["prediction_sample"])
+    assert contract_path.is_file()
+    assert health_path.is_file()
+    assert prediction_path.is_file()
+
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    health = json.loads(health_path.read_text(encoding="utf-8"))
+    prediction = json.loads(prediction_path.read_text(encoding="utf-8"))
+    assert contract["source_training_run"]["trainer"] == "uav_relay_queue_ppo"
+    assert contract["sample_decision"]["selected_relay"] == "relay_beta"
+    assert health["schema"] == "agi.service.health.v1"
+    assert health["ok"] is True
+    assert prediction["decision"]["selected_relay"] == "relay_beta"
+    assert (tmp_path / "train_then_serve" / "train_then_serve_preview.json").is_file()
+
+
+def test_train_then_serve_preview_marks_unhealthy_when_latency_budget_fails(
+    tmp_path: Path,
+) -> None:
+    module = _load_train_then_serve_preview_module()
+    config = json.loads(
+        (EXAMPLES_ROOT / "train_then_serve" / "sample_policy_run.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    config["service"]["health_thresholds"]["latency_budget_ms"] = 50.0
+    config_path = tmp_path / "low_latency_budget.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    summary = module.run_preview(
+        config_path=config_path,
+        output_dir=tmp_path / "train_then_serve",
+    )
+
+    health = json.loads(
+        Path(summary["artifacts"]["service_health"]).read_text(encoding="utf-8")
+    )
+    assert summary["selected_relay"] == "relay_beta"
+    assert summary["service_ready"] is False
+    assert health["latency_budget_ms"] == 50.0
+    assert health["sample_latency_ms"] == 55.0
+    assert health["latency_ok"] is False
+    assert health["ok"] is False
+
+
+def test_train_then_serve_preview_rejects_invalid_config_shapes(tmp_path: Path) -> None:
+    module = _load_train_then_serve_preview_module()
+    list_config = tmp_path / "list_config.json"
+    list_config.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="must be a JSON object"):
+        module.load_config(list_config)
+
+    missing_candidates = tmp_path / "missing_candidates.json"
+    missing_candidates.write_text(json.dumps({"prediction_request": {}}), encoding="utf-8")
+
+    with pytest.raises(SystemExit, match="candidate_relays"):
+        module.run_preview(
+            config_path=missing_candidates,
+            output_dir=tmp_path / "missing_candidates_output",
+        )
+
+
+def test_train_then_serve_preview_cli_accepts_custom_paths(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    module = _load_train_then_serve_preview_module()
+    config_path = EXAMPLES_ROOT / "train_then_serve" / "sample_policy_run.json"
+    output_dir = tmp_path / "cli_output"
+
+    summary = module.main(
+        ["--config", str(config_path), "--output-dir", str(output_dir)]
+    )
+
+    printed = json.loads(capsys.readouterr().out)
+    assert summary["selected_relay"] == "relay_beta"
+    assert printed["selected_relay"] == "relay_beta"
+    assert Path(summary["artifacts"]["service_contract"]).is_file()
+    assert (output_dir / "train_then_serve_preview.json").is_file()
 
 
 def test_notebook_to_dask_preview_builds_migration_contract(tmp_path: Path) -> None:
