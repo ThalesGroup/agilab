@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-28
+  updated: 2026-05-06
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -11,11 +11,11 @@ metadata:
 Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.
 
 The current source of truth is:
-- `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.md`
-- `/Users/agi/PycharmProjects/thales_agilab/huggingface/README.advanced.md`
-- `/Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh`
-- `/Users/agi/PycharmProjects/thales_agilab/huggingface/Dockerfile`
-- `/Users/agi/PycharmProjects/thales_agilab/huggingface/seed_hf_app_settings.py`
+- `/Users/agi/thales_agilab/huggingface/README.md`
+- `/Users/agi/thales_agilab/huggingface/README.advanced.md`
+- `/Users/agi/thales_agilab/huggingface/hf_space_deploy.sh`
+- `/Users/agi/thales_agilab/huggingface/Dockerfile`
+- `/Users/agi/thales_agilab/huggingface/seed_hf_app_settings.py`
 
 Do not default to a generic “lightweight one-page demo” plan when the repo already defines a concrete Space contract.
 
@@ -168,7 +168,7 @@ git worktree add --detach "$tmpdir" origin/main
 git -C "$tmpdir" lfs install --local
 git -C "$tmpdir" lfs pull
 find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort
-/Users/agi/PycharmProjects/thales_agilab/huggingface/hf_space_deploy.sh \
+/Users/agi/thales_agilab/huggingface/hf_space_deploy.sh \
   --profile first-proof \
   --agilab-path "$tmpdir" \
   --space jpmorard/agilab
@@ -227,6 +227,41 @@ the relevant logs before making another upload:
 hf spaces logs jpmorard/agilab --build --tail 120
 hf spaces logs jpmorard/agilab --tail 160
 ```
+
+For worker-install failures, look for local-source staging evidence in the build
+logs. A healthy source-checkout install includes lines like `Staged uv source
+'agi-env' path: ... -> _uv_sources/agi-env` for workers that depend on AGILAB
+core packages. If logs mention unresolved local paths such as
+`../../../core/agi-env`, fix the source worker `pyproject.toml` path relative to
+that worker manifest before redeploying.
+
+After runtime cutover, run the public smoke:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+```
+
+If this deployment is part of a release, update release proof with the live
+Space commit after the smoke passes, then sync and push both docs repos:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
+  --docs-source /Users/agi/thales_agilab/docs/source \
+  --refresh-from-local \
+  --hf-space-commit <space-sha> \
+  --render \
+  --check \
+  --compact
+uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+  --source /Users/agi/thales_agilab/docs/source \
+  --target /Users/agi/agilab/docs/source \
+  --apply \
+  --delete
+```
+
+Do not call the release fully synced until `runtime.stage` is `RUNNING`, the
+runtime SHA matches the uploaded Space SHA, `tools/hf_space_smoke.py --json`
+passes, and release proof records that Space SHA.
 
 ## When Editing the Space Contract
 

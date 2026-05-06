@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-29
+  updated: 2026-05-06
 ---
 
 # Testing Skill (AGILAB)
@@ -88,6 +88,8 @@ Use this skill when validating changes.
   - If the plain shell sync succeeds but the AGILAB path fails, prefer a shared-core installer regression over app-only tests.
   - Inspect the copied worker manifest under `~/wenv/<app>_worker/pyproject.toml` before changing app dependencies.
   - If the copied worker project gained a conflicting exact pin that is not present in the source app manifest, treat that as an install-plumbing bug first.
+  - For built-in app worker manifests committed under `src/agilab/apps/builtin/*_project/src/*_worker/pyproject.toml`, validate local `agi-env`/`agi-node` sources relative to the worker manifest directory, not the app root. App-level manifests use `../../../core/...`; nested worker manifests currently need `../../../../../core/...`.
+  - If release tooling changes app versions, include nested worker manifests in the version bump so PyPI and HF staging do not carry stale source paths.
   - Good shared regressions for this class are:
     - nested `uv` environment cleanup in `agi_env`
     - worker dependency-rewrite behavior in `agi_distributor`
@@ -145,6 +147,12 @@ validation, release, and Hugging Face sync in one flow.
 - After release, verify package publication with a network-level check such as
   `curl https://pypi.org/pypi/agilab/json`, because local Python SSL trust can
   differ from the actual PyPI publication state.
+- Verify installed package content from outside the repo checkout with
+  `uv run --refresh-package agilab --no-project --with agilab==<version> ...`.
+  Running this from the repo can import local source and give a false pass.
+- If the release feeds Hugging Face, inspect build logs for `Staged uv source`
+  lines and run `tools/hf_space_smoke.py --json` only after the runtime stage is
+  `RUNNING` on the uploaded Space SHA.
 
 ## Coverage Notes
 
