@@ -465,7 +465,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert any("Run readiness" in str(item.value) for item in at.markdown)
     assert any("Active app" in str(item.value) for item in at.markdown)
     assert any("Next action" in str(item.value) for item in at.markdown)
-    assert any("target and resources -> arguments -> distribution preview" in str(item.value) for item in at.caption)
+    assert any("active app and runtime resources -> arguments -> distribution preview" in str(item.value) for item in at.caption)
 
     app_state_name = _current_app_state_name(at)
     enabled_toggle_key = f"cluster_enabled__{app_state_name}"
@@ -871,8 +871,23 @@ def test_edit_page_load(mock_ui_env):
     assert any("Edit project files" in value for value in markdown_values)
     assert any(button.label == "Export project" for button in at.sidebar.button)
     metric_labels = [metric.label for metric in at.metric]
-    assert {"Project", "Manager env", "Worker env"}.issubset(metric_labels)
+    assert {"Project", "Runtime module", "Manager env", "Worker env"}.issubset(metric_labels)
     _assert_docs_actions_absent(at)
+
+
+def test_project_sidebar_orders_active_project_before_workflow():
+    """The sidebar should start with project identity before action selection."""
+    source = Path("src/agilab/pages/1_▶️ PROJECT.py").read_text(encoding="utf-8")
+    page_body = source[source.index("def page():"):]
+
+    active_project_index = page_body.index("_render_active_project_sidebar(env)")
+    export_index = page_body.index("_render_sidebar_export_action(env)")
+    workflow_index = page_body.index('st.sidebar.markdown("### Project workflow")')
+
+    assert active_project_index < export_index < workflow_index
+    assert "Runtime module" in source
+    assert "Project Name (no suffix)" not in source
+    assert "New Project Name (no suffix)" not in source
 
 
 def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
