@@ -114,6 +114,18 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.runtime_diagnostics",
+    {
+        "coerce_diagnostics_verbose": "coerce_diagnostics_verbose",
+        "diagnostics_widget_key": "diagnostics_widget_key",
+        "render_runtime_diagnostics_control": "render_runtime_diagnostics_control",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "runtime_diagnostics.py",
+    fallback_name="agilab_runtime_diagnostics_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.action_execution",
     {
         "ActionResult": "ActionResult",
@@ -1663,48 +1675,26 @@ async def page() -> None:
     install_status = _app_install_status(env)
 
     cluster_params = app_settings.setdefault("cluster", {})
-    cluster_params.setdefault("verbose", 1)
-    verbosity_options = [0, 1, 2, 3]
-    current_verbose = cluster_params.get("verbose", 1)
-    if isinstance(current_verbose, bool):
-        current_verbose = 1
-    try:
-        current_verbose = int(current_verbose)
-    except (TypeError, ValueError):
-        current_verbose = 1
-    if current_verbose not in verbosity_options:
-        current_verbose = 1
+    current_verbose = coerce_diagnostics_verbose(cluster_params.get("verbose", 1))
+    with st.sidebar.expander("Runtime diagnostics", expanded=False) as diagnostics_container:
+        selected_verbose_int = render_runtime_diagnostics_control(
+            st,
+            diagnostics_container,
+            app_settings,
+            app_name=app_state_name,
+            compact_choice_fn=compact_choice,
+            key=diagnostics_widget_key(app_state_name),
+        )
+        diagnostics_container.caption("Quiet=0, Standard=1, Detailed=2, Debug=3.")
 
-    user_override = st.session_state.get("_verbose_user_override", False)
-    if not user_override:
-        current_verbose = 1
-        cluster_params["verbose"] = 1
-
-    st.session_state.setdefault("cluster_verbose", current_verbose)
-
-    selected_verbose = compact_choice(
-        st.sidebar,
-        "Verbosity level",
-        verbosity_options,
-        key="cluster_verbose",
-        help="Controls AgiEnv verbosity for generated install/distribute/run snippets.",
-        inline_limit=4,
-    )
-
-    try:
-        selected_verbose_int = int(selected_verbose)
-    except (TypeError, ValueError):
-        selected_verbose_int = 1
-
-    if selected_verbose_int not in verbosity_options:
-        selected_verbose_int = 1
-
-    cluster_params["verbose"] = selected_verbose_int
-    st.session_state["_verbose_user_override"] = selected_verbose_int != 1
+    if selected_verbose_int != current_verbose:
+        st.session_state.app_settings = _write_app_settings_toml(env.app_settings_file, app_settings)
+        load_toml_file.clear()
+    st.session_state["cluster_verbose"] = selected_verbose_int
 
     verbose = await _render_deployment_panel(
         env,
-        initial_verbose=current_verbose,
+        initial_verbose=selected_verbose_int,
         show_install=show_install,
         install_status=install_status,
     )

@@ -15,6 +15,7 @@ from agi_env.snippet_contract import (
     snippet_contract_block,
     stale_snippet_cleanup_message,
 )
+from agilab.runtime_diagnostics import coerce_diagnostics_verbose
 
 
 def to_bool_flag(value: Any, default: bool = False) -> bool:
@@ -70,11 +71,7 @@ def safe_service_start_template(env: AgiEnv, marker: str) -> str:
     mode = int(pool) + int(cython) * 2 + int(cluster_enabled) * 4 + int(rapids) * 8
     scheduler = cluster.get("scheduler") if cluster.get("scheduler") else None
     workers = cluster.get("workers") if isinstance(cluster.get("workers"), dict) else None
-    verbose_raw = cluster.get("verbose", 1)
-    try:
-        verbose = int(verbose_raw)
-    except (TypeError, ValueError):
-        verbose = 1
+    verbose = coerce_diagnostics_verbose(cluster.get("verbose", 1))
 
     def _safe_literal(value: Any) -> str:
         if value is None:
