@@ -514,14 +514,15 @@ def benchmark_modes_include_cluster(modes: Sequence[int]) -> bool:
 
 
 def order_benchmark_display_columns(columns: Sequence[Any]) -> list[Any]:
-    """Return display columns with nodes immediately before mode when present."""
+    """Return display columns with benchmark execution context near mode."""
     ordered = list(columns)
-    if "nodes" not in ordered or "mode" not in ordered:
+    context_order = ["variant", "nodes", "node", "mode"]
+    context_columns = [column for column in context_order if column in ordered]
+    if not context_columns:
         return ordered
-    ordered.remove("nodes")
-    mode_index = ordered.index("mode")
-    ordered.insert(mode_index, "nodes")
-    return ordered
+    insert_index = min(ordered.index(column) for column in context_columns)
+    remaining = [column for column in ordered if column not in context_columns]
+    return remaining[:insert_index] + context_columns + remaining[insert_index:]
 
 
 def benchmark_dataframe_column_config(column_config_module: Any) -> dict[str, Any]:

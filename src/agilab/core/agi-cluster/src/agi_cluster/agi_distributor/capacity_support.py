@@ -119,7 +119,7 @@ def _best_single_node_modes(
 def _rapids_run_mode_bit(agi_cls: Any) -> int:
     try:
         bit = int(getattr(agi_cls, "_RAPIDS_SET")) ^ int(getattr(agi_cls, "_RAPIDS_RESET"))
-    except (TypeError, ValueError):
+    except (AttributeError, TypeError, ValueError):
         bit = 0
     return bit or 8
 
