@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import uuid
@@ -229,6 +230,41 @@ def _parse_remote_platform_probe(output: str) -> tuple[str, str, str]:
     return padded[0], padded[1], padded[2]
 
 
+def _remote_rapids_probe_command(uv: str, pyvers: str, cli: PurePosixPath | Path) -> str:
+    return f"{uv} run --no-sync -p {quote(str(pyvers))} python {quote(cli.as_posix())} rapids-probe"
+
+
+def _parse_remote_rapids_probe(output: str) -> bool:
+    for raw_line in reversed(output.splitlines()):
+        line = raw_line.strip()
+        if not line:
+            continue
+        start = line.find("{")
+        end = line.rfind("}")
+        if start < 0 or end < start:
+            continue
+        try:
+            payload = json.loads(line[start : end + 1])
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        return bool(payload.get("rapids_capable"))
+    raise ValueError(f"Remote RAPIDS probe did not return JSON: {output!r}")
+
+
+async def _remote_rapids_capability(
+    agi_cls: Any,
+    ip: str,
+    *,
+    uv: str,
+    pyvers: str,
+    cli: PurePosixPath | Path,
+) -> bool:
+    result = await agi_cls.exec_ssh(ip, _remote_rapids_probe_command(uv, pyvers, cli))
+    return _parse_remote_rapids_probe(result)
+
+
 async def _legacy_intel_macos_dependency_specs(agi_cls: Any, ip: str, *, log: Any = logger) -> tuple[str, ...]:
     try:
         probe = await agi_cls.exec_ssh(ip, _remote_platform_probe_command())
@@ -326,20 +362,27 @@ async def deploy_remote_worker(
         node_whl = None
 
     hw_rapids_capable = False
+    cli = env.wenv_rel.parent / "cli.py"
     if agi_cls._rapids_enabled:
         try:
-            result = await agi_cls.exec_ssh(ip, "nvidia-smi")
+            hw_rapids_capable = await _remote_rapids_capability(
+                agi_cls,
+                ip,
+                uv=uv,
+                pyvers=pyvers,
+                cli=cli,
+            )
         except _REMOTE_RAPIDS_CHECK_EXCEPTIONS:
             log.error(f"rapids is requested but not supported by node [{ip}]")
             raise
 
-        hw_rapids_capable = (result != "") and agi_cls._rapids_enabled
         env.hw_rapids_capable = hw_rapids_capable
         if hw_rapids_capable:
             set_env_var_fn(ip, "hw_rapids_capable")
+        else:
+            set_env_var_fn(ip, "no_rapids_hw")
         log.info(f"Rapids-capable GPU[{ip}]: {hw_rapids_capable}")
 
-    cli = env.wenv_rel.parent / "cli.py"
     cmd = f"{uv} run -p {pyvers} python  {cli.as_posix()} unzip {wenv_rel.as_posix()}"
     await agi_cls.exec_ssh(ip, cmd)
 
