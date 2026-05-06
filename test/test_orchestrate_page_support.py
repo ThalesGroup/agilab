@@ -284,8 +284,11 @@ def test_benchmark_mode_helpers_expose_only_enabled_capabilities():
         fake_column_config
     )
     assert column_config["mode"]["label"] == "mode"
-    assert "r d c p" in column_config["mode"]["help"]
-    assert "_d__" in column_config["mode"]["help"]
+    assert "4-slot execution signature" in column_config["mode"]["help"]
+    assert "Dask/cluster" in column_config["mode"]["help"]
+    assert "`r d c p`" in orchestrate_page_support.BENCHMARK_MODE_LEGEND_MARKDOWN
+    assert "`____` local Python" in orchestrate_page_support.BENCHMARK_MODE_LEGEND_MARKDOWN
+    assert "`_d__` Dask only" in orchestrate_page_support.BENCHMARK_MODE_LEGEND_MARKDOWN
 
 
 def test_benchmark_rows_with_delta_percent_adds_relative_gap():
