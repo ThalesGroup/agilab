@@ -7,6 +7,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from agilab.runtime_diagnostics import coerce_diagnostics_verbose
+
 
 class OrchestrateWorkflowStatus(str, Enum):
     SINGLE_RUN = "single-run"
@@ -208,13 +210,7 @@ def _coerce_int_tuple(values: Sequence[Any]) -> tuple[int, ...]:
 
 
 def _coerce_verbose(value: Any) -> int:
-    if isinstance(value, bool):
-        return 1
-    try:
-        verbose = int(value)
-    except (TypeError, ValueError):
-        return 1
-    return verbose if verbose >= 0 else 1
+    return coerce_diagnostics_verbose(value)
 
 
 def _missing_install_paths(manager_venv: Path, worker_venv: Path | None) -> tuple[str, ...]:

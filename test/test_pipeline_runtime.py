@@ -1081,6 +1081,7 @@ data_out = "output"
 
     assert snippet.startswith("# AUTO")
     assert 'APP = "demo"' in snippet
+    assert "VERBOSE = 2" in snippet
     assert "MODE = 7" in snippet
     assert 'SCHEDULER = "tcp://127.0.0.1:8786"' in snippet
     assert "WORKERS = json.loads(" in snippet

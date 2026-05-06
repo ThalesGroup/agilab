@@ -1206,6 +1206,42 @@ def test_pipeline_page_project_filter_shortlists_projects(mock_ui_env, tmp_path)
         assert Path(at.session_state["steps_file"]).parent.name == "sb3_trainer_project"
 
 
+def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_env, tmp_path):
+    export_root = tmp_path / "export"
+    flight_lab = export_root / "flight_project"
+    trainer_lab = export_root / "sb3_trainer_project"
+    flight_lab.mkdir(parents=True, exist_ok=True)
+    trainer_lab.mkdir(parents=True, exist_ok=True)
+    (flight_lab / "lab_steps.toml").write_text(
+        '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        encoding="utf-8",
+    )
+    (trainer_lab / "lab_steps.toml").write_text(
+        '[[sb3_trainer_project]]\nD = ""\nQ = "trainer prompt"\nM = "dummy-model"\nC = "print(2)"\nR = "runpy"\n',
+        encoding="utf-8",
+    )
+
+    with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
+        at = _app_test("src/agilab/pages/3_▶️ PIPELINE.py", default_timeout=20)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env.init_done = True
+        env.AGILAB_EXPORT_ABS = export_root
+        env.envars["AGI_EXPORT_DIR"] = str(export_root)
+        env.target = "flight"
+        env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+        env.get_projects = MagicMock(return_value=["flight_project", "sb3_trainer_project"])
+
+        at.session_state["env"] = env
+        at.run()
+        assert not at.exception
+
+        project_select = at.sidebar.selectbox(key="project_selectbox")
+        assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
+        assert "flight" not in project_select.options
+        assert at.session_state["lab_dir_selectbox"] == "flight_project"
+        assert Path(at.session_state["steps_file"]).parent.name == "flight_project"
+
+
 def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
     flight_lab = export_root / "flight_project"

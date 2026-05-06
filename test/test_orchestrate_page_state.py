@@ -65,6 +65,16 @@ def test_orchestrate_page_state_defaults_to_single_run():
     assert state.can_run is True
 
 
+def test_orchestrate_page_state_bounds_diagnostics_verbose():
+    state = orchestrate_page_state.build_orchestrate_page_state(
+        cluster_params={"pool": True, "verbose": 99},
+        selected_benchmark_modes=[],
+        deps=_deps(),
+    )
+
+    assert state.verbose == 1
+
+
 def test_orchestrate_page_state_sanitizes_benchmark_modes_and_preserves_run_list():
     state = orchestrate_page_state.build_orchestrate_page_state(
         cluster_params={

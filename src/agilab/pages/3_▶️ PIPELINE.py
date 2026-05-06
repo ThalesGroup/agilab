@@ -96,6 +96,20 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.runtime_diagnostics",
+    {
+        "coerce_diagnostics_verbose": "coerce_diagnostics_verbose",
+        "diagnostics_widget_key": "diagnostics_widget_key",
+        "load_settings_file": "load_runtime_diagnostics_settings_file",
+        "persist_diagnostics_verbose": "persist_runtime_diagnostics_verbose",
+        "render_runtime_diagnostics_control": "render_runtime_diagnostics_control",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "runtime_diagnostics.py",
+    fallback_name="agilab_runtime_diagnostics_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_steps",
     {
         "ORCHESTRATE_LOCKED_SOURCE_KEY": "ORCHESTRATE_LOCKED_SOURCE_KEY",
@@ -683,24 +697,68 @@ def on_nb_change(
         st.info(f"No file named {notebook_file} found!")
 
 
+def _pipeline_project_catalog(env: AgiEnv) -> List[str]:
+    try:
+        projects = env.get_projects(
+            getattr(env, "apps_path", None),
+            getattr(env, "builtin_apps_path", None),
+            getattr(env, "apps_repository_root", None),
+        )
+    except (AttributeError, OSError, RuntimeError, TypeError):
+        return []
+    seen: set[str] = set()
+    catalog: List[str] = []
+    for project in projects:
+        name = str(project or "").strip()
+        if name and name not in seen:
+            catalog.append(name)
+            seen.add(name)
+    return catalog
+
+
+def _canonical_pipeline_project_name(raw_name: Any, project_catalog: List[str]) -> str:
+    name = Path(str(raw_name or "").strip()).name
+    if not name or name == "apps":
+        return ""
+    if name in project_catalog:
+        return name
+    suffixed = f"{name}_project"
+    if suffixed in project_catalog:
+        return suffixed
+    if name.endswith("_project"):
+        stem = name.removesuffix("_project")
+        if stem in project_catalog:
+            return stem
+    return name
+
+
+def _canonical_pipeline_project_modules(env: AgiEnv, raw_modules: List[str]) -> List[str]:
+    project_catalog = _pipeline_project_catalog(env)
+    modules: List[str] = []
+    seen: set[str] = set()
+
+    def _add(raw_name: Any) -> None:
+        canonical = _canonical_pipeline_project_name(raw_name, project_catalog)
+        if canonical and canonical not in seen:
+            modules.append(canonical)
+            seen.add(canonical)
+
+    for module in raw_modules:
+        _add(module)
+
+    # Keep the active app selectable, but do not add an unsuffixed alias when a
+    # canonical *_project directory is known.
+    _add(getattr(env, "target", ""))
+    return modules
+
+
 def sidebar_controls() -> None:
     """Create sidebar controls for selecting modules and DataFrames."""
     env: AgiEnv = st.session_state["env"]
     Agi_export_abs = _pipeline_export_root(env)
-    modules = _available_lab_modules(env, Agi_export_abs)
+    modules = _canonical_pipeline_project_modules(env, _available_lab_modules(env, Agi_export_abs))
     if not modules:
         modules = [env.target] if env.target else []
-
-    # Keep the current AgiEnv target available even when no export directory
-    # exists yet so the workflow does not jump to another project.
-    if env.target and env.target not in modules:
-        modules = [env.target] + modules
-
-    # The active app can be renamed with _project; the exports are usually
-    # un-suffixed (e.g. "flight"), keep both forms synchronized.
-    target_name = Path(env.target).name if env.target else None
-    if target_name and target_name not in modules:
-        modules = [target_name] + modules
 
     requested_lab = _normalize_lab_choice(st.session_state.get("_requested_lab_dir"), modules)
 
@@ -791,6 +849,30 @@ def sidebar_controls() -> None:
         on_lab_change(selected_lab)
     if requested_lab and st.session_state.get("lab_dir_selectbox") == requested_lab:
         st.session_state.pop("_requested_lab_dir", None)
+
+    try:
+        diagnostics_settings_file = env.resolve_user_app_settings_file(selected_lab)
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        diagnostics_settings_file = getattr(env, "app_settings_file", None)
+    diagnostics_settings = load_runtime_diagnostics_settings_file(diagnostics_settings_file)
+    current_diagnostics_verbose = coerce_diagnostics_verbose(
+        diagnostics_settings.get("cluster", {}).get("verbose", 1)
+        if isinstance(diagnostics_settings.get("cluster"), dict)
+        else 1
+    )
+    with st.sidebar.expander("Runtime diagnostics", expanded=False) as diagnostics_container:
+        selected_diagnostics_verbose = render_runtime_diagnostics_control(
+            st,
+            diagnostics_container,
+            diagnostics_settings,
+            app_name=selected_lab,
+            compact_choice_fn=compact_choice,
+            key=diagnostics_widget_key(selected_lab),
+        )
+        diagnostics_container.caption("Quiet=0, Standard=1, Detailed=2, Debug=3.")
+    if selected_diagnostics_verbose != current_diagnostics_verbose:
+        persist_runtime_diagnostics_verbose(diagnostics_settings_file, selected_diagnostics_verbose)
+    st.session_state["cluster_verbose"] = selected_diagnostics_verbose
 
     steps_file_name = st.session_state["steps_file_name"]
     export_root = _pipeline_export_root(env)
