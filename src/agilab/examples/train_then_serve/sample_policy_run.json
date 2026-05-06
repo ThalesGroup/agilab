@@ -1,0 +1,65 @@
+{
+  "schema": "agilab.example.train_then_serve.v1",
+  "training_run": {
+    "app": "sb3_trainer_project",
+    "trainer": "uav_relay_queue_ppo",
+    "run_id": "trainer_uav_relay_queue_ppo_preview",
+    "model_artifact": "sb3_trainer/pipeline/trainer_uav_relay_queue_ppo/uav_queue_model.zip",
+    "metrics": {
+      "delivery_ratio": 0.96,
+      "p95_latency_ms": 61.0,
+      "reward_mean": 42.5
+    }
+  },
+  "service": {
+    "name": "uav_relay_policy_service",
+    "version": "2026.05.preview",
+    "health_thresholds": {
+      "latency_budget_ms": 80.0,
+      "allow_idle": false,
+      "max_unhealthy": 0,
+      "max_restart_rate": 0.25
+    },
+    "input_schema": {
+      "source_queue_depth": "float 0..1",
+      "candidate_relays": "list of relay features"
+    },
+    "output_schema": {
+      "selected_relay": "relay id",
+      "action": "route_via_relay",
+      "confidence": "float 0..1"
+    }
+  },
+  "prediction_request": {
+    "source_queue_depth": 0.82,
+    "candidate_relays": [
+      {
+        "id": "relay_alpha",
+        "latency_ms": 72.0,
+        "queue_depth": 0.74,
+        "capacity_mbps": 7.5,
+        "risk": 0.22
+      },
+      {
+        "id": "relay_beta",
+        "latency_ms": 55.0,
+        "queue_depth": 0.41,
+        "capacity_mbps": 9.4,
+        "risk": 0.11
+      },
+      {
+        "id": "relay_gamma",
+        "latency_ms": 63.0,
+        "queue_depth": 0.35,
+        "capacity_mbps": 8.1,
+        "risk": 0.08
+      }
+    ]
+  },
+  "policy_scoring": {
+    "capacity_mbps": 0.42,
+    "latency_ms": -0.18,
+    "queue_depth": -0.28,
+    "risk": -0.12
+  }
+}

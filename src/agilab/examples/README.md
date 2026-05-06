@@ -23,6 +23,7 @@ the command shape stable.
 | 8 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
 | 9 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
 | 10 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
+| 11 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, health gate. |
 
 ## What To Notice
 
@@ -45,6 +46,9 @@ the command shape stable.
 - `resilience_failure_injection/preview_resilience_failure_injection.py` shows
   how a failure event and strategy comparison can be made explicit before a
   real trainer or simulator run.
+- `train_then_serve/preview_train_then_serve.py` shows the handoff from a
+  trained policy artifact to service contract, prediction sample, and health
+  gate without starting a service.
 - `data_in` and `data_out` are share-root relative paths, so examples stay
   portable across machines.
 - Run modes use named AGI constants instead of magic numbers, and keep Cython
@@ -79,4 +83,5 @@ workers for an already-working app. Use `mlflow_auto_tracking` when you want
 to show tracking as optional memory around AGILAB execution, not a competing
 experiment system. Use `resilience_failure_injection` when you want to explain
 fixed versus adaptive behavior on the same degraded scenario before training or
-serving a policy.
+serving a policy. Use `train_then_serve` when you want to explain what must be
+frozen after training before a policy becomes service-ready.

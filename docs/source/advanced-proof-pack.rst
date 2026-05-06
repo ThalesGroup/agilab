@@ -48,6 +48,10 @@ What belongs here
        fixed, replanned, search-based, and active-policy responses on the same
        scenario contract.
      - Run ``src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py``.
+   * - ``train_then_serve`` packaged preview
+     - Service handoff: freeze the trained-policy artifact path, IO contract,
+       prediction sample, and health gate before a serving stack is started.
+     - Run ``src/agilab/examples/train_then_serve/preview_train_then_serve.py``.
    * - ``service_mode`` packaged preview
      - Persistent worker lifecycle and health gates: start, status, health,
        and stop are presented as explicit operator actions.
@@ -87,10 +91,13 @@ Run these in this order when you need a compact but convincing evaluation pass:
 5. **Resilience comparison**: ``resilience_failure_injection`` preview. This is
    the best strategy-comparison story because fixed, ILP-style, GA-style, and
    PPO-style responses are scored against one injected event.
-6. **Operator path**: :doc:`service-mode` plus ``service_mode`` preview. This
+6. **Service handoff**: ``train_then_serve`` preview. This is the best
+   prototype-to-operations story because the model artifact, IO contract,
+   prediction sample, and health gate are explicit before a service is started.
+7. **Operator path**: :doc:`service-mode` plus ``service_mode`` preview. This
    is the best operations story because it shows persistent workers and health
    thresholds without hiding lifecycle actions.
-7. **Trust close-out**: :doc:`release-proof`. This is the best ending slide
+8. **Trust close-out**: :doc:`release-proof`. This is the best ending slide
    because it ties demo claims back to release, CI, package, and docs evidence.
 
 How to demo it
@@ -128,6 +135,11 @@ Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
   ``resilience_failure_injection`` preview. Stop when the fixed route degrades,
   the post-failure route ranking is explicit, and the adaptive response wins
   without implying a certified MARL benchmark.
+
+**Train-then-serve lane**
+  ``train_then_serve`` preview. Stop when the service contract, prediction
+  sample, and health payload are written without implying that AGILAB is a
+  production serving platform.
 
 **Industrial optimization lane**
   :doc:`industrial-optimization-examples`. Stop when the reviewer can see the

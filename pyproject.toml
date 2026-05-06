@@ -325,6 +325,8 @@ agilab = [
     "examples/resilience_failure_injection/*.json",
     "examples/service_mode/*.py",
     "examples/service_mode/*.json",
+    "examples/train_then_serve/*.py",
+    "examples/train_then_serve/*.json",
     "pages/*.py",
     "apps/install.py",
     "apps/builtin/*/pyproject.toml",
