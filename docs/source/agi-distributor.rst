@@ -36,7 +36,7 @@ The current bit values are:
      - Meaning
    * - ``pool``
      - ``1``
-     - Multiprocessing / worker-pool path.
+     - Worker-pool path; backend may be process- or thread-based.
    * - ``cython``
      - ``2``
      - Compiled worker path when available.

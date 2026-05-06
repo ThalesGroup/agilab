@@ -104,8 +104,8 @@ AGILAB currently builds these values from the execution toggles as follows:
      - Meaning
    * - ``pool``
      - ``1``
-     - Enable the multiprocessing / worker-pool execution path when the app
-       provides it.
+     - Enable the worker-pool execution path when the app provides it. The
+       backend may be process- or thread-based.
    * - ``cython``
      - ``2``
      - Enable the compiled worker path when the worker has a Cython build.
@@ -181,7 +181,8 @@ from in the UI, use this mapping:
        the first host and two on the second.
    * - ``Pool``
      - contributes ``+1`` to ``mode`` / ``modes_enabled``
-     - Enables the multiprocessing / worker-pool path when the app supports it.
+     - Enables the worker-pool path when the app supports it. The backend may
+       be process- or thread-based.
    * - ``Cython``
      - contributes ``+2`` to ``mode`` / ``modes_enabled``
      - Enables the compiled worker path when a Cython build exists.

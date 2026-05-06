@@ -149,7 +149,7 @@ Both use the same bit values derived from the ORCHESTRATE toggles:
      - Meaning
    * - ``pool``
      - ``1``
-     - Multiprocessing / worker-pool execution path.
+     - Worker-pool execution path; backend may be process- or thread-based.
    * - ``cython``
      - ``2``
      - Compiled worker path when a Cython build exists.
