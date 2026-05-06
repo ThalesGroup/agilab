@@ -41,6 +41,7 @@ import_agilab_symbols(
         "build_install_snippet": "build_install_snippet",
         "build_run_snippet": "build_run_snippet",
         "available_benchmark_modes": "available_benchmark_modes",
+        "benchmark_dataframe_column_config": "benchmark_dataframe_column_config",
         "benchmark_mode_label": "benchmark_mode_label",
         "benchmark_rows_with_delta_percent": "benchmark_rows_with_delta_percent",
         "benchmark_workers_data_path_issue": "benchmark_workers_data_path_issue",
@@ -1469,6 +1470,7 @@ async def _render_run_panels(
                             render_dataframe_preview(
                                 df_nonempty,
                                 truncation_label="Benchmark table preview limited",
+                                column_config=benchmark_dataframe_column_config(st.column_config),
                             )
                         else:
                             st.info("Benchmark file is present but empty. Run the benchmark to collect data.")

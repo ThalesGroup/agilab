@@ -29,6 +29,13 @@ RUN_MODE_LABELS: tuple[str, ...] = (
     "15: rapids and dask and pool and cython",
 )
 
+BENCHMARK_MODE_COLUMN_HELP = (
+    "Run-mode code is read left to right as r d c p: "
+    "r=RAPIDS requested, d=Dask/cluster, c=Cython, p=pool/local fan-out. "
+    "_ means that capability is disabled, for example _d__ is Dask only and __cp is Cython + pool."
+)
+
+
 _INSTALL_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
     ("traceback",),
     ("unhandled exception",),
@@ -496,6 +503,19 @@ def compute_benchmark_run_mode(
 
 def benchmark_modes_include_cluster(modes: Sequence[int]) -> bool:
     return any(int(mode) & _DASK_MODE_BIT for mode in modes)
+
+
+def benchmark_dataframe_column_config(column_config_module: Any) -> dict[str, Any]:
+    """Return Streamlit column config for the benchmark results dataframe."""
+    text_column = getattr(column_config_module, "TextColumn", None)
+    if not callable(text_column):
+        return {}
+    return {
+        "mode": text_column(
+            "mode",
+            help=BENCHMARK_MODE_COLUMN_HELP,
+        )
+    }
 
 
 _LOCAL_WORKER_HOSTS = {"", "127.0.0.1", "localhost", "::1", "0.0.0.0"}

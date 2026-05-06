@@ -277,6 +277,15 @@ def test_benchmark_mode_helpers_expose_only_enabled_capabilities():
         [0, 1, 13],
     ) == [1, 13]
     assert orchestrate_page_support.benchmark_mode_label(13) == "13: rapids and dask and pool"
+    fake_column_config = SimpleNamespace(
+        TextColumn=lambda label, **kwargs: {"label": label, **kwargs}
+    )
+    column_config = orchestrate_page_support.benchmark_dataframe_column_config(
+        fake_column_config
+    )
+    assert column_config["mode"]["label"] == "mode"
+    assert "r d c p" in column_config["mode"]["help"]
+    assert "_d__" in column_config["mode"]["help"]
 
 
 def test_benchmark_rows_with_delta_percent_adds_relative_gap():

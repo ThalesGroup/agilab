@@ -226,6 +226,26 @@ How to read the matrix quickly
 
    Compact map of the 16 execution modes grouped by topology and runtime family.
 
+ORCHESTRATE table snapshot
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The tables below mirror the **ORCHESTRATE > Benchmark results** expander rather
+than a separate screenshot. The UI reads ``benchmark.json``, uses the run-mode
+keys as the row index, and displays the columns ``mode``, ``timing``,
+``nodes``, ``seconds``, ``order``, ``delta``, and ``delta (%)``. The ``nodes``
+column shows how many machines were used by the run; the extra ``topology``
+column below keeps the docs readable outside the app.
+
+.. csv-table:: Benchmark results snapshot for ``execution_pandas_project``
+   :file: data/execution_pandas_benchmark_results_snapshot.csv
+   :header-rows: 1
+   :widths: 8, 8, 24, 16, 12, 8, 12, 12, 32
+
+.. csv-table:: Benchmark results snapshot for ``execution_polars_project``
+   :file: data/execution_polars_benchmark_results_snapshot.csv
+   :header-rows: 1
+   :widths: 8, 8, 24, 16, 12, 8, 12, 12, 32
+
 .. _execution-pandas-project:
 
 execution_pandas_project
@@ -285,6 +305,8 @@ Raw matrix artifacts are versioned under:
 
 - ``docs/source/data/execution_mode_matrix_benchmark.json``
 - ``docs/source/data/execution_mode_matrix_benchmark.csv``
+- ``docs/source/data/execution_pandas_benchmark_results_snapshot.csv``
+- ``docs/source/data/execution_polars_benchmark_results_snapshot.csv``
 - ``docs/source/data/execution_pandas_project_mode_matrix.csv``
 - ``docs/source/data/execution_polars_project_mode_matrix.csv``
 
