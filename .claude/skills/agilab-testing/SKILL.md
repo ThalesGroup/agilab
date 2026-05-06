@@ -147,6 +147,12 @@ validation, release, and Hugging Face sync in one flow.
 - After release, verify package publication with a network-level check such as
   `curl https://pypi.org/pypi/agilab/json`, because local Python SSL trust can
   differ from the actual PyPI publication state.
+- `repo-guardrails` clean public installs must install the exact
+  `docs/source/data/release_proof.toml` package spec via
+  `tools/install_release_proof_package.py`, not plain `pip install agilab`.
+  Release commits are pushed before PyPI propagation is guaranteed, so an
+  unpinned install can validate a stale previous release and fail for the wrong
+  artifact.
 - Root package dependencies must install on the full clean public install matrix
   (Windows, macOS, Linux). Platform-specific packages such as Apple MLX must
   carry environment markers in `pyproject.toml`, otherwise the released wheel can
