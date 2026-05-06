@@ -265,8 +265,8 @@ async def benchmark(
 
     best_mode_key, best_run_data = ordered_runs[0]
 
-    for mode in runs:
-        runs[mode]["delta"] = runs[mode]["seconds"] - best_run_data["seconds"]
+    for mode_key in runs:
+        runs[mode_key]["delta"] = runs[mode_key]["seconds"] - best_run_data["seconds"]
 
     agi_cls._best_mode[env.target] = best_run_data
     agi_cls._mode_auto = False
