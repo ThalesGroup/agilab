@@ -708,6 +708,7 @@ def sidebar_controls() -> None:
     project_changed = st.session_state.pop("project_changed", False)
     if project_changed:
         for key in (
+            "project_selectbox",
             "lab_dir_selectbox",
             "lab_dir",
             "index_page",
@@ -746,6 +747,7 @@ def sidebar_controls() -> None:
     else:
         persisted_lab = (
             _normalize_lab_choice(_qp_first("lab_dir_selectbox"), modules)
+            or _normalize_lab_choice(st.session_state.get("project_selectbox"), modules)
             or _normalize_lab_choice(st.session_state.get("lab_dir_selectbox"), modules)
             or _normalize_lab_choice(st.session_state.get("lab_dir"), modules)
             or _normalize_lab_choice(last_active, modules)
@@ -773,14 +775,17 @@ def sidebar_controls() -> None:
             f"Showing first {len(project_options)} of {project_selection.total_matches} matches"
         )
 
+    if st.session_state.get("project_selectbox") not in project_options:
+        st.session_state.pop("project_selectbox", None)
     selected_lab = st.sidebar.selectbox(
         PIPELINE_PROJECT_LABEL,
         project_options,
         index=project_index,
-        on_change=lambda: on_lab_change(st.session_state.lab_dir_selectbox),
-        key="lab_dir_selectbox",
+        on_change=lambda: on_lab_change(st.session_state.project_selectbox),
+        key="project_selectbox",
         help=PIPELINE_PROJECT_HELP,
     )
+    st.session_state["lab_dir_selectbox"] = selected_lab
     st.session_state["lab_dir"] = selected_lab
     if selected_lab != persisted_lab:
         on_lab_change(selected_lab)
