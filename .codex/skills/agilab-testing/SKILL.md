@@ -155,6 +155,10 @@ validation, release, and Hugging Face sync in one flow.
   every internal package version equals the root `agilab` version. The umbrella
   may publish a metadata-only post release while exact-pinning already-published
   core libraries; assert exact internal pins and marker correctness instead.
+- Supply-chain attestation should validate the release graph, not just equality
+  between root and internal package versions. For metadata-only umbrella post
+  releases, exact root pins to already-published core/page libraries are valid
+  evidence when the internal dependency graph also aligns.
 - Real PyPI pre-upload must run the external install matrix guard from the built
   wheel artifacts. It should dry-run `uv pip install` for Windows, Linux, and
   macOS x64 before upload so `repo-guardrails` cannot be the first place a bad
