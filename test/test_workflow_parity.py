@@ -36,7 +36,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_node = profiles["agi-node"][0]
     agi_cluster = profiles["agi-cluster"][0]
     agi_gui_commands = profiles["agi-gui"]
-    agi_gui_chunks = agi_gui_commands[:-1]
+    agi_gui_chunks = agi_gui_commands[:6]
+    agi_gui_combine = agi_gui_commands[-2]
     agi_gui_xml = agi_gui_commands[-1]
     agi_gui_argv = [arg for command in agi_gui_commands for arg in command.argv]
     docs_commands = profiles["docs"]
@@ -98,13 +99,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "agi-gui coverage (pages)",
         "agi-gui coverage (views)",
         "agi-gui coverage (reports)",
+        "agi-gui coverage combine",
         "agi-gui coverage xml",
     ]
     assert all(command.timeout_seconds == 8 * 60 for command in agi_gui_chunks)
     assert all(command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1" for command in agi_gui_commands)
     assert agi_gui_commands[0].remove_paths[:2] == [".coverage.agi-gui", "coverage-agi-gui.xml"]
     assert all("coverage" in command.argv for command in agi_gui_chunks)
-    assert "--append" in agi_gui_commands[0].argv
+    assert all("--append" not in command.argv for command in agi_gui_chunks)
+    assert "--data-file=test-results/coverage-agi-gui-support.db" in agi_gui_commands[0].argv
+    assert "combine" in agi_gui_combine.argv
+    assert "test-results/coverage-agi-gui-pipeline.db" in agi_gui_combine.argv
     assert "coverage-agi-gui.xml" in agi_gui_xml.argv
     assert "src/agilab/lib/agi-gui/test" in agi_gui_argv
     assert "test/test_about_agilab_helpers.py" in agi_gui_argv
