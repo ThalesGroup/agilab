@@ -1847,7 +1847,7 @@ def display_lab_tab(
                 st,
                 "Confirm delete",
                 key=f"{index_page_str}_delete_all_confirm",
-                help="Permanently remove every step in this lab.",
+                help="Permanently remove every step in this project.",
                 kind="destructive",
                 type="primary",
             )
@@ -1856,7 +1856,7 @@ def display_lab_tab(
                 st,
                 "Delete all",
                 key=f"{index_page_str}_delete_all",
-                help="Remove every step in this lab.",
+                help="Remove every step in this project.",
                 kind="delete",
             )
     with cancel_col:
