@@ -27,9 +27,6 @@ Sidebar
   reachable, and falls back to the locally generated docs build when available.
 - Project selector that keeps the current application in sync with the rest of
   the suite.
-- ``Analysis view`` lets you open a selected view directly. If no view has been
-  selected yet, it lists every discovered view so you can launch one without
-  first editing the project configuration.
 - The currently selected project determines which views are stored inside its
   workspace ``app_settings.toml`` file under ``~/.agilab/apps/<project>/``
   in the ``[pages]`` section.
@@ -47,14 +44,14 @@ Main Content Area
 
    .. tab-item:: Configure
 
-      Use the multi-select control to choose which pages are shown as quick-access
-      shortcuts for analyzing the selected project. The selection is written to
-      ``~/.agilab/apps/<project>/app_settings.toml`` in the ``[pages]`` section
-      under ``view_module``. Only the names you choose are persisted for the
-      active project; every project keeps its own list. The workspace file is
-      seeded from the app's ``app_settings.toml`` source file (for example
-      ``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``)
-      the first time the app is loaded.
+      Use **Choose analysis views** to choose which pages are shown as
+      quick-access shortcuts for analyzing the selected project. The selection
+      is written to ``~/.agilab/apps/<project>/app_settings.toml`` in the
+      ``[pages]`` section under ``view_module``. Only the names you choose are
+      persisted for the active project; every project keeps its own list. The
+      workspace file is seeded from the app's ``app_settings.toml`` source file
+      (for example ``<project>/app_settings.toml`` or
+      ``<project>/src/app_settings.toml``) the first time the app is loaded.
 
       You can also create a complete starter bundle directly from this page using
       **Create analysis view**. It creates a minimal pyproject and runnable
