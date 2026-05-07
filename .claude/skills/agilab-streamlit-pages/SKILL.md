@@ -85,6 +85,18 @@ Use this skill when editing:
 - When a generic page has no app-specific semantic data, show an honest fallback such
   as execution steps, output files, or discovered dataframes rather than inventing a
   domain-specific metric.
+- Keep one navigation surface per action. If a page already exposes compact sidebar
+  launch links, do not duplicate the same action as in-page sidecar cards, repeated
+  `Open` buttons, or another selector unless the second surface adds a distinct
+  workflow step.
+- For lightweight page routing, prefer compact Markdown/HTML links with encoded
+  query parameters such as `current_page` over a selectbox plus `Open` button when
+  the user only needs to jump to a target. Add a tiny helper to construct and test
+  the encoded URL instead of inlining query-string formatting in the render block.
+- Treat legacy “default view” UI as configuration debt when a project already has a
+  selected view list. Persist the selected list in `pages.view_module`; remove stale
+  `default_view`/`default_views` values only when that behavior is intentionally
+  replaced by the new launcher model.
 - Update focused page tests when changing visible labels, header cards, or sidebar
   structure. Grep old wording before closing the task so stale copy does not survive in
   tests, docs, or screenshots.
