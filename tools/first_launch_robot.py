@@ -54,6 +54,19 @@ def _contains_any(values: Sequence[str], needles: Sequence[str]) -> bool:
     return any(needle in joined for needle in needles)
 
 
+def _docs_menu_items() -> dict[str, str]:
+    src_root = REPO_ROOT / "src"
+    src_root_str = str(src_root)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    try:
+        from agilab.page_docs import get_docs_menu_items
+
+        return get_docs_menu_items(html_file="agilab-help.html")
+    except Exception as exc:
+        return {"_error": str(exc)}
+
+
 def build_report(
     *,
     about_page: Path = ABOUT_PAGE,
@@ -83,6 +96,7 @@ def build_report(
     exceptions = [str(item) for item in list(app.exception)]
     markdown = _widget_values(app.markdown, "value")
     buttons = _widget_values(app.button, "label")
+    docs_menu = _docs_menu_items()
 
     has_env = False
     try:
@@ -137,11 +151,11 @@ def build_report(
         ),
         _check_result(
             "first_launch_docs_action",
-            "First launch exposes documentation action",
-            "Read Documentation" in buttons,
-            "Landing page offers a visible documentation action",
+            "First launch exposes documentation menu",
+            docs_menu.get("Get help", "").startswith("https://thalesgroup.github.io/agilab/"),
+            "Landing page exposes documentation through the Streamlit page menu",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
-            details={"buttons": buttons},
+            details={"buttons": buttons, "menu_items": docs_menu},
         ),
         _check_result(
             "first_launch_runtime_budget",

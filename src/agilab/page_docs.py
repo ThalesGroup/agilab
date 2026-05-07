@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import webbrowser
 from pathlib import Path
+from typing import Mapping
 
 import streamlit as st
 from agi_gui.ui_support import open_docs_url, open_local_docs, with_anchor
 
 DOCS_BASE_URL = "https://thalesgroup.github.io/agilab"
+DOCS_MENU_LABEL = "Get help"
 _DOCS_LOCAL_ALIASES: dict[str, tuple[str, ...]] = {
     "agilab-help.html": ("index.html",),
     "edit-help.html": ("edit_help.html",),
@@ -27,6 +29,34 @@ def _remote_docs_url(html_file: str, anchor: str = "") -> str:
         return base
     clean_anchor = anchor[1:] if anchor.startswith("#") else anchor
     return f"{base}#{clean_anchor}"
+
+
+def docs_menu_url(html_file: str = "agilab-help.html", anchor: str = "") -> str:
+    """Return the public documentation URL used by Streamlit's page menu."""
+    return _remote_docs_url(html_file, anchor)
+
+
+def docs_menu_items(
+    *,
+    html_file: str = "agilab-help.html",
+    anchor: str = "",
+    base_items: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Merge AGILAB menu content with the page-specific documentation entry."""
+    items = dict(base_items or {})
+    items[DOCS_MENU_LABEL] = docs_menu_url(html_file, anchor)
+    return items
+
+
+def get_docs_menu_items(*, html_file: str = "agilab-help.html", anchor: str = "") -> dict[str, str]:
+    """Return Streamlit menu items with About text and a page-specific docs link."""
+    from agi_env.pagelib_resource_support import about_content_payload
+
+    return docs_menu_items(
+        html_file=html_file,
+        anchor=anchor,
+        base_items=about_content_payload(),
+    )
 
 
 def _open_remote_docs(html_file: str, anchor: str = "") -> bool:

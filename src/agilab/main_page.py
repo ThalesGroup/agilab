@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from agi_env.agi_logger import AgiLogger
-from agi_env.pagelib_resource_support import about_content_payload as _about_content_payload
 
 logger = AgiLogger.get_logger(__name__)
 
@@ -173,7 +172,7 @@ _page_docs_module = _import_agilab_module_or_stop(
     fallback_path=Path(__file__).resolve().parent / "page_docs.py",
     fallback_name="agilab_page_docs_fallback",
 )
-render_page_docs_access = _page_docs_module.render_page_docs_access
+get_docs_menu_items = _page_docs_module.get_docs_menu_items
 
 _pinned_expander_module = _import_agilab_module_or_stop(
     "agilab.pinned_expander",
@@ -215,7 +214,7 @@ FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _about_onboarding.FIRST_PROOF_HELPER_SCRIPT
 
 def get_about_content() -> dict[str, str]:
     """Return Streamlit About-menu content without importing the full pagelib stack."""
-    return _about_content_payload()
+    return get_docs_menu_items(html_file="agilab-help.html")
 
 
 def inject_theme(base_path: Path | None = None) -> None:
@@ -540,14 +539,6 @@ def page(env: Any) -> None:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
-
-    render_page_docs_access(
-        env,
-        html_file="agilab-help.html",
-        key_prefix="about",
-        sidebar=True,
-        divider=False,
-    )
 
     try:
         _sync_layout_module()

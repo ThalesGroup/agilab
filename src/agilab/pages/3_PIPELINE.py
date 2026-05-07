@@ -40,6 +40,13 @@ _page_project_selector_module = load_local_module(
     fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
     fallback_name="agilab_page_project_selector_fallback",
 )
+_page_docs_module = load_local_module(
+    "agilab.page_docs",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
+    fallback_name="agilab_page_docs_fallback",
+)
+get_docs_menu_items = _page_docs_module.get_docs_menu_items
 
 from agi_gui.pagelib import (
     activate_mlflow,
@@ -49,7 +56,6 @@ from agi_gui.pagelib import (
     load_df,
     get_custom_buttons,
     get_info_bar,
-    get_about_content,
     get_css_text,
     export_df,
     resolve_selected_df_path,
@@ -1441,7 +1447,7 @@ def main() -> None:
         st.set_page_config(
             page_title="AGILab PIPELINE",
             layout="wide",
-            menu_items=get_about_content(),
+            menu_items=get_docs_menu_items(html_file="experiment-help.html"),
         )
         inject_theme(env.st_resources)
 
