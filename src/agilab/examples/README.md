@@ -19,18 +19,21 @@ the command shape stable.
 | 4 | `notebook_migrations/skforecast_meteo_fr` | `meteo_forecast_project` | Packaged migration source: notebooks, artifacts, lab steps, and pipeline view. |
 | 5 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
 | 6 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
-| 7 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Read-only DAG contract: app nodes, artifact handoff, and runner-state preview. |
-| 8 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
-| 9 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
-| 10 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
-| 11 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, health gate. |
+| 7 | `global_dag` | `flight_project` -> `meteo_forecast_project` | Read-only global DAG contract: app nodes, artifact handoff, and runner-state preview. |
+| 8 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Compatibility alias for the same cross-project DAG concept. |
+| 9 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
+| 10 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
+| 11 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
+| 12 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, health gate. |
 
 ## What To Notice
 
 - `AGI_install_*.py` prepares the app environment and worker runtime.
 - `AGI_run_*.py` builds a `RunRequest` and calls `AGI.run`.
-- `inter_project_dag/preview_inter_project_dag.py` plans a cross-project
-  handoff without executing either app.
+- `global_dag/preview_global_dag.py` plans a cross-project handoff with the
+  same vocabulary used by the PIPELINE global DAG runner.
+- `inter_project_dag/preview_inter_project_dag.py` remains as the original
+  compatibility name for the same concept.
 - `notebook_to_dask/preview_notebook_to_dask.py` shows how notebook cells become
   `lab_steps.toml`, a Dask solution slice, and an artifact contract.
 - `tools/notebook_import_preflight.py` gives the same notebook import path a
@@ -75,8 +78,9 @@ python ~/log/execute/flight/AGI_run_flight.py
 
 Run `agilab first-proof --json` when you want the shortest packaged product
 proof. Use these scripts when you want to inspect or adapt the generated
-programmatic calls. Use `inter_project_dag` when you want to understand how
-project-level app runs can be connected by explicit artifact contracts. Use
+programmatic calls. Use `global_dag` when you want to understand how
+project-level app runs can be connected by explicit artifact contracts, and use
+`inter_project_dag` only when you need the original example path. Use
 `notebook_to_dask` when you want to evaluate a notebook migration before
 creating an app or running Dask. Use `service_mode` before enabling persistent
 workers for an already-working app. Use `mlflow_auto_tracking` when you want
