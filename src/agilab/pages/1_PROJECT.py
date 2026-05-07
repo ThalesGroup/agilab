@@ -1738,7 +1738,7 @@ def _render_sidebar_export_action(env) -> None:
     if not getattr(env, "app", None):
         return
     if st.sidebar.button(
-        "Export project",
+        "Export",
         type="secondary",
         width="stretch",
         help=f"Export to {(env.export_apps / env.app).with_suffix('.zip')}",

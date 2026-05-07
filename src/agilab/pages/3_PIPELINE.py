@@ -999,7 +999,21 @@ def mlflow_controls() -> None:
     st.sidebar.divider()
     mlflow_port = st.session_state.get("mlflow_port", 5000)
     mlflow_url = f"http://localhost:{mlflow_port}"
-    title_col, open_col = st.sidebar.columns([0.76, 0.24], vertical_alignment="center")
+    safe_mlflow_url = html.escape(mlflow_url, quote=True)
+    st.sidebar.markdown(
+        (
+            "<style>"
+            f'[data-testid="stSidebar"] div[data-testid="stLinkButton"] a[href="{safe_mlflow_url}"]{{'
+            "border:1.4px solid #4A90E2 !important;"
+            "color:#4A90E2 !important;"
+            "min-height:2.35rem;"
+            "font-weight:700;"
+            "}"
+            "</style>"
+        ),
+        unsafe_allow_html=True,
+    )
+    title_col, open_col = st.sidebar.columns([0.64, 0.36], vertical_alignment="center")
     title_col.subheader("MLflow")
     open_col.link_button(
         "Open",
