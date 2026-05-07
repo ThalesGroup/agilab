@@ -1,0 +1,134 @@
+{
+  "schema": "agilab.tescia_diagnostic.cases.v1",
+  "cases": [
+    {
+      "case_id": "cluster_share_sshfs",
+      "symptom": "Remote workers can SSH to the scheduler but fail during post-install because the configured cluster share is not writable on the worker.",
+      "proposed_diagnosis": "The worker cannot reach the scheduler over SSH.",
+      "root_cause": "The original diagnosis confuses SSH reachability with shared-storage availability; the worker needs the scheduler-side AGI_CLUSTER_SHARE mounted through SSHFS at the worker data path.",
+      "plain_repro": "ssh worker 'test -w ~/clustershare/agi && python -m agi_node.agi_dispatcher.post_install flight_worker'",
+      "weak_assumptions": [
+        "SSH login success proves the shared data path is usable.",
+        "Scheduler and worker paths must be identical across operating systems.",
+        "The install error is an app dependency issue rather than a cluster-share contract issue."
+      ],
+      "evidence": [
+        {
+          "id": "ssh_ok",
+          "description": "Non-interactive SSH to the worker succeeds.",
+          "confidence": 0.95,
+          "relevance": 0.72
+        },
+        {
+          "id": "post_install_share_error",
+          "description": "post_install fails while resolving AGI_CLUSTER_SHARE on the worker.",
+          "confidence": 0.93,
+          "relevance": 0.96
+        },
+        {
+          "id": "worker_path_os_mismatch",
+          "description": "The scheduler uses a macOS path and the worker uses a Linux home path.",
+          "confidence": 0.88,
+          "relevance": 0.9
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "mount_scheduler_share_with_sshfs",
+          "summary": "Keep scheduler AGI_CLUSTER_SHARE as source and mount it on workers with SSHFS before post-install.",
+          "expected_impact": 0.92,
+          "blast_radius": 0.32,
+          "reversibility": 0.85
+        },
+        {
+          "id": "force_identical_absolute_paths",
+          "summary": "Require all workers to use the scheduler absolute path.",
+          "expected_impact": 0.45,
+          "blast_radius": 0.78,
+          "reversibility": 0.35
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "share_check_only",
+          "description": "Run share-check-only doctor with scheduler and remote worker paths.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "post_install_remote_worker",
+          "description": "Run worker post-install after the SSHFS mount is prepared.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "stale_mount_recovery",
+          "description": "Simulate an existing stale mount and verify remount logic.",
+          "automated": false,
+          "discriminator": true
+        }
+      ]
+    },
+    {
+      "case_id": "pipeline_dag_stale_preview",
+      "symptom": "The PIPELINE DAG preview shows completed project steps after lab_steps.toml has been edited.",
+      "proposed_diagnosis": "The DAG renderer is caching Graphviz output.",
+      "root_cause": "The runner-state preview did not compare the project-step digest or latest run-log timestamp before reusing previous execution evidence.",
+      "plain_repro": "Run a pipeline, edit lab_steps.toml, reopen PIPELINE and inspect runner_state.json.",
+      "weak_assumptions": [
+        "A visual rendering issue explains stale execution status.",
+        "A successful previous run remains valid after the project step contract changes."
+      ],
+      "evidence": [
+        {
+          "id": "state_digest_mismatch",
+          "description": "The saved runner state contains a digest for the previous lab_steps.toml.",
+          "confidence": 0.91,
+          "relevance": 0.94
+        },
+        {
+          "id": "log_older_than_steps",
+          "description": "The latest pipeline log is older than the edited lab_steps.toml.",
+          "confidence": 0.89,
+          "relevance": 0.97
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "sync_preview_from_run_evidence",
+          "summary": "Derive DAG status from run logs and mark previews stale when steps are newer than evidence.",
+          "expected_impact": 0.88,
+          "blast_radius": 0.24,
+          "reversibility": 0.9
+        },
+        {
+          "id": "clear_state_on_every_render",
+          "summary": "Delete runner_state.json every time the PIPELINE page renders.",
+          "expected_impact": 0.42,
+          "blast_radius": 0.66,
+          "reversibility": 0.7
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "completed_log_sync",
+          "description": "Verify completed steps are reflected from run logs.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "failed_log_sync",
+          "description": "Verify failed step and blocked downstream status are reflected from run logs.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "stale_after_steps_edit",
+          "description": "Verify lab_steps.toml newer than log marks preview stale.",
+          "automated": true,
+          "discriminator": true
+        }
+      ]
+    }
+  ]
+}

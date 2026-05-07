@@ -39,7 +39,7 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
     assert report["summary"]["page_lib_release_graph_aligned"] is True
     assert report["summary"]["aligned_internal_dependency_pins"] is True
     assert report["summary"]["mismatched_internal_dependency_pin_count"] == 0
-    assert report["summary"]["builtin_app_pyproject_count"] == 8
+    assert report["summary"]["builtin_app_pyproject_count"] == 9
     assert report["summary"]["package_data_pattern_count"] >= 1
     assert report["summary"]["builtin_payload_file_count"] >= 1
     assert report["summary"]["builtin_payload_bytes"] >= 1
@@ -118,6 +118,7 @@ def test_supply_chain_attestation_records_core_and_app_manifests() -> None:
         "flight_project",
         "meteo_forecast_project",
         "mycode_project",
+        "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",
     ]
