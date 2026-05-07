@@ -40,7 +40,6 @@ _page_project_selector_module = load_local_module(
     fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
     fallback_name="agilab_page_project_selector_fallback",
 )
-_project_edit_button_style = _page_project_selector_module._project_edit_button_style
 
 from agi_gui.pagelib import (
     activate_mlflow,
@@ -796,7 +795,8 @@ def sidebar_controls() -> None:
     project_index = modules.index(persisted_lab) if persisted_lab in modules else 0
     if st.session_state.get("project_selectbox") not in project_options:
         st.session_state.pop("project_selectbox", None)
-    selected_lab = st.sidebar.selectbox(
+    project_selector_col, project_edit_col = st.sidebar.columns([0.76, 0.24], vertical_alignment="bottom")
+    selected_lab = project_selector_col.selectbox(
         PIPELINE_PROJECT_LABEL,
         project_options,
         index=project_index,
@@ -804,8 +804,12 @@ def sidebar_controls() -> None:
         key="project_selectbox",
         help=PIPELINE_PROJECT_HELP,
     )
-    st.sidebar.markdown(_project_edit_button_style(), unsafe_allow_html=True)
-    if st.sidebar.button("Edit", key="project_selectbox__edit", help=f"Edit {selected_lab}."):
+    if project_edit_col.button(
+        "Edit",
+        key="project_selectbox__edit",
+        help=f"Edit {selected_lab}.",
+        use_container_width=True,
+    ):
         st.query_params["active_app"] = selected_lab
         st.switch_page(Path("pages/1_PROJECT.py"))
     st.session_state["lab_dir_selectbox"] = selected_lab
@@ -993,16 +997,17 @@ def mlflow_controls() -> None:
         return
 
     st.sidebar.divider()
-    st.sidebar.subheader("MLflow")
     mlflow_port = st.session_state.get("mlflow_port", 5000)
     mlflow_url = f"http://localhost:{mlflow_port}"
-    st.sidebar.markdown(f"**Status:** running  \n**Port:** `{mlflow_port}`")
-    st.sidebar.link_button(
-        "Open UI",
+    title_col, open_col = st.sidebar.columns([0.76, 0.24], vertical_alignment="center")
+    title_col.subheader("MLflow")
+    open_col.link_button(
+        "Open",
         mlflow_url,
         help=f"Open the MLflow UI in a new tab on port {mlflow_port}.",
         width="stretch",
     )
+    st.sidebar.markdown(f"**Status:** running  \n**Port:** `{mlflow_port}`")
 
 
 def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
