@@ -204,6 +204,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_pipeline_runtime.py",
                 "test/test_pipeline_service_guard.py",
                 "test/test_pipeline_sidebar.py",
+                "test/test_pipeline_step_templates.py",
                 "test/test_pipeline_steps.py",
                 "test/test_pipeline_views.py",
                 "test/test_tracking.py",
