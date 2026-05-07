@@ -166,9 +166,19 @@ _multi_app_dag_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parent / "multi_app_dag.py",
     fallback_name="agilab_multi_app_dag_fallback",
 )
-validate_multi_app_dag = _multi_app_dag_module.validate_multi_app_dag
 builtin_app_names = _multi_app_dag_module.builtin_app_names
 MULTI_APP_DAG_SCHEMA = _multi_app_dag_module.SCHEMA
+
+_multi_app_dag_draft_module = import_agilab_module(
+    "agilab.multi_app_dag_draft",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "multi_app_dag_draft.py",
+    fallback_name="agilab_multi_app_dag_draft_fallback",
+)
+build_dag_payload_from_editor = _multi_app_dag_draft_module.build_dag_payload_from_editor
+clean_dag_cell = _multi_app_dag_draft_module.clean_dag_cell
+dag_editor_rows = _multi_app_dag_draft_module.dag_editor_rows
+format_validation_error_for_user = _multi_app_dag_draft_module.format_validation_error_for_user
 
 logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
@@ -331,13 +341,7 @@ def _global_dag_validation_error(editor_text: str, repo_root: Path) -> str:
     if error or payload is None:
         return error
 
-    validation = validate_multi_app_dag(payload, repo_root=repo_root)
-    if validation.ok:
-        return ""
-    return "\n".join(
-        f"{issue.location}: {issue.message}"
-        for issue in validation.issues
-    )
+    return format_validation_error_for_user(payload, repo_root=repo_root)
 
 
 def _portable_global_dag_stem(payload: dict[str, Any], fallback: str) -> str:
@@ -382,33 +386,11 @@ def _global_dag_source_token(path_text: str) -> str:
 
 
 def _clean_global_dag_cell(value: Any) -> str:
-    if value is None:
-        return ""
-    try:
-        if pd.isna(value):
-            return ""
-    except (TypeError, ValueError):
-        pass
-    text = str(value).strip()
-    return "" if text.lower() == "nan" else text
+    return clean_dag_cell(value)
 
 
 def _editor_rows(value: Any, columns: list[str]) -> list[dict[str, str]]:
-    if isinstance(value, pd.DataFrame):
-        records = value.to_dict("records")
-    elif isinstance(value, list):
-        records = value
-    else:
-        records = []
-
-    rows: list[dict[str, str]] = []
-    for record in records:
-        if not isinstance(record, dict):
-            continue
-        row = {column: _clean_global_dag_cell(record.get(column)) for column in columns}
-        if any(row.values()):
-            rows.append(row)
-    return rows
+    return dag_editor_rows(value, columns)
 
 
 def _rows_dataframe(rows: list[dict[str, str]], columns: list[str]) -> pd.DataFrame:
@@ -471,25 +453,6 @@ def _global_dag_editor_tables(payload: dict[str, Any]) -> dict[str, pd.DataFrame
         "consumes": _rows_dataframe(consumes_rows, GLOBAL_DAG_ARTIFACT_COLUMNS),
         "edges": _rows_dataframe(edge_rows, GLOBAL_DAG_EDGE_COLUMNS),
     }
-
-
-def _artifacts_by_node(rows: list[dict[str, str]]) -> dict[str, list[dict[str, str]]]:
-    grouped: dict[str, list[dict[str, str]]] = {}
-    for row in rows:
-        node_id = row.get("node", "")
-        artifact_id = row.get("id", "")
-        artifact_path = row.get("path", "")
-        if not node_id or not artifact_id or not artifact_path:
-            continue
-        artifact = {
-            "id": artifact_id,
-            "kind": row.get("kind", ""),
-            "path": artifact_path,
-        }
-        grouped.setdefault(node_id, []).append(
-            {key: value for key, value in artifact.items() if value}
-        )
-    return grouped
 
 
 def _default_stage_id_for_app(app_name: str) -> str:
@@ -718,44 +681,16 @@ def _global_dag_payload_from_visual_editor(
     consumes_value: Any,
     edges_value: Any,
 ) -> dict[str, Any]:
-    produces_by_node = _artifacts_by_node(_editor_rows(produces_value, GLOBAL_DAG_ARTIFACT_COLUMNS))
-    consumes_by_node = _artifacts_by_node(_editor_rows(consumes_value, GLOBAL_DAG_ARTIFACT_COLUMNS))
-    nodes = []
-    for row in _editor_rows(nodes_value, GLOBAL_DAG_NODE_COLUMNS):
-        node_id = row.get("id", "")
-        if not node_id:
-            continue
-        node = {
-            "id": node_id,
-            "app": row.get("app", ""),
-            "purpose": row.get("purpose", ""),
-        }
-        if produces_by_node.get(node_id):
-            node["produces"] = produces_by_node[node_id]
-        if consumes_by_node.get(node_id):
-            node["consumes"] = consumes_by_node[node_id]
-        nodes.append({key: value for key, value in node.items() if value})
-
-    edges = [
-        {key: value for key, value in row.items() if value}
-        for row in _editor_rows(edges_value, GLOBAL_DAG_EDGE_COLUMNS)
-    ]
-    payload = dict(base_payload)
-    payload.update(
-        {
-            "schema": MULTI_APP_DAG_SCHEMA,
-            "dag_id": dag_id.strip(),
-            "label": label.strip(),
-            "description": description.strip(),
-            "execution": payload.get("execution") if isinstance(payload.get("execution"), dict) else {
-                "mode": "sequential_dependency_order",
-                "runner_status": "contract_only",
-            },
-            "nodes": nodes,
-            "edges": edges,
-        }
+    return build_dag_payload_from_editor(
+        base_payload,
+        dag_id=dag_id,
+        label=label,
+        description=description,
+        stage_rows=_editor_rows(nodes_value, GLOBAL_DAG_NODE_COLUMNS),
+        produced_artifact_rows=_editor_rows(produces_value, GLOBAL_DAG_ARTIFACT_COLUMNS),
+        consumed_artifact_rows=_editor_rows(consumes_value, GLOBAL_DAG_ARTIFACT_COLUMNS),
+        handoff_rows=_editor_rows(edges_value, GLOBAL_DAG_EDGE_COLUMNS),
     )
-    return payload
 
 
 def _global_runner_state_path(lab_dir: Path) -> Path:
