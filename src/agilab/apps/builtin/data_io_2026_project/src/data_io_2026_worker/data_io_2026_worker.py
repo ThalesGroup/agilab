@@ -22,6 +22,18 @@ logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
 
 
+def _artifact_dir(env: object, leaf: str) -> Path:
+    export_root = getattr(env, "AGILAB_EXPORT_ABS", None)
+    target = str(getattr(env, "target", "") or "")
+    relative = Path(target) / leaf if target else Path(leaf)
+    if export_root is not None:
+        return Path(export_root) / relative
+    resolve_share_path = getattr(env, "resolve_share_path", None)
+    if callable(resolve_share_path):
+        return Path(resolve_share_path(relative))
+    return Path.home() / "export" / relative
+
+
 def _sanitize_slug(value: str) -> str:
     cleaned = re.sub(r"[^0-9A-Za-z_-]+", "_", value.strip())
     cleaned = cleaned.strip("_")
@@ -76,7 +88,7 @@ class DataIo2026Worker(PandasWorker):
         self.args.data_in = data_paths.normalized_input
         self.args.data_out = data_paths.normalized_output
         self.data_out = data_paths.output_path
-        self.artifact_dir = Path(self.env.AGILAB_EXPORT_ABS) / self.env.target / "data_io_decision"
+        self.artifact_dir = _artifact_dir(self.env, "data_io_decision")
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         self.pool_vars = {"args": self.args}
         _runtime = self.pool_vars

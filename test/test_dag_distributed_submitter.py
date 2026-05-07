@@ -448,13 +448,23 @@ def test_payload_worker_and_evidence_helpers_cover_fallbacks(tmp_path: Path) -> 
     assert dag_distributed_submitter._jsonable({"items": [object()]})["items"][0].startswith("<object object")
 
 
+def test_tail_file_trims_and_handles_unreadable_paths(tmp_path: Path) -> None:
+    log_path = tmp_path / "worker.log"
+    log_path.write_bytes(b"prefix-" + ("é".encode("utf-8") * 16) + b"-suffix")
+
+    assert dag_distributed_submitter._tail_file(log_path, max_chars=8) == "é-suffix"
+    assert dag_distributed_submitter._tail_file(tmp_path, max_chars=8) == ""
+
+
 def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
 
     def _fake_run(command, **kwargs):
         captured["command"] = command
         captured["kwargs"] = kwargs
-        return subprocess.CompletedProcess(command, 0, stdout='{"result": null}\n', stderr="")
+        kwargs["stdout"].write('{"result": null}\n')
+        kwargs["stderr"].write("")
+        return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr(dag_distributed_submitter.subprocess, "run", _fake_run)
     config = dag_distributed_submitter.DagDistributedStageConfig(
@@ -475,15 +485,24 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
     )
 
     script = (tmp_path / "run/run_distributed_stage.py").read_text(encoding="utf-8")
+    assert "await AGI.install(" in script
+    assert "modes_enabled=7" in script
     assert "await AGI.run(app_env, request=request)" in script
     assert "workers_data_path='clustershare/agi'" in script
     assert captured["command"][0] == sys.executable
+    assert captured["kwargs"]["stdout"] is not subprocess.PIPE
+    assert captured["kwargs"]["stderr"] is not subprocess.PIPE
+    assert "capture_output" not in captured["kwargs"]
     assert result["returncode"] == 0
+    assert result["stdout_tail"] == '{"result": null}\n'
+    assert result["stdout_log"].endswith("distributed_stage.stdout.log")
+    assert result["stderr_log"].endswith("distributed_stage.stderr.log")
 
 
 def test_stage_subprocess_runner_raises_with_trimmed_failure(monkeypatch, tmp_path: Path) -> None:
     def _fake_run(command, **kwargs):
-        return subprocess.CompletedProcess(command, 2, stdout="", stderr="x" * 5000)
+        kwargs["stderr"].write("x" * 5000)
+        return subprocess.CompletedProcess(command, 2)
 
     monkeypatch.setattr(dag_distributed_submitter.subprocess, "run", _fake_run)
     config = dag_distributed_submitter.DagDistributedStageConfig(

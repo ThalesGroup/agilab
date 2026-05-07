@@ -264,24 +264,37 @@ def run_agilab_stage_subprocess(
         encoding="utf-8",
     )
     command = [sys.executable, str(script_path)]
-    completed = subprocess.run(
-        command,
-        cwd=repo_root,
-        env=os.environ.copy(),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
+    stdout_path = run_root / "distributed_stage.stdout.log"
+    stderr_path = run_root / "distributed_stage.stderr.log"
+    # Do not use capture_output here: AGI stages may launch background Dask
+    # processes which inherit pipe file descriptors and prevent EOF.
+    with stdout_path.open("w", encoding="utf-8") as stdout_handle, stderr_path.open(
+        "w",
+        encoding="utf-8",
+    ) as stderr_handle:
+        completed = subprocess.run(
+            command,
+            cwd=repo_root,
+            env=os.environ.copy(),
+            text=True,
+            stdout=stdout_handle,
+            stderr=stderr_handle,
+            check=False,
+        )
+    stdout_tail = _tail_file(stdout_path)
+    stderr_tail = _tail_file(stderr_path)
     payload = {
         "created_at": timestamp,
         "command": command,
         "script": str(script_path),
         "returncode": completed.returncode,
-        "stdout_tail": _tail(completed.stdout),
-        "stderr_tail": _tail(completed.stderr),
+        "stdout_log": str(stdout_path),
+        "stderr_log": str(stderr_path),
+        "stdout_tail": stdout_tail,
+        "stderr_tail": stderr_tail,
     }
     if completed.returncode:
-        detail = completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}"
+        detail = stderr_tail.strip() or stdout_tail.strip() or f"exit {completed.returncode}"
         raise RuntimeError(f"Distributed DAG stage `{app_name}` failed: {_tail(detail, max_chars=4000)}")
     return payload
 
@@ -358,6 +371,14 @@ WORKERS = json.loads({workers_json!r})
 
 async def main():
     app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={int(config.verbose)!r})
+    await AGI.install(
+        app_env,
+        scheduler={config.scheduler!r},
+        workers=WORKERS,
+        workers_data_path={config.workers_data_path!r},
+        modes_enabled={int(config.mode)!r},
+        verbose={int(config.verbose)!r},
+    )
     steps = [
         StepRequest(name=step["name"], args=step.get("args") or {{}})
         for step in REQUEST_PAYLOAD.get("steps", [])
@@ -440,6 +461,18 @@ def _tail(text: str, *, max_chars: int = 20000) -> str:
     if len(text) <= max_chars:
         return text
     return text[-max_chars:]
+
+
+def _tail_file(path: Path, *, max_chars: int = 20000) -> str:
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            size = handle.tell()
+            handle.seek(max(0, size - (max_chars * 4)))
+            data = handle.read()
+    except OSError:
+        return ""
+    return _tail(data.decode("utf-8", errors="replace"), max_chars=max_chars)
 
 
 def _jsonable(value: Any) -> Any:

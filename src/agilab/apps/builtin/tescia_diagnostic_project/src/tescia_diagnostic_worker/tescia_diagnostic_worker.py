@@ -20,6 +20,18 @@ logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
 
 
+def _artifact_dir(env: object, leaf: str) -> Path:
+    export_root = getattr(env, "AGILAB_EXPORT_ABS", None)
+    target = str(getattr(env, "target", "") or "")
+    relative = Path(target) / leaf if target else Path(leaf)
+    if export_root is not None:
+        return Path(export_root) / relative
+    resolve_share_path = getattr(env, "resolve_share_path", None)
+    if callable(resolve_share_path):
+        return Path(resolve_share_path(relative))
+    return Path.home() / "export" / relative
+
+
 def _sanitize_slug(value: str) -> str:
     cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value.strip())
     cleaned = "_".join(part for part in cleaned.split("_") if part)
@@ -65,7 +77,7 @@ class TesciaDiagnosticWorker(PandasWorker):
         self.args.data_in = data_paths.normalized_input
         self.args.data_out = data_paths.normalized_output
         self.data_out = data_paths.output_path
-        self.artifact_dir = Path(self.env.AGILAB_EXPORT_ABS) / self.env.target / "tescia_diagnostic"
+        self.artifact_dir = _artifact_dir(self.env, "tescia_diagnostic")
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         self.pool_vars = {"args": self.args}
         _runtime = self.pool_vars
