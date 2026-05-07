@@ -22,7 +22,7 @@ Core pages
 
 - :doc:`edit-help` — **PROJECT**: inspect and modify project sources and settings.
 - :doc:`execute-help` — **ORCHESTRATE**: install workers, generate distributions, and run pipelines.
-- :doc:`experiment-help` — **PIPELINE**: iterate in ``lab_steps.toml``, run snippets against exported data, and export a runnable supervisor notebook for use outside the AGILAB UI.
+- :doc:`experiment-help` — **WORKFLOW**: iterate in ``lab_steps.toml``, run snippets against exported data, and export a runnable supervisor notebook for use outside the AGILAB UI.
 - :doc:`explore-help` — **ANALYSIS**: discover, configure, and launch page bundles.
 
 Core page tour
@@ -33,7 +33,7 @@ so you can reopen the relevant guide without navigating back to the landing
 page first.
 
 .. figure:: _static/page-shots/core-pages-overview.png
-   :alt: Overview screenshot montage of the PROJECT, ORCHESTRATE, PIPELINE, and ANALYSIS Streamlit pages.
+   :alt: Overview screenshot montage of the PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS Streamlit pages.
    :align: center
    :class: diagram-panel diagram-wide
 
@@ -69,7 +69,7 @@ Keep these two public paths separate:
 - newcomer proof: ``flight_project`` through
   ``PROJECT -> ORCHESTRATE -> ANALYSIS``
 - full tour demo: ``uav_relay_queue_project`` through
-  ``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``
+  ``PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS``
 
 That distinction keeps the docs truthful: the safest first local proof is not
 the same thing as the strongest four-page product tour.
@@ -80,6 +80,6 @@ See also
 - :doc:`newcomer-guide` and :doc:`quick-start` for the first-proof path.
 - :doc:`architecture` for the end-to-end pipeline view.
 - :doc:`apps-pages` for how page bundles work (and the built-in bundle catalog).
-- :doc:`distributed-workers` for the UI-driven cluster workflow from ORCHESTRATE to PIPELINE.
+- :doc:`distributed-workers` for the UI-driven cluster workflow from ORCHESTRATE to WORKFLOW.
 - :doc:`learning-workflows` for training vs inference (and optional continuous/federated patterns).
 - :doc:`demos` for the current public AGILAB demo entry points.

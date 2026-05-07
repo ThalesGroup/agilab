@@ -55,7 +55,7 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
     assert "src/agilab/core/agi-env/src/agi_env/pagelib_runtime_support.py" not in shell_files
     assert "src/agilab/pipeline_runtime_execution_support.py" not in shell_files
     assert "src/agilab/notebook_export_support.py" not in shell_files
-    assert "src/agilab/pages/3_PIPELINE.py" not in shell_files
+    assert "src/agilab/pages/3_WORKFLOW.py" not in shell_files
     assert "install.sh" not in shell_files
     assert checks["pypi_trusted_publishing_only"]["status"] == "pass"
     assert checks["codecov_uploads_are_blocking_gates"]["status"] == "pass"

@@ -41,7 +41,7 @@ from agilab.page_bundle_registry import (  # noqa: E402
 WEB_ROBOT_PATH = REPO_ROOT / "tools/agilab_web_robot.py"
 DEFAULT_APPS_ROOT = REPO_ROOT / "src/agilab/apps/builtin"
 DEFAULT_APPS_PAGES_ROOT = REPO_ROOT / "src/agilab/apps-pages"
-DEFAULT_PAGES = ("", "PROJECT", "ORCHESTRATE", "PIPELINE", "ANALYSIS")
+DEFAULT_PAGES = ("", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS")
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
 DEFAULT_PAGE_TIMEOUT_SECONDS = 300.0
@@ -52,10 +52,10 @@ PAGE_EXPECTED_TEXT = {
     "": ("AGILAB", "Start here"),
     "PROJECT": ("PROJECT", "Active app", "Project"),
     "ORCHESTRATE": ("ORCHESTRATE", "INSTALL", "EXECUTE"),
-    "PIPELINE": ("PIPELINE", "Pipeline", "Run"),
+    "WORKFLOW": ("WORKFLOW", "Workflow", "Run"),
     "ANALYSIS": ("ANALYSIS", "Choose pages", "View:"),
 }
-PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "ORCHESTRATE": 5, "PIPELINE": 3, "ANALYSIS": 3}
+PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
 
 WIDGET_COLLECTOR_JS = r"""
 () => {

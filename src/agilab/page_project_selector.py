@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterable
 
 
 def _unique_project_names(projects: Iterable[Any]) -> list[str]:
-    """Return project names once, preserving source order."""
+    """Return project names once, sorted for deterministic selectbox display."""
     seen: set[str] = set()
     names: list[str] = []
     for raw_project in projects:
@@ -16,7 +16,7 @@ def _unique_project_names(projects: Iterable[Any]) -> list[str]:
             continue
         seen.add(project)
         names.append(project)
-    return names
+    return sorted(names, key=lambda name: (name.casefold(), name))
 
 
 def _refresh_project_names(streamlit: Any, projects: Iterable[Any]) -> list[str]:
@@ -49,7 +49,7 @@ def render_project_selector(
     project_names = _refresh_project_names(streamlit, projects)
     current = str(current_project or "").strip()
     if current and current not in project_names:
-        project_names.insert(0, current)
+        project_names = sorted([*project_names, current], key=lambda name: (name.casefold(), name))
 
     streamlit.session_state.pop("project_filter", None)
     if not project_names:

@@ -3,7 +3,7 @@
 Target date: 2026-04-28
 
 This backlog captures the long-term maintainability work for AGILAB workflow
-pages. The goal is to make PROJECT, ORCHESTRATE, PIPELINE, and service-control
+pages. The goal is to make PROJECT, ORCHESTRATE, WORKFLOW, and service-control
 pages easier to test and evolve by applying explicit design patterns instead
 of adding more direct Streamlit state mutation.
 
@@ -38,7 +38,7 @@ Use these patterns as the default direction for future workflow-page changes.
 Treat long-term workflow-page maintenance as an explicit design-pattern
 adoption program, not a sequence of isolated Streamlit fixes.
 
-Every non-trivial change to PROJECT, ORCHESTRATE, PIPELINE, or service-control
+Every non-trivial change to PROJECT, ORCHESTRATE, WORKFLOW, or service-control
 pages should declare which pattern it is advancing and should add or update the
 nearest support-module test. If a change cannot fit one of the patterns above,
 the implementation should either introduce the missing pattern deliberately or
@@ -70,7 +70,7 @@ The Pipeline-first slice is now the reference implementation:
   injected adapter yet.
 - Command Result: partially done. `ActionResult`, `ActionSpec`, and
   `run_streamlit_action` provide shared Streamlit command-result primitives.
-  Pipeline run, clear-logs, delete, delete-all, and undo-delete flows now use
+  Workflow run, clear-logs, delete, delete-all, and undo-delete flows now use
   typed command results. Orchestrate service start, status, health, export,
   and stop controls also return typed command results. Remaining workflow
   actions should follow that shape.
@@ -106,7 +106,7 @@ The Pipeline-first slice is now the reference implementation:
 
 ## First Slice Acceptance Criteria
 
-- Pipeline page rendering can be driven from one plain state object.
+- WORKFLOW page rendering can be driven from one plain state object.
 - Log cleanup cannot make pipeline steps disappear from the visible state.
 - Stale generated snippets are represented as state, not only as an execution
   error.

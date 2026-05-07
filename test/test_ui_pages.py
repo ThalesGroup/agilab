@@ -284,7 +284,7 @@ def test_first_party_pages_configure_docs_menu_items() -> None:
         "src/agilab/main_page.py": "get_about_content()",
         "src/agilab/pages/1_PROJECT.py": 'get_docs_menu_items(html_file="edit-help.html")',
         "src/agilab/pages/2_ORCHESTRATE.py": 'get_docs_menu_items(html_file="execute-help.html")',
-        "src/agilab/pages/3_PIPELINE.py": 'get_docs_menu_items(html_file="experiment-help.html")',
+        "src/agilab/pages/3_WORKFLOW.py": 'get_docs_menu_items(html_file="experiment-help.html")',
         "src/agilab/pages/4_ANALYSIS.py": 'get_docs_menu_items(html_file="explore-help.html")',
     }
 
@@ -458,14 +458,14 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
 def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
     source = Path("src/agilab/main_page.py").read_text(encoding="utf-8")
     selector_source = Path("src/agilab/page_project_selector.py").read_text(encoding="utf-8")
-    pipeline_source = Path("src/agilab/pages/3_PIPELINE.py").read_text(encoding="utf-8")
+    pipeline_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
 
     assert "st.navigation(_navigation_pages()).run()" in source
     assert 'title="About AGILAB"' in source
     assert 'visibility="hidden"' in source
     assert 'title="PROJECT", url_path="PROJECT", visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
-    assert 'title="PIPELINE"' in source
+    assert 'title="WORKFLOW"' in source
     assert 'title="ANALYSIS"' in source
     assert "streamlit.sidebar.columns([0.76, 0.24], vertical_alignment=\"bottom\")" in selector_source
     assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' in selector_source
@@ -978,7 +978,7 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
 
 def test_experiment_page_load(mock_ui_env):
     """Test that the EXPERIMENT page loads without exceptions."""
-    at = _app_test("src/agilab/pages/3_PIPELINE.py")
+    at = _app_test("src/agilab/pages/3_WORKFLOW.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -994,11 +994,11 @@ def test_experiment_page_load(mock_ui_env):
     assert not at.exception
     _assert_docs_actions_absent(at)
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
-    assert "Pipeline steps" in markdown_text
+    assert "Workflow steps" in markdown_text
     assert "Runnable" in markdown_text
     assert "Output files" in markdown_text
     assert "Dataframes" in markdown_text
-    assert "Pipeline graph" in markdown_text
+    assert "Workflow graph" in markdown_text
     assert "Updated" in markdown_text
     sidebar_text = "\n".join(str(item.value) for item in [*at.sidebar.markdown, *at.sidebar.caption])
     assert "Inspect experiment runs separately from pipeline execution." not in sidebar_text
@@ -1015,7 +1015,7 @@ def test_pipeline_page_restores_missing_export_steps_from_project_source(mock_ui
     target_steps = mock_ui_env["export_dir"] / "flight" / "lab_steps.toml"
     assert not target_steps.exists()
 
-    at = _app_test("src/agilab/pages/3_PIPELINE.py")
+    at = _app_test("src/agilab/pages/3_WORKFLOW.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -1298,7 +1298,7 @@ def test_agilab_main_page_missing_openai_key_stays_silent_on_first_launch(mock_u
 
 def test_experiment_page_missing_openai_key(mock_ui_env):
     """Test that EXPERIMENT page handles a missing OpenAI API key gracefully."""
-    at = _app_test("src/agilab/pages/3_PIPELINE.py")
+    at = _app_test("src/agilab/pages/3_WORKFLOW.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
 
     at.session_state["env"] = env
@@ -1330,7 +1330,7 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1384,7 +1384,7 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1406,16 +1406,16 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
         sidebar_caption = "\n".join(str(item.value) for item in at.sidebar.caption)
         assert "### Active project" not in sidebar_markdown
-        assert "Choose the project workspace whose pipeline steps and artifacts are shown below." not in sidebar_caption
-        assert "Inspect experiment runs separately from pipeline execution." not in sidebar_caption
+        assert "Choose the project workspace whose workflow steps and artifacts are shown below." not in sidebar_caption
+        assert "Inspect experiment runs separately from workflow execution." not in sidebar_caption
         assert "Start it from Edit." not in sidebar_caption
         assert "MLflow" not in sidebar_markdown
         assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
         assert at.session_state["lab_dir_selectbox"] == project_select.value
         markdown_text = "\n".join(str(item.value) for item in at.markdown)
-        assert "Pipeline steps" in markdown_text
+        assert "Workflow steps" in markdown_text
         assert "agilab-header-value agilab-header-value--ready'>1/1</div>" in markdown_text
-        assert "Pipeline graph" in markdown_text
+        assert "Workflow graph" in markdown_text
         assert "stages / dependencies" in markdown_text
 
         initial_lab = at.session_state["lab_dir_selectbox"]
@@ -1452,7 +1452,7 @@ def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(m
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1494,7 +1494,7 @@ def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_en
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1530,7 +1530,7 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1561,7 +1561,7 @@ def test_experiment_page_save_step_persists_prompt(mock_ui_env, tmp_path):
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
@@ -1609,7 +1609,7 @@ R = "runpy"
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
-        at = _app_test("src/agilab/pages/3_PIPELINE.py", default_timeout=20)
+        at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
         env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root

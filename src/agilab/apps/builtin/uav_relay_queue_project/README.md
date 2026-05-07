@@ -57,7 +57,7 @@ Each run exports:
 
 The same framework can support richer network studies than this public demo shows.
 With dedicated apps and pages, AGILAB can be used to:
-- run larger scenario sweeps through `ORCHESTRATE` and `PIPELINE`
+- run larger scenario sweeps through `ORCHESTRATE` and `WORKFLOW`
 - attach custom analysis pages to domain-specific artifacts
 - compare routing variants across repeatable experiment runs
 - distribute experiments across workers instead of keeping everything local

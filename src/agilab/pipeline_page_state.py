@@ -209,8 +209,8 @@ def _derive_actions(
     if total_steps > 0:
         available.extend([PipelineAction.DELETE_STEP, PipelineAction.DELETE_ALL])
     else:
-        blocked[PipelineAction.DELETE_STEP] = "No pipeline step is available to delete."
-        blocked[PipelineAction.DELETE_ALL] = "No pipeline steps are available to delete."
+        blocked[PipelineAction.DELETE_STEP] = "No workflow step is available to delete."
+        blocked[PipelineAction.DELETE_ALL] = "No workflow steps are available to delete."
 
     if has_undo_snapshot:
         available.append(PipelineAction.UNDO_DELETE)
@@ -221,7 +221,7 @@ def _derive_actions(
         available.append(PipelineAction.RUN_PIPELINE)
     else:
         blocked[PipelineAction.RUN_PIPELINE] = (
-            run_disabled_reason or "Pipeline cannot run in the current state."
+            run_disabled_reason or "Workflow cannot run in the current state."
         )
 
     if can_force_run:
@@ -230,11 +230,11 @@ def _derive_actions(
         if stale_step_refs:
             reason = run_disabled_reason or "Stale snippets must be regenerated before force-run."
         elif runnable_step_count == 0:
-            reason = run_disabled_reason or "No selected pipeline step contains runnable code."
+            reason = run_disabled_reason or "No selected workflow step contains runnable code."
         elif not lock_state:
             reason = "No pipeline lock is present."
         else:
-            reason = run_disabled_reason or "Pipeline cannot be force-run in the current state."
+            reason = run_disabled_reason or "Workflow cannot be force-run in the current state."
         blocked[PipelineAction.FORCE_RUN] = reason
 
     return tuple(available), blocked
@@ -251,7 +251,7 @@ def build_pipeline_page_state(
     env: Any = None,
     deps: PipelinePageStateDeps = PipelinePageStateDeps(),
 ) -> PipelinePageState:
-    """Build a pure view-model for the Pipeline workflow controls."""
+    """Build a pure view-model for the WORKFLOW controls."""
     step_entries = _coerce_steps(steps)
     total_steps = len(step_entries)
     execution_sequence = normalize_execution_sequence(total_steps, sequence)
@@ -299,15 +299,15 @@ def build_pipeline_page_state(
         status = PipelineWorkflowStatus.STALE
     elif active_lock:
         owner = str(lock_state.get("owner_text") or "unknown owner") if lock_state else "unknown owner"
-        run_disabled_reason = f"Pipeline is already running or locked by {owner}."
+        run_disabled_reason = f"Workflow is already running or locked by {owner}."
         status = PipelineWorkflowStatus.RUNNING
     elif stale_lock:
         status = PipelineWorkflowStatus.STALE
     elif not visible_steps:
-        run_disabled_reason = f"No visible pipeline steps were loaded from {steps_file}."
+        run_disabled_reason = f"No visible workflow steps were loaded from {steps_file}."
         status = PipelineWorkflowStatus.EMPTY
     elif runnable_step_count == 0:
-        run_disabled_reason = "No selected pipeline step contains runnable code."
+        run_disabled_reason = "No selected workflow step contains runnable code."
         status = PipelineWorkflowStatus.GENERATED
     elif last_status in {"failed", "error"}:
         status = PipelineWorkflowStatus.FAILED
@@ -354,7 +354,7 @@ def clear_pipeline_run_logs(
     session_state: MutableMapping[str, Any],
     index_page: str,
 ) -> PipelineCommandResult:
-    """Clear displayed Pipeline logs without touching steps or saved log files."""
+    """Clear displayed WORKFLOW logs without touching steps or saved log files."""
     key = f"{index_page}__run_logs"
     try:
         logs = session_state.get(key, [])
@@ -391,7 +391,7 @@ def start_pipeline_run_command(
     push_run_log: Callable[..., Any],
     force_confirm_key: str | None = None,
 ) -> PipelineCommandResult:
-    """Prepare a Pipeline run from typed state before Streamlit renders progress."""
+    """Prepare a WORKFLOW run from typed state before Streamlit renders progress."""
     if requested_action not in {PipelineAction.RUN_PIPELINE, PipelineAction.FORCE_RUN}:
         return PipelineCommandResult(
             status=PipelineCommandStatus.REFUSED,
@@ -404,7 +404,7 @@ def start_pipeline_run_command(
             status=PipelineCommandStatus.REFUSED,
             message=page_state.blocked_actions.get(
                 requested_action,
-                "Pipeline cannot run in the current state.",
+                "Workflow cannot run in the current state.",
             ),
             details={"action": requested_action, "status": page_state.status},
         )
@@ -417,15 +417,15 @@ def start_pipeline_run_command(
         run_placeholder = get_run_placeholder(page_state.index_page)
         log_file_path, log_error = prepare_run_log_file(page_state.index_page, env, prefix="pipeline")
         if log_file_path:
-            message = f"Run pipeline started... logs will be saved to {log_file_path}"
+            message = f"Run workflow started... logs will be saved to {log_file_path}"
         else:
-            message = f"Run pipeline started... (unable to prepare log file: {log_error})"
+            message = f"Run workflow started... (unable to prepare log file: {log_error})"
         push_run_log(page_state.index_page, message, run_placeholder)
     except Exception as exc:
         session_state[f"{page_state.index_page}__last_run_status"] = "failed"
         return PipelineCommandResult(
             status=PipelineCommandStatus.FAILED,
-            message=f"Could not start pipeline run: {exc}",
+            message=f"Could not start workflow run: {exc}",
             details={"action": requested_action, "error": str(exc)},
         )
 
@@ -449,14 +449,14 @@ def finish_pipeline_run_command(
     succeeded: bool,
     message: str | None = None,
 ) -> PipelineCommandResult:
-    """Record Pipeline run completion through the command boundary."""
+    """Record WORKFLOW run completion through the command boundary."""
     status_value = "complete" if succeeded else "failed"
     try:
         session_state[f"{index_page}__last_run_status"] = status_value
     except Exception as exc:
         return PipelineCommandResult(
             status=PipelineCommandStatus.FAILED,
-            message=f"Could not record pipeline run status: {exc}",
+            message=f"Could not record workflow run status: {exc}",
             details={"index_page": index_page, "status": status_value, "error": str(exc)},
         )
 
@@ -464,9 +464,9 @@ def finish_pipeline_run_command(
         status=PipelineCommandStatus.SUCCESS if succeeded else PipelineCommandStatus.FAILED,
         message=message
         or (
-            "Pipeline run finished."
+            "Workflow run finished."
             if succeeded
-            else "Pipeline run failed. Inspect Run logs."
+            else "Workflow run failed. Inspect Run logs."
         ),
         details={"index_page": index_page, "status": status_value},
     )
@@ -501,7 +501,7 @@ def delete_pipeline_step_command(
     remove_step: Callable[..., Any],
     timestamp: str | None = None,
 ) -> PipelineCommandResult:
-    """Delete one Pipeline step through a typed command boundary."""
+    """Delete one WORKFLOW step through a typed command boundary."""
     if step_index < 0 or step_index >= len(persisted_steps):
         return PipelineCommandResult(
             status=PipelineCommandStatus.REFUSED,
@@ -561,14 +561,14 @@ def delete_all_pipeline_steps_command(
     confirm_key: str | None = None,
     timestamp: str | None = None,
 ) -> PipelineCommandResult:
-    """Delete every Pipeline step while preserving an undo snapshot."""
+    """Delete every WORKFLOW step while preserving an undo snapshot."""
     total_steps = _coerce_total_steps(session_state, index_page, len(persisted_steps))
     if total_steps <= 0:
         if confirm_key:
             session_state.pop(confirm_key, None)
         return PipelineCommandResult(
             status=PipelineCommandStatus.NO_OP,
-            message="No pipeline steps to delete.",
+            message="No workflow steps to delete.",
             details={"index_page": index_page, "count": 0},
         )
 
@@ -598,13 +598,13 @@ def delete_all_pipeline_steps_command(
     except Exception as exc:
         return PipelineCommandResult(
             status=PipelineCommandStatus.FAILED,
-            message=f"Could not delete pipeline steps: {exc}",
+            message=f"Could not delete workflow steps: {exc}",
             details={"index_page": index_page, "count": total_steps, "error": str(exc)},
         )
 
     return PipelineCommandResult(
         status=PipelineCommandStatus.SUCCESS,
-        message=f"Deleted {total_steps} pipeline step(s).",
+        message=f"Deleted {total_steps} workflow step(s).",
         details={"index_page": index_page, "count": total_steps, "undo_key": undo_key},
     )
 
@@ -618,13 +618,13 @@ def undo_pipeline_delete_command(
     sequence_widget_key: str,
     restore_pipeline_snapshot: Callable[..., Any],
 ) -> PipelineCommandResult:
-    """Restore the latest Pipeline delete snapshot through a typed command boundary."""
+    """Restore the latest WORKFLOW delete snapshot through a typed command boundary."""
     undo_key = f"{index_page}__undo_delete_snapshot"
     undo_payload = session_state.get(undo_key)
     if not (isinstance(undo_payload, Mapping) and isinstance(undo_payload.get("steps"), list)):
         return PipelineCommandResult(
             status=PipelineCommandStatus.NO_OP,
-            message="No deleted pipeline state is available to restore.",
+            message="No deleted workflow state is available to restore.",
             details={"index_page": index_page, "undo_key": undo_key},
         )
 

@@ -2603,7 +2603,7 @@ def _create_project_from_notebook_action(
         return ActionResult.error(
             f"Project '{new_name}' was created, but notebook import failed.",
             detail=str(exc),
-            next_action="Open PIPELINE for the project and retry notebook import.",
+            next_action="Open WORKFLOW for the project and retry notebook import.",
             data={
                 **dict(clone_result.data),
                 "new_name": new_name,
@@ -2888,7 +2888,7 @@ def handle_project_creation():
             st.query_params["lab_dir_selectbox"] = new_name
             switch_page = getattr(st, "switch_page", None)
             if callable(switch_page):
-                switch_page(Path("pages/3_PIPELINE.py"))
+                switch_page(Path("pages/3_WORKFLOW.py"))
                 return
             st.session_state["switch_to_edit"] = True
             st.rerun()

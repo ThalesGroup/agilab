@@ -228,7 +228,7 @@ GLOBAL_DAG_SOURCE_APP_TEMPLATES = "App templates"
 GLOBAL_DAG_SOURCE_SAMPLES = "Sample library"
 GLOBAL_DAG_SOURCE_WORKSPACE = "Workspace drafts"
 GLOBAL_DAG_SOURCE_CUSTOM = "Custom path"
-PIPELINE_SCOPE_PROJECT = "Project pipeline"
+PIPELINE_SCOPE_PROJECT = "Project workflow"
 PIPELINE_SCOPE_MULTI_APP_DAG = "Multi-app DAG"
 PIPELINE_SCOPE_OPTIONS = [PIPELINE_SCOPE_PROJECT, PIPELINE_SCOPE_MULTI_APP_DAG]
 GLOBAL_DAG_SOURCE_OPTIONS = [
@@ -1230,7 +1230,7 @@ def _global_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
 
 def _render_global_dag_readiness(state: Dict[str, Any]) -> None:
     summary = _global_dag_readiness_summary(state)
-    st.markdown("**Pipeline graph readiness**")
+    st.markdown("**Workflow graph readiness**")
     stage_col, dependency_col, runnable_col, blocked_col = st.columns(4)
     stage_col.metric("Stages", int(summary["stage_count"]))
     dependency_col.metric("Dependencies", int(summary["dependency_count"]))
@@ -1549,21 +1549,21 @@ def _apply_pipeline_steps_execution_evidence(state: dict[str, Any], evidence: Ma
             _pipeline_steps_update_operator_ui(
                 unit,
                 status="completed",
-                message=f"{unit_id} is completed according to the latest pipeline run log.",
+                message=f"{unit_id} is completed according to the latest workflow run log.",
             )
         elif index in failed:
             unit["dispatch_status"] = "failed"
             _pipeline_steps_update_operator_ui(
                 unit,
                 status="failed",
-                message=f"{unit_id} failed in the latest pipeline run log.",
+                message=f"{unit_id} failed in the latest workflow run log.",
             )
         elif index in running:
             unit["dispatch_status"] = "running"
             _pipeline_steps_update_operator_ui(
                 unit,
                 status="running",
-                message=f"{unit_id} is running according to the latest pipeline run log.",
+                message=f"{unit_id} is running according to the latest workflow run log.",
             )
         elif all(dependency_id in available_artifacts for dependency_id in dependency_ids):
             unit["dispatch_status"] = "runnable"
@@ -1754,7 +1754,7 @@ def _build_pipeline_steps_runner_state(
                 ],
                 "transitions": [
                     {"from": "runnable", "to": "running", "condition": "operator preview dispatch"},
-                    {"from": "running", "to": "completed", "condition": "existing pipeline runner completes the step"},
+                    {"from": "running", "to": "completed", "condition": "existing workflow runner completes the step"},
                 ],
                 "retry": {
                     "policy": "existing_pipeline_controls",
@@ -1762,7 +1762,7 @@ def _build_pipeline_steps_runner_state(
                     "max_attempts": 0,
                     "status": "not_scheduled",
                     "last_error": "",
-                    "next_action": "use existing pipeline step controls for execution and retry",
+                    "next_action": "use existing workflow step controls for execution and retry",
                 },
                 "partial_rerun": {
                     "policy": "existing_pipeline_controls",
@@ -1910,7 +1910,7 @@ def _load_or_create_pipeline_steps_runner_state(
             )
             _mark_pipeline_steps_state_stale(
                 stale_state,
-                reason="lab_steps.toml changed after the last observed pipeline run.",
+                reason="lab_steps.toml changed after the last observed workflow run.",
                 previous_digest=previous_digest,
             )
             write_runner_state(state_path, stale_state)
@@ -1925,7 +1925,7 @@ def _load_or_create_pipeline_steps_runner_state(
         if evidence.get("stale"):
             _mark_pipeline_steps_state_stale(
                 state,
-                reason="lab_steps.toml is newer than the latest pipeline run log.",
+                reason="lab_steps.toml is newer than the latest workflow run log.",
                 previous_digest=(
                     str(state.get("source", {}).get("steps_digest", ""))
                     if isinstance(state.get("source"), dict)
@@ -2117,7 +2117,7 @@ def _render_global_runner_state_panel(
     pipeline_steps: list[dict[str, Any]] | None = None,
     steps_file: Path | None = None,
 ) -> None:
-    with st.expander("Pipeline graph", expanded=True):
+    with st.expander("Workflow graph", expanded=True):
         repo_root = _repo_root_for_global_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
         scope_key = f"{index_page_str}_pipeline_scope"
@@ -2143,11 +2143,11 @@ def _render_global_runner_state_panel(
             )
         pipeline_scope = compact_choice(
             st,
-            "Pipeline scope",
+            "Workflow scope",
             PIPELINE_SCOPE_OPTIONS,
             key=scope_key,
             help=(
-                "Use Project pipeline for the current lab_steps.toml graph, or Multi-app DAG "
+                "Use Project workflow for the current lab_steps.toml graph, or Multi-app DAG "
                 "for cross-app artifact contracts."
             ),
             inline_limit=2,
@@ -3645,7 +3645,7 @@ def display_lab_tab(
     render_steps = [persisted_steps[item.index] for item in render_page_state.visible_steps]
     render_pipeline_view(
         render_steps,
-        title="Execution view" if conceptual_dot else "Pipeline view",
+        title="Execution view" if conceptual_dot else "Workflow view",
     )
 
     for visible_step in render_page_state.visible_steps:
@@ -3851,12 +3851,12 @@ def display_lab_tab(
         stale_reason = lock_state.get("stale_reason")
         if stale_reason:
             st.info(
-                f"Pipeline lock detected for this app, but it looks stale: {owner_text}. "
+                f"Workflow lock detected for this app, but it looks stale: {owner_text}. "
                 f"Reason: {stale_reason}."
             )
         else:
             st.warning(
-                f"Pipeline lock detected for this app: {owner_text}. "
+                f"Workflow lock detected for this app: {owner_text}. "
                 "Use force unlock only if the previous run was interrupted."
             )
 
@@ -3872,7 +3872,7 @@ def display_lab_tab(
         )
         run_all_clicked = action_button(
             st,
-            "Run pipeline",
+            "Run workflow",
             key=f"{index_page_str}_run_all",
             kind="run",
             help=run_blocked_reason or "Execute every step sequentially using its saved virtual environment.",
@@ -3910,7 +3910,7 @@ def display_lab_tab(
                     key=f"{index_page_str}_force_run_arm",
                     kind="destructive",
                     help=force_blocked_reason
-                    or "Use only when a previous pipeline run was interrupted and left a lock behind.",
+                    or "Use only when a previous workflow run was interrupted and left a lock behind.",
                     disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
 
@@ -3918,7 +3918,7 @@ def display_lab_tab(
         st.warning(
             page_state.blocked_actions.get(
                 PipelineAction.RUN_PIPELINE,
-                "Pipeline cannot run in the current state.",
+                "Workflow cannot run in the current state.",
             )
         )
         run_all_clicked = False
@@ -3926,7 +3926,7 @@ def display_lab_tab(
         st.warning(
             page_state.blocked_actions.get(
                 PipelineAction.FORCE_RUN,
-                "Pipeline cannot be force-run in the current state.",
+                "Workflow cannot be force-run in the current state.",
             )
         )
         force_run_clicked = False
@@ -3995,7 +3995,7 @@ def display_lab_tab(
             st,
             "Undo delete",
             key=f"{index_page_str}_undo_delete",
-            help=f"Restore the pipeline state before the latest delete action ({undo_label}).",
+            help=f"Restore the workflow state before the latest delete action ({undo_label}).",
             kind="revert",
         )
 
@@ -4034,7 +4034,7 @@ def display_lab_tab(
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
-            with status_container(st, "Running pipeline…", state="running", expanded=True) as run_status:
+            with status_container(st, "Running workflow...", state="running", expanded=True) as run_status:
                 try:
                     run_all_steps(
                         lab_dir,
@@ -4053,9 +4053,9 @@ def display_lab_tab(
                     )
                     record_action_history(
                         st.session_state,
-                        page_label="PIPELINE",
+                        page_label="WORKFLOW",
                         env=env,
-                        title="Pipeline run failed",
+                        title="Workflow run failed",
                         status="failed",
                         detail=finish_result.message,
                         artifact=start_result.details.get("log_file_path", ""),
@@ -4068,13 +4068,13 @@ def display_lab_tab(
                         session_state=st.session_state,
                         index_page=index_page_str,
                         succeeded=True,
-                        message="Pipeline run finished. Inspect Run logs.",
+                        message="Workflow run finished. Inspect Run logs.",
                     )
                     record_action_history(
                         st.session_state,
-                        page_label="PIPELINE",
+                        page_label="WORKFLOW",
                         env=env,
-                        title="Pipeline run finished",
+                        title="Workflow run finished",
                         status="done",
                         detail=finish_result.message,
                         artifact=start_result.details.get("log_file_path", ""),
@@ -4145,7 +4145,7 @@ def display_lab_tab(
                 "detail": f"{total_steps} step(s)",
             },
             {
-                "label": "Run pipeline",
+                "label": "Run workflow",
                 "state": "ready" if page_state.can_run else "blocked",
                 "detail": page_state.run_disabled_reason or "",
             },
@@ -4176,7 +4176,7 @@ def display_lab_tab(
     render_action_history(
         st,
         session_state=st.session_state,
-        page_label="PIPELINE",
+        page_label="WORKFLOW",
         env=env,
     )
     render_latest_outputs(
@@ -4188,7 +4188,7 @@ def display_lab_tab(
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         render_dataframe_preview(
             loaded_df,
-            truncation_label="PIPELINE preview limited",
+            truncation_label="WORKFLOW preview limited",
         )
     else:
         empty_state(
@@ -4202,7 +4202,7 @@ def display_lab_tab(
             st,
             body=log_body,
             download_key=f"{index_page_str}__download_logs_global",
-            file_name=f"{index_page_str}_pipeline.log",
+            file_name=f"{index_page_str}_workflow.log",
             clear_key=f"{index_page_str}__clear_logs_global",
         )
         if clear_logs:
@@ -4210,9 +4210,9 @@ def display_lab_tab(
             if result.ok:
                 record_action_history(
                     st.session_state,
-                    page_label="PIPELINE",
+                    page_label="WORKFLOW",
                     env=env,
-                    title="Pipeline logs cleared",
+                    title="Workflow logs cleared",
                     status="info",
                     detail=result.message,
                 )
@@ -4227,12 +4227,12 @@ def display_lab_tab(
         st.session_state[run_placeholder_key] = log_placeholder
         if last_log_file:
             st.caption(f"Most recent run log: {last_log_file}")
-        source = f"PIPELINE {last_log_file}" if last_log_file else "PIPELINE"
+        source = f"WORKFLOW {last_log_file}" if last_log_file else "WORKFLOW"
         render_pinnable_code_editor(
             st,
             code_editor,
             f"pipeline_run_logs:{index_page_str}",
-            title=f"Pipeline logs: {getattr(env, 'app', None) or index_page_str}",
+            title=f"Workflow logs: {getattr(env, 'app', None) or index_page_str}",
             body=log_body,
             key=f"{index_page_str}__run_logs_editor",
             body_format="code",

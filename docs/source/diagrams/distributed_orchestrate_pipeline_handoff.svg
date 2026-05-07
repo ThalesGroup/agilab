@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1180" height="420" viewBox="0 0 1180 420" role="img" aria-labelledby="title desc">
-  <title id="title">UI-driven distributed workflow from ORCHESTRATE to PIPELINE</title>
-  <desc id="desc">Diagram showing that users configure distributed workers in ORCHESTRATE, generate AGI snippets there, and then import the generated run snippet into PIPELINE instead of writing it by hand.</desc>
+  <title id="title">UI-driven distributed workflow from ORCHESTRATE to WORKFLOW</title>
+  <desc id="desc">Diagram showing that users configure distributed workers in ORCHESTRATE, generate AGI snippets there, and then import the generated run snippet into WORKFLOW instead of writing it by hand.</desc>
   <defs>
     <style>
       .bg { fill: #f7f5ef; }
@@ -21,7 +21,7 @@
   <rect class="bg" x="0" y="0" width="1180" height="420" rx="28"/>
 
   <text class="title" x="64" y="54">Distributed workflow is UI-driven</text>
-  <text class="subtitle" x="64" y="84">Configure workers in ORCHESTRATE, generate the snippet there, then reuse that generated step in PIPELINE.</text>
+  <text class="subtitle" x="64" y="84">Configure workers in ORCHESTRATE, generate the snippet there, then reuse that generated step in WORKFLOW.</text>
 
   <rect x="64" y="118" width="438" height="212" rx="24" fill="#e8f1fb" stroke="#2f6fa3" stroke-width="3"/>
   <text class="card-title" x="283" y="162" text-anchor="middle">ORCHESTRATE</text>
@@ -32,7 +32,7 @@
   <text class="card-text" x="112" y="308">3. Copy the generated snippet, do not rewrite it</text>
 
   <rect x="678" y="118" width="438" height="212" rx="24" fill="#efe8d9" stroke="#9b6c1f" stroke-width="3"/>
-  <text class="card-title" x="897" y="162" text-anchor="middle">PIPELINE</text>
+  <text class="card-title" x="897" y="162" text-anchor="middle">WORKFLOW</text>
   <rect x="776" y="180" width="242" height="34" rx="17" fill="#f7edd9" stroke="#9b6c1f" stroke-width="2"/>
   <text class="chip-text" x="897" y="202" text-anchor="middle">Import generated step</text>
   <text class="card-text" x="726" y="244">1. Open Add step or New step</text>
@@ -44,5 +44,5 @@
 
   <rect x="64" y="350" width="1052" height="42" rx="18" fill="#fff0c7" stroke="#d6a93d" stroke-width="2"/>
   <text class="note-title" x="88" y="376">Snapshot rule:</text>
-  <text class="note-text" x="198" y="376">if worker settings or app arguments change, regenerate in ORCHESTRATE and re-import in PIPELINE.</text>
+  <text class="note-text" x="198" y="376">if worker settings or app arguments change, regenerate in ORCHESTRATE and re-import in WORKFLOW.</text>
 </svg>

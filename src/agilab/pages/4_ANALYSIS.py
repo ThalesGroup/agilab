@@ -1454,7 +1454,7 @@ def _render_analysis_workspace_overview(
             _render_analysis_metric("Views selected", f"{selected_count}/{available_view_count}", views_caption)
 
         if not artifact_summary["exists"]:
-            st.info("Run ORCHESTRATE or PIPELINE to create analysis outputs.")
+            st.info("Run ORCHESTRATE or WORKFLOW to create analysis outputs.")
         elif not artifact_summary["examples"]:
             st.info("No output files detected yet.")
 

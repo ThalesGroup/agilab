@@ -123,7 +123,7 @@ def render_card(
         row_y += 66
 
     draw.rounded_rectangle((px0 + 34, py1 - 92, px1 - 34, py1 - 34), radius=20, fill=(12, 28, 44), outline=LINE, width=2)
-    draw.text((px0 + 60, py1 - 74), "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS", font=FONT_FOOTER, fill=INK)
+    draw.text((px0 + 60, py1 - 74), "PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS", font=FONT_FOOTER, fill=INK)
 
     footer_y = 968
     draw.rounded_rectangle((110, footer_y - 14, 1810, footer_y + 42), radius=22, fill=SURFACE, outline=LINE, width=2)

@@ -21,7 +21,7 @@ Fast adoption path:
      - The Space opens the lightweight ``flight_project`` path.
    * - 2. Prove locally
      - Run the source-checkout commands below and stay on the built-in demo.
-     - ``PROJECT`` -> ``ORCHESTRATE`` -> ``PIPELINE`` -> ``ANALYSIS`` works
+     - ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` works
        locally.
    * - 3. Record evidence
      - Run ``uv --preview-features extra-build-dependencies run agilab first-proof --json``.
@@ -119,7 +119,7 @@ machine-readable proof record.
 
    - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
    - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``
-   - ``PIPELINE`` -> inspect the packaged recipe context
+   - ``WORKFLOW`` -> inspect the packaged recipe context
    - ``ANALYSIS`` -> open the default built-in view and, when output exists,
      the optional ``view_maps_network`` route
 

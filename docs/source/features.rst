@@ -155,7 +155,7 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/notebook_pipeline_import_report.py --compact``; it reads a checked-in
   ``.ipynb``, preserves markdown context and code cells, extracts import hints
   plus artifact references, writes a richer ``lab_steps.toml`` preview used by
-  the existing ``PIPELINE`` upload path, and emits ``not_executed_import``
+  the existing ``WORKFLOW`` upload path, and emits ``not_executed_import``
   metadata without running notebook cells
 - the notebook import preflight report validates the generic migration boundary
   with ``tools/notebook_import_preflight.py --compact``; it reads an ``.ipynb``
@@ -166,7 +166,7 @@ single notebook but less ceremony than a production MLOps platform:
   owns a ``notebook_import_views.toml`` manifest it also writes a
   ``notebook_import_view_plan.json`` sidecar that matches declared views to
   artifact paths without inferring UI intent from notebook cells; the
-  ``PIPELINE`` upload path now prepares that preview first and only replaces
+  ``WORKFLOW`` upload path now prepares that preview first and only replaces
   ``lab_steps.toml`` after explicit confirmation
 - the notebook round-trip report validates
   ``tools/notebook_roundtrip_report.py --compact`` across
@@ -357,7 +357,7 @@ to the same contract, artifact names, stable node IDs, and provenance.
   ``tools/global_pipeline_runner_state_report.py --compact``; it records
   retry and partial-rerun metadata plus operator-facing readiness messages
   without claiming live app execution
-- the PIPELINE page exposes the same runner-state contract in an expanded
+- the WORKFLOW page exposes the same runner-state contract in an expanded
   ``Multi-app DAG orchestration`` surface; operators can select a
   ``agilab.multi_app_dag.v1`` contract, edit stages and artifact handoffs
   through selector-driven workspace drafts and read-only summaries, validate

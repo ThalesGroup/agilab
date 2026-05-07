@@ -126,7 +126,7 @@ def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     module = _load_module()
 
     assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
-    assert module.active_app_route_matches("http://x/PIPELINE?active_app=flight", "/tmp/flight_project")
+    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_project")
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
 
 
@@ -288,7 +288,7 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
     )
     failed = module.PageSweep(
         app="flight_project",
-        page="PIPELINE",
+        page="WORKFLOW",
         success=False,
         duration_seconds=1.0,
         widget_count=1,
@@ -297,7 +297,7 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
         skipped_count=0,
         failed_count=1,
         url="http://demo",
-        failures=[module.WidgetProbe("flight_project", "PIPELINE", "page", "", "failed", "boom", "http://demo")],
+        failures=[module.WidgetProbe("flight_project", "WORKFLOW", "page", "", "failed", "boom", "http://demo")],
         skips=[],
         status="failed",
     )
@@ -311,7 +311,7 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
     resumed = module.load_completed_page_results(progress_log)
     assert reported == [passed, failed]
     assert resumed[module.page_result_key("flight_project", "PROJECT")] == passed
-    assert module.page_result_key("flight_project", "PIPELINE") not in resumed
+    assert module.page_result_key("flight_project", "WORKFLOW") not in resumed
 
 
 def test_write_summary_json_includes_page_status(tmp_path) -> None:

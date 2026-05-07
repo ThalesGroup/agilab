@@ -1066,7 +1066,7 @@ def test_pipeline_steps_runner_state_marks_stale_when_steps_newer_than_run_log(t
 
     assert state["run_status"] == "stale"
     assert state["summary"]["stale_unit_ids"] == ["step_001"]
-    assert state["source"]["execution_sync"]["reason"] == "lab_steps.toml is newer than the latest pipeline run log."
+    assert state["source"]["execution_sync"]["reason"] == "lab_steps.toml is newer than the latest workflow run log."
     assert pipeline_lab._global_dag_readiness_summary(state)["next_action"] == (
         "Run the pipeline again or reset the preview after editing project steps."
     )
@@ -2664,7 +2664,7 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
 
     assert run_calls
     assert run_calls[-1][1]["force_lock_clear"] is False
-    assert finish_calls == [("demo", True, "Pipeline run finished. Inspect Run logs.")]
+    assert finish_calls == [("demo", True, "Workflow run finished. Inspect Run logs.")]
     assert remove_calls
     assert [call[0][1] for call in remove_calls] == ["1", "0"]
     assert fake_st.session_state["demo"] == [0, "", "", "", "", "", 0]
@@ -2674,7 +2674,7 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
     assert fake_st.session_state["lab_selected_venv"] == ""
     assert fake_st.session_state["demo__undo_delete_snapshot"]["label"] == "delete pipeline"
     assert bumped
-    assert any("Run pipeline started" in str(message) for message in pushed_logs)
+    assert any("Run workflow started" in str(message) for message in pushed_logs)
     assert fake_st.messages.count(("rerun", "called")) >= 2
 
 
@@ -3395,7 +3395,7 @@ def test_display_lab_tab_preview_and_logs_cover_clear_and_last_log(monkeypatch, 
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
 
-    assert preview_calls == [(1, "PIPELINE preview limited")]
+    assert preview_calls == [(1, "WORKFLOW preview limited")]
     assert fake_st.session_state["demo__run_logs"] == []
     assert any(kind == "caption" and "No runs recorded yet." in message for kind, message in fake_st.messages)
     assert any(kind == "caption" and "Most recent run log" in message for kind, message in fake_st.messages)
@@ -3448,9 +3448,9 @@ def test_display_lab_tab_can_pin_run_logs(monkeypatch, tmp_path):
     buttons = editor_calls[-1]["buttons"]
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
-    assert panels["pipeline_run_logs:demo"]["title"] == "Pipeline logs: flight_project"
+    assert panels["pipeline_run_logs:demo"]["title"] == "Workflow logs: flight_project"
     assert panels["pipeline_run_logs:demo"]["body"] == "line 1\nline 2"
-    assert panels["pipeline_run_logs:demo"]["source"] == f"PIPELINE {log_file}"
+    assert panels["pipeline_run_logs:demo"]["source"] == f"WORKFLOW {log_file}"
     assert ("rerun", "called") in fake_st.messages
 
 

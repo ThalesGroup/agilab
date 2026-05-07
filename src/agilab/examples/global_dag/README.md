@@ -3,7 +3,7 @@
 ## Purpose
 
 Shows the same public cross-project DAG as `inter_project_dag`, but under the
-name operators expect when using the PIPELINE global DAG runner. The example
+name operators expect when using the WORKFLOW global DAG runner. The example
 plans a `flight_project` to `meteo_forecast_project` handoff, writes a
 runner-state preview, and does not execute either app.
 

@@ -43,7 +43,7 @@ agilab.py navigation
    :alt: agilab.py web interface entry showing core pages vs page bundles
    :width: 90%
 
-   agilab.py exposes core pages (PROJECT/ORCHESTRATE/PIPELINE/ANALYSIS) and optional page bundles
+   agilab.py exposes core pages (PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS) and optional page bundles
    (sidecar dashboards), all routed into ``agi_core`` for orchestration.
 
 Manager vs worker responsibilities
@@ -89,7 +89,7 @@ Layers at a glance
      - Cythonised/packaged code deployed on cluster nodes.
 
 **User surfaces**
-    - Web interface pages shipped in ``src/agilab/pages`` (PROJECT/ORCHESTRATE/PIPELINE/ANALYSIS).
+    - Web interface pages shipped in ``src/agilab/pages`` (PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS).
     - CLI mirrors under ``src/agilab/examples`` and ``tools/run_configs``.
     - ``tools/run_configs/*.sh`` can be executed directly from a terminal (no
       PyCharm required).

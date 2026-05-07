@@ -41,7 +41,7 @@ def _prime_current_agilab_package() -> None:
 
 def _load_pipeline_module():
     _prime_current_agilab_package()
-    module_path = Path("src/agilab/pages/3_PIPELINE.py")
+    module_path = Path("src/agilab/pages/3_WORKFLOW.py")
     spec = importlib.util.spec_from_file_location("agilab_pipeline_page_helper_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -62,7 +62,7 @@ def _load_pipeline_module_with_mixed_checkout(monkeypatch, stale_root: Path):
     spec.submodule_search_locations = [str(stale_root)]
     pkg.__spec__ = spec
     monkeypatch.setitem(sys.modules, "agilab", pkg)
-    module_path = Path("src/agilab/pages/3_PIPELINE.py")
+    module_path = Path("src/agilab/pages/3_WORKFLOW.py")
     spec = importlib.util.spec_from_file_location("agilab_pipeline_page_mixed_checkout_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

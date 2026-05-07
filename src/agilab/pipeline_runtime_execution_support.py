@@ -50,7 +50,7 @@ def snippet_apps_path(env: Any) -> str:
 
 
 def safe_service_start_template(env: AgiEnv, marker: str) -> str:
-    """Build an idempotent AGI.serve(start) snippet for PIPELINE import."""
+    """Build an idempotent AGI.serve(start) snippet for WORKFLOW import."""
     settings: Dict[str, Any] = {}
     try:
         app_settings_path = Path(env.app_settings_file)
