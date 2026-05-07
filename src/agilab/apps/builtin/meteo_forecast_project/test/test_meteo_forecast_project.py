@@ -118,6 +118,25 @@ def test_meteo_forecast_worker_exports_analysis_artifacts(tmp_path: Path) -> Non
     assert "forecast" in set(predictions["split"])
 
 
+def test_meteo_forecast_worker_uses_share_path_without_export_attr(tmp_path: Path) -> None:
+    env = _make_env(tmp_path)
+    args = MeteoForecastArgs(reset_target=True)
+    manager = MeteoForecast(env, args=args)
+
+    worker_env = SimpleNamespace(**vars(env))
+    delattr(worker_env, "AGILAB_EXPORT_ABS")
+    worker = MeteoForecastWorker()
+    worker.env = worker_env
+    worker.args = manager.args.model_dump(mode="json")
+    worker._worker_id = 0
+    worker.worker_id = 0
+    worker.verbose = 0
+
+    worker.start()
+
+    assert worker.artifact_dir == Path(worker_env.AGI_LOCAL_SHARE) / worker_env.target / "forecast_analysis"
+
+
 def test_meteo_forecast_reduce_contract_merges_forecast_partials() -> None:
     base_metrics = {
         "scenario": "Notebook migration builtin weather forecast",

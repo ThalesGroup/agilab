@@ -190,6 +190,32 @@ def test_dag_run_engine_reuses_matching_persisted_state(tmp_path):
     assert reloaded["events"][-1]["detail"] == "keep me"
 
 
+def test_dag_run_engine_recreates_mismatched_persisted_state(tmp_path):
+    repo_root = Path.cwd()
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path,
+        dag_path=_sample_dag_path(repo_root),
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+    state["source"]["dag_path"] = "different/dag.json"
+    state["events"].append(
+        {
+            "timestamp": "2026-05-07T00:01:00Z",
+            "kind": "operator_note",
+            "detail": "discard me",
+        }
+    )
+    engine.write_state(state)
+
+    recreated, recreated_path, recreated_dag_path = engine.load_or_create_state()
+
+    assert recreated_path == tmp_path / ".agilab" / "runner_state.json"
+    assert recreated_dag_path == _sample_dag_path(repo_root)
+    assert all(event.get("detail") != "discard me" for event in recreated["events"])
+    assert dag_run_engine.runner_state_dag_matches(recreated, _sample_dag_path(repo_root), repo_root)
+
+
 def test_dag_run_engine_executes_controlled_queue_stage(tmp_path):
     repo_root = Path.cwd()
     calls: list[Path] = []
@@ -294,7 +320,9 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     assert result.state["provenance"]["controlled_execution"] is True
     assert result.state["provenance"]["controlled_execution_scope"] == "controlled_contract_dag_stage"
     flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
-    assert flight["execution_contract"] == {"entrypoint": "flight_project.flight_context"}
+    assert flight["execution_contract"]["entrypoint"] == "flight_project.flight_context"
+    assert flight["execution_contract"]["data_in"] == "flight/dataset"
+    assert flight["execution_contract"]["data_out"] == "flight/dataframe"
     assert flight["execution_mode"] == "contract_adapter"
     assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
     assert flight["produces"] == [
@@ -654,6 +682,48 @@ def test_execution_history_rows_skip_planning_and_sort_latest_first():
 
     assert [row["Event"] for row in rows] == ["unit completed", "unit dispatched"]
     assert rows[0]["Status"] == "running -> completed"
+
+
+def test_dag_run_engine_helper_edge_branches(tmp_path):
+    repo_root = Path.cwd()
+    external = tmp_path / "external-dag.json"
+
+    assert dag_run_engine.repo_relative_text(external, repo_root) == str(external)
+    assert dag_run_engine.runner_state_dag_matches({}, None, repo_root)
+    assert not dag_run_engine.runner_state_dag_matches({"source": "bad"}, _sample_dag_path(repo_root), repo_root)
+    assert dag_run_engine.execution_history_rows({"events": "bad"}) == []
+    assert dag_run_engine.execution_history_rows(
+        {
+            "events": [
+                "bad",
+                {
+                    "timestamp": "2026-05-07T00:03:00Z",
+                    "kind": "unit_completed",
+                    "unit_id": "",
+                    "from_status": "",
+                    "to_status": "",
+                    "detail": "no status",
+                },
+            ]
+        }
+    ) == [
+        {
+            "Time": "2026-05-07T00:03:00Z",
+            "Stage": "-",
+            "Event": "unit completed",
+            "Status": "-",
+            "Detail": "no status",
+        }
+    ]
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path,
+        dag_path=_app_template_dag_path(repo_root),
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+    assert engine.real_run_supported(state)
+    assert dag_run_engine.controlled_real_run_supported(state, _app_template_dag_path(repo_root), repo_root)
 
 
 def test_dag_engine_loads_saved_draft_and_dispatches_first_runnable_stage(tmp_path):
