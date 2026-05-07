@@ -322,7 +322,11 @@ def _global_dag_display_name(path_text: str, repo_root: Path) -> str:
         return path.stem or "custom DAG"
     if not isinstance(payload, dict):
         return path.stem or "custom DAG"
-    return str(payload.get("label", "") or payload.get("dag_id", "") or path.stem).strip()
+    for field_name in ("label", "dag_id"):
+        value = str(payload.get(field_name, "")).strip()
+        if value:
+            return value
+    return path.stem or "custom DAG"
 
 
 def _global_dag_sample_options(repo_root: Path) -> list[str]:
@@ -2562,7 +2566,7 @@ def display_lab_tab(
                                 run_output = _stream_run_command(
                                     env,
                                     index_page_str,
-                                    f"{python_cmd} {script_path}",
+                                    [str(python_cmd), str(script_path)],
                                     cwd=target_base,
                                     placeholder=stored_placeholder,
                                     extra_env=step_env,

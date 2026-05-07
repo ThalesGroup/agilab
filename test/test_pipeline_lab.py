@@ -738,6 +738,13 @@ def test_pipeline_lab_helper_functions_cover_editor_text_and_engine_defaults():
     assert pipeline_lab._resolve_step_engine("", "runpy", "") == "runpy"
 
 
+def test_global_dag_display_name_ignores_blank_payload_labels(tmp_path):
+    dag_path = tmp_path / "fallback_name.json"
+    dag_path.write_text(json.dumps({"label": "   ", "dag_id": "   "}) + "\n", encoding="utf-8")
+
+    assert pipeline_lab._global_dag_display_name(str(dag_path), Path.cwd()) == "fallback_name"
+
+
 def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
