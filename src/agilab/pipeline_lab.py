@@ -142,11 +142,18 @@ _dag_run_engine_module = import_agilab_module(
     fallback_name="agilab_dag_run_engine_fallback",
 )
 DagRunEngine = _dag_run_engine_module.DagRunEngine
+GlobalDagBatchExecutionResult = _dag_run_engine_module.DagBatchExecutionResult
 GlobalDagStageExecutionResult = _dag_run_engine_module.DagStageExecutionResult
 GLOBAL_DAG_QUEUE_UNIT_ID = _dag_run_engine_module.GLOBAL_DAG_QUEUE_UNIT_ID
 GLOBAL_DAG_RELAY_UNIT_ID = _dag_run_engine_module.GLOBAL_DAG_RELAY_UNIT_ID
 GLOBAL_DAG_REAL_RUN_DIRNAME = _dag_run_engine_module.GLOBAL_DAG_REAL_RUN_DIRNAME
 GLOBAL_DAG_REAL_EXECUTION_SCOPE = _dag_run_engine_module.GLOBAL_DAG_REAL_EXECUTION_SCOPE
+GLOBAL_DAG_STAGE_BACKEND_LOCAL = _dag_run_engine_module.GLOBAL_DAG_STAGE_BACKEND_LOCAL
+GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED = _dag_run_engine_module.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED
+GLOBAL_DAG_STAGE_BACKEND_LABELS = {
+    GLOBAL_DAG_STAGE_BACKEND_LOCAL: "Local contracts",
+    GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED: "Distributed backend",
+}
 available_artifact_ids = _dag_run_engine_module.available_artifact_ids
 controlled_real_run_supported = _dag_run_engine_module.controlled_real_run_supported
 dispatch_next_runnable = _dag_run_engine_module.dispatch_next_runnable
@@ -157,6 +164,7 @@ repo_relative_text_for_dag = _dag_run_engine_module.repo_relative_text
 run_global_dag_queue_baseline_app = _dag_run_engine_module.run_global_dag_queue_baseline_app
 run_global_dag_relay_followup_app = _dag_run_engine_module.run_global_dag_relay_followup_app
 run_next_controlled_global_dag_stage = _dag_run_engine_module.run_next_controlled_stage
+run_ready_controlled_global_dag_stages = _dag_run_engine_module.run_ready_controlled_stages
 runner_state_dag_matches = _dag_run_engine_module.runner_state_dag_matches
 write_runner_state = _dag_run_engine_module.write_runner_state
 
@@ -903,6 +911,33 @@ def _run_next_controlled_global_dag_stage(
         run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
         run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
         now_fn=now_fn,
+    )
+
+
+def _run_ready_controlled_global_dag_stages(
+    state: Dict[str, Any],
+    *,
+    repo_root: Path,
+    dag_path: Path | None,
+    lab_dir: Path,
+    run_queue_fn: Callable[..., Dict[str, Any]] | None = None,
+    run_relay_fn: Callable[..., Dict[str, Any]] | None = None,
+    stage_submit_fn: Callable[..., Dict[str, Any]] | None = None,
+    now_fn: Callable[[], str] = _global_dag_now_iso,
+    max_workers: int | None = None,
+    execution_backend: str = GLOBAL_DAG_STAGE_BACKEND_LOCAL,
+) -> GlobalDagBatchExecutionResult:
+    return run_ready_controlled_global_dag_stages(
+        state,
+        repo_root=repo_root,
+        dag_path=dag_path,
+        lab_dir=lab_dir,
+        run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
+        run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
+        stage_submit_fn=stage_submit_fn,
+        now_fn=now_fn,
+        max_workers=max_workers,
+        execution_backend=execution_backend,
     )
 
 
@@ -1890,16 +1925,42 @@ def _render_global_runner_state_view(
 
     real_run_supported = real_run_support.supported
     if real_run_supported:
-        run_stage_clicked = action_button(
-            st,
-            "Run next stage",
-            key=f"{index_page_str}_global_runner_run_next_stage",
-            kind="run",
-            help=(
-                f"Execute the next ready stage through `{real_run_support.adapter}`. "
-                "Only checked-in DAGs with a controlled adapter marker can run from this view."
-            ),
-        )
+        stage_backend = GLOBAL_DAG_STAGE_BACKEND_LOCAL
+        distributed_stage_supported = bool(getattr(dag_engine, "distributed_stage_supported", lambda: False)())
+        if distributed_stage_supported:
+            stage_backend = st.selectbox(
+                "Stage backend",
+                [GLOBAL_DAG_STAGE_BACKEND_LOCAL, GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED],
+                key=f"{index_page_str}_global_runner_stage_backend",
+                format_func=lambda value: GLOBAL_DAG_STAGE_BACKEND_LABELS.get(str(value), str(value)),
+                help=(
+                    "Choose how ready multi-app DAG stages are submitted. Local contracts run in this "
+                    "Streamlit process; distributed backend delegates each ready stage to the configured submitter."
+                ),
+            )
+        run_next_col, run_ready_col = st.columns(2)
+        with run_next_col:
+            run_stage_clicked = action_button(
+                run_next_col,
+                "Run next stage",
+                key=f"{index_page_str}_global_runner_run_next_stage",
+                kind="run",
+                help=(
+                    f"Execute the next ready stage through `{real_run_support.adapter}`. "
+                    "Only checked-in DAGs with a controlled adapter marker can run from this view."
+                ),
+            )
+        with run_ready_col:
+            run_ready_clicked = action_button(
+                run_ready_col,
+                "Run ready stages",
+                key=f"{index_page_str}_global_runner_run_ready_stages",
+                kind="run",
+                help=(
+                    "Execute every currently ready controlled stage in one batch. "
+                    "Independent stages can run concurrently; each stage still owns its app runtime."
+                ),
+            )
         if run_stage_clicked:
             try:
                 result = dag_engine.run_next_controlled_stage(state)
@@ -1911,6 +1972,23 @@ def _render_global_runner_state_view(
             if result.ok:
                 dag_engine.write_state(result.state)
                 st.success(result.message)
+                st.rerun()
+            else:
+                st.warning(result.message)
+        if run_ready_clicked:
+            try:
+                result = dag_engine.run_ready_controlled_stages(state, execution_backend=stage_backend)
+            except Exception as exc:
+                st.error("Controlled DAG batch execution failed.")
+                st.caption("Full diagnostic")
+                st.code(str(exc), language="text")
+                return
+            if result.executed_unit_ids or result.failed_unit_ids:
+                dag_engine.write_state(result.state)
+                if result.ok:
+                    st.success(result.message)
+                else:
+                    st.warning(result.message)
                 st.rerun()
             else:
                 st.warning(result.message)
@@ -3933,7 +4011,7 @@ def display_lab_tab(
     if "loaded_df" not in st.session_state:
         df_source = st.session_state.get("df_file")
         st.session_state["loaded_df"] = (
-            load_df_cached(Path(df_source)) if df_source else None
+            load_df_cached(Path(df_source), with_index=False) if df_source else None
         )
     loaded_df = st.session_state["loaded_df"]
     log_page_state = _build_page_state()

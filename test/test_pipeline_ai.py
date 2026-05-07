@@ -2319,8 +2319,9 @@ def test_maybe_autofix_generated_code_short_circuits_for_provider_attempts_and_d
     fake_st.session_state["df_file"] = "data.csv"
     seen = {}
 
-    def _load_df(path):
+    def _load_df(path, *, with_index=True):
         seen["path"] = path
+        seen["with_index"] = with_index
         return pd.DataFrame()
 
     unchanged = pipeline_ai._maybe_autofix_generated_code(
@@ -2336,6 +2337,7 @@ def test_maybe_autofix_generated_code_short_circuits_for_provider_attempts_and_d
         get_run_placeholder=get_run_placeholder,
     )
     assert seen["path"] == Path("data.csv")
+    assert seen["with_index"] is False
     assert unchanged[0] == "raise ValueError('boom')"
     assert any("no dataframe is loaded" in entry for entry in logs)
 

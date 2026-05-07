@@ -1190,6 +1190,84 @@ def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path)
     assert ("rerun", "called") in fake_st.messages
 
 
+def test_global_runner_panel_runs_ready_contract_batch(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_ready_stages": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["source"]["dag_path"] == (
+        "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    )
+    assert state["summary"]["completed_unit_ids"] == ["flight_context"]
+    assert state["summary"]["runnable_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
+    assert state["provenance"]["controlled_execution"] is True
+    assert any(kind == "success" and "flight_context" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+
+
+def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        buttons={"demo_global_runner_run_ready_stages": True},
+        selectboxes={"demo_global_runner_stage_backend": pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    submissions: list[str] = []
+
+    def _submit_stage(
+        *,
+        repo_root: Path,
+        lab_dir: Path,
+        run_root: Path,
+        unit: dict[str, object],
+        artifact: dict[str, object],
+        execution_contract: dict[str, object],
+        timestamp: str,
+    ) -> dict[str, object]:
+        submissions.append(str(unit["id"]))
+        return {
+            "summary_metrics_path": "flight/distributed-summary.json",
+            "reduce_artifact_path": "flight/distributed-reduce.json",
+            "summary_metrics": {"stage_completed": 1, "distributed_submissions": 1},
+        }
+
+    repo_root = Path.cwd()
+    dag_path = repo_root / "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    engine = pipeline_lab.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path,
+        dag_path=dag_path,
+        stage_submit_fn=_submit_stage,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, state_path, loaded_dag_path = engine.load_or_create_state()
+
+    pipeline_lab._render_global_runner_state_view(
+        state=state,
+        state_path=state_path,
+        dag_path=loaded_dag_path,
+        dag_engine=engine,
+        repo_root=repo_root,
+        index_page_str="demo",
+    )
+
+    saved_state = pipeline_lab.load_runner_state(state_path)
+    assert submissions == ["flight_context"]
+    assert fake_st.session_state["demo_global_runner_stage_backend"] == (
+        pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED
+    )
+    assert saved_state["summary"]["completed_unit_ids"] == ["flight_context"]
+    flight = next(unit for unit in saved_state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_mode"] == "distributed_stage"
+    assert flight["distributed_execution"]["summary_metrics"]["distributed_submissions"] == 1
+    assert "contract_execution" not in flight
+    assert any(kind == "success" and "distributed" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+
+
 def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         {
@@ -1710,6 +1788,48 @@ def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_
     assert fake_st.session_state["demo"][0] == 0
     assert fake_st.session_state["demo"][-1] == 0
     assert fake_st.session_state["demo_new_q"] == ""
+
+
+def test_display_lab_tab_loads_selected_dataframe_without_index_inference(monkeypatch, tmp_path):
+    calls: list[tuple[Path, bool | None]] = []
+    df_path = tmp_path / "export.csv"
+    df_path.write_text("time_label,value\n00:00:01,10\n", encoding="utf-8")
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "df_file": str(df_path),
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "render_dataframe_preview", lambda *_args, **_kwargs: None)
+
+    def _load_df_cached(path: Path, *, with_index: bool = True):
+        calls.append((path, with_index))
+        return pipeline_lab.pd.DataFrame({"time_label": ["00:00:01"], "value": [10]})
+
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('a')", "E": ""}],
+        load_df_cached=_load_df_cached,
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert calls == [(df_path, False)]
+    assert list(fake_st.session_state["loaded_df"]["time_label"]) == ["00:00:01"]
 
 
 def test_display_lab_tab_recovers_steps_from_toml_when_loader_returns_empty(monkeypatch, tmp_path):
