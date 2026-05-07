@@ -102,6 +102,15 @@ Execution is intentionally conservative:
   execution marker. AGILAB ships controlled examples, and app-owned executable
   templates saved under an app's ``dag_templates`` directory can use the generic
   controlled contract adapter.
+* ``Run ready stages`` executes every currently runnable controlled stage in
+  one batch. Independent branches can run concurrently, and each stage still
+  owns its app runtime, including any AGI/Dask distribution used inside that
+  app.
+* When a distributed stage submitter is configured, a ``Stage backend`` selector
+  appears before the run buttons. ``Local contracts`` keeps execution in the
+  current UI process; ``Distributed backend`` submits each ready stage through
+  the configured backend and records ``distributed_stage`` provenance in the
+  DAG state.
 * Workspace drafts and custom DAGs remain preview-only until they are promoted
   into a checked-in app template with an explicit controlled execution contract.
 

@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import threading
 
 
 def _ensure_agilab_package_path() -> None:
@@ -66,6 +67,99 @@ def _app_template_dag_path(repo_root: Path) -> Path:
 
 def _flight_template_dag_path(repo_root: Path) -> Path:
     return repo_root / dag_run_engine.GLOBAL_DAG_FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH
+
+
+def _write_parallel_contract_repo(tmp_path: Path) -> Path:
+    repo_root = tmp_path / "repo"
+    apps_root = repo_root / "src" / "agilab" / "apps" / "builtin"
+    for app_name in ("uav_queue_project", "flight_project", "meteo_forecast_project"):
+        app_root = apps_root / app_name
+        app_root.mkdir(parents=True, exist_ok=True)
+        (app_root / "pyproject.toml").write_text(
+            f"[project]\nname = \"{app_name}\"\nversion = \"0.0.0\"\n",
+            encoding="utf-8",
+        )
+        (app_root / "pipeline_view.dot").write_text(
+            'digraph { start [label="Start"]; end [label="End"]; start -> end; }\n',
+            encoding="utf-8",
+        )
+    dag_path = apps_root / "uav_queue_project" / "dag_templates" / "parallel_roots.json"
+    dag_path.parent.mkdir(parents=True, exist_ok=True)
+    dag_path.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.multi_app_dag.v1",
+                "dag_id": "parallel-roots",
+                "label": "Parallel roots",
+                "description": "Two independent roots unlock a downstream review stage.",
+                "execution": {
+                    "mode": "sequential_dependency_order",
+                    "runner_status": "controlled_contract_stage_execution",
+                    "adapter": "controlled_contract_dag",
+                    "stage_bindings": {
+                        "queue_context": "uav_queue_project.queue_context",
+                        "flight_context": "flight_project.flight_context",
+                        "joined_review": "meteo_forecast_project.joined_review",
+                    },
+                },
+                "nodes": [
+                    {
+                        "id": "queue_context",
+                        "app": "uav_queue_project",
+                        "execution": {"entrypoint": "uav_queue_project.queue_context"},
+                        "purpose": "Produce queue context.",
+                        "produces": [
+                            {"id": "queue_metrics", "kind": "summary_metrics", "path": "queue/metrics.json"}
+                        ],
+                    },
+                    {
+                        "id": "flight_context",
+                        "app": "flight_project",
+                        "execution": {"entrypoint": "flight_project.flight_context"},
+                        "purpose": "Produce flight context.",
+                        "produces": [
+                            {"id": "flight_metrics", "kind": "summary_metrics", "path": "flight/metrics.json"}
+                        ],
+                    },
+                    {
+                        "id": "joined_review",
+                        "app": "meteo_forecast_project",
+                        "execution": {"entrypoint": "meteo_forecast_project.joined_review"},
+                        "purpose": "Review both contexts.",
+                        "consumes": [
+                            {"id": "queue_metrics", "kind": "summary_metrics", "path": "queue/metrics.json"},
+                            {"id": "flight_metrics", "kind": "summary_metrics", "path": "flight/metrics.json"},
+                        ],
+                        "produces": [
+                            {"id": "review_metrics", "kind": "summary_metrics", "path": "review/metrics.json"}
+                        ],
+                    },
+                ],
+                "edges": [
+                    {
+                        "from": "queue_context",
+                        "to": "joined_review",
+                        "artifact": "queue_metrics",
+                        "handoff": "Pass queue context.",
+                    },
+                    {
+                        "from": "flight_context",
+                        "to": "joined_review",
+                        "artifact": "flight_metrics",
+                        "handoff": "Pass flight context.",
+                    },
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return dag_path
+
+
+def _unit_by_id(state: dict[str, object], unit_id: str) -> dict[str, object]:
+    return next(unit for unit in state["units"] if isinstance(unit, dict) and unit.get("id") == unit_id)
 
 
 def test_dag_run_engine_reuses_matching_persisted_state(tmp_path):
@@ -208,6 +302,245 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     ]
 
 
+def test_dag_run_engine_runs_ready_contract_stages_as_parallel_batch(tmp_path):
+    dag_path = _write_parallel_contract_repo(tmp_path)
+    repo_root = tmp_path / "repo"
+    barrier = threading.Barrier(2)
+    lock = threading.Lock()
+    started: list[str] = []
+
+    def _stage(unit_id: str):
+        def _run(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+            with lock:
+                started.append(unit_id)
+            barrier.wait(timeout=1.0)
+            return {
+                "summary_metrics_path": f"{unit_id}/summary.json",
+                "reduce_artifact_path": f"{unit_id}/reduce.json",
+                "summary_metrics": {"stage_completed": 1},
+            }
+
+        return _run
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        dag_path=dag_path,
+        stage_run_fns={
+            "uav_queue_project.queue_context": _stage("queue_context"),
+            "flight_project.flight_context": _stage("flight_context"),
+        },
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+
+    result = engine.run_ready_controlled_stages(state)
+
+    assert result.ok
+    assert result.executed_unit_ids == ("flight_context", "queue_context")
+    assert sorted(started) == ["flight_context", "queue_context"]
+    assert result.state["summary"]["completed_unit_ids"] == ["flight_context", "queue_context"]
+    assert result.state["summary"]["runnable_unit_ids"] == ["joined_review"]
+    assert result.state["summary"]["available_artifact_ids"] == ["flight_metrics", "queue_metrics"]
+    assert result.state["summary"]["controlled_executed_unit_ids"] == ["flight_context", "queue_context"]
+    assert result.state["provenance"]["controlled_execution"] is True
+    assert result.state["provenance"]["real_app_execution"] is False
+    queue = next(unit for unit in result.state["units"] if unit["id"] == "queue_context")
+    flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
+    assert queue["execution_mode"] == "contract_adapter"
+    assert flight["execution_mode"] == "contract_adapter"
+
+
+def test_dag_run_engine_run_ready_wraps_single_stage_adapter(tmp_path):
+    repo_root = Path.cwd()
+    calls: list[Path] = []
+
+    def _fake_queue_run(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append(run_root)
+        return {
+            "summary_metrics_path": "queue/summary.json",
+            "reduce_artifact_path": "queue/reduce.json",
+            "summary_metrics": {"packets_generated": 3, "packets_delivered": 3},
+        }
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path,
+        dag_path=_sample_dag_path(repo_root),
+        run_queue_fn=_fake_queue_run,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+
+    result = engine.run_ready_controlled_stages(state)
+
+    assert result.ok
+    assert result.executed_unit_ids == (dag_run_engine.GLOBAL_DAG_QUEUE_UNIT_ID,)
+    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+    assert result.state["summary"]["completed_unit_ids"] == ["queue_baseline"]
+    assert result.state["summary"]["runnable_unit_ids"] == ["relay_followup"]
+
+
+def test_dag_run_engine_run_ready_contract_batch_reports_no_ready_stage(tmp_path):
+    dag_path = _write_parallel_contract_repo(tmp_path)
+    repo_root = tmp_path / "repo"
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        dag_path=dag_path,
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+    for unit in state["units"]:
+        unit["dispatch_status"] = "completed"
+
+    result = engine.run_ready_controlled_stages(state)
+
+    assert not result.ok
+    assert result.message == "No controlled contract DAG stages are ready to run."
+    assert result.executed_unit_ids == ()
+    assert result.failed_unit_ids == ()
+    assert set(result.state["summary"]["completed_unit_ids"]) == {
+        "flight_context",
+        "joined_review",
+        "queue_context",
+    }
+
+
+def test_dag_run_engine_run_ready_contract_batch_reports_partial_failure(tmp_path):
+    dag_path = _write_parallel_contract_repo(tmp_path)
+    repo_root = tmp_path / "repo"
+
+    def _pass_stage(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        return {
+            "summary_metrics_path": "queue/summary.json",
+            "summary_metrics": {"stage_completed": 1},
+        }
+
+    def _fail_stage(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        raise RuntimeError("synthetic flight failure")
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        dag_path=dag_path,
+        stage_run_fns={
+            "uav_queue_project.queue_context": _pass_stage,
+            "flight_project.flight_context": _fail_stage,
+        },
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+
+    result = engine.run_ready_controlled_stages(state, max_workers=2)
+
+    assert not result.ok
+    assert set(result.executed_unit_ids) == {"queue_context"}
+    assert set(result.failed_unit_ids) == {"flight_context"}
+    assert "synthetic flight failure" in result.message
+    queue = _unit_by_id(result.state, "queue_context")
+    flight = _unit_by_id(result.state, "flight_context")
+    assert queue["dispatch_status"] == "completed"
+    assert flight["dispatch_status"] == "failed"
+    assert flight["operator_ui"]["message"] == "synthetic flight failure"
+    assert result.state["summary"]["failed_unit_ids"] == ["flight_context"]
+
+
+def test_dag_run_engine_runs_ready_contract_stages_through_distributed_submitter(tmp_path):
+    dag_path = _write_parallel_contract_repo(tmp_path)
+    repo_root = tmp_path / "repo"
+    submissions: list[dict[str, object]] = []
+
+    def _submit_stage(
+        *,
+        repo_root: Path,
+        lab_dir: Path,
+        run_root: Path,
+        unit: dict[str, object],
+        artifact: dict[str, object],
+        execution_contract: dict[str, object],
+        timestamp: str,
+    ) -> dict[str, object]:
+        unit_id = str(unit["id"])
+        submissions.append(
+            {
+                "unit_id": unit_id,
+                "repo_root": repo_root,
+                "lab_dir": lab_dir,
+                "run_root": run_root,
+                "entrypoint": execution_contract["entrypoint"],
+                "timestamp": timestamp,
+            }
+        )
+        return {
+            "summary_metrics_path": f"{unit_id}/distributed-summary.json",
+            "reduce_artifact_path": f"{unit_id}/distributed-reduce.json",
+            "summary_metrics": {"stage_completed": 1, "distributed_submissions": 1},
+        }
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        dag_path=dag_path,
+        stage_submit_fn=_submit_stage,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+
+    result = engine.run_ready_controlled_stages(
+        state,
+        execution_backend=dag_run_engine.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED,
+    )
+
+    assert engine.distributed_stage_supported()
+    assert result.ok
+    assert result.executed_unit_ids == ("flight_context", "queue_context")
+    submitted_unit_ids = [
+        submission["unit_id"]
+        for submission in sorted(submissions, key=lambda row: str(row["unit_id"]))
+    ]
+    assert submitted_unit_ids == [
+        "flight_context",
+        "queue_context",
+    ]
+    assert all(submission["lab_dir"] == tmp_path / "lab" for submission in submissions)
+    assert result.state["summary"]["completed_unit_ids"] == ["flight_context", "queue_context"]
+    assert result.state["summary"]["runnable_unit_ids"] == ["joined_review"]
+    assert result.state["provenance"]["controlled_execution"] is True
+    assert result.state["provenance"]["controlled_execution_scope"] == (
+        dag_run_engine.GLOBAL_DAG_DISTRIBUTED_CONTRACT_EXECUTION_SCOPE
+    )
+    flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_mode"] == "distributed_stage"
+    assert flight["distributed_execution"]["stage_backend"] == "distributed"
+    assert "contract_execution" not in flight
+
+
+def test_dag_run_engine_distributed_batch_fails_when_submitter_is_missing(tmp_path):
+    dag_path = _write_parallel_contract_repo(tmp_path)
+    repo_root = tmp_path / "repo"
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        dag_path=dag_path,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+
+    result = engine.run_ready_controlled_stages(
+        state,
+        execution_backend=dag_run_engine.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED,
+    )
+
+    assert not engine.distributed_stage_supported()
+    assert not result.ok
+    assert result.executed_unit_ids == ()
+    assert result.failed_unit_ids == ("flight_context", "queue_context")
+    assert "Distributed DAG stage backend is not configured" in result.message
+    flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_mode"] == "distributed_stage"
+    assert "Distributed DAG stage backend is not configured" in flight["operator_ui"]["message"]
+
+
 def test_dag_run_engine_keeps_workspace_copy_preview_only(tmp_path):
     repo_root = Path.cwd()
     dag_path = tmp_path / "copied-uav-template.json"
@@ -223,6 +556,9 @@ def test_dag_run_engine_keeps_workspace_copy_preview_only(tmp_path):
     assert "Workspace and custom DAGs remain preview-only" in support.message
     assert not result.ok
     assert "Workspace and custom DAGs remain preview-only" in result.message
+    ready_result = engine.run_ready_controlled_stages(state)
+    assert not ready_result.ok
+    assert "Workspace and custom DAGs remain preview-only" in ready_result.message
 
 
 def test_dag_run_engine_executes_controlled_relay_stage_after_queue(tmp_path):

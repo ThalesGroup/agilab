@@ -771,7 +771,7 @@ def _maybe_autofix_generated_code(
     if not isinstance(df, pd.DataFrame) or df.empty:
         df_file = st.session_state.get("df_file")
         if df_file:
-            df = load_df_cached(Path(df_file))
+            df = load_df_cached(Path(df_file), with_index=False)
 
     if not isinstance(df, pd.DataFrame) or df.empty:
         push_run_log(index_page, "Auto-fix skipped: no dataframe is loaded.", get_run_placeholder(index_page))
