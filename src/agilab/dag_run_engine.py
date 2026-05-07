@@ -3,11 +3,18 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import json
 from pathlib import Path
 import re
 from typing import Any, Callable, Mapping
 
+from .dag_execution_registry import (
+    CONTROLLED_RUNNER_STATUS,
+    DagRealRunSupport,
+    GLOBAL_DAG_SAMPLE_RELATIVE_PATH,
+    UAV_QUEUE_ADAPTER,
+    UAV_QUEUE_TEMPLATE_RELATIVE_PATH,
+    resolve_real_run_support,
+)
 from .global_pipeline_app_dispatch_smoke import (
     QUEUE_UNIT_ID,
     RELAY_UNIT_ID,
@@ -23,14 +30,11 @@ from .global_pipeline_runner_state import (
 )
 
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
-GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
-GLOBAL_DAG_UAV_QUEUE_TEMPLATE_RELATIVE_PATH = Path(
-    "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
-)
+GLOBAL_DAG_UAV_QUEUE_TEMPLATE_RELATIVE_PATH = UAV_QUEUE_TEMPLATE_RELATIVE_PATH
 GLOBAL_DAG_REAL_RUN_DIRNAME = "global_dag_real_runs"
 GLOBAL_DAG_REAL_EXECUTION_SCOPE = "controlled_uav_queue_to_relay_stage"
-GLOBAL_DAG_CONTROLLED_ADAPTER = "uav_queue_to_relay_controlled"
-GLOBAL_DAG_CONTROLLED_RUNNER_STATUS = "controlled_real_stage_execution"
+GLOBAL_DAG_CONTROLLED_ADAPTER = UAV_QUEUE_ADAPTER
+GLOBAL_DAG_CONTROLLED_RUNNER_STATUS = CONTROLLED_RUNNER_STATUS
 GLOBAL_DAG_QUEUE_UNIT_ID = QUEUE_UNIT_ID
 GLOBAL_DAG_RELAY_UNIT_ID = RELAY_UNIT_ID
 run_global_dag_queue_baseline_app = run_queue_baseline_app
@@ -48,14 +52,6 @@ class DagStageExecutionResult:
     message: str
     state: dict[str, Any]
     executed_unit_id: str = ""
-
-
-@dataclass(frozen=True)
-class DagRealRunSupport:
-    supported: bool
-    status: str
-    message: str
-    adapter: str = ""
 
 
 @dataclass(frozen=True)
@@ -189,80 +185,11 @@ def controlled_real_run_support(
     dag_path: Path | None,
     repo_root: Path,
 ) -> DagRealRunSupport:
-    if dag_path is None:
-        return DagRealRunSupport(
-            supported=False,
-            status="Preview-only",
-            message="No DAG contract is selected.",
-        )
-    source_status = _controlled_real_run_source_status(dag_path, repo_root)
-    if source_status is not None:
-        return source_status
-    units = {str(unit.get("id", "")): unit for unit in dag_units(state)}
-    queue = units.get(GLOBAL_DAG_QUEUE_UNIT_ID)
-    relay = units.get(GLOBAL_DAG_RELAY_UNIT_ID)
-    if not isinstance(queue, dict) or not isinstance(relay, dict):
-        return DagRealRunSupport(
-            supported=False,
-            status="Preview-only",
-            message="This DAG does not contain the controlled queue and relay stages.",
-        )
-    if (
-        str(queue.get("app", "")) != "uav_queue_project"
-        or str(relay.get("app", "")) != "uav_relay_queue_project"
-    ):
-        return DagRealRunSupport(
-            supported=False,
-            status="Preview-only",
-            message="This DAG does not map queue and relay stages to the expected built-in apps.",
-        )
-    return DagRealRunSupport(
-        supported=True,
-        status="Executable",
-        message="Controlled AGILAB execution is enabled for this checked-in UAV queue-to-relay DAG.",
-        adapter=GLOBAL_DAG_CONTROLLED_ADAPTER,
+    return resolve_real_run_support(
+        units=dag_units(state),
+        dag_path=dag_path,
+        repo_root=repo_root,
     )
-
-
-def _controlled_real_run_source_status(dag_path: Path, repo_root: Path) -> DagRealRunSupport | None:
-    relative = repo_relative_text(dag_path, repo_root)
-    if relative == GLOBAL_DAG_SAMPLE_RELATIVE_PATH.as_posix():
-        return None
-    if relative != GLOBAL_DAG_UAV_QUEUE_TEMPLATE_RELATIVE_PATH.as_posix():
-        return DagRealRunSupport(
-            supported=False,
-            status="Preview-only",
-            message=(
-                "No controlled execution adapter is registered for this DAG source. "
-                "Workspace and custom DAGs remain preview-only."
-            ),
-        )
-
-    execution = _dag_execution_payload(dag_path)
-    if str(execution.get("runner_status", "")).strip() != GLOBAL_DAG_CONTROLLED_RUNNER_STATUS:
-        return DagRealRunSupport(
-            supported=False,
-            status="Preview-only",
-            message="The app-owned DAG template is missing the controlled execution status marker.",
-        )
-    if str(execution.get("adapter", "")).strip() != GLOBAL_DAG_CONTROLLED_ADAPTER:
-        return DagRealRunSupport(
-            supported=False,
-            status="Preview-only",
-            message="The app-owned DAG template is missing the controlled execution adapter marker.",
-        )
-    return None
-
-
-def _dag_execution_payload(dag_path: Path) -> Mapping[str, Any]:
-    try:
-        payload = json.loads(dag_path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-    if not isinstance(payload, dict):
-        return {}
-    execution = payload.get("execution")
-    return execution if isinstance(execution, Mapping) else {}
 
 
 def run_next_controlled_stage(
