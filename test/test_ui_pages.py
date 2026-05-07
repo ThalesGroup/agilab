@@ -37,6 +37,14 @@ def _import_agilab_module(module_name: str):
         package_path = list(pkg.__path__)
         if package_root not in package_path:
             pkg.__path__ = [package_root, *package_path]
+    if getattr(pkg, "__spec__", None) is None:
+        pkg.__spec__ = importlib.util.spec_from_file_location(
+            "agilab",
+            src_root / "agilab" / "__init__.py",
+            submodule_search_locations=[package_root],
+        )
+        pkg.__file__ = str(src_root / "agilab" / "__init__.py")
+        pkg.__package__ = "agilab"
     importlib.invalidate_caches()
     return importlib.import_module(module_name)
 
@@ -1091,6 +1099,8 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "Identity, editable files" not in source
     assert 'page_title="AGILab PROJECT"' in source
     assert 'layout="wide"' in source
+    assert '["Edit", "Create", "Import", "Rename", "Delete"]' in source
+    assert '["Edit", "Clone", "Import", "Rename", "Delete"]' not in source
     assert "_render_project_workspace_overview" not in source
     assert "Python package used by RUN/ORCHESTRATE" not in source
     assert "Source LOC" in source
@@ -1642,7 +1652,27 @@ def test_edit_page_project_selectbox(mock_ui_env):
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 
-def test_clone_page_exposes_environment_strategy(mock_ui_env):
+def test_create_page_exposes_environment_strategy(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_PROJECT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.projects = ["flight_project"]
+    env.get_projects = MagicMock(return_value=["flight_project"])
+    at.session_state["env"] = env
+    at.session_state["sidebar_selection"] = "Create"
+
+    at.run()
+    assert not at.exception
+
+    assert "clone_env_strategy" in at.session_state
+    assert at.session_state["clone_env_strategy"] in {"share_source_venv", "detach_venv"}
+    sidebar_captions = "\n".join(str(item.value) for item in at.sidebar.caption)
+    assert "Fast and lightweight." not in sidebar_captions
+    assert "Safer for real development." not in sidebar_captions
+
+
+def test_project_page_maps_legacy_clone_action_to_create(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
@@ -1655,5 +1685,5 @@ def test_clone_page_exposes_environment_strategy(mock_ui_env):
     at.run()
     assert not at.exception
 
+    assert at.session_state["sidebar_selection"] == "Create"
     assert "clone_env_strategy" in at.session_state
-    assert at.session_state["clone_env_strategy"] in {"share_source_venv", "detach_venv"}
