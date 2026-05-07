@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-07T13:34:45Z",
+  "generated_at_utc": "2026-05-07T18:04:17Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -63,7 +63,7 @@
       "name": "agilab-product-reels",
       "description": "Build and refine short AGILAB product reels and technical demo videos with one-app storytelling, semantic guardrails, frame review, and YouTube packaging.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-09",
+      "updated": "2026-05-07",
       "path": ".codex/skills/agilab-product-reels/SKILL.md",
       "body_preview": "# Product Reels Skill (AGILAB)\nUse this skill when the user wants a short AGILAB teaser, technical benchmark reel,\nlive-demo plan, or YouTube-ready demo package.\n## Pick The Right Demo Type"
     },
@@ -125,19 +125,19 @@
     },
     {
       "name": "notebook-to-agilab-project",
-      "description": "Migrate a small local notebook workflow into an AGILAB project. Use this skill when a user wants a sequence of notebooks turned into a reproducible AGILAB project with lab_steps.toml, explicit artifact contracts, a conceptual pipeline view, and an ANALYSIS page that shows why the migration is useful.",
+      "description": "Migrate a small local notebook workflow into an AGILAB project. Use this skill when a user wants a sequence of notebooks turned into a reproducible AGILAB project with lab_steps.toml, explicit artifact contracts, a conceptual workflow view, and an ANALYSIS page that shows why the migration is useful.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-08",
+      "updated": "2026-05-07",
       "path": ".codex/skills/notebook-to-agilab-project/SKILL.md",
       "body_preview": "# Notebook To AGILAB Project\nUse this skill when the source material is a small set of local notebooks and the\ngoal is to turn them into an AGILAB-style workflow rather than keep a notebook-only\ndelivery."
     },
     {
       "name": "pipeline-concept-view",
-      "description": "Add or refine a conceptual pipeline view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_steps.toml reviewed for clearer naming, IO flow, and semantic alignment with the PIPELINE page.",
+      "description": "Add or refine a conceptual workflow view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_steps.toml reviewed for clearer naming, IO flow, and semantic alignment with the WORKFLOW page.",
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": null,
       "path": ".codex/skills/pipeline-concept-view/SKILL.md",
-      "body_preview": "# Pipeline Concept View\n## Overview\nUse this skill to separate semantic architecture from execution mechanics.\nThe generic pipeline page stays app-agnostic; the app contributes its own conceptual"
+      "body_preview": "# Workflow Concept View\n## Overview\nUse this skill to separate semantic architecture from execution mechanics.\nThe generic WORKFLOW page stays app-agnostic; the app contributes its own conceptual"
     },
     {
       "name": "plan-before-code",

@@ -76,7 +76,7 @@ Use this skill when editing:
 - Do not color a value green just because it is present when the value means "no run",
   "not configured", or "no artifact discovered".
 - Use product-facing labels instead of internal implementation terms:
-  - `Pipeline graph` instead of `DAG shape`
+  - `Workflow graph` instead of `DAG shape`
   - `Stages` and `dependencies` instead of graph-only jargon such as nodes and edges
   - `Project name` when the widget selects a project
 - Derived header values must be computed locally from existing evidence when possible.
