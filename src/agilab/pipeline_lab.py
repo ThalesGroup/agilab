@@ -197,6 +197,16 @@ _multi_app_dag_templates_module = import_agilab_module(
 )
 app_dag_template_paths = _multi_app_dag_templates_module.app_dag_template_paths
 
+_dag_distributed_submitter_module = import_agilab_module(
+    "agilab.dag_distributed_submitter",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "dag_distributed_submitter.py",
+    fallback_name="agilab_dag_distributed_submitter_fallback",
+)
+build_global_dag_distributed_stage_submitter = (
+    _dag_distributed_submitter_module.build_global_dag_distributed_stage_submitter
+)
+
 logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
@@ -859,13 +869,26 @@ def _global_runner_state_path(lab_dir: Path) -> Path:
     return lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
 
 
-def _global_dag_engine(repo_root: Path, lab_dir: Path, dag_path: Path | None) -> DagRunEngine:
+def _global_dag_engine(
+    repo_root: Path,
+    lab_dir: Path,
+    dag_path: Path | None,
+    env: AgiEnv | None = None,
+) -> DagRunEngine:
+    stage_submitter = None
+    if env is not None:
+        stage_submitter = build_global_dag_distributed_stage_submitter(
+            env=env,
+            app_settings=st.session_state.get("app_settings"),
+            verbose=int(st.session_state.get("cluster_verbose", 0) or 0),
+        )
     return DagRunEngine(
         repo_root=repo_root,
         lab_dir=lab_dir,
         dag_path=dag_path,
         run_queue_fn=run_global_dag_queue_baseline_app,
         run_relay_fn=run_global_dag_relay_followup_app,
+        stage_submit_fn=stage_submitter,
     )
 
 
@@ -886,7 +909,7 @@ def _load_or_create_global_runner_state(
 ) -> tuple[dict[str, Any], Path, Path | None]:
     repo_root = _repo_root_for_global_dag()
     dag_path = dag_path or _global_runner_dag_path(env, repo_root)
-    return _global_dag_engine(repo_root, lab_dir, dag_path).load_or_create_state(reset=reset)
+    return _global_dag_engine(repo_root, lab_dir, dag_path, env=env).load_or_create_state(reset=reset)
 
 
 def _global_dag_now_iso() -> str:
@@ -2154,7 +2177,7 @@ def _render_global_runner_state_panel(
                 state=state,
                 state_path=state_path,
                 dag_path=None,
-                dag_engine=_global_dag_engine(repo_root, lab_dir, None),
+                dag_engine=_global_dag_engine(repo_root, lab_dir, None, env=env),
                 repo_root=repo_root,
                 index_page_str=index_page_str,
                 dag_label_override="Project steps",
@@ -2470,7 +2493,7 @@ def _render_global_runner_state_panel(
                 dag_path=dag_path,
                 reset=reset_clicked,
             )
-            dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path)
+            dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path, env=env)
         except Exception as exc:
             st.error("Multi-app DAG orchestration preview is unavailable.")
             st.caption("Full diagnostic")

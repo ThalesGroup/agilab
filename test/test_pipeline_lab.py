@@ -1268,6 +1268,53 @@ def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypat
     assert ("rerun", "called") in fake_st.messages
 
 
+def test_global_runner_panel_wires_distributed_backend_from_orchestrate_settings(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "scheduler": "192.168.20.111:8786",
+                    "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
+                    "workers_data_path": "clustershare/agi",
+                }
+            },
+            "cluster_verbose": 1,
+        },
+        buttons={"demo_global_runner_run_ready_stages": True},
+        selectboxes={"demo_global_runner_stage_backend": pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    submissions: list[str] = []
+    builder_calls: list[dict[str, object]] = []
+
+    def _submit_stage(**kwargs):
+        submissions.append(str(kwargs["unit"]["id"]))
+        return {
+            "summary_metrics_path": "flight/distributed-summary.json",
+            "summary_metrics": {"distributed_submissions": 1},
+        }
+
+    def _build_submitter(**kwargs):
+        builder_calls.append(kwargs)
+        return _submit_stage
+
+    monkeypatch.setattr(pipeline_lab, "build_global_dag_distributed_stage_submitter", _build_submitter)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert builder_calls
+    assert builder_calls[-1]["app_settings"] == fake_st.session_state["app_settings"]
+    assert builder_calls[-1]["verbose"] == 1
+    assert submissions == ["flight_context"]
+    flight = next(unit for unit in state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_mode"] == "distributed_stage"
+    assert flight["distributed_execution"]["summary_metrics"]["distributed_submissions"] == 1
+    assert ("rerun", "called") in fake_st.messages
+
+
 def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         {
