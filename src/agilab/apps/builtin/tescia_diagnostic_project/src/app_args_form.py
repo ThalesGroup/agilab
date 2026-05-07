@@ -25,6 +25,12 @@ from tescia_diagnostic import (
 PAGE_ID = "tescia_diagnostic_project:app_args_form"
 CASE_SOURCE_OPTIONS = ("bundled", "standalone_ai")
 AI_PROVIDER_OPTIONS = ("gpt-oss", "ollama")
+SCORING_FORMULAS = (
+    r"E = 0.6 \cdot \overline{confidence} + 0.4 \cdot \overline{relevance}",
+    r"R = 0.65 \cdot discriminator\_rate + 0.35 \cdot automated\_rate",
+    r"F = 0.38 \cdot impact + 0.25E + 0.22R + 0.10(1 - blast\_radius) + 0.05 \cdot reversibility",
+    r"student\_score = 100 \cdot (0.35E + 0.30R + 0.25F + 0.10 \cdot gate)",
+)
 
 
 def _k(name: str) -> str:
@@ -45,6 +51,21 @@ def _load_current_args(settings_path: Path) -> TesciaDiagnosticArgs:
     except Exception as exc:
         st.warning(f"Unable to load TeSciA diagnostic args from `{settings_path}`: {exc}")
         return TesciaDiagnosticArgs()
+
+
+def _render_scoring_model() -> None:
+    """Render the deterministic scoring model with real math layout."""
+    with st.expander("Scoring model", expanded=False):
+        st.caption(
+            "The app scores diagnostic quality deterministically. Thresholds gate whether the "
+            "case is actionable; they do not change the formulas below."
+        )
+        for formula in SCORING_FORMULAS:
+            st.latex(formula)
+        st.caption(
+            "E: evidence quality, R: regression coverage, F: selected-fix quality, "
+            "gate: 1 when evidence and regression thresholds pass, otherwise 0."
+        )
 
 
 env = _get_env()
@@ -127,6 +148,8 @@ with c6:
     )
 with c7:
     st.checkbox("Reset output", key=_k("reset_target"))
+
+_render_scoring_model()
 
 st.selectbox(
     "Diagnostic case source",
