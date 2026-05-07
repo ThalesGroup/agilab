@@ -24,6 +24,13 @@ RELEASE_PACKAGE_PYPROJECTS = (
     "src/agilab/core/agi-cluster/pyproject.toml",
     "src/agilab/lib/agi-gui/pyproject.toml",
 )
+TYPING_POLICY_PACKAGE_MODULES = {
+    "pyproject.toml": "agilab",
+    "src/agilab/core/agi-core/pyproject.toml": "agi_core",
+    "src/agilab/core/agi-env/pyproject.toml": "agi_env",
+    "src/agilab/core/agi-node/pyproject.toml": "agi_node",
+    "src/agilab/core/agi-cluster/pyproject.toml": "agi_cluster",
+}
 RELEASE_PREFLIGHT_PROFILES = (
     "agi-env",
     "agi-core-combined",
@@ -38,6 +45,18 @@ PUBLIC_DOC_FILES = (
     "docs/source/index.rst",
     "docs/source/package-publishing-policy.rst",
     "docs/source/beta-readiness.rst",
+)
+README_MATURITY_STATUSES = {
+    "Local run": "Stable",
+    "Distributed (Dask)": "Stable",
+    "UI Streamlit": "Beta",
+    "MLflow": "Beta",
+    "Production": "Experimental",
+}
+README_MATURITY_SCOPE_MARKERS = (
+    "remote cluster\nmounts, credentials, and hardware stacks remain environment-dependent",
+    "Production-grade MLOps features are delivered through integrations",
+    "not\nyet a packaged platform claim",
 )
 ALLOWED_APP_ENTRIES = {
     ".DS_Store",
@@ -193,6 +212,56 @@ def check_release_preflight_profiles(repo_root: Path = REPO_ROOT) -> GateCheck:
     )
 
 
+def _mypy_policy_disallows_untyped_defs(payload: dict, module_name: str) -> bool:
+    tool = payload.get("tool", {})
+    mypy = tool.get("mypy", {}) if isinstance(tool, dict) else {}
+    if not isinstance(mypy, dict):
+        return False
+    if mypy.get("disallow_untyped_defs") is True:
+        return True
+
+    overrides = mypy.get("overrides", [])
+    if not isinstance(overrides, list):
+        return False
+    accepted_modules = {module_name, f"{module_name}.*"}
+    for override in overrides:
+        if not isinstance(override, dict) or override.get("disallow_untyped_defs") is not True:
+            continue
+        modules = override.get("module")
+        if isinstance(modules, str):
+            module_values = {modules}
+        elif isinstance(modules, list):
+            module_values = {str(item) for item in modules}
+        else:
+            module_values = set()
+        if module_values & accepted_modules:
+            return True
+    return False
+
+
+def check_typing_policy(repo_root: Path = REPO_ROOT) -> GateCheck:
+    missing: list[str] = []
+    for rel_path, module_name in TYPING_POLICY_PACKAGE_MODULES.items():
+        path = repo_root / rel_path
+        if not path.is_file():
+            missing.append(f"{rel_path}: missing pyproject")
+            continue
+        payload = _read_pyproject(path)
+        if not _mypy_policy_disallows_untyped_defs(payload, module_name):
+            missing.append(f"{rel_path}: disallow_untyped_defs not enforced for {module_name}")
+
+    return GateCheck(
+        "typing policy",
+        not missing,
+        (
+            "Release pyprojects enforce disallow_untyped_defs for public package code."
+            if not missing
+            else "Typing policy drift detected: " + "; ".join(missing)
+        ),
+        evidence=missing,
+    )
+
+
 def _top_level_app_entry(rel_path: str) -> str | None:
     parts = PurePosixPath(rel_path).parts
     if len(parts) < 4 or parts[:3] != ("src", "agilab", "apps"):
@@ -317,6 +386,68 @@ def check_docs_have_beta_readiness(repo_root: Path = REPO_ROOT, *, final: bool) 
     )
 
 
+def readme_maturity_statuses(repo_root: Path = REPO_ROOT) -> dict[str, str]:
+    readme_path = repo_root / "README.md"
+    if not readme_path.is_file():
+        return {}
+
+    lines = readme_path.read_text(encoding="utf-8").splitlines()
+    try:
+        start = lines.index("### Maturity snapshot")
+    except ValueError:
+        return {}
+
+    statuses: dict[str, str] = {}
+    for line in lines[start + 1 :]:
+        stripped = line.strip()
+        if not stripped:
+            if statuses:
+                break
+            continue
+        if not stripped.startswith("|"):
+            if statuses:
+                break
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if len(cells) != 2 or cells[0] in {"Capability", "---"}:
+            continue
+        statuses[cells[0]] = cells[1]
+    return statuses
+
+
+def check_public_maturity_positioning(repo_root: Path = REPO_ROOT) -> GateCheck:
+    readme_path = repo_root / "README.md"
+    if not readme_path.is_file():
+        return GateCheck(
+            "public maturity positioning",
+            False,
+            "README.md is missing, so public maturity claims cannot be checked.",
+            evidence=["README.md"],
+        )
+
+    statuses = readme_maturity_statuses(repo_root)
+    mismatches = [
+        f"{capability}: expected {expected}, found {statuses.get(capability, '<missing>')}"
+        for capability, expected in README_MATURITY_STATUSES.items()
+        if statuses.get(capability) != expected
+    ]
+    readme = readme_path.read_text(encoding="utf-8")
+    missing_scope = [marker for marker in README_MATURITY_SCOPE_MARKERS if marker not in readme]
+    success = not mismatches and not missing_scope
+    detail = (
+        "README maturity snapshot matches the audited beta scope."
+        if success
+        else "README maturity snapshot drifted from audited scope."
+    )
+    evidence = mismatches + [f"missing scope marker: {marker}" for marker in missing_scope]
+    return GateCheck(
+        "public maturity positioning",
+        success,
+        detail if not evidence else f"{detail} " + "; ".join(evidence),
+        evidence=evidence,
+    )
+
+
 def check_git_clean(
     runner: CommandRunner = _run_command,
     *,
@@ -417,8 +548,10 @@ def run_gate(
         check_git_aligned(runner, final=final),
         check_package_classifiers(repo_root, final=final),
         check_release_preflight_profiles(repo_root),
+        check_typing_policy(repo_root),
         check_public_app_tree(repo_root, runner),
         check_docs_have_beta_readiness(repo_root, final=final),
+        check_public_maturity_positioning(repo_root),
     ]
     if include_network:
         checks.append(check_hf_space_public(runner, final=final))
