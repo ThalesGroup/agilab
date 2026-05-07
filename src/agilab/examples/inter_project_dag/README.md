@@ -19,7 +19,8 @@ runner-state preview.
 
 There is no separate project install for this preview. Install AGILAB and the
 public built-in apps, then run the script from the source checkout or from the
-packaged examples.
+packaged examples. The DAG contract is owned by the built-in
+`global_dag_project` app so UI users and script users share the same template.
 
 ## Run
 
@@ -44,7 +45,9 @@ python -c "from pathlib import Path; import agilab; print(Path(agilab.__file__).
 
 ## Expected Input
 
-The script reads `flight_to_meteo_dag.json`. The contract says:
+The script reads the built-in
+`global_dag_project/dag_templates/flight_to_meteo_global_dag.json` template.
+The contract says:
 
 - `flight_context` runs `flight_project` and produces
   `flight_reduce_summary`.
@@ -106,10 +109,12 @@ Open `preview_inter_project_dag.py` and look for these functions first:
 
 ## Change One Thing
 
-After the preview works, change only the artifact id in
-`flight_to_meteo_dag.json` and run the script again. The validation should fail
-because the edge no longer matches what the first node produces. Restore the id
-before adapting the contract further.
+After the preview works, copy
+`src/agilab/apps/builtin/global_dag_project/dag_templates/flight_to_meteo_global_dag.json`
+to a scratch file, change only the artifact id, and rerun with
+`--dag-path /path/to/scratch.json`. The validation should fail because the edge
+no longer matches what the first node produces. Restore the id before adapting
+the contract further.
 
 ## Troubleshooting
 

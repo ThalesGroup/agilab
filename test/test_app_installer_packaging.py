@@ -24,9 +24,8 @@ EXAMPLE_APPS = {
     "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
 }
 EXAMPLE_PREVIEWS = {
-    "global_dag": ("preview_global_dag.py", "flight_to_meteo_global_dag.json"),
-    "inter_project_dag": ("preview_inter_project_dag.py", "flight_to_meteo_dag.json"),
-    "mlflow_auto_tracking": ("preview_mlflow_auto_tracking.py", "sample_run_config.json"),
+    "inter_project_dag": ("preview_inter_project_dag.py",),
+    "mlflow_auto_tracking": ("preview_mlflow_auto_tracking.py",),
     "notebook_to_dask": (
         "preview_notebook_to_dask.py",
         "notebook_to_dask_sample.ipynb",
@@ -35,10 +34,38 @@ EXAMPLE_PREVIEWS = {
     ),
     "resilience_failure_injection": (
         "preview_resilience_failure_injection.py",
-        "sample_scenario.json",
     ),
-    "service_mode": ("preview_service_mode.py", "sample_health_running.json"),
-    "train_then_serve": ("preview_train_then_serve.py", "sample_policy_run.json"),
+    "service_mode": ("preview_service_mode.py",),
+    "train_then_serve": ("preview_train_then_serve.py",),
+}
+BUILTIN_EXAMPLE_PAYLOADS = {
+    "inter_project_dag": (
+        BUILTIN_APPS_ROOT
+        / "global_dag_project"
+        / "dag_templates"
+        / "flight_to_meteo_global_dag.json"
+    ),
+    "mlflow_auto_tracking": (
+        BUILTIN_APPS_ROOT
+        / "meteo_forecast_project"
+        / "tracking_templates"
+        / "mlflow_auto_tracking_run_config.json"
+    ),
+    "resilience_failure_injection": (
+        BUILTIN_APPS_ROOT
+        / "uav_queue_project"
+        / "scenario_templates"
+        / "resilience_failure_injection_scenario.json"
+    ),
+    "service_mode": (
+        BUILTIN_APPS_ROOT / "mycode_project" / "service_templates" / "sample_health_running.json"
+    ),
+    "train_then_serve": (
+        BUILTIN_APPS_ROOT
+        / "uav_relay_queue_project"
+        / "service_templates"
+        / "train_then_serve_policy_run.json"
+    ),
 }
 APP_SOURCE_SUFFIXES = {
     ".7z",
@@ -291,12 +318,8 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/README.md" in package_data
     assert "examples/*/README.md" in package_data
     assert "examples/*/AGI_*.py" in package_data
-    assert "examples/global_dag/*.py" in package_data
-    assert "examples/global_dag/*.json" in package_data
     assert "examples/inter_project_dag/*.py" in package_data
-    assert "examples/inter_project_dag/*.json" in package_data
     assert "examples/mlflow_auto_tracking/*.py" in package_data
-    assert "examples/mlflow_auto_tracking/*.json" in package_data
     assert "examples/notebook_to_dask/*.py" in package_data
     assert "examples/notebook_to_dask/*.json" in package_data
     assert "examples/notebook_to_dask/*.toml" in package_data
@@ -310,11 +333,8 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/notebook_migrations/*/migrated_project/*.toml" in package_data
     assert "examples/notebook_migrations/*/notebooks/*.ipynb" in package_data
     assert "examples/resilience_failure_injection/*.py" in package_data
-    assert "examples/resilience_failure_injection/*.json" in package_data
     assert "examples/service_mode/*.py" in package_data
-    assert "examples/service_mode/*.json" in package_data
     assert "examples/train_then_serve/*.py" in package_data
-    assert "examples/train_then_serve/*.json" in package_data
 
 
 def test_packaged_builtin_app_prompt_seeds_are_included_as_package_data() -> None:
@@ -324,6 +344,25 @@ def test_packaged_builtin_app_prompt_seeds_are_included_as_package_data() -> Non
 
     assert "apps/builtin/*/src/*.json" in package_data
     assert "apps/builtin/*/src/pre_prompt.json" not in excluded_data
+
+
+def test_packaged_builtin_app_dag_templates_are_included_as_package_data() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+
+    assert "apps/builtin/*/dag_templates/*.json" in package_data
+    assert "apps/builtin/*/scenario_templates/*.json" in package_data
+    assert "apps/builtin/*/service_templates/*.json" in package_data
+    assert "apps/builtin/*/tracking_templates/*.json" in package_data
+
+
+def test_preview_example_payloads_live_with_builtin_apps() -> None:
+    for path in BUILTIN_EXAMPLE_PAYLOADS.values():
+        assert path.is_file()
+
+    assert not (EXAMPLES_ROOT / "global_dag").exists()
+    for example_name in BUILTIN_EXAMPLE_PAYLOADS:
+        assert not sorted((EXAMPLES_ROOT / example_name).glob("*.json"))
 
 
 def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path) -> None:
@@ -338,7 +377,7 @@ def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path)
 
     summary = module.build_preview(
         repo_root=ROOT,
-        dag_path=EXAMPLES_ROOT / "inter_project_dag" / "flight_to_meteo_dag.json",
+        dag_path=BUILTIN_EXAMPLE_PAYLOADS["inter_project_dag"],
         output_path=tmp_path / "runner_state.json",
         now="2026-04-29T00:00:00Z",
     )
@@ -384,7 +423,8 @@ def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path)
 
 
 def test_global_dag_preview_alias_builds_read_only_runner_state(tmp_path: Path) -> None:
-    script = EXAMPLES_ROOT / "global_dag" / "preview_global_dag.py"
+    app_root = BUILTIN_APPS_ROOT / "global_dag_project"
+    script = app_root / "src" / "global_dag" / "preview_global_dag.py"
     module_name = "agilab_global_dag_preview_test_module"
     sys.modules.pop(module_name, None)
     spec = importlib.util.spec_from_file_location(module_name, script)
@@ -395,13 +435,12 @@ def test_global_dag_preview_alias_builds_read_only_runner_state(tmp_path: Path) 
 
     summary = module.build_preview(
         repo_root=ROOT,
-        dag_path=EXAMPLES_ROOT / "global_dag" / "flight_to_meteo_global_dag.json",
+        dag_path=app_root / "dag_templates" / "flight_to_meteo_global_dag.json",
         output_path=tmp_path / "runner_state.json",
         now="2026-04-29T00:00:00Z",
     )
 
-    assert summary["example"] == "global_dag"
-    assert summary["alias_of"] == "inter_project_dag"
+    assert summary["example"] == "global_dag_project"
     assert summary["dag"]["ok"] is True
     assert summary["dag"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
     assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
@@ -420,7 +459,7 @@ def test_service_mode_preview_builds_health_gate_operator_summary(tmp_path: Path
     spec.loader.exec_module(module)
 
     summary = module.build_preview(
-        health_payload_path=EXAMPLES_ROOT / "service_mode" / "sample_health_running.json",
+        health_payload_path=BUILTIN_EXAMPLE_PAYLOADS["service_mode"],
         output_path=tmp_path / "service_operator_preview.json",
     )
 
@@ -464,7 +503,7 @@ def test_mlflow_auto_tracking_preview_writes_local_evidence_without_mlflow(tmp_p
     spec.loader.exec_module(module)
 
     summary = module.run_preview(
-        config_path=EXAMPLES_ROOT / "mlflow_auto_tracking" / "sample_run_config.json",
+        config_path=BUILTIN_EXAMPLE_PAYLOADS["mlflow_auto_tracking"],
         output_dir=tmp_path / "mlflow_auto_tracking",
         backend="none",
     )
@@ -493,7 +532,7 @@ def test_resilience_failure_injection_preview_recommends_adaptive_response(tmp_p
     spec.loader.exec_module(module)
 
     summary = module.build_preview(
-        scenario_path=EXAMPLES_ROOT / "resilience_failure_injection" / "sample_scenario.json",
+        scenario_path=BUILTIN_EXAMPLE_PAYLOADS["resilience_failure_injection"],
         output_path=tmp_path / "resilience_preview.json",
     )
 
@@ -531,7 +570,7 @@ def test_train_then_serve_preview_exports_service_contract(tmp_path: Path) -> No
     module = _load_train_then_serve_preview_module()
 
     summary = module.run_preview(
-        config_path=EXAMPLES_ROOT / "train_then_serve" / "sample_policy_run.json",
+        config_path=BUILTIN_EXAMPLE_PAYLOADS["train_then_serve"],
         output_dir=tmp_path / "train_then_serve",
     )
 
@@ -563,11 +602,7 @@ def test_train_then_serve_preview_marks_unhealthy_when_latency_budget_fails(
     tmp_path: Path,
 ) -> None:
     module = _load_train_then_serve_preview_module()
-    config = json.loads(
-        (EXAMPLES_ROOT / "train_then_serve" / "sample_policy_run.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    config = json.loads(BUILTIN_EXAMPLE_PAYLOADS["train_then_serve"].read_text(encoding="utf-8"))
     config["service"]["health_thresholds"]["latency_budget_ms"] = 50.0
     config_path = tmp_path / "low_latency_budget.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
@@ -611,7 +646,7 @@ def test_train_then_serve_preview_cli_accepts_custom_paths(
     capsys,
 ) -> None:
     module = _load_train_then_serve_preview_module()
-    config_path = EXAMPLES_ROOT / "train_then_serve" / "sample_policy_run.json"
+    config_path = BUILTIN_EXAMPLE_PAYLOADS["train_then_serve"]
     output_dir = tmp_path / "cli_output"
 
     summary = module.main(

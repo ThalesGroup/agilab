@@ -52,7 +52,8 @@ python preview_service_mode.py
 
 ## Expected Input
 
-The script reads `sample_health_running.json`, a minimal service health payload:
+The script reads the built-in
+`mycode_project/service_templates/sample_health_running.json` health payload:
 
 - app: `mycode_project`
 - status: `running`
@@ -114,14 +115,15 @@ Open `preview_service_mode.py` and look for these functions first:
 
 ## Change One Thing
 
-Change `workers_unhealthy_count` in `sample_health_running.json` from `0` to
-`1`, rerun the preview, and inspect `health_gate.reason`. Restore the value
-before using the sample as a passing baseline.
+Copy the built-in health template, change `workers_unhealthy_count` from `0` to
+`1`, rerun the preview with `--health-payload <copy>.json`, and inspect
+`health_gate.reason`. Restore the value before using the sample as a passing
+baseline.
 
 ## Troubleshooting
 
-- If the preview fails to read JSON, validate that `sample_health_running.json`
-  is still a JSON object.
+- If the preview fails to read JSON, validate that the health template is still
+  a JSON object.
 - If `health_gate.ok` is `false`, inspect `health_gate.details` before changing
   thresholds.
 - If a real service start fails, first confirm the normal `AGI_run_*.py` example
