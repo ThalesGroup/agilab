@@ -937,6 +937,143 @@ def test_global_runner_panel_project_steps_dispatch_is_preview_only(monkeypatch,
     assert ("rerun", "called") in fake_st.messages
 
 
+def test_pipeline_steps_runner_state_syncs_completed_steps_from_run_logs(tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+    ]
+    session_state = {
+        "demo__last_run_status": "complete",
+        "demo__run_logs": [
+            "Running step 1...",
+            'Step 1: engine=runpy, env=default, summary="load"',
+            "Running step 2...",
+            'Step 2: engine=runpy, env=default, summary="train"',
+            "Run pipeline completed: 2 step(s) executed.",
+        ],
+    }
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    state, _ = pipeline_lab._load_or_create_pipeline_steps_runner_state(
+        env,
+        tmp_path,
+        steps_file=tmp_path / "lab_steps.toml",
+        pipeline_steps=steps,
+        index_page="demo",
+        session_state=session_state,
+    )
+
+    assert state["run_status"] == "completed"
+    assert state["summary"]["completed_unit_ids"] == ["step_001", "step_002"]
+    assert state["summary"]["available_artifact_ids"] == ["step_001_complete", "step_002_complete"]
+    assert state["source"]["execution_sync"]["status"] == "complete"
+    assert state["provenance"]["dispatch_mode"] == "pipeline_steps_log_sync"
+
+
+def test_pipeline_steps_runner_state_syncs_failed_step_from_run_logs(tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+        {"D": "Report", "Q": "Render report", "M": "gpt-c", "C": "print('report')", "E": "", "R": ""},
+    ]
+    session_state = {
+        "demo__last_run_status": "failed",
+        "demo__run_logs": [
+            "Running step 1...",
+            'Step 1: engine=runpy, env=default, summary="load"',
+            "Running step 2...",
+            "Traceback: demo failure",
+        ],
+    }
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    state, _ = pipeline_lab._load_or_create_pipeline_steps_runner_state(
+        env,
+        tmp_path,
+        steps_file=tmp_path / "lab_steps.toml",
+        pipeline_steps=steps,
+        index_page="demo",
+        session_state=session_state,
+    )
+
+    assert state["run_status"] == "failed"
+    assert state["summary"]["completed_unit_ids"] == ["step_001"]
+    assert state["summary"]["failed_unit_ids"] == ["step_002"]
+    assert state["summary"]["blocked_unit_ids"] == ["step_003"]
+    assert state["artifacts"][0]["status"] == "available"
+    assert state["artifacts"][1]["status"] == "planned"
+
+
+def test_pipeline_steps_runner_state_marks_stale_when_steps_newer_than_run_log(tmp_path):
+    steps_file = tmp_path / "lab_steps.toml"
+    steps_file.write_text("[[steps]]\nQ = 'new'\nC = 'print(1)'\n", encoding="utf-8")
+    log_file = tmp_path / "pipeline.log"
+    log_file.write_text(
+        "Running step 1...\n"
+        'Step 1: engine=runpy, env=default, summary="old"\n'
+        "Run pipeline completed: 1 step(s) executed.\n",
+        encoding="utf-8",
+    )
+    os.utime(log_file, (1000, 1000))
+    os.utime(steps_file, (2000, 2000))
+    steps = [{"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""}]
+    session_state = {
+        "demo__last_run_status": "complete",
+        "demo__last_run_log_file": str(log_file),
+    }
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    state, _ = pipeline_lab._load_or_create_pipeline_steps_runner_state(
+        env,
+        tmp_path,
+        steps_file=steps_file,
+        pipeline_steps=steps,
+        index_page="demo",
+        session_state=session_state,
+    )
+
+    assert state["run_status"] == "stale"
+    assert state["summary"]["stale_unit_ids"] == ["step_001"]
+    assert state["source"]["execution_sync"]["reason"] == "lab_steps.toml is newer than the latest pipeline run log."
+    assert pipeline_lab._global_dag_readiness_summary(state)["next_action"] == (
+        "Run the pipeline again or reset the preview after editing project steps."
+    )
+
+
+def test_global_runner_panel_renders_project_steps_synced_from_pipeline_logs(monkeypatch, tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+    ]
+    fake_st = _FakeStreamlit(
+        {
+            "demo__last_run_status": "complete",
+            "demo__run_logs": [
+                "Running step 1...",
+                'Step 1: engine=runpy, env=default, summary="load"',
+                "Running step 2...",
+                'Step 2: engine=runpy, env=default, summary="train"',
+            ],
+        }
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_steps=steps,
+        steps_file=tmp_path / "lab_steps.toml",
+    )
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["run_status"] == "completed"
+    assert state["summary"]["completed_unit_ids"] == ["step_001", "step_002"]
+    assert ("metric", "Completed=2") in fake_st.messages
+    assert any("step_001" in source and "completed" in source for source in fake_st.graphviz_sources)
+
+
 def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(buttons={"demo_global_runner_dispatch_next": True})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)

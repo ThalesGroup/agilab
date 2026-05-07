@@ -6,7 +6,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import pandas as pd
 import streamlit as st
@@ -210,6 +210,8 @@ GLOBAL_DAG_SOURCE_OPTIONS = [
     GLOBAL_DAG_SOURCE_WORKSPACE,
     GLOBAL_DAG_SOURCE_CUSTOM,
 ]
+PIPELINE_STEP_STARTED_RE = re.compile(r"\b(?:Running|Run)\s+step\s+(\d+)\b", re.IGNORECASE)
+PIPELINE_STEP_COMPLETED_RE = re.compile(r"\bStep\s+(\d+):\s+engine=", re.IGNORECASE)
 
 
 def _global_dag_pending_source_key(index_page_str: str) -> str:
@@ -1044,6 +1046,9 @@ def _global_dag_dependency_count(state: Dict[str, Any]) -> int:
 
 
 def _global_dag_next_action(state: Dict[str, Any]) -> str:
+    stale = _global_dag_status_ids(state, "stale")
+    if stale:
+        return "Run the pipeline again or reset the preview after editing project steps."
     failed = _global_dag_status_ids(state, "failed")
     if failed:
         return f"Inspect failed stage `{failed[0]}`."
@@ -1087,6 +1092,8 @@ def _global_dag_execution_scope(state: Dict[str, Any]) -> str:
 
 
 def _global_dag_execution_status(state: Dict[str, Any], support: Any) -> str:
+    if _global_dag_status_ids(state, "stale"):
+        return "Stale: project steps changed"
     if not bool(getattr(support, "supported", False)):
         return str(getattr(support, "status", "Preview-only") or "Preview-only")
     failed = _global_dag_status_ids(state, "failed")
@@ -1108,6 +1115,7 @@ def _global_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
         "running_count": len(_global_dag_status_ids(state, "running")),
         "completed_count": len(_global_dag_status_ids(state, "completed")),
         "failed_count": len(_global_dag_status_ids(state, "failed")),
+        "stale_count": len(_global_dag_status_ids(state, "stale")),
         "next_action": _global_dag_next_action(state),
         "execution_scope": _global_dag_execution_scope(state),
     }
@@ -1166,6 +1174,7 @@ def _global_dag_dot(state: Dict[str, Any]) -> str:
         "completed": "#e0f2fe",
         "blocked": "#fef3c7",
         "failed": "#fee2e2",
+        "stale": "#f1f5f9",
     }
     artifact_nodes: dict[str, str] = {}
     for unit in units:
@@ -1260,27 +1269,324 @@ def _pipeline_steps_digest(pipeline_steps: list[dict[str, Any]]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _path_mtime(path_text: str | Path | None) -> float | None:
+    if not path_text:
+        return None
+    try:
+        return Path(path_text).expanduser().stat().st_mtime
+    except (OSError, TypeError, ValueError):
+        return None
+
+
+def _pipeline_log_lines_from_session(index_page: str, session_state: Mapping[str, Any] | None) -> list[str]:
+    if session_state is None:
+        return []
+    lines: list[str] = []
+    raw_logs = session_state.get(f"{index_page}__run_logs", [])
+    if isinstance(raw_logs, list):
+        lines.extend(str(line) for line in raw_logs)
+    elif isinstance(raw_logs, tuple):
+        lines.extend(str(line) for line in raw_logs)
+    log_file = str(session_state.get(f"{index_page}__last_run_log_file") or "").strip()
+    if log_file:
+        try:
+            file_lines = Path(log_file).expanduser().read_text(encoding="utf-8", errors="replace").splitlines()
+        except (OSError, TypeError, ValueError):
+            file_lines = []
+        lines.extend(file_lines)
+    return lines
+
+
+def _step_indices_from_log_pattern(
+    lines: list[str],
+    pattern: re.Pattern[str],
+    *,
+    step_count: int,
+) -> list[int]:
+    indices: list[int] = []
+    for line in lines:
+        for match in pattern.finditer(line):
+            try:
+                index = int(match.group(1)) - 1
+            except (TypeError, ValueError):
+                continue
+            if 0 <= index < step_count:
+                indices.append(index)
+    return indices
+
+
+def _pipeline_steps_execution_evidence(
+    *,
+    index_page: str,
+    session_state: Mapping[str, Any] | None,
+    steps_file: Path | None,
+    step_count: int,
+) -> dict[str, Any]:
+    if not index_page or session_state is None or step_count <= 0:
+        return {"has_evidence": False}
+    lines = _pipeline_log_lines_from_session(index_page, session_state)
+    last_status = str(session_state.get(f"{index_page}__last_run_status") or "").strip().lower()
+    started_order = _step_indices_from_log_pattern(lines, PIPELINE_STEP_STARTED_RE, step_count=step_count)
+    completed_order = _step_indices_from_log_pattern(lines, PIPELINE_STEP_COMPLETED_RE, step_count=step_count)
+    completed = sorted(set(completed_order))
+    running: list[int] = []
+    failed: list[int] = []
+    last_started = started_order[-1] if started_order else None
+    if last_status in {"failed", "error"} and last_started is not None and last_started not in completed:
+        failed = [last_started]
+    elif last_status == "running" and last_started is not None and last_started not in completed:
+        running = [last_started]
+
+    log_file = str(session_state.get(f"{index_page}__last_run_log_file") or "").strip()
+    log_mtime = _path_mtime(log_file)
+    steps_mtime = _path_mtime(steps_file)
+    stale = bool(last_status or completed or started_order) and (
+        log_mtime is not None and steps_mtime is not None and steps_mtime > log_mtime
+    )
+    sync_payload = {
+        "last_status": last_status,
+        "completed": completed,
+        "running": running,
+        "failed": failed,
+        "log_file": log_file,
+        "log_mtime": log_mtime,
+        "steps_mtime": steps_mtime,
+        "stale": stale,
+    }
+    sync_token = hashlib.sha256(json.dumps(sync_payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+    return {
+        "has_evidence": bool(completed or running or failed or stale),
+        "last_status": last_status,
+        "completed": completed,
+        "running": running,
+        "failed": failed,
+        "started": sorted(set(started_order)),
+        "log_file": log_file,
+        "log_mtime": log_mtime,
+        "steps_mtime": steps_mtime,
+        "stale": stale,
+        "sync_token": sync_token,
+    }
+
+
+def _pipeline_steps_unit_index(unit: Mapping[str, Any]) -> int | None:
+    try:
+        index = int(unit.get("order_index", -1))
+    except (TypeError, ValueError):
+        return None
+    return index if index >= 0 else None
+
+
+def _pipeline_steps_update_operator_ui(
+    unit: dict[str, Any],
+    *,
+    status: str,
+    message: str,
+    blocked_artifacts: list[str] | None = None,
+) -> None:
+    severity = {
+        "completed": "success",
+        "failed": "error",
+        "running": "info",
+        "runnable": "info",
+        "blocked": "warning",
+        "stale": "warning",
+    }.get(status, "info")
+    unit["operator_ui"] = {
+        "state": status,
+        "severity": severity,
+        "message": message,
+        "blocked_by_artifacts": blocked_artifacts or [],
+    }
+
+
+def _pipeline_steps_set_artifact_statuses(
+    state: dict[str, Any],
+    available_artifacts: set[str],
+    status: str = "planned",
+) -> None:
+    artifacts = state.get("artifacts", [])
+    if not isinstance(artifacts, list):
+        return
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            continue
+        artifact_id = str(artifact.get("artifact", "")).strip()
+        artifact["status"] = "available" if artifact_id in available_artifacts else status
+
+
+def _apply_pipeline_steps_execution_evidence(state: dict[str, Any], evidence: Mapping[str, Any]) -> None:
+    if not evidence.get("has_evidence"):
+        return
+    completed = {int(index) for index in evidence.get("completed", [])}
+    running = {int(index) for index in evidence.get("running", [])}
+    failed = {int(index) for index in evidence.get("failed", [])}
+    available_artifacts = {
+        _pipeline_step_artifact_id(_pipeline_step_unit_id(index))
+        for index in completed
+    }
+    units = [unit for unit in state.get("units", []) if isinstance(unit, dict)]
+    for unit in units:
+        index = _pipeline_steps_unit_index(unit)
+        if index is None:
+            continue
+        unit_id = _pipeline_step_unit_id(index)
+        artifact_id = _pipeline_step_artifact_id(unit_id)
+        dependency_ids = [
+            str(dependency.get("artifact", ""))
+            for dependency in unit.get("artifact_dependencies", [])
+            if isinstance(dependency, dict) and str(dependency.get("artifact", ""))
+        ]
+        if index in completed:
+            unit["dispatch_status"] = "completed"
+            _pipeline_steps_update_operator_ui(
+                unit,
+                status="completed",
+                message=f"{unit_id} is completed according to the latest pipeline run log.",
+            )
+        elif index in failed:
+            unit["dispatch_status"] = "failed"
+            _pipeline_steps_update_operator_ui(
+                unit,
+                status="failed",
+                message=f"{unit_id} failed in the latest pipeline run log.",
+            )
+        elif index in running:
+            unit["dispatch_status"] = "running"
+            _pipeline_steps_update_operator_ui(
+                unit,
+                status="running",
+                message=f"{unit_id} is running according to the latest pipeline run log.",
+            )
+        elif all(dependency_id in available_artifacts for dependency_id in dependency_ids):
+            unit["dispatch_status"] = "runnable"
+            _pipeline_steps_update_operator_ui(
+                unit,
+                status="runnable",
+                message=f"{unit_id} is ready because its project-step dependencies are satisfied.",
+            )
+        else:
+            missing = [dependency_id for dependency_id in dependency_ids if dependency_id not in available_artifacts]
+            unit["dispatch_status"] = "blocked"
+            _pipeline_steps_update_operator_ui(
+                unit,
+                status="blocked",
+                message=f"{unit_id} waits for previous project-step evidence.",
+                blocked_artifacts=missing,
+            )
+        for produced in unit.get("produces", []):
+            if isinstance(produced, dict) and produced.get("artifact") == artifact_id:
+                produced["status"] = "available" if artifact_id in available_artifacts else "planned"
+
+    _pipeline_steps_set_artifact_statuses(state, available_artifacts)
+    source = state.setdefault("source", {})
+    if isinstance(source, dict):
+        source["execution_sync"] = {
+            "has_evidence": True,
+            "status": str(evidence.get("last_status", "")),
+            "completed_step_indices": list(evidence.get("completed", [])),
+            "running_step_indices": list(evidence.get("running", [])),
+            "failed_step_indices": list(evidence.get("failed", [])),
+            "log_file": str(evidence.get("log_file", "")),
+            "sync_token": str(evidence.get("sync_token", "")),
+            "stale": bool(evidence.get("stale")),
+        }
+    provenance = state.setdefault("provenance", {})
+    if isinstance(provenance, dict):
+        provenance["dispatch_mode"] = "pipeline_steps_log_sync"
+        provenance["real_app_execution"] = False
+    _pipeline_steps_dag_summary(state)
+
+
+def _pipeline_steps_state_has_execution_sync(state: Mapping[str, Any]) -> bool:
+    source = state.get("source", {})
+    if not isinstance(source, Mapping):
+        return False
+    sync = source.get("execution_sync", {})
+    return isinstance(sync, Mapping) and bool(sync.get("has_evidence"))
+
+
+def _mark_pipeline_steps_state_stale(
+    state: dict[str, Any],
+    *,
+    reason: str,
+    previous_digest: str = "",
+) -> None:
+    for unit in state.get("units", []):
+        if not isinstance(unit, dict):
+            continue
+        unit["dispatch_status"] = "stale"
+        _pipeline_steps_update_operator_ui(
+            unit,
+            status="stale",
+            message=reason,
+        )
+    _pipeline_steps_set_artifact_statuses(state, set(), status="stale")
+    state["run_status"] = "stale"
+    source = state.setdefault("source", {})
+    if isinstance(source, dict):
+        source["stale_from_digest"] = True
+        source["previous_steps_digest"] = previous_digest
+        source["execution_sync"] = {
+            "has_evidence": True,
+            "status": "stale",
+            "completed_step_indices": [],
+            "running_step_indices": [],
+            "failed_step_indices": [],
+            "log_file": "",
+            "sync_token": "",
+            "stale": True,
+            "reason": reason,
+        }
+    provenance = state.setdefault("provenance", {})
+    if isinstance(provenance, dict):
+        provenance["dispatch_mode"] = "pipeline_steps_stale_preview"
+        provenance["real_app_execution"] = False
+    events = state.get("events")
+    if not isinstance(events, list):
+        events = []
+        state["events"] = events
+    events.append(
+        {
+            "timestamp": _global_dag_now_iso(),
+            "kind": "run_stale",
+            "unit_id": "",
+            "from_status": "",
+            "to_status": "stale",
+            "detail": reason,
+        }
+    )
+    _pipeline_steps_dag_summary(state)
+
+
 def _pipeline_steps_dag_summary(state: dict[str, Any]) -> dict[str, Any]:
     units = [unit for unit in state.get("units", []) if isinstance(unit, dict)]
     events = state.get("events", [])
     running_ids = [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "running"]
     completed_ids = [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "completed"]
     failed_ids = [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "failed"]
+    stale_ids = [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "stale"]
+    available_artifacts = sorted(_available_artifact_ids(state))
     summary = {
         "unit_count": len(units),
         "planned_count": sum(1 for unit in units if unit.get("dispatch_status") in {"runnable", "blocked"}),
         "running_count": len(running_ids),
         "completed_count": len(completed_ids),
         "failed_count": len(failed_ids),
+        "stale_count": len(stale_ids),
         "runnable_unit_ids": [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "runnable"],
         "blocked_unit_ids": [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "blocked"],
         "running_unit_ids": running_ids,
         "completed_unit_ids": completed_ids,
         "failed_unit_ids": failed_ids,
+        "stale_unit_ids": stale_ids,
+        "available_artifact_ids": available_artifacts,
         "event_count": len(events) if isinstance(events, list) else 0,
     }
     state["summary"] = summary
-    if failed_ids:
+    if stale_ids:
+        state["run_status"] = "stale"
+    elif failed_ids:
         state["run_status"] = "failed"
     elif units and len(completed_ids) == len(units):
         state["run_status"] = "completed"
@@ -1458,9 +1764,17 @@ def _load_or_create_pipeline_steps_runner_state(
     *,
     steps_file: Path | None,
     pipeline_steps: list[dict[str, Any]],
+    index_page: str = "",
+    session_state: Mapping[str, Any] | None = None,
     reset: bool = False,
 ) -> tuple[dict[str, Any], Path]:
     state_path = lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
+    evidence = _pipeline_steps_execution_evidence(
+        index_page=index_page,
+        session_state=session_state,
+        steps_file=steps_file,
+        step_count=len(pipeline_steps),
+    )
     if state_path.is_file() and not reset:
         state = load_runner_state(state_path)
         if _pipeline_steps_state_matches(
@@ -1468,12 +1782,51 @@ def _load_or_create_pipeline_steps_runner_state(
             steps_file=steps_file,
             pipeline_steps=pipeline_steps,
         ):
-            return state, state_path
+            source = state.get("source", {})
+            execution_sync = source.get("execution_sync", {}) if isinstance(source, dict) else {}
+            if not evidence.get("has_evidence") or (
+                isinstance(execution_sync, dict)
+                and str(execution_sync.get("sync_token", "")) == str(evidence.get("sync_token", ""))
+            ):
+                return state, state_path
+        elif _pipeline_steps_state_has_execution_sync(state) and not evidence.get("has_evidence"):
+            previous_source = state.get("source", {})
+            previous_digest = (
+                str(previous_source.get("steps_digest", ""))
+                if isinstance(previous_source, dict)
+                else ""
+            )
+            stale_state = _build_pipeline_steps_runner_state(
+                env,
+                steps_file=steps_file,
+                pipeline_steps=pipeline_steps,
+            )
+            _mark_pipeline_steps_state_stale(
+                stale_state,
+                reason="lab_steps.toml changed after the last observed pipeline run.",
+                previous_digest=previous_digest,
+            )
+            write_runner_state(state_path, stale_state)
+            return stale_state, state_path
+
     state = _build_pipeline_steps_runner_state(
         env,
         steps_file=steps_file,
         pipeline_steps=pipeline_steps,
     )
+    if evidence.get("has_evidence"):
+        if evidence.get("stale"):
+            _mark_pipeline_steps_state_stale(
+                state,
+                reason="lab_steps.toml is newer than the latest pipeline run log.",
+                previous_digest=(
+                    str(state.get("source", {}).get("steps_digest", ""))
+                    if isinstance(state.get("source"), dict)
+                    else ""
+                ),
+            )
+        else:
+            _apply_pipeline_steps_execution_evidence(state, evidence)
     write_runner_state(state_path, state)
     return state, state_path
 
@@ -1710,6 +2063,8 @@ def _render_global_runner_state_panel(
                     lab_dir,
                     steps_file=steps_file,
                     pipeline_steps=project_step_rows,
+                    index_page=index_page_str,
+                    session_state=st.session_state,
                     reset=reset_clicked,
                 )
             except Exception as exc:
