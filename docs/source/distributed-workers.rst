@@ -114,6 +114,9 @@ Use the generated sections in this order:
   plan is partitioned before running it
 - **Run** to generate the final ``AGI.run(...)`` snippet for the configured
   distributed setup
+- **Notebook** to download the generated orchestration recipe as a runnable
+  ``.ipynb`` handoff artifact when you want to review or share the current
+  install/distribute/run setup outside the UI
 
 Treat these snippets as generated operational artifacts, not as examples you
 must manually reconstruct first.
