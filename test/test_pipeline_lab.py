@@ -748,7 +748,8 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     state_path = tmp_path / ".agilab" / "runner_state.json"
     assert state_path.is_file()
     state = pipeline_lab.load_runner_state(state_path)
-    assert state["source"]["dag_path"] == "docs/source/data/multi_app_dag_flight_sample.json"
+    assert state["source"]["dag_path"] == "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
     assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
     assert ("expander", "True") in fake_st.messages
@@ -759,6 +760,22 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
         "Next action: Dispatch `flight_context`.",
     ) in fake_st.messages
     assert ("dataframe", "2") in fake_st.messages
+
+
+def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="uav_queue_project", target="uav_queue_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["source"]["dag_path"] == (
+        "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+    )
+    assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
+    assert state["summary"]["runnable_unit_ids"] == ["queue_baseline"]
+    assert state["summary"]["blocked_unit_ids"] == ["relay_followup"]
 
 
 def test_global_runner_readiness_summary_prioritizes_running_and_scope():
@@ -832,7 +849,13 @@ def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch
 
 
 def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatch, tmp_path):
-    fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES,
+            "demo_global_runner_library": "docs/source/data/multi_app_dag_sample.json",
+        },
+        buttons={"demo_global_runner_run_next_stage": True},
+    )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     calls: list[Path] = []
 
@@ -873,7 +896,13 @@ def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatc
 
 
 def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatch, tmp_path):
-    fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES,
+            "demo_global_runner_library": "docs/source/data/multi_app_dag_sample.json",
+        },
+        buttons={"demo_global_runner_run_next_stage": True},
+    )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     state_path = tmp_path / ".agilab" / "runner_state.json"
     proof = pipeline_lab.persist_runner_state(
@@ -1070,6 +1099,7 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
     token = pipeline_lab._global_dag_source_token(selected)
     fake_st = _FakeStreamlit(
         {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES,
             "demo_global_runner_library": selected,
             "demo_global_runner_dag_path": "",
             f"demo_global_runner_dag_id_{token}": "flight-dag-edited",
@@ -1106,6 +1136,7 @@ def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, 
     token = pipeline_lab._global_dag_source_token(selected)
     fake_st = _FakeStreamlit(
         {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES,
             "demo_global_runner_library": selected,
             "demo_global_runner_dag_path": "",
             f"demo_global_runner_dag_id_{token}": "",

@@ -180,6 +180,14 @@ clean_dag_cell = _multi_app_dag_draft_module.clean_dag_cell
 dag_editor_rows = _multi_app_dag_draft_module.dag_editor_rows
 format_validation_error_for_user = _multi_app_dag_draft_module.format_validation_error_for_user
 
+_multi_app_dag_templates_module = import_agilab_module(
+    "agilab.multi_app_dag_templates",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "multi_app_dag_templates.py",
+    fallback_name="agilab_multi_app_dag_templates_fallback",
+)
+app_dag_template_paths = _multi_app_dag_templates_module.app_dag_template_paths
+
 logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
@@ -189,10 +197,12 @@ GLOBAL_DAG_DRAFT_DIRNAME = "global_dags"
 GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
 GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
 GLOBAL_DAG_EDGE_COLUMNS = ["from", "to", "artifact", "handoff"]
+GLOBAL_DAG_SOURCE_APP_TEMPLATES = "App templates"
 GLOBAL_DAG_SOURCE_SAMPLES = "Sample library"
 GLOBAL_DAG_SOURCE_WORKSPACE = "Workspace drafts"
 GLOBAL_DAG_SOURCE_CUSTOM = "Custom path"
 GLOBAL_DAG_SOURCE_OPTIONS = [
+    GLOBAL_DAG_SOURCE_APP_TEMPLATES,
     GLOBAL_DAG_SOURCE_SAMPLES,
     GLOBAL_DAG_SOURCE_WORKSPACE,
     GLOBAL_DAG_SOURCE_CUSTOM,
@@ -243,7 +253,12 @@ def _repo_root_for_global_dag() -> Path:
 
 
 def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
-    app_name = Path(str(getattr(env, "app", "") or getattr(env, "target", ""))).name
+    app_name = _active_app_name(env)
+    app_templates = _global_dag_app_template_options(repo_root, app_name)
+    if app_templates:
+        template_path = _resolve_global_dag_input(app_templates[0], repo_root)
+        if template_path is not None and template_path.is_file():
+            return template_path
     preferred = (
         GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH
         if app_name in {"flight", "flight_project"}
@@ -293,6 +308,14 @@ def _global_dag_sample_options(repo_root: Path) -> list[str]:
     return [_repo_relative_text(path, repo_root) for path in paths]
 
 
+def _active_app_name(env: AgiEnv) -> str:
+    return Path(str(getattr(env, "app", "") or getattr(env, "target", ""))).name
+
+
+def _global_dag_app_template_options(repo_root: Path, app_name: str) -> list[str]:
+    return app_dag_template_paths(repo_root, app_name=app_name, include_all_when_empty=False)
+
+
 def _global_dag_workspace_options(repo_root: Path, lab_dir: Path) -> list[str]:
     draft_dir = _global_dag_draft_dir(lab_dir)
     paths = sorted(draft_dir.glob("*.json")) if draft_dir.is_dir() else []
@@ -302,7 +325,11 @@ def _global_dag_workspace_options(repo_root: Path, lab_dir: Path) -> list[str]:
 def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
     options: list[str] = []
     seen: set[str] = set()
-    for option in [*_global_dag_sample_options(repo_root), *_global_dag_workspace_options(repo_root, lab_dir)]:
+    for option in [
+        *app_dag_template_paths(repo_root),
+        *_global_dag_sample_options(repo_root),
+        *_global_dag_workspace_options(repo_root, lab_dir),
+    ]:
         if option in seen:
             continue
         seen.add(option)
@@ -997,12 +1024,14 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         repo_root = _repo_root_for_global_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
         source_key = f"{index_page_str}_global_runner_source"
+        app_template_key = f"{index_page_str}_global_runner_app_template"
         library_key = f"{index_page_str}_global_runner_library"
         workspace_key = f"{index_page_str}_global_runner_workspace_dag"
         dag_input_key = f"{index_page_str}_global_runner_dag_path"
+        app_template_options = _global_dag_app_template_options(repo_root, _active_app_name(env))
         sample_options = _global_dag_sample_options(repo_root)
         workspace_options = _global_dag_workspace_options(repo_root, lab_dir)
-        library_options = [*sample_options, *workspace_options]
+        library_options = [*app_template_options, *sample_options, *workspace_options]
         default_dag_text = (
             _repo_relative_text(default_dag_path, repo_root)
             if default_dag_path is not None
@@ -1010,11 +1039,19 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         )
         if source_key not in st.session_state or st.session_state[source_key] not in GLOBAL_DAG_SOURCE_OPTIONS:
             st.session_state[source_key] = (
-                GLOBAL_DAG_SOURCE_SAMPLES
+                GLOBAL_DAG_SOURCE_APP_TEMPLATES
+                if default_dag_text in app_template_options or app_template_options
+                else GLOBAL_DAG_SOURCE_SAMPLES
                 if default_dag_text in sample_options or sample_options
                 else GLOBAL_DAG_SOURCE_WORKSPACE
                 if workspace_options
                 else GLOBAL_DAG_SOURCE_CUSTOM
+            )
+        if app_template_key not in st.session_state or st.session_state[app_template_key] not in app_template_options:
+            st.session_state[app_template_key] = (
+                default_dag_text
+                if default_dag_text in app_template_options
+                else app_template_options[0] if app_template_options else ""
             )
         if library_key not in st.session_state or st.session_state[library_key] not in library_options:
             st.session_state[library_key] = (
@@ -1044,7 +1081,17 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             ),
         )
         selected_dag_text = ""
-        if dag_source == GLOBAL_DAG_SOURCE_SAMPLES:
+        if dag_source == GLOBAL_DAG_SOURCE_APP_TEMPLATES:
+            if not app_template_options:
+                st.info("No app DAG template is bundled for this active project yet.")
+            selected_dag_text = st.selectbox(
+                "DAG template",
+                app_template_options or [""],
+                key=app_template_key,
+                format_func=lambda value: _global_dag_label(value, repo_root),
+                help="Choose an app-owned DAG template bundled with the active project.",
+            )
+        elif dag_source == GLOBAL_DAG_SOURCE_SAMPLES:
             selected_dag_text = st.selectbox(
                 "DAG sample",
                 sample_options or [""],
