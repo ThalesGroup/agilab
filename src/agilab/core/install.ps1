@@ -44,10 +44,6 @@ function Install-ModulePath {
     )
     Push-Location $Path
     Write-Host "uv sync -p $env:AGI_PYTHON_VERSION --dev" -ForegroundColor Blue
-    $venvPath = Join-Path $Path ".venv"
-    if (Test-Path -LiteralPath $venvPath) {
-        Remove-Item -LiteralPath $venvPath -Recurse -Force -ErrorAction SilentlyContinue
-    }
     Invoke-UvPreview @("sync", "-p", $env:AGI_PYTHON_VERSION, "--dev", "--reinstall")
     Invoke-UvPreview @("run", "-p", $env:AGI_PYTHON_VERSION, "python", "-m", "ensurepip")
     Invoke-UvPreview @("pip", "install", "-e", ".")

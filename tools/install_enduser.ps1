@@ -2,7 +2,8 @@
 param(
     [ValidateSet('local', 'pypi', 'testpypi')]
     [string]$Source = 'local',
-    [string]$Version
+    [string]$Version,
+    [switch]$ForceRebuild
 )
 
 Set-StrictMode -Version Latest
@@ -351,8 +352,18 @@ Write-Host "===================================="
 $venvPython = ""
 Push-Location -LiteralPath $AgiSpace
 try {
-    Remove-Item -LiteralPath ".venv" -Recurse -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath "uv.lock" -Force -ErrorAction SilentlyContinue
+    $existingVenvPython = Get-VenvPython -VenvRoot $Venv
+    if ($ForceRebuild) {
+        Write-Host "[info] Force rebuild requested - removing existing venv and lock file"
+        Remove-Item -LiteralPath ".venv" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath "uv.lock" -Force -ErrorAction SilentlyContinue
+    } elseif ([string]::IsNullOrWhiteSpace($existingVenvPython)) {
+        Write-Host "[info] No usable existing venv found - creating new one"
+        Remove-Item -LiteralPath ".venv" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath "uv.lock" -Force -ErrorAction SilentlyContinue
+    } else {
+        Write-Host "[info] Using existing venv (pass -ForceRebuild to recreate)"
+    }
 
     if (-not (Test-Path -LiteralPath "pyproject.toml")) {
         Invoke-Uv -Args @("init", "--bare", "--no-workspace")

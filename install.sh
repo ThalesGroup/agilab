@@ -1338,7 +1338,7 @@ fi
 #    exit 1
 #fi
 
-find . \( -name ".venv" -o -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
+find . \( -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" \) -exec rm -rf {} +
 
 check_internet
 guard_ephemeral_validation_env

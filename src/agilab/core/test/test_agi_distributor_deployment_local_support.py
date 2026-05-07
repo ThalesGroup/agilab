@@ -138,6 +138,15 @@ def test_force_remove_swallows_filesystem_error_and_uses_subprocess(monkeypatch,
     assert subprocess_calls
 
 
+def test_deploy_local_worker_venv_cleanup_is_conditional() -> None:
+    source = Path(deployment_local_support.__file__).read_text(encoding="utf-8")
+
+    assert '_force_remove(app_path / ".venv"' not in source
+    assert '_force_remove(wenv_abs / ".venv"' not in source
+    assert "_remove_project_venv_if_mismatched(\n        app_path," in source
+    assert "_remove_project_venv_if_mismatched(\n        wenv_abs," in source
+
+
 def test_cleanup_editable_ignores_missing_entries():
     removed = []
 
@@ -218,6 +227,106 @@ async def test_install_into_project_venv_reuses_existing_target_python(tmp_path)
             tmp_path,
         ),
     ]
+
+
+@pytest.mark.asyncio
+async def test_install_into_project_venv_reuses_existing_matching_python_version(tmp_path):
+    calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version_info = 3.13.13.final.0\n",
+        encoding="utf-8",
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps "{package_path}"',
+            tmp_path,
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_install_into_project_venv_recreates_existing_mismatched_python_version(tmp_path):
+    calls = []
+    package_path = tmp_path / "pkg"
+    package_path.mkdir()
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version_info = 3.12.9.final.0\n",
+        encoding="utf-8",
+    )
+
+    async def _fake_run(cmd, cwd):
+        calls.append((cmd, cwd))
+
+    await deployment_local_support._install_into_project_venv(
+        "uv",
+        tmp_path,
+        package_path,
+        run_fn=_fake_run,
+        python_version="3.13",
+    )
+
+    assert calls == [
+        (
+            f'uv venv --allow-existing --python 3.13 "{tmp_path / ".venv"}"',
+            tmp_path,
+        ),
+        (
+            f'uv pip install --python "{venv_python}" --upgrade --no-deps "{package_path}"',
+            tmp_path,
+        ),
+    ]
+
+
+def test_remove_project_venv_if_mismatched_preserves_matching_venv(tmp_path):
+    venv_python = tmp_path / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.write_text("", encoding="utf-8")
+    (tmp_path / ".venv" / "pyvenv.cfg").write_text(
+        "version = 3.13.13\n",
+        encoding="utf-8",
+    )
+
+    removed = deployment_local_support._remove_project_venv_if_mismatched(
+        tmp_path,
+        python_version="3.13.13",
+    )
+
+    assert removed is False
+    assert venv_python.exists()
+
+
+def test_remove_project_venv_if_mismatched_removes_broken_venv(tmp_path):
+    venv_root = tmp_path / ".venv"
+    venv_root.mkdir()
+    (venv_root / "pyvenv.cfg").write_text("version = 3.13.13\n", encoding="utf-8")
+
+    removed = deployment_local_support._remove_project_venv_if_mismatched(
+        tmp_path,
+        python_version="3.13",
+    )
+
+    assert removed is True
+    assert not venv_root.exists()
 
 
 @pytest.mark.asyncio
@@ -1152,6 +1261,9 @@ async def test_deploy_local_worker_install_type_zero_non_source_covers_dependenc
     wenv_abs.mkdir(parents=True, exist_ok=True)
     (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
     (wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    (wenv_abs / ".venv" / "pyvenv.cfg").write_text("version = 3.13.13\n", encoding="utf-8")
     (wenv_abs / "_uv_sources" / "ilp_worker").mkdir(parents=True, exist_ok=True)
 
     env_pck = tmp_path / "env_pck" / "agi_env"
@@ -2092,6 +2204,9 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     wenv_abs.mkdir(parents=True, exist_ok=True)
     (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
     (wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
+    (wenv_abs / ".venv" / "bin" / "python").write_text("", encoding="utf-8")
+    (wenv_abs / ".venv" / "pyvenv.cfg").write_text("version = 3.13.13\n", encoding="utf-8")
     (wenv_abs / "_uv_sources").mkdir(parents=True, exist_ok=True)
     resources_dest = wenv_abs / "agilab/core/agi-env/src/agi_env/resources"
     resources_dest.mkdir(parents=True, exist_ok=True)
