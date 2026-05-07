@@ -564,6 +564,12 @@ class JdkTable:
         self.sdk_type = sdk_type
         self.jb_dirs = self.__jetbrains_dir()
         self.jdk_tables = self.__get_jdk_tables()
+        if not self.jdk_tables:
+            logging.warning(
+                "No PyCharm SDK table target found. Open PyCharm or PyCharm "
+                "Community Edition once to initialize JetBrains settings, then "
+                "rerun pycharm/setup_pycharm.py."
+            )
 
     def __jetbrains_dir(self) -> List[Path]:
         home = Path.home()
