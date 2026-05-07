@@ -10,6 +10,7 @@ INSTALL_SH = REPO_ROOT / "install.sh"
 INSTALL_ENDUSER_SH = REPO_ROOT / "tools" / "install_enduser.sh"
 INSTALL_ENDUSER_PS1 = REPO_ROOT / "tools" / "install_enduser.ps1"
 APPS_INSTALL_PY = REPO_ROOT / "src" / "agilab" / "apps" / "install.py"
+CORE_INSTALL_PS1 = REPO_ROOT / "src" / "agilab" / "core" / "install.ps1"
 
 
 _FUNCTION_DEF_RE = re.compile(r"(?m)^[A-Za-z0-9_]+\(\) \{")
@@ -244,6 +245,18 @@ def test_installers_expose_dry_run_plans_before_dependency_installation() -> Non
 
     assert root_text.index("if (( DRY_RUN )); then") < root_text.index("find . \\(")
     assert enduser_text.index("if (( DRY_RUN )); then") < enduser_text.index("if [[ \"$SOURCE\" == \"local\" ]]")
+
+
+def test_installers_do_not_unconditionally_delete_existing_venvs() -> None:
+    root_text = INSTALL_SH.read_text(encoding="utf-8")
+    enduser_ps1_text = INSTALL_ENDUSER_PS1.read_text(encoding="utf-8")
+    core_install_ps1_text = CORE_INSTALL_PS1.read_text(encoding="utf-8")
+
+    assert 'find . \\( -name ".venv"' not in root_text
+    assert "[switch]$ForceRebuild" in enduser_ps1_text
+    assert "$existingVenvPython = Get-VenvPython -VenvRoot $Venv" in enduser_ps1_text
+    assert "if ($ForceRebuild)" in enduser_ps1_text
+    assert "Remove-Item -LiteralPath $venvPath" not in core_install_ps1_text
 
 
 def test_shell_installers_stage_remote_scripts_before_execution() -> None:

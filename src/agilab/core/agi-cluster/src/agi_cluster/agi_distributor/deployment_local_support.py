@@ -2,6 +2,7 @@ import getpass
 import json
 import logging
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 FORCE_REMOVE_EXCEPTIONS = (OSError, shutil.Error)
 DEPENDENCY_PARSE_EXCEPTIONS = (InvalidRequirement,)
 PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)
+PYTHON_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
 
 
 def _latest_glob_match(root: Path, pattern: str) -> Path | None:
@@ -168,6 +170,70 @@ def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
     return project / ".venv" / "bin" / "python"
 
 
+def _python_version_tuple(value: str | None) -> tuple[int, ...] | None:
+    if not value:
+        return None
+    match = PYTHON_VERSION_RE.search(value)
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups() if part is not None)
+
+
+def _project_venv_cfg_version(project: Path) -> tuple[int, ...] | None:
+    cfg = project / ".venv" / "pyvenv.cfg"
+    try:
+        lines = cfg.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+
+    for line in lines:
+        key, separator, raw_value = line.partition("=")
+        if not separator:
+            continue
+        if key.strip().lower() not in {"version", "version_info"}:
+            continue
+        parsed = _python_version_tuple(raw_value.strip())
+        if parsed:
+            return parsed
+    return None
+
+
+def _project_venv_matches(
+    project: Path,
+    *,
+    os_name: str = os.name,
+    python_version: str | None = None,
+) -> bool:
+    if not _project_venv_python(project, os_name=os_name).exists():
+        return False
+
+    requested = _python_version_tuple(python_version)
+    if not requested:
+        return True
+
+    actual = _project_venv_cfg_version(project)
+    if not actual:
+        return False
+    return actual[: len(requested)] == requested
+
+
+def _remove_project_venv_if_mismatched(
+    project: Path,
+    *,
+    env_logger: Any | None = None,
+    os_name: str = os.name,
+    python_version: str | None = None,
+) -> bool:
+    if _project_venv_matches(project, os_name=os_name, python_version=python_version):
+        return False
+
+    venv_root = project / ".venv"
+    if venv_root.exists() or venv_root.is_symlink():
+        _force_remove(venv_root, env_logger=env_logger)
+        return True
+    return False
+
+
 async def _ensure_project_venv(
     uv_cmd: str,
     project: Path,
@@ -176,8 +242,9 @@ async def _ensure_project_venv(
     os_name: str = os.name,
     python_version: str | None = None,
 ) -> None:
-    if _project_venv_python(project, os_name=os_name).exists():
+    if _project_venv_matches(project, os_name=os_name, python_version=python_version):
         return
+    _remove_project_venv_if_mismatched(project, os_name=os_name, python_version=python_version)
     python_arg = f" --python {python_version}" if python_version else ""
     cmd = f'{uv_cmd} venv --allow-existing{python_arg} "{project / ".venv"}"'
     await run_fn(cmd, project)
@@ -655,7 +722,11 @@ async def deploy_local_worker(
             "PIP_EXTRA_INDEX_URL=https://pypi.org/simple "
         )
 
-    _force_remove(app_path / ".venv", env_logger=getattr(env, "logger", None))
+    _remove_project_venv_if_mismatched(
+        app_path,
+        env_logger=getattr(env, "logger", None),
+        python_version=pyvers,
+    )
     try:
         (app_path / "uv.lock").unlink()
     except FileNotFoundError:
@@ -800,7 +871,11 @@ async def deploy_local_worker(
             filter_to_worker=True,
         )
 
-    _force_remove(wenv_abs / ".venv", env_logger=getattr(env, "logger", None))
+    _remove_project_venv_if_mismatched(
+        wenv_abs,
+        env_logger=getattr(env, "logger", None),
+        python_version=pyvers_worker,
+    )
 
     if worker_core_add_specs:
         for cmd_worker in _build_worker_core_add_commands(
