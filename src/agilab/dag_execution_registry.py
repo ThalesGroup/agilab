@@ -10,10 +10,19 @@ GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.js
 UAV_QUEUE_TEMPLATE_RELATIVE_PATH = Path(
     "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
 )
+FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH = Path(
+    "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+)
 UAV_QUEUE_ADAPTER = "uav_queue_to_relay_controlled"
+FLIGHT_TO_METEO_ADAPTER = "flight_to_meteo_controlled"
 CONTROLLED_RUNNER_STATUS = "controlled_real_stage_execution"
+CONTROLLED_CONTRACT_RUNNER_STATUS = "controlled_contract_stage_execution"
 QUEUE_UNIT_ID = "queue_baseline"
 RELAY_UNIT_ID = "relay_followup"
+FLIGHT_CONTEXT_UNIT_ID = "flight_context"
+METEO_FORECAST_REVIEW_UNIT_ID = "meteo_forecast_review"
+FLIGHT_REDUCE_SUMMARY_ARTIFACT_ID = "flight_reduce_summary"
+FORECAST_METRICS_ARTIFACT_ID = "forecast_metrics"
 
 
 @dataclass(frozen=True)
@@ -29,6 +38,8 @@ class DagExecutionAdapter:
     runner_status: str
     stage_requirements: tuple[DagStageRequirement, ...]
     executable_message: str
+    missing_stage_message: str = "This DAG does not contain the stages required by the controlled adapter."
+    wrong_app_message: str = "This DAG does not map controlled stages to the expected built-in apps."
 
 
 @dataclass(frozen=True)
@@ -48,9 +59,26 @@ UAV_QUEUE_TO_RELAY_ADAPTER = DagExecutionAdapter(
         DagStageRequirement(unit_id=RELAY_UNIT_ID, app="uav_relay_queue_project"),
     ),
     executable_message="Controlled AGILAB execution is enabled for this checked-in UAV queue-to-relay DAG.",
+    missing_stage_message="This DAG does not contain the controlled queue and relay stages.",
+    wrong_app_message="This DAG does not map queue and relay stages to the expected built-in apps.",
 )
 
-REGISTERED_DAG_EXECUTION_ADAPTERS = (UAV_QUEUE_TO_RELAY_ADAPTER,)
+FLIGHT_TO_METEO_DAG_ADAPTER = DagExecutionAdapter(
+    adapter_id=FLIGHT_TO_METEO_ADAPTER,
+    template_path=FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH,
+    runner_status=CONTROLLED_CONTRACT_RUNNER_STATUS,
+    stage_requirements=(
+        DagStageRequirement(unit_id=FLIGHT_CONTEXT_UNIT_ID, app="flight_project"),
+        DagStageRequirement(unit_id=METEO_FORECAST_REVIEW_UNIT_ID, app="meteo_forecast_project"),
+    ),
+    executable_message=(
+        "Controlled contract execution is enabled for this checked-in flight-to-meteo DAG."
+    ),
+    missing_stage_message="This DAG does not contain the controlled flight and meteo stages.",
+    wrong_app_message="This DAG does not map flight and meteo stages to the expected built-in apps.",
+)
+
+REGISTERED_DAG_EXECUTION_ADAPTERS = (UAV_QUEUE_TO_RELAY_ADAPTER, FLIGHT_TO_METEO_DAG_ADAPTER)
 LEGACY_EXECUTABLE_DAG_PATHS = (GLOBAL_DAG_SAMPLE_RELATIVE_PATH,)
 
 
@@ -83,13 +111,13 @@ def resolve_real_run_support(
         return DagRealRunSupport(
             supported=False,
             status="Preview-only",
-            message="This DAG does not contain the controlled queue and relay stages.",
+            message=source_resolution.missing_stage_message,
         )
     if missing_or_wrong == "wrong_app":
         return DagRealRunSupport(
             supported=False,
             status="Preview-only",
-            message="This DAG does not map queue and relay stages to the expected built-in apps.",
+            message=source_resolution.wrong_app_message,
         )
 
     return DagRealRunSupport(

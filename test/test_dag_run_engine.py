@@ -64,6 +64,10 @@ def _app_template_dag_path(repo_root: Path) -> Path:
     return repo_root / dag_run_engine.GLOBAL_DAG_UAV_QUEUE_TEMPLATE_RELATIVE_PATH
 
 
+def _flight_template_dag_path(repo_root: Path) -> Path:
+    return repo_root / dag_run_engine.GLOBAL_DAG_FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH
+
+
 def test_dag_run_engine_reuses_matching_persisted_state(tmp_path):
     repo_root = Path.cwd()
     engine = dag_run_engine.DagRunEngine(
@@ -156,6 +160,51 @@ def test_dag_run_engine_executes_app_owned_uav_template_queue_stage(tmp_path):
     assert result.ok
     assert result.executed_unit_id == dag_run_engine.GLOBAL_DAG_QUEUE_UNIT_ID
     assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+
+
+def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_path):
+    repo_root = Path.cwd()
+    calls: list[Path] = []
+
+    def _fake_flight_contract(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append(run_root)
+        return {
+            "summary_metrics_path": "flight/summary.json",
+            "reduce_artifact_path": "flight/reduce.json",
+            "summary_metrics": {"stage_completed": 1},
+        }
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path,
+        dag_path=_flight_template_dag_path(repo_root),
+        stage_run_fns={"flight_context": _fake_flight_contract},
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+    support = engine.real_run_support(state)
+
+    result = engine.run_next_controlled_stage(state)
+
+    assert support.supported
+    assert support.status == "Executable"
+    assert support.adapter == dag_run_engine.GLOBAL_DAG_FLIGHT_TO_METEO_ADAPTER
+    assert result.ok
+    assert result.executed_unit_id == dag_run_engine.GLOBAL_DAG_FLIGHT_CONTEXT_UNIT_ID
+    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "flight_context"]
+    assert result.state["summary"]["completed_unit_ids"] == ["flight_context"]
+    assert result.state["summary"]["runnable_unit_ids"] == ["meteo_forecast_review"]
+    assert result.state["summary"]["available_artifact_ids"] == ["flight_reduce_summary"]
+    assert result.state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
+    assert result.state["provenance"]["real_app_execution"] is False
+    assert result.state["provenance"]["controlled_execution"] is True
+    assert result.state["provenance"]["controlled_execution_scope"] == "controlled_flight_to_meteo_stage"
+    flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_mode"] == "contract_adapter"
+    assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
+    assert flight["produces"] == [
+        {"artifact": "flight_reduce_summary", "kind": "reduce_summary", "path": "flight/reduce.json"}
+    ]
 
 
 def test_dag_run_engine_keeps_workspace_copy_preview_only(tmp_path):

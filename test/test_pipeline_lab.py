@@ -926,6 +926,31 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     assert any("DAG execution: Executable" in message for kind, message in fake_st.messages if kind == "caption")
 
 
+def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["source"]["dag_path"] == (
+        "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    )
+    assert state["summary"]["completed_unit_ids"] == ["flight_context"]
+    assert state["summary"]["runnable_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["available_artifact_ids"] == ["flight_reduce_summary"]
+    assert state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
+    assert state["provenance"]["real_app_execution"] is False
+    assert state["provenance"]["controlled_execution"] is True
+    assert state["provenance"]["controlled_execution_scope"] == "controlled_flight_to_meteo_stage"
+    flight = next(unit for unit in state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_mode"] == "contract_adapter"
+    assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
+    assert any(kind == "success" and "flight_context" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+
+
 def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         {
@@ -999,7 +1024,12 @@ def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatc
 
 def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp_path):
     selected = "docs/source/data/multi_app_dag_flight_sample.json"
-    fake_st = _FakeStreamlit({"demo_global_runner_library": selected})
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES,
+            "demo_global_runner_library": selected,
+        }
+    )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
 

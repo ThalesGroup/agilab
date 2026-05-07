@@ -5,7 +5,12 @@
   "description": "App-owned DAG template that hands flight reduce context to the meteo forecast review app.",
   "execution": {
     "mode": "sequential_dependency_order",
-    "runner_status": "contract_only"
+    "runner_status": "controlled_contract_stage_execution",
+    "adapter": "flight_to_meteo_controlled",
+    "stage_bindings": {
+      "flight_context": "flight_project.flight_context",
+      "meteo_forecast_review": "meteo_forecast_project.meteo_forecast_review"
+    }
   },
   "nodes": [
     {
