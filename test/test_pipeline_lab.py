@@ -110,6 +110,7 @@ class _FakeStreamlit:
         self.dataframes: list[object] = []
         self.graphviz_sources: list[str] = []
         self.multiselect_calls: list[tuple[str, list[object], str | None]] = []
+        self.checkbox_calls: list[tuple[str, str | None]] = []
         self.text_area_labels: list[str] = []
         self.column_config = _FakeColumnConfig()
 
@@ -186,6 +187,7 @@ class _FakeStreamlit:
         return self.session_state[key]
 
     def checkbox(self, _label, value=False, key=None, **_kwargs):
+        self.checkbox_calls.append((str(_label), key))
         lookup_key = key or _label
         checked = self._checkboxes.get(lookup_key, self.session_state.get(lookup_key, value))
         self.session_state[lookup_key] = bool(checked)
@@ -769,6 +771,11 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
         "Next action: Dispatch `flight_context`.",
     ) in fake_st.messages
     assert ("dataframe", "2") in fake_st.messages
+    edit_token = pipeline_lab._global_dag_source_token(
+        "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    )
+    assert ("Edit workflow contract", f"demo_global_runner_edit_contract_{edit_token}") in fake_st.checkbox_calls
+    assert not fake_st.multiselect_calls
 
 
 def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path):
@@ -901,7 +908,8 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
     assert ("metric", "Execution mode=Preview-only") in fake_st.messages
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any(call[0] == "demo_global_runner_dispatch_next" for call in fake_st.button_calls)
-    assert any("step_001" in source and "artifact:step_001_complete" in source for source in fake_st.graphviz_sources)
+    assert ("Show graph", "demo_global_runner_show_graph") in fake_st.checkbox_calls
+    assert not fake_st.graphviz_sources
     unit_tables = [
         table
         for table in fake_st.dataframes
@@ -1054,7 +1062,8 @@ def test_global_runner_panel_renders_project_steps_synced_from_pipeline_logs(mon
                 "Running step 2...",
                 'Step 2: engine=runpy, env=default, summary="train"',
             ],
-        }
+        },
+        checkboxes={"demo_global_runner_show_graph": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="demo_project", target="demo_project")
@@ -1348,6 +1357,7 @@ def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypat
             "demo_global_runner_dag_path": "docs/source/data/multi_app_dag_sample.json",
         },
         selectboxes={"demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM},
+        checkboxes={"demo_global_runner_show_graph": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
@@ -1410,6 +1420,7 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
             f"demo_global_runner_label_{token}": "Edited flight DAG",
         },
         buttons={"demo_global_runner_save_draft": True},
+        checkboxes={f"demo_global_runner_edit_contract_{token}": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
@@ -1451,6 +1462,7 @@ def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, 
             f"demo_global_runner_dag_id_{token}": "",
         },
         buttons={"demo_global_runner_validate": True},
+        checkboxes={f"demo_global_runner_edit_contract_{token}": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
@@ -1553,7 +1565,10 @@ def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path
             f"demo_global_runner_label_{token}": "Alpha beta executable",
         },
         buttons={"demo_global_runner_save_app_template": True},
-        checkboxes={f"demo_global_runner_controlled_contract_{token}": True},
+        checkboxes={
+            f"demo_global_runner_edit_contract_{token}": True,
+            f"demo_global_runner_controlled_contract_{token}": True,
+        },
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "_repo_root_for_global_dag", lambda: repo_root)
@@ -1611,7 +1626,10 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
             f"demo_global_runner_label_{token}": "Alpha beta executable",
         },
         buttons={"demo_global_runner_save_app_template": True},
-        checkboxes={f"demo_global_runner_controlled_contract_{token}": True},
+        checkboxes={
+            f"demo_global_runner_edit_contract_{token}": True,
+            f"demo_global_runner_controlled_contract_{token}": True,
+        },
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "_repo_root_for_global_dag", lambda: repo_root)
@@ -1620,6 +1638,7 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
 
     pipeline_lab._render_global_runner_state_panel(env, lab_dir, "demo")
     fake_st._buttons = {"demo_global_runner_run_next_stage": True}
+    fake_st._checkboxes["demo_global_runner_show_graph"] = True
     pipeline_lab._render_global_runner_state_panel(env, lab_dir, "demo")
 
     template_rel = "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json"

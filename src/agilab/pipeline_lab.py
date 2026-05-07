@@ -1867,7 +1867,15 @@ def _render_global_runner_state_view(
     failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
 
     dag_dot = _global_dag_dot(state)
-    if dag_dot:
+    show_graph = bool(
+        dag_dot
+        and st.checkbox(
+            "Show graph",
+            key=f"{index_page_str}_global_runner_show_graph",
+            help="Render the generated graph when the current screen has enough room.",
+        )
+    )
+    if show_graph:
         st.graphviz_chart(dag_dot, width="stretch")
 
     rows = _state_units_for_display(state)
@@ -2025,15 +2033,10 @@ def _render_global_runner_state_panel(
         if save_notice:
             st.success(str(save_notice))
 
-        st.caption(
-            "Coordinate app stages through artifact contracts. Use project steps below for single-app execution."
-        )
-        st.caption(
-            "Safety boundary: preview dispatch updates runner state only; it does not claim live app execution."
-        )
-        st.markdown("**1. Choose a starting point**")
+        st.caption("Select a workflow, review readiness, and run only controlled templates.")
+        st.markdown("**Choose workflow**")
         dag_source = st.selectbox(
-            "DAG source",
+            "Workflow source",
             source_options,
             key=source_key,
             help=(
@@ -2086,7 +2089,7 @@ def _render_global_runner_state_panel(
             if not app_template_options:
                 st.info("No app DAG template is bundled for this active project yet.")
             selected_dag_text = st.selectbox(
-                "DAG template",
+                "App template",
                 app_template_options or [""],
                 key=app_template_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
@@ -2094,7 +2097,7 @@ def _render_global_runner_state_panel(
             )
         elif dag_source == GLOBAL_DAG_SOURCE_SAMPLES:
             selected_dag_text = st.selectbox(
-                "DAG sample",
+                "Sample",
                 sample_options or [""],
                 key=library_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
@@ -2104,7 +2107,7 @@ def _render_global_runner_state_panel(
             if not workspace_options:
                 st.info("No workspace DAG draft has been saved for this project yet.")
             selected_dag_text = st.selectbox(
-                "Workspace DAG",
+                "Saved draft",
                 workspace_options or [""],
                 key=workspace_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
@@ -2112,7 +2115,7 @@ def _render_global_runner_state_panel(
             )
         else:
             selected_dag_text = st.text_input(
-                "Custom DAG path",
+                "Custom JSON path",
                 key=dag_input_key,
                 help=(
                     "Relative paths resolve from the AGILAB checkout root. Custom DAGs stay preview-only "
@@ -2126,6 +2129,44 @@ def _render_global_runner_state_panel(
             st.warning(load_error)
 
         token = _global_dag_source_token(dag_text)
+        reset_clicked = action_button(
+            st,
+            "Reset preview state",
+            key=f"{index_page_str}_global_runner_reset",
+            kind="reset",
+            help="Rebuild the preview runner state from the selected workflow.",
+        )
+        edit_contract_key = f"{index_page_str}_global_runner_edit_contract_{token}"
+        edit_contract = st.checkbox(
+            "Edit workflow contract",
+            key=edit_contract_key,
+            help="Change stages, artifacts, connections, or save a new contract.",
+        )
+        if not edit_contract:
+            try:
+                state, state_path, dag_path = _load_or_create_global_runner_state(
+                    env,
+                    lab_dir,
+                    dag_path=dag_path,
+                    reset=reset_clicked,
+                )
+                dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path)
+            except Exception as exc:
+                st.error("Multi-app DAG orchestration preview is unavailable.")
+                st.caption("Full diagnostic")
+                st.code(str(exc), language="text")
+                return
+
+            _render_global_runner_state_view(
+                state=state,
+                state_path=state_path,
+                dag_path=dag_path,
+                dag_engine=dag_engine,
+                repo_root=repo_root,
+                index_page_str=index_page_str,
+            )
+            return
+
         metadata_keys = {
             "dag_id": f"{index_page_str}_global_runner_dag_id_{token}",
             "label": f"{index_page_str}_global_runner_label_{token}",
@@ -2135,7 +2176,7 @@ def _render_global_runner_state_panel(
         st.session_state.setdefault(metadata_keys["label"], str(base_payload.get("label", "")))
         st.session_state.setdefault(metadata_keys["description"], str(base_payload.get("description", "")))
 
-        st.markdown("**2. Describe the DAG**")
+        st.markdown("**Describe workflow**")
         metadata_cols = st.columns([1, 1], gap="medium")
         dag_id = metadata_cols[0].text_input(
             "DAG id",
@@ -2194,7 +2235,7 @@ def _render_global_runner_state_panel(
         ):
             st.session_state[table_keys["stages"]] = default_stage_ids
 
-        st.markdown("**3. Define stages**")
+        st.markdown("**Choose stages**")
         selected_stage_ids = st.multiselect(
             "Stages",
             stage_option_ids,
@@ -2209,7 +2250,7 @@ def _render_global_runner_state_panel(
         else:
             st.warning("Select at least two stages to form a valid multi-app DAG.")
 
-        st.markdown("**4. Define artifacts**")
+        st.markdown("**Choose artifacts**")
         artifact_options = _global_dag_artifact_options(selected_stage_ids, tables)
         artifact_option_keys = list(artifact_options)
         default_artifact_keys = _default_artifact_keys(artifact_options, tables)
@@ -2232,7 +2273,7 @@ def _render_global_runner_state_panel(
         else:
             st.warning("Select at least one produced artifact before connecting stages.")
 
-        st.markdown("**5. Connect stages**")
+        st.markdown("**Connect stages**")
         selected_artifact_options = {
             key: artifact_options[key]
             for key in selected_artifact_keys
@@ -2323,13 +2364,6 @@ def _render_global_runner_state_panel(
                     "dag_templates directory so it can execute from this view."
                 ),
             )
-        reset_clicked = action_button(
-            st,
-            "Reset preview state",
-            key=f"{index_page_str}_global_runner_reset",
-            kind="reset",
-            help="Rebuild the preview runner state from the selected DAG contract.",
-        )
         if validate_clicked:
             validation_error = _global_dag_validation_error(editor_text, repo_root)
             if validation_error:
