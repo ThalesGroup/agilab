@@ -82,53 +82,71 @@ must be refreshed deliberately.
 For example, if an app renames a runtime argument, older saved snippets that
 still pass the removed name must be regenerated or replaced before they can run.
 
-Multi-app DAG orchestration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The **Multi-app DAG orchestration** expander is the transition path from a
-single-project pipeline to a cross-app artifact graph.
+Run apps in order
+~~~~~~~~~~~~~~~~~
+The **Run apps in order** expander turns the current project steps or a saved
+multi-app workflow into a readable plan. The default view is the plan table:
+which step runs, which app owns it, what it uses, what it creates, and whether
+it is ready.
 
-Use the ``DAG source`` selector to make the source explicit:
+Use the ``Plan source`` selector to choose where the plan comes from:
 
+* ``Project steps`` shows the current ``lab_steps.toml`` as a read-only
+  preview. Use the normal step controls below for real single-project
+  execution.
+* ``App templates`` loads checked-in workflow templates bundled with the active
+  app.
 * ``Sample library`` loads checked-in public examples from
   ``docs/source/data/multi_app_dag*.json``.
-* ``Workspace drafts`` loads DAGs saved from the current project workspace under
-  ``.agilab/global_dags``.
-* ``Custom path`` loads an external JSON contract by path.
+* ``Workspace drafts`` loads plans saved from the current project workspace
+  under ``.agilab/global_dags``.
+* ``Custom path`` loads an external JSON plan by path.
 
-The editor keeps normal users away from raw JSON by default. Define stages,
-artifacts, and stage connections with list selectors, then use ``Check DAG`` to
-validate the schema and handoffs. ``Show generated JSON`` is available for code
-review or export, but it is not the primary editing flow.
+The graph is hidden by default so small screens stay readable. Enable
+``Show graph`` only when the current screen has enough room. Enable
+``Show technical output details`` when you need the lower-level output handoff
+table behind the plan.
+
+To edit a plan, enable ``Edit plan``. The normal editing path stays away from
+raw JSON:
+
+* ``Steps`` chooses the app-level steps in the plan.
+* ``Creates`` chooses the outputs produced by those steps.
+* ``Uses`` chooses which later steps use earlier outputs.
+* ``Check plan`` validates the schema, app names, inputs, and outputs.
+* ``Save as workspace plan`` stores the draft for the current project.
+* ``Show generated JSON`` is available for review or export, but it is not the
+  primary editing flow.
 
 Execution is intentionally conservative:
 
-* ``Dispatch next runnable`` is a preview action. It updates the persisted
-  runner state and graph without claiming that an app really ran.
-* ``Run next stage`` is only available for checked-in DAGs with a controlled
-  execution marker. AGILAB ships controlled examples, and app-owned executable
-  templates saved under an app's ``dag_templates`` directory can use the generic
-  controlled contract adapter.
-* Workspace drafts and custom DAGs remain preview-only until they are promoted
+* ``Preview next ready step`` updates the persisted preview state without
+  claiming that an app really ran.
+* ``Run next ready step`` is only available for approved checked-in workflow
+  templates with a controlled execution marker. AGILAB ships controlled
+  examples, and app-owned executable templates saved under an app's
+  ``dag_templates`` directory can use the generic controlled contract adapter.
+* Workspace drafts and custom plans remain preview-only until they are promoted
   into a checked-in app template with an explicit controlled execution contract.
 
-Executable stage contracts are deliberately small:
+The technical JSON contract still uses stable field names so plans remain
+portable:
 
-* ``nodes[].execution.entrypoint`` names the stable stage executor, for example
-  ``flight_project.flight_context``. PIPELINE displays this value in the stage
-  table and graph so users can see what will execute before pressing
-  ``Run next stage``.
+* ``nodes[].execution.entrypoint`` names the stable step executor, for example
+  ``flight_project.flight_context``. PIPELINE displays this value in the plan so
+  users can see what will execute before pressing ``Run next ready step``.
 * ``nodes[].execution.command`` is an optional command-list executor for
-  deterministic local stages. Prefer a JSON list such as
+  deterministic local steps. Prefer a JSON list such as
   ``["python", "-m", "package.module"]`` over a shell string.
-* ``produces`` and ``consumes`` declare the artifact contract between stages.
-  Executable app templates must declare at least one produced artifact per
-  controlled stage so the runner can publish evidence and unlock downstream
-  stages.
+* ``produces`` and ``consumes`` declare the technical output contract between
+  steps. Executable app templates must declare at least one produced output per
+  controlled step so the runner can publish evidence and unlock downstream
+  steps.
 
-The panel shows the current readiness metrics, graph, artifact handoffs, and
-execution history. Use the history table to distinguish preview dispatch events
-from controlled real stage completions before promoting a DAG into a broader
-orchestration flow.
+The panel shows readiness metrics, the plan table, optional graph and output
+details, and execution history. Use the history table to distinguish preview
+events from controlled real step completions before promoting a plan into a
+broader orchestration flow.
 
 Notebook export
 ~~~~~~~~~~~~~~~

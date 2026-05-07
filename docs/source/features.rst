@@ -358,13 +358,12 @@ to the same contract, artifact names, stable node IDs, and provenance.
   retry and partial-rerun metadata plus operator-facing readiness messages
   without claiming live app execution
 - the PIPELINE page exposes the same runner-state contract in an expanded
-  ``Multi-app DAG orchestration`` surface; operators can select a
-  ``agilab.multi_app_dag.v1`` contract, edit stages and artifact handoffs
-  through selector-driven workspace drafts and read-only summaries, validate
-  it without hand-editing docs files, reset the persisted preview state,
-  inspect readiness KPIs, next action, execution scope, app/artifact graph,
-  missing or available handoffs, and dispatch the next runnable unit into
-  ``running`` state without claiming that the downstream app has executed
+  ``Run apps in order`` surface; operators can choose a plan source, edit
+  steps, created outputs, and used outputs through selector-driven workspace
+  drafts and read-only summaries, validate the plan without hand-editing docs
+  files, reset the persisted preview state, inspect readiness KPIs, optional
+  graph and output details, and preview the next ready step without claiming
+  that the downstream app has executed
 - the global DAG dispatch state report writes and reads back a
   persisted run-state JSON proof with
   ``tools/global_pipeline_dispatch_state_report.py --compact``; it records
