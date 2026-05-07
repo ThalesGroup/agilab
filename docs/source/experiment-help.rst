@@ -25,12 +25,6 @@ Sidebar
   you change the selection the assistant reloads the stored conversation.
 - ``DataFrame``: select which CSV (or parquet) is mounted for the assistant. The
   resolved absolute path lives under ``${AGILAB_EXPORT_ABS}``.
-- ``Import Notebook``: upload an ``.ipynb`` file to seed the conversation when
-  working offline.
-- ``Export notebook``: write the current lab as ``lab_steps.ipynb`` so you can
-  run the pipeline outside the AGILAB UI as a runnable supervisor notebook.
-  In a source checkout, AGILAB also writes a project-local PyCharm mirror under
-  ``exported_notebooks/<module>/lab_steps.ipynb``.
 - ``MLflow``: shows whether the local tracking UI is running and exposes an
   ``Open UI`` link. The UI is a tracker view, not another execution button.
 
@@ -132,6 +126,13 @@ orchestration flow.
 
 Notebook export
 ~~~~~~~~~~~~~~~
+The closed-by-default ``Notebook`` expander keeps notebook import and export
+near the pipeline definition instead of in the sidebar:
+
+* ``Import notebook`` uploads an ``.ipynb`` file and previews the steps that
+  would be merged into ``lab_steps.toml``.
+* ``Download pipeline notebook`` exports the current lab as ``lab_steps.ipynb``.
+
 PIPELINE can export the current lab as a runnable supervisor notebook. This is
 not just a static dump of code cells.
 

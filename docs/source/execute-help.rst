@@ -61,6 +61,11 @@ Main Content Area
   modes`` toggle if you want to iterate through every execution path. ``RUN``
   streams logs into the ``Run logs`` expander and stores the output timings in
   ``benchmark.json``, which is summarised under ``Benchmark results``.
+- ``Notebook`` exports the current ORCHESTRATE recipe as ``<app>_orchestrate.ipynb``.
+  It includes the generated ``INSTALL``, ``CHECK distribute``, and ``RUN``
+  snippets that are available for the active configuration. It is export-only:
+  notebook import remains in :doc:`experiment-help` because import changes
+  ``lab_steps.toml`` and therefore belongs to the pipeline definition workflow.
 - ``Service mode (persistent workers)`` keeps long-lived worker loops alive and
   lets you trigger ``START/STATUS/HEALTH gate/STOP`` without rebuilding the execution
   context every time.
@@ -216,7 +221,9 @@ For a first pass through the UI, follow this sequence exactly:
 3. Run ``CHECK DISTRIBUTE`` to inspect the generated distribution tree and
    confirm the work plan matches the selected workers.
 4. Open ``Run`` and copy or export the generated ``AGI.run`` snippet.
-5. In :doc:`experiment-help`, import or regenerate that snippet as a Pipeline
+5. Optionally open ``Notebook`` to download the current orchestration recipe as
+   a runnable notebook for review or handoff.
+6. In :doc:`experiment-help`, import or regenerate that snippet as a Pipeline
    step instead of retyping it.
 
 Snippet Handoff to Pipeline

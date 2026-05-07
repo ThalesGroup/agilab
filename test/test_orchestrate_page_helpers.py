@@ -27,6 +27,37 @@ class _CaptureCodeSink:
         self.calls.append((args, kwargs))
 
 
+class _NotebookExpanderStreamlit:
+    def __init__(self, *, fail_on_info: bool = False) -> None:
+        self.session_state: dict[str, str] = {}
+        self.captions: list[str] = []
+        self.expanders: list[tuple[str, bool]] = []
+        self.infos: list[str] = []
+        self.downloads: list[tuple[str, dict[str, object]]] = []
+        self._fail_on_info = fail_on_info
+
+    def expander(self, label: str, *, expanded: bool = False):
+        self.expanders.append((label, expanded))
+        return self
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+    def caption(self, message: str) -> None:
+        self.captions.append(message)
+
+    def info(self, message: str) -> None:
+        if self._fail_on_info:
+            raise AssertionError("download render should not show the empty-state info")
+        self.infos.append(message)
+
+    def download_button(self, label: str, **kwargs: object) -> None:
+        self.downloads.append((label, kwargs))
+
+
 def _import_agilab_module(module_name: str):
     src_root = Path(__file__).resolve().parents[1] / "src"
     package_root = src_root / "agilab"
@@ -455,6 +486,82 @@ def test_orchestrate_page_support_snippet_and_mode_helpers():
     assert orchestrate_page_support.order_benchmark_display_columns(
         ["order", "mode", "nodes", "node", "variant", "seconds"]
     ) == ["order", "variant", "nodes", "node", "mode", "seconds"]
+
+
+def test_orchestrate_notebook_document_exports_current_recipe():
+    module = _load_orchestrate_module()
+    env = SimpleNamespace(app="demo_project", target="demo")
+    snippets = [
+        ("INSTALL", "print('install')\n"),
+        ("RUN", "print('run')"),
+    ]
+
+    document = module._orchestrate_notebook_document(env, snippets)
+
+    assert module._orchestrate_snippet_state_key(env, "run") == "orchestrate:notebook_snippet:demo_project:run"
+    assert document["nbformat"] == 4
+    assert document["nbformat_minor"] == 5
+    assert document["metadata"]["agilab"]["schema"] == "agilab.orchestrate_notebook.v1"
+    assert document["metadata"]["agilab"]["app"] == "demo_project"
+    assert document["metadata"]["agilab"]["snippet_labels"] == ["INSTALL", "RUN"]
+    assert any(
+        "Notebook import remains on the PIPELINE page" in "".join(cell["source"])
+        for cell in document["cells"]
+    )
+    code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]
+    assert ["".join(cell["source"]) for cell in code_cells] == ["print('install')\n", "print('run')\n"]
+
+
+def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):
+    module = _load_orchestrate_module()
+    fake_st = _NotebookExpanderStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    env = SimpleNamespace(target="fallback_project")
+
+    module._store_orchestrate_notebook_snippet(env, "run", "print('run')")
+    key = "orchestrate:notebook_snippet:fallback_project:run"
+    assert fake_st.session_state[key] == "print('run')"
+
+    module._store_orchestrate_notebook_snippet(env, "run", None)
+    assert key not in fake_st.session_state
+
+    module._render_orchestrate_notebook_expander(env)
+
+    assert fake_st.expanders == [("Notebook", False)]
+    assert fake_st.downloads == []
+    assert fake_st.infos == [
+        "No orchestration snippets are available yet. Configure INSTALL, CHECK distribute, or RUN first."
+    ]
+
+
+def test_orchestrate_notebook_expander_downloads_available_snippets(monkeypatch):
+    module = _load_orchestrate_module()
+    fake_st = _NotebookExpanderStreamlit(fail_on_info=True)
+    monkeypatch.setattr(module, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="fallback")
+    module._store_orchestrate_notebook_snippet(env, "install", "print('install')")
+    module._store_orchestrate_notebook_snippet(env, "distribution", "")
+    module._store_orchestrate_notebook_snippet(env, "run", "print('run')")
+
+    module._render_orchestrate_notebook_expander(env)
+
+    assert fake_st.expanders == [("Notebook", False)]
+    assert len(fake_st.downloads) == 1
+    label, kwargs = fake_st.downloads[0]
+    assert label == "Download orchestration notebook"
+    assert kwargs["file_name"] == "demo_project_orchestrate.ipynb"
+    assert kwargs["mime"] == "application/x-ipynb+json"
+    assert kwargs["key"] == "orchestrate:notebook_download:demo_project"
+
+    payload = json.loads(kwargs["data"].decode("utf-8"))
+    assert payload["metadata"]["agilab"]["snippet_labels"] == ["INSTALL", "RUN"]
+    code_sources = [
+        "".join(cell["source"])
+        for cell in payload["cells"]
+        if cell["cell_type"] == "code"
+    ]
+    assert code_sources == ["print('install')\n", "print('run')\n"]
+    assert fake_st.captions[-1] == "Includes: INSTALL, RUN"
 
 
 def test_orchestrate_page_support_distribution_plan_helpers():
