@@ -303,6 +303,19 @@ def _global_dag_label(path_text: str, repo_root: Path) -> str:
     return f"{label} - {fallback}" if label else fallback
 
 
+def _global_dag_display_name(path_text: str, repo_root: Path) -> str:
+    path = _resolve_global_dag_input(path_text, repo_root)
+    if path is None:
+        return "not selected"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return path.stem or "custom DAG"
+    if not isinstance(payload, dict):
+        return path.stem or "custom DAG"
+    return str(payload.get("label", "") or payload.get("dag_id", "") or path.stem).strip()
+
+
 def _global_dag_sample_options(repo_root: Path) -> list[str]:
     docs_data_dir = repo_root / "docs" / "source" / "data"
     paths = sorted(docs_data_dir.glob("multi_app_dag*.json")) if docs_data_dir.is_dir() else []
@@ -1025,6 +1038,25 @@ def _render_global_dag_readiness(state: Dict[str, Any]) -> None:
     st.caption(f"Execution scope: {summary['execution_scope']}")
 
 
+def _render_global_dag_execution_capability(
+    *,
+    contract_name: str,
+    execution_status: str,
+    real_run_support: Any,
+) -> None:
+    st.markdown("**Execution capability**")
+    contract_col, mode_col, adapter_col = st.columns(3)
+    contract_col.metric("Contract", contract_name or "not selected")
+    mode_col.metric("Execution mode", execution_status)
+    adapter_col.metric(
+        "Adapter",
+        str(getattr(real_run_support, "adapter", "") or "preview only"),
+    )
+    message = str(getattr(real_run_support, "message", "")).strip()
+    if message:
+        st.caption(message)
+
+
 def _dot_quote(value: Any) -> str:
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
@@ -1460,12 +1492,16 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             _repo_relative_text(dag_path, repo_root) if dag_path is not None else ""
         )
         if dag_label:
-            st.caption(f"DAG contract: `{dag_label}`")
+            st.caption(f"Contract path: `{dag_label}`")
         st.caption(f"State file: `{state_path}`")
         real_run_support = dag_engine.real_run_support(state)
         execution_status = _global_dag_execution_status(state, real_run_support)
+        _render_global_dag_execution_capability(
+            contract_name=_global_dag_display_name(dag_label, repo_root),
+            execution_status=execution_status,
+            real_run_support=real_run_support,
+        )
         _render_global_dag_readiness(state)
-        st.caption(f"DAG execution: {execution_status} - {real_run_support.message}")
         running_col, completed_col, failed_col = st.columns(3)
         running_col.metric("Running", int(summary.get("running_count", 0) or 0))
         completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))

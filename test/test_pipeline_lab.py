@@ -776,7 +776,8 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["blocked_unit_ids"] == ["relay_followup"]
-    assert any("DAG execution: Executable" in message for kind, message in fake_st.messages if kind == "caption")
+    assert ("metric", "Execution mode=Executable") in fake_st.messages
+    assert ("metric", "Adapter=uav_queue_to_relay_controlled") in fake_st.messages
     assert any(call[0] == "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
 
 
@@ -923,7 +924,7 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
     assert state["summary"]["completed_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
-    assert any("DAG execution: Executable" in message for kind, message in fake_st.messages if kind == "caption")
+    assert ("metric", "Execution mode=Executable") in fake_st.messages
 
 
 def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path):
@@ -1035,6 +1036,8 @@ def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
+    assert ("metric", "Execution mode=Preview-only") in fake_st.messages
+    assert ("metric", "Adapter=preview only") in fake_st.messages
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any("other DAGs stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
@@ -1058,6 +1061,8 @@ def test_global_runner_panel_selects_workspace_draft_as_preview_only(monkeypatch
 
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE
     assert fake_st.session_state["demo_global_runner_workspace_dag"] == str(draft_path)
+    assert ("metric", "Execution mode=Preview-only") in fake_st.messages
+    assert ("metric", "Adapter=preview only") in fake_st.messages
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any("other DAGs stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
