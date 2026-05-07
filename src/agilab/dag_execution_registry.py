@@ -97,6 +97,7 @@ def resolve_real_run_support(
     dag_path: Path | None,
     repo_root: Path,
 ) -> DagRealRunSupport:
+    unit_rows = tuple(unit for unit in units if isinstance(unit, Mapping))
     if dag_path is None:
         return DagRealRunSupport(
             supported=False,
@@ -108,7 +109,7 @@ def resolve_real_run_support(
     if isinstance(source_resolution, DagRealRunSupport):
         return source_resolution
 
-    missing_or_wrong = _stage_requirement_mismatches(units, source_resolution)
+    missing_or_wrong = _stage_requirement_mismatches(unit_rows, source_resolution)
     if missing_or_wrong == "missing":
         return DagRealRunSupport(
             supported=False,
@@ -120,6 +121,14 @@ def resolve_real_run_support(
             supported=False,
             status="Preview-only",
             message=source_resolution.wrong_app_message,
+        )
+
+    contract_issue = _controlled_contract_stage_issue(unit_rows, source_resolution)
+    if contract_issue:
+        return DagRealRunSupport(
+            supported=False,
+            status="Preview-only",
+            message=contract_issue,
         )
 
     return DagRealRunSupport(
@@ -233,6 +242,46 @@ def _stage_requirement_mismatches(
             return "missing"
         if str(unit.get("app", "")) != requirement.app:
             return "wrong_app"
+    return ""
+
+
+def _has_declared_artifact(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    artifact_id = str(row.get("artifact", "") or row.get("id", "")).strip()
+    artifact_path = str(row.get("path", "")).strip()
+    return bool(artifact_id and artifact_path)
+
+
+def _has_execution_contract(row: Any) -> bool:
+    if not isinstance(row, Mapping):
+        return False
+    entrypoint = str(row.get("entrypoint", "")).strip()
+    command = row.get("command")
+    has_command = (
+        isinstance(command, str) and bool(command.strip())
+    ) or (
+        isinstance(command, list) and any(str(part).strip() for part in command)
+    )
+    return bool(entrypoint or has_command)
+
+
+def _controlled_contract_stage_issue(
+    units: Iterable[Mapping[str, Any]],
+    adapter: DagExecutionAdapter,
+) -> str:
+    if adapter.adapter_id != CONTROLLED_CONTRACT_ADAPTER:
+        return ""
+    unit_rows = [unit for unit in units if isinstance(unit, Mapping)]
+    if not unit_rows:
+        return "This controlled contract DAG does not contain any executable stages."
+    for unit in unit_rows:
+        unit_id = str(unit.get("id", "")).strip() or "stage"
+        produces = unit.get("produces")
+        if not isinstance(produces, list) or not any(_has_declared_artifact(artifact) for artifact in produces):
+            return f"Controlled contract stage `{unit_id}` must declare at least one produced artifact."
+        if not _has_execution_contract(unit.get("execution_contract")):
+            return f"Controlled contract stage `{unit_id}` must declare `execution.entrypoint` or `execution.command`."
     return ""
 
 

@@ -16,6 +16,9 @@
     {
       "id": "flight_context",
       "app": "flight_project",
+      "execution": {
+        "entrypoint": "flight_project.flight_context"
+      },
       "purpose": "Run the flight scenario and produce trajectory summary context for downstream review.",
       "produces": [
         {
@@ -28,6 +31,9 @@
     {
       "id": "meteo_forecast_review",
       "app": "meteo_forecast_project",
+      "execution": {
+        "entrypoint": "meteo_forecast_project.meteo_forecast_review"
+      },
       "purpose": "Use flight summary context to produce forecast quality metrics for review.",
       "consumes": [
         {

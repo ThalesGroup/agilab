@@ -95,6 +95,20 @@ def test_execution_plan_units_keep_dependencies_and_provenance() -> None:
     }
 
 
+def test_execution_plan_carries_app_template_execution_contracts() -> None:
+    module = _load_core_module()
+
+    plan = module.build_execution_plan(
+        repo_root=Path.cwd(),
+        dag_path=Path("src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"),
+    )
+
+    assert plan.ok is True
+    first, second = plan.runnable_units
+    assert first["execution_contract"] == {"entrypoint": "flight_project.flight_context"}
+    assert second["execution_contract"] == {"entrypoint": "meteo_forecast_project.meteo_forecast_review"}
+
+
 def test_execution_plan_report_handles_load_failure(tmp_path: Path) -> None:
     module = _load_report_module()
     missing = tmp_path / "missing.json"

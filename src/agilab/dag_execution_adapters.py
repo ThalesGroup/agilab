@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+import shlex
+import subprocess
 from typing import Any, Callable, Mapping, Protocol
 
 from .dag_execution_registry import (
@@ -290,17 +292,40 @@ def _run_next_controlled_contract_dag_stage(
     unit = _next_runnable_unit(mutable_state)
     if unit is not None:
         unit_id = str(unit.get("id", ""))
+        contract_issue = _controlled_contract_unit_issue(unit)
+        if contract_issue:
+            _refresh_summary(mutable_state)
+            return DagStageExecutionResult(
+                ok=False,
+                message=contract_issue,
+                state=mutable_state,
+                executed_unit_id=unit_id,
+            )
         artifact = _primary_contract_artifact(mutable_state, unit)
         artifact_id = artifact["artifact"]
         artifact_kind = artifact["kind"]
         artifact_path_key = _artifact_path_result_key(artifact_kind)
-        result = _contract_stage_result(
-            context,
-            unit_id=unit_id,
-            artifact_id=artifact_id,
-            artifact_kind=artifact_kind,
-            timestamp=timestamp,
-        )
+        try:
+            result = _contract_stage_result(
+                context,
+                unit=unit,
+                artifact=artifact,
+                timestamp=timestamp,
+            )
+        except RuntimeError as exc:
+            _mark_controlled_stage_failure(
+                mutable_state,
+                unit,
+                timestamp=timestamp,
+                message=str(exc),
+            )
+            _refresh_summary(mutable_state)
+            return DagStageExecutionResult(
+                ok=False,
+                message=str(exc),
+                state=mutable_state,
+                executed_unit_id=unit_id,
+            )
         _mark_controlled_stage_execution(
             mutable_state,
             unit,
@@ -343,18 +368,29 @@ def _run_next_controlled_contract_dag_stage(
 def _contract_stage_result(
     context: DagExecutionContext,
     *,
-    unit_id: str,
-    artifact_id: str,
-    artifact_kind: str,
+    unit: Mapping[str, Any],
+    artifact: Mapping[str, str],
     timestamp: str,
 ) -> dict[str, Any]:
+    unit_id = str(unit.get("id", "")).strip() or "stage"
+    artifact_id = str(artifact.get("artifact", "")).strip() or f"{unit_id}_contract_artifact"
+    artifact_kind = str(artifact.get("kind", "")).strip() or _contract_artifact_kind(artifact_id, "")
+    artifact_path = str(artifact.get("path", "")).strip()
+    contract = _unit_execution_contract(unit)
     run_root = _real_run_root(context.lab_dir, unit_id)
-    runner = (context.stage_run_fns or {}).get(unit_id)
+    runner = _stage_contract_runner(context, unit_id=unit_id, contract=contract)
     if runner is not None:
-        return dict(runner(repo_root=context.repo_root, run_root=run_root))
+        result = dict(runner(repo_root=context.repo_root, run_root=run_root))
+        result.setdefault("execution_contract", contract)
+        return result
 
     run_root.mkdir(parents=True, exist_ok=True)
-    artifact_path = run_root / f"{artifact_id}.json"
+    output_path = _contract_artifact_path(run_root, artifact_id=artifact_id, declared_path=artifact_path)
+    command = _contract_command(contract)
+    command_result: dict[str, Any] = {}
+    if command:
+        command_result = _run_contract_command(command, run_root=run_root)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     artifact_payload = {
         "schema": "agilab.dag_contract_stage_result.v1",
         "unit_id": unit_id,
@@ -362,18 +398,103 @@ def _contract_stage_result(
         "artifact_kind": artifact_kind,
         "created_at": timestamp,
         "execution_mode": "controlled_contract_stage_execution",
+        "execution_contract": contract,
+        **command_result,
     }
-    artifact_path.write_text(json.dumps(artifact_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    if not output_path.exists():
+        output_path.write_text(json.dumps(artifact_payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     result = {
-        "contract_artifact_path": str(artifact_path),
-        "reduce_artifact_path": str(artifact_path),
-        "summary_metrics_path": str(artifact_path),
+        "contract_artifact_path": str(output_path),
+        "reduce_artifact_path": str(output_path),
+        "summary_metrics_path": str(output_path),
+        "execution_contract": contract,
         "summary_metrics": {
             "contract_artifacts": 1,
             "stage_completed": 1,
         },
     }
+    result.update(command_result)
     return result
+
+
+def _contract_artifact_path(run_root: Path, *, artifact_id: str, declared_path: str) -> Path:
+    declared = Path(declared_path)
+    if declared_path and not declared.is_absolute() and ".." not in declared.parts:
+        return run_root / declared
+    return run_root / f"{artifact_id}.json"
+
+
+def _unit_execution_contract(unit: Mapping[str, Any]) -> dict[str, Any]:
+    contract = unit.get("execution_contract")
+    if not isinstance(contract, Mapping):
+        return {}
+    entrypoint = str(contract.get("entrypoint", "")).strip()
+    command = _contract_command(contract)
+    normalized: dict[str, Any] = {}
+    if entrypoint:
+        normalized["entrypoint"] = entrypoint
+    if command:
+        normalized["command"] = command
+    return normalized
+
+
+def _contract_command(contract: Mapping[str, Any]) -> list[str]:
+    value = contract.get("command")
+    if isinstance(value, str):
+        return [part for part in shlex.split(value) if part]
+    if isinstance(value, list):
+        return [str(part).strip() for part in value if str(part).strip()]
+    return []
+
+
+def _stage_contract_runner(
+    context: DagExecutionContext,
+    *,
+    unit_id: str,
+    contract: Mapping[str, Any],
+) -> Callable[..., Mapping[str, Any]] | None:
+    stage_run_fns = context.stage_run_fns or {}
+    runner = stage_run_fns.get(unit_id)
+    if runner is not None:
+        return runner
+    entrypoint = str(contract.get("entrypoint", "")).strip()
+    return stage_run_fns.get(entrypoint) if entrypoint else None
+
+
+def _run_contract_command(command: list[str], *, run_root: Path) -> dict[str, Any]:
+    try:
+        completed = subprocess.run(command, cwd=run_root, text=True, capture_output=True, check=False, timeout=300)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("Controlled contract command timed out after 300 seconds.") from exc
+    if completed.returncode:
+        stderr = completed.stderr.strip()
+        stdout = completed.stdout.strip()
+        detail = stderr or stdout or f"command exited with status {completed.returncode}"
+        raise RuntimeError(f"Controlled contract command failed ({completed.returncode}): {detail}")
+    return {
+        "command": command,
+        "command_stdout": completed.stdout,
+        "command_stderr": completed.stderr,
+        "command_returncode": completed.returncode,
+    }
+
+
+def _controlled_contract_unit_issue(unit: Mapping[str, Any]) -> str:
+    unit_id = str(unit.get("id", "")).strip() or "stage"
+    produces = unit.get("produces")
+    if not isinstance(produces, list) or not any(_has_declared_contract_artifact(artifact) for artifact in produces):
+        return f"Controlled contract stage `{unit_id}` must declare at least one produced artifact."
+    if not _unit_execution_contract(unit):
+        return f"Controlled contract stage `{unit_id}` must declare `execution.entrypoint` or `execution.command`."
+    return ""
+
+
+def _has_declared_contract_artifact(value: Any) -> bool:
+    if not isinstance(value, Mapping):
+        return False
+    artifact_id = str(value.get("artifact", "") or value.get("id", "")).strip()
+    path = str(value.get("path", "")).strip()
+    return bool(artifact_id and path)
 
 
 def _real_run_root(lab_dir: Path, unit_id: str) -> Path:
@@ -627,6 +748,40 @@ def _mark_controlled_stage_execution(
         from_status="missing",
         to_status="available",
         detail=artifact_available_detail or f"{artifact_id} became available after real app execution",
+    )
+
+
+def _mark_controlled_stage_failure(
+    state: dict[str, Any],
+    unit: dict[str, Any],
+    *,
+    timestamp: str,
+    message: str,
+) -> None:
+    unit_id = str(unit.get("id", ""))
+    previous_status = str(unit.get("dispatch_status", ""))
+    unit["dispatch_status"] = "failed"
+    unit["execution_mode"] = "contract_adapter"
+    timestamps = unit.setdefault("timestamps", {})
+    if isinstance(timestamps, dict):
+        timestamps.setdefault("created_at", state.get("created_at", timestamp))
+        timestamps["started_at"] = timestamp
+        timestamps["completed_at"] = timestamp
+        timestamps["updated_at"] = timestamp
+    unit["operator_ui"] = {
+        "state": "failed",
+        "severity": "error",
+        "message": message,
+        "blocked_by_artifacts": [],
+    }
+    _append_event(
+        state,
+        timestamp=timestamp,
+        kind="unit_failed",
+        unit_id=unit_id,
+        from_status=previous_status,
+        to_status="failed",
+        detail=message,
     )
 
 

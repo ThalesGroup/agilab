@@ -59,10 +59,30 @@ def _uav_units() -> list[dict[str, str]]:
     ]
 
 
-def _flight_units() -> list[dict[str, str]]:
+def _flight_units() -> list[dict[str, object]]:
     return [
-        {"id": "flight_context", "app": "flight_project"},
-        {"id": "meteo_forecast_review", "app": "meteo_forecast_project"},
+        {
+            "id": "flight_context",
+            "app": "flight_project",
+            "execution_contract": {"entrypoint": "flight_project.flight_context"},
+            "produces": [
+                {
+                    "artifact": "flight_reduce_summary",
+                    "path": "flight_analysis/reduce_summary_worker_0.json",
+                }
+            ],
+        },
+        {
+            "id": "meteo_forecast_review",
+            "app": "meteo_forecast_project",
+            "execution_contract": {"entrypoint": "meteo_forecast_project.meteo_forecast_review"},
+            "produces": [
+                {
+                    "artifact": "forecast_metrics",
+                    "path": "forecast_analysis/forecast_metrics.json",
+                }
+            ],
+        },
     ]
 
 
@@ -124,6 +144,73 @@ def test_registry_supports_marker_opted_app_owned_contract_template(tmp_path):
                     "adapter": "controlled_contract_dag",
                 },
                 "nodes": [
+                    {
+                        "id": "alpha",
+                        "app": "alpha_project",
+                        "execution": {"entrypoint": "alpha_project.alpha"},
+                        "produces": [{"id": "alpha_metrics", "path": "alpha/metrics.json"}],
+                    },
+                    {
+                        "id": "beta",
+                        "app": "beta_project",
+                        "execution": {"entrypoint": "beta_project.beta"},
+                        "produces": [{"id": "beta_metrics", "path": "beta/metrics.json"}],
+                    },
+                ],
+                "edges": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    support = dag_execution_registry.resolve_real_run_support(
+        units=[
+            {
+                "id": "alpha",
+                "app": "alpha_project",
+                "execution_contract": {"entrypoint": "alpha_project.alpha"},
+                "produces": [{"artifact": "alpha_metrics", "path": "alpha/metrics.json"}],
+            },
+            {
+                "id": "beta",
+                "app": "beta_project",
+                "execution_contract": {"entrypoint": "beta_project.beta"},
+                "produces": [{"artifact": "beta_metrics", "path": "beta/metrics.json"}],
+            },
+        ],
+        dag_path=dag_path,
+        repo_root=repo_root,
+    )
+
+    assert support.supported
+    assert support.adapter == "controlled_contract_dag"
+    assert "checked-in app-owned DAG" in support.message
+
+
+def test_registry_rejects_marker_opted_contract_template_without_stage_contract(tmp_path):
+    repo_root = tmp_path
+    dag_path = (
+        repo_root
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "alpha_project"
+        / "dag_templates"
+        / "alpha_to_beta.json"
+    )
+    dag_path.parent.mkdir(parents=True)
+    dag_path.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.multi_app_dag.v1",
+                "dag_id": "alpha-to-beta",
+                "execution": {
+                    "mode": "sequential_dependency_order",
+                    "runner_status": "controlled_contract_stage_execution",
+                    "adapter": "controlled_contract_dag",
+                },
+                "nodes": [
                     {"id": "alpha", "app": "alpha_project"},
                     {"id": "beta", "app": "beta_project"},
                 ],
@@ -135,16 +222,18 @@ def test_registry_supports_marker_opted_app_owned_contract_template(tmp_path):
 
     support = dag_execution_registry.resolve_real_run_support(
         units=[
-            {"id": "alpha", "app": "alpha_project"},
-            {"id": "beta", "app": "beta_project"},
+            {
+                "id": "alpha",
+                "app": "alpha_project",
+                "produces": [{"artifact": "alpha_metrics", "path": "alpha/metrics.json"}],
+            }
         ],
         dag_path=dag_path,
         repo_root=repo_root,
     )
 
-    assert support.supported
-    assert support.adapter == "controlled_contract_dag"
-    assert "checked-in app-owned DAG" in support.message
+    assert not support.supported
+    assert "must declare `execution.entrypoint` or `execution.command`" in support.message
 
 
 def test_registry_reports_no_selected_dag():

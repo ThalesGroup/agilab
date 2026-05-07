@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import shlex
 from typing import Any
 
 from agilab.global_pipeline_dag import DEFAULT_DAG_RELATIVE_PATH, GlobalPipelineDag, build_global_pipeline_dag
@@ -186,6 +187,42 @@ def _produced_artifacts(row: dict[str, Any]) -> list[dict[str, str]]:
     return artifacts
 
 
+def _execution_stage_bindings(payload: dict[str, Any]) -> dict[str, str]:
+    execution = payload.get("execution")
+    if not isinstance(execution, dict):
+        return {}
+    bindings = execution.get("stage_bindings")
+    if not isinstance(bindings, dict):
+        return {}
+    return {
+        str(stage_id).strip(): str(entrypoint).strip()
+        for stage_id, entrypoint in bindings.items()
+        if str(stage_id).strip() and str(entrypoint).strip()
+    }
+
+
+def _command_parts(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [part for part in shlex.split(value) if part]
+    if isinstance(value, list):
+        return [str(part).strip() for part in value if str(part).strip()]
+    return []
+
+
+def _execution_contract(row: dict[str, Any], stage_bindings: dict[str, str]) -> dict[str, Any]:
+    node_id = _string_field(row, "id")
+    execution = row.get("execution")
+    execution = execution if isinstance(execution, dict) else {}
+    entrypoint = str(execution.get("entrypoint", "")).strip() or stage_bindings.get(node_id, "")
+    command = _command_parts(execution.get("command"))
+    contract: dict[str, Any] = {}
+    if entrypoint:
+        contract["entrypoint"] = entrypoint
+    if command:
+        contract["command"] = command
+    return contract
+
+
 def build_execution_plan(
     *,
     repo_root: Path,
@@ -202,6 +239,7 @@ def build_execution_plan(
     }
     dependencies = _artifact_dependencies(payload)
     pipeline_views = _pipeline_view_by_dag_node(graph)
+    stage_bindings = _execution_stage_bindings(payload)
     issues = [
         _issue(f"global_pipeline_dag.{issue.location}", issue.message)
         for issue in graph.issues
@@ -215,7 +253,7 @@ def build_execution_plan(
             continue
         app = _string_field(row, "app")
         artifact_dependencies = dependencies.get(node_id, [])
-        unit = {
+        unit: dict[str, Any] = {
             "id": node_id,
             "order_index": order_index,
             "app": app,
@@ -235,6 +273,9 @@ def build_execution_plan(
                 "planning_mode": "read_only",
             },
         }
+        execution_contract = _execution_contract(row, stage_bindings)
+        if execution_contract:
+            unit["execution_contract"] = execution_contract
         runnable_units.append(unit)
 
     return ExecutionPlan(
