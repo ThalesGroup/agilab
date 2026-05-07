@@ -19,7 +19,7 @@ import streamlit as st
 from streamlit.errors import StreamlitAPIException
 import tomllib        # For reading TOML files
 
-PIPELINE_PROJECT_LABEL = "Project name"
+PIPELINE_PROJECT_LABEL = "Project"
 PIPELINE_PROJECT_HELP = (
     "Project workspace whose pipeline steps and exported artifacts are shown below. "
     "Type in the dropdown to search."
@@ -40,7 +40,7 @@ _page_project_selector_module = load_local_module(
     fallback_path=Path(__file__).resolve().parents[1] / "page_project_selector.py",
     fallback_name="agilab_page_project_selector_fallback",
 )
-_project_edit_link_markup = _page_project_selector_module._project_edit_link_markup
+_project_edit_button_style = _page_project_selector_module._project_edit_button_style
 
 from agi_gui.pagelib import (
     activate_mlflow,
@@ -804,10 +804,10 @@ def sidebar_controls() -> None:
         key="project_selectbox",
         help=PIPELINE_PROJECT_HELP,
     )
-    st.sidebar.markdown(
-        _project_edit_link_markup(selected_lab, "Edit"),
-        unsafe_allow_html=True,
-    )
+    st.sidebar.markdown(_project_edit_button_style(), unsafe_allow_html=True)
+    if st.sidebar.button("Edit", key="project_selectbox__edit", help=f"Edit {selected_lab}."):
+        st.query_params["active_app"] = selected_lab
+        st.switch_page(Path("pages/1_PROJECT.py"))
     st.session_state["lab_dir_selectbox"] = selected_lab
     st.session_state["lab_dir"] = selected_lab
     if selected_lab != persisted_lab:
