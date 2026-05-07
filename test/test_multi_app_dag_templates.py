@@ -76,4 +76,4 @@ def test_app_dag_templates_can_fallback_to_all_templates_when_active_app_has_non
         )
     )
     assert flight_payload["execution"]["runner_status"] == "controlled_contract_stage_execution"
-    assert flight_payload["execution"]["adapter"] == "flight_to_meteo_controlled"
+    assert flight_payload["execution"]["adapter"] == "controlled_contract_dag"

@@ -9,12 +9,8 @@ import re
 from typing import Any, Callable, Mapping, Protocol
 
 from .dag_execution_registry import (
+    CONTROLLED_CONTRACT_ADAPTER,
     CONTROLLED_CONTRACT_RUNNER_STATUS,
-    FLIGHT_CONTEXT_UNIT_ID,
-    FLIGHT_REDUCE_SUMMARY_ARTIFACT_ID,
-    FLIGHT_TO_METEO_ADAPTER,
-    FORECAST_METRICS_ARTIFACT_ID,
-    METEO_FORECAST_REVIEW_UNIT_ID,
     QUEUE_UNIT_ID,
     RELAY_UNIT_ID,
     UAV_QUEUE_ADAPTER,
@@ -26,7 +22,7 @@ from .global_pipeline_app_dispatch_smoke import (
 
 GLOBAL_DAG_REAL_RUN_DIRNAME = "global_dag_real_runs"
 GLOBAL_DAG_REAL_EXECUTION_SCOPE = "controlled_uav_queue_to_relay_stage"
-GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE = "controlled_flight_to_meteo_stage"
+GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE = "controlled_contract_dag_stage"
 
 
 def _now_iso() -> str:
@@ -73,20 +69,20 @@ class UavQueueToRelayExecutionAdapter:
         return _run_next_uav_queue_to_relay_stage(state, context=context)
 
 
-class FlightToMeteoExecutionAdapter:
-    adapter_id = FLIGHT_TO_METEO_ADAPTER
+class ControlledContractDagExecutionAdapter:
+    adapter_id = CONTROLLED_CONTRACT_ADAPTER
 
     def run_next(
         self,
         state: Mapping[str, Any],
         context: DagExecutionContext,
     ) -> DagStageExecutionResult:
-        return _run_next_flight_to_meteo_stage(state, context=context)
+        return _run_next_controlled_contract_dag_stage(state, context=context)
 
 
 DAG_EXECUTION_ADAPTERS_BY_ID: Mapping[str, DagExecutionAdapter] = {
     UavQueueToRelayExecutionAdapter.adapter_id: UavQueueToRelayExecutionAdapter(),
-    FlightToMeteoExecutionAdapter.adapter_id: FlightToMeteoExecutionAdapter(),
+    ControlledContractDagExecutionAdapter.adapter_id: ControlledContractDagExecutionAdapter(),
 }
 
 
@@ -127,6 +123,79 @@ def available_artifact_ids(state: Mapping[str, Any]) -> set[str]:
         and artifact.get("status") == "available"
         and str(artifact.get("artifact", ""))
     }
+
+
+def _next_runnable_unit(state: Mapping[str, Any]) -> dict[str, Any] | None:
+    for unit in dag_units(state):
+        if str(unit.get("dispatch_status", "")) == "runnable":
+            return unit
+    return None
+
+
+def _unblock_ready_units(state: dict[str, Any], *, timestamp: str) -> None:
+    for unit in dag_units(state):
+        _unblock_unit_when_artifacts_available(state, unit, timestamp=timestamp)
+
+
+def _primary_contract_artifact(state: Mapping[str, Any], unit: Mapping[str, Any]) -> dict[str, str]:
+    unit_id = str(unit.get("id", "")).strip() or "stage"
+    produces = unit.get("produces", [])
+    if isinstance(produces, list):
+        for artifact in produces:
+            if not isinstance(artifact, Mapping):
+                continue
+            artifact_id = str(artifact.get("artifact", "") or artifact.get("id", "")).strip()
+            if not artifact_id:
+                continue
+            return {
+                "artifact": artifact_id,
+                "kind": _contract_artifact_kind(artifact_id, str(artifact.get("kind", "")).strip()),
+                "path": str(artifact.get("path", "")).strip(),
+            }
+
+    for downstream in dag_units(state):
+        dependencies = downstream.get("artifact_dependencies", [])
+        if not isinstance(dependencies, list):
+            continue
+        for dependency in dependencies:
+            if not isinstance(dependency, Mapping):
+                continue
+            if str(dependency.get("from", "")).strip() != unit_id:
+                continue
+            artifact_id = str(dependency.get("artifact", "")).strip()
+            if not artifact_id:
+                continue
+            return {
+                "artifact": artifact_id,
+                "kind": _contract_artifact_kind(artifact_id, ""),
+                "path": str(dependency.get("source_path", "")).strip(),
+            }
+
+    fallback_artifact = f"{unit_id}_contract_artifact"
+    return {
+        "artifact": fallback_artifact,
+        "kind": "contract_artifact",
+        "path": "",
+    }
+
+
+def _contract_artifact_kind(artifact_id: str, declared_kind: str) -> str:
+    if declared_kind:
+        return declared_kind
+    artifact_id_lower = artifact_id.lower()
+    if "reduce" in artifact_id_lower:
+        return "reduce_summary"
+    if "metric" in artifact_id_lower:
+        return "summary_metrics"
+    return "contract_artifact"
+
+
+def _artifact_path_result_key(artifact_kind: str) -> str:
+    if artifact_kind == "reduce_summary":
+        return "reduce_artifact_path"
+    if artifact_kind == "summary_metrics":
+        return "summary_metrics_path"
+    return "contract_artifact_path"
 
 
 def _run_next_uav_queue_to_relay_stage(
@@ -210,54 +279,46 @@ def _run_next_uav_queue_to_relay_stage(
     )
 
 
-def _run_next_flight_to_meteo_stage(
+def _run_next_controlled_contract_dag_stage(
     state: Mapping[str, Any],
     *,
     context: DagExecutionContext,
 ) -> DagStageExecutionResult:
     mutable_state = deepcopy(dict(state))
-    flight = _dag_unit(mutable_state, FLIGHT_CONTEXT_UNIT_ID)
-    meteo = _dag_unit(mutable_state, METEO_FORECAST_REVIEW_UNIT_ID)
-    if not isinstance(flight, dict) or not isinstance(meteo, dict):
-        return DagStageExecutionResult(
-            ok=False,
-            message="The controlled DAG state is missing the expected flight or meteo stage.",
-            state=mutable_state,
-        )
-
     timestamp = context.now_fn()
-    flight_status = str(flight.get("dispatch_status", ""))
-    meteo_status = str(meteo.get("dispatch_status", ""))
-    if flight_status == "runnable":
+    _unblock_ready_units(mutable_state, timestamp=timestamp)
+    unit = _next_runnable_unit(mutable_state)
+    if unit is not None:
+        unit_id = str(unit.get("id", ""))
+        artifact = _primary_contract_artifact(mutable_state, unit)
+        artifact_id = artifact["artifact"]
+        artifact_kind = artifact["kind"]
+        artifact_path_key = _artifact_path_result_key(artifact_kind)
         result = _contract_stage_result(
             context,
-            unit_id=FLIGHT_CONTEXT_UNIT_ID,
-            artifact_id=FLIGHT_REDUCE_SUMMARY_ARTIFACT_ID,
-            artifact_kind="reduce_summary",
+            unit_id=unit_id,
+            artifact_id=artifact_id,
+            artifact_kind=artifact_kind,
             timestamp=timestamp,
         )
         _mark_controlled_stage_execution(
             mutable_state,
-            flight,
+            unit,
             result=result,
             timestamp=timestamp,
-            artifact_id=FLIGHT_REDUCE_SUMMARY_ARTIFACT_ID,
+            artifact_id=artifact_id,
             reduce_artifact_id=None,
-            artifact_kind="reduce_summary",
-            artifact_path_key="reduce_artifact_path",
+            artifact_kind=artifact_kind,
+            artifact_path_key=artifact_path_key,
             execution_mode="contract_adapter",
             execution_payload_key="contract_execution",
-            operator_message=(
-                f"{FLIGHT_CONTEXT_UNIT_ID} completed through the controlled DAG contract adapter."
-            ),
-            artifact_available_detail=(
-                f"{FLIGHT_REDUCE_SUMMARY_ARTIFACT_ID} became available after controlled contract execution"
-            ),
+            operator_message=f"{unit_id} completed through the controlled DAG contract adapter.",
+            artifact_available_detail=f"{artifact_id} became available after controlled contract execution",
         )
-        _unblock_unit_when_artifacts_available(mutable_state, meteo, timestamp=timestamp)
+        _unblock_ready_units(mutable_state, timestamp=timestamp)
         _update_real_execution_provenance(
             mutable_state,
-            executed_unit_id=FLIGHT_CONTEXT_UNIT_ID,
+            executed_unit_id=unit_id,
             timestamp=timestamp,
             dispatch_mode=CONTROLLED_CONTRACT_RUNNER_STATUS,
             real_app_execution=False,
@@ -266,54 +327,9 @@ def _run_next_flight_to_meteo_stage(
         _refresh_summary(mutable_state)
         return DagStageExecutionResult(
             ok=True,
-            message=f"Executed `{FLIGHT_CONTEXT_UNIT_ID}` and published `{FLIGHT_REDUCE_SUMMARY_ARTIFACT_ID}`.",
+            message=f"Executed `{unit_id}` and published `{artifact_id}`.",
             state=mutable_state,
-            executed_unit_id=FLIGHT_CONTEXT_UNIT_ID,
-        )
-
-    if meteo_status == "blocked":
-        _unblock_unit_when_artifacts_available(mutable_state, meteo, timestamp=timestamp)
-        meteo_status = str(meteo.get("dispatch_status", ""))
-    if meteo_status == "runnable":
-        result = _contract_stage_result(
-            context,
-            unit_id=METEO_FORECAST_REVIEW_UNIT_ID,
-            artifact_id=FORECAST_METRICS_ARTIFACT_ID,
-            artifact_kind="summary_metrics",
-            timestamp=timestamp,
-        )
-        _mark_controlled_stage_execution(
-            mutable_state,
-            meteo,
-            result=result,
-            timestamp=timestamp,
-            artifact_id=FORECAST_METRICS_ARTIFACT_ID,
-            reduce_artifact_id=None,
-            artifact_kind="summary_metrics",
-            artifact_path_key="summary_metrics_path",
-            execution_mode="contract_adapter",
-            execution_payload_key="contract_execution",
-            operator_message=(
-                f"{METEO_FORECAST_REVIEW_UNIT_ID} completed through the controlled DAG contract adapter."
-            ),
-            artifact_available_detail=(
-                f"{FORECAST_METRICS_ARTIFACT_ID} became available after controlled contract execution"
-            ),
-        )
-        _update_real_execution_provenance(
-            mutable_state,
-            executed_unit_id=METEO_FORECAST_REVIEW_UNIT_ID,
-            timestamp=timestamp,
-            dispatch_mode=CONTROLLED_CONTRACT_RUNNER_STATUS,
-            real_app_execution=False,
-            execution_scope=GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE,
-        )
-        _refresh_summary(mutable_state)
-        return DagStageExecutionResult(
-            ok=True,
-            message=f"Executed `{METEO_FORECAST_REVIEW_UNIT_ID}` and published `{FORECAST_METRICS_ARTIFACT_ID}`.",
-            state=mutable_state,
-            executed_unit_id=METEO_FORECAST_REVIEW_UNIT_ID,
+            executed_unit_id=unit_id,
         )
 
     _refresh_summary(mutable_state)

@@ -14,7 +14,8 @@ FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH = Path(
     "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
 )
 UAV_QUEUE_ADAPTER = "uav_queue_to_relay_controlled"
-FLIGHT_TO_METEO_ADAPTER = "flight_to_meteo_controlled"
+CONTROLLED_CONTRACT_ADAPTER = "controlled_contract_dag"
+FLIGHT_TO_METEO_ADAPTER = CONTROLLED_CONTRACT_ADAPTER
 CONTROLLED_RUNNER_STATUS = "controlled_real_stage_execution"
 CONTROLLED_CONTRACT_RUNNER_STATUS = "controlled_contract_stage_execution"
 QUEUE_UNIT_ID = "queue_baseline"
@@ -64,7 +65,7 @@ UAV_QUEUE_TO_RELAY_ADAPTER = DagExecutionAdapter(
 )
 
 FLIGHT_TO_METEO_DAG_ADAPTER = DagExecutionAdapter(
-    adapter_id=FLIGHT_TO_METEO_ADAPTER,
+    adapter_id=CONTROLLED_CONTRACT_ADAPTER,
     template_path=FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH,
     runner_status=CONTROLLED_CONTRACT_RUNNER_STATUS,
     stage_requirements=(
@@ -72,7 +73,7 @@ FLIGHT_TO_METEO_DAG_ADAPTER = DagExecutionAdapter(
         DagStageRequirement(unit_id=METEO_FORECAST_REVIEW_UNIT_ID, app="meteo_forecast_project"),
     ),
     executable_message=(
-        "Controlled contract execution is enabled for this checked-in flight-to-meteo DAG."
+        "Controlled contract DAG execution is enabled for this checked-in app-owned DAG."
     ),
     missing_stage_message="This DAG does not contain the controlled flight and meteo stages.",
     wrong_app_message="This DAG does not map flight and meteo stages to the expected built-in apps.",

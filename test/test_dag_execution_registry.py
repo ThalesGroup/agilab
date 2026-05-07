@@ -96,8 +96,8 @@ def test_registry_supports_checked_in_flight_template():
     assert adapter == dag_execution_registry.FLIGHT_TO_METEO_DAG_ADAPTER
     assert support.supported
     assert support.status == "Executable"
-    assert support.adapter == "flight_to_meteo_controlled"
-    assert "checked-in flight-to-meteo DAG" in support.message
+    assert support.adapter == "controlled_contract_dag"
+    assert "checked-in app-owned DAG" in support.message
 
 
 def test_registry_reports_no_selected_dag():

@@ -188,7 +188,7 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
 
     assert support.supported
     assert support.status == "Executable"
-    assert support.adapter == dag_run_engine.GLOBAL_DAG_FLIGHT_TO_METEO_ADAPTER
+    assert support.adapter == dag_run_engine.GLOBAL_DAG_CONTROLLED_CONTRACT_ADAPTER
     assert result.ok
     assert result.executed_unit_id == dag_run_engine.GLOBAL_DAG_FLIGHT_CONTEXT_UNIT_ID
     assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "flight_context"]
@@ -198,7 +198,7 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     assert result.state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
     assert result.state["provenance"]["real_app_execution"] is False
     assert result.state["provenance"]["controlled_execution"] is True
-    assert result.state["provenance"]["controlled_execution_scope"] == "controlled_flight_to_meteo_stage"
+    assert result.state["provenance"]["controlled_execution_scope"] == "controlled_contract_dag_stage"
     flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
     assert flight["execution_mode"] == "contract_adapter"
     assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
