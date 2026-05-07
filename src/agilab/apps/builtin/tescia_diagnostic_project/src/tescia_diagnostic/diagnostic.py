@@ -77,6 +77,29 @@ def rank_candidate_fixes(
     return sorted(ranked, key=lambda row: (-row["score"], row["blast_radius"], row["id"]))
 
 
+def student_score(
+    *,
+    evidence_score: float,
+    regression_score: float,
+    selected_fix: Mapping[str, Any],
+    actionable: bool,
+) -> float:
+    """Return a readable 0-100 score for the diagnostic exercise."""
+
+    fix_score = _as_float(selected_fix.get("score")) if selected_fix else 0.0
+    gate_bonus = 1.0 if actionable else 0.0
+    return round(
+        (
+            (evidence_score * 0.35)
+            + (regression_score * 0.3)
+            + (fix_score * 0.25)
+            + (gate_bonus * 0.1)
+        )
+        * 100,
+        1,
+    )
+
+
 def diagnose_case(
     case: Mapping[str, Any],
     *,
@@ -101,6 +124,12 @@ def diagnose_case(
     confidence_gate = evidence_score >= minimum_evidence_confidence
     regression_gate = regression_score >= minimum_regression_coverage
     status = "actionable" if confidence_gate and regression_gate and selected_fix else "needs_more_evidence"
+    score = student_score(
+        evidence_score=evidence_score,
+        regression_score=regression_score,
+        selected_fix=selected_fix,
+        actionable=status == "actionable",
+    )
     root_cause = str(case.get("root_cause", "")).strip()
 
     return {
@@ -112,6 +141,7 @@ def diagnose_case(
         "weak_assumptions": weak_assumptions,
         "evidence_quality": evidence_score,
         "regression_coverage": regression_score,
+        "student_score": score,
         "status": status,
         "selected_fix": selected_fix,
         "ranked_fixes": ranked_fixes,
@@ -135,6 +165,7 @@ def summarize_report(report: Mapping[str, Any], *, worker_id: int = 0, source_fi
         "selected_fix_id": str(selected_fix_id),
         "evidence_quality": float(report.get("evidence_quality", 0.0)),
         "regression_coverage": float(report.get("regression_coverage", 0.0)),
+        "student_score": float(report.get("student_score", 0.0)),
         "weak_assumption_count": len(_as_list(report.get("weak_assumptions"))),
         "regression_step_count": len(_as_list(report.get("regression_plan"))),
         "worker_id": int(worker_id),
@@ -147,5 +178,6 @@ __all__ = [
     "evidence_quality",
     "rank_candidate_fixes",
     "regression_coverage",
+    "student_score",
     "summarize_report",
 ]

@@ -26,6 +26,7 @@ _REQUIRED_SUMMARY_KEYS = (
     "selected_fix_id",
     "evidence_quality",
     "regression_coverage",
+    "student_score",
     "weak_assumption_count",
     "regression_step_count",
 )
@@ -35,6 +36,7 @@ _REQUIRED_PAYLOAD_KEYS = (
     "needs_more_evidence_count",
     "evidence_quality_sum",
     "regression_coverage_sum",
+    "student_score_sum",
     "case_ids",
     "selected_fix_ids",
 )
@@ -45,6 +47,7 @@ def _merge_tescia_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
     selected_fix_ids: set[str] = set()
     evidence_sum = 0.0
     regression_sum = 0.0
+    student_score_sum = 0.0
     actionable_count = 0
     needs_more_evidence_count = 0
 
@@ -54,6 +57,7 @@ def _merge_tescia_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
         selected_fix_ids.update(str(item) for item in payload["selected_fix_ids"] if item)
         evidence_sum += float(payload["evidence_quality_sum"])
         regression_sum += float(payload["regression_coverage_sum"])
+        student_score_sum += float(payload["student_score_sum"])
         actionable_count += int(payload["actionable_count"])
         needs_more_evidence_count += int(payload["needs_more_evidence_count"])
 
@@ -64,6 +68,7 @@ def _merge_tescia_partials(partials: Sequence[ReducePartial]) -> dict[str, Any]:
         "needs_more_evidence_count": needs_more_evidence_count,
         "evidence_quality_mean": round(evidence_sum / case_count, 4) if case_count else 0.0,
         "regression_coverage_mean": round(regression_sum / case_count, 4) if case_count else 0.0,
+        "student_score_mean": round(student_score_sum / case_count, 1) if case_count else 0.0,
         "case_ids": sorted(case_ids),
         "selected_fix_ids": sorted(selected_fix_ids),
     }
@@ -114,6 +119,7 @@ def partial_from_diagnostic_summary(
         "regression_coverage_sum": float(summary["regression_coverage"]),
         "actionable_count": 1 if status == "actionable" else 0,
         "needs_more_evidence_count": 1 if status != "actionable" else 0,
+        "student_score_sum": float(summary["student_score"]),
     }
     return ReducePartial(
         partial_id=partial_id,
