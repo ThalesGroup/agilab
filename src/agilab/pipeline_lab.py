@@ -198,11 +198,13 @@ GLOBAL_DAG_DRAFT_DIRNAME = "global_dags"
 GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
 GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
 GLOBAL_DAG_EDGE_COLUMNS = ["from", "to", "artifact", "handoff"]
+GLOBAL_DAG_SOURCE_PROJECT_STEPS = "Project steps"
 GLOBAL_DAG_SOURCE_APP_TEMPLATES = "App templates"
 GLOBAL_DAG_SOURCE_SAMPLES = "Sample library"
 GLOBAL_DAG_SOURCE_WORKSPACE = "Workspace drafts"
 GLOBAL_DAG_SOURCE_CUSTOM = "Custom path"
 GLOBAL_DAG_SOURCE_OPTIONS = [
+    GLOBAL_DAG_SOURCE_PROJECT_STEPS,
     GLOBAL_DAG_SOURCE_APP_TEMPLATES,
     GLOBAL_DAG_SOURCE_SAMPLES,
     GLOBAL_DAG_SOURCE_WORKSPACE,
@@ -375,13 +377,15 @@ def _apply_global_dag_pending_source_selection(
     app_template_options: list[str],
     sample_options: list[str],
     workspace_options: list[str],
+    source_options: list[str] | None = None,
 ) -> None:
     pending = st.session_state.pop(_global_dag_pending_source_key(index_page_str), None)
     if not isinstance(pending, dict):
         return
     source = str(pending.get("source", "")).strip()
     dag_text = str(pending.get("dag_path", "")).strip()
-    if source not in GLOBAL_DAG_SOURCE_OPTIONS or not dag_text:
+    valid_sources = source_options or GLOBAL_DAG_SOURCE_OPTIONS
+    if source not in valid_sources or not dag_text:
         return
 
     st.session_state[source_key] = source
@@ -905,6 +909,10 @@ def _available_artifact_ids(state: Dict[str, Any]) -> set[str]:
 
 
 def _global_dag_executor_label(unit: Dict[str, Any]) -> str:
+    executor = str(unit.get("executor", "") or "").strip()
+    if executor:
+        return executor
+
     contract = unit.get("execution_contract")
     if not isinstance(contract, dict):
         return "preview"
@@ -1202,7 +1210,400 @@ def _global_dag_dot(state: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str: str) -> None:
+def _pipeline_dag_step_rows(pipeline_steps: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for step in pipeline_steps or []:
+        if isinstance(step, dict) and _is_displayable_step(step):
+            rows.append(step)
+    return rows
+
+
+def _pipeline_step_unit_id(index: int) -> str:
+    return f"step_{index + 1:03d}"
+
+
+def _pipeline_step_artifact_id(unit_id: str) -> str:
+    return f"{unit_id}_complete"
+
+
+def _pipeline_step_executor_label(step: dict[str, Any]) -> str:
+    engine = str(step.get("R", "") or "").strip()
+    runtime = str(step.get("E", "") or "").strip()
+    if engine:
+        return engine
+    if runtime:
+        return "agi.run"
+    return "runpy"
+
+
+def _pipeline_step_purpose(step: dict[str, Any], index: int) -> str:
+    description = str(step.get("D", "") or "").strip()
+    if description:
+        return description
+    summary = _step_summary(step, width=96)
+    return summary or f"Project step {index + 1}"
+
+
+def _pipeline_steps_digest(pipeline_steps: list[dict[str, Any]]) -> str:
+    normalized = [
+        {
+            "D": str(step.get("D", "") or ""),
+            "Q": str(step.get("Q", "") or ""),
+            "M": str(step.get("M", "") or ""),
+            "C": str(step.get("C", "") or ""),
+            "E": str(step.get("E", "") or ""),
+            "R": str(step.get("R", "") or ""),
+        }
+        for step in pipeline_steps
+    ]
+    payload = json.dumps(normalized, sort_keys=True, ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _pipeline_steps_dag_summary(state: dict[str, Any]) -> dict[str, Any]:
+    units = [unit for unit in state.get("units", []) if isinstance(unit, dict)]
+    events = state.get("events", [])
+    running_ids = [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "running"]
+    completed_ids = [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "completed"]
+    failed_ids = [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "failed"]
+    summary = {
+        "unit_count": len(units),
+        "planned_count": sum(1 for unit in units if unit.get("dispatch_status") in {"runnable", "blocked"}),
+        "running_count": len(running_ids),
+        "completed_count": len(completed_ids),
+        "failed_count": len(failed_ids),
+        "runnable_unit_ids": [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "runnable"],
+        "blocked_unit_ids": [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "blocked"],
+        "running_unit_ids": running_ids,
+        "completed_unit_ids": completed_ids,
+        "failed_unit_ids": failed_ids,
+        "event_count": len(events) if isinstance(events, list) else 0,
+    }
+    state["summary"] = summary
+    if failed_ids:
+        state["run_status"] = "failed"
+    elif units and len(completed_ids) == len(units):
+        state["run_status"] = "completed"
+    elif running_ids or completed_ids:
+        state["run_status"] = "running"
+    else:
+        state["run_status"] = "planned"
+    return summary
+
+
+def _build_pipeline_steps_runner_state(
+    env: AgiEnv,
+    *,
+    steps_file: Path | None,
+    pipeline_steps: list[dict[str, Any]],
+    now: str | None = None,
+) -> dict[str, Any]:
+    timestamp = now or _global_dag_now_iso()
+    app_name = _active_app_name(env) or "project"
+    steps_digest = _pipeline_steps_digest(pipeline_steps)
+    units: list[dict[str, Any]] = []
+    artifacts: list[dict[str, Any]] = []
+    for index, step in enumerate(pipeline_steps):
+        unit_id = _pipeline_step_unit_id(index)
+        artifact_id = _pipeline_step_artifact_id(unit_id)
+        previous_unit_id = _pipeline_step_unit_id(index - 1) if index else ""
+        previous_artifact_id = _pipeline_step_artifact_id(previous_unit_id) if previous_unit_id else ""
+        dependencies = []
+        if previous_artifact_id:
+            dependencies.append(
+                {
+                    "artifact": previous_artifact_id,
+                    "from": previous_unit_id,
+                    "from_app": app_name,
+                    "source_path": f"pipeline/{previous_unit_id}.json",
+                    "handoff": f"Run after `{previous_unit_id}` completes.",
+                }
+            )
+        status = "runnable" if index == 0 else "blocked"
+        blocked_artifacts = [previous_artifact_id] if previous_artifact_id else []
+        units.append(
+            {
+                "id": unit_id,
+                "order_index": index,
+                "app": app_name,
+                "executor": _pipeline_step_executor_label(step),
+                "plan_status": "planned",
+                "plan_runner_status": "lab_steps_preview",
+                "dispatch_status": status,
+                "depends_on": [previous_unit_id] if previous_unit_id else [],
+                "artifact_dependencies": dependencies,
+                "produces": [
+                    {
+                        "artifact": artifact_id,
+                        "kind": "pipeline_step_completion",
+                        "path": f"pipeline/{unit_id}.json",
+                    }
+                ],
+                "transitions": [
+                    {"from": "runnable", "to": "running", "condition": "operator preview dispatch"},
+                    {"from": "running", "to": "completed", "condition": "existing pipeline runner completes the step"},
+                ],
+                "retry": {
+                    "policy": "existing_pipeline_controls",
+                    "attempt": 0,
+                    "max_attempts": 0,
+                    "status": "not_scheduled",
+                    "last_error": "",
+                    "next_action": "use existing pipeline step controls for execution and retry",
+                },
+                "partial_rerun": {
+                    "policy": "existing_pipeline_controls",
+                    "requested": False,
+                    "eligible_after_completion": True,
+                    "requires_completed_dependencies": [previous_unit_id] if previous_unit_id else [],
+                    "artifact_scope": [artifact_id],
+                },
+                "operator_ui": {
+                    "state": "ready_to_dispatch" if status == "runnable" else "blocked",
+                    "severity": "info" if status == "runnable" else "warning",
+                    "message": (
+                        f"{unit_id} is ready for preview dispatch."
+                        if status == "runnable"
+                        else f"{unit_id} waits for `{previous_artifact_id}` from the previous project step."
+                    ),
+                    "blocked_by_artifacts": blocked_artifacts,
+                },
+                "provenance": {
+                    "source_plan_schema": "agilab.lab_steps_dag_preview.v1",
+                    "source_plan_runner_status": "lab_steps_preview",
+                    "source_dag": "project steps",
+                    "source_unit_id": unit_id,
+                    "source_app": app_name,
+                    "pipeline_view": "single_app_lab_steps",
+                    "runner_state_mode": "read_only_preview",
+                    "planning_mode": "lab_steps_compatibility",
+                    "lab_step_index": index,
+                    "lab_step_model": str(step.get("M", "") or ""),
+                    "lab_step_summary": _pipeline_step_purpose(step, index),
+                },
+            }
+        )
+        artifacts.append(
+            {
+                "artifact": artifact_id,
+                "kind": "pipeline_step_completion",
+                "producer": unit_id,
+                "status": "planned",
+                "path": f"pipeline/{unit_id}.json",
+            }
+        )
+    state = {
+        "schema": "agilab.global_pipeline_runner_state.v1",
+        "run_id": "project-steps-dag-preview",
+        "persistence_format": "json",
+        "run_status": "planned",
+        "created_at": timestamp,
+        "updated_at": timestamp,
+        "ok": bool(units),
+        "issues": [],
+        "source": {
+            "dag_path": "Project steps",
+            "source_type": "lab_steps",
+            "steps_file": str(steps_file.expanduser()) if steps_file is not None else "",
+            "steps_digest": steps_digest,
+            "step_count": len(pipeline_steps),
+            "execution_order": [unit["id"] for unit in units],
+            "plan_schema": "agilab.lab_steps_dag_preview.v1",
+            "plan_runner_status": "lab_steps_preview",
+            "runner_state_mode": "read_only_preview",
+        },
+        "units": units,
+        "artifacts": artifacts,
+        "events": [
+            {
+                "timestamp": timestamp,
+                "kind": "run_planned",
+                "unit_id": "",
+                "from_status": "",
+                "to_status": "planned",
+                "detail": "project lab_steps.toml rendered as a preview-only single-app DAG",
+            }
+        ],
+        "provenance": {
+            "source_dag": "project steps",
+            "source_plan_schema": "agilab.lab_steps_dag_preview.v1",
+            "source_runner_state_schema": "agilab.global_pipeline_runner_state.v1",
+            "dispatch_mode": "pipeline_steps_preview",
+            "real_app_execution": False,
+        },
+    }
+    _pipeline_steps_dag_summary(state)
+    return state
+
+
+def _pipeline_steps_state_matches(
+    state: dict[str, Any],
+    *,
+    steps_file: Path | None,
+    pipeline_steps: list[dict[str, Any]],
+) -> bool:
+    source = state.get("source", {})
+    if not isinstance(source, dict) or source.get("source_type") != "lab_steps":
+        return False
+    expected_steps_file = str(steps_file.expanduser()) if steps_file is not None else ""
+    return (
+        str(source.get("steps_file", "")) == expected_steps_file
+        and str(source.get("steps_digest", "")) == _pipeline_steps_digest(pipeline_steps)
+    )
+
+
+def _load_or_create_pipeline_steps_runner_state(
+    env: AgiEnv,
+    lab_dir: Path,
+    *,
+    steps_file: Path | None,
+    pipeline_steps: list[dict[str, Any]],
+    reset: bool = False,
+) -> tuple[dict[str, Any], Path]:
+    state_path = lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
+    if state_path.is_file() and not reset:
+        state = load_runner_state(state_path)
+        if _pipeline_steps_state_matches(
+            state,
+            steps_file=steps_file,
+            pipeline_steps=pipeline_steps,
+        ):
+            return state, state_path
+    state = _build_pipeline_steps_runner_state(
+        env,
+        steps_file=steps_file,
+        pipeline_steps=pipeline_steps,
+    )
+    write_runner_state(state_path, state)
+    return state, state_path
+
+
+def _render_global_runner_state_view(
+    *,
+    state: dict[str, Any],
+    state_path: Path,
+    dag_path: Path | None,
+    dag_engine: Any,
+    repo_root: Path,
+    index_page_str: str,
+    dag_label_override: str = "",
+) -> None:
+    summary = state.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
+    source = state.get("source", {})
+    if not isinstance(source, dict):
+        source = {}
+    dag_label = dag_label_override or str(source.get("dag_path", "")) or (
+        _repo_relative_text(dag_path, repo_root) if dag_path is not None else ""
+    )
+    if dag_label:
+        st.caption(f"Contract path: `{dag_label}`")
+    st.caption(f"State file: `{state_path}`")
+    real_run_support = dag_engine.real_run_support(state)
+    execution_status = _global_dag_execution_status(state, real_run_support)
+    _render_global_dag_execution_capability(
+        contract_name=dag_label_override or _global_dag_display_name(dag_label, repo_root),
+        execution_status=execution_status,
+        real_run_support=real_run_support,
+    )
+    _render_global_dag_readiness(state)
+    running_col, completed_col, failed_col = st.columns(3)
+    running_col.metric("Running", int(summary.get("running_count", 0) or 0))
+    completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
+    failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
+
+    dag_dot = _global_dag_dot(state)
+    if dag_dot:
+        st.graphviz_chart(dag_dot, width="stretch")
+
+    rows = _state_units_for_display(state)
+    if rows:
+        st.dataframe(rows, hide_index=True, width="stretch")
+    else:
+        st.caption(GLOBAL_DAG_EMPTY_STATE)
+
+    artifact_rows = _artifact_handoffs_for_display(state)
+    if artifact_rows:
+        st.caption("Artifact handoffs")
+        st.dataframe(artifact_rows, hide_index=True, width="stretch")
+
+    history_rows = _global_dag_execution_history_rows(state)
+    if history_rows:
+        st.caption("Execution history")
+        st.dataframe(history_rows, hide_index=True, width="stretch")
+    else:
+        st.caption("Execution history: no stage has been dispatched yet.")
+
+    real_run_supported = real_run_support.supported
+    if real_run_supported:
+        run_stage_clicked = action_button(
+            st,
+            "Run next stage",
+            key=f"{index_page_str}_global_runner_run_next_stage",
+            kind="run",
+            help=(
+                f"Execute the next ready stage through `{real_run_support.adapter}`. "
+                "Only checked-in DAGs with a controlled adapter marker can run from this view."
+            ),
+        )
+        if run_stage_clicked:
+            try:
+                result = dag_engine.run_next_controlled_stage(state)
+            except Exception as exc:
+                st.error("Controlled DAG stage execution failed.")
+                st.caption("Full diagnostic")
+                st.code(str(exc), language="text")
+                return
+            if result.ok:
+                dag_engine.write_state(result.state)
+                st.success(result.message)
+                st.rerun()
+            else:
+                st.warning(result.message)
+    else:
+        st.caption(
+            "Live stage execution requires a checked-in DAG with a controlled adapter marker; "
+            "other DAGs stay preview-only."
+        )
+
+    provenance = state.get("provenance", {})
+    controlled_run_started = (
+        bool(provenance.get("controlled_execution") or provenance.get("real_app_execution"))
+        if isinstance(provenance, dict)
+        else False
+    )
+    dispatch_disabled = real_run_supported and controlled_run_started
+    dispatch_clicked = action_button(
+        st,
+        "Dispatch next runnable",
+        key=f"{index_page_str}_global_runner_dispatch_next",
+        kind="run",
+        help=(
+            "Move the next runnable global DAG unit to running state without executing the app."
+            if not dispatch_disabled
+            else "Preview dispatch is disabled after a controlled live stage run starts; use Run next stage."
+        ),
+        disabled=dispatch_disabled,
+    )
+    if dispatch_clicked:
+        result = dag_engine.dispatch_next_runnable(state)
+        if result.ok:
+            dag_engine.write_state(result.state)
+            st.success(result.message)
+            st.rerun()
+        else:
+            st.warning(result.message)
+
+
+def _render_global_runner_state_panel(
+    env: AgiEnv,
+    lab_dir: Path,
+    index_page_str: str,
+    *,
+    pipeline_steps: list[dict[str, Any]] | None = None,
+    steps_file: Path | None = None,
+) -> None:
     with st.expander("Multi-app DAG orchestration", expanded=True):
         repo_root = _repo_root_for_global_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
@@ -1215,6 +1616,12 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         sample_options = _global_dag_sample_options(repo_root)
         workspace_options = _global_dag_workspace_options(repo_root, lab_dir)
         library_options = [*app_template_options, *sample_options, *workspace_options]
+        project_step_rows = _pipeline_dag_step_rows(pipeline_steps)
+        source_options = (
+            GLOBAL_DAG_SOURCE_OPTIONS
+            if project_step_rows
+            else [source for source in GLOBAL_DAG_SOURCE_OPTIONS if source != GLOBAL_DAG_SOURCE_PROJECT_STEPS]
+        )
         _apply_global_dag_pending_source_selection(
             index_page_str,
             source_key=source_key,
@@ -1225,15 +1632,18 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             app_template_options=app_template_options,
             sample_options=sample_options,
             workspace_options=workspace_options,
+            source_options=source_options,
         )
         default_dag_text = (
             _repo_relative_text(default_dag_path, repo_root)
             if default_dag_path is not None
             else ""
         )
-        if source_key not in st.session_state or st.session_state[source_key] not in GLOBAL_DAG_SOURCE_OPTIONS:
+        if source_key not in st.session_state or st.session_state[source_key] not in source_options:
             st.session_state[source_key] = (
-                GLOBAL_DAG_SOURCE_APP_TEMPLATES
+                GLOBAL_DAG_SOURCE_PROJECT_STEPS
+                if project_step_rows
+                else GLOBAL_DAG_SOURCE_APP_TEMPLATES
                 if default_dag_text in app_template_options or app_template_options
                 else GLOBAL_DAG_SOURCE_SAMPLES
                 if default_dag_text in sample_options or sample_options
@@ -1271,14 +1681,52 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         st.markdown("**1. Choose a starting point**")
         dag_source = st.selectbox(
             "DAG source",
-            GLOBAL_DAG_SOURCE_OPTIONS,
+            source_options,
             key=source_key,
             help=(
-                "Use samples for guided demos, workspace drafts for saved edits, "
-                "or a custom path for an external contract."
+                "Use project steps for the current lab_steps.toml, samples for guided demos, "
+                "workspace drafts for saved edits, or a custom path for an external contract."
             ),
         )
         selected_dag_text = ""
+        if dag_source == GLOBAL_DAG_SOURCE_PROJECT_STEPS:
+            reset_clicked = action_button(
+                st,
+                "Reset preview state",
+                key=f"{index_page_str}_global_runner_reset",
+                kind="reset",
+                help="Rebuild the preview runner state from the current project steps.",
+            )
+            if not project_step_rows:
+                st.info("No project steps are recorded yet.")
+            else:
+                st.caption(
+                    "Read-only compatibility view of the current project steps. "
+                    "Use the existing step controls below for real execution."
+                )
+            try:
+                state, state_path = _load_or_create_pipeline_steps_runner_state(
+                    env,
+                    lab_dir,
+                    steps_file=steps_file,
+                    pipeline_steps=project_step_rows,
+                    reset=reset_clicked,
+                )
+            except Exception as exc:
+                st.error("Project steps DAG preview is unavailable.")
+                st.caption("Full diagnostic")
+                st.code(str(exc), language="text")
+                return
+            _render_global_runner_state_view(
+                state=state,
+                state_path=state_path,
+                dag_path=None,
+                dag_engine=_global_dag_engine(repo_root, lab_dir, None),
+                repo_root=repo_root,
+                index_page_str=index_page_str,
+                dag_label_override="Project steps",
+            )
+            return
         if dag_source == GLOBAL_DAG_SOURCE_APP_TEMPLATES:
             if not app_template_options:
                 st.info("No app DAG template is bundled for this active project yet.")
@@ -1596,112 +2044,14 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             st.code(str(exc), language="text")
             return
 
-        summary = state.get("summary", {})
-        if not isinstance(summary, dict):
-            summary = {}
-        source = state.get("source", {})
-        if not isinstance(source, dict):
-            source = {}
-        dag_label = str(source.get("dag_path", "")) or (
-            _repo_relative_text(dag_path, repo_root) if dag_path is not None else ""
+        _render_global_runner_state_view(
+            state=state,
+            state_path=state_path,
+            dag_path=dag_path,
+            dag_engine=dag_engine,
+            repo_root=repo_root,
+            index_page_str=index_page_str,
         )
-        if dag_label:
-            st.caption(f"Contract path: `{dag_label}`")
-        st.caption(f"State file: `{state_path}`")
-        real_run_support = dag_engine.real_run_support(state)
-        execution_status = _global_dag_execution_status(state, real_run_support)
-        _render_global_dag_execution_capability(
-            contract_name=_global_dag_display_name(dag_label, repo_root),
-            execution_status=execution_status,
-            real_run_support=real_run_support,
-        )
-        _render_global_dag_readiness(state)
-        running_col, completed_col, failed_col = st.columns(3)
-        running_col.metric("Running", int(summary.get("running_count", 0) or 0))
-        completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
-        failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
-
-        dag_dot = _global_dag_dot(state)
-        if dag_dot:
-            st.graphviz_chart(dag_dot, width="stretch")
-
-        rows = _state_units_for_display(state)
-        if rows:
-            st.dataframe(rows, hide_index=True, width="stretch")
-        else:
-            st.caption(GLOBAL_DAG_EMPTY_STATE)
-
-        artifact_rows = _artifact_handoffs_for_display(state)
-        if artifact_rows:
-            st.caption("Artifact handoffs")
-            st.dataframe(artifact_rows, hide_index=True, width="stretch")
-
-        history_rows = _global_dag_execution_history_rows(state)
-        if history_rows:
-            st.caption("Execution history")
-            st.dataframe(history_rows, hide_index=True, width="stretch")
-        else:
-            st.caption("Execution history: no stage has been dispatched yet.")
-
-        real_run_supported = real_run_support.supported
-        if real_run_supported:
-            run_stage_clicked = action_button(
-                st,
-                "Run next stage",
-                key=f"{index_page_str}_global_runner_run_next_stage",
-                kind="run",
-                help=(
-                    f"Execute the next ready stage through `{real_run_support.adapter}`. "
-                    "Only checked-in DAGs with a controlled adapter marker can run from this view."
-                ),
-            )
-            if run_stage_clicked:
-                try:
-                    result = dag_engine.run_next_controlled_stage(state)
-                except Exception as exc:
-                    st.error("Controlled DAG stage execution failed.")
-                    st.caption("Full diagnostic")
-                    st.code(str(exc), language="text")
-                    return
-                if result.ok:
-                    dag_engine.write_state(result.state)
-                    st.success(result.message)
-                    st.rerun()
-                else:
-                    st.warning(result.message)
-        else:
-            st.caption(
-                "Live stage execution requires a checked-in DAG with a controlled adapter marker; "
-                "other DAGs stay preview-only."
-            )
-
-        provenance = state.get("provenance", {})
-        controlled_run_started = (
-            bool(provenance.get("controlled_execution") or provenance.get("real_app_execution"))
-            if isinstance(provenance, dict)
-            else False
-        )
-        dispatch_disabled = real_run_supported and controlled_run_started
-        dispatch_clicked = action_button(
-            st,
-            "Dispatch next runnable",
-            key=f"{index_page_str}_global_runner_dispatch_next",
-            kind="run",
-            help=(
-                "Move the next runnable global DAG unit to running state without executing the app."
-                if not dispatch_disabled
-                else "Preview dispatch is disabled after a controlled live stage run starts; use Run next stage."
-            ),
-            disabled=dispatch_disabled,
-        )
-        if dispatch_clicked:
-            result = dag_engine.dispatch_next_runnable(state)
-            if result.ok:
-                dag_engine.write_state(result.state)
-                st.success(result.message)
-                st.rerun()
-            else:
-                st.warning(result.message)
 
 
 @dataclass(frozen=True)
@@ -1898,7 +2248,13 @@ def display_lab_tab(
         bool(snippet_option_map),
         env.app,
     )
-    _render_global_runner_state_panel(env, lab_dir, index_page_str)
+    _render_global_runner_state_panel(
+        env,
+        lab_dir,
+        index_page_str,
+        pipeline_steps=persisted_steps,
+        steps_file=steps_file,
+    )
     step_source_key = f"{safe_prefix}_new_step_source"
     source_options = ["gen step"] + list(snippet_option_map.keys())
     if st.session_state.get(step_source_key) not in source_options:
