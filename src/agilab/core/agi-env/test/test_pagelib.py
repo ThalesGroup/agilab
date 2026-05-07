@@ -343,7 +343,7 @@ def test_run_success(monkeypatch):
 
     pagelib.run("echo 'ok'", cwd="/tmp")
 
-    assert recorded == {"command": "echo 'ok'", "cwd": "/tmp"}
+    assert recorded == {"command": ["echo", "ok"], "cwd": "/tmp"}
 
 
 def test_run_with_output_raises_jump_to_main_when_module_is_missing(tmp_path, monkeypatch):
@@ -945,12 +945,12 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
         expected_artifacts.resolve().as_uri(),
     )
     assert env.MLFLOW_TRACKING_DIR == str(expected_dir)
-    assert sys.executable in launched["call"][0]
-    assert "mlflow server" in launched["call"][0]
-    assert pagelib._sqlite_uri_for_path(expected_db) in launched["call"][0]
-    assert expected_artifacts.resolve().as_uri() in launched["call"][0]
-    assert "--port 50123" in launched["call"][0]
-    assert "--host 127.0.0.1" in launched["call"][0]
+    command = launched["call"][0]
+    assert command[:4] == [sys.executable, "-m", "mlflow", "server"]
+    assert command[command.index("--backend-store-uri") + 1] == pagelib._sqlite_uri_for_path(expected_db)
+    assert command[command.index("--default-artifact-root") + 1] == expected_artifacts.resolve().as_uri()
+    assert command[command.index("--port") + 1] == "50123"
+    assert command[command.index("--host") + 1] == "127.0.0.1"
     assert fake_st.session_state["server_started"] is True
     assert fake_st.session_state["mlflow_port"] == 50123
 
@@ -1560,8 +1560,8 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
     stdout_value = pagelib.subproc("echo hello", tmp_path / ".." / tmp_path.name)
 
     assert stdout_value == "stream-output"
-    assert calls["command"] == "echo hello"
-    assert calls["shell"] is True
+    assert calls["command"] == ["echo", "hello"]
+    assert calls["shell"] is False
     assert calls["cwd"] == os.path.abspath(tmp_path / ".." / tmp_path.name)
     assert calls["stdout"] == subprocess.PIPE
     assert calls["stderr"] == subprocess.STDOUT
@@ -1901,8 +1901,9 @@ def test_activate_gpt_oss_handles_missing_package_and_success(monkeypatch):
     monkeypatch.setattr(pagelib, "subproc", lambda command, cwd: launched.setdefault("call", (command, cwd)))
 
     assert pagelib.activate_gpt_oss(env) is True
-    assert "gpt_oss.responses_api.serve" in launched["call"][0]
-    assert "--inference-backend stub" in launched["call"][0]
+    command = launched["call"][0]
+    assert "gpt_oss.responses_api.serve" in command
+    assert command[command.index("--inference-backend") + 1] == "stub"
     assert fake_st.session_state["gpt_oss_server_started"] is True
     assert fake_st.session_state["gpt_oss_endpoint"] == "http://127.0.0.1:50124/v1/responses"
     assert env.envars["GPT_OSS_ENDPOINT"] == "http://127.0.0.1:50124/v1/responses"
@@ -2028,7 +2029,7 @@ def test_pagelib_io_helpers_cover_ports_browser_json_and_run_agi(monkeypatch, tm
     result = pagelib.run_agi(["a", "b", "await Agi.demo_run()"], path=venv_path)
     assert result == "ok"
     assert captured["cwd"] == str(target_root)
-    assert "demo_run_demo_project.py" in captured["cmd"]
+    assert any(str(part).endswith("demo_run_demo_project.py") for part in captured["cmd"])
 
     restricted = tmp_path / "restricted"
     real_exists = Path.exists
@@ -2595,9 +2596,10 @@ def test_activate_gpt_oss_transformers_backend_retries_busy_port_and_keeps_activ
     env = SimpleNamespace(envars={})
 
     assert pagelib.activate_gpt_oss(env) is True
-    assert "--inference-backend transformers" in launched["call"][0]
-    assert "--checkpoint demo-checkpoint" in launched["call"][0]
-    assert launched["call"][0].endswith("--temperature 0.1")
+    command = launched["call"][0]
+    assert command[command.index("--inference-backend") + 1] == "transformers"
+    assert command[command.index("--checkpoint") + 1] == "demo-checkpoint"
+    assert command[-2:] == ["--temperature", "0.1"]
     assert fake_st.session_state["gpt_oss_port"] == 50132
     assert fake_st.session_state["gpt_oss_checkpoint_active"] == "demo-checkpoint"
     assert fake_st.session_state["gpt_oss_extra_args_active"] == "--temperature 0.1"

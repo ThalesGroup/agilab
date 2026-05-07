@@ -58,7 +58,7 @@ def test_run_success(monkeypatch):
 
     pagelib.run("echo 'ok'", cwd="/tmp")
 
-    assert recorded == {"command": "echo 'ok'", "cwd": "/tmp"}
+    assert recorded == {"command": ["echo", "ok"], "cwd": "/tmp"}
 
 
 def test_run_failure_exits(monkeypatch):
@@ -248,11 +248,12 @@ def test_activate_mlflow_initializes_default_experiment(tmp_path, monkeypatch):
         expected_artifacts.resolve().as_uri(),
     )
     assert env.MLFLOW_TRACKING_DIR == str(expected_dir)
-    assert "mlflow server" in launched["call"][0]
-    assert pagelib._sqlite_uri_for_path(expected_db) in launched["call"][0]
-    assert expected_artifacts.resolve().as_uri() in launched["call"][0]
-    assert "--port 50123" in launched["call"][0]
-    assert "--host 127.0.0.1" in launched["call"][0]
+    command = launched["call"][0]
+    assert command[:4] == [sys.executable, "-m", "mlflow", "server"]
+    assert command[command.index("--backend-store-uri") + 1] == pagelib._sqlite_uri_for_path(expected_db)
+    assert command[command.index("--default-artifact-root") + 1] == expected_artifacts.resolve().as_uri()
+    assert command[command.index("--port") + 1] == "50123"
+    assert command[command.index("--host") + 1] == "127.0.0.1"
     assert fake_st.session_state["server_started"] is True
     assert fake_st.session_state["mlflow_port"] == 50123
 

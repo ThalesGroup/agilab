@@ -54,7 +54,7 @@ def _force_remove(path: Path, *, env_logger: Any | None = None) -> None:
     if path.exists():
         if env_logger is not None:
             env_logger.warn("Path {} still exists, using subprocess cmd to delete it.".format(path))
-        subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(path)], shell=True, check=False)
+        subprocess.run(["cmd", "/c", "rmdir", "/s", "/q", str(path)], check=False)
 
 
 def _cleanup_editable(site_packages: Path) -> None:

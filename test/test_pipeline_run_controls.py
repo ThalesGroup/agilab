@@ -491,7 +491,7 @@ def test_pipeline_run_controls_run_all_steps_executes_runpy_and_agi_run(tmp_path
     assert any("Run pipeline completed: 2 step(s) executed." in line for line in fake_st.session_state["page__run_logs"])
     assert any("No such file or directory" in line for line in fake_st.session_state["page__run_logs"])
     assert any("AGI_CLUSTER_SHARE" in line for line in fake_st.session_state["page__run_logs"])
-    assert stream_calls[0]["cmd"].startswith("pythonX ")
+    assert stream_calls[0]["cmd"][0] == "pythonX"
     assert stream_calls[0]["cwd"] == steps_dir.parent.resolve()
     assert stream_calls[0]["extra_env"]["MLFLOW_RUN_ID"] == "run-3"
     assert saved_exports == [str(export_file), str(export_file)]
@@ -771,7 +771,7 @@ def test_pipeline_run_controls_run_all_steps_uses_active_app_for_agi_engine(tmp_
     )
 
     assert stream_calls
-    assert stream_calls[0]["cmd"].startswith("python-for-active_app_runtime ")
+    assert stream_calls[0]["cmd"][0] == "python-for-active_app_runtime"
     assert fake_st.session_state["lab_selected_venv"] == ""
     assert any(
         "engine=agi.run, env=agi.run:active_app_runtime" in line

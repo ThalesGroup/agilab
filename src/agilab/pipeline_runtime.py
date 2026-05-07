@@ -9,7 +9,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, List, Optional, Pattern, Type
+from typing import Any, Callable, Dict, List, Optional, Pattern, Sequence, Type
 
 from agi_env import AgiEnv
 from agi_env import mlflow_store
@@ -348,7 +348,7 @@ def is_valid_runtime_root(venv_root: str | Path | None) -> bool:
 def stream_run_command(
     env: AgiEnv,
     index_page: str,
-    cmd: str,
+    cmd: str | Sequence[str],
     cwd: Path,
     *,
     push_run_log: Callable[[str, str, Optional[Any]], None],
@@ -358,7 +358,7 @@ def stream_run_command(
     extra_env: Optional[Dict[str, str]] = None,
     timeout: Optional[int] = None,
 ) -> str:
-    """Run a shell command and stream its output into the run log."""
+    """Run a command and stream its output into the run log."""
     return _stream_run_command_impl(
         env,
         index_page,

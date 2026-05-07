@@ -15,6 +15,28 @@ warn() {
 }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+run_remote_shell_installer() {
+  local url="$1"
+  local label="$2"
+  local interpreter="${3:-sh}"
+  local safe_label
+  safe_label="$(printf '%s' "$label" | tr -cs 'A-Za-z0-9_.-' '_' | sed 's/^_//;s/_$//')"
+  local script_path
+  script_path="$(mktemp "${TMPDIR:-/tmp}/agilab-${safe_label:-installer}.XXXXXX.sh")" || return 1
+
+  echo -e "${BLUE}Downloading ${label} installer from ${url}...${NC}"
+  if ! curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$script_path"; then
+    rm -f "$script_path"
+    return 1
+  fi
+  chmod 700 "$script_path"
+  if ! "$interpreter" "$script_path"; then
+    rm -f "$script_path"
+    return 1
+  fi
+  rm -f "$script_path"
+}
+
 # -----------------------------
 # Config
 # -----------------------------
@@ -45,6 +67,7 @@ ENV_FILE="$HOME/.agilab/.env"
 FORCE_REBUILD="${FORCE_REBUILD:-0}"  # NEW: Allow forcing rebuild
 SKIP_OFFLINE="${SKIP_OFFLINE:-0}"    # NEW: Skip offline deps for faster installs
 INSTALL_LOCAL_MODELS="${INSTALL_LOCAL_MODELS:-}"
+DRY_RUN=0
 
 
 if [[ -f "$AGI_PATH_FILE" ]]; then
@@ -55,15 +78,40 @@ else
 fi
 
 usage() {
-  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--skip-offline] [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
+  echo "Usage: $0 [--source local|pypi|testpypi] [--version X.Y.Z] [--force-rebuild] [--dry-run] [--skip-offline] [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
   echo ""
   echo "Options:"
   echo "  --source         Installation source (local, pypi, testpypi)"
   echo "  --version        Specific version to install"
   echo "  --force-rebuild  Force rebuild even if venv exists"
+  echo "  --dry-run        Print the end-user install plan without installing dependencies"
   echo "  --skip-offline   Skip offline assistant (torch, transformers) for faster install"
   echo "  --install-local-models  Install requested Ollama models (gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini)"
   exit 1
+}
+
+print_dry_run_plan() {
+  echo "AGILAB end-user installer dry-run plan"
+  echo "agi_space: ${AGI_SPACE}"
+  echo "apps_root: ${APPS_ROOT}"
+  echo "source: ${SOURCE}"
+  echo "version: ${VERSION:-<latest/resolved>}"
+  echo "force_rebuild: ${FORCE_REBUILD}"
+  echo "skip_offline: ${SKIP_OFFLINE}"
+  echo "local_models: ${INSTALL_LOCAL_MODELS:-<none>}"
+  echo "steps_would_run:"
+  echo "  - prepare ${AGI_SPACE}/.venv"
+  echo "  - install ${PACKAGES}"
+  echo "  - write AGILAB user environment"
+  if [[ "${SOURCE}" == "local" ]]; then
+    echo "  - install editable local packages from ${AGI_INSTALL_PATH:-${REPO_SRC_DIR}}"
+  fi
+  if (( ! SKIP_OFFLINE )); then
+    echo "  - install offline assistant extras unless disabled"
+  fi
+  if [[ -n "${INSTALL_LOCAL_MODELS}" ]]; then
+    echo "  - install requested local Ollama model families"
+  fi
 }
 
 normalize_local_model_name() {
@@ -139,7 +187,7 @@ ensure_ollama_runtime() {
   elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
     if ! command -v ollama >/dev/null 2>&1; then
       echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
-      if curl -fsSL https://ollama.com/install.sh | sh; then
+      if run_remote_shell_installer "https://ollama.com/install.sh" "Ollama"; then
         echo -e "${GREEN}Ollama installed.${NC}"
       else
         warn "Failed to install Ollama via script. Install manually from https://ollama.com."
@@ -236,6 +284,7 @@ while [[ $# -gt 0 ]]; do
     --source) SOURCE="$2"; shift 2 ;;
     --version) VERSION="$2"; VERSION_ARG_SET=1; shift 2 ;;
     --force-rebuild) FORCE_REBUILD=1; shift ;;
+    --dry-run) DRY_RUN=1; shift ;;
     --skip-offline) SKIP_OFFLINE=1; shift ;;
     --install-local-models) INSTALL_LOCAL_MODELS="$2"; shift 2 ;;
     --install-local-models=*) INSTALL_LOCAL_MODELS="${1#*=}"; shift ;;
@@ -243,6 +292,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 INSTALL_LOCAL_MODELS="$(normalize_local_models_csv "$INSTALL_LOCAL_MODELS")"
+
+if (( DRY_RUN )); then
+  print_dry_run_plan
+  exit 0
+fi
 
 if [[ "$SOURCE" == "local" ]]; then
   if [[ -z "${AGI_INSTALL_PATH}" || ! -d "${AGI_INSTALL_PATH}" ]]; then

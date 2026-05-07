@@ -1,12 +1,14 @@
 import asyncio
 import logging
 import os
+import shlex
 import sys
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeAlias, Union
 
 from agi_cluster.agi_distributor import runtime_misc_support
+from agi_cluster.agi_distributor import background_jobs_support
 from agi_cluster.agi_distributor.run_request_support import RunRequest
 
 
@@ -498,16 +500,26 @@ async def _launch_scheduler_process(
     if env.is_local(agi_cls._scheduler_ip):
         await sleep_fn(1)
         local_prefix = cmd_prefix or env.export_local_bin or ""
-        cmd = (
-            f"{local_prefix}{dask_env}{env.uv} run --no-sync --project {env.wenv_abs} "
-            f"dask scheduler "
-            f"--port {agi_cls._scheduler_port} "
-            f"--host {agi_cls._scheduler_ip} "
-            f"--dashboard-address :0 "
-            f"--pid-file {wenv_abs.parent / 'dask_scheduler.pid'} "
-        )
-        log.info("Starting dask scheduler locally: %s", cmd)
-        result = agi_cls._exec_bg(cmd, env.app)
+        cmd = [
+            *shlex.split(str(env.uv), posix=os.name != "nt"),
+            "run",
+            "--no-sync",
+            "--project",
+            str(env.wenv_abs),
+            "dask",
+            "scheduler",
+            "--port",
+            str(agi_cls._scheduler_port),
+            "--host",
+            str(agi_cls._scheduler_ip),
+            "--dashboard-address",
+            ":0",
+            "--pid-file",
+            str(wenv_abs.parent / "dask_scheduler.pid"),
+        ]
+        process_env = background_jobs_support.background_env_from_prefixes(local_prefix, dask_env)
+        log.info("Starting dask scheduler locally: %s", shlex.join(cmd))
+        result = agi_cls._exec_bg(cmd, env.app, env=process_env)
         if result:
             log.info(result)
         return

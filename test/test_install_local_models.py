@@ -232,6 +232,37 @@ def test_installers_expose_and_wire_install_local_models_flag() -> None:
     assert 'install_requested_local_models "${INSTALL_LOCAL_MODELS}"' in enduser_text
 
 
+def test_installers_expose_dry_run_plans_before_dependency_installation() -> None:
+    root_text = INSTALL_SH.read_text(encoding="utf-8")
+    enduser_text = INSTALL_ENDUSER_SH.read_text(encoding="utf-8")
+
+    for script_text in (root_text, enduser_text):
+        assert "--dry-run" in script_text
+        assert "dry-run plan" in script_text
+        assert "steps_would_run:" in script_text
+        assert "exit 0" in script_text
+
+    assert root_text.index("if (( DRY_RUN )); then") < root_text.index("find . \\(")
+    assert enduser_text.index("if (( DRY_RUN )); then") < enduser_text.index("if [[ \"$SOURCE\" == \"local\" ]]")
+
+
+def test_shell_installers_stage_remote_scripts_before_execution() -> None:
+    root_text = INSTALL_SH.read_text(encoding="utf-8")
+    enduser_text = INSTALL_ENDUSER_SH.read_text(encoding="utf-8")
+
+    for script_text in (root_text, enduser_text):
+        assert "run_remote_shell_installer()" in script_text
+        assert "curl --proto '=https' --tlsv1.2 -fsSL" in script_text
+        assert "curl -fsSL https://ollama.com/install.sh | sh" not in script_text
+        assert "curl -LsSf https://astral.sh/uv/install.sh | sh" not in script_text
+        assert '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' not in script_text
+
+    assert (
+        'run_remote_shell_installer "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" '
+        '"Homebrew" "/bin/bash"'
+    ) in root_text
+
+
 def test_windows_enduser_local_source_installs_core_packages_with_dependencies() -> None:
     ps1_text = INSTALL_ENDUSER_PS1.read_text(encoding="utf-8")
 

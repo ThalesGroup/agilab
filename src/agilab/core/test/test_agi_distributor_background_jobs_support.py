@@ -20,13 +20,14 @@ def test_background_process_manager_tracks_running_completed_and_dead_jobs(monke
 
     processes = [FakeProcess(None), FakeProcess(0), FakeProcess(3)]
 
-    def fake_popen(cmd, shell, cwd, start_new_session):
+    def fake_popen(cmd, shell, cwd, start_new_session, env):
         popen_calls.append(
             {
                 "cmd": cmd,
                 "shell": shell,
                 "cwd": cwd,
                 "start_new_session": start_new_session,
+                "env": env,
             }
         )
         return processes.pop(0)
@@ -41,6 +42,8 @@ def test_background_process_manager_tracks_running_completed_and_dead_jobs(monke
     assert running.num == 0
     assert completed.num == 1
     assert dead.num == 2
+    assert popen_calls[0]["cmd"] == ["echo", "running"]
+    assert popen_calls[0]["shell"] is False
     assert popen_calls[0]["cwd"] == str(tmp_path)
     assert popen_calls[2]["cwd"] is None
     assert manager.result(running.num) is running.process
@@ -110,12 +113,26 @@ def test_background_job_manager_uses_subprocess_and_real_directories_only(monkey
 
     assert first.num == 0
     assert second.num == 1
-    assert calls[0][0] == "echo test"
-    assert calls[0][1]["shell"] is True
+    assert calls[0][0] == ["echo", "test"]
+    assert calls[0][1]["shell"] is False
     assert calls[0][1]["cwd"] is None
     assert calls[0][1]["start_new_session"] is True
     assert calls[1][1]["cwd"] == str(tmp_path)
     assert jobs.result(second.num) is second.result
+
+
+def test_background_env_from_prefixes_translates_export_and_assignments(monkeypatch):
+    monkeypatch.setenv("PATH", "/usr/bin")
+    monkeypatch.setenv("HOME", "/home/demo")
+
+    env = background_jobs_support.background_env_from_prefixes(
+        'export PATH="$HOME/.local/bin:$PATH";',
+        "DASK_DISTRIBUTED__LOGGING__distributed=critical ",
+        base_env={"PATH": "/usr/bin", "HOME": "/home/demo"},
+    )
+
+    assert env["PATH"] == "/home/demo/.local/bin:/usr/bin"
+    assert env["DASK_DISTRIBUTED__LOGGING__distributed"] == "critical"
 
 
 def test_exec_bg_raises_when_background_job_fails():

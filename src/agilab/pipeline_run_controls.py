@@ -667,7 +667,7 @@ def run_all_steps(
                             output = stream_run_command_fn(
                                 env,
                                 index_page_str,
-                                f"{python_cmd} {script_path}",
+                                [str(python_cmd), str(script_path)],
                                 cwd=target_base,
                                 placeholder=log_placeholder,
                                 extra_env=step_env,

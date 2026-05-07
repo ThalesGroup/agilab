@@ -640,9 +640,9 @@ class BaseWorker(abc.ABC):
             net_path = normalize_path("\\\\127.0.0.1\\" + str(path))
             try:
                 # your nfs account in order to mount it as net drive on windows
-                cmd = f'net use Z: "{net_path}" /user:your-name your-password'
+                cmd = ["net", "use", "Z:", net_path, "/user:your-name", "your-password"]
                 logger.info(cmd)
-                subprocess.run(cmd, shell=True, check=True)
+                subprocess.run(cmd, check=True)
             except (OSError, subprocess.CalledProcessError) as e:
                 logger.error(f"Mount failed: {e}")
         return BaseWorker._join(BaseWorker.expand(path1), path2)
@@ -711,9 +711,9 @@ class BaseWorker(abc.ABC):
                     mapped = Path(resolved_str)
                 net_path = normalize_path(f"\\\\127.0.0.1\\{mapped}")
                 try:
-                    cmd = f'net use Z: "{net_path}" /user:your-credentials'
+                    cmd = ["net", "use", "Z:", net_path, "/user:your-credentials"]
                     logger.info(cmd)
-                    subprocess.run(cmd, shell=True, check=True)
+                    subprocess.run(cmd, check=True)
                 except (OSError, subprocess.CalledProcessError) as exc:
                     logger.info("Failed to map network drive: %s", exc)
             return resolved_str

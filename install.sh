@@ -42,6 +42,28 @@ export PATH="$HOME/.local/bin:$PATH"
 
 UV="uv --preview-features extra-build-dependencies"
 
+run_remote_shell_installer() {
+    local url="$1"
+    local label="$2"
+    local interpreter="${3:-sh}"
+    local safe_label
+    safe_label="$(printf '%s' "$label" | tr -cs 'A-Za-z0-9_.-' '_' | sed 's/^_//;s/_$//')"
+    local script_path
+    script_path="$(mktemp "${TMPDIR:-/tmp}/agilab-${safe_label:-installer}.XXXXXX.sh")" || return 1
+
+    echo -e "${BLUE}Downloading ${label} installer from ${url}...${NC}"
+    if ! curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$script_path"; then
+        rm -f "$script_path"
+        return 1
+    fi
+    chmod 700 "$script_path"
+    if ! "$interpreter" "$script_path"; then
+        rm -f "$script_path"
+        return 1
+    fi
+    rm -f "$script_path"
+}
+
 default_agi_share_user() {
     local raw_user="${AGILAB_SHARE_USER:-${USER:-}}"
     if [[ -z "$raw_user" ]]; then
@@ -82,6 +104,7 @@ case "$SKIP_OFFLINE_NORMALIZED" in
     *) SKIP_OFFLINE=0 ;;
 esac
 INSTALL_LOCAL_MODELS="${INSTALL_LOCAL_MODELS:-}"
+DRY_RUN=0
 export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL INSTALLED_APPS_FILE
 
 read_env_var() {
@@ -410,7 +433,7 @@ ensure_ollama_runtime() {
     elif [[ "$OSTYPE" == "linux-gnu"* || "$OSTYPE" == "linux"* ]]; then
         if ! command -v ollama >/dev/null 2>&1; then
             echo -e "${BLUE}Installing Ollama (Linux)...${NC}"
-            if curl -fsSL https://ollama.com/install.sh | sh; then
+            if run_remote_shell_installer "https://ollama.com/install.sh" "Ollama"; then
                 echo -e "${GREEN}Ollama installed.${NC}"
             else
                 warn "Failed to install Ollama via script. Install manually from https://ollama.com."
@@ -660,8 +683,8 @@ install_dependencies() {
 
     if ! command -v uv > /dev/null 2>&1; then
         echo -e "${GREEN}Installing uv...${NC}"
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        source "$HOME/.local/bin/env"
+        run_remote_shell_installer "https://astral.sh/uv/install.sh" "uv"
+        [[ -f "$HOME/.local/bin/env" ]] && source "$HOME/.local/bin/env"
     fi
 
     if command -v apt >/dev/null 2>&1; then
@@ -685,7 +708,7 @@ install_dependencies() {
         brew cleanup
     else
         echo -e "${BLUE}Installing Homebrew.${NC}"
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        run_remote_shell_installer "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" "Homebrew" "/bin/bash"
         echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
         eval "$(/opt/homebrew/bin/brew shellenv)"
         brew install wget curl unzip openssl readline sqlite libxml2 xz hudochenkov/sshpass/sshpass tree Graphviz sshpass
@@ -1126,8 +1149,55 @@ install_pycharm_script() {
     $UV run -p "$AGI_PYTHON_VERSION" python pycharm/setup_pycharm.py || warn "pycharm/install-apps-script.py failed or not found; continuing."
 }
 
+resolve_cli_path_arg() {
+    local raw="$1"
+    case "$raw" in
+        "~") printf '%s\n' "$HOME" ;;
+        "~/"*) printf '%s/%s\n' "$HOME" "${raw#"~/"}" ;;
+        /*) printf '%s\n' "$raw" ;;
+        *) printf '%s/%s\n' "$(pwd -P)" "$raw" ;;
+    esac
+}
+
+print_dry_run_plan() {
+    local apps_plan
+    if (( INSTALL_APPS_FLAG )); then
+        apps_plan="${CUSTOM_INSTALL_APPS:-default apps selection}"
+    else
+        apps_plan="skipped"
+    fi
+
+    echo "AGILAB installer dry-run plan"
+    echo "install_path: ${AGI_INSTALL_PATH}"
+    echo "source: ${SOURCE}"
+    echo "agi_share_dir: ${AGI_SHARE_DIR:-<default clustershare>}"
+    echo "agi_local_dir: ${AGI_LOCAL_DIR:-${DEFAULT_LOCAL_SHARE:-<default localshare>}}"
+    echo "apps_repository: ${APPS_REPOSITORY:-<not set>}"
+    echo "install_apps: ${apps_plan}"
+    echo "test_root: ${TEST_ROOT_FLAG}"
+    echo "test_core: ${TEST_CORE_FLAG}"
+    echo "test_apps: ${TEST_APPS_FLAG}"
+    echo "skip_offline: ${SKIP_OFFLINE}"
+    echo "local_models: ${INSTALL_LOCAL_MODELS:-<none>}"
+    echo "non_interactive: ${NON_INTERACTIVE}"
+    echo "steps_would_run:"
+    echo "  - check internet and validation-environment guard"
+    echo "  - prepare AGI share/local directories and write ~/.agilab/.env"
+    echo "  - install system and Python dependencies required by selected profiles"
+    echo "  - install AGILAB core packages and root package"
+    echo "  - install selected apps and run requested tests"
+    echo "  - configure PyCharm/launch matrix and optional end-user space"
+    if (( ! SKIP_OFFLINE )); then
+        echo "  - install offline assistant extras unless disabled"
+    fi
+    if [[ -n "$INSTALL_LOCAL_MODELS" ]]; then
+        echo "  - install requested local Ollama model families"
+    fi
+}
+
 usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
+  echo "       [--dry-run]       Print the install plan without changing environments or installing dependencies"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
   echo "       [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
     exit 1
@@ -1138,11 +1208,33 @@ usage() {
 # Script Execution
 # ================================
 
+for arg in "$@"; do
+    if [[ "$arg" == "--dry-run" ]]; then
+        DRY_RUN=1
+        break
+    fi
+done
+
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --agi-share-dir)       AGI_SHARE_DIR="$2"; shift 2;;
-        --install-path)        mkdir -p "$2"; AGI_INSTALL_PATH=$(realpath "$2"); shift 2;;
-        --apps-repository)     APPS_REPOSITORY=$(realpath "$2"); shift 2;;
+        --install-path)
+            if (( DRY_RUN )); then
+                AGI_INSTALL_PATH="$(resolve_cli_path_arg "$2")"
+            else
+                mkdir -p "$2"
+                AGI_INSTALL_PATH=$(realpath "$2")
+            fi
+            shift 2
+            ;;
+        --apps-repository)
+            if (( DRY_RUN )); then
+                APPS_REPOSITORY="$(resolve_cli_path_arg "$2")"
+            else
+                APPS_REPOSITORY=$(realpath "$2")
+            fi
+            shift 2
+            ;;
         --source)             SOURCE="$2"; shift 2;;
         --install-apps)
             INSTALL_APPS_FLAG=1
@@ -1197,6 +1289,7 @@ while [[ "$#" -gt 0 ]]; do
             ;;
         --skip-offline)       SKIP_OFFLINE=1; shift;;
         --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
+        --dry-run)            shift;;
         --help|-h) usage && exit;;
         *) echo -e "${RED}Unknown option: $1${NC}" && usage;;
     esac
@@ -1204,6 +1297,11 @@ done
 INSTALL_LOCAL_MODELS="$(normalize_local_models_csv "$INSTALL_LOCAL_MODELS")"
 export CLUSTER_CREDENTIALS
 export APPS_REPOSITORY
+
+if (( DRY_RUN )); then
+    print_dry_run_plan
+    exit 0
+fi
 
 # Confirm or override AGI_SHARE_DIR when interactive (relative paths are resolved under \$HOME)
 if [[ -t 0 ]] && (( ! NON_INTERACTIVE )); then

@@ -103,7 +103,7 @@ async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp
     monkeypatch.setattr(
         AGI,
         "_exec_bg",
-        staticmethod(lambda cmd, cwd: calls["bg"].append((cmd, cwd))),
+        staticmethod(lambda cmd, cwd, **kwargs: calls["bg"].append((cmd, cwd, kwargs))),
     )
 
     ok = await entrypoint_support.start_scheduler(
@@ -118,6 +118,8 @@ async def test_start_scheduler_local_switches_port_and_connects(monkeypatch, tmp
     assert AGI._scheduler_port == 8899
     assert AGI._dask_client == "fake-client"
     assert AGI._install_done is True
+    assert calls["bg"][0][0][:5] == ["uv", "run", "--no-sync", "--project", str(AGI.env.wenv_abs)]
+    assert calls["bg"][0][2]["env"]["PATH"].startswith(str(Path.home() / ".local" / "bin"))
     assert calls["bg"]
     assert any(entry[0] == "127.0.0.1_CMD_PREFIX" for entry in calls["set_env"])
 
