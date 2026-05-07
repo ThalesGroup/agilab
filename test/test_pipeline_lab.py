@@ -250,6 +250,7 @@ def _make_lab_deps(**overrides):
         rerun_fragment_or_app=lambda *_args, **_kwargs: None,
         bump_history_revision=lambda *_args, **_kwargs: None,
         ask_gpt=lambda *_args, **_kwargs: ["", "generated question", "model", "print('ok')"],
+        configure_assistant_engine=lambda *_args, **_kwargs: None,
         maybe_autofix_generated_code=lambda *_args, **_kwargs: None,
         load_df_cached=lambda *_args, **_kwargs: None,
         ensure_safe_service_template=lambda *_args, **_kwargs: None,
@@ -830,6 +831,124 @@ def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch
     assert ("rerun", "called") in fake_st.messages
 
 
+def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    calls: list[Path] = []
+
+    def _fake_queue_run(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append(run_root)
+        run_root.mkdir(parents=True, exist_ok=True)
+        return {
+            "summary_metrics_path": "queue/summary.json",
+            "reduce_artifact_path": "queue/reduce.json",
+            "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
+        }
+
+    monkeypatch.setattr(pipeline_lab, "run_global_dag_queue_baseline_app", _fake_queue_run)
+    env = SimpleNamespace(app="uav_queue_project", target="uav_queue_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+    assert state["summary"]["completed_unit_ids"] == ["queue_baseline"]
+    assert state["summary"]["runnable_unit_ids"] == ["relay_followup"]
+    assert state["summary"]["available_artifact_ids"] == ["queue_metrics", "queue_reduce_summary"]
+    assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
+    assert state["provenance"]["real_app_execution"] is True
+    assert state["provenance"]["real_execution_scope"] == "controlled_uav_queue_to_relay_stage"
+    queue = next(unit for unit in state["units"] if unit["id"] == "queue_baseline")
+    relay = next(unit for unit in state["units"] if unit["id"] == "relay_followup")
+    assert queue["dispatch_status"] == "completed"
+    assert queue["execution_mode"] == "real_app_entry"
+    assert queue["real_execution"]["summary_metrics"]["packets_delivered"] == 7
+    assert queue["produces"] == [
+        {"artifact": "queue_metrics", "kind": "summary_metrics", "path": "queue/summary.json"}
+    ]
+    assert relay["dispatch_status"] == "runnable"
+    assert relay["unblocked_by"] == ["queue_metrics"]
+    assert any(kind == "success" and "queue_baseline" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+
+
+def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    state_path = tmp_path / ".agilab" / "runner_state.json"
+    proof = pipeline_lab.persist_runner_state(
+        repo_root=Path.cwd(),
+        output_path=state_path,
+        dag_path=Path("docs/source/data/multi_app_dag_sample.json"),
+    )
+    state = pipeline_lab._run_next_controlled_global_dag_stage(
+        proof.runner_state,
+        repo_root=Path.cwd(),
+        dag_path=Path.cwd() / "docs/source/data/multi_app_dag_sample.json",
+        lab_dir=tmp_path,
+        run_queue_fn=lambda **_kwargs: {
+            "summary_metrics_path": "queue/summary.json",
+            "reduce_artifact_path": "queue/reduce.json",
+            "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
+        },
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    ).state
+    pipeline_lab.write_runner_state(state_path, state)
+    relay_calls: list[dict[str, object]] = []
+
+    def _fake_relay_run(*, repo_root: Path, run_root: Path, queue_result: dict[str, object]) -> dict[str, object]:
+        relay_calls.append({"run_root": run_root, "queue_result": queue_result})
+        return {
+            "summary_metrics_path": "relay/summary.json",
+            "reduce_artifact_path": "relay/reduce.json",
+            "summary_metrics": {"packets_generated": 5, "packets_delivered": 5},
+            "consumed_artifacts": [
+                {
+                    "artifact": "queue_metrics",
+                    "path": str(queue_result.get("summary_metrics_path", "")),
+                    "producer": "queue_baseline",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(pipeline_lab, "run_global_dag_relay_followup_app", _fake_relay_run)
+    env = SimpleNamespace(app="uav_queue_project", target="uav_queue_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(state_path)
+    assert relay_calls == [
+        {
+            "run_root": tmp_path / ".agilab" / "global_dag_real_runs" / "relay_followup",
+            "queue_result": state["units"][0]["real_execution"],
+        }
+    ]
+    assert state["run_status"] == "completed"
+    assert state["summary"]["completed_unit_ids"] == ["queue_baseline", "relay_followup"]
+    assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline", "relay_followup"]
+    assert set(state["summary"]["available_artifact_ids"]) == {
+        "queue_metrics",
+        "queue_reduce_summary",
+        "relay_metrics",
+        "relay_reduce_summary",
+    }
+    relay = next(unit for unit in state["units"] if unit["id"] == "relay_followup")
+    assert relay["dispatch_status"] == "completed"
+    assert relay["real_execution"]["consumed_artifacts"][0]["path"] == "queue/summary.json"
+
+
+def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp_path):
+    selected = "docs/source/data/multi_app_dag_flight_sample.json"
+    fake_st = _FakeStreamlit({"demo_global_runner_library": selected})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
+    assert any("other DAGs stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
+
+
 def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         {
@@ -1207,6 +1326,24 @@ def test_display_lab_tab_empty_pipeline_warns_when_prompt_missing(monkeypatch, t
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
 
     assert ("warning", "Enter a prompt before generating code.") in fake_st.messages
+
+
+def test_display_lab_tab_renders_assistant_engine_next_to_first_prompt(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit({"demo": [0, "", "", "", "", "", 0]})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+
+    calls: list[object] = []
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        configure_assistant_engine=lambda _env, *, container=None: calls.append(container),
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert calls == [fake_st]
+    assert "Ask code generator:" in fake_st.text_area_labels
 
 
 def test_display_lab_tab_empty_pipeline_generates_first_step_with_runtime(monkeypatch, tmp_path):

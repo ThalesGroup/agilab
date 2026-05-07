@@ -273,10 +273,14 @@ def _agi_gui_coverage_combine() -> CommandSpec:
     ]
     combine_code = (
         "from pathlib import Path\n"
-        "import subprocess, sys\n"
+        "import subprocess, sys, time\n"
         f"paths = {chunk_paths!r}\n"
-        "existing = [path for path in paths if Path(path).exists()]\n"
-        "missing = [path for path in paths if not Path(path).exists()]\n"
+        "missing = []\n"
+        "for _ in range(30):\n"
+        "    missing = [path for path in paths if not Path(path).exists()]\n"
+        "    if not missing:\n"
+        "        break\n"
+        "    time.sleep(0.2)\n"
         "if missing:\n"
         "    print('Missing agi-gui coverage chunks: ' + ', '.join(missing))\n"
         "    sys.exit(1)\n"

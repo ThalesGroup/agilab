@@ -1924,16 +1924,75 @@ def _project_software_metric_summary(project_root: Path | None) -> dict[str, int
     return summary
 
 
+def _ast_base_name(node: ast.expr) -> str:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    if isinstance(node, ast.Subscript):
+        return _ast_base_name(node.value)
+    if isinstance(node, ast.Call):
+        return _ast_base_name(node.func)
+    return ""
+
+
+def _project_worker_class_summary(project_root: Path | None) -> tuple[str, str]:
+    if project_root is None:
+        return "unknown", "project root missing"
+
+    candidate_roots = [project_root] if project_root.exists() else []
+    builtin_root = project_root.parent / "builtin" / project_root.name
+    if builtin_root.exists() and builtin_root not in candidate_roots:
+        candidate_roots.append(builtin_root)
+    if not candidate_roots:
+        return "unknown", "project root missing"
+
+    discovered: list[tuple[str, str, Path]] = []
+    fallback_base_workers: list[tuple[str, str, Path]] = []
+    for root in candidate_roots:
+        for path in _iter_project_metric_files(root):
+            if path.suffix.lower() != ".py" or _is_test_file(path, root):
+                continue
+            try:
+                tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+            except (OSError, SyntaxError):
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.ClassDef):
+                    continue
+                bases = [_ast_base_name(base) for base in node.bases]
+                worker_bases = [base for base in bases if base.endswith("Worker") and base != "BaseWorker"]
+                if node.name.endswith("Worker") or worker_bases:
+                    base_name = next((base for base in worker_bases if base != node.name), None)
+                    discovered.append((base_name or "Worker", node.name, path))
+                elif "BaseWorker" in bases:
+                    fallback_base_workers.append(("BaseWorker", node.name, path))
+        if discovered:
+            break
+
+    if not discovered and fallback_base_workers:
+        discovered = fallback_base_workers
+    if not discovered:
+        return "unknown", "no worker class found"
+
+    discovered.sort(key=lambda item: (0 if item[1].endswith("Worker") else 1, str(item[2]), item[1]))
+    base_name, class_name, _path = discovered[0]
+    extra = len(discovered) - 1
+    caption = class_name if extra == 0 else f"{class_name} + {extra} more"
+    return base_name, caption
+
+
 def _render_project_software_metrics(env) -> None:
     active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
     summary = _project_software_metric_summary(active_app)
     if summary is None:
         _render_project_metric("Software metrics", "missing", _safe_display_path(active_app))
         return
+    worker_class, worker_caption = _project_worker_class_summary(active_app)
     with st.container(border=True):
         top_cols = st.columns(3)
         with top_cols[0]:
-            _render_project_metric("Source files", str(summary["source_files"]), "Python modules excluding tests")
+            _render_project_metric("Worker class", worker_class, worker_caption)
         with top_cols[1]:
             _render_project_metric("Source LOC", str(summary["source_lines"]), "non-empty, non-comment Python lines")
         with top_cols[2]:

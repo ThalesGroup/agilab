@@ -807,7 +807,10 @@ def test_explore_page_multiselect(mock_ui_env):
     assert all("Entrypoint" not in value for value in caption_values)
     markdown_text = "\n".join(markdown_values)
     assert "Output files" in markdown_text
-    assert "Default view" in markdown_text
+    assert "Latest output" in markdown_text
+    assert "Default views" in markdown_text
+    assert "Available views" not in markdown_text
+    assert "selected / available" not in markdown_text
     assert "agilab-header-value--incomplete" in markdown_text
     assert "Recommended" not in markdown_text
     assert "Project</div>" not in markdown_text
@@ -916,8 +919,11 @@ def test_explore_page_default_view_setting_persists(mock_ui_env):
     assert "view_maps" in pages_payload["view_module"]
     assert "view_barycentric" in pages_payload["view_module"]
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
-    assert "Default view" in markdown_text
-    assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
+    assert "Default views" in markdown_text
+    assert "default / available" in markdown_text
+    assert "agilab-header-value agilab-header-value--ready'>2/" in markdown_text
+    assert "Available views" not in markdown_text
+    assert "selected / available" not in markdown_text
     assert "view_maps" in markdown_text
     assert "view_barycentric" in markdown_text
 
@@ -939,7 +945,9 @@ def test_explore_page_default_view_setting_persists(mock_ui_env):
         "view_barycentric",
     }
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
-    assert "agilab-header-value agilab-header-value--ready'>2</div>" in reloaded_markdown
+    assert "Default views" in reloaded_markdown
+    assert "agilab-header-value agilab-header-value--ready'>2/" in reloaded_markdown
+    assert "Available views" not in reloaded_markdown
 
 
 def test_experiment_page_load(mock_ui_env):
@@ -1014,7 +1022,8 @@ def test_edit_page_load(mock_ui_env):
     assert any("Edit project files" in value for value in markdown_values)
     assert any(button.label == "Export project" for button in at.sidebar.button)
     markdown_text = "\n".join(markdown_values)
-    assert "Source files" in markdown_text
+    assert "Worker class" in markdown_text
+    assert "Source files" not in markdown_text
     assert "Source LOC" in markdown_text
     assert "Functions" in markdown_text
     assert "Classes" in markdown_text
