@@ -1252,6 +1252,21 @@ def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypat
         dag_engine=engine,
         repo_root=repo_root,
         index_page_str="demo",
+        distributed_request_preview_rows=[
+            {
+                "Stage": "flight_context",
+                "App": "flight_project",
+                "Status": "runnable",
+                "Backend": "distributed",
+                "Nodes": "2",
+                "Worker slots": "2",
+                "Scheduler": "192.168.20.111:8786",
+                "Workers Data Path": "clustershare/agi",
+                "Mode": "15",
+                "Apps path": "src/agilab/apps/builtin",
+                "Request": '{"params":{},"steps":[]}',
+            }
+        ],
     )
 
     saved_state = pipeline_lab.load_runner_state(state_path)
@@ -1264,6 +1279,13 @@ def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypat
     assert flight["execution_mode"] == "distributed_stage"
     assert flight["distributed_execution"]["summary_metrics"]["distributed_submissions"] == 1
     assert "contract_execution" not in flight
+    assert any(
+        isinstance(dataframe, list)
+        and dataframe
+        and isinstance(dataframe[0], dict)
+        and dataframe[0].get("Backend") == "distributed"
+        for dataframe in fake_st.dataframes
+    )
     assert any(kind == "success" and "distributed" in message for kind, message in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
 

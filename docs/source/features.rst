@@ -363,8 +363,14 @@ to the same contract, artifact names, stable node IDs, and provenance.
   through selector-driven workspace drafts and read-only summaries, validate
   it without hand-editing docs files, reset the persisted preview state,
   inspect readiness KPIs, next action, execution scope, app/artifact graph,
-  missing or available handoffs, and dispatch the next runnable unit into
-  ``running`` state without claiming that the downstream app has executed
+  missing or available handoffs, preview exact distributed stage requests
+  before submission, and dispatch the next runnable unit into ``running`` state
+  without claiming that the downstream app has executed
+- the distributed DAG stage smoke validator writes dry-run or live execution
+  evidence with ``tools/dag_distributed_stage_smoke.py --compact``; it checks
+  explicit ``nodes[].execution`` request fields, the ORCHESTRATE-derived
+  scheduler/workers/Workers Data Path contract, and the two-node distributed
+  request preview before a live ``--execute`` run is attempted
 - the global DAG dispatch state report writes and reads back a
   persisted run-state JSON proof with
   ``tools/global_pipeline_dispatch_state_report.py --compact``; it records

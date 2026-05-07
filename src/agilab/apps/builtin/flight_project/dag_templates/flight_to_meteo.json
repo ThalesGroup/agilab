@@ -17,7 +17,22 @@
       "id": "flight_context",
       "app": "flight_project",
       "execution": {
-        "entrypoint": "flight_project.flight_context"
+        "entrypoint": "flight_project.flight_context",
+        "params": {
+          "data_source": "file",
+          "files": "*",
+          "nfile": 1,
+          "nskip": 0,
+          "nread": 0,
+          "sampling_rate": 1.0,
+          "datemin": "2020-01-01",
+          "datemax": "2021-01-01",
+          "output_format": "parquet"
+        },
+        "steps": [],
+        "data_in": "flight/dataset",
+        "data_out": "flight/dataframe",
+        "reset_target": false
       },
       "purpose": "Run the flight scenario and produce trajectory summary context for downstream review.",
       "produces": [
@@ -32,7 +47,22 @@
       "id": "meteo_forecast_review",
       "app": "meteo_forecast_project",
       "execution": {
-        "entrypoint": "meteo_forecast_project.meteo_forecast_review"
+        "entrypoint": "meteo_forecast_project.meteo_forecast_review",
+        "params": {
+          "files": "*.csv",
+          "nfile": 1,
+          "station": "Paris-Montsouris",
+          "target_column": "tmax_c",
+          "lags": 7,
+          "horizon_days": 7,
+          "validation_days": 9,
+          "n_estimators": 100,
+          "random_state": 42
+        },
+        "steps": [],
+        "data_in": "meteo_forecast/dataset",
+        "data_out": "meteo_forecast/results",
+        "reset_target": false
       },
       "purpose": "Use flight summary context to produce forecast quality metrics for review.",
       "consumes": [

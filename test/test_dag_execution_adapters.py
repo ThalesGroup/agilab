@@ -69,7 +69,14 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
             {
                 "id": "extract_context",
                 "dispatch_status": "runnable",
-                "execution_contract": {"entrypoint": "alpha.extract_context"},
+                "execution_contract": {
+                    "entrypoint": "alpha.extract_context",
+                    "params": {"scenario": "demo"},
+                    "steps": [{"name": "prepare", "args": {"n": 2}}],
+                    "data_in": "alpha/input",
+                    "data_out": "alpha/output",
+                    "reset_target": False,
+                },
                 "produces": [
                     {
                         "artifact": "context_artifact",
@@ -163,7 +170,14 @@ def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
             {
                 "id": "extract_context",
                 "dispatch_status": "runnable",
-                "execution_contract": {"entrypoint": "alpha.extract_context"},
+                "execution_contract": {
+                    "entrypoint": "alpha.extract_context",
+                    "params": {"scenario": "demo"},
+                    "steps": [{"name": "prepare", "args": {"n": 2}}],
+                    "data_in": "alpha/input",
+                    "data_out": "alpha/output",
+                    "reset_target": False,
+                },
                 "produces": [
                     {
                         "artifact": "context_artifact",
@@ -191,6 +205,11 @@ def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
     assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context"]
     unit = result.state["units"][0]
     assert unit["contract_execution"]["summary_metrics"]["custom_runner"] == 1
+    assert unit["contract_execution"]["execution_contract"]["params"] == {"scenario": "demo"}
+    assert unit["contract_execution"]["execution_contract"]["steps"] == [
+        {"name": "prepare", "args": {"n": 2}}
+    ]
+    assert unit["contract_execution"]["execution_contract"]["data_in"] == "alpha/input"
 
 
 def test_controlled_contract_adapter_runs_declared_command(tmp_path):

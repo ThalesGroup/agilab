@@ -740,6 +740,22 @@ def _unit_execution_contract(unit: Mapping[str, Any]) -> dict[str, Any]:
         normalized["entrypoint"] = entrypoint
     if command:
         normalized["command"] = command
+    params = contract.get("params")
+    if not isinstance(params, Mapping):
+        params = contract.get("run_params")
+    if isinstance(params, Mapping):
+        normalized["params"] = dict(params)
+    steps = contract.get("steps")
+    if not isinstance(steps, list):
+        steps = contract.get("run_steps")
+    if isinstance(steps, list):
+        normalized["steps"] = list(steps)
+    for key in ("data_in", "data_out", "reset_target"):
+        if key in contract:
+            normalized[key] = contract.get(key)
+    for key in ("rapids_enabled", "benchmark_best_single_node"):
+        if key in contract:
+            normalized[key] = bool(contract.get(key))
     return normalized
 
 
