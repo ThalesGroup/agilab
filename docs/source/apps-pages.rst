@@ -30,13 +30,13 @@ in its own Python interpreter:
 
 For fastest setup, AGILAB Analysis also exposes a **minimal template generator**:
 
-- Choose a page name in the Analysis ``Create from template`` panel and click
+- Choose a page name in the Analysis ``Create analysis view`` panel and click
   ``Create``.
 - The generator creates ``<page>/pyproject.toml`` and
   ``<page>/src/<page>/<page>.py`` so the page is immediately discoverable.
 - The page title is derived from the page name.
 - You can also duplicate an existing page bundle as a starting point with
-  **Clone from existing apps-page**.
+  **Starting point**.
 - Open the generated page and replace the sample logic with your own visuals.
 
 Tutorial: clone an existing apps-page
@@ -48,7 +48,7 @@ want a new copy to modify safely.
 1. Open **ANALYSIS**.
 2. Find the page-bundle creation area.
 3. Enter the new page name you want to create.
-4. In **Clone from existing apps-page**, choose the source bundle to duplicate.
+4. In **Starting point**, choose the source bundle to duplicate.
 5. Confirm the creation step.
 
 AGILAB creates a new bundle under ``${AGILAB_PAGES_ABS}`` with its own
@@ -61,7 +61,7 @@ What to do next:
 - If the bundle needs extra dependencies, edit its local ``pyproject.toml``.
 - Enable the new bundle for a project through the ``[pages]`` section in
   ``~/.agilab/apps/<project>/app_settings.toml`` or through Analysis →
-  Configure.
+  Choose analysis views.
 
 Enabling bundles (per project)
 ------------------------------
@@ -78,7 +78,7 @@ The file lives at ``~/.agilab/apps/<project>/app_settings.toml`` and is seeded
 from the app's versioned ``app_settings.toml`` source file (for example
 ``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``) on first
 use. You can edit it manually (PROJECT → APP-SETTINGS) or use Analysis →
-Configure, which writes the same list for you.
+Choose analysis views, which writes the same list for you.
 
 Included page bundles
 ---------------------

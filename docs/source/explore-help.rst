@@ -27,6 +27,9 @@ Sidebar
   reachable, and falls back to the locally generated docs build when available.
 - Project selector that keeps the current application in sync with the rest of
   the suite.
+- ``Analysis view`` lets you open a selected view directly. If no view has been
+  selected yet, it lists every discovered view so you can launch one without
+  first editing the project configuration.
 - The currently selected project determines which views are stored inside its
   workspace ``app_settings.toml`` file under ``~/.agilab/apps/<project>/``
   in the ``[pages]`` section.
@@ -54,11 +57,10 @@ Main Content Area
       the first time the app is loaded.
 
       You can also create a complete starter bundle directly from this page using
-      **Create** in the ``Create from template`` tab. It creates a minimal
-      pyproject and runnable Streamlit module so the page is immediately usable
-      and ready to be customized.
-      You can optionally clone an existing app page as a starting point from the
-      same panel before clicking **Create**.
+      **Create analysis view**. It creates a minimal pyproject and runnable
+      Streamlit module so the page is immediately usable and ready to be
+      customized. Use **Starting point** when you want to begin from a blank
+      template or duplicate an existing app page before clicking **Create**.
 
    .. tab-item:: Launch
 
