@@ -852,6 +852,105 @@ def _artifact_handoffs_for_display(state: Dict[str, Any]) -> list[dict[str, str]
     return rows
 
 
+def _global_dag_units(state: Dict[str, Any]) -> list[dict[str, Any]]:
+    units = state.get("units", [])
+    if not isinstance(units, list):
+        return []
+    return [unit for unit in units if isinstance(unit, dict)]
+
+
+def _global_dag_status_ids(state: Dict[str, Any], status: str) -> list[str]:
+    summary = state.get("summary", {})
+    summary_key = f"{status}_unit_ids"
+    if isinstance(summary, dict) and isinstance(summary.get(summary_key), list):
+        return [str(unit_id) for unit_id in summary[summary_key] if str(unit_id)]
+    return [
+        str(unit.get("id", ""))
+        for unit in _global_dag_units(state)
+        if unit.get("dispatch_status") == status and str(unit.get("id", ""))
+    ]
+
+
+def _global_dag_unit_count(state: Dict[str, Any]) -> int:
+    summary = state.get("summary", {})
+    if isinstance(summary, dict) and summary.get("unit_count") is not None:
+        try:
+            return int(summary.get("unit_count") or 0)
+        except (TypeError, ValueError):
+            pass
+    return len(_global_dag_units(state))
+
+
+def _global_dag_dependency_count(state: Dict[str, Any]) -> int:
+    count = 0
+    for unit in _global_dag_units(state):
+        dependencies = unit.get("artifact_dependencies", [])
+        if isinstance(dependencies, list):
+            count += sum(1 for dependency in dependencies if isinstance(dependency, dict))
+    return count
+
+
+def _global_dag_next_action(state: Dict[str, Any]) -> str:
+    failed = _global_dag_status_ids(state, "failed")
+    if failed:
+        return f"Inspect failed stage `{failed[0]}`."
+    running = _global_dag_status_ids(state, "running")
+    if running:
+        return f"Monitor running stage `{running[0]}`."
+    runnable = _global_dag_status_ids(state, "runnable")
+    if runnable:
+        return f"Dispatch `{runnable[0]}`."
+    blocked = _global_dag_status_ids(state, "blocked")
+    if blocked:
+        blocked_artifacts: list[str] = []
+        for unit in _global_dag_units(state):
+            if str(unit.get("id", "")) != blocked[0]:
+                continue
+            operator_ui = unit.get("operator_ui", {})
+            raw_blocked = operator_ui.get("blocked_by_artifacts", []) if isinstance(operator_ui, dict) else []
+            if isinstance(raw_blocked, list):
+                blocked_artifacts = [str(item) for item in raw_blocked if str(item)]
+            break
+        suffix = f" until `{', '.join(blocked_artifacts)}` is available" if blocked_artifacts else ""
+        return f"Wait for `{blocked[0]}`{suffix}."
+    completed = _global_dag_status_ids(state, "completed")
+    if completed and len(completed) == _global_dag_unit_count(state):
+        return "All stages completed."
+    return "No runnable stage is available."
+
+
+def _global_dag_execution_scope(state: Dict[str, Any]) -> str:
+    provenance = state.get("provenance", {})
+    real_execution = bool(provenance.get("real_app_execution")) if isinstance(provenance, dict) else False
+    return "live app execution" if real_execution else "preview dispatch, no app execution claimed"
+
+
+def _global_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
+    return {
+        "stage_count": _global_dag_unit_count(state),
+        "dependency_count": _global_dag_dependency_count(state),
+        "runnable_count": len(_global_dag_status_ids(state, "runnable")),
+        "blocked_count": len(_global_dag_status_ids(state, "blocked")),
+        "running_count": len(_global_dag_status_ids(state, "running")),
+        "completed_count": len(_global_dag_status_ids(state, "completed")),
+        "failed_count": len(_global_dag_status_ids(state, "failed")),
+        "next_action": _global_dag_next_action(state),
+        "execution_scope": _global_dag_execution_scope(state),
+    }
+
+
+def _render_global_dag_readiness(state: Dict[str, Any]) -> None:
+    summary = _global_dag_readiness_summary(state)
+    st.markdown("**DAG readiness**")
+    stage_col, dependency_col, runnable_col, blocked_col = st.columns(4)
+    stage_col.metric("Stages", int(summary["stage_count"]))
+    dependency_col.metric("Dependencies", int(summary["dependency_count"]))
+    runnable_col.metric("Runnable", int(summary["runnable_count"]))
+    blocked_col.metric("Blocked", int(summary["blocked_count"]))
+    st.caption(f"Next action: {summary['next_action']}")
+    st.caption(f"Execution scope: {summary['execution_scope']}")
+
+
 def _dot_quote(value: Any) -> str:
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
@@ -917,7 +1016,7 @@ def _global_dag_dot(state: Dict[str, Any]) -> str:
 
 
 def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str: str) -> None:
-    with st.expander("Global DAG runner", expanded=False):
+    with st.expander("Multi-app DAG orchestration", expanded=True):
         repo_root = _repo_root_for_global_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
         library_key = f"{index_page_str}_global_runner_library"
@@ -937,9 +1036,11 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         if dag_input_key not in st.session_state:
             st.session_state[dag_input_key] = ""
 
-        st.caption("Operator preview only: dispatch changes state, but does not execute apps or synthesize artifacts.")
         st.caption(
-            "Build a multi-app DAG from stages and artifact handoffs. AGILAB saves the JSON contract for you."
+            "Coordinate app stages through artifact contracts. Use project steps below for single-app execution."
+        )
+        st.caption(
+            "Safety boundary: preview dispatch updates runner state only; it does not claim live app execution."
         )
         st.markdown("**1. Choose a starting point**")
         selected_dag_text = st.selectbox(
@@ -1174,7 +1275,7 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
                 reset=reset_clicked,
             )
         except Exception as exc:
-            st.error("Global DAG runner preview is unavailable.")
+            st.error("Multi-app DAG orchestration preview is unavailable.")
             st.caption("Full diagnostic")
             st.code(str(exc), language="text")
             return
@@ -1191,8 +1292,8 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         if dag_label:
             st.caption(f"DAG contract: `{dag_label}`")
         st.caption(f"State file: `{state_path}`")
-        planned_col, running_col, completed_col, failed_col = st.columns(4)
-        planned_col.metric("Planned", int(summary.get("planned_count", 0) or 0))
+        _render_global_dag_readiness(state)
+        running_col, completed_col, failed_col = st.columns(3)
         running_col.metric("Running", int(summary.get("running_count", 0) or 0))
         completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
         failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))

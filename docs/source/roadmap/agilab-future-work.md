@@ -12,7 +12,7 @@ The goal here is to rank future work, not to restate the current feature set.
 If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
-1. **Global DAG runner dispatch and UI state**
+1. **Multi-app DAG orchestration productization**
    - let `PIPELINE` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
    - build on the shipped multi-app DAG contract, read-only global pipeline DAG
@@ -298,7 +298,7 @@ Why it matters:
 - the remaining work is scale and hardening rather than missing public evidence
   for the shipped two-app baseline
 
-### 7. Global DAG runner dispatch and UI state
+### 7. Multi-app DAG orchestration productization
 
 Purpose:
 
@@ -323,12 +323,13 @@ Current shipped baseline:
   `relay_followup` as `blocked`, and records transition, retry,
   partial-rerun, operator-message, and provenance metadata without executing
   apps
-- the PIPELINE page now includes a `Global DAG runner` preview expander that
+- the PIPELINE page now includes an expanded `Multi-app DAG orchestration` surface that
   can select a `agilab.multi_app_dag.v1` contract, edit stages and artifact
   handoffs through selector-driven workspace drafts and read-only summaries,
-  validate it without hand-editing docs files, reset the persisted preview state, render
-  app/artifact dependencies, list artifact handoffs, and dispatch the next
-  runnable unit into `running` state without claiming live app execution
+  validate it without hand-editing docs files, reset the persisted preview state,
+  show readiness KPIs, next action, execution scope, app/artifact dependencies,
+  list artifact handoffs, and dispatch the next runnable unit into `running`
+  state without claiming live app execution
 - `tools/global_pipeline_dispatch_state_report.py --compact` writes and reads
   back a persisted dispatch-state JSON proof, records `queue_baseline`
   completion, publishes `queue_metrics`, marks `relay_followup` runnable, and
@@ -922,7 +923,7 @@ Use this rule of thumb:
   debugging, clearer run review, and defensible explanation of KPI changes
 - choose **Multi-app DAG orchestration** if the next need is broader app
   coverage beyond the shipped two-app dependency contract
-- choose **Global DAG runner dispatch and UI state** if the next need is to
+- choose **Multi-app DAG orchestration productization** if the next need is to
   execute the shipped product-visible graph in `PIPELINE`
 - choose **Bidirectional notebook interop** if the next need is a stronger bridge
   between exploratory notebooks and AGILab-managed workflows
@@ -962,7 +963,7 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Global DAG runner dispatch and UI state
+- Multi-app DAG orchestration productization
 - Bidirectional notebook interop
 - Data connector facility
 - Reduce contract adoption
