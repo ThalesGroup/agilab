@@ -29,6 +29,7 @@ from agilab.pipeline_step_templates import (
     is_stale_template_step,
     pipeline_step_classification_rows,
     pipeline_step_template_rows,
+    with_template_version,
 )
 
 
@@ -77,6 +78,45 @@ def test_pipeline_step_template_registry_returns_deterministic_rows() -> None:
     ]
 
 
+def test_pipeline_step_template_registry_collection_helpers_and_selection() -> None:
+    alpha = _template("alpha.step", version=2)
+    beta = _template("beta.step")
+    registry = PipelineStepTemplateRegistry((beta, alpha))
+
+    assert len(registry) == 2
+    assert "alpha.step" in registry
+    assert "ALPHA.STEP" in registry
+    assert 42 not in registry
+    assert tuple(template.template_id for template in registry) == ("alpha.step", "beta.step")
+    assert registry.templates == (alpha, beta)
+    assert registry.get("missing", default="fallback") == "fallback"
+    assert registry.require("alpha.step") is alpha
+
+    selected = registry.select(
+        [
+            "",
+            "beta.step",
+            "missing.step",
+            " BETA.STEP ",
+            "alpha.step",
+        ]
+    )
+    assert selected == (beta, alpha)
+
+    saved = registry.saved_step("alpha.step", M="manual-model")
+    assert saved["D"] == "alpha.step description"
+    assert saved["M"] == "manual-model"
+    assert saved[PIPELINE_STEP_TEMPLATE_ID_KEY] == "alpha.step"
+
+    classified = registry.classify_step(
+        {
+            PIPELINE_STEP_TEMPLATE_ID_KEY: "alpha.step",
+            PIPELINE_STEP_TEMPLATE_VERSION_KEY: 2,
+        }
+    )
+    assert classified.status is PipelineStepTemplateStatus.CURRENT
+
+
 def test_saved_step_includes_template_metadata_without_rewriting_code() -> None:
     template = _template("generic.demo", version=3)
     step = template.saved_step(C="print('custom raw code')", Q="User edited question")
@@ -112,6 +152,47 @@ def test_classifies_current_stale_and_raw_python_steps() -> None:
     assert stale_result.saved_version == 1
     assert stale_result.current_version == 2
     assert stale_result.reason == "older template version"
+
+
+def test_template_normalization_handles_blank_runtime_title_fallback_and_tags() -> None:
+    template = PipelineStepTemplate(
+        template_id=" generic.normalized ",
+        title="  Normalized title  ",
+        description="   ",
+        question="  What should run?  ",
+        code=123,
+        version="4",
+        runtime="  ",
+        model="  gpt-demo  ",
+        tags=(" keep ", "", "also-keep"),
+    )
+
+    assert template.template_id == "generic.normalized"
+    assert template.title == "Normalized title"
+    assert template.description == ""
+    assert template.question == "What should run?"
+    assert template.code == "123"
+    assert template.version == 4
+    assert template.runtime == "runpy"
+    assert template.model == "gpt-demo"
+    assert template.tags == ("keep", "also-keep")
+    assert template.saved_step()["D"] == "Normalized title"
+
+
+def test_non_mapping_steps_and_invalid_versions_are_classified_or_rejected() -> None:
+    result = classify_pipeline_step_template("print('raw')")
+
+    assert result.status is PipelineStepTemplateStatus.RAW_PYTHON
+    assert result.reason == "step is not a mapping"
+
+    with pytest.raises(ValueError, match="version must be a positive integer"):
+        PipelineStepTemplate(
+            template_id="generic.bad",
+            title="Bad",
+            question="Bad?",
+            code="pass",
+            version="not-an-int",
+        )
 
 
 def test_unknown_missing_and_future_template_versions_are_stale() -> None:
@@ -184,6 +265,17 @@ def test_default_registry_exposes_generic_templates_as_rows() -> None:
     assert ids == tuple(sorted(ids, key=str.casefold))
     assert ids == tuple(template.template_id for template in default_pipeline_step_templates())
     assert {"generic.configure", "generic.execute", "generic.export_evidence"}.issubset(ids)
+
+
+def test_with_template_version_returns_replaced_template_without_mutating_original() -> None:
+    template = _template("generic.demo", version=1)
+
+    newer = with_template_version(template, 5)
+
+    assert template.version == 1
+    assert newer.version == 5
+    assert newer.template_id == template.template_id
+    assert newer.code == template.code
 
 
 def test_pipeline_step_template_registry_reports_invalid_unknown_and_duplicate_names() -> None:
