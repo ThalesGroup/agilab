@@ -1236,6 +1236,7 @@ def test_stream_run_command_streams_clean_output_and_injects_pythonpath(tmp_path
         returncode = 0
 
         def __init__(self, *args, **kwargs):
+            popen_calls["argv"] = list(args[0])
             popen_calls.update(kwargs)
             self.stdout = iter(["\x1b[31mhello\x1b[0m\n", "world\n"])
 
@@ -1264,6 +1265,8 @@ def test_stream_run_command_streams_clean_output_and_injects_pythonpath(tmp_path
 
     assert output == "hello\nworld"
     assert log_lines == ["hello", "world"]
+    assert popen_calls["argv"] == ["echo", "hi"]
+    assert popen_calls["shell"] is False
     assert popen_calls["env"]["uv_IGNORE_ACTIVE_VENV"] == "1"
     assert popen_calls["env"]["EXTRA"] == "1"
     assert str(repo_root / "src") in popen_calls["env"]["PYTHONPATH"]
@@ -1953,7 +1956,8 @@ def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch)
 
     script_path = steps_file.parent / "AGI_run.py"
     assert script_path.read_text(encoding="utf-8").startswith("# wrapped")
-    assert stream_calls[0]["cmd"].endswith(f" {script_path}")
+    assert Path(stream_calls[0]["cmd"][0]).name.startswith("python")
+    assert stream_calls[0]["cmd"][1] == str(script_path)
     assert stream_calls[0]["cwd"] == steps_file.parent.resolve()
     assert stream_calls[0]["extra_env"] == {"MLFLOW_RUN_ID": "run-456", "EXTRA": "1"}
     assert any("engine=agi.run, env=runtime env" in line for line in logs)

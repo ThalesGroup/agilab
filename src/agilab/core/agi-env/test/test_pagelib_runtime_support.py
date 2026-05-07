@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import sys
 import builtins
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -22,7 +22,7 @@ def test_next_free_port_retries_busy_candidates():
 
 def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
     messages: list[str] = []
-    launched: list[tuple[str, str]] = []
+    launched: list[tuple[list[str], str]] = []
     session_state = {}
     env = SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
 
@@ -45,8 +45,10 @@ def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
     assert session_state["server_started"] is True
     assert session_state["mlflow_port"] == 50123
     assert env.MLFLOW_TRACKING_DIR == str(tmp_path / ".mlflow")
-    assert launched and sys.executable in launched[0][0]
-    assert "--port 50123" in launched[0][0]
+    assert launched
+    command = launched[0][0]
+    assert command[:4] == [sys.executable, "-m", "mlflow", "server"]
+    assert command[command.index("--port") + 1] == "50123"
     assert messages == []
 
 
@@ -77,13 +79,16 @@ def test_pagelib_runtime_support_command_and_wait_helpers(tmp_path):
             self.killed = True
 
     errors: list[str] = []
+    popen_calls: list[tuple[list[str], dict[str, object]]] = []
     proc = _Proc(output="\u001b[31mok\u001b[0m")
     assert support.run_with_output(
         SimpleNamespace(apps_path=tmp_path),
         "echo ok",
         cwd=tmp_path,
-        popen_factory=lambda *_args, **_kwargs: proc,
+        popen_factory=lambda *args, **kwargs: popen_calls.append((list(args[0]), kwargs)) or proc,
     ) == "ok"
+    assert popen_calls[0][0] == ["echo", "ok"]
+    assert popen_calls[0][1]["shell"] is False
 
     timed_out = _Proc(output="timed out", raises=support.subprocess.TimeoutExpired(cmd="echo", timeout=1))
     assert support.run_with_output(
@@ -202,7 +207,7 @@ def test_activate_gpt_oss_support_clears_empty_checkpoint_and_extra_args(monkeyp
         "gpt_oss_extra_args_active": "--old",
     }
     env = SimpleNamespace(envars={"GPT_OSS_BACKEND": "stub", "GPT_OSS_CHECKPOINT": "old"})
-    launched: list[tuple[str, str]] = []
+    launched: list[tuple[list[str], str]] = []
     monkeypatch.setitem(sys.modules, "gpt_oss", SimpleNamespace())
 
     started = pagelib_runtime_support.activate_gpt_oss(
@@ -220,7 +225,10 @@ def test_activate_gpt_oss_support_clears_empty_checkpoint_and_extra_args(monkeyp
     assert "GPT_OSS_EXTRA_ARGS" not in env.envars
     assert "gpt_oss_checkpoint_active" not in session_state
     assert "gpt_oss_extra_args_active" not in session_state
-    assert launched and "--inference-backend stub" in launched[0][0]
+    assert launched
+    command = launched[0][0]
+    assert command[:3] == [sys.executable, "-m", "gpt_oss.responses_api.serve"]
+    assert command[command.index("--inference-backend") + 1] == "stub"
 
 
 def test_activate_gpt_oss_support_handles_existing_import_missing_checkpoint_and_start_failure(monkeypatch):
@@ -289,6 +297,19 @@ def test_activate_gpt_oss_support_handles_existing_import_missing_checkpoint_and
         cwd="/tmp",
     ) is False
     assert any("Failed to start GPT-OSS server" in message for message in errors)
+
+    errors.clear()
+    session_state = {"gpt_oss_backend": "stub", "gpt_oss_extra_args": "--ok 1; touch injected"}
+    assert pagelib_runtime_support.activate_gpt_oss(
+        env,
+        session_state=session_state,
+        streamlit=SimpleNamespace(warning=lambda *_args, **_kwargs: None, error=lambda message: errors.append(str(message))),
+        next_free_port_fn=lambda: 50124,
+        subproc_fn=lambda *_args: (_ for _ in ()).throw(AssertionError("subproc should not be called")),
+        cwd="/tmp",
+    ) is False
+    assert session_state["gpt_oss_autostart_failed"] is True
+    assert any("Shell metacharacters are not allowed" in message for message in errors)
 
 
 def test_run_with_output_reports_called_process_error(tmp_path):

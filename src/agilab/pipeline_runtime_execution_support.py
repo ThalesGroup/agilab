@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 import tomllib
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Pattern, Type
+from typing import Any, Callable, Dict, List, Optional, Pattern, Sequence, Type
 
 from agi_env import AgiEnv
 from agi_env.snippet_contract import (
@@ -274,10 +275,25 @@ def is_valid_runtime_root(venv_root: str | Path | None) -> bool:
     return False
 
 
+_SHELL_METACHARS = frozenset(";&|<>\n\r`$")
+
+
+def _command_argv(command: str | Sequence[str]) -> list[str]:
+    if isinstance(command, str):
+        if any(char in command for char in _SHELL_METACHARS):
+            raise ValueError(f"Shell metacharacters are not allowed in pipeline runtime command: {command!r}")
+        argv = shlex.split(command, posix=os.name != "nt")
+    else:
+        argv = [str(part) for part in command]
+    if not argv:
+        raise ValueError("Pipeline runtime command must not be empty")
+    return argv
+
+
 def stream_run_command(
     env: AgiEnv,
     index_page: str,
-    cmd: str,
+    cmd: str | Sequence[str],
     cwd: Path,
     *,
     push_run_log: Callable[[str, str, Optional[Any]], None],
@@ -290,7 +306,7 @@ def stream_run_command(
     popen_factory: Callable[..., Any] = subprocess.Popen,
     path_separator: str = os.pathsep,
 ) -> str:
-    """Run a shell command and stream its output into the run log."""
+    """Run a command and stream its output into the run log."""
     process_env = dict(env_vars or os.environ.copy())
     process_env["uv_IGNORE_ACTIVE_VENV"] = "1"
     apps_root = getattr(env, "apps_path", None)
@@ -312,10 +328,10 @@ def stream_run_command(
 
     lines: List[str] = []
     with popen_factory(
-        cmd,
+        _command_argv(cmd),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        shell=True,
+        shell=False,
         cwd=Path(cwd).resolve(),
         env=process_env,
         text=True,
@@ -486,7 +502,7 @@ def run_locked_step(
                     run_output = stream_run_command(
                         env,
                         index_page_str,
-                        f"{python_cmd} {script_path}",
+                        [str(python_cmd), str(script_path)],
                         cwd=target_base,
                         placeholder=stored_placeholder,
                         extra_env=step_env,

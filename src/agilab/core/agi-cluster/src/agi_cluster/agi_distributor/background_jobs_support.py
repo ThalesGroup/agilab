@@ -1,9 +1,12 @@
+import os
+import shlex
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Protocol, cast
+from typing import Mapping, Protocol, Sequence, cast
 
 _NORMALIZE_CWD_EXCEPTIONS = (OSError, RuntimeError, TypeError)
+_SHELL_METACHARS = frozenset(";&|<>\n\r`$")
 
 
 class _ProcessLike(Protocol):
@@ -52,14 +55,36 @@ class BackgroundProcessManager:
                 self.dead.append(job)
         self.running = active
 
-    def new(self, cmd: str, cwd: str | Path | None = None) -> BackgroundProcessJob:
+    @staticmethod
+    def _command_argv(cmd: str | Sequence[str]) -> list[str]:
+        if isinstance(cmd, str):
+            if any(char in cmd for char in _SHELL_METACHARS):
+                raise ValueError(f"Shell metacharacters are not allowed in background command: {cmd!r}")
+            argv = shlex.split(cmd, posix=os.name != "nt")
+        else:
+            argv = [str(part) for part in cmd]
+        if not argv:
+            raise ValueError("Background command must not be empty")
+        return argv
+
+    def new(
+        self,
+        cmd: str | Sequence[str],
+        cwd: str | Path | None = None,
+        *,
+        env: Mapping[str, str] | None = None,
+    ) -> BackgroundProcessJob:
+        process_env = os.environ.copy()
+        if env:
+            process_env.update({str(key): str(value) for key, value in env.items() if value is not None})
         proc = cast(
             _ProcessLike,
             subprocess.Popen(
-                cmd,
-                shell=True,
+                self._command_argv(cmd),
+                shell=False,
                 cwd=self._normalize_cwd(cwd),
                 start_new_session=True,
+                env=process_env,
             ),
         )
         job = BackgroundProcessJob(proc)
@@ -85,6 +110,29 @@ class BackgroundProcessManager:
                 self.all.pop(job.num, None)
         self.completed.clear()
         self.dead.clear()
+
+
+def background_env_from_prefixes(
+    *prefixes: str,
+    base_env: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Translate simple shell-style env prefixes into a subprocess env mapping."""
+    process_env = dict(base_env or os.environ)
+    for prefix in prefixes:
+        for segment in str(prefix or "").split(";"):
+            segment = segment.strip()
+            if not segment:
+                continue
+            if segment.startswith("export "):
+                segment = segment[len("export "):].strip()
+            for token in shlex.split(segment, posix=os.name != "nt"):
+                if "=" not in token:
+                    continue
+                key, value = token.split("=", 1)
+                if not key.isidentifier():
+                    continue
+                process_env[key] = os.path.expandvars(os.path.expanduser(value))
+    return process_env
 
 
 bg = SimpleNamespace(BackgroundJobManager=BackgroundProcessManager)

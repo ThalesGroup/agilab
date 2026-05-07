@@ -11,7 +11,22 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
+
+
+_SHELL_METACHARS = frozenset(";&|<>\n\r`$")
+
+
+def _command_argv(command: str | Sequence[str], *, os_module=os) -> list[str]:
+    if isinstance(command, str):
+        if any(char in command for char in _SHELL_METACHARS):
+            raise ValueError(f"Shell metacharacters are not allowed in page runtime command: {command!r}")
+        argv = shlex.split(command, posix=os_module.name != "nt")
+    else:
+        argv = [str(part) for part in command]
+    if not argv:
+        raise ValueError("Page runtime command must not be empty")
+    return argv
 
 
 def run_with_output(
@@ -32,11 +47,12 @@ def run_with_output(
     os_module.environ["uv_IGNORE_ACTIVE_VENV"] = "1"
     process_env = os_module.environ.copy()
 
+    argv = _command_argv(cmd, os_module=os_module)
     with popen_factory(
-        cmd,
+        argv,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        shell=True,
+        shell=False,
         cwd=path_cls(cwd).absolute(),
         env=process_env,
         text=True,
@@ -62,11 +78,11 @@ def run_with_output(
 
 
 def run(command, cwd=None, *, subprocess_module=subprocess, log_fn=None, sys_module=sys):
-    """Execute a shell command and terminate on failure like the legacy pagelib helper."""
+    """Execute a command and terminate on failure like the legacy pagelib helper."""
     try:
         subprocess_module.run(
-            command,
-            shell=True,
+            _command_argv(command, os_module=os),
+            shell=False,
             check=True,
             cwd=cwd,
             stdout=subprocess.PIPE,
@@ -86,8 +102,8 @@ def run(command, cwd=None, *, subprocess_module=subprocess, log_fn=None, sys_mod
 def subproc(command, cwd, *, subprocess_module=subprocess, os_module=os):
     """Execute a command in the background and return its stdout pipe."""
     return subprocess_module.Popen(
-        command,
-        shell=True,
+        _command_argv(command, os_module=os_module),
+        shell=False,
         cwd=os_module.path.abspath(cwd),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -163,13 +179,20 @@ def activate_mlflow(
             tracking_dir
         )
         artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
-        cmd = (
-            f"{shlex.quote(sys.executable)} -m mlflow server "
-            f"--backend-store-uri {shlex.quote(backend_uri)} "
-            f"--default-artifact-root {shlex.quote(artifact_uri)} "
-            "--host 127.0.0.1 "
-            f"--port {port}"
-        )
+        cmd = [
+            sys.executable,
+            "-m",
+            "mlflow",
+            "server",
+            "--backend-store-uri",
+            backend_uri,
+            "--default-artifact-root",
+            artifact_uri,
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ]
         subproc_fn(cmd, cwd)
         if not wait_for_listen_port_fn(port):
             session_state["server_started"] = False
@@ -242,6 +265,13 @@ def activate_gpt_oss(
         session_state["gpt_oss_autostart_failed"] = True
         return False
 
+    try:
+        extra_argv = _command_argv(extra_args, os_module=os_module) if extra_args else []
+    except ValueError as exc:
+        streamlit.error(f"Failed to start GPT-OSS server: {exc}")
+        session_state["gpt_oss_autostart_failed"] = True
+        return False
+
     env.envars["GPT_OSS_BACKEND"] = backend
     if checkpoint:
         env.envars["GPT_OSS_CHECKPOINT"] = checkpoint
@@ -253,19 +283,24 @@ def activate_gpt_oss(
         env.envars.pop("GPT_OSS_EXTRA_ARGS", None)
 
     port = next_free_port_fn()
-    cmd = (
-        f"{shlex.quote(python_exec)} -m gpt_oss.responses_api.serve "
-        f"--inference-backend {shlex.quote(backend)} --port {int(port)}"
-    )
+    cmd = [
+        python_exec,
+        "-m",
+        "gpt_oss.responses_api.serve",
+        "--inference-backend",
+        backend,
+        "--port",
+        str(int(port)),
+    ]
     if checkpoint and backend != "stub":
-        cmd += f" --checkpoint {shlex.quote(checkpoint)}"
-    if extra_args:
-        cmd = f"{cmd} {extra_args}"
+        cmd.extend(["--checkpoint", checkpoint])
+    cmd.extend(extra_argv)
 
     try:
         subproc_fn(cmd, cwd)
-    except RuntimeError as exc:
+    except (RuntimeError, OSError, ValueError) as exc:
         streamlit.error(f"Failed to start GPT-OSS server: {exc}")
+        session_state["gpt_oss_autostart_failed"] = True
         return False
 
     endpoint = f"http://127.0.0.1:{port}/v1/responses"

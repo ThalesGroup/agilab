@@ -233,7 +233,7 @@ def test_agi_gui_workflow_wildcard_covers_all_workflow_tests() -> None:
     )
 
 
-def test_codecov_uploads_are_external_reporting_not_blocking_gates() -> None:
+def test_codecov_uploads_are_blocking_coverage_publication_gates() -> None:
     upload_steps = [
         "Upload agi-env coverage to Codecov",
         "Upload agi-node coverage to Codecov",
@@ -245,9 +245,10 @@ def test_codecov_uploads_are_external_reporting_not_blocking_gates() -> None:
     for step_name in upload_steps:
         block = _step_block(step_name)
 
-        assert "uses: codecov/codecov-action@v6" in block
-        assert "continue-on-error: true" in block
-        assert "fail_ci_if_error: false" in block
+        assert "uses: codecov/codecov-action@" in block
+        assert "# v6" in block
+        assert "continue-on-error: true" not in block
+        assert "fail_ci_if_error: true" in block
 
 
 def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
@@ -260,5 +261,6 @@ def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
     ):
         block = _step_block(step_name)
 
-        assert "uses: actions/upload-artifact@v7" in block
+        assert "uses: actions/upload-artifact@" in block
+        assert "# v7" in block
         assert "retention-days: 3" in block

@@ -168,7 +168,7 @@ async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
     monkeypatch.setattr(
         AGI,
         "_exec_bg",
-        staticmethod(lambda cmd, cwd: calls["bg"].append((cmd, cwd))),
+        staticmethod(lambda cmd, cwd, **kwargs: calls["bg"].append((cmd, cwd, kwargs))),
     )
 
     await runtime_distribution_support.start(
@@ -177,6 +177,9 @@ async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
         set_env_var_fn=lambda *_args, **_kwargs: None,
         create_task_fn=_fake_create_task,
     )
+
+    assert calls["bg"][0][0][:5] == ["uv", "--project", str(wenv_abs), "run", "--no-sync"]
+    assert calls["bg"][0][2]["env"]["PATH"].startswith(str(Path.home() / ".local" / "bin"))
 
     assert calls["bg"]
     assert any(ip == "10.0.0.2" for ip, _ in calls["remote"])
@@ -264,7 +267,7 @@ async def test_start_remounts_remote_cluster_share_before_worker_processes(monke
     monkeypatch.setattr(
         AGI,
         "_exec_bg",
-        staticmethod(lambda _cmd, _cwd: events.append("worker:192.168.20.111")),
+        staticmethod(lambda _cmd, _cwd, **_kwargs: events.append("worker:192.168.20.111")),
     )
     monkeypatch.setattr(
         runtime_distribution_support.deployment_remote_support,

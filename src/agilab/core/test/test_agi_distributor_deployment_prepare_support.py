@@ -745,6 +745,7 @@ async def test_prepare_cluster_env_uses_powershell_installer_before_continuing(t
 
     assert any("install.ps1" in cmd for _ip, cmd in remote_cmds)
     assert not any("curl -LsSf https://astral.sh/uv/install.sh | sh" in cmd for _ip, cmd in remote_cmds)
+    assert not any("irm https://astral.sh/uv/install.ps1 | iex" in cmd for _ip, cmd in remote_cmds)
 
 
 @pytest.mark.asyncio
@@ -1025,7 +1026,7 @@ async def test_prepare_cluster_env_fallback_installer_and_no_download(tmp_path):
             raise RuntimeError("uv missing")
         if "install.ps1" in cmd:
             raise RuntimeError("windows installer failed")
-        if "curl -LsSf https://astral.sh/uv/install.sh | sh" in cmd:
+        if "curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o" in cmd:
             return "ok"
         if "python install" in cmd:
             raise _FakeProcessError("No download found for request")
@@ -1052,7 +1053,10 @@ async def test_prepare_cluster_env_fallback_installer_and_no_download(tmp_path):
 
     joined = "\n".join(cmd for _, cmd in cmds)
     assert "install.ps1" in joined
-    assert "install.sh | sh" in joined
+    assert "install.sh | sh" not in joined
+    assert "irm https://astral.sh/uv/install.ps1 | iex" not in joined
+    assert "curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o" in joined
+    assert 'sh "$tmp"' in joined
     assert any("python install 3.13" in cmd for _, cmd in cmds)
     assert any(item[2] == "wenv" for item in sent)
     assert any(any(file["name"] == "cli.py" for file in items) for _, items, _ in sent)

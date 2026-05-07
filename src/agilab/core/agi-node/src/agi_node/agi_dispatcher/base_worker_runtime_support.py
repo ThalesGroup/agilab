@@ -2,10 +2,34 @@ from __future__ import annotations
 
 import io
 import logging
+import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Callable, MutableMapping
+from typing import Any, Callable, MutableMapping, Sequence
+
+
+_SHELL_METACHARS = frozenset(";&|<>\n\r`$")
+
+
+def _command_argv(cmd: str | Sequence[str]) -> list[str]:
+    if isinstance(cmd, str):
+        if any(char in cmd for char in _SHELL_METACHARS):
+            raise ValueError(f"Shell metacharacters are not allowed in worker command: {cmd!r}")
+        argv = shlex.split(cmd, posix=os.name != "nt")
+    else:
+        argv = [str(part) for part in cmd]
+
+    if not argv:
+        raise ValueError("Worker command must not be empty")
+    return argv
+
+
+def _format_command(cmd: str | Sequence[str]) -> str:
+    if isinstance(cmd, str):
+        return cmd
+    return shlex.join(str(part) for part in cmd)
 
 
 def _log_level_for_verbosity(verbosity: int) -> int:
@@ -41,7 +65,7 @@ def capture_logs_and_result(
 
 
 def exec_command(
-    cmd: str,
+    cmd: str | Sequence[str],
     path: str | Path,
     worker: str,
     *,
@@ -50,9 +74,10 @@ def exec_command(
     logger_obj: logging.Logger,
 ) -> Any:
     normalized_path = normalize_path_fn(path)
+    argv = _command_argv(cmd)
     result = subprocess_run(
-        cmd,
-        shell=True,
+        argv,
+        shell=False,
         capture_output=True,
         text=True,
         check=False,
@@ -62,12 +87,13 @@ def exec_command(
         return result
 
     stderr = result.stderr or ""
+    display_cmd = _format_command(cmd)
     if stderr.startswith("WARNING"):
-        logger_obj.error("warning: worker %s - %s", worker, cmd)
+        logger_obj.error("warning: worker %s - %s", worker, display_cmd)
         logger_obj.error(stderr)
         return result
 
-    raise RuntimeError(f"error on node {worker} - {cmd} {stderr}")
+    raise RuntimeError(f"error on node {worker} - {display_cmd} {stderr}")
 
 
 def log_import_error(

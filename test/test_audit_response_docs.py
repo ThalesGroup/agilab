@@ -85,6 +85,17 @@ def test_release_proof_page_collects_public_audit_evidence() -> None:
     assert ":doc:`release-proof`" in demos
 
 
+def test_environment_docs_scope_local_secret_persistence() -> None:
+    environment = (DOCS_SOURCE / "environment.rst").read_text(encoding="utf-8")
+
+    assert "OS keyrings" in environment
+    assert "enterprise vaults" in environment
+    assert "short-lived environment variables" in environment
+    assert "$HOME/.agilab/.env" in environment
+    assert "local plaintext developer convenience" in environment
+    assert "not a shared secret manager" in environment
+
+
 def test_readme_uses_recommended_workbench_positioning() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 

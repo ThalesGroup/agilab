@@ -62,8 +62,10 @@ def test_exec_command_handles_success_warning_and_failure(tmp_path):
     logger_obj = SimpleNamespace(
         error=lambda message, *args: errors.append(message % args if args else message)
     )
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
-    def _fake_run(*_args, **_kwargs):
+    def _fake_run(*args, **kwargs):
+        calls.append((args, kwargs))
         return next(responses)
 
     assert runtime_support.exec_command(
@@ -94,6 +96,24 @@ def test_exec_command_handles_success_warning_and_failure(tmp_path):
 
     assert any("warning: worker worker - echo warn" in message for message in errors)
     assert any("WARNING: notice" in message for message in errors)
+    assert calls[0][0][0] == ["echo", "ok"]
+    assert calls[0][1]["shell"] is False
+
+
+def test_exec_command_rejects_shell_metacharacters(tmp_path):
+    calls = []
+
+    with pytest.raises(ValueError, match="Shell metacharacters"):
+        runtime_support.exec_command(
+            "echo ok; touch injected",
+            tmp_path,
+            "worker",
+            normalize_path_fn=lambda value: str(value),
+            subprocess_run=lambda *args, **kwargs: calls.append((args, kwargs)),
+            logger_obj=SimpleNamespace(error=lambda *_args: None),
+        )
+
+    assert calls == []
 
 
 def test_load_module_and_is_cython_installed(monkeypatch):

@@ -109,7 +109,7 @@ def test_run_agi_executes_existing_target_and_reports_access_failures(tmp_path):
         pass
 
     messages: list[tuple[str, str]] = []
-    executed: list[tuple[str, str, str]] = []
+    executed: list[tuple[str, list[str], str]] = []
     env = SimpleNamespace(agi_env=tmp_path / ".venv", target="demo_project", runenv=tmp_path / "runenv")
     fake_st = SimpleNamespace(
         warning=lambda message: messages.append(("warning", str(message))),
@@ -132,6 +132,8 @@ def test_run_agi_executes_existing_target_and_reports_access_failures(tmp_path):
 
     assert result == "ok"
     assert executed and executed[0][0] == "demo_project"
+    assert executed[0][1][:4] == ["uv", "-q", "run", "python"]
+    assert executed[0][1][4].endswith("run_demo_project.py")
     assert executed[0][2] == str(target_dir)
 
     broken_path = tmp_path / "forbidden"

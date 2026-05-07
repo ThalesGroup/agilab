@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import platform
+import re
 from typing import Any, Sequence
 
 
@@ -143,6 +144,9 @@ def _service_queue_payload_check(repo_root: Path) -> dict[str, Any]:
 
 def _shell_execution_boundary_check(repo_root: Path, security_text: str) -> dict[str, Any]:
     shell_true_hits: list[str] = []
+    pipe_to_shell_pattern = re.compile(
+        r"\|\s*(?:sudo\s+)?(?:/usr/bin/env\s+)?(?:/bin/)?(?:ba)?sh(?:\s|$)"
+    )
     for base in ("src/agilab", "tools", "install.sh"):
         path = repo_root / base
         if path.is_file():
@@ -162,7 +166,7 @@ def _shell_execution_boundary_check(repo_root: Path, security_text: str) -> dict
             if candidate.suffix not in {".py", ".sh"} and candidate.name != "install.sh":
                 continue
             text = _read_text(candidate)
-            if "shell=True" in text or "| sh" in text:
+            if "shell=True" in text or pipe_to_shell_pattern.search(text):
                 shell_true_hits.append(str(candidate.relative_to(repo_root)))
 
     documented = (
@@ -198,6 +202,205 @@ def _pypi_trusted_publishing_check(repo_root: Path) -> dict[str, Any]:
         passed,
         "The PyPI workflow refuses long-lived token publishing and requires Trusted Publishing/OIDC",
         evidence=[".github/workflows/pypi-publish.yaml"],
+    )
+
+
+def _coverage_upload_gate_check(repo_root: Path) -> dict[str, Any]:
+    workflow = repo_root / ".github" / "workflows" / "coverage.yml"
+    text = _read_text(workflow)
+    upload_steps = [
+        "Upload agi-env coverage to Codecov",
+        "Upload agi-node coverage to Codecov",
+        "Upload agi-cluster coverage to Codecov",
+        "Upload agi-gui coverage to Codecov",
+        "Upload repo-wide agilab coverage to Codecov",
+    ]
+    failing_steps: list[str] = []
+    for step_name in upload_steps:
+        marker = f"      - name: {step_name}"
+        start = text.find(marker)
+        if start == -1:
+            failing_steps.append(step_name)
+            continue
+        next_step = text.find("\n      - name:", start + len(marker))
+        block = text[start : next_step if next_step != -1 else len(text)]
+        if (
+            "uses: codecov/codecov-action@" not in block
+            or "# v6" not in block
+            or "continue-on-error: true" in block
+            or "fail_ci_if_error: true" not in block
+        ):
+            failing_steps.append(step_name)
+
+    return _check_result(
+        "codecov_uploads_are_blocking_gates",
+        "Coverage uploads are blocking CI gates",
+        not failing_steps,
+        "Codecov upload failures fail the coverage workflow instead of being treated as advisory",
+        evidence=[".github/workflows/coverage.yml"],
+        details={"checked_steps": upload_steps, "failing_steps": failing_steps},
+    )
+
+
+def _local_secret_storage_policy_check(repo_root: Path, security_text: str) -> dict[str, Any]:
+    environment_doc = _read_text(repo_root / "docs" / "source" / "environment.rst")
+    required_tokens = [
+        "~/.agilab/.env",
+        "developer convenience",
+        "OS keyrings",
+        "enterprise vaults",
+        "short-lived environment variables",
+        "plaintext",
+    ]
+    combined = f"{security_text}\n{environment_doc}"
+    missing = [token for token in required_tokens if token not in combined]
+    return _check_result(
+        "local_secret_storage_is_developer_only",
+        "Local plaintext secret storage is scoped to developer use",
+        not missing,
+        "Local .env persistence is documented as plaintext developer convenience, with keyring/vault/short-lived alternatives for sensitive use",
+        evidence=["SECURITY.md", "docs/source/environment.rst"],
+        details={"missing_tokens": missing},
+    )
+
+
+def _release_evidence_scope_check(repo_root: Path, security_text: str) -> dict[str, Any]:
+    release_proof = _read_text(repo_root / "docs" / "source" / "release-proof.rst")
+    required_tokens = [
+        "bounded evidence",
+        "not production certification",
+        "does not certify",
+        "long-running production operations",
+    ]
+    combined = f"{security_text}\n{release_proof}"
+    missing = [token for token in required_tokens if token not in combined]
+    return _check_result(
+        "release_evidence_scope_is_bounded",
+        "Release evidence does not claim production certification",
+        not missing,
+        "Public release proof is documented as bounded evidence, not certification for production operations",
+        evidence=["SECURITY.md", "docs/source/release-proof.rst"],
+        details={"missing_tokens": missing},
+    )
+
+
+def _remote_installer_staging_check(repo_root: Path) -> dict[str, Any]:
+    files = [
+        "install.sh",
+        "tools/install_enduser.sh",
+        "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/deployment_prepare_support.py",
+    ]
+    texts = {relative_path: _read_text(repo_root / relative_path) for relative_path in files}
+    forbidden_tokens = [
+        "curl -fsSL https://ollama.com/install.sh | sh",
+        "curl -LsSf https://astral.sh/uv/install.sh | sh",
+        "irm https://astral.sh/uv/install.ps1 | iex",
+        '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"',
+    ]
+    combined = "\n".join(texts.values())
+    found_forbidden = [token for token in forbidden_tokens if token in combined]
+    required_tokens = [
+        "run_remote_shell_installer()",
+        'run_remote_shell_installer "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" "Homebrew" "/bin/bash"',
+        "_staged_uv_install_command",
+        "_staged_uv_powershell_install_command",
+        "curl --proto '=https' --tlsv1.2",
+    ]
+    missing_required = [token for token in required_tokens if token not in combined]
+    return _check_result(
+        "remote_installers_are_staged_before_execution",
+        "Remote installer scripts are staged before execution",
+        not found_forbidden and not missing_required,
+        "Installer bootstrap downloads remote scripts to temporary files before executing them instead of piping network responses directly to shells",
+        evidence=files,
+        details={
+            "found_forbidden_tokens": found_forbidden,
+            "missing_required_tokens": missing_required,
+        },
+    )
+
+
+def _installer_dry_run_profile_check(repo_root: Path) -> dict[str, Any]:
+    files = ["install.sh", "tools/install_enduser.sh"]
+    texts = {relative_path: _read_text(repo_root / relative_path) for relative_path in files}
+    missing: dict[str, list[str]] = {}
+    for relative_path, text in texts.items():
+        required_tokens = [
+            "--dry-run",
+            "dry-run plan",
+            "steps_would_run:",
+            "print_dry_run_plan",
+        ]
+        missing_tokens = [token for token in required_tokens if token not in text]
+        if missing_tokens:
+            missing[relative_path] = missing_tokens
+
+    return _check_result(
+        "installers_expose_dry_run_profiles",
+        "Installers expose dry-run planning profiles",
+        not missing,
+        "Root and end-user installers can print an installation plan before installing dependencies or mutating environments",
+        evidence=files,
+        details={"missing_tokens": missing},
+    )
+
+
+def _central_command_runner_shell_gate_check(repo_root: Path) -> dict[str, Any]:
+    relative_path = "src/agilab/core/agi-env/src/agi_env/execution_support.py"
+    text = _read_text(repo_root / relative_path)
+    required_tokens = [
+        "def _command_requires_shell",
+        "allow_shell: bool = True",
+        "Shell syntax is not allowed for this command",
+        "asyncio.create_subprocess_exec",
+        "asyncio.create_subprocess_shell",
+    ]
+    forbidden_tokens = [
+        "except SUBPROCESS_FALLBACK_EXCEPTIONS",
+    ]
+    missing = [token for token in required_tokens if token not in text]
+    found_forbidden = [token for token in forbidden_tokens if token in text]
+    return _check_result(
+        "central_command_runner_shell_fallback_is_syntax_gated",
+        "Central command runner gates shell execution",
+        not missing and not found_forbidden,
+        "Plain commands run through argv execution; shell execution is reserved for explicit shell syntax and can be disabled",
+        evidence=[relative_path],
+        details={
+            "missing_tokens": missing,
+            "found_forbidden_tokens": found_forbidden,
+        },
+    )
+
+
+def _github_actions_sha_pin_check(repo_root: Path) -> dict[str, Any]:
+    workflow_root = repo_root / ".github" / "workflows"
+    uses_pattern = re.compile(r"uses:\s+([^\s#]+)@([^\s#]+)(?:\s+#\s*(\S+))?")
+    sha_pattern = re.compile(r"^[0-9a-f]{40}$")
+    unpinned: list[str] = []
+    checked: list[str] = []
+    for path in sorted(workflow_root.glob("*.*ml")):
+        text = _read_text(path)
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            match = uses_pattern.search(line)
+            if not match:
+                continue
+            action, ref, comment_ref = match.groups()
+            rel = path.relative_to(repo_root)
+            checked.append(f"{rel}:{line_number}:{action}@{ref}")
+            if not sha_pattern.match(ref) or not comment_ref:
+                unpinned.append(f"{rel}:{line_number}:{action}@{ref}")
+
+    return _check_result(
+        "github_actions_are_pinned_to_commit_sha",
+        "GitHub Actions are pinned to immutable SHAs",
+        not unpinned,
+        "Workflow third-party actions use full commit SHAs with the human-readable source tag/branch retained as a comment",
+        evidence=[str(path.relative_to(repo_root)) for path in sorted(workflow_root.glob("*.*ml"))],
+        details={
+            "checked_actions": checked,
+            "unpinned_actions": unpinned,
+        },
     )
 
 
@@ -264,6 +467,13 @@ def build_report(
         _service_queue_payload_check(repo_root),
         _shell_execution_boundary_check(repo_root, security_text),
         _pypi_trusted_publishing_check(repo_root),
+        _coverage_upload_gate_check(repo_root),
+        _local_secret_storage_policy_check(repo_root, security_text),
+        _release_evidence_scope_check(repo_root, security_text),
+        _remote_installer_staging_check(repo_root),
+        _installer_dry_run_profile_check(repo_root),
+        _central_command_runner_shell_gate_check(repo_root),
+        _github_actions_sha_pin_check(repo_root),
     ]
 
     pip_audit_provided, pip_audit_payload, pip_audit_error = _read_json_artifact(pip_audit_json)

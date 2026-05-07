@@ -39,7 +39,8 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
 
     assert "id-token: write" in text
     assert "environment:\n      name: pypi" in text
-    assert "uses: pypa/gh-action-pypi-publish@release/v1" in text
+    assert "uses: pypa/gh-action-pypi-publish@" in text
+    assert "# release/v1" in text
     assert "tools/pypi_distribution_state.py" in text
     assert "steps.library-pypi-state.outputs.all-exist != 'true'" in text
     assert "steps.agilab-pypi-state.outputs.all-exist != 'true'" in text

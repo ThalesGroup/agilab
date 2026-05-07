@@ -56,6 +56,7 @@ def test_force_remove_falls_back_to_subprocess_when_path_survives(monkeypatch, t
 
     assert calls
     assert calls[0][0][0] == ["cmd", "/c", "rmdir", "/s", "/q", str(target)]
+    assert "shell" not in calls[0][1]
     assert env_logger.warn.called
 
 

@@ -84,7 +84,7 @@ def run_agi(
         streamlit.stop()
 
     if path_exists:
-        return run_with_output_fn(env, f"uv -q run python {snippet_file}", str(target_path))
+        return run_with_output_fn(env, ["uv", "-q", "run", "python", str(snippet_file)], str(target_path))
 
     streamlit.info(
         "Please do an install first, ensure pyproject.toml lists required dependencies and rerun the project installation."

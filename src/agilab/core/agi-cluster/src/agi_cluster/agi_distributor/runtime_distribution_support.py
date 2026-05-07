@@ -3,13 +3,14 @@ import contextlib
 import inspect
 import logging
 import os
+import shlex
 import time
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from zipfile import BadZipFile, ZipFile
 
-from agi_cluster.agi_distributor import deployment_remote_support
+from agi_cluster.agi_distributor import background_jobs_support, deployment_remote_support
 
 
 logger = logging.getLogger(__name__)
@@ -289,13 +290,21 @@ async def start(
                 pid_file = f"dask_worker_{i}_{j}.pid"
                 if is_local:
                     wenv_abs = env.wenv_abs
-                    cmd = (
-                        f'{cmd_prefix}{dask_env}{env.uv} --project {wenv_abs} run --no-sync '
-                        f'dask worker '
-                        f'tcp://{agi_cls._scheduler} --no-nanny '
-                        f'--pid-file {wenv_abs / pid_file}'
-                    )
-                    agi_cls._exec_bg(cmd, str(wenv_abs))
+                    cmd = [
+                        *shlex.split(str(env.uv), posix=os.name != "nt"),
+                        "--project",
+                        str(wenv_abs),
+                        "run",
+                        "--no-sync",
+                        "dask",
+                        "worker",
+                        f"tcp://{agi_cls._scheduler}",
+                        "--no-nanny",
+                        "--pid-file",
+                        str(wenv_abs / pid_file),
+                    ]
+                    process_env = background_jobs_support.background_env_from_prefixes(cmd_prefix, dask_env)
+                    agi_cls._exec_bg(cmd, str(wenv_abs), env=process_env)
                 else:
                     wenv_rel = env.wenv_rel
                     cmd = (
@@ -594,8 +603,11 @@ async def stop(
     await agi_cls._close_all_connections()
 
 
-def exec_bg(agi_cls: Any, cmd: str, cwd: str) -> None:
-    job = agi_cls._jobs.new(cmd, cwd=cwd)
+def exec_bg(agi_cls: Any, cmd: Any, cwd: str, *, env: Optional[Dict[str, str]] = None) -> None:
+    if env is None:
+        job = agi_cls._jobs.new(cmd, cwd=cwd)
+    else:
+        job = agi_cls._jobs.new(cmd, cwd=cwd, env=env)
     job_id = getattr(job, "num", 0)
     if not agi_cls._jobs.result(job_id):
         raise RuntimeError(f"running {cmd} at {cwd}")

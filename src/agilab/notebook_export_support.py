@@ -1151,6 +1151,13 @@ def _helper_cell(payload: dict[str, Any]) -> str:
 
 
         def analysis_launch_command(page, *, port=None):
+            argv = analysis_launch_argv(page, port=port)
+            if isinstance(argv, str):
+                return argv
+            return shlex.join(argv)
+
+
+        def analysis_launch_argv(page, *, port=None):
             record = _page_record(page)
             active_app = resolve_active_app_root()
             script_path = record.get("script_path") or ""
@@ -1167,7 +1174,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             if port is not None:
                 cmd.extend(["--server.port", str(port)])
             cmd.extend([script_path, "--", "--active-app", active_app])
-            return shlex.join(cmd)
+            return cmd
 
 
         def _find_free_streamlit_port():
@@ -1178,13 +1185,13 @@ def _helper_cell(payload: dict[str, Any]) -> str:
 
         def launch_analysis_page(page, *, port=None, wait=False):
             resolved_port = port if port is not None else _find_free_streamlit_port()
-            cmd = analysis_launch_command(page, port=resolved_port)
-            print(cmd)
-            if cmd.startswith("#"):
-                return cmd
+            argv = analysis_launch_argv(page, port=resolved_port)
+            print(analysis_launch_command(page, port=resolved_port))
+            if isinstance(argv, str) and argv.startswith("#"):
+                return argv
             if wait:
-                return subprocess.run(cmd, shell=True, check=False)
-            return subprocess.Popen(cmd, shell=True)
+                return subprocess.run(argv, check=False)
+            return subprocess.Popen(argv)
 
 
         def render_analysis_page(page, *, fallback_launch=True, port=None):

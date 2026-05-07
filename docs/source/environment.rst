@@ -153,7 +153,9 @@ files and keeps cluster troubleshooting tied to one workspace at a time.
 Security note
 -------------
 
-Prefer environment variables or ``$HOME/.agilab/.env`` for secrets such as
-``OPENAI_API_KEY``, ``MISTRAL_API_KEY``, ``AGILAB_LLM_API_KEY``, and
-``CLUSTER_CREDENTIALS``. Avoid passing them on the command line because shell
-history and process listings can expose them.
+Prefer OS keyrings, enterprise vaults, or short-lived environment variables for
+secrets such as ``OPENAI_API_KEY``, ``MISTRAL_API_KEY``,
+``AGILAB_LLM_API_KEY``, and ``CLUSTER_CREDENTIALS``. ``$HOME/.agilab/.env`` is
+a local plaintext developer convenience, not a shared secret manager. Avoid
+passing secrets on the command line because shell history and process listings
+can expose them.

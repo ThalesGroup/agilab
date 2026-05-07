@@ -655,10 +655,10 @@ def on_nb_change(
     _bump_history_revision()
     project_path = env.apps_path / project
     if notebook_file.exists():
-        cmd = f"uv -q run jupyter notebook {notebook_file}"
+        cmd = ["uv", "-q", "run", "jupyter", "notebook", str(notebook_file)]
         code = (
             "import subprocess\n"
-            f"subprocess.Popen({cmd!r}, shell=True, cwd={str(project_path)!r})\n"
+            f"subprocess.Popen({cmd!r}, cwd={str(project_path)!r})\n"
         )
         output = run_agi(code, path=project_path)
         if output is None:

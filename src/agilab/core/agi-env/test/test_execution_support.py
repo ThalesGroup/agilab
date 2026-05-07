@@ -42,19 +42,19 @@ class _FakeProc:
         return stdout, stderr
 
 
-def test_spawn_process_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
-    async def _raise_exec(*_args, **_kwargs):
-        raise ValueError("bad command split")
+def test_spawn_process_uses_shell_only_for_shell_syntax(tmp_path: Path, monkeypatch):
+    async def _unexpected_exec(*_args, **_kwargs):
+        raise AssertionError("plain exec should not be used for shell syntax")
 
     async def _fake_shell(*_args, **_kwargs):
         return _FakeProc(stdout_lines=[b"stdout line\n", b""], stderr_lines=[b""])
 
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
     monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
 
     proc = asyncio.run(
         execution_support._spawn_process(
-            cmd="echo hi",
+            cmd="echo hi; echo bye",
             cwd=tmp_path,
             process_env={"PYTHONUNBUFFERED": "1"},
             shell_executable="/bin/bash",
@@ -62,6 +62,40 @@ def test_spawn_process_shell_fallback_allows_expected_exec_failure(tmp_path: Pat
     )
 
     assert isinstance(proc, _FakeProc)
+
+
+def test_spawn_process_does_not_shell_fallback_plain_commands(tmp_path: Path, monkeypatch):
+    async def _raise_exec(*_args, **_kwargs):
+        raise ValueError("bad command split")
+
+    async def _unexpected_shell(*_args, **_kwargs):
+        raise AssertionError("shell fallback should not run for a plain command")
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_shell", _unexpected_shell)
+
+    with pytest.raises(ValueError, match="bad command split"):
+        asyncio.run(
+            execution_support._spawn_process(
+                cmd="echo hi",
+                cwd=tmp_path,
+                process_env={"PYTHONUNBUFFERED": "1"},
+                shell_executable="/bin/bash",
+            )
+        )
+
+
+def test_spawn_process_can_disable_shell_syntax(tmp_path: Path):
+    with pytest.raises(ValueError, match="Shell syntax is not allowed"):
+        asyncio.run(
+            execution_support._spawn_process(
+                cmd="echo hi; echo bye",
+                cwd=tmp_path,
+                process_env={"PYTHONUNBUFFERED": "1"},
+                shell_executable="/bin/bash",
+                allow_shell=False,
+            )
+        )
 
 
 def test_spawn_process_propagates_unexpected_exec_bug(tmp_path: Path, monkeypatch):
@@ -263,17 +297,17 @@ def test_create_process_env_verbose_wait_false_and_timeout_paths(tmp_path: Path,
     assert proc.killed is True
 
 
-def test_run_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
-    async def _raise_exec(*_args, **_kwargs):
-        raise ValueError("bad command split")
+def test_run_uses_shell_for_shell_syntax(tmp_path: Path, monkeypatch):
+    async def _unexpected_exec(*_args, **_kwargs):
+        raise AssertionError("plain exec should not be used for shell syntax")
 
     async def _fake_shell(*_args, **_kwargs):
         return _FakeProc(stdout_lines=[b"stdout line\n", b""], stderr_lines=[b""])
 
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
     monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
 
-    result = asyncio.run(execution_support.run("echo hi", tmp_path, cwd=tmp_path, logger=None))
+    result = asyncio.run(execution_support.run("echo hi; echo bye", tmp_path, cwd=tmp_path, logger=None))
 
     assert result == "stdout line"
 
@@ -315,17 +349,17 @@ def test_run_propagates_unexpected_stream_bug(tmp_path: Path, monkeypatch):
         asyncio.run(execution_support.run("echo hi", tmp_path, cwd=tmp_path, logger=None))
 
 
-def test_run_bg_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
-    async def _raise_exec(*_args, **_kwargs):
-        raise ValueError("bad command split")
+def test_run_bg_uses_shell_for_shell_syntax(tmp_path: Path, monkeypatch):
+    async def _unexpected_exec(*_args, **_kwargs):
+        raise AssertionError("plain exec should not be used for shell syntax")
 
     async def _fake_shell(*_args, **_kwargs):
         return _FakeProc(stderr_lines=[b"stderr line\n", b""])
 
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
     monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
 
-    stdout, stderr = asyncio.run(execution_support.run_bg("echo hi", cwd=tmp_path, venv=tmp_path))
+    stdout, stderr = asyncio.run(execution_support.run_bg("echo hi; echo bye", cwd=tmp_path, venv=tmp_path))
 
     assert stdout == ""
     assert stderr == ""
@@ -385,17 +419,17 @@ def test_run_and_run_async_cover_verbose_defaults_and_blank_output(tmp_path: Pat
     assert logger.info.call_args_list[0].args[0] == f"Executing in {tmp_path}: ['echo', 'hi']"
 
 
-def test_run_async_shell_fallback_allows_expected_exec_failure(tmp_path: Path, monkeypatch):
-    async def _raise_exec(*_args, **_kwargs):
-        raise ValueError("bad command split")
+def test_run_async_uses_shell_for_shell_syntax(tmp_path: Path, monkeypatch):
+    async def _unexpected_exec(*_args, **_kwargs):
+        raise AssertionError("plain exec should not be used for shell syntax")
 
     async def _fake_shell(*_args, **_kwargs):
         return _FakeProc(stdout_lines=[b"stdout line\n", b""], stderr_lines=[b"stderr line\n", b""])
 
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
     monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
 
-    result = asyncio.run(execution_support.run_async("echo hi", venv=tmp_path, cwd=tmp_path))
+    result = asyncio.run(execution_support.run_async("echo hi; echo bye", venv=tmp_path, cwd=tmp_path))
 
     assert result == "stderr line"
 

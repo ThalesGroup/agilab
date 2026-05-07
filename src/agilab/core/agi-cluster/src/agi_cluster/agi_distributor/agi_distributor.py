@@ -1032,8 +1032,8 @@ class AGI:
         capacity_support.update_capacity(AGI)
 
     @staticmethod
-    def _exec_bg(cmd: str, cwd: str) -> None:
-        runtime_distribution_support.exec_bg(AGI, cmd, cwd)
+    def _exec_bg(cmd: Any, cwd: str, **kwargs: Any) -> None:
+        runtime_distribution_support.exec_bg(AGI, cmd, cwd, **kwargs)
 
     @asynccontextmanager
     async def get_ssh_connection(ip: str, timeout_sec: int = 5):

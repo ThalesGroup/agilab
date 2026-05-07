@@ -23,8 +23,10 @@ from agi_env.process_support import (
     strip_time_level_prefix,
 )
 
-SUBPROCESS_FALLBACK_EXCEPTIONS = (ValueError, OSError)
 PROCESS_WRAP_EXCEPTIONS = (RuntimeError, ValueError, OSError, subprocess.SubprocessError)
+SHELL_SYNTAX_PATTERN = re.compile(r"(?:&&|\|\||[;|<>`]\s*|\$\(|\n)")
+SHELL_ASSIGNMENT_PATTERN = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*=.*\s+\S+")
+SHELL_BUILTIN_PATTERN = re.compile(r"^\s*(?:cd|source|export|unset|set)\b")
 
 
 def _invoke_callback(callback: Callable[..., Any], message: str) -> None:
@@ -81,31 +83,45 @@ def _create_process_env(
     return build_subprocess_env(base_env=os.environ.copy(), venv=venv)
 
 
+def _command_requires_shell(cmd: str) -> bool:
+    """Return ``True`` when ``cmd`` intentionally uses shell syntax."""
+
+    return bool(
+        SHELL_SYNTAX_PATTERN.search(cmd)
+        or SHELL_ASSIGNMENT_PATTERN.match(cmd)
+        or SHELL_BUILTIN_PATTERN.match(cmd)
+    )
+
+
 async def _spawn_process(
     *,
     cmd: str,
     cwd: str | Path | None,
     process_env: dict[str, str],
     shell_executable: str | None = None,
+    allow_shell: bool = True,
+    stdout: int | None = asyncio.subprocess.PIPE,
+    stderr: int | None = asyncio.subprocess.PIPE,
 ) -> asyncio.subprocess.Process:
-    try:
-        cmd_list = shlex.split(cmd)
-        return await asyncio.create_subprocess_exec(
-            *cmd_list,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            cwd=str(cwd) if cwd else None,
-            env=process_env,
-        )
-    except SUBPROCESS_FALLBACK_EXCEPTIONS:
+    if _command_requires_shell(cmd):
+        if not allow_shell:
+            raise ValueError(f"Shell syntax is not allowed for this command: {cmd}")
         return await asyncio.create_subprocess_shell(
             cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stdout=stdout,
+            stderr=stderr,
             cwd=str(cwd) if cwd else None,
             env=process_env,
             executable=shell_executable,
         )
+    cmd_list = shlex.split(cmd)
+    return await asyncio.create_subprocess_exec(
+        *cmd_list,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=str(cwd) if cwd else None,
+        env=process_env,
+    )
 
 
 async def _stream_process_output(
@@ -202,16 +218,15 @@ async def run(
         if not cmd:
             return 0
 
-        asyncio.create_task(
-            asyncio.create_subprocess_shell(
-                cmd,
-                cwd=str(cwd),
-                env=process_env,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-                executable=shell_executable,
-            )
+        proc = await _spawn_process(
+            cmd=cmd,
+            cwd=cwd,
+            process_env=process_env,
+            shell_executable=shell_executable,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
         )
+        asyncio.create_task(proc.wait())
         return 0
 
     if not cmd:

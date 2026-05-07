@@ -26,6 +26,27 @@ def _exception_types(*exc_types: type[BaseException]) -> tuple[type[BaseExceptio
     return tuple(dict.fromkeys(exc_types))
 
 
+def _staged_uv_install_command() -> str:
+    return (
+        "tmp=$(mktemp -t agilab-uv-install.XXXXXX.sh) && "
+        "trap 'rm -f \"$tmp\"' EXIT && "
+        "curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh -o \"$tmp\" && "
+        "chmod 700 \"$tmp\" && "
+        "sh \"$tmp\""
+    )
+
+
+def _staged_uv_powershell_install_command() -> str:
+    return (
+        'powershell -ExecutionPolicy ByPass -c "'
+        "$p=Join-Path $env:TEMP 'agilab-uv-install.ps1'; "
+        "Invoke-WebRequest -UseBasicParsing https://astral.sh/uv/install.ps1 -OutFile $p; "
+        "powershell -ExecutionPolicy ByPass -File $p; "
+        "Remove-Item -Force $p"
+        '"'
+    )
+
+
 async def uninstall_modules(agi_cls: Any, env: AgiEnv, *, run_fn: Callable[..., Any] = AgiEnv.run, log: Any = logger) -> None:
     for module in agi_cls._module_to_clean:
         cmd = f"{env.uv} pip uninstall {module} -y"
@@ -220,14 +241,14 @@ async def prepare_cluster_env(
             try:
                 await run_exec_ssh_fn(
                     ip,
-                    'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"',
+                    _staged_uv_powershell_install_command(),
                 )
                 uv_is_installed = True
             except ConnectionError:
                 raise
             except remote_command_failures:
                 uv_is_installed = False
-                await run_exec_ssh_fn(ip, 'curl -LsSf https://astral.sh/uv/install.sh | sh')
+                await run_exec_ssh_fn(ip, _staged_uv_install_command())
                 uv_is_installed = True
 
         if agi_internet_on == 1:

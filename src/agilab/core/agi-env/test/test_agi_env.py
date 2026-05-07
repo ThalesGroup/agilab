@@ -1840,11 +1840,15 @@ def test_run_supports_export_only_and_fire_and_forget(tmp_path: Path, monkeypatc
 
     created = {}
 
-    async def _fake_shell(*args, **kwargs):
-        created["cmd"] = args[0]
-        return SimpleNamespace()
+    class _Proc:
+        async def wait(self):
+            return 0
 
-    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+    async def _fake_exec(*args, **kwargs):
+        created["cmd"] = args
+        return _Proc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
     monkeypatch.setattr(asyncio, "create_task", lambda coro: created.setdefault("coro", coro))
     result = asyncio.run(AgiEnv.run("echo hi", tmp_path, wait=False))
     assert result == 0
@@ -1856,13 +1860,17 @@ def test_run_fire_and_forget_applies_exported_path_and_uv_preview_flag(tmp_path:
     process_env = {"PATH": "/usr/bin"}
     created: dict[str, object] = {}
 
-    async def _fake_shell(cmd, **kwargs):
-        created["cmd"] = cmd
+    class _Proc:
+        async def wait(self):
+            return 0
+
+    async def _fake_exec(*args, **kwargs):
+        created["cmd"] = args
         created["kwargs"] = kwargs
-        return SimpleNamespace()
+        return _Proc()
 
     monkeypatch.setattr(AgiEnv, "_build_env", staticmethod(lambda _venv: process_env))
-    monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
     monkeypatch.setattr(
         asyncio,
         "create_task",
@@ -1872,7 +1880,7 @@ def test_run_fire_and_forget_applies_exported_path_and_uv_preview_flag(tmp_path:
     result = asyncio.run(AgiEnv.run('export PATH="~/.local/bin:$PATH"; uv sync', tmp_path, wait=False))
 
     assert result == 0
-    assert " ".join(str(created["cmd"]).split()) == "uv --preview-features extra-build-dependencies sync"
+    assert created["cmd"] == ("uv", "--preview-features", "extra-build-dependencies", "sync")
     assert process_env["PATH"].startswith(str(Path.home() / ".local/bin"))
     assert created["kwargs"]["cwd"] == str(tmp_path)
 
@@ -1931,16 +1939,16 @@ def test_run_wait_shell_fallback_uses_plain_callback_and_skips_blank_lines(tmp_p
         async def wait(self):
             return self.returncode
 
-    async def _raise_exec(*args, **kwargs):
-        raise ValueError("force shell")
+    async def _unexpected_exec(*args, **kwargs):
+        raise AssertionError("plain exec should not be used for shell syntax")
 
     async def _fake_shell(cmd, **kwargs):
         return _Proc()
 
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
     monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
 
-    result = asyncio.run(AgiEnv.run("echo hi", tmp_path, wait=True, log_callback=streamed.append))
+    result = asyncio.run(AgiEnv.run("echo hi; echo bye", tmp_path, wait=True, log_callback=streamed.append))
 
     assert result == "stdout line\nstderr line"
     assert streamed == ["stdout line", "stderr line"]
@@ -2042,19 +2050,19 @@ def test_run_bg_shell_fallback_handles_blank_lines_and_simple_callback(tmp_path:
         async def communicate(self):
             return b"", b"stderr line\n"
 
-    async def _raise_exec(*args, **kwargs):
-        raise ValueError("boom")
+    async def _unexpected_exec(*args, **kwargs):
+        raise AssertionError("plain exec should not be used for shell syntax")
 
     async def _fake_shell(cmd, **kwargs):
         return _FakeProc()
 
     monkeypatch.setattr(AgiEnv, "_build_env", staticmethod(lambda _venv: dict(process_env)))
-    monkeypatch.setattr(asyncio, "create_subprocess_exec", _raise_exec)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _unexpected_exec)
     monkeypatch.setattr(asyncio, "create_subprocess_shell", _fake_shell)
 
     stdout, stderr = asyncio.run(
         AgiEnv._run_bg(
-            "uv pip install demo",
+            "uv pip install demo; true",
             cwd=tmp_path,
             venv=tmp_path,
             timeout=10,
