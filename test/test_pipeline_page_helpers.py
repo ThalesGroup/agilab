@@ -41,7 +41,7 @@ def _prime_current_agilab_package() -> None:
 
 def _load_pipeline_module():
     _prime_current_agilab_package()
-    module_path = Path("src/agilab/pages/3_PIPELINE.py")
+    module_path = Path("src/agilab/pages/3_WORKFLOW.py")
     spec = importlib.util.spec_from_file_location("agilab_pipeline_page_helper_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -62,7 +62,7 @@ def _load_pipeline_module_with_mixed_checkout(monkeypatch, stale_root: Path):
     spec.submodule_search_locations = [str(stale_root)]
     pkg.__spec__ = spec
     monkeypatch.setitem(sys.modules, "agilab", pkg)
-    module_path = Path("src/agilab/pages/3_PIPELINE.py")
+    module_path = Path("src/agilab/pages/3_WORKFLOW.py")
     spec = importlib.util.spec_from_file_location("agilab_pipeline_page_mixed_checkout_tests", module_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -176,22 +176,26 @@ def test_render_notebook_download_button_renders_bytes(tmp_path, monkeypatch):
     download_calls: list[dict[str, object]] = []
     errors: list[str] = []
     captions: list[str] = []
-    fake_sidebar = SimpleNamespace(
+    fake_container = SimpleNamespace(
         download_button=lambda label, **kwargs: download_calls.append({"label": label, **kwargs}),
         error=lambda message: errors.append(str(message)),
         caption=lambda message: captions.append(str(message)),
     )
-    monkeypatch.setattr(module.st, "sidebar", fake_sidebar)
 
     notebook_path = tmp_path / "lab_steps.ipynb"
     notebook_path.write_bytes(b'{"cells": []}')
     pycharm_path = tmp_path / "exported_notebooks" / "demo" / "lab_steps.ipynb"
 
-    module._render_notebook_download_button(notebook_path, "pipeline-export", pycharm_path=pycharm_path)
+    module._render_notebook_download_button(
+        notebook_path,
+        "pipeline-export",
+        pycharm_path=pycharm_path,
+        container=fake_container,
+    )
 
     assert download_calls == [
         {
-            "label": "Export notebook",
+            "label": "Download pipeline notebook",
             "data": b'{"cells": []}',
             "file_name": "lab_steps.ipynb",
             "mime": "application/x-ipynb+json",
@@ -209,17 +213,16 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     def _raise_download_error(_label, **_kwargs):
         raise StreamlitAPIException("download failed")
 
-    fake_sidebar = SimpleNamespace(
+    fake_container = SimpleNamespace(
         download_button=_raise_download_error,
         error=lambda message: errors.append(str(message)),
         caption=lambda _message: None,
     )
-    monkeypatch.setattr(module.st, "sidebar", fake_sidebar)
 
     notebook_path = tmp_path / "lab_steps.ipynb"
     notebook_path.write_bytes(b'{"cells": []}')
 
-    module._render_notebook_download_button(notebook_path, "pipeline-export")
+    module._render_notebook_download_button(notebook_path, "pipeline-export", container=fake_container)
 
     assert errors == ["Failed to prepare notebook export: download failed"]
 

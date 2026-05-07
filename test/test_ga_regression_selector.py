@@ -115,6 +115,19 @@ def test_load_timings_accepts_json_and_junit(tmp_path: Path) -> None:
     assert timings["test/test_pipeline_ai.py"] == 2.25
 
 
+def test_load_timings_ignores_unreadable_files(tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    json_path = tmp_path / "timings.json"
+    bad_junit_path = tmp_path / "bad-junit.xml"
+    json_path.write_text(json.dumps({"test/test_pipeline_ai.py": 1.5}), encoding="utf-8")
+    bad_junit_path.write_text("<testsuites></testsuites><junk>", encoding="utf-8")
+
+    timings = module.load_timings([str(json_path), str(bad_junit_path)])
+
+    assert timings == {"test/test_pipeline_ai.py": 1.5}
+    assert "ignoring unreadable timings" in capsys.readouterr().err
+
+
 def test_main_json_output_for_explicit_files(capsys) -> None:
     module = _load_module()
 

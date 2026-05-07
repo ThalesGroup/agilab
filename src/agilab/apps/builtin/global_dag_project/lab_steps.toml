@@ -1,0 +1,13 @@
+[[steps]]
+D = "Inspect the global DAG contract"
+Q = "Open the bundled flight-to-meteo DAG and identify stages, artifacts, and handoffs."
+M = ""
+C = "from pathlib import Path\nimport json\npath = Path('dag_templates/flight_to_meteo_global_dag.json')\npayload = json.loads(path.read_text(encoding='utf-8'))\n[(node['id'], node['app']) for node in payload['nodes']]"
+R = "runpy"
+
+[[steps]]
+D = "Preview runner state"
+Q = "Build a read-only runner-state preview without executing either app."
+M = ""
+C = "from pathlib import Path\nfrom global_dag.preview_global_dag import build_preview, planning_repo_root\nsummary = build_preview(repo_root=planning_repo_root(None), output_path=Path.home() / 'log/execute/global_dag/runner_state.json')\nsummary['runner_state']['summary']"
+R = "runpy"

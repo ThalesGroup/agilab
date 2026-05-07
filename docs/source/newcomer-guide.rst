@@ -3,7 +3,7 @@ Newcomer Guide
 
 If you are new to AGILab, optimize for one outcome only: one successful local
 run of the built-in ``flight_project`` from the web UI, including the core
-``PROJECT`` -> ``ORCHESTRATE`` -> ``PIPELINE`` -> ``ANALYSIS`` route.
+``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` route.
 
 This page gives the mental model only. :doc:`quick-start` owns the exact
 commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
@@ -128,7 +128,7 @@ The five words you need
 
 - **PROJECT**: where you choose the app you want to run.
 - **ORCHESTRATE**: where you install and execute it.
-- **PIPELINE**: where you inspect, generate, or replay run steps.
+- **WORKFLOW**: where you inspect, generate, or replay run steps.
 - **ANALYSIS**: where you look at the result.
 - **Worker**: the isolated runtime that actually executes the app.
 

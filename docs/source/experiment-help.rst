@@ -1,4 +1,4 @@
-PIPELINE
+WORKFLOW
 ===========
 
 .. toctree::
@@ -7,12 +7,12 @@ PIPELINE
 Page snapshot
 -------------
 
-.. figure:: _static/page-shots/pipeline-page.png
-   :alt: Screenshot of the PIPELINE page with assistant controls, lab directory selectors, and dataframe selection.
+.. figure:: _static/page-shots/workflow-page.png
+   :alt: Screenshot of the WORKFLOW page with assistant controls, lab directory selectors, and dataframe selection.
    :align: center
    :class: diagram-panel diagram-wide
 
-   PIPELINE combines lab-step editing, execution context, dataframe selection, and notebook export in the same workspace.
+   WORKFLOW combines lab-step editing, execution context, dataframe selection, and notebook export in the same workspace.
 
 Sidebar
 -------
@@ -25,12 +25,6 @@ Sidebar
   you change the selection the assistant reloads the stored conversation.
 - ``DataFrame``: select which CSV (or parquet) is mounted for the assistant. The
   resolved absolute path lives under ``${AGILAB_EXPORT_ABS}``.
-- ``Import Notebook``: upload an ``.ipynb`` file to seed the conversation when
-  working offline.
-- ``Export notebook``: write the current lab as ``lab_steps.ipynb`` so you can
-  run the pipeline outside the AGILAB UI as a runnable supervisor notebook.
-  In a source checkout, AGILAB also writes a project-local PyCharm mirror under
-  ``exported_notebooks/<module>/lab_steps.ipynb``.
 - ``MLflow``: shows whether the local tracking UI is running and exposes an
   ``Open UI`` link. The UI is a tracker view, not another execution button.
 
@@ -82,13 +76,23 @@ must be refreshed deliberately.
 For example, if an app renames a runtime argument, older saved snippets that
 still pass the removed name must be regenerated or replaced before they can run.
 
-Multi-app DAG orchestration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The **Multi-app DAG orchestration** expander is the transition path from a
-single-project pipeline to a cross-app artifact graph.
+Workflow graph scopes
+~~~~~~~~~~~~~~~~~~~~~
+The **Workflow graph** expander is the transition path from a single-project
+pipeline to cross-app artifact orchestration. Use the ``Pipeline scope``
+selector to choose what the graph represents:
+
+* ``Project workflow`` renders the current ``lab_steps.toml`` as a read-only
+  compatibility graph. It explains stage order and dependencies, while the
+  existing step controls remain the source of truth for real single-project
+  execution.
+* ``Multi-app DAG`` loads or edits a cross-app artifact contract. This is the
+  path for connecting app stages through explicit produced and consumed
+  artifacts.
 
 Use the ``DAG source`` selector to make the source explicit:
 
+* ``App templates`` loads checked-in DAG contracts bundled with the active app.
 * ``Sample library`` loads checked-in public examples from
   ``docs/source/data/multi_app_dag*.json``.
 * ``Workspace drafts`` loads DAGs saved from the current project workspace under
@@ -108,22 +112,61 @@ Execution is intentionally conservative:
   execution marker. AGILAB ships controlled examples, and app-owned executable
   templates saved under an app's ``dag_templates`` directory can use the generic
   controlled contract adapter.
+* ``Run ready stages`` executes every currently runnable controlled stage in
+  one batch. Independent branches can run concurrently, and each stage still
+  owns its app runtime, including any AGI/Dask distribution used inside that
+  app.
+* When a distributed stage submitter is configured, a ``Stage backend`` selector
+  appears before the run buttons. ``Local contracts`` keeps execution in the
+  current UI process; ``Distributed backend`` submits each ready stage through
+  the configured backend and records ``distributed_stage`` provenance in the
+  DAG state.
+  When ``Distributed backend`` is selected, WORKFLOW shows the exact
+  per-stage request preview before the run buttons: app, scheduler, worker
+  nodes/slots, workers data path, mode integer, apps path, and the JSON
+  ``RunRequest`` payload that will be sent for each stage.
+  The built-in submitter is configured from the active app's saved
+  **ORCHESTRATE** cluster settings: ``cluster_enabled`` must be true, a
+  scheduler, workers, and ``Workers Data Path`` must be present, and each DAG
+  stage ``app`` must resolve under ``src/agilab/apps/builtin`` or
+  ``src/agilab/apps``. Each submitted stage runs in an isolated AGILAB
+  subprocess so parallel ready stages do not share the in-process ``AGI`` class
+  state.
 * Workspace drafts and custom DAGs remain preview-only until they are promoted
   into a checked-in app template with an explicit controlled execution contract.
 
 Executable stage contracts are deliberately small:
 
 * ``nodes[].execution.entrypoint`` names the stable stage executor, for example
-  ``flight_project.flight_context``. PIPELINE displays this value in the stage
+  ``flight_project.flight_context``. WORKFLOW displays this value in the stage
   table and graph so users can see what will execute before pressing
   ``Run next stage``.
 * ``nodes[].execution.command`` is an optional command-list executor for
   deterministic local stages. Prefer a JSON list such as
   ``["python", "-m", "package.module"]`` over a shell string.
+* ``nodes[].execution.params``, ``steps``, ``data_in``, ``data_out``, and
+  ``reset_target`` are preserved from the DAG template into the execution plan,
+  runner state, distributed request preview, and distributed submission
+  evidence. This keeps cross-app DAG execution auditable instead of relying on
+  hidden defaults.
 * ``produces`` and ``consumes`` declare the artifact contract between stages.
   Executable app templates must declare at least one produced artifact per
   controlled stage so the runner can publish evidence and unlock downstream
   stages.
+
+Use the smoke validator before a live two-node run:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/dag_distributed_stage_smoke.py \
+     --scheduler 192.168.20.111:8786 \
+     --workers '{"192.168.20.111": 1, "192.168.20.15": 1}' \
+     --workers-data-path clustershare/agi \
+     --compact
+
+Add ``--execute`` only after SSH, SSHFS, app installs, and ORCHESTRATE cluster
+settings are known good. Without ``--execute``, the command writes a dry-run
+evidence JSON under ``test-results/`` and does not start Dask workers.
 
 The panel shows the current readiness metrics, graph, artifact handoffs, and
 execution history. Use the history table to distinguish preview dispatch events
@@ -132,7 +175,14 @@ orchestration flow.
 
 Notebook export
 ~~~~~~~~~~~~~~~
-PIPELINE can export the current lab as a runnable supervisor notebook. This is
+The closed-by-default ``Notebook`` expander keeps notebook import and export
+near the pipeline definition instead of in the sidebar:
+
+* ``Import notebook`` uploads an ``.ipynb`` file and previews the steps that
+  would be merged into ``lab_steps.toml``.
+* ``Download pipeline notebook`` exports the current lab as ``lab_steps.ipynb``.
+
+WORKFLOW can export the current lab as a runnable supervisor notebook. This is
 not just a static dump of code cells.
 
 * The notebook is written beside ``lab_steps.toml`` as ``lab_steps.ipynb``.
@@ -177,7 +227,7 @@ Pipeline execution and MLflow tracking now share the same runtime contract:
    :align: center
    :class: diagram-panel diagram-standard
 
-   PIPELINE creates one parent MLflow run per execution, then one nested run per step, while both in-process and subprocess paths write to the same tracking store exposed by the MLflow UI.
+   WORKFLOW creates one parent MLflow run per execution, then one nested run per step, while both in-process and subprocess paths write to the same tracking store exposed by the MLflow UI.
 
 * ``Run pipeline`` creates one parent MLflow run for the whole lab execution.
 * Every executed step becomes a nested MLflow run with its own metadata.
@@ -187,7 +237,7 @@ Pipeline execution and MLflow tracking now share the same runtime contract:
   artefacts are logged to the same tracking store when they exist.
 
 This means MLflow is no longer just a nearby dashboard. It is the execution
-trace for PIPELINE runs, while the sidebar remains the place where you inspect
+trace for WORKFLOW runs, while the sidebar remains the place where you inspect
 that trace.
 
 AGILAB does not define a separate experiment tracker, model registry, run
@@ -219,12 +269,12 @@ file here immediately refreshes the assistant tab.
 Troubleshooting and checks
 --------------------------
 
-Use these checks if Pipeline steps are confusing or fail to execute:
+Use these checks if Workflow steps are confusing or fail to execute:
 
 - If numbered step buttons do not match ``lab_steps.toml``, open **HISTORY** and
   confirm the selected file is the current module's lab file.
 - If execution fails on a stale path, regenerate or re-import the snippet in
-  PIPELINE before rerunning the step.
+  WORKFLOW before rerunning the step.
 - If ``Run`` writes no dataframe, check the destination under
   ``${AGILAB_EXPORT_ABS}/<module>/lab_out.csv`` and ensure ``Write permissions``
   are enabled for the selected execution environment.

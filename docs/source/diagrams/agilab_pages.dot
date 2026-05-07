@@ -4,7 +4,7 @@ digraph AgilabPages {
   edge [color="#475569", penwidth=1.4];
 
   AGILAB [label="AGILAB.py\n(Web interface)", fillcolor="#c7d2fe", color="#312e81"];
-  PagesCore [label="Core pages\n(PROJECT / ORCHESTRATE / PIPELINE / ANALYSIS)", fillcolor="#bfdbfe", color="#1d4ed8"];
+  PagesCore [label="Core pages\n(PROJECT / ORCHESTRATE / WORKFLOW / ANALYSIS)", fillcolor="#bfdbfe", color="#1d4ed8"];
   AppsPages [label="Page bundles\n(sidecar dashboards)", fillcolor="#c7f9cc", color="#15803d"];
   AgiCore [label="agi_core\napp routing + lab_steps", fillcolor="#fde68a", color="#ca8a04"];
 

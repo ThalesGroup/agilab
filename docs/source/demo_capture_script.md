@@ -17,7 +17,7 @@ Keep one app per video, but support two stable narrative packs:
   - safest default
   - best for newcomer onboarding and first local proof
 - `UAV Relay Queue` (`uav_relay_queue_project`)
-  - strongest public `PIPELINE` + `ANALYSIS` story
+  - strongest public `WORKFLOW` + `ANALYSIS` story
   - best for the main full-tour demo assets
 
 Default recommendation:
@@ -25,7 +25,7 @@ Default recommendation:
 - use `flight_project` for newcomer onboarding clips and first-proof demos
 - use `UAV Relay Queue` (`uav_relay_queue_project`) for the main full-tour
   product demo when you want a truthful
-  `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS` story
+  `PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS` story
 
 Stable visual assets already tracked in the repo:
 
@@ -39,7 +39,7 @@ Keep two stable public messages instead of forcing one app to carry both roles:
 
 - `flight_project`: `PROJECT -> ORCHESTRATE -> ANALYSIS`, with visible output files
   in between
-- `UAV Relay Queue`: `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`, ending on
+- `UAV Relay Queue`: `PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS`, ending on
   queue evidence
 
 ## Which format to use
@@ -170,7 +170,7 @@ Keep the act discipline strict:
 
 - show at most two settings before moving on
 - use one fast `ORCHESTRATE` proof frame
-- flash `PIPELINE` only long enough to prove replayability
+- flash `WORKFLOW` only long enough to prove replayability
 - make worker execution the key technical moment
 - show adaptation as a before/after decision change
 - close on latency, cost, and reliability deltas
@@ -342,7 +342,7 @@ Use this when the audience expects an actual ML workflow, not only a product tou
    - lag / horizon setup
 4. Move to `ORCHESTRATE`.
 5. Show one runnable forecast / backtest execution path.
-6. Move to `PIPELINE`.
+6. Move to `WORKFLOW`.
 7. Show the replayable steps:
    - load series
    - backtest forecaster
@@ -433,7 +433,7 @@ Keep the same page order:
 
 1. `PROJECT`
 2. `ORCHESTRATE`
-3. `PIPELINE`
+3. `WORKFLOW`
 4. `ANALYSIS`
 
 Suggested flow:
@@ -444,7 +444,7 @@ Suggested flow:
 3. Briefly show the routing policy and scenario file.
 4. Move to `ORCHESTRATE`.
 5. Trigger the run.
-6. Move to `PIPELINE`.
+6. Move to `WORKFLOW`.
 7. Show that the run is now replayable as a tracked step.
 8. Move to `ANALYSIS`.
 9. Open `view_uav_relay_queue_analysis`.
@@ -477,7 +477,7 @@ Suggested timeline:
    lightweight simulator-backed app and packages it into a controlled execution
    path.
 4. `1:35 -> 2:00`
-   Move to `PIPELINE`, show the generated or replayable step, and explain that
+   Move to `WORKFLOW`, show the generated or replayable step, and explain that
    the experiment is now explicit instead of being buried in one-off scripts.
 5. `2:00 -> 2:40`
    Move to `ANALYSIS`, open `view_uav_relay_queue_analysis`, and show queue
@@ -490,7 +490,7 @@ Suggested narration:
 
 `This is the more technical AGILAB story. In PROJECT, I choose a UAV queueing
 experiment and its routing policy. In ORCHESTRATE, AGILAB runs it without
-ad-hoc glue. In PIPELINE, the execution becomes replayable. In ANALYSIS, I land
+ad-hoc glue. In WORKFLOW, the execution becomes replayable. In ANALYSIS, I land
 on queue buildup, packet drops, and route usage. The point is not only to run a
 simulation. The point is to turn it into a controlled, inspectable workflow.`
 
@@ -502,7 +502,7 @@ Suggested click path:
 4. short pause on scenario and routing policy
 5. `ORCHESTRATE`
 6. short pause on run controls
-7. `PIPELINE`
+7. `WORKFLOW`
 8. short pause on the explicit step
 9. `ANALYSIS`
 10. `view_uav_relay_queue_analysis`
@@ -524,7 +524,7 @@ Suggested click path:
 - each tutorial uses one app only
 - `flight_project` clips show `PROJECT -> ORCHESTRATE -> ANALYSIS`, with fresh
   output files in between
-- `UAV Relay Queue` clips show `PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS`
+- `UAV Relay Queue` clips show `PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS`
 - the ending frame shows a result, not infrastructure noise
 - the video and static assets use the same message
 - the social/static assets do not contradict the live capture

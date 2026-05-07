@@ -26,6 +26,18 @@ logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
 
 
+def _artifact_dir(env: object, leaf: str) -> Path:
+    export_root = getattr(env, "AGILAB_EXPORT_ABS", None)
+    target = str(getattr(env, "target", "") or "")
+    relative = Path(target) / leaf if target else Path(leaf)
+    if export_root is not None:
+        return Path(export_root) / relative
+    resolve_share_path = getattr(env, "resolve_share_path", None)
+    if callable(resolve_share_path):
+        return Path(resolve_share_path(relative))
+    return Path.home() / "export" / relative
+
+
 @dataclass(frozen=True)
 class RelayConfig:
     relay_id: str
@@ -163,7 +175,7 @@ class UavRelayQueueWorker(PandasWorker):
         self.args.data_out = data_paths.normalized_output
         self.data_out = data_paths.output_path
         self.reset_target = bool(getattr(self.args, "reset_target", False))
-        self.artifact_dir = Path(self.env.AGILAB_EXPORT_ABS) / self.env.target / "queue_analysis"
+        self.artifact_dir = _artifact_dir(self.env, "queue_analysis")
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         self.pool_vars = {"args": self.args}
         _runtime = self.pool_vars

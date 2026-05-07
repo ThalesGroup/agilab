@@ -13,7 +13,7 @@ If the goal is near-term product sequencing rather than broad idea collection,
 use this order:
 
 1. **Multi-app DAG orchestration productization**
-   - let `PIPELINE` represent one orchestrated DAG across the full workflow,
+   - let `WORKFLOW` represent one orchestrated DAG across the full workflow,
      not just one app-local execution view
    - build on the shipped multi-app DAG contract, read-only global pipeline DAG
      report, pending execution-plan report, read-only runner state, and
@@ -323,7 +323,7 @@ Current shipped baseline:
   `relay_followup` as `blocked`, and records transition, retry,
   partial-rerun, operator-message, and provenance metadata without executing
   apps
-- the PIPELINE page now includes an expanded `Multi-app DAG orchestration` surface that
+- the WORKFLOW page now includes an expanded `Multi-app DAG orchestration` surface that
   can select a `agilab.multi_app_dag.v1` contract, edit stages and artifact
   handoffs through selector-driven workspace drafts and read-only summaries,
   validate it without hand-editing docs files, reset the persisted preview state,
@@ -394,7 +394,7 @@ Purpose:
 
 Current shipped baseline:
 
-- `PIPELINE` can already export a supervisor notebook that preserves step
+- `WORKFLOW` can already export a supervisor notebook that preserves step
   provenance, runtime metadata, and per-step execution context
 - exported notebooks can include related analysis-page launcher helpers when an
   app declares them
@@ -402,7 +402,7 @@ Current shipped baseline:
   notebook-to-pipeline import contract from a checked-in `.ipynb`; it preserves
   markdown context, code cells, import hints, execution-count metadata, and
   artifact references as `not_executed_import` pipeline-step evidence, writes a
-  richer `lab_steps.toml` preview, and feeds the existing `PIPELINE` upload path
+  richer `lab_steps.toml` preview, and feeds the existing `WORKFLOW` upload path
 - `tools/notebook_roundtrip_report.py --compact` validates
   `lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`
   preservation for saved step description, prompt, model, code, runtime,
@@ -732,14 +732,14 @@ Expected impact:
 - easier regression testing of distributed apps
 - a better foundation for future run-diff and evidence views
 - `PROJECT` must expose connector references clearly enough to stay debuggable
-- `PIPELINE` should remain unchanged in phase 1
+- `WORKFLOW` should remain unchanged in phase 1
 
 Suggested implementation phases:
 
 1. core connector model, parser, resolver, and validation
 2. connector-aware default resolution in apps-pages
 3. connector preview and navigation support in `PROJECT`
-4. optional connector references in `PIPELINE` only if needed later
+4. optional connector references in `WORKFLOW` only if needed later
 
 Acceptance target:
 
@@ -924,7 +924,7 @@ Use this rule of thumb:
 - choose **Multi-app DAG orchestration** if the next need is broader app
   coverage beyond the shipped two-app dependency contract
 - choose **Multi-app DAG orchestration productization** if the next need is to
-  execute the shipped product-visible graph in `PIPELINE`
+  execute the shipped product-visible graph in `WORKFLOW`
 - choose **Bidirectional notebook interop** if the next need is a stronger bridge
   between exploratory notebooks and AGILab-managed workflows
 - choose **Elastic/OpenSearch + Grafana** if the next need is operations and

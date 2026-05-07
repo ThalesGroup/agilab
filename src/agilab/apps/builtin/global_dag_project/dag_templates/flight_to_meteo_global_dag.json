@@ -1,8 +1,8 @@
 {
   "schema": "agilab.multi_app_dag.v1",
-  "dag_id": "flight-to-meteo-example",
-  "label": "Flight to meteo inter-project handoff",
-  "description": "Two public AGILAB projects connected through an explicit artifact contract. The preview plans the DAG and runner state; it does not execute either app.",
+  "dag_id": "flight-to-meteo-global-dag-example",
+  "label": "Flight to meteo global DAG handoff",
+  "description": "Two public AGILAB projects connected through an explicit global DAG artifact contract. The preview plans the DAG and runner state; it does not execute either app.",
   "execution": {
     "mode": "sequential_dependency_order",
     "runner_status": "contract_only"

@@ -28,7 +28,7 @@ Modules at a glance
     opt-in to common validation, start here.
 ``agi_core.streamlit``
     Shared web interface widgets (status panels, history view, deploy dialogs) used
-    by PROJECT/ORCHESTRATE/PIPELINE/ANALYSIS. Keeping them here avoids circular imports from the
+    by PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS. Keeping them here avoids circular imports from the
     page packages.
 ``agi_core.telemetry``
     Structured logging, run-history helpers, and wrappers used by ``AGI.run`` to

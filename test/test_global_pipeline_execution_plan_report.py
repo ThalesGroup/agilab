@@ -105,8 +105,13 @@ def test_execution_plan_carries_app_template_execution_contracts() -> None:
 
     assert plan.ok is True
     first, second = plan.runnable_units
-    assert first["execution_contract"] == {"entrypoint": "flight_project.flight_context"}
-    assert second["execution_contract"] == {"entrypoint": "meteo_forecast_project.meteo_forecast_review"}
+    assert first["execution_contract"]["entrypoint"] == "flight_project.flight_context"
+    assert first["execution_contract"]["params"]["output_format"] == "parquet"
+    assert first["execution_contract"]["data_in"] == "flight/dataset"
+    assert first["execution_contract"]["steps"] == []
+    assert second["execution_contract"]["entrypoint"] == "meteo_forecast_project.meteo_forecast_review"
+    assert second["execution_contract"]["params"]["station"] == "Paris-Montsouris"
+    assert second["execution_contract"]["data_out"] == "meteo_forecast/results"
 
 
 def test_execution_plan_report_handles_load_failure(tmp_path: Path) -> None:

@@ -142,11 +142,18 @@ _dag_run_engine_module = import_agilab_module(
     fallback_name="agilab_dag_run_engine_fallback",
 )
 DagRunEngine = _dag_run_engine_module.DagRunEngine
+GlobalDagBatchExecutionResult = _dag_run_engine_module.DagBatchExecutionResult
 GlobalDagStageExecutionResult = _dag_run_engine_module.DagStageExecutionResult
 GLOBAL_DAG_QUEUE_UNIT_ID = _dag_run_engine_module.GLOBAL_DAG_QUEUE_UNIT_ID
 GLOBAL_DAG_RELAY_UNIT_ID = _dag_run_engine_module.GLOBAL_DAG_RELAY_UNIT_ID
 GLOBAL_DAG_REAL_RUN_DIRNAME = _dag_run_engine_module.GLOBAL_DAG_REAL_RUN_DIRNAME
 GLOBAL_DAG_REAL_EXECUTION_SCOPE = _dag_run_engine_module.GLOBAL_DAG_REAL_EXECUTION_SCOPE
+GLOBAL_DAG_STAGE_BACKEND_LOCAL = _dag_run_engine_module.GLOBAL_DAG_STAGE_BACKEND_LOCAL
+GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED = _dag_run_engine_module.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED
+GLOBAL_DAG_STAGE_BACKEND_LABELS = {
+    GLOBAL_DAG_STAGE_BACKEND_LOCAL: "Local contracts",
+    GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED: "Distributed backend",
+}
 available_artifact_ids = _dag_run_engine_module.available_artifact_ids
 controlled_real_run_supported = _dag_run_engine_module.controlled_real_run_supported
 dispatch_next_runnable = _dag_run_engine_module.dispatch_next_runnable
@@ -157,6 +164,7 @@ repo_relative_text_for_dag = _dag_run_engine_module.repo_relative_text
 run_global_dag_queue_baseline_app = _dag_run_engine_module.run_global_dag_queue_baseline_app
 run_global_dag_relay_followup_app = _dag_run_engine_module.run_global_dag_relay_followup_app
 run_next_controlled_global_dag_stage = _dag_run_engine_module.run_next_controlled_stage
+run_ready_controlled_global_dag_stages = _dag_run_engine_module.run_ready_controlled_stages
 runner_state_dag_matches = _dag_run_engine_module.runner_state_dag_matches
 write_runner_state = _dag_run_engine_module.write_runner_state
 
@@ -189,6 +197,23 @@ _multi_app_dag_templates_module = import_agilab_module(
 )
 app_dag_template_paths = _multi_app_dag_templates_module.app_dag_template_paths
 
+_dag_distributed_submitter_module = import_agilab_module(
+    "agilab.dag_distributed_submitter",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "dag_distributed_submitter.py",
+    fallback_name="agilab_dag_distributed_submitter_fallback",
+)
+build_global_dag_distributed_stage_submitter = (
+    _dag_distributed_submitter_module.build_global_dag_distributed_stage_submitter
+)
+build_distributed_request_preview_rows = (
+    _dag_distributed_submitter_module.build_distributed_request_preview_rows
+)
+dag_distributed_stage_config_from_settings = (
+    _dag_distributed_submitter_module.dag_distributed_stage_config_from_settings
+)
+load_dag_distributed_settings = _dag_distributed_submitter_module.load_dag_distributed_settings
+
 logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
@@ -203,6 +228,9 @@ GLOBAL_DAG_SOURCE_APP_TEMPLATES = "App templates"
 GLOBAL_DAG_SOURCE_SAMPLES = "Sample library"
 GLOBAL_DAG_SOURCE_WORKSPACE = "Workspace drafts"
 GLOBAL_DAG_SOURCE_CUSTOM = "Custom path"
+PIPELINE_SCOPE_PROJECT = "Project workflow"
+PIPELINE_SCOPE_MULTI_APP_DAG = "Multi-app DAG"
+PIPELINE_SCOPE_OPTIONS = [PIPELINE_SCOPE_PROJECT, PIPELINE_SCOPE_MULTI_APP_DAG]
 GLOBAL_DAG_SOURCE_OPTIONS = [
     GLOBAL_DAG_SOURCE_PROJECT_STEPS,
     GLOBAL_DAG_SOURCE_APP_TEMPLATES,
@@ -401,6 +429,30 @@ def _apply_global_dag_pending_source_selection(
         st.session_state[dag_input_key] = dag_text
 
 
+def _pipeline_scope_from_source(source_value: Any, has_project_steps: bool) -> str:
+    if str(source_value or "") == GLOBAL_DAG_SOURCE_PROJECT_STEPS:
+        return PIPELINE_SCOPE_PROJECT
+    if source_value:
+        return PIPELINE_SCOPE_MULTI_APP_DAG
+    return PIPELINE_SCOPE_PROJECT if has_project_steps else PIPELINE_SCOPE_MULTI_APP_DAG
+
+
+def _default_multi_app_dag_source(
+    *,
+    default_dag_text: str,
+    app_template_options: list[str],
+    sample_options: list[str],
+    workspace_options: list[str],
+) -> str:
+    if default_dag_text in app_template_options or app_template_options:
+        return GLOBAL_DAG_SOURCE_APP_TEMPLATES
+    if default_dag_text in sample_options or sample_options:
+        return GLOBAL_DAG_SOURCE_SAMPLES
+    if workspace_options:
+        return GLOBAL_DAG_SOURCE_WORKSPACE
+    return GLOBAL_DAG_SOURCE_CUSTOM
+
+
 def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
     options: list[str] = []
     seen: set[str] = set()
@@ -519,7 +571,7 @@ def _empty_global_dag_payload() -> dict[str, Any]:
     return {
         "schema": MULTI_APP_DAG_SCHEMA,
         "dag_id": "new-global-dag",
-        "label": "New global DAG",
+        "label": "New multi-app DAG",
         "description": "",
         "execution": {
             "mode": "sequential_dependency_order",
@@ -883,14 +935,42 @@ def _global_runner_state_path(lab_dir: Path) -> Path:
     return lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
 
 
-def _global_dag_engine(repo_root: Path, lab_dir: Path, dag_path: Path | None) -> DagRunEngine:
+def _global_dag_engine(
+    repo_root: Path,
+    lab_dir: Path,
+    dag_path: Path | None,
+    env: AgiEnv | None = None,
+) -> DagRunEngine:
+    stage_submitter = None
+    if env is not None:
+        stage_submitter = build_global_dag_distributed_stage_submitter(
+            env=env,
+            app_settings=st.session_state.get("app_settings"),
+            verbose=int(st.session_state.get("cluster_verbose", 0) or 0),
+        )
     return DagRunEngine(
         repo_root=repo_root,
         lab_dir=lab_dir,
         dag_path=dag_path,
         run_queue_fn=run_global_dag_queue_baseline_app,
         run_relay_fn=run_global_dag_relay_followup_app,
+        stage_submit_fn=stage_submitter,
     )
+
+
+def _global_dag_distributed_request_preview_rows(
+    env: AgiEnv,
+    state: dict[str, Any],
+    repo_root: Path,
+) -> list[dict[str, str]]:
+    settings = load_dag_distributed_settings(env, st.session_state.get("app_settings"))
+    config = dag_distributed_stage_config_from_settings(
+        settings,
+        verbose=int(st.session_state.get("cluster_verbose", 0) or 0),
+    )
+    if config is None:
+        return []
+    return build_distributed_request_preview_rows(state, repo_root=repo_root, config=config)
 
 
 def _runner_state_dag_matches(
@@ -910,7 +990,7 @@ def _load_or_create_global_runner_state(
 ) -> tuple[dict[str, Any], Path, Path | None]:
     repo_root = _repo_root_for_global_dag()
     dag_path = dag_path or _global_runner_dag_path(env, repo_root)
-    return _global_dag_engine(repo_root, lab_dir, dag_path).load_or_create_state(reset=reset)
+    return _global_dag_engine(repo_root, lab_dir, dag_path, env=env).load_or_create_state(reset=reset)
 
 
 def _global_dag_now_iso() -> str:
@@ -935,6 +1015,33 @@ def _run_next_controlled_global_dag_stage(
         run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
         run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
         now_fn=now_fn,
+    )
+
+
+def _run_ready_controlled_global_dag_stages(
+    state: Dict[str, Any],
+    *,
+    repo_root: Path,
+    dag_path: Path | None,
+    lab_dir: Path,
+    run_queue_fn: Callable[..., Dict[str, Any]] | None = None,
+    run_relay_fn: Callable[..., Dict[str, Any]] | None = None,
+    stage_submit_fn: Callable[..., Dict[str, Any]] | None = None,
+    now_fn: Callable[[], str] = _global_dag_now_iso,
+    max_workers: int | None = None,
+    execution_backend: str = GLOBAL_DAG_STAGE_BACKEND_LOCAL,
+) -> GlobalDagBatchExecutionResult:
+    return run_ready_controlled_global_dag_stages(
+        state,
+        repo_root=repo_root,
+        dag_path=dag_path,
+        lab_dir=lab_dir,
+        run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
+        run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
+        stage_submit_fn=stage_submit_fn,
+        now_fn=now_fn,
+        max_workers=max_workers,
+        execution_backend=execution_backend,
     )
 
 
@@ -1613,21 +1720,21 @@ def _apply_pipeline_steps_execution_evidence(state: dict[str, Any], evidence: Ma
             _pipeline_steps_update_operator_ui(
                 unit,
                 status="completed",
-                message=f"{unit_id} is completed according to the latest pipeline run log.",
+                message=f"{unit_id} is completed according to the latest workflow run log.",
             )
         elif index in failed:
             unit["dispatch_status"] = "failed"
             _pipeline_steps_update_operator_ui(
                 unit,
                 status="failed",
-                message=f"{unit_id} failed in the latest pipeline run log.",
+                message=f"{unit_id} failed in the latest workflow run log.",
             )
         elif index in running:
             unit["dispatch_status"] = "running"
             _pipeline_steps_update_operator_ui(
                 unit,
                 status="running",
-                message=f"{unit_id} is running according to the latest pipeline run log.",
+                message=f"{unit_id} is running according to the latest workflow run log.",
             )
         elif all(dependency_id in available_artifacts for dependency_id in dependency_ids):
             unit["dispatch_status"] = "runnable"
@@ -1818,7 +1925,7 @@ def _build_pipeline_steps_runner_state(
                 ],
                 "transitions": [
                     {"from": "runnable", "to": "running", "condition": "operator preview dispatch"},
-                    {"from": "running", "to": "completed", "condition": "existing pipeline runner completes the step"},
+                    {"from": "running", "to": "completed", "condition": "existing workflow runner completes the step"},
                 ],
                 "retry": {
                     "policy": "existing_pipeline_controls",
@@ -1826,7 +1933,7 @@ def _build_pipeline_steps_runner_state(
                     "max_attempts": 0,
                     "status": "not_scheduled",
                     "last_error": "",
-                    "next_action": "use existing pipeline step controls for execution and retry",
+                    "next_action": "use existing workflow step controls for execution and retry",
                 },
                 "partial_rerun": {
                     "policy": "existing_pipeline_controls",
@@ -1974,7 +2081,7 @@ def _load_or_create_pipeline_steps_runner_state(
             )
             _mark_pipeline_steps_state_stale(
                 stale_state,
-                reason="lab_steps.toml changed after the last observed pipeline run.",
+                reason="lab_steps.toml changed after the last observed workflow run.",
                 previous_digest=previous_digest,
             )
             write_runner_state(state_path, stale_state)
@@ -1989,7 +2096,7 @@ def _load_or_create_pipeline_steps_runner_state(
         if evidence.get("stale"):
             _mark_pipeline_steps_state_stale(
                 state,
-                reason="lab_steps.toml is newer than the latest pipeline run log.",
+                reason="lab_steps.toml is newer than the latest workflow run log.",
                 previous_digest=(
                     str(state.get("source", {}).get("steps_digest", ""))
                     if isinstance(state.get("source"), dict)
@@ -2012,6 +2119,7 @@ def _render_global_runner_state_view(
     index_page_str: str,
     dag_label_override: str = "",
     project_step_snippet_rows: list[dict[str, str]] | None = None,
+    distributed_request_preview_rows: list[dict[str, str]] | None = None,
 ) -> None:
     summary = state.get("summary", {})
     if not isinstance(summary, dict):
@@ -2083,16 +2191,51 @@ def _render_global_runner_state_view(
 
     real_run_supported = real_run_support.supported
     if real_run_supported:
-        run_stage_clicked = action_button(
-            st,
-            "Run next stage",
-            key=f"{index_page_str}_global_runner_run_next_stage",
-            kind="run",
-            help=(
-                f"Execute the next ready stage through `{real_run_support.adapter}`. "
-                "Only checked-in DAGs with a controlled adapter marker can run from this view."
-            ),
-        )
+        stage_backend = GLOBAL_DAG_STAGE_BACKEND_LOCAL
+        distributed_stage_supported = bool(getattr(dag_engine, "distributed_stage_supported", lambda: False)())
+        if distributed_stage_supported:
+            stage_backend = st.selectbox(
+                "Stage backend",
+                [GLOBAL_DAG_STAGE_BACKEND_LOCAL, GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED],
+                key=f"{index_page_str}_global_runner_stage_backend",
+                format_func=lambda value: GLOBAL_DAG_STAGE_BACKEND_LABELS.get(str(value), str(value)),
+                help=(
+                    "Choose how ready multi-app DAG stages are submitted. Local contracts run in this "
+                    "Streamlit process; distributed backend delegates each ready stage to the configured submitter."
+                ),
+            )
+            if stage_backend == GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED:
+                st.caption("Distributed stage request preview")
+                if distributed_request_preview_rows:
+                    st.dataframe(distributed_request_preview_rows, hide_index=True, width="stretch")
+                else:
+                    st.warning(
+                        "Distributed backend is selected, but the active ORCHESTRATE cluster settings "
+                        "do not provide a complete scheduler, workers, and Workers Data Path request."
+                    )
+        run_next_col, run_ready_col = st.columns(2)
+        with run_next_col:
+            run_stage_clicked = action_button(
+                run_next_col,
+                "Run next stage",
+                key=f"{index_page_str}_global_runner_run_next_stage",
+                kind="run",
+                help=(
+                    f"Execute the next ready stage through `{real_run_support.adapter}`. "
+                    "Only checked-in DAGs with a controlled adapter marker can run from this view."
+                ),
+            )
+        with run_ready_col:
+            run_ready_clicked = action_button(
+                run_ready_col,
+                "Run ready stages",
+                key=f"{index_page_str}_global_runner_run_ready_stages",
+                kind="run",
+                help=(
+                    "Execute every currently ready controlled stage in one batch. "
+                    "Independent stages can run concurrently; each stage still owns its app runtime."
+                ),
+            )
         if run_stage_clicked:
             try:
                 result = dag_engine.run_next_controlled_stage(state)
@@ -2104,6 +2247,23 @@ def _render_global_runner_state_view(
             if result.ok:
                 dag_engine.write_state(result.state)
                 st.success(result.message)
+                st.rerun()
+            else:
+                st.warning(result.message)
+        if run_ready_clicked:
+            try:
+                result = dag_engine.run_ready_controlled_stages(state, execution_backend=stage_backend)
+            except Exception as exc:
+                st.error("Controlled DAG batch execution failed.")
+                st.caption("Full diagnostic")
+                st.code(str(exc), language="text")
+                return
+            if result.executed_unit_ids or result.failed_unit_ids:
+                dag_engine.write_state(result.state)
+                if result.ok:
+                    st.success(result.message)
+                else:
+                    st.warning(result.message)
                 st.rerun()
             else:
                 st.warning(result.message)
@@ -2126,7 +2286,7 @@ def _render_global_runner_state_view(
         key=f"{index_page_str}_global_runner_dispatch_next",
         kind="run",
         help=(
-            "Move the next runnable global DAG unit to running state without executing the app."
+            "Move the next runnable pipeline stage to running state without executing the app."
             if not dispatch_disabled
             else "Preview dispatch is disabled after a controlled live stage run starts; use Run next stage."
         ),
@@ -2150,9 +2310,10 @@ def _render_global_runner_state_panel(
     pipeline_steps: list[dict[str, Any]] | None = None,
     steps_file: Path | None = None,
 ) -> None:
-    with st.expander("Multi-app DAG orchestration", expanded=True):
+    with st.expander("Workflow graph", expanded=True):
         repo_root = _repo_root_for_global_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
+        scope_key = f"{index_page_str}_pipeline_scope"
         source_key = f"{index_page_str}_global_runner_source"
         app_template_key = f"{index_page_str}_global_runner_app_template"
         library_key = f"{index_page_str}_global_runner_library"
@@ -2163,9 +2324,32 @@ def _render_global_runner_state_panel(
         workspace_options = _global_dag_workspace_options(repo_root, lab_dir)
         library_options = [*app_template_options, *sample_options, *workspace_options]
         project_step_rows = _pipeline_dag_step_rows(pipeline_steps)
+        default_dag_text = (
+            _repo_relative_text(default_dag_path, repo_root)
+            if default_dag_path is not None
+            else ""
+        )
+        if scope_key not in st.session_state or st.session_state[scope_key] not in PIPELINE_SCOPE_OPTIONS:
+            st.session_state[scope_key] = _pipeline_scope_from_source(
+                st.session_state.get(source_key),
+                bool(project_step_rows),
+            )
+        pipeline_scope = compact_choice(
+            st,
+            "Workflow scope",
+            PIPELINE_SCOPE_OPTIONS,
+            key=scope_key,
+            help=(
+                "Use Project workflow for the current lab_steps.toml graph, or Multi-app DAG "
+                "for cross-app artifact contracts."
+            ),
+            inline_limit=2,
+        )
+        if pipeline_scope == PIPELINE_SCOPE_PROJECT:
+            st.session_state[source_key] = GLOBAL_DAG_SOURCE_PROJECT_STEPS
         source_options = (
-            GLOBAL_DAG_SOURCE_OPTIONS
-            if project_step_rows
+            [GLOBAL_DAG_SOURCE_PROJECT_STEPS]
+            if pipeline_scope == PIPELINE_SCOPE_PROJECT
             else [source for source in GLOBAL_DAG_SOURCE_OPTIONS if source != GLOBAL_DAG_SOURCE_PROJECT_STEPS]
         )
         _apply_global_dag_pending_source_selection(
@@ -2180,22 +2364,16 @@ def _render_global_runner_state_panel(
             workspace_options=workspace_options,
             source_options=source_options,
         )
-        default_dag_text = (
-            _repo_relative_text(default_dag_path, repo_root)
-            if default_dag_path is not None
-            else ""
-        )
         if source_key not in st.session_state or st.session_state[source_key] not in source_options:
             st.session_state[source_key] = (
                 GLOBAL_DAG_SOURCE_PROJECT_STEPS
-                if project_step_rows
-                else GLOBAL_DAG_SOURCE_APP_TEMPLATES
-                if default_dag_text in app_template_options or app_template_options
-                else GLOBAL_DAG_SOURCE_SAMPLES
-                if default_dag_text in sample_options or sample_options
-                else GLOBAL_DAG_SOURCE_WORKSPACE
-                if workspace_options
-                else GLOBAL_DAG_SOURCE_CUSTOM
+                if pipeline_scope == PIPELINE_SCOPE_PROJECT
+                else _default_multi_app_dag_source(
+                    default_dag_text=default_dag_text,
+                    app_template_options=app_template_options,
+                    sample_options=sample_options,
+                    workspace_options=workspace_options,
+                )
             )
         if app_template_key not in st.session_state or st.session_state[app_template_key] not in app_template_options:
             st.session_state[app_template_key] = (
@@ -2219,16 +2397,7 @@ def _render_global_runner_state_panel(
             st.success(str(save_notice))
 
         st.caption("Select a workplan, review readiness, and run only controlled templates.")
-        st.markdown("**Choose workplan**")
-        dag_source = st.selectbox(
-            "Workplan source",
-            source_options,
-            key=source_key,
-            help=(
-                "Use project steps for the current lab_steps.toml, samples for guided demos, "
-                "workspace drafts for saved edits, or a custom path for an external contract."
-            ),
-        )
+        dag_source = st.session_state[source_key]
         selected_dag_text = ""
         if dag_source == GLOBAL_DAG_SOURCE_PROJECT_STEPS:
             reset_clicked = action_button(
@@ -2264,13 +2433,26 @@ def _render_global_runner_state_panel(
                 state=state,
                 state_path=state_path,
                 dag_path=None,
-                dag_engine=_global_dag_engine(repo_root, lab_dir, None),
+                dag_engine=_global_dag_engine(repo_root, lab_dir, None, env=env),
                 repo_root=repo_root,
                 index_page_str=index_page_str,
                 dag_label_override="Project steps",
                 project_step_snippet_rows=_pipeline_step_snippet_rows(project_step_rows),
             )
             return
+        st.caption(
+            "Safety boundary: preview dispatch updates runner state only; it does not claim live app execution."
+        )
+        st.markdown("**Choose workplan**")
+        dag_source = st.selectbox(
+            "Workplan source",
+            source_options,
+            key=source_key,
+            help=(
+                "Use templates for checked-in executable contracts, samples for guided demos, "
+                "workspace drafts for saved edits, or a custom path for an external contract."
+            ),
+        )
         if dag_source == GLOBAL_DAG_SOURCE_APP_TEMPLATES:
             if not app_template_options:
                 st.info("No app DAG template is bundled for this active project yet.")
@@ -2611,9 +2793,10 @@ def _render_global_runner_state_panel(
                 dag_path=dag_path,
                 reset=reset_clicked,
             )
-            dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path)
+            dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path, env=env)
+            distributed_preview_rows = _global_dag_distributed_request_preview_rows(env, state, repo_root)
         except Exception as exc:
-            st.error("Multi-app DAG orchestration preview is unavailable.")
+            st.error("Multi-app DAG preview is unavailable.")
             st.caption("Full diagnostic")
             st.code(str(exc), language="text")
             return
@@ -2625,6 +2808,7 @@ def _render_global_runner_state_panel(
             dag_engine=dag_engine,
             repo_root=repo_root,
             index_page_str=index_page_str,
+            distributed_request_preview_rows=distributed_preview_rows,
         )
 
 
@@ -3685,7 +3869,7 @@ def display_lab_tab(
     render_steps = [persisted_steps[item.index] for item in render_page_state.visible_steps]
     render_pipeline_view(
         render_steps,
-        title="Execution view" if conceptual_dot else "Pipeline view",
+        title="Execution view" if conceptual_dot else "Workflow view",
     )
 
     for visible_step in render_page_state.visible_steps:
@@ -3891,12 +4075,12 @@ def display_lab_tab(
         stale_reason = lock_state.get("stale_reason")
         if stale_reason:
             st.info(
-                f"Pipeline lock detected for this app, but it looks stale: {owner_text}. "
+                f"Workflow lock detected for this app, but it looks stale: {owner_text}. "
                 f"Reason: {stale_reason}."
             )
         else:
             st.warning(
-                f"Pipeline lock detected for this app: {owner_text}. "
+                f"Workflow lock detected for this app: {owner_text}. "
                 "Use force unlock only if the previous run was interrupted."
             )
 
@@ -3912,7 +4096,7 @@ def display_lab_tab(
         )
         run_all_clicked = action_button(
             st,
-            "Run pipeline",
+            "Run workflow",
             key=f"{index_page_str}_run_all",
             kind="run",
             help=run_blocked_reason or "Execute every step sequentially using its saved virtual environment.",
@@ -3950,7 +4134,7 @@ def display_lab_tab(
                     key=f"{index_page_str}_force_run_arm",
                     kind="destructive",
                     help=force_blocked_reason
-                    or "Use only when a previous pipeline run was interrupted and left a lock behind.",
+                    or "Use only when a previous workflow run was interrupted and left a lock behind.",
                     disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
 
@@ -3958,7 +4142,7 @@ def display_lab_tab(
         st.warning(
             page_state.blocked_actions.get(
                 PipelineAction.RUN_PIPELINE,
-                "Pipeline cannot run in the current state.",
+                "Workflow cannot run in the current state.",
             )
         )
         run_all_clicked = False
@@ -3966,7 +4150,7 @@ def display_lab_tab(
         st.warning(
             page_state.blocked_actions.get(
                 PipelineAction.FORCE_RUN,
-                "Pipeline cannot be force-run in the current state.",
+                "Workflow cannot be force-run in the current state.",
             )
         )
         force_run_clicked = False
@@ -4035,7 +4219,7 @@ def display_lab_tab(
             st,
             "Undo delete",
             key=f"{index_page_str}_undo_delete",
-            help=f"Restore the pipeline state before the latest delete action ({undo_label}).",
+            help=f"Restore the workflow state before the latest delete action ({undo_label}).",
             kind="revert",
         )
 
@@ -4074,7 +4258,7 @@ def display_lab_tab(
         # Collapse all step expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
-            with status_container(st, "Running pipeline…", state="running", expanded=True) as run_status:
+            with status_container(st, "Running workflow...", state="running", expanded=True) as run_status:
                 try:
                     run_all_steps(
                         lab_dir,
@@ -4093,9 +4277,9 @@ def display_lab_tab(
                     )
                     record_action_history(
                         st.session_state,
-                        page_label="PIPELINE",
+                        page_label="WORKFLOW",
                         env=env,
-                        title="Pipeline run failed",
+                        title="Workflow run failed",
                         status="failed",
                         detail=finish_result.message,
                         artifact=start_result.details.get("log_file_path", ""),
@@ -4108,13 +4292,13 @@ def display_lab_tab(
                         session_state=st.session_state,
                         index_page=index_page_str,
                         succeeded=True,
-                        message="Pipeline run finished. Inspect Run logs.",
+                        message="Workflow run finished. Inspect Run logs.",
                     )
                     record_action_history(
                         st.session_state,
-                        page_label="PIPELINE",
+                        page_label="WORKFLOW",
                         env=env,
-                        title="Pipeline run finished",
+                        title="Workflow run finished",
                         status="done",
                         detail=finish_result.message,
                         artifact=start_result.details.get("log_file_path", ""),
@@ -4152,7 +4336,7 @@ def display_lab_tab(
     if "loaded_df" not in st.session_state:
         df_source = st.session_state.get("df_file")
         st.session_state["loaded_df"] = (
-            load_df_cached(Path(df_source)) if df_source else None
+            load_df_cached(Path(df_source), with_index=False) if df_source else None
         )
     loaded_df = st.session_state["loaded_df"]
     log_page_state = _build_page_state()
@@ -4185,7 +4369,7 @@ def display_lab_tab(
                 "detail": f"{total_steps} step(s)",
             },
             {
-                "label": "Run pipeline",
+                "label": "Run workflow",
                 "state": "ready" if page_state.can_run else "blocked",
                 "detail": page_state.run_disabled_reason or "",
             },
@@ -4216,7 +4400,7 @@ def display_lab_tab(
     render_action_history(
         st,
         session_state=st.session_state,
-        page_label="PIPELINE",
+        page_label="WORKFLOW",
         env=env,
     )
     render_latest_outputs(
@@ -4228,7 +4412,7 @@ def display_lab_tab(
     if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
         render_dataframe_preview(
             loaded_df,
-            truncation_label="PIPELINE preview limited",
+            truncation_label="WORKFLOW preview limited",
         )
     else:
         empty_state(
@@ -4242,7 +4426,7 @@ def display_lab_tab(
             st,
             body=log_body,
             download_key=f"{index_page_str}__download_logs_global",
-            file_name=f"{index_page_str}_pipeline.log",
+            file_name=f"{index_page_str}_workflow.log",
             clear_key=f"{index_page_str}__clear_logs_global",
         )
         if clear_logs:
@@ -4250,9 +4434,9 @@ def display_lab_tab(
             if result.ok:
                 record_action_history(
                     st.session_state,
-                    page_label="PIPELINE",
+                    page_label="WORKFLOW",
                     env=env,
-                    title="Pipeline logs cleared",
+                    title="Workflow logs cleared",
                     status="info",
                     detail=result.message,
                 )
@@ -4267,12 +4451,12 @@ def display_lab_tab(
         st.session_state[run_placeholder_key] = log_placeholder
         if last_log_file:
             st.caption(f"Most recent run log: {last_log_file}")
-        source = f"PIPELINE {last_log_file}" if last_log_file else "PIPELINE"
+        source = f"WORKFLOW {last_log_file}" if last_log_file else "WORKFLOW"
         render_pinnable_code_editor(
             st,
             code_editor,
             f"pipeline_run_logs:{index_page_str}",
-            title=f"Pipeline logs: {getattr(env, 'app', None) or index_page_str}",
+            title=f"Workflow logs: {getattr(env, 'app', None) or index_page_str}",
             body=log_body,
             key=f"{index_page_str}__run_logs_editor",
             body_format="code",

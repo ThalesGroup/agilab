@@ -112,8 +112,8 @@ FLIGHT_SCENES: tuple[Scene, ...] = (
     ),
     Scene(
         name="pipeline",
-        image=PAGE_SHOTS / "pipeline-page.png",
-        stage="PIPELINE",
+        image=PAGE_SHOTS / "workflow-page.png",
+        stage="WORKFLOW",
         title="Replay the same flow.",
         body="Turn the execution into an explicit, inspectable, and reusable step.",
         seconds=3.2,
@@ -190,8 +190,8 @@ UAV_QUEUE_SCENES: tuple[Scene, ...] = (
     ),
     Scene(
         name="pipeline",
-        image=PAGE_SHOTS / "pipeline-page.png",
-        stage="PIPELINE",
+        image=PAGE_SHOTS / "workflow-page.png",
+        stage="WORKFLOW",
         title="Keep the benchmark replayable.",
         body="Save the comparison logic as a step so routing regressions stay inspectable.",
         seconds=3.2,
@@ -271,8 +271,8 @@ METEO_FORECAST_SCENES: tuple[Scene, ...] = (
     ),
     Scene(
         name="pipeline",
-        image=PAGE_SHOTS / "pipeline-page.png",
-        stage="PIPELINE",
+        image=PAGE_SHOTS / "workflow-page.png",
+        stage="WORKFLOW",
         title="Keep the ML path replayable.",
         body="Promote the forecast flow into explicit steps: load series, backtest, forecast, export analysis artifacts.",
         seconds=3.3,
@@ -354,8 +354,8 @@ EXECUTION_PANDAS_SCENES: tuple[Scene, ...] = (
     ),
     Scene(
         name="pipeline",
-        image=PAGE_SHOTS / "pipeline-page.png",
-        stage="PIPELINE",
+        image=PAGE_SHOTS / "workflow-page.png",
+        stage="WORKFLOW",
         title="Keep the data path replayable.",
         body="Make generation, partitioning, and export explicit so downstream ML or analytics runs can reuse the same outputs.",
         seconds=3.1,
@@ -438,7 +438,7 @@ SB3_ROUTING_SCENES: tuple[Scene, ...] = (
     Scene(
         name="pipeline",
         image=FCAS_FIGURES / "ppo_training_loop_2020x1369.png",
-        stage="PIPELINE",
+        stage="WORKFLOW",
         title="Keep the learning loop explicit.",
         body="Turn observation, action, reward, update, and checkpoint logic into a visible and explainable training path.",
         seconds=3.2,
@@ -613,7 +613,7 @@ def draw_badge(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str, fill: 
 
 
 def draw_stepper(draw: ImageDraw.ImageDraw, active_step: int, reveal: float, *, top: int) -> None:
-    labels = ["PROJECT", "ORCHESTRATE", "PIPELINE", "ANALYSIS"]
+    labels = ["PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS"]
     x = 112
     gap = 96
     line_x = x + 18
@@ -1779,7 +1779,7 @@ def draw_rl_analysis_evidence_overlay(canvas: Image.Image, scene: Scene, slide_x
 def draw_footer(canvas: Image.Image, scene: Scene, t: float) -> None:
     draw = ImageDraw.Draw(canvas)
     alpha = int(lerp(120, 255, ease_out(min(1.0, t / 0.22))))
-    footer = "PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS"
+    footer = "PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS"
     bbox = draw.textbbox((0, 0), footer, font=FONT_FOOTER)
     width = bbox[2] - bbox[0] + 42
     x = CARD_X + CARD_W - width

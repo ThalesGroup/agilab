@@ -220,6 +220,22 @@ def _execution_contract(row: dict[str, Any], stage_bindings: dict[str, str]) -> 
         contract["entrypoint"] = entrypoint
     if command:
         contract["command"] = command
+    params = execution.get("params")
+    if not isinstance(params, dict):
+        params = execution.get("run_params")
+    if isinstance(params, dict):
+        contract["params"] = dict(params)
+    steps = execution.get("steps")
+    if not isinstance(steps, list):
+        steps = execution.get("run_steps")
+    if isinstance(steps, list):
+        contract["steps"] = list(steps)
+    for key in ("data_in", "data_out", "reset_target"):
+        if key in execution:
+            contract[key] = execution.get(key)
+    for key in ("rapids_enabled", "benchmark_best_single_node"):
+        if key in execution:
+            contract[key] = bool(execution.get(key))
     return contract
 
 

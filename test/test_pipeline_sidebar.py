@@ -49,12 +49,12 @@ def test_available_lab_modules_uses_env_projects_before_export_scan(tmp_path):
         apps_path=tmp_path / "apps",
         builtin_apps_path=tmp_path / "builtin",
         apps_repository_root=tmp_path,
-        get_projects=lambda *args: ["sb3_trainer_project", "network_sim_project", "sb3_trainer_project"],
+        get_projects=lambda *args: ["sb3_trainer_project", "network_sim_project", "Alpha_project", "sb3_trainer_project"],
     )
 
     modules = pipeline_sidebar.available_lab_modules(env, tmp_path / "export")
 
-    assert modules == ["sb3_trainer_project", "network_sim_project"]
+    assert modules == ["Alpha_project", "network_sim_project", "sb3_trainer_project"]
 
 
 def test_normalize_lab_choice_and_export_resolution(tmp_path):
@@ -108,7 +108,7 @@ def test_available_lab_modules_falls_back_to_export_scan(monkeypatch, tmp_path):
         apps_repository_root=tmp_path,
         get_projects=lambda *args: (_ for _ in ()).throw(RuntimeError("boom")),
     )
-    monkeypatch.setattr(pipeline_sidebar, "scan_dir", lambda path: ["alpha", "beta", "alpha"])
+    monkeypatch.setattr(pipeline_sidebar, "scan_dir", lambda path: ["beta", "alpha", "alpha"])
 
     modules = pipeline_sidebar.available_lab_modules(env, export_root)
 

@@ -115,7 +115,7 @@ def discover_pipeline_snippets(
     runenv_root: str | Path | None = None,
     app_settings_file: str | Path | None = None,
 ) -> SnippetCandidateRegistry:
-    """Discover reusable snippet files for the Pipeline page."""
+    """Discover reusable snippet files for the WORKFLOW page."""
 
     discovered: list[SnippetCandidateSpec] = []
     stale_snippets: list[Path] = []

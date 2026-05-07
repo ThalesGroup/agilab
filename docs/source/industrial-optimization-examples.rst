@@ -66,7 +66,7 @@ than the read-only scenario comparison or service-handoff contract.
    - ``Evaluate • UAV Relay Queue • Resilience``
    - ``Serve • UAV Relay Queue • Policy Service``
 
-4. Open ``PIPELINE`` to inspect the recipe and conceptual DAG view.
+4. Open ``WORKFLOW`` to inspect the recipe and conceptual DAG view.
 5. Open ``ANALYSIS`` on the exported allocation, queue, topology, or health
    artifacts.
 

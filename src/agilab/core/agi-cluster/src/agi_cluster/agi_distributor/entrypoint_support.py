@@ -500,7 +500,7 @@ async def _launch_scheduler_process(
     if env.is_local(agi_cls._scheduler_ip):
         await sleep_fn(1)
         local_prefix = cmd_prefix or env.export_local_bin or ""
-        cmd = [
+        local_cmd = [
             *shlex.split(str(env.uv), posix=os.name != "nt"),
             "run",
             "--no-sync",
@@ -518,28 +518,28 @@ async def _launch_scheduler_process(
             str(wenv_abs.parent / "dask_scheduler.pid"),
         ]
         process_env = background_jobs_support.background_env_from_prefixes(local_prefix, dask_env)
-        log.info("Starting dask scheduler locally: %s", shlex.join(cmd))
-        result = agi_cls._exec_bg(cmd, env.app, env=process_env)
+        log.info("Starting dask scheduler locally: %s", shlex.join(local_cmd))
+        result = agi_cls._exec_bg(local_cmd, env.app, env=process_env)
         if result:
             log.info(result)
         return
 
-    cmd = (
+    remote_mkdir_cmd = (
         f"{cmd_prefix}{env.uv} run --no-sync python -c "
         f"\"import os; os.makedirs('{wenv_rel}', exist_ok=True)\""
     )
-    await agi_cls.exec_ssh(agi_cls._scheduler_ip, cmd)
+    await agi_cls.exec_ssh(agi_cls._scheduler_ip, remote_mkdir_cmd)
 
     toml_wenv = wenv_rel / "pyproject.toml"
     await agi_cls.send_file(env, agi_cls._scheduler_ip, toml_local, toml_wenv)
 
-    cmd = (
+    remote_scheduler_cmd = (
         f"{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync "
         f"dask scheduler "
         f"--port {agi_cls._scheduler_port} "
         f"--host {agi_cls._scheduler_ip} --dashboard-address :0 --pid-file dask_scheduler.pid"
     )
-    create_task_fn(agi_cls.exec_ssh_async(agi_cls._scheduler_ip, cmd))
+    create_task_fn(agi_cls.exec_ssh_async(agi_cls._scheduler_ip, remote_scheduler_cmd))
 
 
 async def start_scheduler(

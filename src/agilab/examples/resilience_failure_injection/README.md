@@ -52,7 +52,9 @@ python preview_resilience_failure_injection.py
 
 ## Expected Input
 
-The script reads `sample_scenario.json`, a compact scenario with:
+The script reads the built-in
+`uav_queue_project/scenario_templates/resilience_failure_injection_scenario.json`
+scenario with:
 
 - one relay degradation event: `jam_relay_alpha`
 - four candidate routes: fast, balanced, robust, and active-mesh
@@ -109,13 +111,14 @@ first:
 
 ## Change One Thing
 
-Change `delivery_penalty` in `sample_scenario.json` from `0.4` to `0.1`, rerun
-the preview, and inspect whether the fixed route remains competitive. Restore
-the value before using the sample as the default failure case.
+Copy the built-in scenario template, change `delivery_penalty` from `0.4` to
+`0.1`, rerun the preview with `--scenario <copy>.json`, and inspect whether the
+fixed route remains competitive. Restore the value before using the sample as
+the default failure case.
 
 ## Troubleshooting
 
-- If the preview fails to read JSON, validate that `sample_scenario.json` is
+- If the preview fails to read JSON, validate that the scenario template is
   still a JSON object.
 - If the recommended strategy changes unexpectedly, inspect
   `score_weights` before changing route metrics.

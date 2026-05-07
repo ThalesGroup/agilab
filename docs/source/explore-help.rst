@@ -27,9 +27,9 @@ Sidebar
   reachable, and falls back to the locally generated docs build when available.
 - Project selector that keeps the current application in sync with the rest of
   the suite.
-- ``Analysis view`` lets you open a selected view directly. If no view has been
-  selected yet, it lists every discovered view so you can launch one without
-  first editing the project configuration.
+- ``Analysis views`` lists compact launch links for the selected views. If no
+  view has been selected yet, it lists every discovered view so you can launch
+  one without first editing the project configuration.
 - The currently selected project determines which views are stored inside its
   workspace ``app_settings.toml`` file under ``~/.agilab/apps/<project>/``
   in the ``[pages]`` section.
@@ -47,14 +47,14 @@ Main Content Area
 
    .. tab-item:: Configure
 
-      Use the multi-select control to choose which pages are shown as quick-access
-      shortcuts for analyzing the selected project. The selection is written to
-      ``~/.agilab/apps/<project>/app_settings.toml`` in the ``[pages]`` section
-      under ``view_module``. Only the names you choose are persisted for the
-      active project; every project keeps its own list. The workspace file is
-      seeded from the app's ``app_settings.toml`` source file (for example
-      ``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``)
-      the first time the app is loaded.
+      Use **Choose analysis views** to choose which pages are shown as
+      sidebar shortcuts for analyzing the selected project. The selection
+      is written to ``~/.agilab/apps/<project>/app_settings.toml`` in the
+      ``[pages]`` section under ``view_module``. Only the names you choose are
+      persisted for the active project; every project keeps its own list. The
+      workspace file is seeded from the app's ``app_settings.toml`` source file
+      (for example ``<project>/app_settings.toml`` or
+      ``<project>/src/app_settings.toml``) the first time the app is loaded.
 
       You can also create a complete starter bundle directly from this page using
       **Create analysis view**. It creates a minimal pyproject and runnable
@@ -64,9 +64,9 @@ Main Content Area
 
    .. tab-item:: Launch
 
-      Each selected view appears as a button. Clicking it launches the bundle in
-      a dedicated web process (one port per view, per session) using the
-      nearest virtual environment (``.venv``/``venv`` in the bundle or the
+      Each selected view appears as a compact sidebar link. Opening it launches
+      the bundle in a dedicated web process (one port per view, per session)
+      using the nearest virtual environment (``.venv``/``venv`` in the bundle or the
       directories pointed to ``${AGILAB_VENVS_ABS}`` and
       ``${AGILAB_PAGES_VENVS_ABS}``). The child app is then embedded via iframe
       and a ``Back to Analysis`` control keeps navigation lightweight.
@@ -75,7 +75,7 @@ Tips & Notes
 ------------
 - Views are ordinary web projects. Bundles that expose a ``pyproject.toml``
   and a ``src/<module>/<module>.py`` entry point are automatically picked up.
-- Built-in IDE pages (PROJECT, ORCHESTRATE, PIPELINE, ANALYSIS) always remain
+- Built-in IDE pages (PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS) always remain
   available; page bundles simply add extra entries to the Analysis catalogue when
   the project opts into them.
 - ``UAV Relay Queue`` is a good reference setup (install id

@@ -135,14 +135,14 @@ def test_screenshot_capture_writes_versioned_manifest(tmp_path: Path) -> None:
                 + b"\x00\x00\x00\x00"
             )
 
-    screenshot_path = module._screenshot(_Page(), tmp_path, "PIPELINE failure")
+    screenshot_path = module._screenshot(_Page(), tmp_path, "WORKFLOW failure")
     manifest_path = tmp_path / "screenshot_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    assert screenshot_path == str(tmp_path / "PIPELINE-failure.png")
+    assert screenshot_path == str(tmp_path / "WORKFLOW-failure.png")
     assert manifest["schema"] == "agilab.screenshot_manifest.v1"
     assert manifest["schema_version"] == 1
-    assert manifest["screenshots"][0]["image_path"] == "PIPELINE-failure.png"
+    assert manifest["screenshots"][0]["image_path"] == "WORKFLOW-failure.png"
     assert manifest["screenshots"][0]["width_px"] == 12
     assert manifest["screenshots"][0]["height_px"] == 8
 

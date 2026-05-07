@@ -44,7 +44,7 @@
   <text x="110" y="414" class="label muted" font-size="27">to an optimized, explainable operational decision.</text>
 
   <text x="740" y="225" class="label" font-size="26" font-weight="700">Decision flow</text>
-  <text x="740" y="265" class="label muted" font-size="21">PROJECT -&gt; ORCHESTRATE -&gt; PIPELINE -&gt; ANALYSIS</text>
+  <text x="740" y="265" class="label muted" font-size="21">PROJECT -&gt; ORCHESTRATE -&gt; WORKFLOW -&gt; ANALYSIS</text>
 
   <g transform="translate(110 470)">
     <rect x="0" y="0" width="170" height="76" rx="18" class="step"/>

@@ -85,8 +85,8 @@ def test_pipeline_page_state_derives_blocked_actions_for_empty_and_stale_labs(tm
     assert pipeline_page_state.PipelineAction.RUN_PIPELINE not in empty_state.available_actions
     assert pipeline_page_state.PipelineAction.DELETE_STEP not in empty_state.available_actions
     assert pipeline_page_state.PipelineAction.DELETE_ALL not in empty_state.available_actions
-    assert "No visible pipeline steps" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
-    assert "No pipeline step" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.DELETE_STEP]
+    assert "No visible workflow steps" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
+    assert "No workflow step" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.DELETE_STEP]
 
     stale_state = pipeline_page_state.build_pipeline_page_state(
         index_page="demo",
@@ -145,7 +145,7 @@ def test_start_pipeline_run_command_refuses_blocked_actions_without_side_effects
     )
 
     assert result.status is pipeline_page_state.PipelineCommandStatus.REFUSED
-    assert "No visible pipeline steps" in result.message
+    assert "No visible workflow steps" in result.message
     assert session_state == {}
     assert calls == []
 
@@ -185,7 +185,7 @@ def test_start_pipeline_run_command_sets_running_status_and_logs_path(tmp_path):
     assert pushed == [
         (
             "demo",
-            f"Run pipeline started... logs will be saved to {tmp_path / 'pipeline.log'}",
+            f"Run workflow started... logs will be saved to {tmp_path / 'pipeline.log'}",
             placeholder,
         )
     ]
@@ -222,7 +222,7 @@ def test_start_pipeline_run_command_force_run_continues_without_log_file(tmp_pat
     assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
     assert result.details["force_lock_clear"] is True
     assert result.details["log_error"] == "no log"
-    assert pushed == ["Run pipeline started... (unable to prepare log file: no log)"]
+    assert pushed == ["Run workflow started... (unable to prepare log file: no log)"]
 
 
 def test_start_pipeline_run_command_marks_failed_when_logging_raises(tmp_path):
@@ -273,7 +273,7 @@ def test_finish_pipeline_run_command_records_success_and_failure_status() -> Non
     assert success.message == "finished"
     assert success.details == {"index_page": "demo", "status": "complete"}
     assert failure.status is pipeline_page_state.PipelineCommandStatus.FAILED
-    assert failure.message == "Pipeline run failed. Inspect Run logs."
+    assert failure.message == "Workflow run failed. Inspect Run logs."
     assert failure.details == {"index_page": "demo", "status": "failed"}
     assert session_state["demo__last_run_status"] == "failed"
 

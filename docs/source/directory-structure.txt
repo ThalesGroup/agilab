@@ -439,7 +439,7 @@ pages/
     __pycache__/ [excluded]
     1_PROJECT.py
     2_ORCHESTRATE.py
-    3_PIPELINE.py
+    3_WORKFLOW.py
     4_ANALYSIS.py
 resources/
     help/

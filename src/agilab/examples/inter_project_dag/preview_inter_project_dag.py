@@ -23,7 +23,14 @@ from agilab.global_pipeline_execution_plan import build_execution_plan
 from agilab.global_pipeline_runner_state import dispatch_next_runnable, persist_runner_state
 
 
-DAG_PATH = Path(__file__).with_name("flight_to_meteo_dag.json")
+DAG_PATH = (
+    _PACKAGE_ROOT
+    / "apps"
+    / "builtin"
+    / "global_dag_project"
+    / "dag_templates"
+    / "flight_to_meteo_global_dag.json"
+)
 DEFAULT_OUTPUT_PATH = Path.home() / "log" / "execute" / "inter_project_dag" / "runner_state.json"
 RUN_ID = "inter-project-dag-preview"
 
