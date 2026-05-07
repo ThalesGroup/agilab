@@ -142,9 +142,10 @@ def test_deploy_local_worker_venv_cleanup_is_conditional() -> None:
     source = Path(deployment_local_support.__file__).read_text(encoding="utf-8")
 
     assert '_force_remove(app_path / ".venv"' not in source
-    assert '_force_remove(wenv_abs / ".venv"' not in source
     assert "_remove_project_venv_if_mismatched(\n        app_path," in source
-    assert "_remove_project_venv_if_mismatched(\n        wenv_abs," in source
+    assert "_remove_project_venv_if_mismatched(\n        worker_venv_project," in source
+    assert "if worker_venv_project is None:" in source
+    assert '_force_remove(wenv_abs / ".venv"' in source
 
 
 def test_cleanup_editable_ignores_missing_entries():
@@ -327,6 +328,75 @@ def test_remove_project_venv_if_mismatched_removes_broken_venv(tmp_path):
 
     assert removed is True
     assert not venv_root.exists()
+
+
+def test_shared_worker_venv_project_is_disabled_by_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("AGILAB_SHARED_WORKER_VENV", raising=False)
+    app_path = tmp_path / "app"
+    wenv_abs = tmp_path / "wenv"
+    app_path.mkdir()
+    wenv_abs.mkdir()
+
+    assert (
+        deployment_local_support._shared_worker_venv_project(
+            {},
+            active_app=app_path,
+            wenv_abs=wenv_abs,
+            python_version="3.13",
+            run_type="sync",
+            options_worker="",
+            worker_core_add_specs=[],
+            hw_rapids_capable=False,
+        )
+        is None
+    )
+
+
+def test_shared_worker_venv_project_uses_compatible_cache_key(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGILAB_SHARED_WORKER_VENV", "1")
+    app_path = tmp_path / "app"
+    wenv_abs = tmp_path / "wenv"
+    app_path.mkdir()
+    wenv_abs.mkdir()
+    (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker'\n", encoding="utf-8")
+
+    first = deployment_local_support._shared_worker_venv_project(
+        {},
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        run_type="sync",
+        options_worker=" --extra pandas-worker",
+        worker_core_add_specs=["/core/agi-env", "/core/agi-node"],
+        hw_rapids_capable=False,
+    )
+    second = deployment_local_support._shared_worker_venv_project(
+        {},
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        run_type="sync",
+        options_worker=" --extra pandas-worker",
+        worker_core_add_specs=["/core/agi-node", "/core/agi-env"],
+        hw_rapids_capable=False,
+    )
+    changed = deployment_local_support._shared_worker_venv_project(
+        {},
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        python_version="3.13",
+        run_type="sync",
+        options_worker=" --extra polars-worker",
+        worker_core_add_specs=["/core/agi-env", "/core/agi-node"],
+        hw_rapids_capable=False,
+    )
+
+    assert first == second
+    assert first is not None
+    assert first.parent == wenv_abs.parent / ".runtime-cache"
+    assert first.name.startswith("py3.13-")
+    assert changed != first
 
 
 @pytest.mark.asyncio
@@ -1119,6 +1189,96 @@ async def test_deploy_local_worker_non_source_flow(tmp_path):
     assert any("AGI_CLUSTER_ENABLED=0" in cmd and "demo.post_install" in cmd for cmd, _ in commands)
     assert any(f'"{app_path}"' in cmd and "demo.post_install" in cmd for cmd, _ in commands)
     assert any("threaded" in cmd for cmd, _ in commands)
+
+
+@pytest.mark.asyncio
+async def test_deploy_local_worker_shared_worker_venv_uses_runtime_cache(tmp_path):
+    app_path = tmp_path / "app"
+    app_path.mkdir(parents=True, exist_ok=True)
+    (app_path / "pyproject.toml").write_text("[project]\nname='demo-app'\n", encoding="utf-8")
+
+    agi_env_root = tmp_path / "agi_env"
+    (agi_env_root / "src" / "agi_env" / "resources").mkdir(parents=True, exist_ok=True)
+    (agi_env_root / "src" / "agi_env" / "resources" / "sample.txt").write_text("x", encoding="utf-8")
+    agi_node_root = tmp_path / "agi_node"
+    agi_node_root.mkdir(parents=True, exist_ok=True)
+
+    cluster_pck = tmp_path / "cluster_pck"
+    (cluster_pck / "agi_distributor").mkdir(parents=True, exist_ok=True)
+    (cluster_pck / "agi_distributor" / "cli.py").write_text("print('cli')", encoding="utf-8")
+
+    wenv_abs = tmp_path / "worker_env"
+    wenv_abs.mkdir(parents=True, exist_ok=True)
+    (wenv_abs / "pyproject.toml").write_text("[project]\nname='worker-app'\n", encoding="utf-8")
+    (wenv_abs / ".venv").mkdir()
+
+    env = SimpleNamespace(
+        is_source_env=False,
+        is_worker_env=False,
+        install_type=1,
+        agi_env=agi_env_root,
+        agi_node=agi_node_root,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        wenv_rel=Path("worker_env"),
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={"AGILAB_SHARED_WORKER_VENV": "1"},
+        verbose=1,
+        env_pck=agi_env_root / "src" / "agi_env",
+        dataset_archive=tmp_path / "missing.7z",
+        target_worker="demo_worker",
+        post_install_rel="demo.post_install",
+        user=getpass.getuser(),
+        cluster_pck=cluster_pck,
+        logger=SimpleNamespace(warn=lambda *_a, **_k: None),
+    )
+    commands = []
+
+    async def _fake_run(cmd, cwd):
+        commands.append((cmd, str(cwd)))
+        return ""
+
+    async def _fake_build():
+        return None
+
+    async def _fake_uninstall():
+        return None
+
+    agi_cls = SimpleNamespace(
+        env=env,
+        _run_type="sync",
+        _mode=0,
+        DASK_MODE=4,
+        _rapids_enabled=False,
+        _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=_fake_build,
+        _uninstall_modules=_fake_uninstall,
+    )
+
+    await _call_deploy_local_worker(
+        agi_cls,
+        app_path,
+        Path("worker_env"),
+        " --extra pandas-worker",
+        agi_version_missing_on_pypi_fn=lambda _p: False,
+        run_fn=_fake_run,
+        set_env_var_fn=lambda *_a, **_k: None,
+        log=mock.Mock(),
+    )
+
+    cache_root = wenv_abs.parent / ".runtime-cache"
+    worker_commands = [cmd for cmd, cwd in commands if cwd == str(wenv_abs)]
+    manager_commands = [cmd for cmd, cwd in commands if cwd == str(app_path)]
+
+    assert not (wenv_abs / ".venv").exists()
+    assert cache_root.exists()
+    assert any("UV_PROJECT_ENVIRONMENT=" in cmd and str(cache_root) in cmd for cmd in worker_commands)
+    assert any(f'pip install --python "{cache_root}' in cmd for cmd in worker_commands)
+    assert not any("UV_PROJECT_ENVIRONMENT=" in cmd for cmd in manager_commands)
 
 
 @pytest.mark.asyncio

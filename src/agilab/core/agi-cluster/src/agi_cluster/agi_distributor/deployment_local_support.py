@@ -1,11 +1,14 @@
 import getpass
+import hashlib
 import json
 import logging
 import os
+import platform
 import re
 import shutil
 import stat
 import subprocess
+from shlex import quote
 from importlib.metadata import PackageNotFoundError, distribution as pkg_distribution, version as pkg_version
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -24,6 +27,8 @@ FORCE_REMOVE_EXCEPTIONS = (OSError, shutil.Error)
 DEPENDENCY_PARSE_EXCEPTIONS = (InvalidRequirement,)
 PYPROJECT_PARSE_EXCEPTIONS = (OSError, tomlkit.exceptions.ParseError)
 PYTHON_VERSION_RE = re.compile(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?")
+SHARED_WORKER_VENV_ENV = "AGILAB_SHARED_WORKER_VENV"
+SHARED_WORKER_VENV_DIR_ENV = "AGILAB_SHARED_WORKER_VENV_DIR"
 
 
 def _latest_glob_match(root: Path, pattern: str) -> Path | None:
@@ -170,6 +175,10 @@ def _project_venv_python(project: Path, *, os_name: str = os.name) -> Path:
     return project / ".venv" / "bin" / "python"
 
 
+def _project_venv_root(project: Path) -> Path:
+    return project / ".venv"
+
+
 def _python_version_tuple(value: str | None) -> tuple[int, ...] | None:
     if not value:
         return None
@@ -234,6 +243,106 @@ def _remove_project_venv_if_mismatched(
     return False
 
 
+def _env_value(envars: Any, key: str) -> str | None:
+    raw = os.environ.get(key)
+    if raw is None:
+        try:
+            raw = envars.get(key)
+        except (AttributeError, RuntimeError, TypeError):
+            raw = None
+    if raw is None:
+        return None
+    value = str(raw).strip().strip("\"'").strip()
+    return value or None
+
+
+def _env_truthy(envars: Any, key: str) -> bool:
+    raw = _env_value(envars, key)
+    if raw is None:
+        return False
+    return raw.lower() in {"1", "true", "yes", "on"}
+
+
+def _file_fingerprint(path: Path) -> dict[str, Any]:
+    try:
+        return {
+            "path": path.name,
+            "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        }
+    except OSError:
+        return {"path": path.name, "missing": True}
+
+
+def _shared_worker_venv_cache_key(
+    *,
+    active_app: Path,
+    wenv_abs: Path,
+    python_version: str,
+    run_type: Any,
+    options_worker: str,
+    worker_core_add_specs: list[str],
+    hw_rapids_capable: bool,
+) -> str:
+    payload = {
+        "schema": "agilab-worker-venv-v1",
+        "os_name": os.name,
+        "platform": platform.system(),
+        "machine": platform.machine(),
+        "python_version": str(python_version),
+        "run_type": str(run_type),
+        "options_worker": options_worker.strip(),
+        "hw_rapids_capable": bool(hw_rapids_capable),
+        "active_app": str(active_app.resolve(strict=False)),
+        "worker_pyproject": _file_fingerprint(wenv_abs / "pyproject.toml"),
+        "worker_uv_config": _file_fingerprint(wenv_abs / "uv_config.toml"),
+        "app_pyproject": _file_fingerprint(active_app / "pyproject.toml"),
+        "app_uv_config": _file_fingerprint(active_app / "uv_config.toml"),
+        "worker_core_add_specs": sorted(str(spec) for spec in worker_core_add_specs),
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    py_label = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(python_version)).strip("._-") or "python"
+    platform_label = re.sub(
+        r"[^A-Za-z0-9_.-]+",
+        "_",
+        f"{platform.system().lower()}-{platform.machine().lower()}",
+    ).strip("._-")
+    return f"py{py_label}-{platform_label}-{digest}"
+
+
+def _shared_worker_venv_project(
+    envars: Any,
+    *,
+    active_app: Path,
+    wenv_abs: Path,
+    python_version: str,
+    run_type: Any,
+    options_worker: str,
+    worker_core_add_specs: list[str],
+    hw_rapids_capable: bool,
+) -> Path | None:
+    if not _env_truthy(envars, SHARED_WORKER_VENV_ENV):
+        return None
+
+    raw_root = _env_value(envars, SHARED_WORKER_VENV_DIR_ENV)
+    if raw_root:
+        cache_root = Path(raw_root).expanduser()
+        if not cache_root.is_absolute():
+            cache_root = (wenv_abs.parent / cache_root).resolve(strict=False)
+    else:
+        cache_root = wenv_abs.parent / ".runtime-cache"
+
+    cache_key = _shared_worker_venv_cache_key(
+        active_app=active_app,
+        wenv_abs=wenv_abs,
+        python_version=python_version,
+        run_type=run_type,
+        options_worker=options_worker,
+        worker_core_add_specs=worker_core_add_specs,
+        hw_rapids_capable=hw_rapids_capable,
+    )
+    return cache_root / cache_key
+
+
 async def _ensure_project_venv(
     uv_cmd: str,
     project: Path,
@@ -241,12 +350,22 @@ async def _ensure_project_venv(
     run_fn: Callable[..., Any],
     os_name: str = os.name,
     python_version: str | None = None,
+    venv_project: Path | None = None,
 ) -> None:
-    if _project_venv_matches(project, os_name=os_name, python_version=python_version):
+    effective_venv_project = venv_project or project
+    if _project_venv_matches(
+        effective_venv_project,
+        os_name=os_name,
+        python_version=python_version,
+    ):
         return
-    _remove_project_venv_if_mismatched(project, os_name=os_name, python_version=python_version)
+    _remove_project_venv_if_mismatched(
+        effective_venv_project,
+        os_name=os_name,
+        python_version=python_version,
+    )
     python_arg = f" --python {python_version}" if python_version else ""
-    cmd = f'{uv_cmd} venv --allow-existing{python_arg} "{project / ".venv"}"'
+    cmd = f'{uv_cmd} venv --allow-existing{python_arg} "{_project_venv_root(effective_venv_project)}"'
     await run_fn(cmd, project)
 
 
@@ -284,6 +403,7 @@ async def _install_into_project_venv(
     editable: bool = False,
     no_deps: bool = True,
     python_version: str | None = None,
+    venv_project: Path | None = None,
 ) -> None:
     await _ensure_project_venv(
         uv_cmd,
@@ -291,8 +411,9 @@ async def _install_into_project_venv(
         run_fn=run_fn,
         os_name=os_name,
         python_version=python_version,
+        venv_project=venv_project,
     )
-    venv_python = _project_venv_python(project, os_name=os_name)
+    venv_python = _project_venv_python(venv_project or project, os_name=os_name)
     package_spec = str(package_ref)
     editable_flag = "-e " if editable else ""
     no_deps_flag = "--no-deps " if no_deps else ""
@@ -453,7 +574,7 @@ def _shell_env_prefix(env_overrides: dict[str, str], *, os_name: str = os.name) 
         return ""
     if os_name == "nt":
         return "".join(f'set "{key}={value}" && ' for key, value in env_overrides.items())
-    return "".join(f"{key}={value} " for key, value in env_overrides.items())
+    return "".join(f"{key}={quote(value)} " for key, value in env_overrides.items())
 
 
 def _uv_offline_flag(envars: Any) -> str:
@@ -886,6 +1007,29 @@ async def deploy_local_worker(
             if spec
         ]
 
+    worker_venv_project = _shared_worker_venv_project(
+        getattr(env, "envars", {}),
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        python_version=pyvers_worker,
+        run_type=run_type,
+        options_worker=options_worker,
+        worker_core_add_specs=worker_core_add_specs,
+        hw_rapids_capable=hw_rapids_capable,
+    )
+    if worker_venv_project is None:
+        worker_venv_project = wenv_abs
+    else:
+        worker_venv_project.mkdir(parents=True, exist_ok=True)
+        _force_remove(wenv_abs / ".venv", env_logger=getattr(env, "logger", None))
+        uv_worker = (
+            cmd_prefix
+            + _shell_env_prefix({"UV_PROJECT_ENVIRONMENT": str(_project_venv_root(worker_venv_project))})
+            + env.uv_worker
+        )
+        if env.verbose > 0:
+            log.info("Using shared worker venv cache at %s", _project_venv_root(worker_venv_project))
+
     if (
         (not env.is_source_env)
         and (not env.is_worker_env)
@@ -901,7 +1045,7 @@ async def deploy_local_worker(
         )
 
     _remove_project_venv_if_mismatched(
-        wenv_abs,
+        worker_venv_project,
         env_logger=getattr(env, "logger", None),
         python_version=pyvers_worker,
     )
@@ -947,7 +1091,7 @@ async def deploy_local_worker(
         await run_fn(cmd_worker, wenv_abs)
 
     write_staged_uv_sources_pth_fn(
-        worker_site_packages_dir_fn(wenv_abs, env.pyvers_worker, windows=(os.name == "nt")),
+        worker_site_packages_dir_fn(worker_venv_project, env.pyvers_worker, windows=(os.name == "nt")),
         wenv_abs / "_uv_sources",
     )
 
@@ -981,6 +1125,7 @@ async def deploy_local_worker(
                     wenv_abs,
                     install_spec,
                     run_fn=run_fn,
+                    venv_project=worker_venv_project,
                 )
 
         python_dirs = env.pyvers_worker.split(".")
@@ -988,7 +1133,9 @@ async def deploy_local_worker(
             python_dir = f"{python_dirs[0]}.{python_dirs[1].removesuffix('t')}t"
         else:
             python_dir = f"{python_dirs[0]}.{python_dirs[1]}"
-        site_packages_worker = wenv_abs / ".venv" / "lib" / f"python{python_dir}" / "site-packages"
+        site_packages_worker = (
+            worker_venv_project / ".venv" / "lib" / f"python{python_dir}" / "site-packages"
+        )
         _cleanup_editable(site_packages_worker)
     else:
         editable_flags = "--no-deps " if env.is_source_env else ""
@@ -1009,6 +1156,7 @@ async def deploy_local_worker(
             editable=True,
             no_deps=bool(editable_flags),
             python_version=env.pyvers_worker,
+            venv_project=worker_venv_project,
         )
 
         menv = env.agi_node
@@ -1028,6 +1176,7 @@ async def deploy_local_worker(
             editable=True,
             no_deps=bool(editable_flags),
             python_version=env.pyvers_worker,
+            venv_project=worker_venv_project,
         )
 
     editable_flags = "--no-deps " if env.is_source_env else ""
@@ -1039,6 +1188,7 @@ async def deploy_local_worker(
         editable=True,
         no_deps=bool(editable_flags),
         python_version=env.pyvers_worker,
+        venv_project=worker_venv_project,
     )
 
     dest = wenv_abs / "src" / env.target_worker
