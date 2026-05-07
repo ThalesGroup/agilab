@@ -316,6 +316,7 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
         ".coverage.agi-gui",
         "coverage-agi-gui.xml",
         *(f"test-results/coverage-agi-gui-{chunk}.db" for chunk in AGI_GUI_COVERAGE_CHUNKS),
+        *(f"test-results/junit-agi-gui-{chunk}.xml" for chunk in AGI_GUI_COVERAGE_CHUNKS),
     ]
     return CommandSpec(
         label=f"agi-gui coverage ({label})",
