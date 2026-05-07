@@ -86,7 +86,7 @@ still pass the removed name must be regenerated or replaced before they can run.
 Workflow graph scopes
 ~~~~~~~~~~~~~~~~~~~~~
 The **Workflow graph** expander is the transition path from a single-project
-pipeline to cross-app artifact orchestration. Use the ``Pipeline scope``
+workflow to cross-app artifact orchestration. Use the ``Workflow scope``
 selector to choose what the graph represents:
 
 * ``Project workflow`` renders the current ``lab_stages.toml`` as a read-only
@@ -97,28 +97,41 @@ selector to choose what the graph represents:
   path for connecting app stages through explicit produced and consumed
   artifacts.
 
-Use the ``DAG source`` selector to make the source explicit:
+For ``Multi-app DAG`` scope, use the ``Workplan source`` selector to choose
+where the plan comes from:
 
-* ``App templates`` loads checked-in DAG contracts bundled with the active app.
+* ``App templates`` loads checked-in workflow templates bundled with the active
+  app.
 * ``Sample library`` loads checked-in public examples from
   ``docs/source/data/multi_app_dag*.json``.
-* ``Workspace drafts`` loads DAGs saved from the current project workspace under
-  ``.agilab/global_dags``.
-* ``Custom path`` loads an external JSON contract by path.
+* ``Workspace drafts`` loads plans saved from the current project workspace
+  under ``.agilab/global_dags``.
+* ``Custom path`` loads an external JSON plan by path.
 
-The editor keeps normal users away from raw JSON by default. Define stages,
-artifacts, and stage connections with list selectors, then use ``Check DAG`` to
-validate the schema and handoffs. ``Show generated JSON`` is available for code
-review or export, but it is not the primary editing flow.
+The graph is hidden by default so small screens stay readable. Enable
+``Show graph`` only when the current screen has enough room. Enable
+``Show technical output details`` when you need the lower-level output handoff
+table behind the plan.
+
+To edit a plan, enable ``Edit plan``. The normal editing path stays away from
+raw JSON:
+
+* ``Steps`` chooses the app-level steps in the plan.
+* ``Creates`` chooses the outputs produced by those steps.
+* ``Uses`` chooses which later steps use earlier outputs.
+* ``Check plan`` validates the schema, app names, inputs, and outputs.
+* ``Save as workspace plan`` stores the draft for the current project.
+* ``Show generated JSON`` is available for review or export, but it is not the
+  primary editing flow.
 
 Execution is intentionally conservative:
 
-* ``Dispatch next runnable`` is a preview action. It updates the persisted
-  runner state and graph without claiming that an app really ran.
-* ``Run next stage`` is only available for checked-in DAGs with a controlled
-  execution marker. AGILAB ships controlled examples, and app-owned executable
-  templates saved under an app's ``dag_templates`` directory can use the generic
-  controlled contract adapter.
+* ``Preview next ready step`` is a preview action. It updates the persisted
+  runner state without claiming that an app really ran.
+* ``Run next stage`` is only available for checked-in workflow templates with a
+  controlled execution marker. AGILAB ships controlled examples, and app-owned
+  executable templates saved under an app's ``dag_templates`` directory can use
+  the generic controlled contract adapter.
 * ``Run ready stages`` executes every currently runnable controlled stage in
   one batch. Independent branches can run concurrently, and each stage still
   owns its app runtime, including any AGI/Dask distribution used inside that
@@ -142,14 +155,15 @@ Execution is intentionally conservative:
 * Workspace drafts and custom DAGs remain preview-only until they are promoted
   into a checked-in app template with an explicit controlled execution contract.
 
-Executable stage contracts are deliberately small:
+The technical JSON contract still uses stable field names so plans remain
+portable:
 
 * ``nodes[].execution.entrypoint`` names the stable stage executor, for example
   ``flight_project.flight_context``. WORKFLOW displays this value in the stage
   table and graph so users can see what will execute before pressing
   ``Run next stage``.
 * ``nodes[].execution.command`` is an optional command-list executor for
-  deterministic local stages. Prefer a JSON list such as
+  deterministic local steps. Prefer a JSON list such as
   ``["python", "-m", "package.module"]`` over a shell string.
 * ``nodes[].execution.params``, ``steps``, ``data_in``, ``data_out``, and
   ``reset_target`` are preserved from the DAG template into the execution plan,
