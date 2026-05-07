@@ -1,0 +1,9 @@
+{
+  "app": "global_dag_project",
+  "purpose": "Teach multi-app DAG orchestration with explicit artifact contracts.",
+  "guardrails": [
+    "Keep examples read-only unless the operator explicitly starts a controlled DAG run.",
+    "Do not imply both apps have executed when only a runner-state preview was produced.",
+    "Preserve the artifact handoff names when adapting the bundled template."
+  ]
+}

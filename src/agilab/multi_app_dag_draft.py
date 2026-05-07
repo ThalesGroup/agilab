@@ -291,6 +291,22 @@ def _node_execution_payload(node: Mapping[str, Any] | None) -> dict[str, Any]:
             normalized["command"] = command_parts
     elif clean_dag_cell(command):
         normalized["command"] = clean_dag_cell(command)
+    params = execution.get("params")
+    if not isinstance(params, Mapping):
+        params = execution.get("run_params")
+    if isinstance(params, Mapping):
+        normalized["params"] = dict(params)
+    steps = execution.get("steps")
+    if not isinstance(steps, list):
+        steps = execution.get("run_steps")
+    if isinstance(steps, list):
+        normalized["steps"] = list(steps)
+    for key in ("data_in", "data_out", "reset_target"):
+        if key in execution:
+            normalized[key] = execution.get(key)
+    for key in ("rapids_enabled", "benchmark_best_single_node"):
+        if key in execution:
+            normalized[key] = bool(execution.get(key))
     return normalized
 
 

@@ -155,7 +155,7 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/notebook_pipeline_import_report.py --compact``; it reads a checked-in
   ``.ipynb``, preserves markdown context and code cells, extracts import hints
   plus artifact references, writes a richer ``lab_steps.toml`` preview used by
-  the existing ``PIPELINE`` upload path, and emits ``not_executed_import``
+  the existing ``WORKFLOW`` upload path, and emits ``not_executed_import``
   metadata without running notebook cells
 - the notebook import preflight report validates the generic migration boundary
   with ``tools/notebook_import_preflight.py --compact``; it reads an ``.ipynb``
@@ -166,7 +166,7 @@ single notebook but less ceremony than a production MLOps platform:
   owns a ``notebook_import_views.toml`` manifest it also writes a
   ``notebook_import_view_plan.json`` sidecar that matches declared views to
   artifact paths without inferring UI intent from notebook cells; the
-  ``PIPELINE`` upload path now prepares that preview first and only replaces
+  ``WORKFLOW`` upload path now prepares that preview first and only replaces
   ``lab_steps.toml`` after explicit confirmation
 - the notebook round-trip report validates
   ``tools/notebook_roundtrip_report.py --compact`` across
@@ -357,14 +357,20 @@ to the same contract, artifact names, stable node IDs, and provenance.
   ``tools/global_pipeline_runner_state_report.py --compact``; it records
   retry and partial-rerun metadata plus operator-facing readiness messages
   without claiming live app execution
-- the PIPELINE page exposes the same runner-state contract in an expanded
+- the WORKFLOW page exposes the same runner-state contract in an expanded
   ``Multi-app DAG orchestration`` surface; operators can select a
   ``agilab.multi_app_dag.v1`` contract, edit stages and artifact handoffs
   through selector-driven workspace drafts and read-only summaries, validate
   it without hand-editing docs files, reset the persisted preview state,
   inspect readiness KPIs, next action, execution scope, app/artifact graph,
-  missing or available handoffs, and dispatch the next runnable unit into
-  ``running`` state without claiming that the downstream app has executed
+  missing or available handoffs, preview exact distributed stage requests
+  before submission, and dispatch the next runnable unit into ``running`` state
+  without claiming that the downstream app has executed
+- the distributed DAG stage smoke validator writes dry-run or live execution
+  evidence with ``tools/dag_distributed_stage_smoke.py --compact``; it checks
+  explicit ``nodes[].execution`` request fields, the ORCHESTRATE-derived
+  scheduler/workers/Workers Data Path contract, and the two-node distributed
+  request preview before a live ``--execute`` run is attempted
 - the global DAG dispatch state report writes and reads back a
   persisted run-state JSON proof with
   ``tools/global_pipeline_dispatch_state_report.py --compact``; it records

@@ -53,8 +53,9 @@ python preview_train_then_serve.py
 
 ## Expected Input
 
-The script reads `sample_policy_run.json`, a compact policy handoff contract
-with:
+The script reads the built-in
+`uav_relay_queue_project/service_templates/train_then_serve_policy_run.json`
+policy handoff contract with:
 
 - one source training run and model artifact path
 - service name, version, IO schemas, and health thresholds
@@ -106,14 +107,15 @@ Open `preview_train_then_serve.py` and look for these functions first:
 
 ## Change One Thing
 
-Change `latency_budget_ms` in `sample_policy_run.json` from `80.0` to `50.0`,
-rerun the preview, and inspect how `service_ready` changes. Restore the default
-before using the sample as the normal handoff proof.
+Copy the built-in policy handoff template, change `latency_budget_ms` from
+`80.0` to `50.0`, rerun the preview with `--config <copy>.json`, and inspect how
+`service_ready` changes. Restore the default before using the sample as the
+normal handoff proof.
 
 ## Troubleshooting
 
-- If the preview fails to read JSON, validate that `sample_policy_run.json` is
-  still a JSON object.
+- If the preview fails to read JSON, validate that the policy handoff template
+  is still a JSON object.
 - If `selected_relay` changes unexpectedly, inspect `policy_scoring` and the
   candidate relay metrics first.
 - If you need real service lifecycle operations, use the `service_mode` example

@@ -8,7 +8,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-07T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 910,
       "image_path": "analysis-page.png",
       "page": "analysis",
@@ -19,10 +19,11 @@
         "playwright",
         "page-shot",
         "capture",
-        "PROJECT",
-        "Create",
+        "current",
+        "Streamlit",
+        "UI",
         "via",
-        "src/agilab/pages/1_PROJECT.py"
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 1600
@@ -30,7 +31,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-07T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 1310,
       "image_path": "core-pages-overview.png",
       "page": "core-pages-overview",
@@ -41,10 +42,11 @@
         "playwright",
         "page-shot",
         "capture",
-        "PROJECT",
-        "Create",
+        "current",
+        "Streamlit",
+        "UI",
         "via",
-        "src/agilab/pages/1_PROJECT.py"
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 2086
@@ -52,7 +54,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-07T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 910,
       "image_path": "orchestrate-page.png",
       "page": "orchestrate",
@@ -63,10 +65,11 @@
         "playwright",
         "page-shot",
         "capture",
-        "PROJECT",
-        "Create",
+        "current",
+        "Streamlit",
+        "UI",
         "via",
-        "src/agilab/pages/1_PROJECT.py"
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 1600
@@ -74,9 +77,9 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-07T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 910,
-      "image_path": "pipeline-page.png",
+      "image_path": "workflow-page.png",
       "page": "pipeline",
       "project": "",
       "sha256": "1ee9c8a1ba29c7a2088b28dd0c03f5dbe041d486f6da5b9296f1505e5a30a113",
@@ -85,10 +88,11 @@
         "playwright",
         "page-shot",
         "capture",
-        "PROJECT",
-        "Create",
+        "current",
+        "Streamlit",
+        "UI",
         "via",
-        "src/agilab/pages/1_PROJECT.py"
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 1600
@@ -118,7 +122,7 @@
     {
       "alt": "",
       "app": "",
-      "created_at": "2026-05-07T00:00:00Z",
+      "created_at": "2026-05-06T00:00:00Z",
       "height_px": 910,
       "image_path": "project-page.png",
       "page": "project",
@@ -129,10 +133,11 @@
         "playwright",
         "page-shot",
         "capture",
-        "PROJECT",
-        "Create",
+        "current",
+        "Streamlit",
+        "UI",
         "via",
-        "src/agilab/pages/1_PROJECT.py"
+        "src/agilab/main_page.py"
       ],
       "url": "",
       "width_px": 1600
@@ -142,9 +147,10 @@
     "playwright",
     "page-shot",
     "capture",
-    "PROJECT",
-    "Create",
+    "current",
+    "Streamlit",
+    "UI",
     "via",
-    "src/agilab/pages/1_PROJECT.py"
+    "src/agilab/main_page.py"
   ]
 }

@@ -123,7 +123,14 @@ def test_dag_draft_preserves_existing_node_execution_contract():
                 {
                     "id": "queue",
                     "app": "uav_queue_project",
-                    "execution": {"entrypoint": "custom.queue"},
+                    "execution": {
+                        "entrypoint": "custom.queue",
+                        "params": {"scenario": "demo"},
+                        "steps": [{"name": "prepare", "args": {"n": 2}}],
+                        "data_in": "queue/input",
+                        "data_out": "queue/output",
+                        "reset_target": False,
+                    },
                 }
             ],
         },
@@ -146,7 +153,14 @@ def test_dag_draft_preserves_existing_node_execution_contract():
         controlled_contract_execution=True,
     )
 
-    assert payload["nodes"][0]["execution"] == {"entrypoint": "custom.queue"}
+    assert payload["nodes"][0]["execution"] == {
+        "entrypoint": "custom.queue",
+        "params": {"scenario": "demo"},
+        "steps": [{"name": "prepare", "args": {"n": 2}}],
+        "data_in": "queue/input",
+        "data_out": "queue/output",
+        "reset_target": False,
+    }
     assert payload["nodes"][1]["execution"] == {"entrypoint": "uav_relay_queue_project.relay"}
 
 

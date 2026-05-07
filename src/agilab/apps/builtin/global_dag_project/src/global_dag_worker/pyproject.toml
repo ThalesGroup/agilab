@@ -1,0 +1,13 @@
+[project]
+name = "global_dag_worker"
+version = "2026.05.07"
+requires-python = ">=3.11"
+dependencies = ["agi-env>=2026.05.07", "agi-node>=2026.05.07", "polars"]
+
+[tool.uv.sources]
+agi-env = { path = "../../../../../core/agi-env", editable = true }
+agi-node = { path = "../../../../../core/agi-node", editable = true }
+
+[build-system]
+requires = ["setuptools", "cython"]
+build-backend = "setuptools.build_meta"

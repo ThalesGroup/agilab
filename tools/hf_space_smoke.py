@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -18,6 +19,7 @@ DEFAULT_SPACE_URL = "https://jpmorard-agilab.hf.space"
 DEFAULT_TARGET_SECONDS = 30.0
 APP_TREE_PATH = "src/agilab/apps"
 PAGES_TREE_PATH = "src/agilab/apps-pages"
+CORE_PAGES_TREE_PATH = "src/agilab/pages"
 ALLOWED_APP_ENTRIES = {
     ".DS_Store",
     ".gitignore",
@@ -39,9 +41,19 @@ ALLOWED_PAGE_ENTRIES = {
     "view_maps",
     "view_release_decision",
 }
+ALLOWED_CORE_PAGE_ENTRIES = {
+    ".DS_Store",
+    "__pycache__",
+    "1_PROJECT.py",
+    "2_ORCHESTRATE.py",
+    "3_WORKFLOW.py",
+    "4_ANALYSIS.py",
+}
 BAD_BODY_PATTERNS = (
     "127.0.0.1",
     "refused to connect",
+    "streamlitapiexception",
+    "multiple pages specified",
     "this site can't be reached",
     "this site cannot be reached",
 )
@@ -114,7 +126,11 @@ def build_tree_api_url(space_id: str, tree_path: str = APP_TREE_PATH) -> str:
 
 
 def fetch_text(url: str, timeout: float) -> tuple[int, str]:
-    request = urllib.request.Request(url, headers={"User-Agent": "agilab-hf-space-smoke/1.0"})
+    headers = {"User-Agent": "agilab-hf-space-smoke/1.0"}
+    token = os.environ.get("HF_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(request, timeout=timeout) as response:
         status = int(getattr(response, "status", response.getcode()))
         body = response.read().decode("utf-8", errors="replace")
@@ -200,6 +216,14 @@ def unexpected_page_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
     )
 
 
+def unexpected_core_page_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
+    return _unexpected_direct_entries(
+        entries,
+        tree_path=CORE_PAGES_TREE_PATH,
+        allowed_entries=ALLOWED_CORE_PAGE_ENTRIES,
+    )
+
+
 def check_public_app_tree(
     space_id: str,
     *,
@@ -258,6 +282,35 @@ def check_public_pages_tree(
     return CheckResult("public pages tree", True, duration, "only expected public pages", url)
 
 
+def check_core_pages_tree(
+    space_id: str,
+    *,
+    timeout: float,
+    fetcher: JsonFetcher = fetch_json,
+    clock: Clock = time.perf_counter,
+) -> CheckResult:
+    url = build_tree_api_url(space_id, CORE_PAGES_TREE_PATH)
+    start = clock()
+    try:
+        payload = fetcher(url, timeout)
+    except Exception as exc:
+        return CheckResult("core pages tree", False, clock() - start, f"request failed: {exc}", url)
+
+    duration = clock() - start
+    if not isinstance(payload, list):
+        return CheckResult("core pages tree", False, duration, "tree API returned non-list payload", url)
+    offenders = unexpected_core_page_entries(payload)
+    if offenders:
+        return CheckResult(
+            "core pages tree",
+            False,
+            duration,
+            "unexpected core page entries: " + ", ".join(offenders),
+            url,
+        )
+    return CheckResult("core pages tree", True, duration, "only expected core pages", url)
+
+
 def run_smoke(
     *,
     space_id: str = DEFAULT_SPACE_ID,
@@ -274,6 +327,31 @@ def run_smoke(
     ]
     checks.append(check_public_app_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
     checks.append(check_public_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
+    checks.append(check_core_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
+    total = sum(check.duration_seconds for check in checks)
+    success = all(check.success for check in checks)
+    return SmokeSummary(
+        success=success,
+        total_duration_seconds=total,
+        target_seconds=target_seconds,
+        within_target=success and total <= target_seconds,
+        checks=checks,
+    )
+
+
+def run_tree_checks(
+    *,
+    space_id: str = DEFAULT_SPACE_ID,
+    timeout: float = 20.0,
+    target_seconds: float = DEFAULT_TARGET_SECONDS,
+    fetch_json_fn: JsonFetcher = fetch_json,
+    clock: Clock = time.perf_counter,
+) -> SmokeSummary:
+    checks = [
+        check_public_app_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock),
+        check_public_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock),
+        check_core_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock),
+    ]
     total = sum(check.duration_seconds for check in checks)
     success = all(check.success for check in checks)
     return SmokeSummary(
@@ -315,6 +393,11 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_TARGET_SECONDS,
         help=f"KPI target for the whole smoke in seconds (default: {DEFAULT_TARGET_SECONDS}).",
     )
+    parser.add_argument(
+        "--tree-only",
+        action="store_true",
+        help="Check only the HF repository tree contract; use this immediately after upload.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     return parser
 
@@ -327,12 +410,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.target_seconds <= 0:
         parser.error("--target-seconds must be greater than 0")
 
-    summary = run_smoke(
-        space_id=args.space,
-        space_url=args.url,
-        timeout=args.timeout,
-        target_seconds=args.target_seconds,
-    )
+    if args.tree_only:
+        summary = run_tree_checks(
+            space_id=args.space,
+            timeout=args.timeout,
+            target_seconds=args.target_seconds,
+        )
+    else:
+        summary = run_smoke(
+            space_id=args.space,
+            space_url=args.url,
+            timeout=args.timeout,
+            target_seconds=args.target_seconds,
+        )
     if args.json:
         print(json.dumps(asdict(summary), indent=2))
     else:

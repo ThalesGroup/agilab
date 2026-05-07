@@ -56,4 +56,4 @@ The migration story now exists in three layers:
 
 That third layer is the important proof point: the notebook example does not
 stop at documentation. It now runs as an AGILAB project with `PROJECT`,
-`ORCHESTRATE`, `PIPELINE`, and `ANALYSIS`.
+`ORCHESTRATE`, `WORKFLOW`, and `ANALYSIS`.

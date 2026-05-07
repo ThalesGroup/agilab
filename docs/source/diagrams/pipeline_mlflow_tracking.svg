@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1380" height="840" viewBox="0 0 1380 840" role="img" aria-labelledby="title desc">
-  <title id="title">PIPELINE execution tracked in MLflow</title>
+  <title id="title">WORKFLOW execution tracked in MLflow</title>
   <desc id="desc">Shows how Run pipeline creates one parent MLflow run, one nested run per executed step, and sends both in-process and subprocess execution traces to the same MLflow tracking store and UI.</desc>
   <defs>
     <style>
@@ -24,12 +24,12 @@
   </defs>
 
   <rect width="100%" height="100%" fill="#f8fafc" rx="28" ry="28" />
-  <text class="title" x="690" y="54" text-anchor="middle">PIPELINE execution tracked in MLflow</text>
+  <text class="title" x="690" y="54" text-anchor="middle">WORKFLOW execution tracked in MLflow</text>
 
   <!-- Left column -->
   <g transform="translate(48,120)">
     <rect class="box" width="268" height="112" fill="#bfdbfe" />
-    <text class="caption" x="134" y="36" text-anchor="middle">PIPELINE page</text>
+    <text class="caption" x="134" y="36" text-anchor="middle">WORKFLOW page</text>
     <text class="body" x="134" y="68" text-anchor="middle">user clicks</text>
     <text class="body" x="134" y="90" text-anchor="middle">Run pipeline</text>
   </g>

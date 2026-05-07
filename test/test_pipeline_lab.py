@@ -111,6 +111,7 @@ class _FakeStreamlit:
         self.graphviz_sources: list[str] = []
         self.multiselect_calls: list[tuple[str, list[object], str | None]] = []
         self.checkbox_calls: list[tuple[str, str | None]] = []
+        self.selectbox_calls: list[tuple[str, list[object], str | None]] = []
         self.text_area_labels: list[str] = []
         self.column_config = _FakeColumnConfig()
 
@@ -173,6 +174,7 @@ class _FakeStreamlit:
         return _Ctx(self)
 
     def selectbox(self, _label, options, key=None, help=None, **_kwargs):
+        self.selectbox_calls.append((str(_label), list(options), key))
         value = self._selectboxes.get(key, self.session_state.get(key, options[0]))
         self.session_state[key] = value
         return value
@@ -760,6 +762,7 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     assert state_path.is_file()
     state = pipeline_lab.load_runner_state(state_path)
     assert state["source"]["dag_path"] == "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
     assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
@@ -786,6 +789,7 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG
     assert state["source"]["dag_path"] == (
         "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
     )
@@ -900,6 +904,7 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
     )
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_PROJECT
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STEPS
     assert state["source"]["source_type"] == "lab_steps"
     assert state["summary"]["runnable_unit_ids"] == ["step_001"]
@@ -945,6 +950,33 @@ def test_global_runner_panel_shows_selected_project_step_snippet_code(monkeypatc
     assert any(kind == "caption" and message == "Prompt: Train model" for kind, message in fake_st.messages)
     assert any(kind == "code" and "print('train')" in message for kind, message in fake_st.messages)
     assert not any(kind == "code" and "print('load')" in message for kind, message in fake_st.messages)
+
+
+def test_pipeline_scope_multi_app_dag_excludes_project_steps_source(monkeypatch, tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+    ]
+    fake_st = _FakeStreamlit(
+        {"demo_pipeline_scope": pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG},
+        selectboxes={"demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_steps=steps,
+        steps_file=tmp_path / "lab_steps.toml",
+    )
+
+    dag_source_calls = [call for call in fake_st.selectbox_calls if call[0] == "Workplan source"]
+    assert dag_source_calls
+    assert pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STEPS not in dag_source_calls[-1][1]
+    assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG
+    assert fake_st.session_state["demo_global_runner_source"] != pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STEPS
 
 
 def test_global_runner_panel_project_steps_dispatch_is_preview_only(monkeypatch, tmp_path):
@@ -1071,7 +1103,7 @@ def test_pipeline_steps_runner_state_marks_stale_when_steps_newer_than_run_log(t
 
     assert state["run_status"] == "stale"
     assert state["summary"]["stale_unit_ids"] == ["step_001"]
-    assert state["source"]["execution_sync"]["reason"] == "lab_steps.toml is newer than the latest pipeline run log."
+    assert state["source"]["execution_sync"]["reason"] == "lab_steps.toml is newer than the latest workflow run log."
     assert pipeline_lab._global_dag_readiness_summary(state)["next_action"] == (
         "Run the pipeline again or reset the preview after editing project steps."
     )
@@ -1225,6 +1257,153 @@ def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path)
     assert flight["execution_mode"] == "contract_adapter"
     assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
     assert any(kind == "success" and "flight_context" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+
+
+def test_global_runner_panel_runs_ready_contract_batch(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_ready_stages": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["source"]["dag_path"] == (
+        "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    )
+    assert state["summary"]["completed_unit_ids"] == ["flight_context"]
+    assert state["summary"]["runnable_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
+    assert state["provenance"]["controlled_execution"] is True
+    assert any(kind == "success" and "flight_context" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+
+
+def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        buttons={"demo_global_runner_run_ready_stages": True},
+        selectboxes={"demo_global_runner_stage_backend": pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    submissions: list[str] = []
+
+    def _submit_stage(
+        *,
+        repo_root: Path,
+        lab_dir: Path,
+        run_root: Path,
+        unit: dict[str, object],
+        artifact: dict[str, object],
+        execution_contract: dict[str, object],
+        timestamp: str,
+    ) -> dict[str, object]:
+        submissions.append(str(unit["id"]))
+        return {
+            "summary_metrics_path": "flight/distributed-summary.json",
+            "reduce_artifact_path": "flight/distributed-reduce.json",
+            "summary_metrics": {"stage_completed": 1, "distributed_submissions": 1},
+        }
+
+    repo_root = Path.cwd()
+    dag_path = repo_root / "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    engine = pipeline_lab.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path,
+        dag_path=dag_path,
+        stage_submit_fn=_submit_stage,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, state_path, loaded_dag_path = engine.load_or_create_state()
+
+    pipeline_lab._render_global_runner_state_view(
+        state=state,
+        state_path=state_path,
+        dag_path=loaded_dag_path,
+        dag_engine=engine,
+        repo_root=repo_root,
+        index_page_str="demo",
+        distributed_request_preview_rows=[
+            {
+                "Stage": "flight_context",
+                "App": "flight_project",
+                "Status": "runnable",
+                "Backend": "distributed",
+                "Nodes": "2",
+                "Worker slots": "2",
+                "Scheduler": "192.168.20.111:8786",
+                "Workers Data Path": "clustershare/agi",
+                "Mode": "15",
+                "Apps path": "src/agilab/apps/builtin",
+                "Request": '{"params":{},"steps":[]}',
+            }
+        ],
+    )
+
+    saved_state = pipeline_lab.load_runner_state(state_path)
+    assert submissions == ["flight_context"]
+    assert fake_st.session_state["demo_global_runner_stage_backend"] == (
+        pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED
+    )
+    assert saved_state["summary"]["completed_unit_ids"] == ["flight_context"]
+    flight = next(unit for unit in saved_state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_mode"] == "distributed_stage"
+    assert flight["distributed_execution"]["summary_metrics"]["distributed_submissions"] == 1
+    assert "contract_execution" not in flight
+    assert any(
+        isinstance(dataframe, list)
+        and dataframe
+        and isinstance(dataframe[0], dict)
+        and dataframe[0].get("Backend") == "distributed"
+        for dataframe in fake_st.dataframes
+    )
+    assert any(kind == "success" and "distributed" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+
+
+def test_global_runner_panel_wires_distributed_backend_from_orchestrate_settings(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "scheduler": "192.168.20.111:8786",
+                    "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
+                    "workers_data_path": "clustershare/agi",
+                }
+            },
+            "cluster_verbose": 1,
+        },
+        buttons={"demo_global_runner_run_ready_stages": True},
+        selectboxes={"demo_global_runner_stage_backend": pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    submissions: list[str] = []
+    builder_calls: list[dict[str, object]] = []
+
+    def _submit_stage(**kwargs):
+        submissions.append(str(kwargs["unit"]["id"]))
+        return {
+            "summary_metrics_path": "flight/distributed-summary.json",
+            "summary_metrics": {"distributed_submissions": 1},
+        }
+
+    def _build_submitter(**kwargs):
+        builder_calls.append(kwargs)
+        return _submit_stage
+
+    monkeypatch.setattr(pipeline_lab, "build_global_dag_distributed_stage_submitter", _build_submitter)
+    env = SimpleNamespace(app="flight_project", target="flight_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert builder_calls
+    assert builder_calls[-1]["app_settings"] == fake_st.session_state["app_settings"]
+    assert builder_calls[-1]["verbose"] == 1
+    assert submissions == ["flight_context"]
+    flight = next(unit for unit in state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_mode"] == "distributed_stage"
+    assert flight["distributed_execution"]["summary_metrics"]["distributed_submissions"] == 1
     assert ("rerun", "called") in fake_st.messages
 
 
@@ -1754,7 +1933,7 @@ def test_global_runner_error_diagnostic_renders_as_code(monkeypatch, tmp_path):
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("error", "Multi-app DAG orchestration preview is unavailable.") in fake_st.messages
+    assert ("error", "Multi-app DAG preview is unavailable.") in fake_st.messages
     assert ("caption", "Full diagnostic") in fake_st.messages
     assert ("code", "bad dag\nline 2") in fake_st.messages
 
@@ -1774,6 +1953,48 @@ def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_
     assert fake_st.session_state["demo"][0] == 0
     assert fake_st.session_state["demo"][-1] == 0
     assert fake_st.session_state["demo_new_q"] == ""
+
+
+def test_display_lab_tab_loads_selected_dataframe_without_index_inference(monkeypatch, tmp_path):
+    calls: list[tuple[Path, bool | None]] = []
+    df_path = tmp_path / "export.csv"
+    df_path.write_text("time_label,value\n00:00:01,10\n", encoding="utf-8")
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "df_file": str(df_path),
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "render_dataframe_preview", lambda *_args, **_kwargs: None)
+
+    def _load_df_cached(path: Path, *, with_index: bool = True):
+        calls.append((path, with_index))
+        return pipeline_lab.pd.DataFrame({"time_label": ["00:00:01"], "value": [10]})
+
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    deps = _make_lab_deps(
+        load_all_steps=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('a')", "E": ""}],
+        load_df_cached=_load_df_cached,
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
+
+    assert calls == [(df_path, False)]
+    assert list(fake_st.session_state["loaded_df"]["time_label"]) == ["00:00:01"]
 
 
 def test_display_lab_tab_recovers_steps_from_toml_when_loader_returns_empty(monkeypatch, tmp_path):
@@ -2507,7 +2728,7 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
 
     assert run_calls
     assert run_calls[-1][1]["force_lock_clear"] is False
-    assert finish_calls == [("demo", True, "Pipeline run finished. Inspect Run logs.")]
+    assert finish_calls == [("demo", True, "Workflow run finished. Inspect Run logs.")]
     assert remove_calls
     assert [call[0][1] for call in remove_calls] == ["1", "0"]
     assert fake_st.session_state["demo"] == [0, "", "", "", "", "", 0]
@@ -2517,7 +2738,7 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
     assert fake_st.session_state["lab_selected_venv"] == ""
     assert fake_st.session_state["demo__undo_delete_snapshot"]["label"] == "delete pipeline"
     assert bumped
-    assert any("Run pipeline started" in str(message) for message in pushed_logs)
+    assert any("Run workflow started" in str(message) for message in pushed_logs)
     assert fake_st.messages.count(("rerun", "called")) >= 2
 
 
@@ -3238,7 +3459,7 @@ def test_display_lab_tab_preview_and_logs_cover_clear_and_last_log(monkeypatch, 
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
 
-    assert preview_calls == [(1, "PIPELINE preview limited")]
+    assert preview_calls == [(1, "WORKFLOW preview limited")]
     assert fake_st.session_state["demo__run_logs"] == []
     assert any(kind == "caption" and "No runs recorded yet." in message for kind, message in fake_st.messages)
     assert any(kind == "caption" and "Most recent run log" in message for kind, message in fake_st.messages)
@@ -3291,9 +3512,9 @@ def test_display_lab_tab_can_pin_run_logs(monkeypatch, tmp_path):
     buttons = editor_calls[-1]["buttons"]
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
-    assert panels["pipeline_run_logs:demo"]["title"] == "Pipeline logs: flight_project"
+    assert panels["pipeline_run_logs:demo"]["title"] == "Workflow logs: flight_project"
     assert panels["pipeline_run_logs:demo"]["body"] == "line 1\nline 2"
-    assert panels["pipeline_run_logs:demo"]["source"] == f"PIPELINE {log_file}"
+    assert panels["pipeline_run_logs:demo"]["source"] == f"WORKFLOW {log_file}"
     assert ("rerun", "called") in fake_st.messages
 
 

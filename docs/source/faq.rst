@@ -217,6 +217,6 @@ fresh output under ``~/log/execute/flight/`` and complete the
 ``PROJECT -> ORCHESTRATE -> ANALYSIS`` story.
 
 It also does **not** prove the separate public full-tour demo
-(``PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS``) based on
+(``PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS``) based on
 ``uav_relay_queue_project``. That tour is currently documented, but it is not
 the same contract as the validated newcomer proof.

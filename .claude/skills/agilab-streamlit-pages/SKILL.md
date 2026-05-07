@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-05-07
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -76,7 +76,7 @@ Use this skill when editing:
 - Do not color a value green just because it is present when the value means "no run",
   "not configured", or "no artifact discovered".
 - Use product-facing labels instead of internal implementation terms:
-  - `Pipeline graph` instead of `DAG shape`
+  - `Workflow graph` instead of `DAG shape`
   - `Stages` and `dependencies` instead of graph-only jargon such as nodes and edges
   - `Project name` when the widget selects a project
 - Derived header values must be computed locally from existing evidence when possible.
@@ -85,6 +85,18 @@ Use this skill when editing:
 - When a generic page has no app-specific semantic data, show an honest fallback such
   as execution steps, output files, or discovered dataframes rather than inventing a
   domain-specific metric.
+- Keep one navigation surface per action. If a page already exposes compact sidebar
+  launch links, do not duplicate the same action as in-page sidecar cards, repeated
+  `Open` buttons, or another selector unless the second surface adds a distinct
+  workflow step.
+- For lightweight page routing, prefer compact Markdown/HTML links with encoded
+  query parameters such as `current_page` over a selectbox plus `Open` button when
+  the user only needs to jump to a target. Add a tiny helper to construct and test
+  the encoded URL instead of inlining query-string formatting in the render block.
+- Treat legacy “default view” UI as configuration debt when a project already has a
+  selected view list. Persist the selected list in `pages.view_module`; remove stale
+  `default_view`/`default_views` values only when that behavior is intentionally
+  replaced by the new launcher model.
 - Update focused page tests when changing visible labels, header cards, or sidebar
   structure. Grep old wording before closing the task so stale copy does not survive in
   tests, docs, or screenshots.
@@ -134,6 +146,22 @@ Use this skill when editing:
 - Add a focused helper test for display formatting and keep the repository scan
   guard in `test/test_streamlit_diagnostic_rendering.py` green when touching
   diagnostic rendering paths.
+
+## Long-Running Action Timers
+
+- For long async actions such as ORCHESTRATE install/run/serve, render a live
+  elapsed-time placeholder before awaiting the subprocess or background task.
+- Prefer `asyncio.create_task(...)`, yield once with `await asyncio.sleep(0)`,
+  then poll at a short fixed interval and update the placeholder until the task
+  is done. Do not depend only on log callbacks; quiet processes still need a
+  visible timer.
+- Keep the final duration visible after completion and record it in action
+  history when that history is user-facing evidence.
+- Store timer values under non-widget session-state keys such as
+  `last_run_elapsed_seconds` and `last_run_elapsed_label`; never mutate a key
+  already owned by a rendered widget.
+- Add focused tests for both the formatting helper and the action path that
+  records the elapsed label, without requiring a real long-running process.
 
 ## Key Hygiene
 

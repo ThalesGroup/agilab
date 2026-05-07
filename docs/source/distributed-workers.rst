@@ -8,7 +8,7 @@ usual workflow is UI-driven rather than handwritten.
 
    You usually do not write ``AGI.install(...)`` or ``AGI.run(...)`` by hand.
    Configure the cluster in **ORCHESTRATE**, let AGILAB generate the snippet,
-   then import or regenerate that generated step in **PIPELINE**.
+   then import or regenerate that generated step in **WORKFLOW**.
 
 For most users, the recommended sequence is:
 
@@ -21,11 +21,11 @@ For most users, the recommended sequence is:
 You normally do not start by writing cluster orchestration code from scratch.
 
 .. figure:: diagrams/distributed_orchestrate_pipeline_handoff.svg
-   :alt: Diagram showing the UI-driven workflow from ORCHESTRATE to PIPELINE for distributed workers.
+   :alt: Diagram showing the UI-driven workflow from ORCHESTRATE to WORKFLOW for distributed workers.
    :align: center
    :class: diagram-panel diagram-wide
 
-   The supported workflow is configure in ORCHESTRATE, generate the snippet there, then reuse that generated step in PIPELINE.
+   The supported workflow is configure in ORCHESTRATE, generate the snippet there, then reuse that generated step in WORKFLOW.
 
 Prerequisites
 -------------
@@ -114,6 +114,9 @@ Use the generated sections in this order:
   plan is partitioned before running it
 - **Run** to generate the final ``AGI.run(...)`` snippet for the configured
   distributed setup
+- **Notebook** to download the generated orchestration recipe as a runnable
+  ``.ipynb`` handoff artifact when you want to review or share the current
+  install/distribute/run setup outside the UI
 
 Treat these snippets as generated operational artifacts, not as examples you
 must manually reconstruct first.
@@ -179,7 +182,7 @@ Use this short checklist the first time:
 3. Use **CHECK DISTRIBUTE** to inspect the generated ``AGI.get_distrib(...)``
    plan and confirm the partitions land on the intended workers.
 4. Use **RUN** to generate the current ``AGI.run(...)`` snippet for that setup.
-5. In **PIPELINE**, open **Add step** or **New step**, then import or regenerate
+5. In **WORKFLOW**, open **Add step** or **New step**, then import or regenerate
    that generated run step instead of rewriting it manually.
 
 Equivalent Generated Snippets
@@ -261,7 +264,7 @@ This step is the fastest way to catch obvious mismatches such as:
 - all partitions being assigned to one host
 - cluster settings changed in the UI but an old run snippet still being reused
 
-Step 4: Reuse the Generated Snippet in PIPELINE
+Step 4: Reuse the Generated Snippet in WORKFLOW
 -----------------------------------------------
 
 When the distributed run should become part of a repeatable workflow, move to
@@ -270,22 +273,22 @@ When the distributed run should become part of a repeatable workflow, move to
 The normal reuse path is:
 
 1. Generate the install / distribute / run snippet in ORCHESTRATE.
-2. On **PIPELINE**, open **Add step** (or **New step** on a fresh lab).
+2. On **WORKFLOW**, open **Add step** (or **New step** on a fresh lab).
 3. Import the generated snippet as the step source, or regenerate it from the
    latest current settings.
-4. Run the imported step from PIPELINE so the distributed orchestration becomes
+4. Run the imported step from WORKFLOW so the distributed orchestration becomes
    part of ``lab_steps.toml`` and the tracked experiment history.
 
 Important: imported snippets are snapshots. If you change worker hosts,
 execution flags, or app arguments in ORCHESTRATE, regenerate or re-import the
-snippet before running it again in PIPELINE.
+snippet before running it again in WORKFLOW.
 
-.. figure:: _static/page-shots/pipeline-page.png
-   :alt: Screenshot of the PIPELINE page showing the lab-step workspace where generated snippets are imported and rerun.
+.. figure:: _static/page-shots/workflow-page.png
+   :alt: Screenshot of the WORKFLOW page showing the lab-step workspace where generated snippets are imported and rerun.
    :align: center
    :class: diagram-panel diagram-wide
 
-   PIPELINE is where the generated distributed snippet becomes a tracked, reusable step in ``lab_steps.toml``.
+   WORKFLOW is where the generated distributed snippet becomes a tracked, reusable step in ``lab_steps.toml``.
 
 Best Practices
 --------------
@@ -335,7 +338,7 @@ Common distributed setup failures usually fall into one of these categories:
   dask``**: re-run **INSTALL** with the current AGILAB version so the generated
   worker environment is recreated and receives ``dask[distributed]``. This is
   part of AGILAB cluster deployment, not a dependency every app should carry.
-- **PIPELINE runs stale cluster code**: regenerate or re-import the snippet from
+- **WORKFLOW runs stale cluster code**: regenerate or re-import the snippet from
   ORCHESTRATE after changing worker or app settings.
 
 See also:

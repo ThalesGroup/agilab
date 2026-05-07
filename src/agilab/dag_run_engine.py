@@ -6,14 +6,18 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .dag_execution_adapters import (
-    GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE,
+    DAG_STAGE_BACKEND_DISTRIBUTED,
+    DAG_STAGE_BACKEND_LOCAL,
+    GLOBAL_DAG_DISTRIBUTED_EXECUTION_SCOPE,
     GLOBAL_DAG_REAL_EXECUTION_SCOPE,
     GLOBAL_DAG_REAL_RUN_DIRNAME,
+    DagBatchExecutionResult,
     DagExecutionContext,
     DagStageExecutionResult,
     available_artifact_ids,
     dag_units,
     registered_execution_adapter_ids,
+    run_ready_adapter_stages,
     run_next_adapter_stage,
 )
 from .dag_execution_registry import (
@@ -52,6 +56,9 @@ GLOBAL_DAG_CONTROLLED_CONTRACT_ADAPTER = CONTROLLED_CONTRACT_ADAPTER
 GLOBAL_DAG_FLIGHT_TO_METEO_ADAPTER = FLIGHT_TO_METEO_ADAPTER
 GLOBAL_DAG_CONTROLLED_RUNNER_STATUS = CONTROLLED_RUNNER_STATUS
 GLOBAL_DAG_CONTROLLED_CONTRACT_RUNNER_STATUS = CONTROLLED_CONTRACT_RUNNER_STATUS
+GLOBAL_DAG_STAGE_BACKEND_LOCAL = DAG_STAGE_BACKEND_LOCAL
+GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED = DAG_STAGE_BACKEND_DISTRIBUTED
+GLOBAL_DAG_DISTRIBUTED_CONTRACT_EXECUTION_SCOPE = GLOBAL_DAG_DISTRIBUTED_EXECUTION_SCOPE
 GLOBAL_DAG_QUEUE_UNIT_ID = QUEUE_UNIT_ID
 GLOBAL_DAG_RELAY_UNIT_ID = RELAY_UNIT_ID
 GLOBAL_DAG_FLIGHT_CONTEXT_UNIT_ID = FLIGHT_CONTEXT_UNIT_ID
@@ -75,6 +82,7 @@ class DagRunEngine:
     run_queue_fn: Callable[..., Mapping[str, Any]] | None = None
     run_relay_fn: Callable[..., Mapping[str, Any]] | None = None
     stage_run_fns: Mapping[str, Callable[..., Mapping[str, Any]]] | None = None
+    stage_submit_fn: Callable[..., Mapping[str, Any]] | None = None
     now_fn: Callable[[], str] = lambda: _now_iso()
 
     @property
@@ -116,6 +124,30 @@ class DagRunEngine:
             stage_run_fns=self.stage_run_fns,
             now_fn=self.now_fn,
         )
+
+    def run_ready_controlled_stages(
+        self,
+        state: Mapping[str, Any],
+        *,
+        max_workers: int | None = None,
+        execution_backend: str = GLOBAL_DAG_STAGE_BACKEND_LOCAL,
+    ) -> DagBatchExecutionResult:
+        return run_ready_controlled_stages(
+            state,
+            repo_root=self.repo_root,
+            dag_path=self.dag_path,
+            lab_dir=self.lab_dir,
+            run_queue_fn=self.run_queue_fn,
+            run_relay_fn=self.run_relay_fn,
+            stage_run_fns=self.stage_run_fns,
+            stage_submit_fn=self.stage_submit_fn,
+            now_fn=self.now_fn,
+            max_workers=max_workers,
+            execution_backend=execution_backend,
+        )
+
+    def distributed_stage_supported(self) -> bool:
+        return self.stage_submit_fn is not None
 
 
 def repo_relative_text(path: Path, repo_root: Path) -> str:
@@ -216,4 +248,43 @@ def run_next_controlled_stage(
             stage_run_fns=stage_run_fns,
             now_fn=now_fn,
         ),
+    )
+
+
+def run_ready_controlled_stages(
+    state: Mapping[str, Any],
+    *,
+    repo_root: Path,
+    dag_path: Path | None,
+    lab_dir: Path,
+    run_queue_fn: Callable[..., Mapping[str, Any]] | None = None,
+    run_relay_fn: Callable[..., Mapping[str, Any]] | None = None,
+    stage_run_fns: Mapping[str, Callable[..., Mapping[str, Any]]] | None = None,
+    stage_submit_fn: Callable[..., Mapping[str, Any]] | None = None,
+    now_fn: Callable[[], str] = _now_iso,
+    max_workers: int | None = None,
+    execution_backend: str = GLOBAL_DAG_STAGE_BACKEND_LOCAL,
+) -> DagBatchExecutionResult:
+    support = controlled_real_run_support(state, dag_path, repo_root)
+    if not support.supported:
+        return DagBatchExecutionResult(
+            ok=False,
+            message=support.message,
+            state=dict(state),
+        )
+
+    return run_ready_adapter_stages(
+        support.adapter,
+        state,
+        DagExecutionContext(
+            repo_root=repo_root,
+            lab_dir=lab_dir,
+            run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
+            run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
+            stage_run_fns=stage_run_fns,
+            stage_submit_fn=stage_submit_fn,
+            now_fn=now_fn,
+        ),
+        max_workers=max_workers,
+        execution_backend=execution_backend,
     )

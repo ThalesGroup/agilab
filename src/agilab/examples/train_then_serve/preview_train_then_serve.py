@@ -6,7 +6,14 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-CONFIG_PATH = Path(__file__).with_name("sample_policy_run.json")
+CONFIG_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "apps"
+    / "builtin"
+    / "uav_relay_queue_project"
+    / "service_templates"
+    / "train_then_serve_policy_run.json"
+)
 DEFAULT_OUTPUT_DIR = Path.home() / "log" / "execute" / "train_then_serve"
 
 

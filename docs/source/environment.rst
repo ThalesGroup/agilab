@@ -43,7 +43,7 @@ summarises the supported keys.
      - API key surfaced to features that rely on OpenAI endpoints.
    * - ``MISTRAL_API_KEY``
      - unset
-     - API key used by the PIPELINE assistant when ``Mistral Medium 3.5 (online)``
+     - API key used by the WORKFLOW assistant when ``Mistral Medium 3.5 (online)``
        is selected.
    * - ``MISTRAL_MODEL``
      - ``mistral-medium-3.5``
@@ -61,7 +61,7 @@ summarises the supported keys.
        a gateway.
    * - ``AGILAB_LLM_BASE_URL``
      - ``http://127.0.0.1:8000/v1``
-     - OpenAI-compatible Chat Completions base URL used by the PIPELINE assistant
+     - OpenAI-compatible Chat Completions base URL used by the WORKFLOW assistant
        when ``vLLM / OpenAI-compatible (self-hosted)`` is selected. Point this at
        a vLLM, LM Studio, OpenRouter, or gateway endpoint.
    * - ``AGILAB_LLM_MODEL``
@@ -109,7 +109,7 @@ summarises the supported keys.
      - Target directory for exported artefacts.
    * - ``MLFLOW_TRACKING_DIR``
      - ``~/.mlflow``
-     - Where MLflow tracking data is stored. The PIPELINE page serves the local
+     - Where MLflow tracking data is stored. The WORKFLOW page serves the local
        MLflow UI from this directory and records parent/step run metadata and
        artefacts there.
    * - ``AGI_PAGES_DIR``

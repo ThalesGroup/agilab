@@ -1,0 +1,21 @@
+[args]
+dag_path = "dag_templates/flight_to_meteo_global_dag.json"
+output_path = "~/log/execute/global_dag/runner_state.json"
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 1
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25

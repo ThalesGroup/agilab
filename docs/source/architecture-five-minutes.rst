@@ -44,7 +44,7 @@ What each layer owns
      - Responsibility
      - Proof to look for
    * - UI / CLI / notebook
-     - Capture user intent and keep PROJECT, ORCHESTRATE, PIPELINE, and
+     - Capture user intent and keep PROJECT, ORCHESTRATE, WORKFLOW, and
        ANALYSIS on one visible path.
      - ``agilab first-proof --json`` and the hosted Hugging Face demo.
    * - ``AgiEnv``

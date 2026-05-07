@@ -160,14 +160,14 @@ def test_project_ui_state_is_scoped_by_page_and_project() -> None:
 
     workflow_ui.remember_project_ui_state(
         session_state,
-        page_label="PIPELINE",
+        page_label="WORKFLOW",
         env=env,
         values={"artifact_drawer_open": True},
     )
 
     assert workflow_ui.restore_project_ui_state(
         session_state,
-        page_label="PIPELINE",
+        page_label="WORKFLOW",
         env=env,
     ) == {"artifact_drawer_open": True}
     assert workflow_ui.restore_project_ui_state(
@@ -407,24 +407,24 @@ def test_command_and_history_edge_cases() -> None:
     session_state = {workflow_ui.ACTION_HISTORY_KEY: "stale"}
     workflow_ui.record_action_history(
         session_state,
-        page_label="PIPELINE",
+        page_label="WORKFLOW",
         title="First",
         status=False,
         limit=1,
     )
     workflow_ui.record_action_history(
         session_state,
-        page_label="PIPELINE",
+        page_label="WORKFLOW",
         title="Second",
         status=True,
         limit=1,
     )
-    history = session_state[workflow_ui.ACTION_HISTORY_KEY][workflow_ui.workflow_state_scope("PIPELINE")]
+    history = session_state[workflow_ui.ACTION_HISTORY_KEY][workflow_ui.workflow_state_scope("WORKFLOW")]
     assert [item["title"] for item in history] == ["Second"]
 
-    scope = workflow_ui.workflow_state_scope("PIPELINE")
+    scope = workflow_ui.workflow_state_scope("WORKFLOW")
     render_state = {workflow_ui.ACTION_HISTORY_KEY: {scope: ["bad", {"title": "", "status": ""}]}}
-    workflow_ui.render_action_history(fake_st, session_state=render_state, page_label="PIPELINE")
-    workflow_ui.render_action_history(fake_st, session_state={workflow_ui.ACTION_HISTORY_KEY: "bad"}, page_label="PIPELINE")
-    workflow_ui.render_action_history(fake_st, session_state={}, page_label="PIPELINE")
+    workflow_ui.render_action_history(fake_st, session_state=render_state, page_label="WORKFLOW")
+    workflow_ui.render_action_history(fake_st, session_state={workflow_ui.ACTION_HISTORY_KEY: "bad"}, page_label="WORKFLOW")
+    workflow_ui.render_action_history(fake_st, session_state={}, page_label="WORKFLOW")
     assert any("Action: Info" in value for event, value in fake_st.events if event == "caption")

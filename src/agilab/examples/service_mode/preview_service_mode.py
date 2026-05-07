@@ -6,7 +6,14 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-HEALTH_PAYLOAD_PATH = Path(__file__).with_name("sample_health_running.json")
+HEALTH_PAYLOAD_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "apps"
+    / "builtin"
+    / "mycode_project"
+    / "service_templates"
+    / "sample_health_running.json"
+)
 DEFAULT_OUTPUT_PATH = Path.home() / "log" / "execute" / "service_mode" / "service_operator_preview.json"
 DEFAULT_APP = "mycode_project"
 DEFAULT_TARGET = "mycode"

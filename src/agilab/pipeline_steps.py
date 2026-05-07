@@ -553,10 +553,10 @@ def restore_missing_export_steps(
                         meta.pop(old_meta_key, None)
             with target.open("wb") as handle:
                 tomli_w.dump(_convert_paths_to_strings(prepare_lab_steps_for_write(normalized)), handle)
-            logger.info("Restored missing Pipeline steps file %s from %s", target, source)
+            logger.info("Restored missing Workflow steps file %s from %s", target, source)
             return source
         except (OSError, TypeError, ValueError) as exc:
-            logger.warning("Failed to restore Pipeline steps file %s from %s: %s", target, source, exc)
+            logger.warning("Failed to restore Workflow steps file %s from %s: %s", target, source, exc)
     return None
 
 
@@ -864,7 +864,7 @@ def snippet_source_guidance(has_snippets: bool, app_name: str) -> str:
     return (
         "No ORCHESTRATE-generated snippet is available yet. "
         "Run INSTALL → DISTRIBUTE → RUN in ORCHESTRATE first (same project) "
-        "to generate the INSTALL / DISTRIBUTE / RUN snippets, then come back to PIPELINE."
+        "to generate the INSTALL / DISTRIBUTE / RUN snippets, then come back to WORKFLOW."
     )
 
 

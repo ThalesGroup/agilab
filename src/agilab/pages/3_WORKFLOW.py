@@ -21,7 +21,7 @@ import tomllib        # For reading TOML files
 
 PIPELINE_PROJECT_LABEL = "Project"
 PIPELINE_PROJECT_HELP = (
-    "Project workspace whose pipeline steps and exported artifacts are shown below. "
+    "Project workspace whose workflow steps and exported artifacts are shown below. "
     "Type in the dropdown to search."
 )
 
@@ -63,7 +63,6 @@ from agi_gui.pagelib import (
     inject_theme,
 )
 from agi_gui.file_picker import agi_file_picker
-from agi_gui.ux_widgets import compact_choice
 from agi_env import AgiEnv, normalize_path
 from agi_env.pagelib_selection_support import on_df_change as _on_df_change_impl
 import_agilab_symbols(
@@ -404,7 +403,7 @@ def load_last_step(
 
 
 def on_df_change(module_dir: Path, index_page, df_file=None, steps_file=None) -> None:
-    """Update dataframe selection using the PIPELINE page-local step loader."""
+    """Update dataframe selection using the WORKFLOW page-local step loader."""
     return _on_df_change_impl(
         module_dir,
         index_page,
@@ -520,21 +519,67 @@ def _render_notebook_download_button(
     key: str,
     *,
     pycharm_path: Path | None = None,
+    container: Any | None = None,
 ) -> None:
     """Render the notebook download button for an exported notebook."""
+    target = container or st
     try:
         notebook_data = notebook_path.read_bytes()
-        st.sidebar.download_button(
-            "Export notebook",
+        target.download_button(
+            "Download pipeline notebook",
             data=notebook_data,
             file_name=notebook_path.name,
             mime="application/x-ipynb+json",
             key=key,
         )
         if pycharm_path is not None:
-            st.sidebar.caption(f"PyCharm notebook: `{pycharm_path}`")
+            target.caption(f"PyCharm notebook: `{pycharm_path}`")
     except (OSError, StreamlitAPIException) as exc:
-        st.sidebar.error(f"Failed to prepare notebook export: {exc}")
+        target.error(f"Failed to prepare notebook export: {exc}")
+
+
+def _render_notebook_actions(
+    env: AgiEnv,
+    module_path: Path,
+    steps_file: Path,
+    index_page_str: str,
+    *,
+    project_name: str,
+) -> None:
+    """Render notebook import/export actions in the main pipeline workspace."""
+    with st.expander("Notebook", expanded=False):
+        st.caption(
+            f"Active steps file: `{steps_file.name}`. "
+            "Import a notebook into this pipeline or download the current pipeline as `.ipynb`."
+        )
+
+        key = index_page_str + "import_notebook"
+        st.markdown("##### Import")
+        st.file_uploader(
+            "Import notebook",
+            type="ipynb",
+            key=key,
+            on_change=on_preview_notebook_import,
+            args=(key, module_path, index_page_str),
+        )
+        render_notebook_import_preview(module_path, steps_file, index_page_str)
+
+        export_context = build_notebook_export_context(
+            env,
+            module_path,
+            steps_file,
+            project_name=project_name,
+        )
+        notebook_path = refresh_notebook_export(steps_file, export_context=export_context)
+        st.markdown("##### Export")
+        if notebook_path and notebook_path.exists():
+            _render_notebook_download_button(
+                notebook_path,
+                index_page_str + "export_notebook",
+                pycharm_path=resolve_pycharm_notebook_path(steps_file, export_context=export_context),
+            )
+        else:
+            st.caption("No notebook export is available for this pipeline yet.")
 
 
 def load_all_steps(
@@ -883,17 +928,10 @@ def sidebar_controls() -> None:
 
     index_page_str = str(index_page)
 
-    if steps_file_rel:
-        compact_choice(
-            st.sidebar,
-            "Steps file",
-            steps_file_rel,
-            key="index_page",
-            default=index_page if index_page in steps_file_rel else steps_file_rel[0],
-            on_change=on_page_change,
-            help="Switch between exported pipeline step definitions.",
-            inline_limit=6,
-        )
+    if steps_file_rel and index_page not in steps_file_rel:
+        index_page = steps_file_rel[0]
+        st.session_state["index_page"] = index_page
+        index_page_str = str(index_page)
 
     df_files = find_files(lab_dir)
     st.session_state.df_files = df_files
@@ -972,30 +1010,6 @@ def sidebar_controls() -> None:
     # Persist last active app for cross-page defaults (use current lab_dir path)
     # Last active app is now persisted via on_lab_change when user switches labs.
 
-    key = index_page_str + "import_notebook"
-    st.sidebar.file_uploader(
-        "Import notebook",
-        type="ipynb",
-        key=key,
-        on_change=on_preview_notebook_import,
-        args=(key, module_path, index_page_str),
-    )
-    render_notebook_import_preview(module_path, steps_file, index_page_str)
-
-    export_context = build_notebook_export_context(
-        env,
-        module_path,
-        steps_file,
-        project_name=lab_choice,
-    )
-    notebook_path = refresh_notebook_export(steps_file, export_context=export_context)
-    if notebook_path and notebook_path.exists():
-        _render_notebook_download_button(
-            notebook_path,
-            index_page_str + "export_notebook",
-            pycharm_path=resolve_pycharm_notebook_path(steps_file, export_context=export_context),
-        )
-
 
 def mlflow_controls() -> None:
     """Display MLflow UI controls in sidebar."""
@@ -1037,7 +1051,7 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
         with open(pre_prompt_path, encoding="utf-8") as stream:
             pre_prompt_content = json.load(stream)
     except FileNotFoundError:
-        logger.info("No pre_prompt.json found at %s; using empty Pipeline prompt.", pre_prompt_path)
+        logger.info("No pre_prompt.json found at %s; using empty Workflow prompt.", pre_prompt_path)
         return []
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
         st.warning(f"Failed to load pre_prompt.json: {exc}")
@@ -1051,7 +1065,7 @@ def _load_pre_prompt_messages(env: AgiEnv) -> list[Any]:
 
 
 def _caption_once(key: str, message: str) -> None:
-    """Render low-priority Pipeline guidance once per Streamlit session."""
+    """Render low-priority WORKFLOW guidance once per Streamlit session."""
     notice_key = f"_pipeline_notice_seen__{key}"
     if st.session_state.get(notice_key):
         return
@@ -1272,7 +1286,7 @@ def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, steps_file: 
         top_cols = st.columns(3)
         with top_cols[0]:
             _render_pipeline_header_card(
-                "Pipeline steps",
+                "Workflow steps",
                 f"{displayable_steps}/{total_steps}",
                 "visible / stored",
                 state="ready" if total_steps else "incomplete",
@@ -1302,7 +1316,7 @@ def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, steps_file: 
             )
         with bottom_cols[1]:
             _render_pipeline_header_card(
-                "Pipeline graph",
+                "Workflow graph",
                 graph_value,
                 graph_caption,
                 state=graph_state,
@@ -1351,7 +1365,7 @@ def page() -> None:
     steps_file.parent.mkdir(parents=True, exist_ok=True)
     restored_source = st.session_state.pop("_pipeline_steps_restored_from", "")
     if restored_source:
-        st.info(f"Restored missing Pipeline steps from `{restored_source}`.")
+        st.info(f"Restored missing Workflow steps from `{restored_source}`.")
 
     nsteps = len(get_steps_list(lab_dir, steps_file))
     _render_pipeline_workspace_overview(env, lab_dir, steps_file)
@@ -1361,6 +1375,13 @@ def page() -> None:
     st.session_state.setdefault(f"{index_page_str}__engine_map", {})
 
     module_path = st.session_state["module_path"]
+    _render_notebook_actions(
+        env,
+        module_path,
+        steps_file,
+        index_page_str,
+        project_name=Path(st.session_state.get("lab_dir_selectbox", env.target)).name,
+    )
     # If a prompt clear was requested, clear the current revisioned key before loading the step
     if st.session_state.pop(f"{index_page_str}__clear_q", False):
         q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
@@ -1445,7 +1466,7 @@ def main() -> None:
 
     try:
         st.set_page_config(
-            page_title="AGILab PIPELINE",
+            page_title="AGILab WORKFLOW",
             layout="wide",
             menu_items=get_docs_menu_items(html_file="experiment-help.html"),
         )
@@ -1470,7 +1491,7 @@ def main() -> None:
         else:
             render_logo()
         render_pinned_expanders(st)
-        render_page_context(st, page_label="PIPELINE", env=env)
+        render_page_context(st, page_label="WORKFLOW", env=env)
 
         if background_services_enabled() and not st.session_state.get("server_started", False):
             activate_mlflow(env)

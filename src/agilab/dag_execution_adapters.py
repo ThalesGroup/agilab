@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -25,6 +26,9 @@ from .global_pipeline_app_dispatch_smoke import (
 GLOBAL_DAG_REAL_RUN_DIRNAME = "global_dag_real_runs"
 GLOBAL_DAG_REAL_EXECUTION_SCOPE = "controlled_uav_queue_to_relay_stage"
 GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE = "controlled_contract_dag_stage"
+GLOBAL_DAG_DISTRIBUTED_EXECUTION_SCOPE = "controlled_contract_dag_stage_distributed"
+DAG_STAGE_BACKEND_LOCAL = "local"
+DAG_STAGE_BACKEND_DISTRIBUTED = "distributed"
 
 
 def _now_iso() -> str:
@@ -40,12 +44,22 @@ class DagStageExecutionResult:
 
 
 @dataclass(frozen=True)
+class DagBatchExecutionResult:
+    ok: bool
+    message: str
+    state: dict[str, Any]
+    executed_unit_ids: tuple[str, ...] = ()
+    failed_unit_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class DagExecutionContext:
     repo_root: Path
     lab_dir: Path
     run_queue_fn: Callable[..., Mapping[str, Any]] | None = None
     run_relay_fn: Callable[..., Mapping[str, Any]] | None = None
     stage_run_fns: Mapping[str, Callable[..., Mapping[str, Any]]] | None = None
+    stage_submit_fn: Callable[..., Mapping[str, Any]] | None = None
     now_fn: Callable[[], str] = _now_iso
 
 
@@ -107,6 +121,37 @@ def run_next_adapter_stage(
     return adapter.run_next(state, context)
 
 
+def run_ready_adapter_stages(
+    adapter_id: str,
+    state: Mapping[str, Any],
+    context: DagExecutionContext,
+    *,
+    max_workers: int | None = None,
+    execution_backend: str = DAG_STAGE_BACKEND_LOCAL,
+) -> DagBatchExecutionResult:
+    if adapter_id == CONTROLLED_CONTRACT_ADAPTER:
+        return _run_ready_controlled_contract_dag_stages(
+            state,
+            context=context,
+            max_workers=max_workers,
+            execution_backend=execution_backend,
+        )
+
+    result = run_next_adapter_stage(adapter_id, state, context)
+    if result.ok:
+        return DagBatchExecutionResult(
+            ok=True,
+            message=result.message,
+            state=result.state,
+            executed_unit_ids=(result.executed_unit_id,) if result.executed_unit_id else (),
+        )
+    return DagBatchExecutionResult(
+        ok=False,
+        message=result.message,
+        state=result.state,
+    )
+
+
 def dag_units(state: Mapping[str, Any]) -> list[dict[str, Any]]:
     units = state.get("units", [])
     if not isinstance(units, list):
@@ -132,6 +177,14 @@ def _next_runnable_unit(state: Mapping[str, Any]) -> dict[str, Any] | None:
         if str(unit.get("dispatch_status", "")) == "runnable":
             return unit
     return None
+
+
+def _runnable_units(state: Mapping[str, Any]) -> list[dict[str, Any]]:
+    return [
+        unit
+        for unit in dag_units(state)
+        if str(unit.get("dispatch_status", "")) == "runnable"
+    ]
 
 
 def _unblock_ready_units(state: dict[str, Any], *, timestamp: str) -> None:
@@ -365,6 +418,258 @@ def _run_next_controlled_contract_dag_stage(
     )
 
 
+def _run_ready_controlled_contract_dag_stages(
+    state: Mapping[str, Any],
+    *,
+    context: DagExecutionContext,
+    max_workers: int | None = None,
+    execution_backend: str = DAG_STAGE_BACKEND_LOCAL,
+) -> DagBatchExecutionResult:
+    mutable_state = deepcopy(dict(state))
+    timestamp = context.now_fn()
+    backend = _normalize_stage_backend(execution_backend)
+    _unblock_ready_units(mutable_state, timestamp=timestamp)
+    runnable_units = _runnable_units(mutable_state)
+    if not runnable_units:
+        _refresh_summary(mutable_state)
+        return DagBatchExecutionResult(
+            ok=False,
+            message="No controlled contract DAG stages are ready to run.",
+            state=mutable_state,
+        )
+
+    jobs: list[tuple[dict[str, Any], dict[str, str], str, str]] = []
+    failed_unit_ids: list[str] = []
+    failure_messages_by_unit_id: dict[str, str] = {}
+    for unit in runnable_units:
+        unit_id = str(unit.get("id", ""))
+        contract_issue = _controlled_contract_unit_issue(unit)
+        if contract_issue:
+            _mark_controlled_stage_failure(
+                mutable_state,
+                unit,
+                timestamp=timestamp,
+                message=contract_issue,
+                execution_mode=_stage_backend_execution_mode(backend),
+            )
+            failed_unit_ids.append(unit_id)
+            failure_messages_by_unit_id[unit_id] = contract_issue
+            continue
+        artifact = _primary_contract_artifact(mutable_state, unit)
+        _mark_controlled_stage_running(
+            mutable_state,
+            unit,
+            timestamp=timestamp,
+            execution_mode=_stage_backend_execution_mode(backend),
+            operator_message=_stage_backend_running_message(unit_id, backend),
+            event_detail=_stage_backend_dispatch_detail(unit_id, backend),
+        )
+        jobs.append(
+            (
+                unit,
+                artifact,
+                artifact["kind"],
+                _artifact_path_result_key(artifact["kind"]),
+            )
+        )
+
+    results_by_unit_id: dict[str, dict[str, Any]] = {}
+    if jobs:
+        worker_count = max(1, min(max_workers or len(jobs), len(jobs)))
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = {
+                executor.submit(
+                    _stage_execution_result,
+                    context,
+                    unit=deepcopy(unit),
+                    artifact=artifact,
+                    timestamp=timestamp,
+                    execution_backend=backend,
+                ): str(unit.get("id", ""))
+                for unit, artifact, _artifact_kind, _artifact_path_key in jobs
+            }
+            for future, unit_id in futures.items():
+                try:
+                    results_by_unit_id[unit_id] = dict(future.result())
+                except Exception as exc:
+                    failure_messages_by_unit_id[unit_id] = str(exc)
+
+    executed_unit_ids: list[str] = []
+    for unit, artifact, artifact_kind, artifact_path_key in jobs:
+        unit_id = str(unit.get("id", ""))
+        result = results_by_unit_id.get(unit_id)
+        if result is None:
+            message = failure_messages_by_unit_id.get(unit_id, "Controlled contract stage failed.")
+            _mark_controlled_stage_failure(
+                mutable_state,
+                unit,
+                timestamp=timestamp,
+                message=message,
+                execution_mode=_stage_backend_execution_mode(backend),
+            )
+            failed_unit_ids.append(unit_id)
+            continue
+        _mark_controlled_stage_execution(
+            mutable_state,
+            unit,
+            result=result,
+            timestamp=timestamp,
+            artifact_id=artifact["artifact"],
+            reduce_artifact_id=None,
+            artifact_kind=artifact_kind,
+            artifact_path_key=artifact_path_key,
+            execution_mode=_stage_backend_execution_mode(backend),
+            execution_payload_key=_stage_backend_payload_key(backend),
+            operator_message=_stage_backend_completed_message(unit_id, backend),
+            artifact_available_detail=(
+                f"{artifact['artifact']} became available after {_stage_backend_artifact_detail(backend)}"
+            ),
+            completion_detail=_stage_backend_completed_message(unit_id, backend),
+        )
+        _update_real_execution_provenance(
+            mutable_state,
+            executed_unit_id=unit_id,
+            timestamp=timestamp,
+            dispatch_mode=CONTROLLED_CONTRACT_RUNNER_STATUS,
+            real_app_execution=False,
+            execution_scope=_stage_backend_execution_scope(backend),
+        )
+        executed_unit_ids.append(unit_id)
+
+    _unblock_ready_units(mutable_state, timestamp=timestamp)
+    _refresh_summary(mutable_state)
+    backend_label = _stage_backend_label(backend)
+    if executed_unit_ids and not failed_unit_ids:
+        stage_text = ", ".join(f"`{unit_id}`" for unit_id in executed_unit_ids)
+        return DagBatchExecutionResult(
+            ok=True,
+            message=f"Executed {len(executed_unit_ids)} ready {backend_label} DAG stage(s): {stage_text}.",
+            state=mutable_state,
+            executed_unit_ids=tuple(executed_unit_ids),
+        )
+    if executed_unit_ids:
+        stage_text = ", ".join(f"`{unit_id}`" for unit_id in executed_unit_ids)
+        failed_text = _failed_stage_text(failed_unit_ids, failure_messages_by_unit_id)
+        return DagBatchExecutionResult(
+            ok=False,
+            message=f"Executed {stage_text}; failed {failed_text}.",
+            state=mutable_state,
+            executed_unit_ids=tuple(executed_unit_ids),
+            failed_unit_ids=tuple(failed_unit_ids),
+        )
+    failed_text = _failed_stage_text(failed_unit_ids, failure_messages_by_unit_id)
+    return DagBatchExecutionResult(
+        ok=False,
+        message=f"No ready DAG stage completed. Failed {failed_text}.",
+        state=mutable_state,
+        failed_unit_ids=tuple(failed_unit_ids),
+    )
+
+
+def _failed_stage_text(unit_ids: list[str], messages_by_unit_id: Mapping[str, str]) -> str:
+    if not unit_ids:
+        return "no stage"
+    parts: list[str] = []
+    for unit_id in unit_ids:
+        message = str(messages_by_unit_id.get(unit_id, "")).strip()
+        parts.append(f"`{unit_id}`: {message}" if message else f"`{unit_id}`")
+    return "; ".join(parts)
+
+
+def _normalize_stage_backend(value: str) -> str:
+    if str(value).strip().lower() == DAG_STAGE_BACKEND_DISTRIBUTED:
+        return DAG_STAGE_BACKEND_DISTRIBUTED
+    return DAG_STAGE_BACKEND_LOCAL
+
+
+def _stage_backend_label(backend: str) -> str:
+    return "distributed" if backend == DAG_STAGE_BACKEND_DISTRIBUTED else "local"
+
+
+def _stage_backend_execution_mode(backend: str) -> str:
+    return "distributed_stage" if backend == DAG_STAGE_BACKEND_DISTRIBUTED else "contract_adapter"
+
+
+def _stage_backend_payload_key(backend: str) -> str:
+    return "distributed_execution" if backend == DAG_STAGE_BACKEND_DISTRIBUTED else "contract_execution"
+
+
+def _stage_backend_execution_scope(backend: str) -> str:
+    if backend == DAG_STAGE_BACKEND_DISTRIBUTED:
+        return GLOBAL_DAG_DISTRIBUTED_EXECUTION_SCOPE
+    return GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE
+
+
+def _stage_backend_running_message(unit_id: str, backend: str) -> str:
+    if backend == DAG_STAGE_BACKEND_DISTRIBUTED:
+        return f"{unit_id} is running through the distributed DAG stage backend."
+    return f"{unit_id} is running through the controlled DAG contract adapter."
+
+
+def _stage_backend_dispatch_detail(unit_id: str, backend: str) -> str:
+    if backend == DAG_STAGE_BACKEND_DISTRIBUTED:
+        return f"{unit_id} dispatched by the distributed DAG stage backend"
+    return f"{unit_id} dispatched by the controlled DAG contract adapter"
+
+
+def _stage_backend_completed_message(unit_id: str, backend: str) -> str:
+    if backend == DAG_STAGE_BACKEND_DISTRIBUTED:
+        return f"{unit_id} completed through the distributed DAG stage backend."
+    return f"{unit_id} completed through the controlled DAG contract adapter."
+
+
+def _stage_backend_artifact_detail(backend: str) -> str:
+    if backend == DAG_STAGE_BACKEND_DISTRIBUTED:
+        return "distributed stage execution"
+    return "controlled contract execution"
+
+
+def _stage_execution_result(
+    context: DagExecutionContext,
+    *,
+    unit: Mapping[str, Any],
+    artifact: Mapping[str, str],
+    timestamp: str,
+    execution_backend: str,
+) -> dict[str, Any]:
+    if execution_backend == DAG_STAGE_BACKEND_DISTRIBUTED:
+        return _distributed_stage_result(context, unit=unit, artifact=artifact, timestamp=timestamp)
+    return _contract_stage_result(context, unit=unit, artifact=artifact, timestamp=timestamp)
+
+
+def _distributed_stage_result(
+    context: DagExecutionContext,
+    *,
+    unit: Mapping[str, Any],
+    artifact: Mapping[str, str],
+    timestamp: str,
+) -> dict[str, Any]:
+    submitter = context.stage_submit_fn
+    if submitter is None:
+        raise RuntimeError(
+            "Distributed DAG stage backend is not configured. "
+            "Use the local contract backend or provide a stage submitter."
+        )
+    unit_id = str(unit.get("id", "")).strip() or "stage"
+    contract = _unit_execution_contract(unit)
+    run_root = _real_run_root(context.lab_dir, unit_id)
+    run_root.mkdir(parents=True, exist_ok=True)
+    result = dict(
+        submitter(
+            repo_root=context.repo_root,
+            lab_dir=context.lab_dir,
+            run_root=run_root,
+            unit=dict(unit),
+            artifact=dict(artifact),
+            execution_contract=contract,
+            timestamp=timestamp,
+        )
+    )
+    result.setdefault("execution_contract", contract)
+    result.setdefault("stage_backend", DAG_STAGE_BACKEND_DISTRIBUTED)
+    return result
+
+
 def _contract_stage_result(
     context: DagExecutionContext,
     *,
@@ -435,6 +740,22 @@ def _unit_execution_contract(unit: Mapping[str, Any]) -> dict[str, Any]:
         normalized["entrypoint"] = entrypoint
     if command:
         normalized["command"] = command
+    params = contract.get("params")
+    if not isinstance(params, Mapping):
+        params = contract.get("run_params")
+    if isinstance(params, Mapping):
+        normalized["params"] = dict(params)
+    steps = contract.get("steps")
+    if not isinstance(steps, list):
+        steps = contract.get("run_steps")
+    if isinstance(steps, list):
+        normalized["steps"] = list(steps)
+    for key in ("data_in", "data_out", "reset_target"):
+        if key in contract:
+            normalized[key] = contract.get(key)
+    for key in ("rapids_enabled", "benchmark_best_single_node"):
+        if key in contract:
+            normalized[key] = bool(contract.get(key))
     return normalized
 
 
@@ -637,6 +958,41 @@ def _refresh_summary(state: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def _mark_controlled_stage_running(
+    state: dict[str, Any],
+    unit: dict[str, Any],
+    *,
+    timestamp: str,
+    execution_mode: str = "contract_adapter",
+    operator_message: str | None = None,
+    event_detail: str | None = None,
+) -> None:
+    unit_id = str(unit.get("id", ""))
+    previous_status = str(unit.get("dispatch_status", ""))
+    unit["dispatch_status"] = "running"
+    unit["execution_mode"] = execution_mode
+    timestamps = unit.setdefault("timestamps", {})
+    if isinstance(timestamps, dict):
+        timestamps.setdefault("created_at", state.get("created_at", timestamp))
+        timestamps["started_at"] = timestamp
+        timestamps["updated_at"] = timestamp
+    unit["operator_ui"] = {
+        "state": "running",
+        "severity": "info",
+        "message": operator_message or f"{unit_id} is running through the controlled DAG contract adapter.",
+        "blocked_by_artifacts": [],
+    }
+    _append_event(
+        state,
+        timestamp=timestamp,
+        kind="unit_dispatched",
+        unit_id=unit_id,
+        from_status=previous_status,
+        to_status="running",
+        detail=event_detail or f"{unit_id} dispatched by the controlled DAG contract adapter",
+    )
+
+
 def _mark_controlled_stage_execution(
     state: dict[str, Any],
     unit: dict[str, Any],
@@ -651,6 +1007,7 @@ def _mark_controlled_stage_execution(
     execution_payload_key: str = "real_execution",
     operator_message: str | None = None,
     artifact_available_detail: str | None = None,
+    completion_detail: str | None = None,
 ) -> None:
     unit_id = str(unit.get("id", ""))
     previous_status = str(unit.get("dispatch_status", ""))
@@ -738,7 +1095,7 @@ def _mark_controlled_stage_execution(
         unit_id=unit_id,
         from_status=previous_status,
         to_status="completed",
-        detail=f"{unit_id} completed through the controlled AGILAB app entrypoint",
+        detail=completion_detail or f"{unit_id} completed through the controlled AGILAB app entrypoint",
     )
     _append_event(
         state,
@@ -757,11 +1114,12 @@ def _mark_controlled_stage_failure(
     *,
     timestamp: str,
     message: str,
+    execution_mode: str = "contract_adapter",
 ) -> None:
     unit_id = str(unit.get("id", ""))
     previous_status = str(unit.get("dispatch_status", ""))
     unit["dispatch_status"] = "failed"
-    unit["execution_mode"] = "contract_adapter"
+    unit["execution_mode"] = execution_mode
     timestamps = unit.setdefault("timestamps", {})
     if isinstance(timestamps, dict):
         timestamps.setdefault("created_at", state.get("created_at", timestamp))
