@@ -24,7 +24,7 @@ The hosted demo publishes two lightweight built-in paths:
 
 - confirm ``flight_project`` is selected in ``PROJECT``
 - inspect the generated execution snippet in ``ORCHESTRATE``
-- inspect the packaged recipe in ``PIPELINE``
+- inspect the packaged recipe in ``WORKFLOW``
 - open ``ANALYSIS`` and finish on the ``view_maps`` operator view
 - switch to ``meteo_forecast_project`` to inspect the notebook-migration style
   workflow, then open ``view_forecast_analysis`` or ``view_release_decision``
@@ -56,7 +56,7 @@ What success looks like
 -----------------------
 
 You are past the hosted-demo hurdle when the Space loads, ``flight_project`` and
-``meteo_forecast_project`` are available from the AGILAB UI, ``PIPELINE`` can
+``meteo_forecast_project`` are available from the AGILAB UI, ``WORKFLOW`` can
 show recipe context, and ``ANALYSIS`` opens the ``view_maps`` and
 ``view_forecast_analysis`` routes without a startup error. For evidence scope,
 use :doc:`compatibility-matrix`; it separates validated public routes from

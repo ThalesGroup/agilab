@@ -84,7 +84,7 @@ def available_lab_modules(env: AgiEnv, export_root: Path) -> List[str]:
         if module not in seen:
             ordered.append(module)
             seen.add(module)
-    return ordered
+    return sorted(ordered, key=lambda name: (name.casefold(), name))
 
 
 def normalize_lab_choice(raw_value: Any, modules: List[str]) -> str:

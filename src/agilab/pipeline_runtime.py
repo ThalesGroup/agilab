@@ -79,7 +79,7 @@ def to_bool_flag(value: Any, default: bool = False) -> bool:
 
 
 def safe_service_start_template(env: AgiEnv, marker: str) -> str:
-    """Build an idempotent AGI.serve(start) snippet for PIPELINE import."""
+    """Build an idempotent AGI.serve(start) snippet for WORKFLOW import."""
     return _safe_service_start_template_impl(env, marker)
 
 

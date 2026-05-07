@@ -34,7 +34,7 @@ What each route is for
 - **AGILAB demo**: use :doc:`agilab-demo` for the self-serve public Hugging Face
   Spaces route for the AGILAB web UI. It publishes the lightweight
   ``flight_project`` and ``meteo_forecast_project`` paths, so use it as the
-  public first proof for ``PROJECT`` -> ``ORCHESTRATE`` -> ``PIPELINE`` ->
+  public first proof for ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` ->
   ``ANALYSIS``, including ``view_maps``, ``view_forecast_analysis``, and
   ``view_release_decision``.
 - **agi-core demo**: notebook-first runtime path. Use this if you want the

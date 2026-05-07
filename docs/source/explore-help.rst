@@ -75,7 +75,7 @@ Tips & Notes
 ------------
 - Views are ordinary web projects. Bundles that expose a ``pyproject.toml``
   and a ``src/<module>/<module>.py`` entry point are automatically picked up.
-- Built-in IDE pages (PROJECT, ORCHESTRATE, PIPELINE, ANALYSIS) always remain
+- Built-in IDE pages (PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS) always remain
   available; page bundles simply add extra entries to the Analysis catalogue when
   the project opts into them.
 - ``UAV Relay Queue`` is a good reference setup (install id

@@ -231,7 +231,7 @@ Snippet Handoff to Pipeline
 For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
 
 1. Generate the snippet in **Orchestrate** (typically ``AGI.run``).
-2. On **PIPELINE**, open **Add step** (or **New step** when starting fresh),
+2. On **WORKFLOW**, open **Add step** (or **New step** when starting fresh),
    pick ``Step source = gen step`` for a fresh generation, or ``Step source =``
    an existing snippet (for example ``AGI_run.py`` or ``lab_snippet.py``) to
    import it directly.

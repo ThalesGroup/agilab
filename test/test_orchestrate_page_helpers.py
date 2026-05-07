@@ -505,7 +505,7 @@ def test_orchestrate_notebook_document_exports_current_recipe():
     assert document["metadata"]["agilab"]["app"] == "demo_project"
     assert document["metadata"]["agilab"]["snippet_labels"] == ["INSTALL", "RUN"]
     assert any(
-        "Notebook import remains on the PIPELINE page" in "".join(cell["source"])
+        "Notebook import remains on the WORKFLOW page" in "".join(cell["source"])
         for cell in document["cells"]
     )
     code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]

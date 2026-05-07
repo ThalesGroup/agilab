@@ -31,7 +31,7 @@ the command shape stable.
 - `AGI_install_*.py` prepares the app environment and worker runtime.
 - `AGI_run_*.py` builds a `RunRequest` and calls `AGI.run`.
 - `global_dag/preview_global_dag.py` plans a cross-project handoff with the
-  same vocabulary used by the PIPELINE global DAG runner.
+  same vocabulary used by the WORKFLOW global DAG runner.
 - `inter_project_dag/preview_inter_project_dag.py` remains as the original
   compatibility name for the same concept.
 - `notebook_to_dask/preview_notebook_to_dask.py` shows how notebook cells become

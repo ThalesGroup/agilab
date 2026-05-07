@@ -499,7 +499,7 @@ def render_human(
         lines.append(
             "  uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py"
         )
-        lines.append("  then follow PROJECT -> ORCHESTRATE -> PIPELINE -> ANALYSIS with flight_project")
+        lines.append("  then follow PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS with flight_project")
     else:
         lines.append("recovery:")
         lines.append("  inspect the failing step output above")

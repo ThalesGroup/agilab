@@ -161,7 +161,7 @@ history:
   sequence
 - the notebook-to-pipeline import contract proves the reverse direction by
   turning code cells into pipeline-step metadata and markdown cells into linked
-  context blocks, then feeds the existing ``PIPELINE`` upload path without
+  context blocks, then feeds the existing ``WORKFLOW`` upload path without
   running the notebook
 - the notebook round-trip report checks that supervisor export metadata can be
   re-imported into ``lab_steps.toml`` preview fields without losing D/Q/M/C/R
@@ -313,7 +313,7 @@ between research experiments and engineering validation:
   requests can replay the real app entries before UI controls are added
 - an operator-UI report that makes the persisted state and supported actions
   renderable as reusable components
-- a notebook-to-pipeline import report and ``PIPELINE`` upload integration that
+- a notebook-to-pipeline import report and ``WORKFLOW`` upload integration that
   close the first reverse-notebook bridge while preserving the non-execution
   boundary
 - a notebook round-trip report that validates the first bidirectional
@@ -476,7 +476,7 @@ renders cleanly on narrower viewports.
   task-level orchestration semantics inside a scheduler-first platform.
   AGILab can express dynamic behavior inside generated or custom Python steps,
   but it does not yet expose the same kind of first-class runtime pipeline-step
-  expansion in **PIPELINE**. Its strength is elsewhere: experiment packaging,
+  expansion in **WORKFLOW**. Its strength is elsewhere: experiment packaging,
   managed execution environments, distributed research workloads, and
   app-centric user workflows.
 

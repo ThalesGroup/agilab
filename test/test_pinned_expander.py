@@ -181,7 +181,7 @@ def test_render_pinnable_code_editor_uses_toolbar_pin() -> None:
         body="line 1\nline 2",
         key="logs-editor",
         language="text",
-        source="PIPELINE",
+        source="WORKFLOW",
     )
 
     buttons = editor_calls[-1]["buttons"]
@@ -190,7 +190,7 @@ def test_render_pinnable_code_editor_uses_toolbar_pin() -> None:
     panel = fake_st.session_state[pinned_expander.PINNED_EXPANDERS_KEY]["logs"]
     assert panel["title"] == "Logs"
     assert panel["body"] == "line 1\nline 2"
-    assert panel["source"] == "PIPELINE"
+    assert panel["source"] == "WORKFLOW"
     assert ("rerun", "called") in fake_st.events
 
 

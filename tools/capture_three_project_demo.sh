@@ -188,7 +188,7 @@ Scope note:
   - \`nfile\`
   - \`rows_per_file\`
 - move immediately to \`ORCHESTRATE\` and show one runnable compute step
-- flash \`PIPELINE\` only long enough to prove the data path is replayable
+- flash \`WORKFLOW\` only long enough to prove the data path is replayable
 - finish on one concrete proof frame:
   - generated input artifact
   - or exported compute result
@@ -203,7 +203,7 @@ Scope note:
   - station
   - lag / horizon
 - move to \`ORCHESTRATE\` and show one runnable backtest / forecast action
-- flash \`PIPELINE\` long enough to prove replayable feature / forecast steps
+- flash \`WORKFLOW\` long enough to prove replayable feature / forecast steps
 - finish on \`ANALYSIS\` with:
   - one metrics card cluster
   - one observed-vs-predicted curve
@@ -220,7 +220,7 @@ Scope note:
 - move to \`ORCHESTRATE\` and show visible worker / cluster activity
 - make this the key moment in the cut
 - if a non-local worker is used, make the shared workers data path visible and avoid local-only paths
-- flash \`PIPELINE\` only if replayable optimization or inference steps are already visible
+- flash \`WORKFLOW\` only if replayable optimization or inference steps are already visible
 - finish on one visible decision proof:
   - selected route
   - trained policy artifact

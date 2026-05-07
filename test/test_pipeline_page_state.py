@@ -85,8 +85,8 @@ def test_pipeline_page_state_derives_blocked_actions_for_empty_and_stale_labs(tm
     assert pipeline_page_state.PipelineAction.RUN_PIPELINE not in empty_state.available_actions
     assert pipeline_page_state.PipelineAction.DELETE_STEP not in empty_state.available_actions
     assert pipeline_page_state.PipelineAction.DELETE_ALL not in empty_state.available_actions
-    assert "No visible pipeline steps" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
-    assert "No pipeline step" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.DELETE_STEP]
+    assert "No visible workflow steps" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
+    assert "No workflow step" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.DELETE_STEP]
 
     stale_state = pipeline_page_state.build_pipeline_page_state(
         index_page="demo",
@@ -273,7 +273,7 @@ def test_finish_pipeline_run_command_records_success_and_failure_status() -> Non
     assert success.message == "finished"
     assert success.details == {"index_page": "demo", "status": "complete"}
     assert failure.status is pipeline_page_state.PipelineCommandStatus.FAILED
-    assert failure.message == "Pipeline run failed. Inspect Run logs."
+    assert failure.message == "Workflow run failed. Inspect Run logs."
     assert failure.details == {"index_page": "demo", "status": "failed"}
     assert session_state["demo__last_run_status"] == "failed"
 

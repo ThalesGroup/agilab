@@ -1,4 +1,4 @@
-PIPELINE
+WORKFLOW
 ===========
 
 .. toctree::
@@ -7,12 +7,12 @@ PIPELINE
 Page snapshot
 -------------
 
-.. figure:: _static/page-shots/pipeline-page.png
-   :alt: Screenshot of the PIPELINE page with assistant controls, lab directory selectors, and dataframe selection.
+.. figure:: _static/page-shots/workflow-page.png
+   :alt: Screenshot of the WORKFLOW page with assistant controls, lab directory selectors, and dataframe selection.
    :align: center
    :class: diagram-panel diagram-wide
 
-   PIPELINE combines lab-step editing, execution context, dataframe selection, and notebook export in the same workspace.
+   WORKFLOW combines lab-step editing, execution context, dataframe selection, and notebook export in the same workspace.
 
 Sidebar
 -------
@@ -76,13 +76,13 @@ must be refreshed deliberately.
 For example, if an app renames a runtime argument, older saved snippets that
 still pass the removed name must be regenerated or replaced before they can run.
 
-Pipeline graph scopes
+Workflow graph scopes
 ~~~~~~~~~~~~~~~~~~~~~
-The **Pipeline graph** expander is the transition path from a single-project
+The **Workflow graph** expander is the transition path from a single-project
 pipeline to cross-app artifact orchestration. Use the ``Pipeline scope``
 selector to choose what the graph represents:
 
-* ``Project pipeline`` renders the current ``lab_steps.toml`` as a read-only
+* ``Project workflow`` renders the current ``lab_steps.toml`` as a read-only
   compatibility graph. It explains stage order and dependencies, while the
   existing step controls remain the source of truth for real single-project
   execution.
@@ -121,7 +121,7 @@ Execution is intentionally conservative:
   current UI process; ``Distributed backend`` submits each ready stage through
   the configured backend and records ``distributed_stage`` provenance in the
   DAG state.
-  When ``Distributed backend`` is selected, PIPELINE shows the exact
+  When ``Distributed backend`` is selected, WORKFLOW shows the exact
   per-stage request preview before the run buttons: app, scheduler, worker
   nodes/slots, workers data path, mode integer, apps path, and the JSON
   ``RunRequest`` payload that will be sent for each stage.
@@ -138,7 +138,7 @@ Execution is intentionally conservative:
 Executable stage contracts are deliberately small:
 
 * ``nodes[].execution.entrypoint`` names the stable stage executor, for example
-  ``flight_project.flight_context``. PIPELINE displays this value in the stage
+  ``flight_project.flight_context``. WORKFLOW displays this value in the stage
   table and graph so users can see what will execute before pressing
   ``Run next stage``.
 * ``nodes[].execution.command`` is an optional command-list executor for
@@ -182,7 +182,7 @@ near the pipeline definition instead of in the sidebar:
   would be merged into ``lab_steps.toml``.
 * ``Download pipeline notebook`` exports the current lab as ``lab_steps.ipynb``.
 
-PIPELINE can export the current lab as a runnable supervisor notebook. This is
+WORKFLOW can export the current lab as a runnable supervisor notebook. This is
 not just a static dump of code cells.
 
 * The notebook is written beside ``lab_steps.toml`` as ``lab_steps.ipynb``.
@@ -227,7 +227,7 @@ Pipeline execution and MLflow tracking now share the same runtime contract:
    :align: center
    :class: diagram-panel diagram-standard
 
-   PIPELINE creates one parent MLflow run per execution, then one nested run per step, while both in-process and subprocess paths write to the same tracking store exposed by the MLflow UI.
+   WORKFLOW creates one parent MLflow run per execution, then one nested run per step, while both in-process and subprocess paths write to the same tracking store exposed by the MLflow UI.
 
 * ``Run pipeline`` creates one parent MLflow run for the whole lab execution.
 * Every executed step becomes a nested MLflow run with its own metadata.
@@ -237,7 +237,7 @@ Pipeline execution and MLflow tracking now share the same runtime contract:
   artefacts are logged to the same tracking store when they exist.
 
 This means MLflow is no longer just a nearby dashboard. It is the execution
-trace for PIPELINE runs, while the sidebar remains the place where you inspect
+trace for WORKFLOW runs, while the sidebar remains the place where you inspect
 that trace.
 
 AGILAB does not define a separate experiment tracker, model registry, run
@@ -269,12 +269,12 @@ file here immediately refreshes the assistant tab.
 Troubleshooting and checks
 --------------------------
 
-Use these checks if Pipeline steps are confusing or fail to execute:
+Use these checks if Workflow steps are confusing or fail to execute:
 
 - If numbered step buttons do not match ``lab_steps.toml``, open **HISTORY** and
   confirm the selected file is the current module's lab file.
 - If execution fails on a stale path, regenerate or re-import the snippet in
-  PIPELINE before rerunning the step.
+  WORKFLOW before rerunning the step.
 - If ``Run`` writes no dataframe, check the destination under
   ``${AGILAB_EXPORT_ABS}/<module>/lab_out.csv`` and ensure ``Write permissions``
   are enabled for the selected execution environment.
