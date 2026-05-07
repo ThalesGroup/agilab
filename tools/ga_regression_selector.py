@@ -190,6 +190,16 @@ def _load_junit_timings(path: Path) -> dict[str, float]:
     return timings
 
 
+def _load_timing_file(path: Path) -> dict[str, float]:
+    try:
+        if path.suffix == ".json":
+            return _load_json_timings(path)
+        return _load_junit_timings(path)
+    except (OSError, json.JSONDecodeError, ET.ParseError, ValueError) as exc:
+        print(f"ga_regression_selector: ignoring unreadable timings {path}: {exc}", file=sys.stderr)
+        return {}
+
+
 def load_timings(paths: Sequence[str] = ()) -> dict[str, float]:
     timing_paths: list[Path] = []
     if paths:
@@ -201,7 +211,7 @@ def load_timings(paths: Sequence[str] = ()) -> dict[str, float]:
         path = raw_path if raw_path.is_absolute() else REPO_ROOT / raw_path
         if not path.exists():
             continue
-        loaded = _load_json_timings(path) if path.suffix == ".json" else _load_junit_timings(path)
+        loaded = _load_timing_file(path)
         for test_path, seconds in loaded.items():
             timings[test_path] = timings.get(test_path, 0.0) + seconds
     return timings
