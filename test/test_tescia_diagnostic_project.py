@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import runpy
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,9 +36,88 @@ class _FakeEnv:
         return self.share_root_path() / path
 
 
+class _FakeStreamlit:
+    def __init__(self, env: _FakeEnv) -> None:
+        self.session_state = {"env": env}
+        self.expanders: list[tuple[str, bool]] = []
+        self.latex_calls: list[str] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc_info) -> None:
+        return None
+
+    def caption(self, *_args, **_kwargs) -> None:
+        return None
+
+    def warning(self, *_args, **_kwargs) -> None:
+        return None
+
+    def error(self, *_args, **_kwargs) -> None:
+        return None
+
+    def info(self, *_args, **_kwargs) -> None:
+        return None
+
+    def success(self, *_args, **_kwargs) -> None:
+        return None
+
+    def markdown(self, *_args, **_kwargs) -> None:
+        return None
+
+    def code(self, *_args, **_kwargs) -> None:
+        return None
+
+    def latex(self, formula: str, *_args, **_kwargs) -> None:
+        self.latex_calls.append(formula)
+
+    def expander(self, label: str, *, expanded: bool = False, **_kwargs):
+        self.expanders.append((label, expanded))
+        return self
+
+    def columns(self, spec, **_kwargs):
+        count = spec if isinstance(spec, int) else len(spec)
+        return [self for _ in range(count)]
+
+    def text_input(self, *_args, **_kwargs) -> None:
+        return None
+
+    def number_input(self, *_args, **_kwargs) -> None:
+        return None
+
+    def checkbox(self, *_args, **_kwargs) -> None:
+        return None
+
+    def selectbox(self, *_args, **_kwargs) -> None:
+        return None
+
+    def text_area(self, *_args, **_kwargs) -> None:
+        return None
+
+    def stop(self) -> None:
+        raise AssertionError("st.stop() should not be called in this test")
+
+
 def _load_cases() -> list[dict]:
     payload = json.loads(SAMPLE_CASES.read_text(encoding="utf-8"))
     return payload["cases"]
+
+
+def test_tescia_args_form_renders_scoring_model_as_latex(monkeypatch, tmp_path) -> None:
+    fake_env = _FakeEnv(tmp_path)
+    fake_env.app_settings_file = str(tmp_path / "app_settings.toml")
+    fake_streamlit = _FakeStreamlit(fake_env)
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    runpy.run_path(str(APP_SRC / "app_args_form.py"), run_name="__main__")
+
+    assert ("Scoring model", False) in fake_streamlit.expanders
+    assert len(fake_streamlit.latex_calls) == 4
+    assert fake_streamlit.latex_calls[-1] == (
+        r"student\_score = 100 \cdot (0.35E + 0.30R + 0.25F + 0.10 \cdot gate)"
+    )
 
 
 def _generated_cases_payload(case_id: str = "ai_generated_cluster_share") -> dict:
