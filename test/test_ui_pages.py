@@ -834,7 +834,7 @@ def test_explore_page_multiselect(mock_ui_env):
     markdown_text = "\n".join(markdown_values)
     assert "Output files" in markdown_text
     assert "Latest output" in markdown_text
-    assert "Default views" in markdown_text
+    assert "Views selected" in markdown_text
     assert "Available views" not in markdown_text
     assert "selected / available" not in markdown_text
     assert "agilab-header-value--incomplete" in markdown_text
@@ -844,6 +844,9 @@ def test_explore_page_multiselect(mock_ui_env):
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "### Active project" not in sidebar_markdown
     assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
+    sidebar_view = at.sidebar.selectbox(key="analysis_sidebar_view__flight_project")
+    assert sidebar_view.label == "Analysis view"
+    assert "view_maps" in sidebar_view.options
     
     # Check that 'dummy_view' is an option in the multiselect
     selection_key = f"view_selection__flight_project"
@@ -862,7 +865,7 @@ def test_explore_page_multiselect(mock_ui_env):
 
 
 def test_explore_page_default_view_does_not_mutate_widget_state_after_render(mock_ui_env):
-    """Default views hydrate quick-access cards without auto-opening a view."""
+    """Default analysis views hydrate quick-access cards without auto-opening a view."""
     page_path = mock_ui_env["pages_dir"] / "view_default.py"
     page_path.write_text(
         "import streamlit as st\n\n"
@@ -905,6 +908,9 @@ def test_explore_page_default_view_does_not_mutate_widget_state_after_render(moc
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Analysis views" in markdown_text
     assert "default view rendered" not in markdown_text
+    sidebar_view = at.sidebar.selectbox(key="analysis_sidebar_view__flight_project")
+    assert sidebar_view.label == "Analysis view"
+    assert sidebar_view.value == "view_default"
 
 
 def test_explore_page_default_view_setting_persists(mock_ui_env):
@@ -924,7 +930,7 @@ def test_explore_page_default_view_setting_persists(mock_ui_env):
     view_maps_default = next(
         checkbox
         for checkbox in at.checkbox
-        if checkbox.label == "Default" and "view_maps" in str(checkbox.help)
+        if checkbox.label == "Open by default" and "view_maps" in str(checkbox.help)
     )
     view_maps_default.set_value(True).run()
 
@@ -932,7 +938,7 @@ def test_explore_page_default_view_setting_persists(mock_ui_env):
     view_barycentric_default = next(
         checkbox
         for checkbox in at.checkbox
-        if checkbox.label == "Default" and "view_barycentric" in str(checkbox.help)
+        if checkbox.label == "Open by default" and "view_barycentric" in str(checkbox.help)
     )
     view_barycentric_default.set_value(True).run()
 
@@ -946,8 +952,8 @@ def test_explore_page_default_view_setting_persists(mock_ui_env):
     assert "view_maps" in pages_payload["view_module"]
     assert "view_barycentric" in pages_payload["view_module"]
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
-    assert "Default views" in markdown_text
-    assert "default / available" in markdown_text
+    assert "Views selected" in markdown_text
+    assert "2 open by default" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>2/" in markdown_text
     assert "Available views" not in markdown_text
     assert "selected / available" not in markdown_text
@@ -963,16 +969,16 @@ def test_explore_page_default_view_setting_persists(mock_ui_env):
     reloaded_defaults = [
         checkbox
         for checkbox in reloaded.checkbox
-        if checkbox.label == "Default"
+        if checkbox.label == "Open by default"
         and checkbox.value
         and ("view_maps" in str(checkbox.help) or "view_barycentric" in str(checkbox.help))
     ]
-    assert {str(checkbox.help).split("Use ", 1)[1].split(" as", 1)[0] for checkbox in reloaded_defaults} == {
+    assert {str(checkbox.help).split("Open ", 1)[1].split(" by", 1)[0] for checkbox in reloaded_defaults} == {
         "view_maps",
         "view_barycentric",
     }
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
-    assert "Default views" in reloaded_markdown
+    assert "Views selected" in reloaded_markdown
     assert "agilab-header-value agilab-header-value--ready'>2/" in reloaded_markdown
     assert "Available views" not in reloaded_markdown
 
@@ -1213,9 +1219,12 @@ def test_explore_page_deselect_view(mock_ui_env):
     assert not at.exception
 
     btns = [b.label for b in at.button]
+    card_open_buttons = [
+        b for b in at.button if str(getattr(b, "key", "")).startswith("analysis_open_view__")
+    ]
     assert "Open view_maps" not in btns
     assert "Open view_barycentric" not in btns
-    assert btns.count("Open") == 1
+    assert len(card_open_buttons) == 1
 
 
 def test_app_args_form_no_changes(mock_ui_env):

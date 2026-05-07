@@ -1437,13 +1437,15 @@ def _render_analysis_workspace_overview(
     artifact_count = int(artifact_summary["count"])
     default_views = tuple(getattr(selection_state, "default_view_names", ()) or ())
     default_count = len(default_views)
+    selected_views = tuple(getattr(selection_state, "selected_views", ()) or ())
+    selected_count = len(selected_views)
     latest_label = _format_analysis_latest(artifact_summary["latest"])
     latest_value = latest_label if artifact_count else "No output"
     latest_caption = "latest file timestamp" if artifact_count else "run a project first"
-    default_caption = (
-        "default / available"
+    views_caption = (
+        f"{default_count} open by default"
         if default_count
-        else "no default view selected" if available_view_count else "not configured"
+        else "no default view selected" if selected_count else "choose views below"
     )
 
     with st.container(border=True):
@@ -1454,7 +1456,7 @@ def _render_analysis_workspace_overview(
         with cols[1]:
             _render_analysis_metric("Latest output", latest_value, latest_caption)
         with cols[2]:
-            _render_analysis_metric("Default views", f"{default_count}/{available_view_count}", default_caption)
+            _render_analysis_metric("Views selected", f"{selected_count}/{available_view_count}", views_caption)
 
         if not artifact_summary["exists"]:
             st.info("Run ORCHESTRATE or PIPELINE to create analysis outputs.")
@@ -1506,7 +1508,7 @@ def _render_analysis_view_cards(
 ) -> list[str]:
     st.markdown("### Analysis views")
     if not selected_views:
-        st.info("Select a view in Manage views.")
+        st.info("Select a view in Choose analysis views.")
         return []
 
     builtin_names = set(resolved_pages.keys())
@@ -1548,13 +1550,58 @@ def _render_analysis_view_cards(
                     checkbox_key = _analysis_default_checkbox_key(project, view_path)
                     st.session_state.setdefault(checkbox_key, is_default)
                     checked = st.checkbox(
-                        "Default",
+                        "Open by default",
                         key=checkbox_key,
-                        help=f"Use {display_label} as the default ANALYSIS view.",
+                        help=f"Open {display_label} by default in ANALYSIS.",
                     )
                 if checked:
                     checked_default_views.append(view_name)
     return checked_default_views
+
+
+def _render_analysis_sidebar_view_launcher(
+    *,
+    project: str | None,
+    selected_views: list[str],
+    view_names: list[str],
+    resolved_pages: dict[str, Path],
+    custom_view_lookup: dict[str, Path],
+) -> None:
+    launch_options = list(dict.fromkeys(selected_views or view_names))
+    if not launch_options:
+        st.sidebar.info("No analysis views available.")
+        return
+
+    builtin_names = set(resolved_pages.keys())
+    selector_key = f"analysis_sidebar_view__{project or 'default'}"
+    current_value = st.session_state.get(selector_key)
+    if current_value not in launch_options and selector_key in st.session_state:
+        del st.session_state[selector_key]
+        current_value = None
+    selected_index = launch_options.index(current_value) if current_value in launch_options else 0
+    selected_view = st.sidebar.selectbox(
+        "Analysis view",
+        launch_options,
+        index=selected_index,
+        key=selector_key,
+        format_func=lambda option: _view_label(option, builtin_names),
+        help="Open a selected analysis view. If no view is selected yet, all discovered views are available.",
+    )
+    view_path = _resolve_view_path(selected_view, resolved_pages, custom_view_lookup)
+    if st.sidebar.button(
+        "Open",
+        type="primary",
+        width="stretch",
+        key=f"analysis_sidebar_open_view__{project or 'default'}",
+        disabled=view_path is None,
+    ):
+        if view_path is None:
+            st.sidebar.error(f"Page '{selected_view}' not found.")
+            return
+        view_str = str(view_path.resolve())
+        st.session_state["current_page"] = view_str
+        st.query_params["current_page"] = view_str
+        st.rerun()
 
 
 def _render_custom_analysis_page_authoring(
@@ -1566,7 +1613,7 @@ def _render_custom_analysis_page_authoring(
     custom_view_lookup: dict[str, Path],
     all_available_views: list[str],
 ) -> list[str]:
-    with st.expander("Create custom analysis page", expanded=False):
+    with st.expander("Create analysis view", expanded=False):
         template_name = st.text_input(
             "Page name",
             placeholder="my_analysis_view",
@@ -1574,11 +1621,12 @@ def _render_custom_analysis_page_authoring(
         )
         clone_source = compact_choice(
             st,
-            "Clone from existing apps-page (optional)",
+            "Starting point",
             clone_source_paths,
             format_func=lambda value: clone_source_labels.get(value, value),
             key=f"analysis_template_clone_source__{project or 'default'}",
             inline_limit=5,
+            help="Start from a blank template or duplicate an installed page bundle.",
         )
         create_template_view = st.button(
             "Create",
@@ -1830,8 +1878,8 @@ async def main():
         available_view_count=len(view_names),
     )
 
-    with st.expander("Manage analysis views", expanded=False):
-        st.caption("Choose which analysis views appear as quick-access cards for this project.")
+    with st.expander("Choose analysis views", expanded=False):
+        st.caption("Select which views appear as quick-access cards for this project.")
         selected_views = st.multiselect(
             "Analysis views",
             view_names,
@@ -1865,6 +1913,13 @@ async def main():
         has_session_selection=True,
     )
     selected_views = list(selection_state.selected_views)
+    _render_analysis_sidebar_view_launcher(
+        project=project,
+        selected_views=selected_views,
+        view_names=view_names,
+        resolved_pages=resolved_pages,
+        custom_view_lookup=custom_view_lookup,
+    )
 
     persisted_pages = cfg.setdefault("pages", {})
     config_changed = False
