@@ -441,14 +441,19 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
 
 def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
     source = Path("src/agilab/main_page.py").read_text(encoding="utf-8")
+    selector_source = Path("src/agilab/page_project_selector.py").read_text(encoding="utf-8")
+    pipeline_source = Path("src/agilab/pages/3_PIPELINE.py").read_text(encoding="utf-8")
 
     assert "st.navigation(_navigation_pages()).run()" in source
     assert 'title="About AGILAB"' in source
     assert 'visibility="hidden"' in source
-    assert 'title="PROJECT"' in source
+    assert 'title="PROJECT", url_path="PROJECT", visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="PIPELINE"' in source
     assert 'title="ANALYSIS"' in source
+    assert "agilab-project-edit-link" in selector_source
+    assert "PROJECT?{query}" in selector_source
+    assert '_project_edit_link_markup(selected_lab, "Edit")' in pipeline_source
 
 
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
@@ -1068,6 +1073,8 @@ def test_project_sidebar_orders_active_project_before_actions():
     assert "Export creates a portable archive" not in source
     assert "Project workspace" not in source
     assert "Identity, editable files" not in source
+    assert 'page_title="AGILab PROJECT"' in source
+    assert 'layout="wide"' in source
     assert "_render_project_workspace_overview" not in source
     assert "Python package used by RUN/ORCHESTRATE" not in source
     assert "Source LOC" in source

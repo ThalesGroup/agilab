@@ -2738,6 +2738,11 @@ def page():
     st.session_state['_env'] = env
 
     env = st.session_state['_env']
+    st.set_page_config(
+        page_title="AGILab PROJECT",
+        layout="wide",
+        menu_items=get_about_content(),
+    )
     inject_theme(env.st_resources)
 
     render_logo()

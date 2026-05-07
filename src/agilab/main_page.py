@@ -653,7 +653,7 @@ def _navigation_pages() -> list[Any]:
             default=True,
             visibility="hidden",
         ),
-        st.Page(_page_file_runner(pages_root / "1_PROJECT.py"), title="PROJECT", url_path="PROJECT"),
+        st.Page(pages_root / "1_PROJECT.py", title="PROJECT", url_path="PROJECT", visibility="hidden"),
         st.Page(_page_file_runner(pages_root / "2_ORCHESTRATE.py"), title="ORCHESTRATE", url_path="ORCHESTRATE"),
         st.Page(_page_file_runner(pages_root / "3_PIPELINE.py"), title="PIPELINE", url_path="PIPELINE"),
         st.Page(_page_file_runner(pages_root / "4_ANALYSIS.py"), title="ANALYSIS", url_path="ANALYSIS"),
