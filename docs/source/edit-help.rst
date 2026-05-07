@@ -14,6 +14,13 @@ Page snapshot
 
    The PROJECT page keeps project selection in the sidebar and exposes the editable source/config sections in the main panel.
 
+.. figure:: _static/page-shots/project-create-page.png
+   :alt: Screenshot of the PROJECT Create action with starting point, environment strategy, and new project name controls.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   The Create action groups project creation inputs in the sidebar: choose a starting point, pick the environment strategy, then enter the new project name.
+
 Sidebar
 -------
 
@@ -23,7 +30,7 @@ Sidebar
   ``<project>.zip`` to ``${EXPORT_APPS}`` using the active ``export-app-filter``.
   The rest of the page (expanders described below) becomes available from this
   view.
-- ``Clone`` lets you clone either the current project or one of the templates
+- ``Create`` lets you clone either the current project or one of the templates
   discovered on disk. The helper normalises the name (adds the ``_project``
   suffix) and rejects duplicates before cloning. You now choose an
   ``Environment strategy``:
@@ -45,14 +52,14 @@ Sidebar
   clean import (strips ``.gitignore`` files) and the modal overwrite flow guards
   against accidentally replacing an existing project.
 
-Tutorial: clone a project
--------------------------
+Tutorial: create a project
+--------------------------
 
 Use this when you want to duplicate an existing project before editing code or
 settings.
 
 1. Open **PROJECT**.
-2. In the sidebar, choose **Clone**.
+2. In the sidebar, choose **Create**.
 3. Select the source project or template you want to duplicate.
 4. Enter the new project name. AGILab adds the ``_project`` suffix if needed.
 5. Choose the environment strategy:
