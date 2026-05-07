@@ -1040,6 +1040,7 @@ def test_edit_page_load(mock_ui_env):
     assert all("Identity, editable files" not in str(item.value) for item in at.caption)
     assert any("Edit project files" in value for value in markdown_values)
     assert any(button.label == "Export" for button in at.sidebar.button)
+    assert all(button.label != "Edit" for button in at.sidebar.button)
     assert all(button.label != "Export project" for button in at.sidebar.button)
     markdown_text = "\n".join(markdown_values)
     assert "Worker class" in markdown_text
@@ -1637,6 +1638,7 @@ def test_edit_page_project_selectbox(mock_ui_env):
         f"errors={[e.value for e in at.error]})"
     )
     assert "project_selectbox" in selectbox_keys
+    assert "project_selectbox__edit" not in [button.key for button in at.sidebar.button]
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 

@@ -1737,7 +1737,13 @@ def _render_active_project_sidebar(env) -> None:
         st.sidebar.info("No projects available.")
         return
 
-    render_project_selector(st, projects, env.app, on_change=on_project_change)
+    render_project_selector(
+        st,
+        projects,
+        env.app,
+        on_change=on_project_change,
+        show_edit_button=False,
+    )
     env = st.session_state["env"]
     st.session_state["_env"] = env
 
