@@ -107,6 +107,7 @@ class _FakeStreamlit:
         self.messages: list[tuple[str, str]] = []
         self.button_calls: list[tuple[str, dict[str, object]]] = []
         self.data_editor_calls: list[tuple[str, dict[str, object]]] = []
+        self.dataframes: list[object] = []
         self.graphviz_sources: list[str] = []
         self.multiselect_calls: list[tuple[str, list[object], str | None]] = []
         self.text_area_labels: list[str] = []
@@ -161,6 +162,7 @@ class _FakeStreamlit:
         self.messages.append(("metric", f"{label}={value}"))
 
     def dataframe(self, data, **_kwargs):
+        self.dataframes.append(data)
         self.messages.append(("dataframe", str(len(data) if hasattr(data, "__len__") else "unknown")))
 
     def divider(self):
@@ -1269,6 +1271,9 @@ def _write_alpha_beta_dag(path: Path) -> None:
                         "consumes": [
                             {"id": "alpha_metrics", "kind": "summary_metrics", "path": "alpha/metrics.json"}
                         ],
+                        "produces": [
+                            {"id": "beta_metrics", "kind": "summary_metrics", "path": "beta/metrics.json"}
+                        ],
                     },
                 ],
                 "edges": [
@@ -1359,6 +1364,55 @@ def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path
     assert fake_st.session_state["demo_global_runner_app_template"] == (
         "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json"
     )
+
+
+def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo"
+    _seed_minimal_builtin_app(repo_root, "alpha_project")
+    _seed_minimal_builtin_app(repo_root, "beta_project")
+    dag_path = tmp_path / "alpha_beta.json"
+    _write_alpha_beta_dag(dag_path)
+    selected = str(dag_path)
+    token = pipeline_lab._global_dag_source_token(selected)
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM,
+            "demo_global_runner_dag_path": selected,
+            f"demo_global_runner_dag_id_{token}": "alpha-beta-executable",
+            f"demo_global_runner_label_{token}": "Alpha beta executable",
+        },
+        buttons={"demo_global_runner_save_app_template": True},
+        checkboxes={f"demo_global_runner_controlled_contract_{token}": True},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "_repo_root_for_global_dag", lambda: repo_root)
+    env = SimpleNamespace(app="alpha_project", target="alpha_project")
+    lab_dir = tmp_path / "lab"
+
+    pipeline_lab._render_global_runner_state_panel(env, lab_dir, "demo")
+    fake_st._buttons = {"demo_global_runner_run_next_stage": True}
+    pipeline_lab._render_global_runner_state_panel(env, lab_dir, "demo")
+
+    template_rel = "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json"
+    state = pipeline_lab.load_runner_state(lab_dir / ".agilab" / "runner_state.json")
+    assert state["source"]["dag_path"] == template_rel
+    assert state["summary"]["completed_unit_ids"] == ["alpha"]
+    assert state["summary"]["runnable_unit_ids"] == ["beta"]
+    assert state["summary"]["available_artifact_ids"] == ["alpha_metrics"]
+    alpha = next(unit for unit in state["units"] if unit["id"] == "alpha")
+    beta = next(unit for unit in state["units"] if unit["id"] == "beta")
+    assert alpha["execution_mode"] == "contract_adapter"
+    assert alpha["contract_execution"]["summary_metrics"]["stage_completed"] == 1
+    assert alpha["execution_contract"] == {"entrypoint": "alpha_project.alpha"}
+    assert beta["execution_contract"] == {"entrypoint": "beta_project.beta"}
+    unit_tables = [
+        table
+        for table in fake_st.dataframes
+        if isinstance(table, list) and table and isinstance(table[0], dict) and "executor" in table[0]
+    ]
+    assert any(row["executor"] == "alpha_project.alpha" for table in unit_tables for row in table)
+    assert any("exec: alpha_project.alpha" in source for source in fake_st.graphviz_sources)
+    assert any(kind == "success" and "Executed `alpha`" in message for kind, message in fake_st.messages)
 
 
 def test_global_runner_artifact_handoffs_mark_available_and_missing():

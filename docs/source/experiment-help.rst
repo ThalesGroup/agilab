@@ -104,12 +104,26 @@ Execution is intentionally conservative:
 
 * ``Dispatch next runnable`` is a preview action. It updates the persisted
   runner state and graph without claiming that an app really ran.
-* ``Run next stage`` is only available for the checked-in UAV queue to relay
-  sample. It executes one controlled stage at a time through AGILAB app
-  entrypoints, records produced artifacts, and unlocks the relay stage when the
-  queue metrics are available.
-* Workspace drafts and custom DAGs remain preview-only until AGILAB has a
-  specific safe executor for that contract.
+* ``Run next stage`` is only available for checked-in DAGs with a controlled
+  execution marker. AGILAB ships controlled examples, and app-owned executable
+  templates saved under an app's ``dag_templates`` directory can use the generic
+  controlled contract adapter.
+* Workspace drafts and custom DAGs remain preview-only until they are promoted
+  into a checked-in app template with an explicit controlled execution contract.
+
+Executable stage contracts are deliberately small:
+
+* ``nodes[].execution.entrypoint`` names the stable stage executor, for example
+  ``flight_project.flight_context``. PIPELINE displays this value in the stage
+  table and graph so users can see what will execute before pressing
+  ``Run next stage``.
+* ``nodes[].execution.command`` is an optional command-list executor for
+  deterministic local stages. Prefer a JSON list such as
+  ``["python", "-m", "package.module"]`` over a shell string.
+* ``produces`` and ``consumes`` declare the artifact contract between stages.
+  Executable app templates must declare at least one produced artifact per
+  controlled stage so the runner can publish evidence and unlock downstream
+  stages.
 
 The panel shows the current readiness metrics, graph, artifact handoffs, and
 execution history. Use the history table to distinguish preview dispatch events
