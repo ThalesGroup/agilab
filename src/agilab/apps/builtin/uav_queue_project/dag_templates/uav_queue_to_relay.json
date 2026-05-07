@@ -5,7 +5,12 @@
   "description": "App-owned DAG template that runs the UAV queue app first, then hands queue metrics to the relay queue app.",
   "execution": {
     "mode": "sequential_dependency_order",
-    "runner_status": "contract_only"
+    "runner_status": "controlled_real_stage_execution",
+    "adapter": "uav_queue_to_relay_controlled",
+    "stage_bindings": {
+      "queue_baseline": "uav_queue_project.queue_baseline",
+      "relay_followup": "uav_relay_queue_project.relay_followup"
+    }
   },
   "nodes": [
     {

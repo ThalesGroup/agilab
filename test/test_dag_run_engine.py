@@ -60,6 +60,10 @@ def _sample_dag_path(repo_root: Path) -> Path:
     return repo_root / dag_run_engine.GLOBAL_DAG_SAMPLE_RELATIVE_PATH
 
 
+def _app_template_dag_path(repo_root: Path) -> Path:
+    return repo_root / dag_run_engine.GLOBAL_DAG_UAV_QUEUE_TEMPLATE_RELATIVE_PATH
+
+
 def test_dag_run_engine_reuses_matching_persisted_state(tmp_path):
     repo_root = Path.cwd()
     engine = dag_run_engine.DagRunEngine(
@@ -120,6 +124,55 @@ def test_dag_run_engine_executes_controlled_queue_stage(tmp_path):
     queue = next(unit for unit in result.state["units"] if unit["id"] == "queue_baseline")
     assert queue["execution_mode"] == "real_app_entry"
     assert queue["real_execution"]["summary_metrics"]["packets_delivered"] == 11
+
+
+def test_dag_run_engine_executes_app_owned_uav_template_queue_stage(tmp_path):
+    repo_root = Path.cwd()
+    calls: list[Path] = []
+
+    def _fake_queue_run(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append(run_root)
+        return {
+            "summary_metrics_path": "queue/summary.json",
+            "reduce_artifact_path": "queue/reduce.json",
+            "summary_metrics": {"packets_generated": 13, "packets_delivered": 11},
+        }
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path,
+        dag_path=_app_template_dag_path(repo_root),
+        run_queue_fn=_fake_queue_run,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+    state, _state_path, _dag_path = engine.load_or_create_state()
+    support = engine.real_run_support(state)
+
+    result = engine.run_next_controlled_stage(state)
+
+    assert support.supported
+    assert support.status == "Executable"
+    assert support.adapter == dag_run_engine.GLOBAL_DAG_CONTROLLED_ADAPTER
+    assert result.ok
+    assert result.executed_unit_id == dag_run_engine.GLOBAL_DAG_QUEUE_UNIT_ID
+    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+
+
+def test_dag_run_engine_keeps_workspace_copy_preview_only(tmp_path):
+    repo_root = Path.cwd()
+    dag_path = tmp_path / "copied-uav-template.json"
+    dag_path.write_text(_app_template_dag_path(repo_root).read_text(encoding="utf-8"), encoding="utf-8")
+    engine = dag_run_engine.DagRunEngine(repo_root=repo_root, lab_dir=tmp_path / "lab", dag_path=dag_path)
+    state, _state_path, _dag_path = engine.load_or_create_state()
+
+    support = engine.real_run_support(state)
+    result = engine.run_next_controlled_stage(state)
+
+    assert not support.supported
+    assert support.status == "Preview-only"
+    assert "Workspace and custom DAGs remain preview-only" in support.message
+    assert not result.ok
+    assert "Workspace and custom DAGs remain preview-only" in result.message
 
 
 def test_dag_run_engine_executes_controlled_relay_stage_after_queue(tmp_path):
