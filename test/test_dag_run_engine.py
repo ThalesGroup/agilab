@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 
@@ -40,7 +41,19 @@ def _load_dag_run_engine():
     return module
 
 
+def _load_multi_app_dag_draft():
+    _ensure_agilab_package_path()
+    module_path = Path("src/agilab/multi_app_dag_draft.py")
+    spec = importlib.util.spec_from_file_location("agilab.multi_app_dag_draft", module_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["agilab.multi_app_dag_draft"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 dag_run_engine = _load_dag_run_engine()
+multi_app_dag_draft = _load_multi_app_dag_draft()
 
 
 def _sample_dag_path(repo_root: Path) -> Path:
@@ -202,3 +215,45 @@ def test_execution_history_rows_skip_planning_and_sort_latest_first():
 
     assert [row["Event"] for row in rows] == ["unit completed", "unit dispatched"]
     assert rows[0]["Status"] == "running -> completed"
+
+
+def test_dag_engine_loads_saved_draft_and_dispatches_first_runnable_stage(tmp_path):
+    repo_root = Path.cwd()
+    dag_path = tmp_path / "workspace-dag.json"
+    payload = multi_app_dag_draft.build_dag_payload_from_editor(
+        {"execution": {"mode": "sequential_dependency_order", "runner_status": "contract_only"}},
+        dag_id="workspace-uav-dag",
+        label="Workspace UAV DAG",
+        description="Preview dispatch from a saved workspace DAG.",
+        stage_rows=[
+            {"id": "queue", "app": "uav_queue_project", "purpose": "Generate metrics."},
+            {"id": "relay", "app": "uav_relay_queue_project", "purpose": "Consume metrics."},
+        ],
+        produced_artifact_rows=[
+            {"node": "queue", "id": "queue_metrics", "kind": "summary_metrics", "path": "queue/summary.json"}
+        ],
+        consumed_artifact_rows=[
+            {"node": "relay", "id": "queue_metrics", "kind": "summary_metrics", "path": "queue/summary.json"}
+        ],
+        handoff_rows=[
+            {"from": "queue", "to": "relay", "artifact": "queue_metrics", "handoff": "Pass queue metrics."}
+        ],
+    )
+    dag_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        dag_path=dag_path,
+    )
+
+    state, state_path, loaded_dag_path = engine.load_or_create_state()
+    dispatched = engine.dispatch_next_runnable(state)
+    engine.write_state(dispatched.state)
+    reloaded, _state_path, _dag_path = engine.load_or_create_state()
+
+    assert state_path == tmp_path / "lab" / ".agilab" / "runner_state.json"
+    assert loaded_dag_path == dag_path
+    assert dispatched.ok
+    assert dispatched.dispatched_unit_id == "queue"
+    assert reloaded["summary"]["running_unit_ids"] == ["queue"]
+    assert reloaded["summary"]["blocked_unit_ids"] == ["relay"]
