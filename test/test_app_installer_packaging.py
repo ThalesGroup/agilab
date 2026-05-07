@@ -24,6 +24,7 @@ EXAMPLE_APPS = {
     "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
 }
 EXAMPLE_PREVIEWS = {
+    "global_dag": ("preview_global_dag.py", "flight_to_meteo_global_dag.json"),
     "inter_project_dag": ("preview_inter_project_dag.py", "flight_to_meteo_dag.json"),
     "mlflow_auto_tracking": ("preview_mlflow_auto_tracking.py", "sample_run_config.json"),
     "notebook_to_dask": (
@@ -290,6 +291,8 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "examples/README.md" in package_data
     assert "examples/*/README.md" in package_data
     assert "examples/*/AGI_*.py" in package_data
+    assert "examples/global_dag/*.py" in package_data
+    assert "examples/global_dag/*.json" in package_data
     assert "examples/inter_project_dag/*.py" in package_data
     assert "examples/inter_project_dag/*.json" in package_data
     assert "examples/mlflow_auto_tracking/*.py" in package_data
@@ -376,6 +379,32 @@ def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path)
     assert summary["runner_state"]["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
     assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
     assert summary["after_first_dispatch"]["run_status"] == "running"
+    assert summary["real_app_execution"] is False
+    assert (tmp_path / "runner_state.json").is_file()
+
+
+def test_global_dag_preview_alias_builds_read_only_runner_state(tmp_path: Path) -> None:
+    script = EXAMPLES_ROOT / "global_dag" / "preview_global_dag.py"
+    module_name = "agilab_global_dag_preview_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, script)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+
+    summary = module.build_preview(
+        repo_root=ROOT,
+        dag_path=EXAMPLES_ROOT / "global_dag" / "flight_to_meteo_global_dag.json",
+        output_path=tmp_path / "runner_state.json",
+        now="2026-04-29T00:00:00Z",
+    )
+
+    assert summary["example"] == "global_dag"
+    assert summary["alias_of"] == "inter_project_dag"
+    assert summary["dag"]["ok"] is True
+    assert summary["dag"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
     assert summary["real_app_execution"] is False
     assert (tmp_path / "runner_state.json").is_file()
 

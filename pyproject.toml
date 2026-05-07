@@ -307,6 +307,8 @@ agilab = [
     "examples/README.md",
     "examples/*/README.md",
     "examples/*/AGI_*.py",
+    "examples/global_dag/*.py",
+    "examples/global_dag/*.json",
     "examples/inter_project_dag/*.py",
     "examples/inter_project_dag/*.json",
     "examples/mlflow_auto_tracking/*.py",
