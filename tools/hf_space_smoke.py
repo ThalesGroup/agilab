@@ -18,6 +18,7 @@ DEFAULT_SPACE_URL = "https://jpmorard-agilab.hf.space"
 DEFAULT_TARGET_SECONDS = 30.0
 APP_TREE_PATH = "src/agilab/apps"
 PAGES_TREE_PATH = "src/agilab/apps-pages"
+CORE_PAGES_TREE_PATH = "src/agilab/pages"
 ALLOWED_APP_ENTRIES = {
     ".DS_Store",
     ".gitignore",
@@ -39,9 +40,19 @@ ALLOWED_PAGE_ENTRIES = {
     "view_maps",
     "view_release_decision",
 }
+ALLOWED_CORE_PAGE_ENTRIES = {
+    ".DS_Store",
+    "__pycache__",
+    "1_PROJECT.py",
+    "2_ORCHESTRATE.py",
+    "3_WORKFLOW.py",
+    "4_ANALYSIS.py",
+}
 BAD_BODY_PATTERNS = (
     "127.0.0.1",
     "refused to connect",
+    "streamlitapiexception",
+    "multiple pages specified",
     "this site can't be reached",
     "this site cannot be reached",
 )
@@ -200,6 +211,14 @@ def unexpected_page_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
     )
 
 
+def unexpected_core_page_entries(entries: Sequence[dict[str, Any]]) -> list[str]:
+    return _unexpected_direct_entries(
+        entries,
+        tree_path=CORE_PAGES_TREE_PATH,
+        allowed_entries=ALLOWED_CORE_PAGE_ENTRIES,
+    )
+
+
 def check_public_app_tree(
     space_id: str,
     *,
@@ -258,6 +277,35 @@ def check_public_pages_tree(
     return CheckResult("public pages tree", True, duration, "only expected public pages", url)
 
 
+def check_core_pages_tree(
+    space_id: str,
+    *,
+    timeout: float,
+    fetcher: JsonFetcher = fetch_json,
+    clock: Clock = time.perf_counter,
+) -> CheckResult:
+    url = build_tree_api_url(space_id, CORE_PAGES_TREE_PATH)
+    start = clock()
+    try:
+        payload = fetcher(url, timeout)
+    except Exception as exc:
+        return CheckResult("core pages tree", False, clock() - start, f"request failed: {exc}", url)
+
+    duration = clock() - start
+    if not isinstance(payload, list):
+        return CheckResult("core pages tree", False, duration, "tree API returned non-list payload", url)
+    offenders = unexpected_core_page_entries(payload)
+    if offenders:
+        return CheckResult(
+            "core pages tree",
+            False,
+            duration,
+            "unexpected core page entries: " + ", ".join(offenders),
+            url,
+        )
+    return CheckResult("core pages tree", True, duration, "only expected core pages", url)
+
+
 def run_smoke(
     *,
     space_id: str = DEFAULT_SPACE_ID,
@@ -274,6 +322,7 @@ def run_smoke(
     ]
     checks.append(check_public_app_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
     checks.append(check_public_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
+    checks.append(check_core_pages_tree(space_id, timeout=timeout, fetcher=fetch_json_fn, clock=clock))
     total = sum(check.duration_seconds for check in checks)
     success = all(check.success for check in checks)
     return SmokeSummary(
