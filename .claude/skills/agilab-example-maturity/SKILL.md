@@ -76,6 +76,9 @@ For packaged built-in apps and templates, also require:
   `notebook_import_views.toml`
 - conceptual pipeline files such as `lab_steps.toml` or `pipeline_view.dot` when
   the app documents or UI references them
+- app-owned preview/template payloads under `dag_templates/`,
+  `scenario_templates/`, `service_templates/`, or `tracking_templates/` when an
+  example, page, or packaged app uses them
 - package-data patterns in `pyproject.toml` for every file class expected in the
   wheel, and no stale exclude pattern that removes a runtime/UI seed file
 
@@ -132,6 +135,12 @@ Delete or rename scratch snippets that are not runnable standalone examples.
 If a fragment is intentionally for a notebook or pipeline editor, document it as
 such and prevent the installer from seeding it as a normal run script.
 
+When a read-only preview script is teaching a contract owned by a built-in app,
+keep the JSON/TOML payload with that app rather than duplicating it under
+`src/agilab/examples/<example>/`. The example script can remain under
+`src/agilab/examples/`, but it should load the app-owned template so WORKFLOW UI,
+packaged examples, and tests share one source of truth.
+
 ## Test Contracts
 
 Strengthen `test/test_app_installer_packaging.py` when changing examples. Useful
@@ -153,6 +162,8 @@ contracts include:
   untracked files, never hidden by broad ignore rules
 - package-data includes newly added example/app file classes, and
   exclude-package-data does not remove files the UI or installer expects
+- preview scripts that depend on app-owned templates fail tests if their
+  templates are missing or still duplicated as stale `examples/*.json` payloads
 
 ## Validation
 

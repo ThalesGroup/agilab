@@ -1,9 +1,9 @@
 ---
 name: notebook-to-agilab-project
-description: Migrate a small local notebook workflow into an AGILAB project. Use this skill when a user wants a sequence of notebooks turned into a reproducible AGILAB project with lab_steps.toml, explicit artifact contracts, a conceptual pipeline view, and an ANALYSIS page that shows why the migration is useful.
+description: Migrate a small local notebook workflow into an AGILAB project. Use this skill when a user wants a sequence of notebooks turned into a reproducible AGILAB project with lab_steps.toml, explicit artifact contracts, a conceptual workflow view, and an ANALYSIS page that shows why the migration is useful.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-08
+  updated: 2026-05-07
 ---
 
 # Notebook To AGILAB Project
@@ -17,7 +17,7 @@ delivery.
 - 2-6 notebooks that already form a sequence
 - local ML / data notebooks with explicit artifacts
 - migration demos where the user wants to show what AGILAB adds
-- examples that need `lab_steps.toml`, a conceptual pipeline view, and an
+- examples that need `lab_steps.toml`, a conceptual workflow view, and an
   ANALYSIS page
 
 ## Do not use
@@ -38,7 +38,7 @@ delivery.
 
 3. Map the sequence into AGILAB.
    - `PROJECT`: args and dataset location
-   - `PIPELINE`: explicit ordered steps in `lab_steps.toml`
+   - `WORKFLOW`: explicit ordered steps in `lab_steps.toml`
    - `ANALYSIS`: one page that reads the exported artifacts
 
 4. Make the migration value explicit.

@@ -3,7 +3,7 @@ name: agilab-product-reels
 description: Build and refine short AGILAB product reels and technical demo videos with one-app storytelling, semantic guardrails, frame review, and YouTube packaging.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-04-09
+  updated: 2026-05-07
 ---
 
 # Product Reels Skill (AGILAB)
@@ -32,7 +32,7 @@ Every short AGILAB demo must have one central claim, then map that claim through
 
 1. `PROJECT`
 2. `ORCHESTRATE`
-3. `PIPELINE`
+3. `WORKFLOW`
 4. `ANALYSIS`
 
 Do not make a feature tour. A short reel needs one story only.
@@ -55,7 +55,7 @@ If the content feels weak, improve the story before polishing the visuals.
 3. Decide which content must be visible in each page:
    - `PROJECT`: scenario or app context
    - `ORCHESTRATE`: runnable packaging / orchestration intent
-   - `PIPELINE`: replayable snippet or saved step content
+   - `WORKFLOW`: replayable snippet, saved step content, or workflow graph
    - `ANALYSIS`: visible outcome or comparison evidence
 4. Generate or refresh the reel.
 5. Extract fresh frames and inspect them before treating the reel as ready.
@@ -94,7 +94,7 @@ After every meaningful change, extract and inspect frames for at least:
 
 - `PROJECT`
 - `ORCHESTRATE`
-- `PIPELINE`
+- `WORKFLOW`
 - `ANALYSIS`
 
 Useful checks:

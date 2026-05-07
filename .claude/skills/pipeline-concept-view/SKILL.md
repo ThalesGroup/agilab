@@ -1,16 +1,16 @@
 ---
 name: pipeline-concept-view
-description: Add or refine a conceptual pipeline view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_steps.toml reviewed for clearer naming, IO flow, and semantic alignment with the PIPELINE page.
+description: Add or refine a conceptual workflow view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_steps.toml reviewed for clearer naming, IO flow, and semantic alignment with the WORKFLOW page.
 license: BSD-3-Clause (see repo LICENSE)
 ---
 
-# Pipeline Concept View
+# Workflow Concept View
 
 ## Overview
 
 Use this skill to separate semantic architecture from execution mechanics.
-The generic pipeline page stays app-agnostic; the app contributes its own conceptual
-view and clearer pipeline semantics.
+The generic WORKFLOW page stays app-agnostic; the app contributes its own conceptual
+view and clearer workflow semantics.
 
 ## When to use
 
@@ -30,6 +30,15 @@ view and clearer pipeline semantics.
 6. Let the generic UI render it when present.
 7. Update execution labels if the conceptual view or step review reveals naming drift.
 8. Keep behavior unchanged unless the user explicitly wants runtime changes.
+
+## Naming Boundary
+
+- Keep `pipeline_view.dot` / `pipeline_view.json` as the file contract unless the
+  repository migrates the schema.
+- Use `WORKFLOW` for the page name and `Workflow graph` for the user-facing graph
+  label.
+- Avoid reintroducing `PIPELINE` as a visible page label in docs, tests, screenshots,
+  or demo scripts.
 
 ## References
 
