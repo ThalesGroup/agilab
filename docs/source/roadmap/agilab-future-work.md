@@ -323,13 +323,12 @@ Current shipped baseline:
   `relay_followup` as `blocked`, and records transition, retry,
   partial-rerun, operator-message, and provenance metadata without executing
   apps
-- the WORKFLOW page now includes an expanded `Multi-app DAG orchestration` surface that
-  can select a `agilab.multi_app_dag.v1` contract, edit stages and artifact
-  handoffs through selector-driven workspace drafts and read-only summaries,
-  validate it without hand-editing docs files, reset the persisted preview state,
-  show readiness KPIs, next action, execution scope, app/artifact dependencies,
-  list artifact handoffs, and dispatch the next runnable unit into `running`
-  state without claiming live app execution
+- the WORKFLOW page now includes an expanded `Workflow graph` surface that can
+  choose project workflow or multi-app DAG scope, edit steps, created outputs,
+  and used outputs through selector-driven workspace drafts and read-only
+  summaries, validate the plan without hand-editing docs files, reset the
+  persisted preview state, show readiness KPIs, optional graph and output
+  details, and preview the next ready step without claiming live app execution
 - `tools/global_pipeline_dispatch_state_report.py --compact` writes and reads
   back a persisted dispatch-state JSON proof, records `queue_baseline`
   completion, publishes `queue_metrics`, marks `relay_followup` runnable, and
