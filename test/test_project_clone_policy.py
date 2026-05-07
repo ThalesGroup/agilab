@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
+import tomllib
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -432,6 +434,100 @@ def test_create_project_clone_action_reports_environment_finalization_failure(
     assert result.detail == "bad strategy"
     assert "rerun INSTALL" in str(result.next_action)
     assert (tmp_path / "partial_clone_project").is_dir()
+
+
+def test_create_project_from_notebook_writes_project_import_artifacts(
+    tmp_path: Path,
+):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+
+    def _clone_project(source: Path, target: Path) -> None:
+        clone_calls.append((source, target))
+        (tmp_path / target).mkdir()
+
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "cells": [
+            {"cell_type": "markdown", "source": ["# Load data\n"]},
+            {
+                "cell_type": "code",
+                "source": [
+                    "import pandas as pd\n",
+                    "df = pd.read_csv('data/orders.csv')\n",
+                    "df.to_csv('outputs/orders.csv')\n",
+                ],
+            },
+        ],
+    }
+    uploaded = SimpleNamespace(
+        name="Demo Notebook.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(notebook).encode("utf-8"),
+    )
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_from_notebook_action(
+        env,
+        template_source="pandas_app_template",
+        raw_project_name="Notebook Demo",
+        uploaded_notebook=uploaded,
+        clone_env_strategy="detach_venv",
+    )
+
+    dest_root = tmp_path / "notebook_demo_project"
+    assert result.status == "success"
+    assert result.title == "Project 'notebook_demo_project' created from notebook."
+    assert clone_calls == [(Path("pandas_app_template"), Path("notebook_demo_project"))]
+    assert (dest_root / "notebooks/source/Demo_Notebook.ipynb").is_file()
+    assert result.data["source_notebook"] == "notebooks/source/Demo_Notebook.ipynb"
+    assert result.data["notebook_import_cell_count"] == 1
+
+    steps = tomllib.loads((dest_root / "lab_steps.toml").read_text(encoding="utf-8"))
+    assert steps["notebook_demo_project"][0]["D"] == "Load data"
+    assert steps["notebook_demo_project"][0]["NB_SOURCE_NOTEBOOK"] == (
+        "notebooks/source/Demo_Notebook.ipynb"
+    )
+
+    contract = json.loads((dest_root / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
+    assert contract["artifact_contract"]["outputs"] == ["outputs/orders.csv"]
+    assert (dest_root / "notebook_import_pipeline_view.json").is_file()
+    assert (dest_root / "notebook_import_view_plan.json").is_file()
+
+
+def test_create_project_from_notebook_blocks_non_runnable_notebook(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "cells": [{"cell_type": "markdown", "source": ["# Notes only\n"]}],
+    }
+    uploaded = SimpleNamespace(
+        name="notes.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(notebook).encode("utf-8"),
+    )
+    env = SimpleNamespace(
+        apps_path=tmp_path,
+        clone_project=lambda source, target: clone_calls.append((source, target)),
+    )
+
+    result = module._create_project_from_notebook_action(
+        env,
+        template_source="pandas_app_template",
+        raw_project_name="Notes Only",
+        uploaded_notebook=uploaded,
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "error"
+    assert result.title == "Notebook cannot create a project yet."
+    assert "steps=0" in str(result.detail)
+    assert clone_calls == []
+    assert not (tmp_path / "notes_only_project").exists()
 
 
 def test_rename_project_action_preserves_venv_and_removes_source(tmp_path: Path):

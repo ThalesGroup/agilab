@@ -22,10 +22,12 @@ from pathlib import Path
 import ast
 import re
 import importlib.util
+from types import SimpleNamespace
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 
 import streamlit as st
+import tomli_w
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
 if _import_guard_spec is None or _import_guard_spec.loader is None:
@@ -114,7 +116,31 @@ ActionSpec = _action_execution_module.ActionSpec
 render_action_result = _action_execution_module.render_action_result
 run_streamlit_action = _action_execution_module.run_streamlit_action
 
+_notebook_pipeline_import_module = import_agilab_module(
+    "agilab.notebook_pipeline_import",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "notebook_pipeline_import.py",
+    fallback_name="agilab_notebook_pipeline_import_fallback",
+)
+_build_lab_steps_preview = _notebook_pipeline_import_module.build_lab_steps_preview
+_build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook_import_contract
+_build_notebook_import_pipeline_view = (
+    _notebook_pipeline_import_module.build_notebook_import_pipeline_view
+)
+_build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
+_build_notebook_import_view_plan = _notebook_pipeline_import_module.build_notebook_import_view_plan
+_build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
+_discover_notebook_import_view_manifest = (
+    _notebook_pipeline_import_module.discover_notebook_import_view_manifest
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+CREATE_MODE_TEMPLATE = "Template clone"
+CREATE_MODE_NOTEBOOK = "From notebook"
+NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
+NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
+NOTEBOOK_STEPS_FILE = "lab_steps.toml"
 
 CLONE_ENV_STRATEGY_LABELS = {
     "share_source_venv": "Temporary clone (share source .venv)",
@@ -131,6 +157,12 @@ CLONE_ENV_STRATEGY_CAPTIONS = {
         "so run INSTALL before EXECUTE."
     ),
 }
+CLONE_ENV_STRATEGY_HELP = (
+    f"{CLONE_ENV_STRATEGY_LABELS['share_source_venv']}: "
+    f"{CLONE_ENV_STRATEGY_CAPTIONS['share_source_venv']}\n\n"
+    f"{CLONE_ENV_STRATEGY_LABELS['detach_venv']}: "
+    f"{CLONE_ENV_STRATEGY_CAPTIONS['detach_venv']}"
+)
 EDITOR_PIN_RESPONSE = "editor_pin"
 EDITOR_UNPIN_RESPONSE = "editor_unpin"
 
@@ -2318,6 +2350,288 @@ def _create_project_clone_action(
     )
 
 
+def _safe_uploaded_notebook_name(uploaded_notebook) -> str:
+    raw_name = str(getattr(uploaded_notebook, "name", "") or "source.ipynb")
+    name = Path(raw_name).name
+    if not name.lower().endswith(".ipynb"):
+        stem = Path(name).stem or "source"
+        name = f"{stem}.ipynb"
+    name = re.sub(r"[^0-9A-Za-z._-]+", "_", name).strip("._")
+    return name if name else "source.ipynb"
+
+
+def _read_uploaded_notebook_bytes(uploaded_notebook) -> bytes:
+    if uploaded_notebook is None:
+        raise ValueError("No notebook file was uploaded.")
+
+    getvalue = getattr(uploaded_notebook, "getvalue", None)
+    if callable(getvalue):
+        raw = getvalue()
+    else:
+        seek = getattr(uploaded_notebook, "seek", None)
+        if callable(seek):
+            try:
+                seek(0)
+            except (OSError, ValueError):
+                pass
+        raw = uploaded_notebook.read()
+        if callable(seek):
+            try:
+                seek(0)
+            except (OSError, ValueError):
+                pass
+
+    if isinstance(raw, bytes):
+        return raw
+    if isinstance(raw, str):
+        return raw.encode("utf-8")
+    if raw is None:
+        return b""
+    return bytes(raw)
+
+
+def _decode_notebook_upload(uploaded_notebook) -> dict:
+    raw = uploaded_notebook.read()
+    if isinstance(raw, bytes):
+        text = raw.decode("utf-8")
+    else:
+        text = str(raw)
+    payload = json.loads(text)
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid notebook format: expected a JSON object.")
+    return payload
+
+
+def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) -> dict:
+    notebook_content = _decode_notebook_upload(uploaded_notebook)
+    module = Path(module_dir).name or "notebook_import_project"
+    source_name = str(getattr(uploaded_notebook, "name", "") or "uploaded.ipynb")
+    notebook_import = _build_notebook_pipeline_import(
+        notebook=notebook_content,
+        source_notebook=source_name,
+    )
+    preflight = _build_notebook_import_preflight(notebook_import)
+    return {
+        "source_name": source_name,
+        "module": module,
+        "cell_count": int(notebook_import.get("summary", {}).get("pipeline_step_count", 0) or 0),
+        "toml_content": _build_lab_steps_preview(notebook_import, module_name=module),
+        "notebook_import": notebook_import,
+        "preflight": preflight,
+        "contract": _build_notebook_import_contract(
+            notebook_import,
+            preflight=preflight,
+            module_name=module,
+        ),
+    }
+
+
+def _write_project_notebook_import_preview(
+    preview: dict,
+    module_dir: Path,
+    steps_file: Path,
+) -> int:
+    module_dir = Path(module_dir)
+    steps_file = Path(steps_file)
+    module = str(preview.get("module", "") or module_dir.name or "notebook_import_project")
+    preflight = preview.get("preflight", {})
+    notebook_import = preview.get("notebook_import", {})
+
+    steps_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(steps_file, "wb") as toml_file:
+        tomli_w.dump(preview.get("toml_content", {}), toml_file)
+
+    contract = _build_notebook_import_contract(
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+    )
+    pipeline_view = _build_notebook_import_pipeline_view(
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+    )
+    view_manifest_path = _discover_notebook_import_view_manifest(module_dir)
+    view_plan = _build_notebook_import_view_plan(
+        notebook_import,
+        preflight=preflight,
+        module_name=module,
+        manifest_path=view_manifest_path,
+    )
+
+    (module_dir / "notebook_import_contract.json").write_text(
+        json.dumps(contract, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (module_dir / "notebook_import_pipeline_view.json").write_text(
+        json.dumps(pipeline_view, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    (module_dir / "notebook_import_view_plan.json").write_text(
+        json.dumps(view_plan, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return int(preview.get("cell_count", 0) or 0)
+
+
+def _notebook_import_blocking_detail(preflight) -> str:
+    if not isinstance(preflight, dict):
+        return "Notebook preflight did not produce a valid report."
+    summary = preflight.get("summary", {})
+    risk_counts = preflight.get("risk_counts", {})
+    details = [
+        f"status={preflight.get('status', 'unknown')}",
+        f"steps={int(summary.get('pipeline_step_count', 0) or 0)}",
+        f"errors={int(risk_counts.get('error', 0) or 0)}",
+        f"warnings={int(risk_counts.get('warning', 0) or 0)}",
+    ]
+    errors = preflight.get("risks", [])
+    first_error = next(
+        (
+            str(item.get("message", ""))
+            for item in errors
+            if isinstance(item, dict) and item.get("level") == "error"
+        ),
+        "",
+    )
+    if first_error:
+        details.append(first_error)
+    return "; ".join(details)
+
+
+def _notebook_project_detail(clone_detail, preflight, cell_count: int) -> str:
+    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
+    risk_counts = preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
+    parts = [
+        f"Imported {cell_count} notebook code cell(s).",
+        (
+            f"Artifact contract: {int(summary.get('input_count', 0) or 0)} input(s), "
+            f"{int(summary.get('output_count', 0) or 0)} output(s), "
+            f"{int(summary.get('unknown_artifact_count', 0) or 0)} unknown."
+        ),
+    ]
+    warning_count = int(risk_counts.get("warning", 0) or 0)
+    if warning_count:
+        parts.append(f"Preflight warnings: {warning_count}.")
+    if clone_detail:
+        parts.append(str(clone_detail))
+    return " ".join(parts)
+
+
+def _create_project_from_notebook_action(
+    env: AgiEnv,
+    *,
+    template_source: str | Path,
+    raw_project_name: str,
+    uploaded_notebook,
+    clone_env_strategy: str,
+) -> ActionResult:
+    raw = raw_project_name.strip()
+    if not raw:
+        return ActionResult.error("Project name must not be empty.")
+
+    new_name = normalize_project_name(raw)
+    if not new_name:
+        return ActionResult.error("Could not normalize project name.")
+
+    dest_root = env.apps_path / new_name
+    if dest_root.exists():
+        return ActionResult.warning(
+            f"Project '{new_name}' already exists.",
+            next_action="Choose another project name or remove the existing project first.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    try:
+        notebook_bytes = _read_uploaded_notebook_bytes(uploaded_notebook)
+    except (OSError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            "Notebook upload could not be read.",
+            detail=str(exc),
+            next_action="Upload a valid .ipynb file and retry.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+    if not notebook_bytes.strip():
+        return ActionResult.error(
+            "Notebook upload is empty.",
+            next_action="Upload a valid .ipynb file and retry.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    notebook_name = _safe_uploaded_notebook_name(uploaded_notebook)
+    notebook_relative_path = NOTEBOOK_SOURCE_DIR / notebook_name
+    preview_upload = SimpleNamespace(
+        name=notebook_relative_path.as_posix(),
+        type=getattr(uploaded_notebook, "type", "application/x-ipynb+json"),
+        read=lambda: notebook_bytes,
+    )
+    try:
+        preview = _build_project_notebook_import_preview(preview_upload, dest_root)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return ActionResult.error(
+            "Notebook import preview failed.",
+            detail=str(exc),
+            next_action="Check that the upload is a valid .ipynb notebook.",
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
+
+    preflight = preview.get("preflight", {})
+    if not isinstance(preflight, dict) or not preflight.get("safe_to_import"):
+        return ActionResult.error(
+            "Notebook cannot create a project yet.",
+            detail=_notebook_import_blocking_detail(preflight),
+            next_action="Fix the notebook import errors, then retry project creation.",
+            data={"new_name": new_name, "dest_root": dest_root, "preflight": preflight},
+        )
+
+    clone_result = _create_project_clone_action(
+        env,
+        clone_source=template_source,
+        raw_project_name=new_name,
+        clone_env_strategy=clone_env_strategy,
+    )
+    if clone_result.status != "success":
+        return clone_result
+
+    notebook_path = dest_root / notebook_relative_path
+    steps_file = dest_root / NOTEBOOK_STEPS_FILE
+    try:
+        notebook_path.parent.mkdir(parents=True, exist_ok=True)
+        notebook_path.write_bytes(notebook_bytes)
+        cell_count = _write_project_notebook_import_preview(preview, dest_root, steps_file)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was created, but notebook import failed.",
+            detail=str(exc),
+            next_action="Open PIPELINE for the project and retry notebook import.",
+            data={
+                **dict(clone_result.data),
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "source_notebook": notebook_relative_path.as_posix(),
+                "notebook_path": notebook_path,
+                "steps_file": steps_file,
+                "preflight": preflight,
+            },
+        )
+
+    return ActionResult.success(
+        f"Project '{new_name}' created from notebook.",
+        detail=_notebook_project_detail(clone_result.detail, preflight, cell_count),
+        data={
+            **dict(clone_result.data),
+            "new_name": new_name,
+            "dest_root": dest_root,
+            "source_notebook": notebook_relative_path.as_posix(),
+            "notebook_path": notebook_path,
+            "steps_file": steps_file,
+            "notebook_import_cell_count": cell_count,
+            "notebook_import_preflight": preflight,
+            "notebook_import_contract": preview.get("contract", {}),
+        },
+    )
+
+
 def _rename_project_action(
     env: AgiEnv,
     *,
@@ -2487,23 +2801,56 @@ def handle_project_creation():
     """
     Handle the 'Create' tab in the sidebar for project creation.
     """
-    st.header("Clone project")
-    st.caption(
-        "Create a new project from an existing template. Use a working clone for real development."
+    st.header("Create project")
+    create_mode = compact_choice(
+        st.sidebar,
+        "Create mode",
+        [CREATE_MODE_TEMPLATE, CREATE_MODE_NOTEBOOK],
+        key="create_mode",
+        inline_limit=2,
+        fallback="radio",
     )
     env = st.session_state["env"]
 
-    # choose a template (relative project name, e.g. "flight_project")
-    compact_choice(
-        st.sidebar,
-        "Clone source",
-        [env.app] + st.session_state["templates"],
-        key="clone_src",
-        on_change=lambda: on_project_change(
-            st.session_state["clone_src"], switch_to_edit=True
-        ),
-        inline_limit=5,
-    )
+    if create_mode == CREATE_MODE_NOTEBOOK:
+        st.caption(
+            "Create a project from a notebook by importing code cells into a template pipeline."
+        )
+        template_options = list(st.session_state["templates"]) or [env.app]
+        default_template = (
+            NOTEBOOK_PROJECT_DEFAULT_TEMPLATE
+            if NOTEBOOK_PROJECT_DEFAULT_TEMPLATE in template_options
+            else template_options[0]
+        )
+        compact_choice(
+            st.sidebar,
+            "Notebook template",
+            template_options,
+            key="notebook_clone_src",
+            default=default_template,
+            inline_limit=5,
+        )
+        st.sidebar.file_uploader(
+            "Notebook",
+            type="ipynb",
+            key="create_notebook_upload",
+        )
+    else:
+        st.caption(
+            "Create a new project from an existing template. "
+            "Use a working clone for real development."
+        )
+        # choose a template (relative project name, e.g. "flight_project")
+        compact_choice(
+            st.sidebar,
+            "Starting point",
+            [env.app] + st.session_state["templates"],
+            key="clone_src",
+            on_change=lambda: on_project_change(
+                st.session_state["clone_src"], switch_to_edit=True
+            ),
+            inline_limit=5,
+        )
 
     clone_env_strategy = compact_choice(
         st.sidebar,
@@ -2511,13 +2858,9 @@ def handle_project_creation():
         list(CLONE_ENV_STRATEGY_LABELS),
         key="clone_env_strategy",
         format_func=CLONE_ENV_STRATEGY_LABELS.get,
-        help=(
-            "Choose whether the clone should keep sharing the source .venv or "
-            "start without any .venv."
-        ),
+        help=CLONE_ENV_STRATEGY_HELP,
         fallback="radio",
     )
-    st.sidebar.caption(CLONE_ENV_STRATEGY_CAPTIONS[clone_env_strategy])
 
     raw = st.sidebar.text_input(
         "New project base name",
@@ -2534,22 +2877,63 @@ def handle_project_creation():
             time.sleep(1.5)
             st.rerun()
 
-        run_streamlit_action(
-            st,
-            ActionSpec(
-                name="Create project",
-                start_message=f"Creating project '{raw or '<empty>'}'...",
-                failure_title="Project creation failed.",
-                failure_next_action="Check the clone source, destination path, and filesystem permissions.",
-            ),
-            lambda: _create_project_clone_action(
-                env,
-                clone_source=st.session_state["clone_src"],
-                raw_project_name=raw,
-                clone_env_strategy=clone_env_strategy,
-            ),
-            on_success=_activate_clone,
-        )
+        def _activate_notebook_project(result):
+            new_name = str(result.data["new_name"])
+            env.change_app(new_name)
+            st.session_state["project_changed"] = True
+            st.session_state["_requested_lab_dir"] = new_name
+            st.session_state["lab_dir_selectbox"] = new_name
+            st.session_state["project_selectbox"] = new_name
+            st.query_params["active_app"] = new_name
+            st.query_params["lab_dir_selectbox"] = new_name
+            switch_page = getattr(st, "switch_page", None)
+            if callable(switch_page):
+                switch_page(Path("pages/3_PIPELINE.py"))
+                return
+            st.session_state["switch_to_edit"] = True
+            st.rerun()
+
+        if create_mode == CREATE_MODE_NOTEBOOK:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Create project from notebook",
+                    start_message=f"Creating project '{raw or '<empty>'}' from notebook...",
+                    failure_title="Notebook project creation failed.",
+                    failure_next_action=(
+                        "Check the notebook upload, template source, destination path, "
+                        "and filesystem permissions."
+                    ),
+                ),
+                lambda: _create_project_from_notebook_action(
+                    env,
+                    template_source=st.session_state.get(
+                        "notebook_clone_src",
+                        NOTEBOOK_PROJECT_DEFAULT_TEMPLATE,
+                    ),
+                    raw_project_name=raw,
+                    uploaded_notebook=st.session_state.get("create_notebook_upload"),
+                    clone_env_strategy=clone_env_strategy,
+                ),
+                on_success=_activate_notebook_project,
+            )
+        else:
+            run_streamlit_action(
+                st,
+                ActionSpec(
+                    name="Create project",
+                    start_message=f"Creating project '{raw or '<empty>'}'...",
+                    failure_title="Project creation failed.",
+                    failure_next_action="Check the clone source, destination path, and filesystem permissions.",
+                ),
+                lambda: _create_project_clone_action(
+                    env,
+                    clone_source=st.session_state["clone_src"],
+                    raw_project_name=raw,
+                    clone_env_strategy=clone_env_strategy,
+                ),
+                on_success=_activate_clone,
+            )
     else:
         st.sidebar.info("Enter a project name and click 'Create'.")
 
@@ -2826,6 +3210,9 @@ def page():
     for key, value in session_defaults.items():
         st.session_state.setdefault(key, value)
 
+    if st.session_state.get("sidebar_selection") == "Clone":
+        st.session_state["sidebar_selection"] = "Create"
+
     _render_active_project_sidebar(env)
     env = st.session_state["env"]
     _render_sidebar_export_action(env)
@@ -2834,7 +3221,7 @@ def page():
     sidebar_selection = compact_choice(
         st.sidebar,
         "Project action",
-        ["Edit", "Clone", "Import", "Rename", "Delete"],
+        ["Edit", "Create", "Import", "Rename", "Delete"],
         key="sidebar_selection",
         label_visibility="collapsed",
         fallback="radio",
@@ -2842,7 +3229,7 @@ def page():
 
     if sidebar_selection == "Edit":
         handle_project_selection()
-    elif sidebar_selection == "Clone":
+    elif sidebar_selection == "Create":
         handle_project_creation()
     elif sidebar_selection == "Rename":
         handle_project_rename()
