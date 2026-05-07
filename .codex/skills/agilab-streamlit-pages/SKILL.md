@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-05-07
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -134,6 +134,22 @@ Use this skill when editing:
 - Add a focused helper test for display formatting and keep the repository scan
   guard in `test/test_streamlit_diagnostic_rendering.py` green when touching
   diagnostic rendering paths.
+
+## Long-Running Action Timers
+
+- For long async actions such as ORCHESTRATE install/run/serve, render a live
+  elapsed-time placeholder before awaiting the subprocess or background task.
+- Prefer `asyncio.create_task(...)`, yield once with `await asyncio.sleep(0)`,
+  then poll at a short fixed interval and update the placeholder until the task
+  is done. Do not depend only on log callbacks; quiet processes still need a
+  visible timer.
+- Keep the final duration visible after completion and record it in action
+  history when that history is user-facing evidence.
+- Store timer values under non-widget session-state keys such as
+  `last_run_elapsed_seconds` and `last_run_elapsed_label`; never mutate a key
+  already owned by a rendered widget.
+- Add focused tests for both the formatting helper and the action path that
+  records the elapsed label, without requiring a real long-running process.
 
 ## Key Hygiene
 

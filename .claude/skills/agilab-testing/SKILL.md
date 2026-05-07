@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-05-07
 ---
 
 # Testing Skill (AGILAB)
@@ -94,6 +94,26 @@ Use this skill when validating changes.
     - nested `uv` environment cleanup in `agi_env`
     - worker dependency-rewrite behavior in `agi_distributor`
     - local-source worker adds using consistent local core paths instead of package-index metadata
+- Generated AI content:
+  - Test the schema boundary and the deterministic downstream artifacts, not just
+    the model/client call.
+  - For examples that expose user-facing scores or diagnostic metrics, assert the
+    fields are present in persisted CSV/JSON and any reducer output. Good
+    examples are `student_score` and `student_score_mean` for diagnostic apps.
+  - If actual local model endpoints are unavailable, a temporary local
+    Responses-compatible contract server can validate AGILAB plumbing, but the
+    test/result must not be described as real model validation.
+- Workflow profile failures:
+  - If `tools/workflow_parity.py --profile <name>` fails in files unrelated to
+    the current diff, keep the narrow changed-file tests green and report the
+    exact unrelated failing test. Do not patch unrelated pages just to clear a
+    broad profile unless the user approves that scope.
+- Concurrent workspace interference:
+  - When another session or long-running workflow can rewrite files, re-check
+    `git diff` for the touched files before final validation.
+  - If your changes disappeared or were rewritten, reapply only your intended
+    patch, rerun the narrow affected tests, and call out the interference rather
+    than silently assuming the old validation still applies.
 
 ## Common Commands
 
