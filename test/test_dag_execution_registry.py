@@ -100,6 +100,53 @@ def test_registry_supports_checked_in_flight_template():
     assert "checked-in app-owned DAG" in support.message
 
 
+def test_registry_supports_marker_opted_app_owned_contract_template(tmp_path):
+    repo_root = tmp_path
+    dag_path = (
+        repo_root
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "alpha_project"
+        / "dag_templates"
+        / "alpha_to_beta.json"
+    )
+    dag_path.parent.mkdir(parents=True)
+    dag_path.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.multi_app_dag.v1",
+                "dag_id": "alpha-to-beta",
+                "execution": {
+                    "mode": "sequential_dependency_order",
+                    "runner_status": "controlled_contract_stage_execution",
+                    "adapter": "controlled_contract_dag",
+                },
+                "nodes": [
+                    {"id": "alpha", "app": "alpha_project"},
+                    {"id": "beta", "app": "beta_project"},
+                ],
+                "edges": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    support = dag_execution_registry.resolve_real_run_support(
+        units=[
+            {"id": "alpha", "app": "alpha_project"},
+            {"id": "beta", "app": "beta_project"},
+        ],
+        dag_path=dag_path,
+        repo_root=repo_root,
+    )
+
+    assert support.supported
+    assert support.adapter == "controlled_contract_dag"
+    assert "checked-in app-owned DAG" in support.message
+
+
 def test_registry_reports_no_selected_dag():
     support = dag_execution_registry.resolve_real_run_support(
         units=_uav_units(),
