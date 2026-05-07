@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-05-07
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -76,8 +76,11 @@ Use this skill when editing:
 - Do not color a value green just because it is present when the value means "no run",
   "not configured", or "no artifact discovered".
 - Use product-facing labels instead of internal implementation terms:
-  - `Pipeline graph` instead of `DAG shape`
-  - `Stages` and `dependencies` instead of graph-only jargon such as nodes and edges
+  - `Run apps in order` for the multi-app workflow expander
+  - `Plan`, `steps`, `outputs`, `Creates`, and `Uses` before technical DAG,
+    stage, artifact, node, or edge wording
+  - hide generated graphs behind an explicit `Show graph` control when the
+    graph can be too small to read
   - `Project name` when the widget selects a project
 - Derived header values must be computed locally from existing evidence when possible.
   For example, count ORCHESTRATE runs from `run_*.log` files under the app run
