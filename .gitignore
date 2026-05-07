@@ -107,6 +107,14 @@ src/agilab/apps/builtin/*/*
 !src/agilab/apps/builtin/*/pipeline_view.dot
 !src/agilab/apps/builtin/*/notebook_export.toml
 !src/agilab/apps/builtin/*/notebook_import_views.toml
+!src/agilab/apps/builtin/*/dag_templates/
+!src/agilab/apps/builtin/*/dag_templates/**
+!src/agilab/apps/builtin/*/scenario_templates/
+!src/agilab/apps/builtin/*/scenario_templates/**
+!src/agilab/apps/builtin/*/service_templates/
+!src/agilab/apps/builtin/*/service_templates/**
+!src/agilab/apps/builtin/*/tracking_templates/
+!src/agilab/apps/builtin/*/tracking_templates/**
 !src/agilab/apps/builtin/*/src/
 !src/agilab/apps/builtin/*/src/**
 src/agilab/apps/builtin/*/src/**/*.c

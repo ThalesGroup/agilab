@@ -7,7 +7,14 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-SCENARIO_PATH = Path(__file__).with_name("sample_scenario.json")
+SCENARIO_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "apps"
+    / "builtin"
+    / "uav_queue_project"
+    / "scenario_templates"
+    / "resilience_failure_injection_scenario.json"
+)
 DEFAULT_OUTPUT_PATH = (
     Path.home()
     / "log"

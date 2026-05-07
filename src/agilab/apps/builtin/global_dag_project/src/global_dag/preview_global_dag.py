@@ -1,3 +1,5 @@
+"""Read-only preview for the built-in global DAG project."""
+
 from __future__ import annotations
 
 import argparse
@@ -8,31 +10,27 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-_PACKAGE_ROOT = Path(__file__).resolve().parents[2]
-_SOURCE_ROOT = _PACKAGE_ROOT.parent
-if _PACKAGE_ROOT.name == "agilab" and str(_SOURCE_ROOT) not in sys.path:
-    sys.path.insert(0, str(_SOURCE_ROOT))
-_agilab_pkg = sys.modules.get("agilab")
-if _agilab_pkg is not None:
-    package_paths = list(getattr(_agilab_pkg, "__path__", []) or [])
-    package_path = str(_PACKAGE_ROOT)
-    if package_path not in package_paths:
-        _agilab_pkg.__path__ = [*package_paths, package_path]
+def _repo_root_from_file() -> Path | None:
+    for parent in Path(__file__).resolve().parents:
+        if (parent / "src" / "agilab" / "apps" / "builtin").is_dir():
+            return parent
+    return None
+
+
+_SOURCE_ROOT = _repo_root_from_file()
+if _SOURCE_ROOT is not None:
+    source_path = str(_SOURCE_ROOT / "src")
+    if source_path not in sys.path:
+        sys.path.insert(0, source_path)
 
 from agilab.global_pipeline_execution_plan import build_execution_plan
 from agilab.global_pipeline_runner_state import dispatch_next_runnable, persist_runner_state
 
 
-DAG_PATH = (
-    _PACKAGE_ROOT
-    / "apps"
-    / "builtin"
-    / "global_dag_project"
-    / "dag_templates"
-    / "flight_to_meteo_global_dag.json"
-)
-DEFAULT_OUTPUT_PATH = Path.home() / "log" / "execute" / "inter_project_dag" / "runner_state.json"
-RUN_ID = "inter-project-dag-preview"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DAG_PATH = PROJECT_ROOT / "dag_templates" / "flight_to_meteo_global_dag.json"
+DEFAULT_OUTPUT_PATH = Path.home() / "log" / "execute" / "global_dag" / "runner_state.json"
+RUN_ID = "global-dag-preview"
 
 
 def agilab_package_path() -> Path:
@@ -46,13 +44,6 @@ def agilab_package_path() -> Path:
     if not path.is_dir():
         raise SystemExit(f"AGILAB package path from {marker} does not exist: {path}")
     return path
-
-
-def _source_checkout_root_from_file() -> Path | None:
-    repo_root = Path(__file__).resolve().parents[4]
-    if (repo_root / "src" / "agilab" / "apps" / "builtin").is_dir():
-        return repo_root
-    return None
 
 
 def _source_checkout_root_from_package(package_path: Path) -> Path | None:
@@ -70,7 +61,7 @@ def _ensure_packaged_layout_adapter(package_path: Path) -> Path:
     if not (apps_path / "builtin").is_dir():
         raise SystemExit(f"AGILAB built-in apps are not available under {apps_path}")
 
-    repo_root = Path.home() / ".cache" / "agilab" / "inter_project_dag_layout"
+    repo_root = Path.home() / ".cache" / "agilab" / "global_dag_layout"
     adapter_package = repo_root / "src" / "agilab"
     adapter_apps = adapter_package / "apps"
     adapter_package.mkdir(parents=True, exist_ok=True)
@@ -90,11 +81,8 @@ def _ensure_packaged_layout_adapter(package_path: Path) -> Path:
 def planning_repo_root(explicit_repo_root: Path | None = None) -> Path:
     if explicit_repo_root is not None:
         return explicit_repo_root.expanduser().resolve()
-
-    source_root = _source_checkout_root_from_file()
-    if source_root is not None:
-        return source_root.resolve()
-
+    if _SOURCE_ROOT is not None:
+        return _SOURCE_ROOT.resolve()
     package_path = agilab_package_path()
     source_root = _source_checkout_root_from_package(package_path)
     if source_root is not None:
@@ -159,8 +147,8 @@ def build_preview(
     units = list(plan.runnable_units)
 
     return {
-        "example": "inter_project_dag",
-        "goal": "Plan a cross-project AGILAB DAG from artifact contracts before executing apps.",
+        "example": "global_dag_project",
+        "goal": "Preview a built-in global DAG that coordinates multiple AGILAB apps through artifact contracts.",
         "dag": {
             "path": plan.dag_path,
             "ok": plan.ok,
@@ -187,13 +175,13 @@ def build_preview(
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Preview a two-project AGILAB DAG without executing either app."
+        description="Preview the built-in AGILAB global DAG without executing app stages."
     )
     parser.add_argument(
         "--repo-root",
         type=Path,
         default=None,
-        help="Optional source checkout root. If omitted, the example uses the local source layout or AGILAB marker.",
+        help="Optional source checkout root. If omitted, the preview uses the local source layout or AGILAB marker.",
     )
     parser.add_argument(
         "--dag-path",

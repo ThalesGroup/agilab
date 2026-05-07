@@ -8,7 +8,14 @@ from pathlib import Path
 from typing import Any, Protocol, Sequence
 
 
-CONFIG_PATH = Path(__file__).with_name("sample_run_config.json")
+CONFIG_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "apps"
+    / "builtin"
+    / "meteo_forecast_project"
+    / "tracking_templates"
+    / "mlflow_auto_tracking_run_config.json"
+)
 DEFAULT_OUTPUT_DIR = Path.home() / "log" / "execute" / "mlflow_auto_tracking"
 
 

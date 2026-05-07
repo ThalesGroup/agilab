@@ -57,7 +57,9 @@ python preview_mlflow_auto_tracking.py
 
 ## Expected Input
 
-The script reads `sample_run_config.json`, a compact run contract with:
+The script reads the built-in
+`meteo_forecast_project/tracking_templates/mlflow_auto_tracking_run_config.json`
+contract with:
 
 - app: `meteo_forecast_project`
 - pipeline: `notebook_migration_forecast`
@@ -102,9 +104,10 @@ Open `preview_mlflow_auto_tracking.py` and look for these functions first:
 
 ## Change One Thing
 
-Change `sample_run_config.json` so `metrics.forecast_mae` is slightly lower,
-rerun the preview, and inspect both `run_summary.json` and the tracking status.
-If MLflow is installed, open the MLflow UI and compare the logged metric.
+Copy the built-in tracking template, change `metrics.forecast_mae` so it is
+slightly lower, rerun the preview with `--config <copy>.json`, and inspect both
+`run_summary.json` and the tracking status. If MLflow is installed, open the
+MLflow UI and compare the logged metric.
 
 ## Troubleshooting
 
