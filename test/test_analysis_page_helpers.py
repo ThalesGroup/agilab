@@ -306,6 +306,18 @@ def test_configured_view_options_restricts_to_declared_available_views(tmp_path:
     assert options == ["view_maps", "view_maps_network"]
 
 
+def test_analysis_sidebar_view_url_encodes_project_and_path(tmp_path: Path):
+    module = _load_analysis_module()
+    view_path = tmp_path / "view maps.py"
+
+    url = module._analysis_sidebar_view_url("flight_project", view_path)
+
+    assert url.startswith("?")
+    assert "active_app=flight_project" in url
+    assert "current_page=" in url
+    assert "view+maps.py" in url or "view%20maps.py" in url
+
+
 def test_excluded_view_options_normalizes_configured_names():
     module = _load_analysis_module()
     cfg = {"pages": {"excluded_views": [" view_maps_network ", "", 42]}}

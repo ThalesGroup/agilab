@@ -1040,6 +1040,8 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "agilab-analysis-view-links" in sidebar_markdown
     assert "current_page=" in sidebar_markdown
     assert "view_maps" in sidebar_markdown
+    sidebar_buttons = [button.label for button in at.sidebar.button]
+    assert "view_maps" not in sidebar_buttons
     assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "analysis_sidebar_view__flight_project"]
     
     # Check that 'dummy_view' is an option in the multiselect
@@ -1052,7 +1054,7 @@ def test_explore_page_multiselect(mock_ui_env):
     ms.select("view_maps").run()
     assert not at.exception
     
-    # Ensure that the button was created for it
+    # Launching is handled by the sidebar links, not by duplicate in-page sidecar buttons.
     btns = [b.label for b in at.button]
     assert "Open view_maps" not in btns
     assert "Open" not in btns
@@ -1156,16 +1158,48 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     reloaded.run()
 
     assert not reloaded.exception
+    assert reloaded.session_state["view_selection__flight_project"] == ["view_barycentric"]
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
     assert "Views selected" in reloaded_markdown
     assert "1 linked to flight_project" in reloaded_markdown
     assert "agilab-header-value agilab-header-value--ready'>1/" in reloaded_markdown
     assert "Available views" not in reloaded_markdown
-    assert reloaded.session_state["view_selection__flight_project"] == ["view_barycentric"]
     reloaded_sidebar_markdown = "\n".join(str(item.value) for item in reloaded.sidebar.markdown)
     assert "view_maps" not in reloaded_sidebar_markdown
     assert "view_barycentric" in reloaded_sidebar_markdown
     assert "current_page=" in reloaded_sidebar_markdown
+
+
+def test_explore_page_sidebar_links_initialize_from_view_module(mock_ui_env):
+    """Selected analysis views render in the sidebar even when another view was previously default."""
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.query_params["current_page"] = "main"
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    settings_file = env.resolve_user_app_settings_file("flight_project")
+    settings_file.write_text(
+        (
+            "[pages]\n"
+            "view_module = ['view_maps', 'view_maps_3d']\n"
+            "default_view = 'view_maps_3d'\n"
+            "default_views = ['view_maps_3d']\n"
+        ),
+        encoding="utf-8",
+    )
+    at.session_state["env"] = env
+
+    at.run()
+
+    assert not at.exception
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "view_maps" in sidebar_markdown
+    assert "view_maps_3d" in sidebar_markdown
+    assert "current_page=" in sidebar_markdown
+    with settings_file.open("rb") as f:
+        settings_payload = tomllib.load(f)
+    pages_payload = settings_payload["pages"]
+    assert pages_payload["view_module"] == ["view_maps", "view_maps_3d"]
+    assert "default_views" not in pages_payload
+    assert "default_view" not in pages_payload
 
 
 def test_experiment_page_load(mock_ui_env):
