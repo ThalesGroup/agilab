@@ -1854,6 +1854,7 @@ async def main():
 
     persisted_pages = cfg.setdefault("pages", {})
     config_changed = False
+
     normalized_config = list(selection_state.config_view_module)
     if persisted_pages.get("view_module") != normalized_config:
         persisted_pages["view_module"] = normalized_config
