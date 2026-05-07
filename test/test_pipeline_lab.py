@@ -845,6 +845,98 @@ def test_global_runner_readiness_summary_describes_blocked_artifact():
     assert summary["execution_scope"] == "preview dispatch, no app execution claimed"
 
 
+def test_pipeline_steps_runner_state_builds_single_app_preview_dag(tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "/tmp/runtime", "R": ""},
+    ]
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    state = pipeline_lab._build_pipeline_steps_runner_state(
+        env,
+        steps_file=tmp_path / "lab_steps.toml",
+        pipeline_steps=steps,
+        now="2026-05-07T00:00:00Z",
+    )
+
+    assert state["source"]["source_type"] == "lab_steps"
+    assert state["source"]["step_count"] == 2
+    assert state["source"]["execution_order"] == ["step_001", "step_002"]
+    assert state["summary"]["runnable_unit_ids"] == ["step_001"]
+    assert state["summary"]["blocked_unit_ids"] == ["step_002"]
+    first, second = state["units"]
+    assert first["app"] == "demo_project"
+    assert first["executor"] == "runpy"
+    assert first["produces"] == [
+        {"artifact": "step_001_complete", "kind": "pipeline_step_completion", "path": "pipeline/step_001.json"}
+    ]
+    assert second["executor"] == "agi.run"
+    assert second["depends_on"] == ["step_001"]
+    assert second["artifact_dependencies"][0]["artifact"] == "step_001_complete"
+
+
+def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+    ]
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_steps=steps,
+        steps_file=tmp_path / "lab_steps.toml",
+    )
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STEPS
+    assert state["source"]["source_type"] == "lab_steps"
+    assert state["summary"]["runnable_unit_ids"] == ["step_001"]
+    assert state["summary"]["blocked_unit_ids"] == ["step_002"]
+    assert ("metric", "Contract=Project steps") in fake_st.messages
+    assert ("metric", "Execution mode=Preview-only") in fake_st.messages
+    assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
+    assert any(call[0] == "demo_global_runner_dispatch_next" for call in fake_st.button_calls)
+    assert any("step_001" in source and "artifact:step_001_complete" in source for source in fake_st.graphviz_sources)
+    unit_tables = [
+        table
+        for table in fake_st.dataframes
+        if isinstance(table, list) and table and isinstance(table[0], dict) and "unit" in table[0]
+    ]
+    assert any(row["unit"] == "step_001" and row["executor"] == "runpy" for table in unit_tables for row in table)
+
+
+def test_global_runner_panel_project_steps_dispatch_is_preview_only(monkeypatch, tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+    ]
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_dispatch_next": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_steps=steps,
+        steps_file=tmp_path / "lab_steps.toml",
+    )
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["run_status"] == "running"
+    assert state["summary"]["running_unit_ids"] == ["step_001"]
+    assert state["summary"]["blocked_unit_ids"] == ["step_002"]
+    assert state["provenance"]["real_app_execution"] is False
+    assert state["provenance"]["dispatch_mode"] == "pipeline_steps_preview"
+    assert any(kind == "success" and "step_001" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+
+
 def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(buttons={"demo_global_runner_dispatch_next": True})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
