@@ -35,7 +35,8 @@ def test_first_launch_robot_passes_static_first_surface(tmp_path: Path) -> None:
     assert checks["first_launch_no_exceptions"]["status"] == "pass"
     assert checks["first_launch_env_initialized"]["status"] == "pass"
     assert checks["first_launch_first_proof_signal"]["status"] == "pass"
-    assert checks["first_launch_docs_action"]["details"]["buttons"]
+    docs_menu = checks["first_launch_docs_action"]["details"]["menu_items"]
+    assert docs_menu["Get help"] == "https://thalesgroup.github.io/agilab/agilab-help.html"
 
     output = tmp_path / "first-launch-robot.json"
     assert module.main(["--target-seconds", "90", "--timeout", "90", "--output", str(output), "--json"]) == 0

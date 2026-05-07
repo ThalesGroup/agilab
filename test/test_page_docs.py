@@ -46,6 +46,17 @@ def test_remote_docs_url_supports_anchors():
     )
 
 
+def test_docs_menu_items_merge_about_content_and_page_help():
+    menu_items = page_docs.docs_menu_items(
+        html_file="execute-help.html",
+        anchor="cluster",
+        base_items={"About": "AGILAB"},
+    )
+
+    assert menu_items["About"] == "AGILAB"
+    assert menu_items["Get help"] == "https://thalesgroup.github.io/agilab/execute-help.html#cluster"
+
+
 def test_docs_candidates_and_open_remote_docs(monkeypatch):
     opened: list[str] = []
 

@@ -43,6 +43,14 @@ if _import_guard_spec is None or _import_guard_spec.loader is None:
 _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_symbols = _import_guard_module.import_agilab_symbols
+import_agilab_module = _import_guard_module.import_agilab_module
+_page_docs_module = import_agilab_module(
+    "agilab.page_docs",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "page_docs.py",
+    fallback_name="agilab_page_docs_fallback",
+)
+get_docs_menu_items = _page_docs_module.get_docs_menu_items
 import_agilab_symbols(
     globals(),
     "agilab.analysis_page_state",
@@ -91,7 +99,6 @@ import tomli_w       # For writing TOML files (write as binary)
 
 # Project utilities (unchanged)
 from agi_gui.pagelib import (
-    get_about_content,
     render_logo,
     on_project_change,
     inject_theme,
@@ -250,7 +257,11 @@ def _load_project_env(active_app: str):
 
 
 def main() -> None:
-    st.set_page_config(page_title=PAGE_TITLE, layout="wide")
+    st.set_page_config(
+        page_title=PAGE_TITLE,
+        layout="wide",
+        menu_items=get_docs_menu_items(html_file="explore-help.html"),
+    )
     st.title(PAGE_TITLE)
 
     active_app = _parse_active_app().strip()
@@ -372,7 +383,7 @@ def _write_minimal_view_template(
 # =============== Streamlit page config ==================
 st.set_page_config(
     layout="wide",
-    menu_items=get_about_content()
+    menu_items=get_docs_menu_items(html_file="explore-help.html"),
 )
 resources_path = Path(__file__).resolve().parents[1] / "resources"
 inject_theme(resources_path)

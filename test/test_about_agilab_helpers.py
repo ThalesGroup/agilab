@@ -1626,6 +1626,7 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
     assert "Reproducible AI engineering, from project to proof." in about_menu["About"]
     assert "Support: open a GitHub issue" in about_menu["About"]
     assert "Data Science in Engineering" not in about_menu["About"]
+    assert about_menu["Get help"] == "https://thalesgroup.github.io/agilab/agilab-help.html"
 
 
 def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch):
@@ -1654,11 +1655,6 @@ def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch)
     monkeypatch.setattr(about_agilab, "render_sidebar_version", rendered_versions.append)
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
     monkeypatch.setattr(about_agilab, "_render_env_editor", lambda _env: None)
-    monkeypatch.setattr(
-        about_agilab,
-        "render_page_docs_access",
-        lambda *_args, **_kwargs: fake_st.events.append(("sidebar.button", "Read Documentation")),
-    )
     env = SimpleNamespace(
         app="flight_project",
         apps_path=Path("/tmp/agilab/apps"),
@@ -1678,7 +1674,6 @@ def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch)
     assert "Installed package versions:False" not in expanders
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
-    docs_button = _event_index(fake_st.events, "sidebar.button", "Read Documentation")
     sidebar_grid = _event_index(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
     assert env_expander < diagnostics_expander
     sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
@@ -1691,7 +1686,7 @@ def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch)
     assert "GPU: 2 x NVIDIA A100 (108 SMs)" in sidebar_markup
     assert "NPU: Not detected" in sidebar_markup
     assert "Worker 192.168.20.130" not in sidebar_markup
-    assert docs_button < sidebar_grid < env_expander
+    assert sidebar_grid < env_expander
     assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert env_expander >= 0
 

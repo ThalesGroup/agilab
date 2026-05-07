@@ -265,15 +265,23 @@ def _element_labels(container) -> list[str]:
     ]
 
 
-def _assert_docs_actions_present(at: AppTest) -> None:
-    labels = _all_button_labels(at)
-    assert "Read Documentation" in labels
-
-
 def _assert_docs_actions_absent(at: AppTest) -> None:
     labels = _all_button_labels(at)
     assert "Read Documentation" not in labels
     assert "Open Local Documentation" not in labels
+
+
+def test_first_party_pages_configure_docs_menu_items() -> None:
+    expected = {
+        "src/agilab/main_page.py": "get_about_content()",
+        "src/agilab/pages/1_PROJECT.py": 'get_docs_menu_items(html_file="edit-help.html")',
+        "src/agilab/pages/2_ORCHESTRATE.py": 'get_docs_menu_items(html_file="execute-help.html")',
+        "src/agilab/pages/3_PIPELINE.py": 'get_docs_menu_items(html_file="experiment-help.html")',
+        "src/agilab/pages/4_ANALYSIS.py": 'get_docs_menu_items(html_file="explore-help.html")',
+    }
+
+    for page_path, marker in expected.items():
+        assert marker in Path(page_path).read_text(encoding="utf-8")
 
 @pytest.fixture
 def mock_ui_env(tmp_path, monkeypatch):
@@ -403,7 +411,7 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     assert "Diagnostics level" in _element_labels(at)
     assert "Runtime diagnostics" not in _element_labels(at.sidebar)
     assert "Diagnostics level" not in _element_labels(at.sidebar)
-    _assert_docs_actions_present(at)
+    _assert_docs_actions_absent(at)
     
     # Set values in the text inputs
     at.text_input(key="env_editor_new_key").set_value("TEST_UI_VAR")
