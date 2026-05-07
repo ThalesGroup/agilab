@@ -193,7 +193,7 @@ logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
 GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_flight_sample.json")
-GLOBAL_DAG_EMPTY_STATE = "No global DAG units are available."
+GLOBAL_DAG_EMPTY_STATE = "No workplan stages are available."
 GLOBAL_DAG_DRAFT_DIRNAME = "global_dags"
 GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
 GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
@@ -793,6 +793,38 @@ def _selected_handoff_rows(
     return [handoff_options[key] for key in handoff_keys if key in handoff_options]
 
 
+def _workplan_output_rows(artifact_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {
+            "stage": row.get("node", ""),
+            "produces": row.get("id", ""),
+            "kind": row.get("kind", ""),
+            "path": row.get("path", ""),
+        }
+        for row in artifact_rows
+    ]
+
+
+def _need_option_label(option_key: str, need_options: dict[str, dict[str, str]]) -> str:
+    need = need_options.get(option_key, {})
+    target = need.get("to", "")
+    artifact = need.get("artifact", "")
+    source = need.get("from", "")
+    return f"{target} needs {artifact} from {source}"
+
+
+def _workplan_need_rows(need_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {
+            "stage": row.get("to", ""),
+            "needs": row.get("artifact", ""),
+            "from": row.get("from", ""),
+            "handoff": row.get("handoff", ""),
+        }
+        for row in need_rows
+    ]
+
+
 def _consumes_rows_from_handoffs(
     handoff_rows: list[dict[str, str]],
     artifact_options: dict[str, dict[str, str]],
@@ -968,6 +1000,122 @@ def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
     return rows
 
 
+def _workplan_artifact_id(row: Any) -> str:
+    if not isinstance(row, dict):
+        return ""
+    return str(row.get("artifact", "") or row.get("id", "") or "").strip()
+
+
+def _global_dag_workplan_state(unit: dict[str, Any]) -> str:
+    status = str(
+        unit.get("dispatch_status", "")
+        or unit.get("status", "")
+        or unit.get("plan_status", "")
+        or ""
+    ).strip()
+    return {
+        "blocked": "waiting",
+        "completed": "done",
+        "failed": "failed",
+        "planned": "planned",
+        "runnable": "ready",
+        "running": "running",
+        "stale": "stale",
+    }.get(status, status or "planned")
+
+
+def _global_dag_workplan_needs(unit: dict[str, Any]) -> str:
+    dependencies = unit.get("artifact_dependencies", [])
+    if not isinstance(dependencies, list):
+        return "none"
+    labels: list[str] = []
+    for dependency in dependencies:
+        if not isinstance(dependency, dict):
+            continue
+        artifact_id = _workplan_artifact_id(dependency)
+        producer = str(dependency.get("from", "") or "").strip()
+        if artifact_id and producer:
+            labels.append(f"{artifact_id} from {producer}")
+        elif artifact_id:
+            labels.append(artifact_id)
+    return ", ".join(labels) if labels else "none"
+
+
+def _global_dag_workplan_produces(unit: dict[str, Any]) -> str:
+    produced = unit.get("produces", [])
+    if not isinstance(produced, list):
+        return "none"
+    labels = [_workplan_artifact_id(artifact) for artifact in produced]
+    labels = [label for label in labels if label]
+    return ", ".join(labels) if labels else "none"
+
+
+def _global_dag_workplan_rows_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
+    units = state.get("units", [])
+    if not isinstance(units, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for unit in units:
+        if not isinstance(unit, dict):
+            continue
+        rows.append(
+            {
+                "stage": str(unit.get("id", "")),
+                "app": str(unit.get("app", "")),
+                "runs": _global_dag_executor_label(unit),
+                "needs": _global_dag_workplan_needs(unit),
+                "produces": _global_dag_workplan_produces(unit),
+                "state": _global_dag_workplan_state(unit),
+            }
+        )
+    return rows
+
+
+def _render_project_step_snippet_preview(
+    snippet_rows: list[dict[str, str]] | None,
+    *,
+    index_page_str: str,
+) -> None:
+    if not snippet_rows:
+        return
+    show_snippets = st.checkbox(
+        "Show snippet code",
+        key=f"{index_page_str}_global_runner_show_snippets",
+        help="Review the Python code for one project step, like ORCHESTRATE generated snippets.",
+    )
+    if not show_snippets:
+        return
+
+    row_by_unit = {row["unit"]: row for row in snippet_rows}
+    options = list(row_by_unit)
+    selected_key = f"{index_page_str}_global_runner_snippet_step"
+    if st.session_state.get(selected_key) not in row_by_unit:
+        st.session_state[selected_key] = options[0]
+
+    def _format_snippet_option(unit_id: str) -> str:
+        row = row_by_unit.get(str(unit_id))
+        return str(row.get("label", unit_id)) if row else str(unit_id)
+
+    selected_unit = st.selectbox(
+        "Snippet step",
+        options,
+        key=selected_key,
+        format_func=_format_snippet_option,
+        help="Choose the project step whose snippet should be shown.",
+    )
+    row = row_by_unit.get(str(selected_unit), snippet_rows[0])
+    source = str(row.get("source", "") or "").strip()
+    model = str(row.get("model", "") or "").strip()
+    prompt = str(row.get("prompt", "") or "").strip()
+    if source:
+        st.caption(f"Snippet source: `{source}`")
+    if model:
+        st.caption(f"Model: `{model}`")
+    if prompt:
+        st.caption(f"Prompt: {prompt}")
+    st.code(str(row.get("code", "") or "# Empty snippet"), language="python")
+
+
 def _artifact_handoffs_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
     available = _available_artifact_ids(state)
     units = state.get("units", [])
@@ -1123,7 +1271,7 @@ def _global_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
 
 def _render_global_dag_readiness(state: Dict[str, Any]) -> None:
     summary = _global_dag_readiness_summary(state)
-    st.markdown("**DAG readiness**")
+    st.markdown("**Workplan readiness**")
     stage_col, dependency_col, runnable_col, blocked_col = st.columns(4)
     stage_col.metric("Stages", int(summary["stage_count"]))
     dependency_col.metric("Dependencies", int(summary["dependency_count"]))
@@ -1267,6 +1415,29 @@ def _pipeline_steps_digest(pipeline_steps: list[dict[str, Any]]) -> str:
     ]
     payload = json.dumps(normalized, sort_keys=True, ensure_ascii=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _pipeline_step_snippet_rows(pipeline_steps: list[dict[str, Any]] | None) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for index, step in enumerate(_pipeline_dag_step_rows(pipeline_steps)):
+        code = str(step.get("C", "") or "")
+        if not code.strip():
+            continue
+        unit_id = _pipeline_step_unit_id(index)
+        summary = _pipeline_step_purpose(step, index)
+        label = f"{unit_id} - {summary}" if summary else unit_id
+        rows.append(
+            {
+                "unit": unit_id,
+                "label": label,
+                "summary": summary,
+                "prompt": str(step.get("Q", "") or "").strip(),
+                "model": str(step.get("M", "") or "").strip(),
+                "source": _orchestrate_snippet_source(step),
+                "code": code,
+            }
+        )
+    return rows
 
 
 def _path_mtime(path_text: str | Path | None) -> float | None:
@@ -1840,6 +2011,7 @@ def _render_global_runner_state_view(
     repo_root: Path,
     index_page_str: str,
     dag_label_override: str = "",
+    project_step_snippet_rows: list[dict[str, str]] | None = None,
 ) -> None:
     summary = state.get("summary", {})
     if not isinstance(summary, dict):
@@ -1867,17 +2039,38 @@ def _render_global_runner_state_view(
     failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
 
     dag_dot = _global_dag_dot(state)
-    if dag_dot:
+    show_graph = bool(
+        dag_dot
+        and st.checkbox(
+            "Show graph",
+            key=f"{index_page_str}_global_runner_show_graph",
+            help="Render the generated graph when the current screen has enough room.",
+        )
+    )
+    if show_graph:
         st.graphviz_chart(dag_dot, width="stretch")
 
-    rows = _state_units_for_display(state)
-    if rows:
-        st.dataframe(rows, hide_index=True, width="stretch")
+    workplan_rows = _global_dag_workplan_rows_for_display(state)
+    if workplan_rows:
+        st.caption("Multi-app workplan")
+        st.dataframe(workplan_rows, hide_index=True, width="stretch")
     else:
         st.caption(GLOBAL_DAG_EMPTY_STATE)
+    _render_project_step_snippet_preview(
+        project_step_snippet_rows,
+        index_page_str=index_page_str,
+    )
 
     artifact_rows = _artifact_handoffs_for_display(state)
-    if artifact_rows:
+    show_artifacts = bool(
+        artifact_rows
+        and st.checkbox(
+            "Show artifact details",
+            key=f"{index_page_str}_global_runner_show_artifacts",
+            help="Inspect the raw artifact handoffs used to derive the workplan needs and outputs.",
+        )
+    )
+    if show_artifacts:
         st.caption("Artifact handoffs")
         st.dataframe(artifact_rows, hide_index=True, width="stretch")
 
@@ -2025,15 +2218,10 @@ def _render_global_runner_state_panel(
         if save_notice:
             st.success(str(save_notice))
 
-        st.caption(
-            "Coordinate app stages through artifact contracts. Use project steps below for single-app execution."
-        )
-        st.caption(
-            "Safety boundary: preview dispatch updates runner state only; it does not claim live app execution."
-        )
-        st.markdown("**1. Choose a starting point**")
+        st.caption("Select a workplan, review readiness, and run only controlled templates.")
+        st.markdown("**Choose workplan**")
         dag_source = st.selectbox(
-            "DAG source",
+            "Workplan source",
             source_options,
             key=source_key,
             help=(
@@ -2080,13 +2268,14 @@ def _render_global_runner_state_panel(
                 repo_root=repo_root,
                 index_page_str=index_page_str,
                 dag_label_override="Project steps",
+                project_step_snippet_rows=_pipeline_step_snippet_rows(project_step_rows),
             )
             return
         if dag_source == GLOBAL_DAG_SOURCE_APP_TEMPLATES:
             if not app_template_options:
                 st.info("No app DAG template is bundled for this active project yet.")
             selected_dag_text = st.selectbox(
-                "DAG template",
+                "App template",
                 app_template_options or [""],
                 key=app_template_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
@@ -2094,7 +2283,7 @@ def _render_global_runner_state_panel(
             )
         elif dag_source == GLOBAL_DAG_SOURCE_SAMPLES:
             selected_dag_text = st.selectbox(
-                "DAG sample",
+                "Sample",
                 sample_options or [""],
                 key=library_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
@@ -2104,7 +2293,7 @@ def _render_global_runner_state_panel(
             if not workspace_options:
                 st.info("No workspace DAG draft has been saved for this project yet.")
             selected_dag_text = st.selectbox(
-                "Workspace DAG",
+                "Saved draft",
                 workspace_options or [""],
                 key=workspace_key,
                 format_func=lambda value: _global_dag_label(value, repo_root),
@@ -2112,7 +2301,7 @@ def _render_global_runner_state_panel(
             )
         else:
             selected_dag_text = st.text_input(
-                "Custom DAG path",
+                "Custom JSON path",
                 key=dag_input_key,
                 help=(
                     "Relative paths resolve from the AGILAB checkout root. Custom DAGs stay preview-only "
@@ -2126,6 +2315,44 @@ def _render_global_runner_state_panel(
             st.warning(load_error)
 
         token = _global_dag_source_token(dag_text)
+        reset_clicked = action_button(
+            st,
+            "Reset preview state",
+            key=f"{index_page_str}_global_runner_reset",
+            kind="reset",
+            help="Rebuild the preview runner state from the selected workplan.",
+        )
+        edit_contract_key = f"{index_page_str}_global_runner_edit_contract_{token}"
+        edit_contract = st.checkbox(
+            "Edit workplan",
+            key=edit_contract_key,
+            help="Change stages, artifacts, connections, or save a new contract.",
+        )
+        if not edit_contract:
+            try:
+                state, state_path, dag_path = _load_or_create_global_runner_state(
+                    env,
+                    lab_dir,
+                    dag_path=dag_path,
+                    reset=reset_clicked,
+                )
+                dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path)
+            except Exception as exc:
+                st.error("Multi-app DAG orchestration preview is unavailable.")
+                st.caption("Full diagnostic")
+                st.code(str(exc), language="text")
+                return
+
+            _render_global_runner_state_view(
+                state=state,
+                state_path=state_path,
+                dag_path=dag_path,
+                dag_engine=dag_engine,
+                repo_root=repo_root,
+                index_page_str=index_page_str,
+            )
+            return
+
         metadata_keys = {
             "dag_id": f"{index_page_str}_global_runner_dag_id_{token}",
             "label": f"{index_page_str}_global_runner_label_{token}",
@@ -2135,7 +2362,7 @@ def _render_global_runner_state_panel(
         st.session_state.setdefault(metadata_keys["label"], str(base_payload.get("label", "")))
         st.session_state.setdefault(metadata_keys["description"], str(base_payload.get("description", "")))
 
-        st.markdown("**2. Describe the DAG**")
+        st.markdown("**Describe workplan**")
         metadata_cols = st.columns([1, 1], gap="medium")
         dag_id = metadata_cols[0].text_input(
             "DAG id",
@@ -2184,8 +2411,7 @@ def _render_global_runner_state_panel(
         table_keys = {
             "stages": f"{index_page_str}_global_runner_stages_{token}",
             "produces": f"{index_page_str}_global_runner_produces_{token}",
-            "consumes": f"{index_page_str}_global_runner_consumes_{token}",
-            "edges": f"{index_page_str}_global_runner_edges_{token}",
+            "needs": f"{index_page_str}_global_runner_needs_{token}",
         }
         selected_stage_ids = st.session_state.get(table_keys["stages"])
         if (
@@ -2194,7 +2420,7 @@ def _render_global_runner_state_panel(
         ):
             st.session_state[table_keys["stages"]] = default_stage_ids
 
-        st.markdown("**3. Define stages**")
+        st.markdown("**Build workplan**")
         selected_stage_ids = st.multiselect(
             "Stages",
             stage_option_ids,
@@ -2209,7 +2435,7 @@ def _render_global_runner_state_panel(
         else:
             st.warning("Select at least two stages to form a valid multi-app DAG.")
 
-        st.markdown("**4. Define artifacts**")
+        st.markdown("**Stage outputs**")
         artifact_options = _global_dag_artifact_options(selected_stage_ids, tables)
         artifact_option_keys = list(artifact_options)
         default_artifact_keys = _default_artifact_keys(artifact_options, tables)
@@ -2220,52 +2446,52 @@ def _render_global_runner_state_panel(
         ):
             st.session_state[table_keys["produces"]] = default_artifact_keys
         selected_artifact_keys = st.multiselect(
-            "Produced artifacts",
+            "Produces",
             artifact_option_keys,
             key=table_keys["produces"],
             format_func=lambda key: _artifact_option_label(key, artifact_options),
-            help="Choose artifacts exposed by the selected stages. No node ids need to be typed.",
+            help="Choose outputs exposed by the selected stages. Workplan needs can use these outputs.",
         )
         produces_value = _selected_artifact_rows(selected_artifact_keys, artifact_options)
         if produces_value:
-            st.dataframe(produces_value, hide_index=True, width="stretch")
+            st.dataframe(_workplan_output_rows(produces_value), hide_index=True, width="stretch")
         else:
-            st.warning("Select at least one produced artifact before connecting stages.")
+            st.warning("Select at least one output before adding stage needs.")
 
-        st.markdown("**5. Connect stages**")
+        st.markdown("**Stage needs**")
         selected_artifact_options = {
             key: artifact_options[key]
             for key in selected_artifact_keys
             if key in artifact_options
         }
-        handoff_options = _global_dag_handoff_options(
+        need_options = _global_dag_handoff_options(
             selected_stage_ids,
             selected_artifact_options,
             base_payload,
         )
-        handoff_option_keys = list(handoff_options)
-        default_handoff_keys = _default_handoff_keys(handoff_options, base_payload)
-        selected_handoff_keys = st.session_state.get(table_keys["edges"])
+        need_option_keys = list(need_options)
+        default_need_keys = _default_handoff_keys(need_options, base_payload)
+        selected_need_keys = st.session_state.get(table_keys["needs"])
         if (
-            not isinstance(selected_handoff_keys, list)
-            or any(key not in handoff_options for key in selected_handoff_keys)
+            not isinstance(selected_need_keys, list)
+            or any(key not in need_options for key in selected_need_keys)
         ):
-            st.session_state[table_keys["edges"]] = default_handoff_keys
-        selected_handoff_keys = st.multiselect(
-            "Stage connections",
-            handoff_option_keys,
-            key=table_keys["edges"],
-            format_func=lambda key: _handoff_option_label(key, handoff_options),
-            help="Choose artifact handoffs between selected stages instead of typing from/to ids.",
+            st.session_state[table_keys["needs"]] = default_need_keys
+        selected_need_keys = st.multiselect(
+            "Needs",
+            need_option_keys,
+            key=table_keys["needs"],
+            format_func=lambda key: _need_option_label(key, need_options),
+            help="Choose which stage needs an output from another stage. Artifact handoffs are generated automatically.",
         )
-        edges_value = _selected_handoff_rows(selected_handoff_keys, handoff_options)
+        edges_value = _selected_handoff_rows(selected_need_keys, need_options)
         consumes_value = _consumes_rows_from_handoffs(edges_value, selected_artifact_options)
         if edges_value:
-            st.dataframe(edges_value, hide_index=True, width="stretch")
+            st.dataframe(_workplan_need_rows(edges_value), hide_index=True, width="stretch")
         else:
-            st.warning("Select at least one stage connection to create a runnable cross-app DAG.")
+            st.warning("Select at least one stage need to create a cross-app workplan.")
         if consumes_value:
-            st.caption("Consumed artifacts inferred from selected connections")
+            st.caption("Consumed artifacts are derived from selected needs.")
             st.dataframe(consumes_value, hide_index=True, width="stretch")
 
         visual_payload = _global_dag_payload_from_visual_editor(
@@ -2323,13 +2549,6 @@ def _render_global_runner_state_panel(
                     "dag_templates directory so it can execute from this view."
                 ),
             )
-        reset_clicked = action_button(
-            st,
-            "Reset preview state",
-            key=f"{index_page_str}_global_runner_reset",
-            kind="reset",
-            help="Rebuild the preview runner state from the selected DAG contract.",
-        )
         if validate_clicked:
             validation_error = _global_dag_validation_error(editor_text, repo_root)
             if validation_error:

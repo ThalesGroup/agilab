@@ -110,6 +110,7 @@ class _FakeStreamlit:
         self.dataframes: list[object] = []
         self.graphviz_sources: list[str] = []
         self.multiselect_calls: list[tuple[str, list[object], str | None]] = []
+        self.checkbox_calls: list[tuple[str, str | None]] = []
         self.text_area_labels: list[str] = []
         self.column_config = _FakeColumnConfig()
 
@@ -186,6 +187,7 @@ class _FakeStreamlit:
         return self.session_state[key]
 
     def checkbox(self, _label, value=False, key=None, **_kwargs):
+        self.checkbox_calls.append((str(_label), key))
         lookup_key = key or _label
         checked = self._checkboxes.get(lookup_key, self.session_state.get(lookup_key, value))
         self.session_state[lookup_key] = bool(checked)
@@ -769,6 +771,11 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
         "Next action: Dispatch `flight_context`.",
     ) in fake_st.messages
     assert ("dataframe", "2") in fake_st.messages
+    edit_token = pipeline_lab._global_dag_source_token(
+        "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    )
+    assert ("Edit workplan", f"demo_global_runner_edit_contract_{edit_token}") in fake_st.checkbox_calls
+    assert not fake_st.multiselect_calls
 
 
 def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path):
@@ -901,13 +908,43 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
     assert ("metric", "Execution mode=Preview-only") in fake_st.messages
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any(call[0] == "demo_global_runner_dispatch_next" for call in fake_st.button_calls)
-    assert any("step_001" in source and "artifact:step_001_complete" in source for source in fake_st.graphviz_sources)
-    unit_tables = [
+    assert ("Show graph", "demo_global_runner_show_graph") in fake_st.checkbox_calls
+    assert ("Show snippet code", "demo_global_runner_show_snippets") in fake_st.checkbox_calls
+    assert not fake_st.graphviz_sources
+    assert not any(kind == "code" and "print('load')" in message for kind, message in fake_st.messages)
+    workplan_tables = [
         table
         for table in fake_st.dataframes
-        if isinstance(table, list) and table and isinstance(table[0], dict) and "unit" in table[0]
+        if isinstance(table, list) and table and isinstance(table[0], dict) and "stage" in table[0]
     ]
-    assert any(row["unit"] == "step_001" and row["executor"] == "runpy" for table in unit_tables for row in table)
+    assert any(row["stage"] == "step_001" and row["runs"] == "runpy" for table in workplan_tables for row in table)
+
+
+def test_global_runner_panel_shows_selected_project_step_snippet_code(monkeypatch, tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+    ]
+    fake_st = _FakeStreamlit(
+        checkboxes={"demo_global_runner_show_snippets": True},
+        selectboxes={"demo_global_runner_snippet_step": "step_002"},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_steps=steps,
+        steps_file=tmp_path / "lab_steps.toml",
+    )
+
+    assert ("Show snippet code", "demo_global_runner_show_snippets") in fake_st.checkbox_calls
+    assert fake_st.session_state["demo_global_runner_snippet_step"] == "step_002"
+    assert any(kind == "caption" and message == "Prompt: Train model" for kind, message in fake_st.messages)
+    assert any(kind == "code" and "print('train')" in message for kind, message in fake_st.messages)
+    assert not any(kind == "code" and "print('load')" in message for kind, message in fake_st.messages)
 
 
 def test_global_runner_panel_project_steps_dispatch_is_preview_only(monkeypatch, tmp_path):
@@ -1054,7 +1091,8 @@ def test_global_runner_panel_renders_project_steps_synced_from_pipeline_logs(mon
                 "Running step 2...",
                 'Step 2: engine=runpy, env=default, summary="train"',
             ],
-        }
+        },
+        checkboxes={"demo_global_runner_show_graph": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="demo_project", target="demo_project")
@@ -1348,6 +1386,7 @@ def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypat
             "demo_global_runner_dag_path": "docs/source/data/multi_app_dag_sample.json",
         },
         selectboxes={"demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM},
+        checkboxes={"demo_global_runner_show_graph": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
@@ -1410,6 +1449,7 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
             f"demo_global_runner_label_{token}": "Edited flight DAG",
         },
         buttons={"demo_global_runner_save_draft": True},
+        checkboxes={f"demo_global_runner_edit_contract_{token}": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
@@ -1430,13 +1470,24 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
     assert "Edit DAG JSON draft" not in fake_st.text_area_labels
     assert any(label == "Stages" for label, _options, _key in fake_st.multiselect_calls)
     assert any(
-        label == "Produced artifacts" and key == f"demo_global_runner_produces_{token}"
+        label == "Produces" and key == f"demo_global_runner_produces_{token}"
         for label, _options, key in fake_st.multiselect_calls
     )
     assert any(
-        label == "Stage connections" and key == f"demo_global_runner_edges_{token}"
+        label == "Needs" and key == f"demo_global_runner_needs_{token}"
         for label, _options, key in fake_st.multiselect_calls
     )
+    draft_payload = json.loads(draft_path.read_text(encoding="utf-8"))
+    assert draft_payload["edges"] == [
+        {
+            "from": "flight_context",
+            "to": "meteo_forecast_review",
+            "artifact": "flight_reduce_summary",
+            "handoff": "Use flight trajectory reduce summary as the forecast-review context.",
+        }
+    ]
+    meteo_node = next(node for node in draft_payload["nodes"] if node["id"] == "meteo_forecast_review")
+    assert meteo_node["consumes"][0]["id"] == "flight_reduce_summary"
     assert not fake_st.data_editor_calls
 
 
@@ -1451,6 +1502,7 @@ def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, 
             f"demo_global_runner_dag_id_{token}": "",
         },
         buttons={"demo_global_runner_validate": True},
+        checkboxes={f"demo_global_runner_edit_contract_{token}": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
@@ -1553,7 +1605,10 @@ def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path
             f"demo_global_runner_label_{token}": "Alpha beta executable",
         },
         buttons={"demo_global_runner_save_app_template": True},
-        checkboxes={f"demo_global_runner_controlled_contract_{token}": True},
+        checkboxes={
+            f"demo_global_runner_edit_contract_{token}": True,
+            f"demo_global_runner_controlled_contract_{token}": True,
+        },
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "_repo_root_for_global_dag", lambda: repo_root)
@@ -1611,7 +1666,10 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
             f"demo_global_runner_label_{token}": "Alpha beta executable",
         },
         buttons={"demo_global_runner_save_app_template": True},
-        checkboxes={f"demo_global_runner_controlled_contract_{token}": True},
+        checkboxes={
+            f"demo_global_runner_edit_contract_{token}": True,
+            f"demo_global_runner_controlled_contract_{token}": True,
+        },
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "_repo_root_for_global_dag", lambda: repo_root)
@@ -1620,6 +1678,7 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
 
     pipeline_lab._render_global_runner_state_panel(env, lab_dir, "demo")
     fake_st._buttons = {"demo_global_runner_run_next_stage": True}
+    fake_st._checkboxes["demo_global_runner_show_graph"] = True
     pipeline_lab._render_global_runner_state_panel(env, lab_dir, "demo")
 
     template_rel = "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json"
@@ -1634,12 +1693,17 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
     assert alpha["contract_execution"]["summary_metrics"]["stage_completed"] == 1
     assert alpha["execution_contract"] == {"entrypoint": "alpha_project.alpha"}
     assert beta["execution_contract"] == {"entrypoint": "beta_project.beta"}
-    unit_tables = [
+    workplan_tables = [
         table
         for table in fake_st.dataframes
-        if isinstance(table, list) and table and isinstance(table[0], dict) and "executor" in table[0]
+        if isinstance(table, list) and table and isinstance(table[0], dict) and "runs" in table[0]
     ]
-    assert any(row["executor"] == "alpha_project.alpha" for table in unit_tables for row in table)
+    assert any(row["stage"] == "alpha" and row["runs"] == "alpha_project.alpha" for table in workplan_tables for row in table)
+    assert any(
+        row["stage"] == "beta" and row["needs"] == "alpha_metrics from alpha"
+        for table in workplan_tables
+        for row in table
+    )
     assert any("exec: alpha_project.alpha" in source for source in fake_st.graphviz_sources)
     assert any(kind == "success" and "Executed `alpha`" in message for kind, message in fake_st.messages)
 
