@@ -69,6 +69,7 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
             {
                 "id": "extract_context",
                 "dispatch_status": "runnable",
+                "execution_contract": {"entrypoint": "alpha.extract_context"},
                 "produces": [
                     {
                         "artifact": "context_artifact",
@@ -80,6 +81,7 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
             {
                 "id": "review_forecast",
                 "dispatch_status": "blocked",
+                "execution_contract": {"entrypoint": "beta.review_forecast"},
                 "artifact_dependencies": [{"artifact": "context_artifact", "from": "extract_context"}],
                 "produces": [
                     {
@@ -92,6 +94,7 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
             {
                 "id": "publish_report",
                 "dispatch_status": "blocked",
+                "execution_contract": {"entrypoint": "gamma.publish_report"},
                 "artifact_dependencies": [{"artifact": "forecast_metrics", "from": "review_forecast"}],
                 "produces": [
                     {
@@ -125,7 +128,7 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
     assert first.state["provenance"]["controlled_execution"] is True
     assert first.state["units"][0]["execution_mode"] == "contract_adapter"
     assert first.state["units"][1]["dispatch_status"] == "runnable"
-    context_artifact = tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context" / "context_artifact.json"
+    context_artifact = tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context" / "context" / "context.json"
     assert context_artifact.is_file()
     assert second.ok
     assert second.executed_unit_id == "review_forecast"
@@ -142,3 +145,117 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
         "forecast_metrics",
         "report_summary",
     ]
+
+
+def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
+    calls: list[Path] = []
+
+    def _runner(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append(run_root)
+        return {
+            "summary_metrics_path": "alpha/summary.json",
+            "summary_metrics": {"stage_completed": 1, "custom_runner": 1},
+        }
+
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "execution_contract": {"entrypoint": "alpha.extract_context"},
+                "produces": [
+                    {
+                        "artifact": "context_artifact",
+                        "kind": "summary_metrics",
+                        "path": "context/context.json",
+                    }
+                ],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+        "provenance": {"real_app_execution": False},
+    }
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        stage_run_fns={"alpha.extract_context": _runner},
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+
+    result = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
+
+    assert result.ok
+    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context"]
+    unit = result.state["units"][0]
+    assert unit["contract_execution"]["summary_metrics"]["custom_runner"] == 1
+
+
+def test_controlled_contract_adapter_runs_declared_command(tmp_path):
+    state = {
+        "created_at": "2026-05-07T00:00:00Z",
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "execution_contract": {
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        "from pathlib import Path; "
+                        "Path('context').mkdir(); "
+                        "Path('context/context.json').write_text('{\"ok\": true}\\n')",
+                    ]
+                },
+                "produces": [
+                    {
+                        "artifact": "context_artifact",
+                        "kind": "contract_artifact",
+                        "path": "context/context.json",
+                    }
+                ],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+        "provenance": {"real_app_execution": False},
+    }
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        now_fn=lambda: "2026-05-07T00:00:00Z",
+    )
+
+    result = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
+
+    assert result.ok
+    artifact_path = tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context" / "context" / "context.json"
+    assert artifact_path.read_text(encoding="utf-8") == '{"ok": true}\n'
+    assert result.state["units"][0]["contract_execution"]["command_returncode"] == 0
+
+
+def test_controlled_contract_adapter_rejects_stage_without_execution_contract(tmp_path):
+    state = {
+        "units": [
+            {
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "produces": [{"artifact": "context_artifact", "path": "context/context.json"}],
+            }
+        ],
+        "artifacts": [],
+        "events": [],
+        "summary": {},
+    }
+
+    result = dag_execution_adapters.run_next_adapter_stage(
+        "controlled_contract_dag",
+        state,
+        dag_execution_adapters.DagExecutionContext(repo_root=Path.cwd(), lab_dir=tmp_path),
+    )
+
+    assert not result.ok
+    assert "must declare `execution.entrypoint` or `execution.command`" in result.message

@@ -531,28 +531,30 @@ def build_runner_state(
             if isinstance(dependency, dict)
         ]
         dispatch_status = RUNNABLE_STATUS if unit.get("ready") is True else BLOCKED_STATUS
-        state_units.append(
-            {
-                "id": unit_id,
-                "order_index": unit.get("order_index"),
-                "app": str(unit.get("app", "")),
-                "plan_status": str(unit.get("status", "")),
-                "plan_runner_status": str(unit.get("runner_status", "")),
-                "dispatch_status": dispatch_status,
-                "depends_on": _as_str_list(unit.get("depends_on")),
-                "artifact_dependencies": dependencies,
-                "produces": [
-                    artifact
-                    for artifact in unit.get("produces", [])
-                    if isinstance(artifact, dict)
-                ],
-                "transitions": _transitions_for_unit(dependencies),
-                "retry": _retry_metadata(unit_id),
-                "partial_rerun": _partial_rerun_metadata(unit),
-                "operator_ui": _operator_ui_state(unit_id, dependencies),
-                "provenance": _provenance(plan, unit),
-            }
-        )
+        state_unit = {
+            "id": unit_id,
+            "order_index": unit.get("order_index"),
+            "app": str(unit.get("app", "")),
+            "plan_status": str(unit.get("status", "")),
+            "plan_runner_status": str(unit.get("runner_status", "")),
+            "dispatch_status": dispatch_status,
+            "depends_on": _as_str_list(unit.get("depends_on")),
+            "artifact_dependencies": dependencies,
+            "produces": [
+                artifact
+                for artifact in unit.get("produces", [])
+                if isinstance(artifact, dict)
+            ],
+            "transitions": _transitions_for_unit(dependencies),
+            "retry": _retry_metadata(unit_id),
+            "partial_rerun": _partial_rerun_metadata(unit),
+            "operator_ui": _operator_ui_state(unit_id, dependencies),
+            "provenance": _provenance(plan, unit),
+        }
+        execution_contract = unit.get("execution_contract")
+        if isinstance(execution_contract, dict) and execution_contract:
+            state_unit["execution_contract"] = deepcopy(execution_contract)
+        state_units.append(state_unit)
 
     return RunnerState(
         ok=plan.ok and not issues and bool(state_units),

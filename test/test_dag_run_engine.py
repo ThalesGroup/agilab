@@ -178,7 +178,7 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
         repo_root=repo_root,
         lab_dir=tmp_path,
         dag_path=_flight_template_dag_path(repo_root),
-        stage_run_fns={"flight_context": _fake_flight_contract},
+        stage_run_fns={"flight_project.flight_context": _fake_flight_contract},
         now_fn=lambda: "2026-05-07T00:00:00Z",
     )
     state, _state_path, _dag_path = engine.load_or_create_state()
@@ -200,6 +200,7 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     assert result.state["provenance"]["controlled_execution"] is True
     assert result.state["provenance"]["controlled_execution_scope"] == "controlled_contract_dag_stage"
     flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
+    assert flight["execution_contract"] == {"entrypoint": "flight_project.flight_context"}
     assert flight["execution_mode"] == "contract_adapter"
     assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
     assert flight["produces"] == [

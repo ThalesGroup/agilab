@@ -110,7 +110,44 @@ def test_dag_draft_can_emit_controlled_contract_execution_marker():
     )
 
     assert payload["execution"] == multi_app_dag_draft.CONTROLLED_CONTRACT_EXECUTION
+    assert payload["nodes"][0]["execution"] == {"entrypoint": "uav_queue_project.queue"}
+    assert payload["nodes"][1]["execution"] == {"entrypoint": "uav_relay_queue_project.relay"}
     assert multi_app_dag.validate_multi_app_dag(payload, repo_root=Path.cwd()).ok
+
+
+def test_dag_draft_preserves_existing_node_execution_contract():
+    payload = multi_app_dag_draft.build_dag_payload_from_editor(
+        {
+            "execution": multi_app_dag_draft.CONTROLLED_CONTRACT_EXECUTION,
+            "nodes": [
+                {
+                    "id": "queue",
+                    "app": "uav_queue_project",
+                    "execution": {"entrypoint": "custom.queue"},
+                }
+            ],
+        },
+        dag_id="uav-queue-relay",
+        label="UAV queue to relay",
+        description="Pass queue metrics to the relay app.",
+        stage_rows=[
+            {"id": "queue", "app": "uav_queue_project", "purpose": "Generate queue metrics."},
+            {"id": "relay", "app": "uav_relay_queue_project", "purpose": "Consume queue metrics."},
+        ],
+        produced_artifact_rows=[
+            {"node": "queue", "id": "queue_metrics", "kind": "summary_metrics", "path": "queue/summary.json"}
+        ],
+        consumed_artifact_rows=[
+            {"node": "relay", "id": "queue_metrics", "kind": "summary_metrics", "path": "queue/summary.json"}
+        ],
+        handoff_rows=[
+            {"from": "queue", "to": "relay", "artifact": "queue_metrics", "handoff": "Use queue metrics."}
+        ],
+        controlled_contract_execution=True,
+    )
+
+    assert payload["nodes"][0]["execution"] == {"entrypoint": "custom.queue"}
+    assert payload["nodes"][1]["execution"] == {"entrypoint": "uav_relay_queue_project.relay"}
 
 
 def test_dag_draft_validation_guidance_is_actionable_for_users():

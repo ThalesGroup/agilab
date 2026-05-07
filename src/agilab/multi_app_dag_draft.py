@@ -25,7 +25,7 @@ class DagStage:
     app: str
     purpose: str = ""
 
-    def as_payload(self) -> dict[str, str]:
+    def as_payload(self) -> dict[str, Any]:
         return {key: value for key, value in {
             "id": self.id,
             "app": self.app,
@@ -77,11 +77,18 @@ class DagDraftSpec:
 
     def as_payload(self, *, base_payload: Mapping[str, Any] | None = None) -> dict[str, Any]:
         payload = dict(base_payload or {})
+        base_nodes = _base_nodes_by_id(base_payload)
+        controlled_contract = _is_controlled_contract_execution(self.execution)
         produces_by_node = _artifacts_by_node(self.produced_artifacts)
         consumes_by_node = _artifacts_by_node(self.consumed_artifacts)
         nodes: list[dict[str, Any]] = []
         for stage in self.stages:
             node = stage.as_payload()
+            execution = _node_execution_payload(base_nodes.get(stage.id))
+            if execution:
+                node["execution"] = execution
+            elif controlled_contract:
+                node["execution"] = {"entrypoint": f"{stage.app}.{stage.id}"}
             if produces_by_node.get(stage.id):
                 node["produces"] = [artifact.as_node_payload() for artifact in produces_by_node[stage.id]]
             if consumes_by_node.get(stage.id):
@@ -242,6 +249,49 @@ def _execution_payload(
         return dict(CONTROLLED_CONTRACT_EXECUTION)
     execution = base_payload.get("execution")
     return execution if isinstance(execution, Mapping) else DEFAULT_EXECUTION
+
+
+def _is_controlled_contract_execution(execution: Mapping[str, Any]) -> bool:
+    return all(
+        str(execution.get(key, "")).strip() == str(value)
+        for key, value in CONTROLLED_CONTRACT_EXECUTION.items()
+    )
+
+
+def _base_nodes_by_id(base_payload: Mapping[str, Any] | None) -> dict[str, Mapping[str, Any]]:
+    if not isinstance(base_payload, Mapping):
+        return {}
+    nodes = base_payload.get("nodes")
+    if not isinstance(nodes, list):
+        return {}
+    rows: dict[str, Mapping[str, Any]] = {}
+    for node in nodes:
+        if not isinstance(node, Mapping):
+            continue
+        node_id = clean_dag_cell(node.get("id"))
+        if node_id:
+            rows[node_id] = node
+    return rows
+
+
+def _node_execution_payload(node: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(node, Mapping):
+        return {}
+    execution = node.get("execution")
+    if not isinstance(execution, Mapping):
+        return {}
+    entrypoint = clean_dag_cell(execution.get("entrypoint"))
+    command = execution.get("command")
+    normalized: dict[str, Any] = {}
+    if entrypoint:
+        normalized["entrypoint"] = entrypoint
+    if isinstance(command, list):
+        command_parts = [clean_dag_cell(part) for part in command if clean_dag_cell(part)]
+        if command_parts:
+            normalized["command"] = command_parts
+    elif clean_dag_cell(command):
+        normalized["command"] = clean_dag_cell(command)
+    return normalized
 
 
 def _artifacts_by_node(artifacts: Sequence[DagArtifact]) -> dict[str, list[DagArtifact]]:
