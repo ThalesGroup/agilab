@@ -209,6 +209,15 @@ GLOBAL_DAG_SOURCE_OPTIONS = [
     GLOBAL_DAG_SOURCE_CUSTOM,
 ]
 
+
+def _global_dag_pending_source_key(index_page_str: str) -> str:
+    return f"{index_page_str}_global_runner_pending_source"
+
+
+def _global_dag_notice_key(index_page_str: str) -> str:
+    return f"{index_page_str}_global_runner_notice"
+
+
 def _normalize_editor_text(raw: Optional[str]) -> str:
     if raw is None:
         return ""
@@ -334,6 +343,52 @@ def _global_dag_workspace_options(repo_root: Path, lab_dir: Path) -> list[str]:
     draft_dir = _global_dag_draft_dir(lab_dir)
     paths = sorted(draft_dir.glob("*.json")) if draft_dir.is_dir() else []
     return [_repo_relative_text(path, repo_root) for path in paths]
+
+
+def _queue_global_dag_source_selection(
+    index_page_str: str,
+    *,
+    source: str,
+    dag_path: Path,
+    repo_root: Path,
+    notice: str,
+) -> None:
+    st.session_state[_global_dag_pending_source_key(index_page_str)] = {
+        "source": source,
+        "dag_path": _repo_relative_text(dag_path, repo_root),
+    }
+    st.session_state[_global_dag_notice_key(index_page_str)] = notice
+
+
+def _apply_global_dag_pending_source_selection(
+    index_page_str: str,
+    *,
+    source_key: str,
+    app_template_key: str,
+    library_key: str,
+    workspace_key: str,
+    dag_input_key: str,
+    app_template_options: list[str],
+    sample_options: list[str],
+    workspace_options: list[str],
+) -> None:
+    pending = st.session_state.pop(_global_dag_pending_source_key(index_page_str), None)
+    if not isinstance(pending, dict):
+        return
+    source = str(pending.get("source", "")).strip()
+    dag_text = str(pending.get("dag_path", "")).strip()
+    if source not in GLOBAL_DAG_SOURCE_OPTIONS or not dag_text:
+        return
+
+    st.session_state[source_key] = source
+    if source == GLOBAL_DAG_SOURCE_APP_TEMPLATES:
+        st.session_state[app_template_key] = dag_text if dag_text in app_template_options else ""
+    elif source == GLOBAL_DAG_SOURCE_SAMPLES:
+        st.session_state[library_key] = dag_text if dag_text in sample_options else ""
+    elif source == GLOBAL_DAG_SOURCE_WORKSPACE:
+        st.session_state[workspace_key] = dag_text if dag_text in workspace_options else ""
+    else:
+        st.session_state[dag_input_key] = dag_text
 
 
 def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
@@ -1134,6 +1189,17 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         sample_options = _global_dag_sample_options(repo_root)
         workspace_options = _global_dag_workspace_options(repo_root, lab_dir)
         library_options = [*app_template_options, *sample_options, *workspace_options]
+        _apply_global_dag_pending_source_selection(
+            index_page_str,
+            source_key=source_key,
+            app_template_key=app_template_key,
+            library_key=library_key,
+            workspace_key=workspace_key,
+            dag_input_key=dag_input_key,
+            app_template_options=app_template_options,
+            sample_options=sample_options,
+            workspace_options=workspace_options,
+        )
         default_dag_text = (
             _repo_relative_text(default_dag_path, repo_root)
             if default_dag_path is not None
@@ -1165,6 +1231,10 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             st.session_state[workspace_key] = workspace_options[0] if workspace_options else ""
         if dag_input_key not in st.session_state:
             st.session_state[dag_input_key] = ""
+
+        save_notice = st.session_state.pop(_global_dag_notice_key(index_page_str), "")
+        if save_notice:
+            st.success(str(save_notice))
 
         st.caption(
             "Coordinate app stages through artifact contracts. Use project steps below for single-app execution."
@@ -1450,7 +1520,16 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
                 assert draft_path is not None
                 dag_path = draft_path
                 reset_clicked = True
-                st.success(f"Saved DAG draft to `{draft_path}` and selected it for this preview.")
+                notice = f"Saved DAG draft to `{draft_path}` and selected it for this preview."
+                _queue_global_dag_source_selection(
+                    index_page_str,
+                    source=GLOBAL_DAG_SOURCE_WORKSPACE,
+                    dag_path=draft_path,
+                    repo_root=repo_root,
+                    notice=notice,
+                )
+                st.success(notice)
+                st.rerun()
 
         if save_app_template_clicked:
             template_path, validation_error = _save_global_dag_app_template(
@@ -1466,7 +1545,16 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
                 assert template_path is not None
                 dag_path = template_path
                 reset_clicked = True
-                st.success(f"Saved executable app DAG template to `{template_path}`.")
+                notice = f"Saved executable app DAG template to `{template_path}`."
+                _queue_global_dag_source_selection(
+                    index_page_str,
+                    source=GLOBAL_DAG_SOURCE_APP_TEMPLATES,
+                    dag_path=template_path,
+                    repo_root=repo_root,
+                    notice=notice,
+                )
+                st.success(notice)
+                st.rerun()
 
         try:
             state, state_path, dag_path = _load_or_create_global_runner_state(

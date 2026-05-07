@@ -1184,6 +1184,11 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
     assert state["source"]["dag_path"] == str(draft_path)
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
     assert any(kind == "success" and "Saved DAG draft" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+    assert fake_st.session_state[pipeline_lab._global_dag_pending_source_key("demo")] == {
+        "source": pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE,
+        "dag_path": str(draft_path),
+    }
     assert "Edit DAG JSON draft" not in fake_st.text_area_labels
     assert any(label == "Stages" for label, _options, _key in fake_st.multiselect_calls)
     assert any(
@@ -1332,7 +1337,21 @@ def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path
     assert state["source"]["dag_path"] == (
         "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json"
     )
+    pending_key = pipeline_lab._global_dag_pending_source_key("demo")
+    assert fake_st.session_state[pending_key] == {
+        "source": pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES,
+        "dag_path": "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json",
+    }
     assert any(kind == "success" and "Saved executable app DAG template" in message for kind, message in fake_st.messages)
+
+    fake_st._buttons = {}
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path / "lab", "demo")
+
+    assert pending_key not in fake_st.session_state
+    assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
+    assert fake_st.session_state["demo_global_runner_app_template"] == (
+        "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json"
+    )
 
 
 def test_global_runner_artifact_handoffs_mark_available_and_missing():
