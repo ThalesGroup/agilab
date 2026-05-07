@@ -69,6 +69,13 @@ def test_runner_state_units_keep_transitions_and_operator_metadata() -> None:
     assert first["id"] == "queue_baseline"
     assert first["dispatch_status"] == "runnable"
     assert first["operator_ui"]["state"] == "ready_to_dispatch"
+    assert first["produces"] == [
+        {
+            "artifact": "queue_metrics",
+            "kind": "summary_metrics",
+            "path": "queue_analysis/uav_queue_summary_metrics.json",
+        }
+    ]
     assert first["retry"] == {
         "attempt": 0,
         "last_error": "",
@@ -94,6 +101,13 @@ def test_runner_state_units_keep_transitions_and_operator_metadata() -> None:
         "state": "waiting_for_artifacts",
     }
     assert second["partial_rerun"]["artifact_scope"] == ["relay_metrics"]
+    assert second["produces"] == [
+        {
+            "artifact": "relay_metrics",
+            "kind": "summary_metrics",
+            "path": "queue_analysis/uav_relay_queue_summary_metrics.json",
+        }
+    ]
     assert second["partial_rerun"]["requires_completed_dependencies"] == ["queue_baseline"]
     assert second["provenance"] == {
         "pipeline_view": "src/agilab/apps/builtin/uav_relay_queue_project/pipeline_view.dot",

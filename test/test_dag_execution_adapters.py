@@ -45,7 +45,7 @@ dag_execution_adapters = _load_dag_execution_adapters()
 
 def test_adapter_registry_exposes_uav_queue_to_relay_adapter():
     assert dag_execution_adapters.registered_execution_adapter_ids() == (
-        "flight_to_meteo_controlled",
+        "controlled_contract_dag",
         "uav_queue_to_relay_controlled",
     )
 
@@ -62,15 +62,44 @@ def test_adapter_dispatch_reports_unknown_adapter(tmp_path):
     assert "No DAG execution adapter is registered" in result.message
 
 
-def test_flight_to_meteo_adapter_executes_contract_stages(tmp_path):
+def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path):
     state = {
         "created_at": "2026-05-07T00:00:00Z",
         "units": [
-            {"id": "flight_context", "dispatch_status": "runnable"},
             {
-                "id": "meteo_forecast_review",
+                "id": "extract_context",
+                "dispatch_status": "runnable",
+                "produces": [
+                    {
+                        "artifact": "context_artifact",
+                        "kind": "contract_artifact",
+                        "path": "context/context.json",
+                    }
+                ],
+            },
+            {
+                "id": "review_forecast",
                 "dispatch_status": "blocked",
-                "artifact_dependencies": [{"artifact": "flight_reduce_summary", "from": "flight_context"}],
+                "artifact_dependencies": [{"artifact": "context_artifact", "from": "extract_context"}],
+                "produces": [
+                    {
+                        "artifact": "forecast_metrics",
+                        "kind": "summary_metrics",
+                        "path": "forecast/metrics.json",
+                    }
+                ],
+            },
+            {
+                "id": "publish_report",
+                "dispatch_status": "blocked",
+                "artifact_dependencies": [{"artifact": "forecast_metrics", "from": "review_forecast"}],
+                "produces": [
+                    {
+                        "artifact": "report_summary",
+                        "kind": "summary_metrics",
+                        "path": "report/summary.json",
+                    }
+                ],
             },
         ],
         "artifacts": [],
@@ -84,23 +113,32 @@ def test_flight_to_meteo_adapter_executes_contract_stages(tmp_path):
         now_fn=lambda: "2026-05-07T00:00:00Z",
     )
 
-    first = dag_execution_adapters.run_next_adapter_stage("flight_to_meteo_controlled", state, context)
-    second = dag_execution_adapters.run_next_adapter_stage("flight_to_meteo_controlled", first.state, context)
+    first = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", state, context)
+    second = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", first.state, context)
+    third = dag_execution_adapters.run_next_adapter_stage("controlled_contract_dag", second.state, context)
 
     assert first.ok
-    assert first.executed_unit_id == "flight_context"
-    assert first.state["summary"]["available_artifact_ids"] == ["flight_reduce_summary"]
-    assert first.state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
+    assert first.executed_unit_id == "extract_context"
+    assert first.state["summary"]["available_artifact_ids"] == ["context_artifact"]
+    assert first.state["summary"]["controlled_executed_unit_ids"] == ["extract_context"]
     assert first.state["provenance"]["real_app_execution"] is False
     assert first.state["provenance"]["controlled_execution"] is True
     assert first.state["units"][0]["execution_mode"] == "contract_adapter"
     assert first.state["units"][1]["dispatch_status"] == "runnable"
-    flight_artifact = tmp_path / ".agilab" / "global_dag_real_runs" / "flight_context" / "flight_reduce_summary.json"
-    assert flight_artifact.is_file()
+    context_artifact = tmp_path / ".agilab" / "global_dag_real_runs" / "extract_context" / "context_artifact.json"
+    assert context_artifact.is_file()
     assert second.ok
-    assert second.executed_unit_id == "meteo_forecast_review"
-    assert second.state["run_status"] == "completed"
+    assert second.executed_unit_id == "review_forecast"
     assert second.state["summary"]["available_artifact_ids"] == [
-        "flight_reduce_summary",
+        "context_artifact",
         "forecast_metrics",
+    ]
+    assert second.state["units"][2]["dispatch_status"] == "runnable"
+    assert third.ok
+    assert third.executed_unit_id == "publish_report"
+    assert third.state["run_status"] == "completed"
+    assert third.state["summary"]["available_artifact_ids"] == [
+        "context_artifact",
+        "forecast_metrics",
+        "report_summary",
     ]

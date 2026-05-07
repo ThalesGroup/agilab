@@ -943,7 +943,7 @@ def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path)
     assert state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
     assert state["provenance"]["real_app_execution"] is False
     assert state["provenance"]["controlled_execution"] is True
-    assert state["provenance"]["controlled_execution_scope"] == "controlled_flight_to_meteo_stage"
+    assert state["provenance"]["controlled_execution_scope"] == "controlled_contract_dag_stage"
     flight = next(unit for unit in state["units"] if unit["id"] == "flight_context")
     assert flight["execution_mode"] == "contract_adapter"
     assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1

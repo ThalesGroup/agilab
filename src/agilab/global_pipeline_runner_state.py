@@ -541,6 +541,11 @@ def build_runner_state(
                 "dispatch_status": dispatch_status,
                 "depends_on": _as_str_list(unit.get("depends_on")),
                 "artifact_dependencies": dependencies,
+                "produces": [
+                    artifact
+                    for artifact in unit.get("produces", [])
+                    if isinstance(artifact, dict)
+                ],
                 "transitions": _transitions_for_unit(dependencies),
                 "retry": _retry_metadata(unit_id),
                 "partial_rerun": _partial_rerun_metadata(unit),
