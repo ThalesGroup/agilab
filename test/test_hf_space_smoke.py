@@ -193,6 +193,43 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     ]
 
 
+def test_run_tree_checks_uses_only_repository_tree_checks() -> None:
+    module = _load_module()
+    clock = iter([0.0, 0.1, 0.1, 0.3, 0.3, 0.6])
+
+    def _fetch_json(_url: str, _timeout: float):
+        if _url.endswith("src/agilab/apps"):
+            return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
+        if _url.endswith("src/agilab/pages"):
+            return [
+                {"path": "src/agilab/pages/1_PROJECT.py"},
+                {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
+                {"path": "src/agilab/pages/3_WORKFLOW.py"},
+                {"path": "src/agilab/pages/4_ANALYSIS.py"},
+            ]
+        return [
+            {"path": "src/agilab/apps-pages/view_maps"},
+            {"path": "src/agilab/apps-pages/view_forecast_analysis"},
+            {"path": "src/agilab/apps-pages/view_release_decision"},
+        ]
+
+    summary = module.run_tree_checks(
+        space_id="demo/agilab",
+        timeout=1.0,
+        target_seconds=5.0,
+        fetch_json_fn=_fetch_json,
+        clock=clock.__next__,
+    )
+
+    assert summary.success is True
+    assert summary.total_duration_seconds == 0.6
+    assert [check.label for check in summary.checks] == [
+        "public app tree",
+        "public pages tree",
+        "core pages tree",
+    ]
+
+
 def test_main_json_returns_failure_for_private_app(monkeypatch, capsys) -> None:
     module = _load_module()
 
@@ -221,3 +258,33 @@ def test_main_json_returns_failure_for_private_app(monkeypatch, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["success"] is False
     assert payload["checks"][0]["detail"] == "non-public app entries: private_project"
+
+
+def test_main_tree_only_returns_failure_for_stale_core_page(monkeypatch, capsys) -> None:
+    module = _load_module()
+
+    def _run_tree_checks(**_kwargs):
+        return module.SmokeSummary(
+            success=False,
+            total_duration_seconds=1.0,
+            target_seconds=30.0,
+            within_target=False,
+            checks=[
+                module.CheckResult(
+                    label="core pages tree",
+                    success=False,
+                    duration_seconds=1.0,
+                    detail="unexpected core page entries: 1_legacy PROJECT.py",
+                    url="https://huggingface.co/api/spaces/demo/agilab/tree/main/src/agilab/pages",
+                )
+            ],
+        )
+
+    monkeypatch.setattr(module, "run_tree_checks", _run_tree_checks)
+
+    exit_code = module.main(["--tree-only", "--json"])
+
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["success"] is False
+    assert payload["checks"][0]["label"] == "core pages tree"
