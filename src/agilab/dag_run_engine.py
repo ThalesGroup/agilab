@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from .dag_execution_adapters import (
+    GLOBAL_DAG_CONTRACT_EXECUTION_SCOPE,
     GLOBAL_DAG_REAL_EXECUTION_SCOPE,
     GLOBAL_DAG_REAL_RUN_DIRNAME,
     DagExecutionContext,
@@ -16,9 +17,14 @@ from .dag_execution_adapters import (
     run_next_adapter_stage,
 )
 from .dag_execution_registry import (
+    CONTROLLED_CONTRACT_RUNNER_STATUS,
     CONTROLLED_RUNNER_STATUS,
     DagRealRunSupport,
+    FLIGHT_CONTEXT_UNIT_ID,
+    FLIGHT_TO_METEO_ADAPTER,
+    FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH,
     GLOBAL_DAG_SAMPLE_RELATIVE_PATH,
+    METEO_FORECAST_REVIEW_UNIT_ID,
     UAV_QUEUE_ADAPTER,
     UAV_QUEUE_TEMPLATE_RELATIVE_PATH,
     resolve_real_run_support,
@@ -39,10 +45,15 @@ from .global_pipeline_runner_state import (
 
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_UAV_QUEUE_TEMPLATE_RELATIVE_PATH = UAV_QUEUE_TEMPLATE_RELATIVE_PATH
+GLOBAL_DAG_FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH = FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH
 GLOBAL_DAG_CONTROLLED_ADAPTER = UAV_QUEUE_ADAPTER
+GLOBAL_DAG_FLIGHT_TO_METEO_ADAPTER = FLIGHT_TO_METEO_ADAPTER
 GLOBAL_DAG_CONTROLLED_RUNNER_STATUS = CONTROLLED_RUNNER_STATUS
+GLOBAL_DAG_CONTROLLED_CONTRACT_RUNNER_STATUS = CONTROLLED_CONTRACT_RUNNER_STATUS
 GLOBAL_DAG_QUEUE_UNIT_ID = QUEUE_UNIT_ID
 GLOBAL_DAG_RELAY_UNIT_ID = RELAY_UNIT_ID
+GLOBAL_DAG_FLIGHT_CONTEXT_UNIT_ID = FLIGHT_CONTEXT_UNIT_ID
+GLOBAL_DAG_METEO_FORECAST_REVIEW_UNIT_ID = METEO_FORECAST_REVIEW_UNIT_ID
 run_global_dag_queue_baseline_app = run_queue_baseline_app
 run_global_dag_relay_followup_app = run_relay_followup_app
 dispatch_next_runnable = dispatch_next_runnable_state
@@ -61,6 +72,7 @@ class DagRunEngine:
     state_filename: str = GLOBAL_RUNNER_STATE_FILENAME
     run_queue_fn: Callable[..., Mapping[str, Any]] | None = None
     run_relay_fn: Callable[..., Mapping[str, Any]] | None = None
+    stage_run_fns: Mapping[str, Callable[..., Mapping[str, Any]]] | None = None
     now_fn: Callable[[], str] = lambda: _now_iso()
 
     @property
@@ -99,6 +111,7 @@ class DagRunEngine:
             lab_dir=self.lab_dir,
             run_queue_fn=self.run_queue_fn,
             run_relay_fn=self.run_relay_fn,
+            stage_run_fns=self.stage_run_fns,
             now_fn=self.now_fn,
         )
 
@@ -179,6 +192,7 @@ def run_next_controlled_stage(
     lab_dir: Path,
     run_queue_fn: Callable[..., Mapping[str, Any]] | None = None,
     run_relay_fn: Callable[..., Mapping[str, Any]] | None = None,
+    stage_run_fns: Mapping[str, Callable[..., Mapping[str, Any]]] | None = None,
     now_fn: Callable[[], str] = _now_iso,
 ) -> DagStageExecutionResult:
     support = controlled_real_run_support(state, dag_path, repo_root)
@@ -197,6 +211,7 @@ def run_next_controlled_stage(
             lab_dir=lab_dir,
             run_queue_fn=run_queue_fn or run_global_dag_queue_baseline_app,
             run_relay_fn=run_relay_fn or run_global_dag_relay_followup_app,
+            stage_run_fns=stage_run_fns,
             now_fn=now_fn,
         ),
     )

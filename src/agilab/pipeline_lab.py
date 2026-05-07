@@ -925,8 +925,16 @@ def _global_dag_next_action(state: Dict[str, Any]) -> str:
 
 def _global_dag_execution_scope(state: Dict[str, Any]) -> str:
     provenance = state.get("provenance", {})
-    real_execution = bool(provenance.get("real_app_execution")) if isinstance(provenance, dict) else False
-    return "live app execution" if real_execution else "preview dispatch, no app execution claimed"
+    if not isinstance(provenance, dict):
+        return "preview dispatch, no app execution claimed"
+    if bool(provenance.get("real_app_execution")):
+        return "live app execution"
+    if bool(provenance.get("controlled_execution")):
+        dispatch_mode = str(provenance.get("dispatch_mode", ""))
+        if dispatch_mode == "controlled_contract_stage_execution":
+            return "controlled contract execution"
+        return "controlled stage execution"
+    return "preview dispatch, no app execution claimed"
 
 
 def _global_dag_execution_status(state: Dict[str, Any], support: Any) -> str:
@@ -1423,8 +1431,12 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             )
 
         provenance = state.get("provenance", {})
-        real_run_started = bool(provenance.get("real_app_execution")) if isinstance(provenance, dict) else False
-        dispatch_disabled = real_run_supported and real_run_started
+        controlled_run_started = (
+            bool(provenance.get("controlled_execution") or provenance.get("real_app_execution"))
+            if isinstance(provenance, dict)
+            else False
+        )
+        dispatch_disabled = real_run_supported and controlled_run_started
         dispatch_clicked = action_button(
             st,
             "Dispatch next runnable",

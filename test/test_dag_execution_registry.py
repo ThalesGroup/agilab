@@ -48,10 +48,21 @@ def _template_path(repo_root: Path) -> Path:
     return repo_root / dag_execution_registry.UAV_QUEUE_TEMPLATE_RELATIVE_PATH
 
 
+def _flight_template_path(repo_root: Path) -> Path:
+    return repo_root / dag_execution_registry.FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH
+
+
 def _uav_units() -> list[dict[str, str]]:
     return [
         {"id": "queue_baseline", "app": "uav_queue_project"},
         {"id": "relay_followup", "app": "uav_relay_queue_project"},
+    ]
+
+
+def _flight_units() -> list[dict[str, str]]:
+    return [
+        {"id": "flight_context", "app": "flight_project"},
+        {"id": "meteo_forecast_review", "app": "meteo_forecast_project"},
     ]
 
 
@@ -70,6 +81,23 @@ def test_registry_supports_checked_in_uav_template():
     assert support.status == "Executable"
     assert support.adapter == "uav_queue_to_relay_controlled"
     assert "checked-in UAV queue-to-relay DAG" in support.message
+
+
+def test_registry_supports_checked_in_flight_template():
+    repo_root = Path.cwd()
+
+    adapter = dag_execution_registry.registered_adapter_for_source(_flight_template_path(repo_root), repo_root)
+    support = dag_execution_registry.resolve_real_run_support(
+        units=_flight_units(),
+        dag_path=_flight_template_path(repo_root),
+        repo_root=repo_root,
+    )
+
+    assert adapter == dag_execution_registry.FLIGHT_TO_METEO_DAG_ADAPTER
+    assert support.supported
+    assert support.status == "Executable"
+    assert support.adapter == "flight_to_meteo_controlled"
+    assert "checked-in flight-to-meteo DAG" in support.message
 
 
 def test_registry_reports_no_selected_dag():

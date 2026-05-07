@@ -70,3 +70,10 @@ def test_app_dag_templates_can_fallback_to_all_templates_when_active_app_has_non
 
     assert "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json" in paths
     assert "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json" in paths
+    flight_payload = json.loads(
+        (repo_root / "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert flight_payload["execution"]["runner_status"] == "controlled_contract_stage_execution"
+    assert flight_payload["execution"]["adapter"] == "flight_to_meteo_controlled"
