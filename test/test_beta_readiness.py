@@ -21,6 +21,19 @@ def _load_module():
 def _write_package_pyproject(root: Path, rel_path: str, classifier: str) -> None:
     path = root / rel_path
     path.parent.mkdir(parents=True, exist_ok=True)
+    module = _load_module()
+    package_module = module.TYPING_POLICY_PACKAGE_MODULES.get(rel_path)
+    typing_policy = (
+        "\n".join(
+            [
+                "[tool.mypy]",
+                "disallow_untyped_defs = true",
+                "",
+            ]
+        )
+        if package_module is not None
+        else ""
+    )
     path.write_text(
         "\n".join(
             [
@@ -28,6 +41,7 @@ def _write_package_pyproject(root: Path, rel_path: str, classifier: str) -> None
                 'name = "demo"',
                 f'classifiers = ["{classifier}"]',
                 "",
+                typing_policy,
             ]
         ),
         encoding="utf-8",
@@ -40,12 +54,39 @@ def _write_release_package_set(root: Path, classifier: str) -> None:
         _write_package_pyproject(root, rel_path, classifier)
 
 
+def _readme_maturity_text(*, production_status: str = "Experimental") -> str:
+    return "\n".join(
+        [
+            "# AGILAB",
+            "",
+            "### Maturity snapshot",
+            "",
+            "| Capability | Status |",
+            "|---|---|",
+            "| Local run | Stable |",
+            "| Distributed (Dask) | Stable |",
+            "| UI Streamlit | Beta |",
+            "| MLflow | Beta |",
+            f"| Production | {production_status} |",
+            "",
+            "AGILAB is most mature in the bridge between notebook experimentation and",
+            "reproducible AI applications: local execution, environment control, and",
+            "analysis. Distributed execution is mature in the core runtime; remote cluster",
+            "mounts, credentials, and hardware stacks remain environment-dependent.",
+            "Production-grade MLOps features are delivered through integrations and are not",
+            "yet a packaged platform claim.",
+            "",
+        ]
+    )
+
+
 def _write_required_docs(root: Path, text: str = "Beta readiness\n") -> None:
     module = _load_module()
     for rel_path in module.PUBLIC_DOC_FILES:
         path = root / rel_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
+        payload = _readme_maturity_text() if rel_path == "README.md" else text
+        path.write_text(payload, encoding="utf-8")
 
 
 def test_package_classifier_planning_mode_accepts_alpha_with_info(tmp_path: Path) -> None:
@@ -125,6 +166,76 @@ def test_public_app_tree_allows_ignored_local_private_entries(tmp_path: Path) ->
     assert check.evidence == []
     assert "not release-blocking" in check.detail
     assert "private_project" in check.detail
+
+
+def test_typing_policy_accepts_root_mypy_and_module_override(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_release_package_set(tmp_path, module.BETA_CLASSIFIER)
+    agi_core = tmp_path / "src/agilab/core/agi-core/pyproject.toml"
+    agi_core.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-core"',
+                f'classifiers = ["{module.BETA_CLASSIFIER}"]',
+                "",
+                "[[tool.mypy.overrides]]",
+                'module = "agi_core.*"',
+                "disallow_untyped_defs = true",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    check = module.check_typing_policy(tmp_path)
+
+    assert check.success is True
+
+
+def test_typing_policy_rejects_missing_public_package_policy(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_release_package_set(tmp_path, module.BETA_CLASSIFIER)
+    (tmp_path / "src/agilab/core/agi-env/pyproject.toml").write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "agi-env"',
+                f'classifiers = ["{module.BETA_CLASSIFIER}"]',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    check = module.check_typing_policy(tmp_path)
+
+    assert check.success is False
+    assert "agi-env/pyproject.toml: disallow_untyped_defs not enforced for agi_env" in check.detail
+
+
+def test_public_maturity_positioning_accepts_audited_beta_scope(tmp_path: Path) -> None:
+    module = _load_module()
+    (tmp_path / "README.md").write_text(_readme_maturity_text(), encoding="utf-8")
+
+    check = module.check_public_maturity_positioning(tmp_path)
+
+    assert check.success is True
+    assert check.evidence == []
+    assert "audited beta scope" in check.detail
+
+
+def test_public_maturity_positioning_rejects_production_overclaim(tmp_path: Path) -> None:
+    module = _load_module()
+    (tmp_path / "README.md").write_text(
+        _readme_maturity_text(production_status="Stable"),
+        encoding="utf-8",
+    )
+
+    check = module.check_public_maturity_positioning(tmp_path)
+
+    assert check.success is False
+    assert "Production: expected Experimental, found Stable" in check.detail
 
 
 def test_final_gate_requires_network_and_clean_tree(tmp_path: Path) -> None:
