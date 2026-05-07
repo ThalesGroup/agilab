@@ -15,7 +15,32 @@ import pytest
 from agi_env.snippet_contract import snippet_contract_block
 
 
+def _ensure_agilab_package_path() -> None:
+    package_root = Path("src/agilab").resolve()
+    package = sys.modules.get("agilab")
+    package_spec = importlib.util.spec_from_file_location(
+        "agilab",
+        package_root / "__init__.py",
+        submodule_search_locations=[str(package_root)],
+    )
+    if package is None:
+        assert package_spec is not None and package_spec.loader is not None
+        package = importlib.util.module_from_spec(package_spec)
+        sys.modules["agilab"] = package
+        package_spec.loader.exec_module(package)
+        return
+
+    package_paths = list(getattr(package, "__path__", []) or [])
+    package_root_text = str(package_root)
+    if package_root_text not in package_paths:
+        package.__path__ = [package_root_text, *package_paths]
+    package.__spec__ = package_spec
+    package.__file__ = str(package_root / "__init__.py")
+    package.__package__ = "agilab"
+
+
 def _load_module(module_name: str, relative_path: str):
+    _ensure_agilab_package_path()
     module_path = Path(relative_path)
     importlib.invalidate_caches()
     spec = importlib.util.spec_from_file_location(module_name, module_path)
@@ -725,8 +750,69 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     assert state["source"]["dag_path"] == "docs/source/data/multi_app_dag_flight_sample.json"
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
     assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
-    assert ("metric", "Planned=2") in fake_st.messages
+    assert ("expander", "True") in fake_st.messages
+    assert ("metric", "Stages=2") in fake_st.messages
+    assert ("metric", "Dependencies=1") in fake_st.messages
+    assert (
+        "caption",
+        "Next action: Dispatch `flight_context`.",
+    ) in fake_st.messages
     assert ("dataframe", "2") in fake_st.messages
+
+
+def test_global_runner_readiness_summary_prioritizes_running_and_scope():
+    summary = pipeline_lab._global_dag_readiness_summary(
+        {
+            "summary": {
+                "unit_count": 3,
+                "runnable_unit_ids": ["beta"],
+                "blocked_unit_ids": ["gamma"],
+                "running_unit_ids": ["alpha"],
+                "completed_unit_ids": [],
+                "failed_unit_ids": [],
+            },
+            "provenance": {"real_app_execution": True},
+            "units": [
+                {
+                    "id": "gamma",
+                    "dispatch_status": "blocked",
+                    "artifact_dependencies": [{"artifact": "alpha_metrics"}],
+                    "operator_ui": {"blocked_by_artifacts": ["alpha_metrics"]},
+                }
+            ],
+        }
+    )
+
+    assert summary["stage_count"] == 3
+    assert summary["dependency_count"] == 1
+    assert summary["next_action"] == "Monitor running stage `alpha`."
+    assert summary["execution_scope"] == "live app execution"
+
+
+def test_global_runner_readiness_summary_describes_blocked_artifact():
+    summary = pipeline_lab._global_dag_readiness_summary(
+        {
+            "summary": {
+                "unit_count": 1,
+                "runnable_unit_ids": [],
+                "blocked_unit_ids": ["consumer"],
+                "running_unit_ids": [],
+                "completed_unit_ids": [],
+                "failed_unit_ids": [],
+            },
+            "units": [
+                {
+                    "id": "consumer",
+                    "dispatch_status": "blocked",
+                    "artifact_dependencies": [{"artifact": "producer_metrics"}],
+                    "operator_ui": {"blocked_by_artifacts": ["producer_metrics"]},
+                }
+            ],
+        }
+    )
+
+    assert summary["next_action"] == "Wait for `consumer` until `producer_metrics` is available."
+    assert summary["execution_scope"] == "preview dispatch, no app execution claimed"
 
 
 def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch, tmp_path):
@@ -905,7 +991,7 @@ def test_global_runner_error_diagnostic_renders_as_code(monkeypatch, tmp_path):
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("error", "Global DAG runner preview is unavailable.") in fake_st.messages
+    assert ("error", "Multi-app DAG orchestration preview is unavailable.") in fake_st.messages
     assert ("caption", "Full diagnostic") in fake_st.messages
     assert ("code", "bad dag\nline 2") in fake_st.messages
 
