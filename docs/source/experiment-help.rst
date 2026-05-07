@@ -76,13 +76,23 @@ must be refreshed deliberately.
 For example, if an app renames a runtime argument, older saved snippets that
 still pass the removed name must be regenerated or replaced before they can run.
 
-Multi-app DAG orchestration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-The **Multi-app DAG orchestration** expander is the transition path from a
-single-project pipeline to a cross-app artifact graph.
+Pipeline graph scopes
+~~~~~~~~~~~~~~~~~~~~~
+The **Pipeline graph** expander is the transition path from a single-project
+pipeline to cross-app artifact orchestration. Use the ``Pipeline scope``
+selector to choose what the graph represents:
+
+* ``Project pipeline`` renders the current ``lab_steps.toml`` as a read-only
+  compatibility graph. It explains stage order and dependencies, while the
+  existing step controls remain the source of truth for real single-project
+  execution.
+* ``Multi-app DAG`` loads or edits a cross-app artifact contract. This is the
+  path for connecting app stages through explicit produced and consumed
+  artifacts.
 
 Use the ``DAG source`` selector to make the source explicit:
 
+* ``App templates`` loads checked-in DAG contracts bundled with the active app.
 * ``Sample library`` loads checked-in public examples from
   ``docs/source/data/multi_app_dag*.json``.
 * ``Workspace drafts`` loads DAGs saved from the current project workspace under
