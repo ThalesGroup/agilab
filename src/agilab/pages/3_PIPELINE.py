@@ -803,8 +803,6 @@ def sidebar_controls() -> None:
     if requested_lab and st.session_state.get("lab_dir_selectbox") == requested_lab:
         st.session_state.pop("_requested_lab_dir", None)
 
-    configure_assistant_engine(env)
-
     try:
         diagnostics_settings_file = env.resolve_user_app_settings_file(selected_lab)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
@@ -1360,6 +1358,7 @@ def page() -> None:
         rerun_fragment_or_app=_rerun_fragment_or_app,
         bump_history_revision=_bump_history_revision,
         ask_gpt=ask_gpt,
+        configure_assistant_engine=configure_assistant_engine,
         maybe_autofix_generated_code=_maybe_autofix_generated_code,
         load_df_cached=load_df_cached,
         ensure_safe_service_template=_ensure_safe_service_template,

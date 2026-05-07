@@ -821,13 +821,14 @@ def _maybe_autofix_generated_code(
     return current_code, current_model, current_detail
 
 
-def configure_assistant_engine(env: AgiEnv) -> str:
+def configure_assistant_engine(env: AgiEnv, *, container: Any | None = None) -> str:
     """Render assistant-provider controls and persist provider-specific settings."""
+    controls_container = container or st.sidebar
     return _configure_assistant_engine_impl(
         env,
         deps=PipelineAiControlDeps(
             session_state=st.session_state,
-            sidebar=st.sidebar,
+            sidebar=controls_container,
             activate_gpt_oss_fn=activate_gpt_oss,
             get_default_openai_model_fn=get_default_openai_model,
         ),

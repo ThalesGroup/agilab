@@ -1384,6 +1384,8 @@ _INCOMPLETE_HEADER_VALUE_TOKENS = (
     "incomplete",
     "missing",
     "no artifact",
+    "no default",
+    "no output",
     "not configured",
     "not selected",
     "not set",
@@ -1422,21 +1424,26 @@ def _render_analysis_workspace_overview(
 ) -> None:
     artifact_summary = _scan_analysis_artifacts(_active_analysis_data_root(env))
     artifact_count = int(artifact_summary["count"])
-    selected_count = len(getattr(selection_state, "selected_views", ()) or ())
     default_views = tuple(getattr(selection_state, "default_view_names", ()) or ())
     default_count = len(default_views)
-    default_label = ", ".join(default_views) if default_views else "Not configured"
+    latest_label = _format_analysis_latest(artifact_summary["latest"])
+    latest_value = latest_label if artifact_count else "No output"
+    latest_caption = "latest file timestamp" if artifact_count else "run a project first"
+    default_caption = (
+        "default / available"
+        if default_count
+        else "no default view selected" if available_view_count else "not configured"
+    )
 
     with st.container(border=True):
         cols = st.columns(3)
         with cols[0]:
             suffix = "+" if artifact_summary["truncated"] else ""
-            latest_label = _format_analysis_latest(artifact_summary["latest"])
             _render_analysis_metric("Output files", f"{artifact_count}{suffix}", latest_label)
         with cols[1]:
-            _render_analysis_metric("Views", f"{selected_count}/{available_view_count}", "selected / available")
+            _render_analysis_metric("Latest output", latest_value, latest_caption)
         with cols[2]:
-            _render_analysis_metric("Default view", str(default_count), default_label)
+            _render_analysis_metric("Default views", f"{default_count}/{available_view_count}", default_caption)
 
         if not artifact_summary["exists"]:
             st.info("Run ORCHESTRATE or PIPELINE to create analysis outputs.")
