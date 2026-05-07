@@ -177,6 +177,7 @@ _multi_app_dag_draft_module = import_agilab_module(
 )
 build_dag_payload_from_editor = _multi_app_dag_draft_module.build_dag_payload_from_editor
 clean_dag_cell = _multi_app_dag_draft_module.clean_dag_cell
+CONTROLLED_CONTRACT_EXECUTION = _multi_app_dag_draft_module.CONTROLLED_CONTRACT_EXECUTION
 dag_editor_rows = _multi_app_dag_draft_module.dag_editor_rows
 format_validation_error_for_user = _multi_app_dag_draft_module.format_validation_error_for_user
 
@@ -369,6 +370,52 @@ def _global_dag_validation_error(editor_text: str, repo_root: Path) -> str:
         return error
 
     return format_validation_error_for_user(payload, repo_root=repo_root)
+
+
+def _global_dag_has_controlled_contract_marker(payload: dict[str, Any]) -> bool:
+    execution = payload.get("execution")
+    if not isinstance(execution, dict):
+        return False
+    return all(
+        str(execution.get(key, "")).strip() == str(value)
+        for key, value in CONTROLLED_CONTRACT_EXECUTION.items()
+    )
+
+
+def _save_global_dag_app_template(
+    repo_root: Path,
+    *,
+    active_app_name: str,
+    editor_text: str,
+) -> tuple[Path | None, str]:
+    payload, parse_error = _global_dag_payload_from_text(editor_text)
+    if parse_error or payload is None:
+        return None, parse_error
+    validation_error = format_validation_error_for_user(payload, repo_root=repo_root)
+    if validation_error:
+        return None, validation_error
+    if not _global_dag_has_controlled_contract_marker(payload):
+        return None, "Enable executable app template before saving an app-owned controlled DAG."
+
+    active_app = Path(active_app_name).name.strip()
+    available_apps = builtin_app_names(repo_root)
+    if active_app not in available_apps:
+        return None, f"Active project `{active_app or 'unknown'}` is not a checked-in built-in app."
+    node_apps = {
+        _clean_global_dag_cell(node.get("app"))
+        for node in payload.get("nodes", [])
+        if isinstance(node, dict)
+    }
+    if active_app not in node_apps:
+        return None, f"App-owned DAG templates for `{active_app}` must include a `{active_app}` stage."
+
+    template_dir = (
+        repo_root / "src" / "agilab" / "apps" / "builtin" / active_app / "dag_templates"
+    )
+    template_dir.mkdir(parents=True, exist_ok=True)
+    template_path = template_dir / f"{_portable_global_dag_stem(payload, 'global-dag-template')}.json"
+    template_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return template_path, ""
 
 
 def _portable_global_dag_stem(payload: dict[str, Any], fallback: str) -> str:
@@ -707,6 +754,7 @@ def _global_dag_payload_from_visual_editor(
     produces_value: Any,
     consumes_value: Any,
     edges_value: Any,
+    controlled_contract_execution: bool = False,
 ) -> dict[str, Any]:
     return build_dag_payload_from_editor(
         base_payload,
@@ -717,6 +765,7 @@ def _global_dag_payload_from_visual_editor(
         produced_artifact_rows=_editor_rows(produces_value, GLOBAL_DAG_ARTIFACT_COLUMNS),
         consumed_artifact_rows=_editor_rows(consumes_value, GLOBAL_DAG_ARTIFACT_COLUMNS),
         handoff_rows=_editor_rows(edges_value, GLOBAL_DAG_EDGE_COLUMNS),
+        controlled_contract_execution=controlled_contract_execution,
     )
 
 
@@ -1173,6 +1222,23 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             height=80,
             help="One sentence explaining why these apps are connected.",
         )
+        controlled_contract_key = f"{index_page_str}_global_runner_controlled_contract_{token}"
+        st.session_state.setdefault(
+            controlled_contract_key,
+            _global_dag_has_controlled_contract_marker(base_payload),
+        )
+        controlled_contract_enabled = st.checkbox(
+            "Executable app template",
+            key=controlled_contract_key,
+            help=(
+                "Add the controlled contract adapter marker. Only checked-in app-owned DAG templates "
+                "saved under src/agilab/apps/builtin/<app>/dag_templates can execute from this view."
+            ),
+        )
+        if controlled_contract_enabled:
+            st.caption("This draft will be saved with the controlled contract DAG execution marker.")
+        else:
+            st.caption("Workspace drafts stay preview-only. Enable this to save a checked-in executable template.")
 
         tables = _global_dag_editor_tables(base_payload)
         stage_options = _global_dag_stage_options(repo_root, base_payload)
@@ -1280,6 +1346,7 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             produces_value=produces_value,
             consumes_value=consumes_value,
             edges_value=edges_value,
+            controlled_contract_execution=controlled_contract_enabled,
         )
         editor_text = json.dumps(visual_payload, indent=2) + "\n"
 
@@ -1313,6 +1380,18 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             kind="save",
             help="Save the DAG contract to this project workspace and rebuild the preview state from it.",
         )
+        save_app_template_clicked = False
+        if controlled_contract_enabled:
+            save_app_template_clicked = action_button(
+                st,
+                "Save as app template",
+                key=f"{index_page_str}_global_runner_save_app_template",
+                kind="save",
+                help=(
+                    "Save a validated controlled-contract DAG under the active app's checked-in "
+                    "dag_templates directory so it can execute from this view."
+                ),
+            )
         reset_clicked = action_button(
             st,
             "Reset preview state",
@@ -1340,6 +1419,22 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
                 dag_path = draft_path
                 reset_clicked = True
                 st.success(f"Saved DAG draft to `{draft_path}` and selected it for this preview.")
+
+        if save_app_template_clicked:
+            template_path, validation_error = _save_global_dag_app_template(
+                repo_root,
+                active_app_name=_active_app_name(env),
+                editor_text=editor_text,
+            )
+            if validation_error:
+                st.error("App-owned DAG template was not saved.")
+                st.caption("Validation details")
+                st.code(validation_error, language="text")
+            else:
+                assert template_path is not None
+                dag_path = template_path
+                reset_clicked = True
+                st.success(f"Saved executable app DAG template to `{template_path}`.")
 
         try:
             state, state_path, dag_path = _load_or_create_global_runner_state(

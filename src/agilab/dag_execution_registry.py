@@ -81,6 +81,7 @@ FLIGHT_TO_METEO_DAG_ADAPTER = DagExecutionAdapter(
 
 REGISTERED_DAG_EXECUTION_ADAPTERS = (UAV_QUEUE_TO_RELAY_ADAPTER, FLIGHT_TO_METEO_DAG_ADAPTER)
 LEGACY_EXECUTABLE_DAG_PATHS = (GLOBAL_DAG_SAMPLE_RELATIVE_PATH,)
+APP_OWNED_DAG_TEMPLATE_PREFIX = Path("src/agilab/apps/builtin")
 
 
 def repo_relative_text(path: Path, repo_root: Path) -> str:
@@ -131,7 +132,7 @@ def resolve_real_run_support(
 
 def registered_adapter_for_source(dag_path: Path, repo_root: Path) -> DagExecutionAdapter | None:
     relative = repo_relative_text(dag_path, repo_root)
-    return _registered_adapter_for_relative_path(relative)
+    return _adapter_for_relative_path(relative)
 
 
 def adapter_marker_status(dag_path: Path, adapter: DagExecutionAdapter) -> DagRealRunSupport | None:
@@ -160,7 +161,7 @@ def _resolve_source_adapter(
     if legacy_adapter is not None:
         return legacy_adapter
 
-    adapter = _registered_adapter_for_relative_path(relative)
+    adapter = _adapter_for_relative_path(relative)
     if adapter is None:
         return DagRealRunSupport(
             supported=False,
@@ -188,6 +189,37 @@ def _registered_adapter_for_relative_path(relative: str) -> DagExecutionAdapter 
         if relative == adapter.template_path.as_posix():
             return adapter
     return None
+
+
+def _adapter_for_relative_path(relative: str) -> DagExecutionAdapter | None:
+    adapter = _registered_adapter_for_relative_path(relative)
+    if adapter is not None:
+        return adapter
+    if _is_app_owned_dag_template_path(relative):
+        return DagExecutionAdapter(
+            adapter_id=CONTROLLED_CONTRACT_ADAPTER,
+            template_path=Path(relative),
+            runner_status=CONTROLLED_CONTRACT_RUNNER_STATUS,
+            stage_requirements=(),
+            executable_message=(
+                "Controlled contract DAG execution is enabled for this checked-in app-owned DAG."
+            ),
+            missing_stage_message="This DAG does not contain any executable stages.",
+            wrong_app_message="This DAG contains a controlled stage that is not mapped to a checked-in built-in app.",
+        )
+    return None
+
+
+def _is_app_owned_dag_template_path(relative: str) -> bool:
+    path = Path(relative)
+    parts = path.parts
+    prefix_parts = APP_OWNED_DAG_TEMPLATE_PREFIX.parts
+    return (
+        len(parts) >= len(prefix_parts) + 3
+        and parts[: len(prefix_parts)] == prefix_parts
+        and parts[len(prefix_parts) + 1] == "dag_templates"
+        and path.suffix == ".json"
+    )
 
 
 def _stage_requirement_mismatches(

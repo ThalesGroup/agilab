@@ -1216,6 +1216,120 @@ def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, 
     assert "Edit DAG JSON draft" not in fake_st.text_area_labels
 
 
+def _seed_minimal_builtin_app(repo_root: Path, app_name: str) -> None:
+    app_dir = repo_root / "src" / "agilab" / "apps" / "builtin" / app_name
+    app_dir.mkdir(parents=True)
+    (app_dir / "pyproject.toml").write_text("[project]\nname = \"demo\"\nversion = \"0.0.0\"\n", encoding="utf-8")
+    (app_dir / "pipeline_view.dot").write_text(
+        'digraph pipeline { start [label="Start"]; done [label="Done"]; start -> done; }\n',
+        encoding="utf-8",
+    )
+
+
+def _write_alpha_beta_dag(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema": pipeline_lab.MULTI_APP_DAG_SCHEMA,
+                "dag_id": "alpha-beta",
+                "label": "Alpha beta",
+                "description": "Pass alpha metrics to beta.",
+                "execution": {"mode": "sequential_dependency_order", "runner_status": "contract_only"},
+                "nodes": [
+                    {
+                        "id": "alpha",
+                        "app": "alpha_project",
+                        "purpose": "Run alpha.",
+                        "produces": [
+                            {"id": "alpha_metrics", "kind": "summary_metrics", "path": "alpha/metrics.json"}
+                        ],
+                    },
+                    {
+                        "id": "beta",
+                        "app": "beta_project",
+                        "purpose": "Run beta.",
+                        "consumes": [
+                            {"id": "alpha_metrics", "kind": "summary_metrics", "path": "alpha/metrics.json"}
+                        ],
+                    },
+                ],
+                "edges": [
+                    {
+                        "from": "alpha",
+                        "to": "beta",
+                        "artifact": "alpha_metrics",
+                        "handoff": "Use alpha metrics.",
+                    }
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_save_global_dag_app_template_requires_controlled_marker(tmp_path):
+    repo_root = tmp_path / "repo"
+    _seed_minimal_builtin_app(repo_root, "alpha_project")
+    _seed_minimal_builtin_app(repo_root, "beta_project")
+    dag_path = tmp_path / "alpha_beta.json"
+    _write_alpha_beta_dag(dag_path)
+
+    template_path, error = pipeline_lab._save_global_dag_app_template(
+        repo_root,
+        active_app_name="alpha_project",
+        editor_text=dag_path.read_text(encoding="utf-8"),
+    )
+
+    assert template_path is None
+    assert "Enable executable app template" in error
+
+
+def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path):
+    repo_root = tmp_path / "repo"
+    _seed_minimal_builtin_app(repo_root, "alpha_project")
+    _seed_minimal_builtin_app(repo_root, "beta_project")
+    dag_path = tmp_path / "alpha_beta.json"
+    _write_alpha_beta_dag(dag_path)
+    selected = str(dag_path)
+    token = pipeline_lab._global_dag_source_token(selected)
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM,
+            "demo_global_runner_dag_path": selected,
+            f"demo_global_runner_dag_id_{token}": "alpha-beta-executable",
+            f"demo_global_runner_label_{token}": "Alpha beta executable",
+        },
+        buttons={"demo_global_runner_save_app_template": True},
+        checkboxes={f"demo_global_runner_controlled_contract_{token}": True},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "_repo_root_for_global_dag", lambda: repo_root)
+    env = SimpleNamespace(app="alpha_project", target="alpha_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path / "lab", "demo")
+
+    template_path = (
+        repo_root
+        / "src"
+        / "agilab"
+        / "apps"
+        / "builtin"
+        / "alpha_project"
+        / "dag_templates"
+        / "alpha-beta-executable.json"
+    )
+    assert template_path.is_file()
+    payload = json.loads(template_path.read_text(encoding="utf-8"))
+    assert payload["execution"] == pipeline_lab.CONTROLLED_CONTRACT_EXECUTION
+    state = pipeline_lab.load_runner_state(tmp_path / "lab" / ".agilab" / "runner_state.json")
+    assert state["source"]["dag_path"] == (
+        "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json"
+    )
+    assert any(kind == "success" and "Saved executable app DAG template" in message for kind, message in fake_st.messages)
+
+
 def test_global_runner_artifact_handoffs_mark_available_and_missing():
     rows = pipeline_lab._artifact_handoffs_for_display(
         {

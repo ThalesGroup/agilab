@@ -5,11 +5,17 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from .multi_app_dag import SCHEMA, MultiAppDagValidation, validate_multi_app_dag
+from .dag_execution_registry import CONTROLLED_CONTRACT_ADAPTER, CONTROLLED_CONTRACT_RUNNER_STATUS
 
 
 DEFAULT_EXECUTION = {
     "mode": "sequential_dependency_order",
     "runner_status": "contract_only",
+}
+CONTROLLED_CONTRACT_EXECUTION = {
+    "mode": "sequential_dependency_order",
+    "runner_status": CONTROLLED_CONTRACT_RUNNER_STATUS,
+    "adapter": CONTROLLED_CONTRACT_ADAPTER,
 }
 
 
@@ -142,8 +148,9 @@ def dag_draft_spec_from_rows(
     produced_artifact_rows: Sequence[Mapping[str, Any]],
     consumed_artifact_rows: Sequence[Mapping[str, Any]],
     handoff_rows: Sequence[Mapping[str, Any]],
+    controlled_contract_execution: bool = False,
 ) -> DagDraftSpec:
-    execution = base_payload.get("execution") if isinstance(base_payload.get("execution"), Mapping) else DEFAULT_EXECUTION
+    execution = _execution_payload(base_payload, controlled_contract_execution=controlled_contract_execution)
     return DagDraftSpec(
         dag_id=dag_id,
         label=label,
@@ -183,6 +190,7 @@ def build_dag_payload_from_editor(
     produced_artifact_rows: Sequence[Mapping[str, Any]],
     consumed_artifact_rows: Sequence[Mapping[str, Any]],
     handoff_rows: Sequence[Mapping[str, Any]],
+    controlled_contract_execution: bool = False,
 ) -> dict[str, Any]:
     spec = dag_draft_spec_from_rows(
         base_payload=base_payload,
@@ -193,6 +201,7 @@ def build_dag_payload_from_editor(
         produced_artifact_rows=produced_artifact_rows,
         consumed_artifact_rows=consumed_artifact_rows,
         handoff_rows=handoff_rows,
+        controlled_contract_execution=controlled_contract_execution,
     )
     return spec.as_payload(base_payload=base_payload)
 
@@ -222,6 +231,17 @@ def _artifact_tuple(rows: Sequence[Mapping[str, Any]]) -> tuple[DagArtifact, ...
         for row in rows
         if clean_dag_cell(row.get("node")) or clean_dag_cell(row.get("id")) or clean_dag_cell(row.get("path"))
     )
+
+
+def _execution_payload(
+    base_payload: Mapping[str, Any],
+    *,
+    controlled_contract_execution: bool,
+) -> Mapping[str, Any]:
+    if controlled_contract_execution:
+        return dict(CONTROLLED_CONTRACT_EXECUTION)
+    execution = base_payload.get("execution")
+    return execution if isinstance(execution, Mapping) else DEFAULT_EXECUTION
 
 
 def _artifacts_by_node(artifacts: Sequence[DagArtifact]) -> dict[str, list[DagArtifact]]:
@@ -256,6 +276,7 @@ def _user_guidance_for_issue(location: str, message: str) -> str:
 
 
 __all__ = [
+    "CONTROLLED_CONTRACT_EXECUTION",
     "DagArtifact",
     "DagDraftSpec",
     "DagHandoff",
