@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import pickle
 import threading
 import time
 from pathlib import Path
@@ -13,6 +12,15 @@ import pytest
 from agi_node.agi_dispatcher import BaseWorker
 from agi_node.agi_dispatcher import base_worker as base_worker_mod
 from agi_node.agi_dispatcher import base_worker_service_support as service_support
+
+SERVICE_TASK_SCHEMA = "agi.service.task.v1"
+
+
+def _write_task(path: Path, payload: dict[str, object]) -> None:
+    path.write_text(
+        json.dumps({"schema": SERVICE_TASK_SCHEMA, **payload}, sort_keys=True),
+        encoding="utf-8",
+    )
 
 
 class DummyWorker(BaseWorker):
@@ -122,9 +130,8 @@ def test_service_loop_consumes_queued_tasks(tmp_path):
             "worker_idx": 0,
         },
     }
-    task_file = pending / "000001-batch-1-000-worker.task.pkl"
-    with open(task_file, "wb") as stream:
-        pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
+    task_file = pending / "000001-batch-1-000-worker.task.json"
+    _write_task(task_file, payload)
 
     result: dict[str, object] = {}
 
@@ -161,8 +168,8 @@ def test_service_loop_moves_unreadable_task_to_failed(tmp_path):
     pending = queue_root / "pending"
     pending.mkdir(parents=True, exist_ok=True)
 
-    task_file = pending / "000002-bad.task.pkl"
-    task_file.write_bytes(b"not-a-pickle")
+    task_file = pending / "000002-bad.task.json"
+    task_file.write_text("not-json", encoding="utf-8")
 
     result: dict[str, object] = {}
 
@@ -186,6 +193,42 @@ def test_service_loop_moves_unreadable_task_to_failed(tmp_path):
     payload_out = result.get("payload")
     assert isinstance(payload_out, dict)
     assert payload_out.get("failed") == 0
+
+
+def test_service_loop_rejects_legacy_pickle_task_without_loading(tmp_path):
+    worker = DummyWorker()
+    BaseWorker._worker_id = 0
+    BaseWorker._worker = "127.0.0.1:8787"
+    worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
+    calls: list[object] = []
+    worker.works = lambda *args, **_kwargs: calls.append(args)
+
+    queue_root = Path(worker.args._agi_service_queue_dir)
+    pending = queue_root / "pending"
+    pending.mkdir(parents=True, exist_ok=True)
+
+    legacy_task = pending / "000002-legacy.task.pkl"
+    legacy_task.write_bytes(b"\x80\x04legacy-pickle-payload")
+
+    result: dict[str, object] = {}
+
+    def _run_loop():
+        result["payload"] = BaseWorker.loop(poll_interval=0.05)
+
+    thread = threading.Thread(target=_run_loop, daemon=True)
+    thread.start()
+
+    deadline = time.time() + 2.0
+    failed_file = queue_root / "failed" / legacy_task.name
+    while time.time() < deadline and not failed_file.exists():
+        time.sleep(0.05)
+
+    assert failed_file.exists(), "Legacy pickle task was not quarantined"
+    assert calls == []
+
+    assert BaseWorker.break_loop() is True
+    thread.join(timeout=2)
+    assert not thread.is_alive(), "Service loop did not stop after break_loop"
 
 
 def test_service_loop_records_worker_failures(tmp_path):
@@ -220,9 +263,8 @@ def test_service_loop_records_worker_failures(tmp_path):
             "worker_idx": 0,
         },
     }
-    task_file = pending / "000003-batch-fail-000-worker.task.pkl"
-    with open(task_file, "wb") as stream:
-        pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
+    task_file = pending / "000003-batch-fail-000-worker.task.json"
+    _write_task(task_file, payload)
 
     result: dict[str, object] = {}
 
@@ -239,8 +281,7 @@ def test_service_loop_records_worker_failures(tmp_path):
 
     assert failed_file.exists(), "Failed task was not moved to failed"
 
-    with open(failed_file, "rb") as stream:
-        failed_payload = pickle.load(stream)
+    failed_payload = json.loads(failed_file.read_text(encoding="utf-8"))
     assert failed_payload["status"] == "failed"
     assert failed_payload["error"] == "boom"
     assert "RuntimeError: boom" in failed_payload["traceback"]
@@ -264,13 +305,11 @@ def test_service_loop_skips_tasks_for_other_workers(tmp_path):
     pending = queue_root / "pending"
     pending.mkdir(parents=True, exist_ok=True)
 
-    mismatched_idx = pending / "000004-idx.task.pkl"
-    with open(mismatched_idx, "wb") as stream:
-        pickle.dump({"worker_idx": 99, "plan": [], "metadata": []}, stream, protocol=pickle.HIGHEST_PROTOCOL)
+    mismatched_idx = pending / "000004-idx.task.json"
+    _write_task(mismatched_idx, {"worker_idx": 99, "plan": [], "metadata": []})
 
-    mismatched_worker = pending / "000005-worker.task.pkl"
-    with open(mismatched_worker, "wb") as stream:
-        pickle.dump({"worker": "tcp://other:8787", "plan": [], "metadata": []}, stream, protocol=pickle.HIGHEST_PROTOCOL)
+    mismatched_worker = pending / "000005-worker.task.json"
+    _write_task(mismatched_worker, {"worker": "tcp://other:8787", "plan": [], "metadata": []})
 
     result: dict[str, object] = {}
 
@@ -325,9 +364,8 @@ def test_service_loop_skips_claim_races(tmp_path, monkeypatch):
     pending = queue_root / "pending"
     pending.mkdir(parents=True, exist_ok=True)
 
-    task_file = pending / "000006-claim-race.task.pkl"
-    with open(task_file, "wb") as stream:
-        pickle.dump({"worker_idx": 0, "plan": [], "metadata": []}, stream, protocol=pickle.HIGHEST_PROTOCOL)
+    task_file = pending / "000006-claim-race.task.json"
+    _write_task(task_file, {"worker_idx": 0, "plan": [], "metadata": []})
 
     original_replace = Path.replace
 
@@ -368,14 +406,13 @@ def test_service_loop_handles_disappearing_task_files(tmp_path, monkeypatch):
     pending = queue_root / "pending"
     pending.mkdir(parents=True, exist_ok=True)
 
-    task_file = pending / "000007-disappearing.task.pkl"
-    with open(task_file, "wb") as stream:
-        pickle.dump({"worker_idx": 0, "plan": [], "metadata": []}, stream, protocol=pickle.HIGHEST_PROTOCOL)
+    task_file = pending / "000007-disappearing.task.json"
+    _write_task(task_file, {"worker_idx": 0, "plan": [], "metadata": []})
 
     original_open = open
 
     def _patched_open(path, *args, **kwargs):
-        if Path(path) == task_file and "rb" in kwargs.get("mode", args[0] if args else ""):
+        if Path(path) == task_file and "r" in kwargs.get("mode", args[0] if args else ""):
             raise FileNotFoundError("gone")
         return original_open(path, *args, **kwargs)
 

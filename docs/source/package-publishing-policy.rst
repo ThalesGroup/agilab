@@ -68,6 +68,19 @@ directly into a single wheel, that migration must update dependency metadata,
 installer tests, notebook examples, and the release preflight before the
 standalone runtime packages can be retired from the public publish flow.
 
+Publishing authentication
+-------------------------
+
+Real PyPI publication must use GitHub OIDC Trusted Publishing. Long-lived PyPI
+API tokens are not part of the normal release path. If a package or repository
+is not configured as a PyPI trusted publisher, the publish workflow should stop
+with an explicit configuration error instead of falling back to a stored token.
+
+Release evidence should continue to record the bounded nature of the public
+proof: package smoke tests, docs, and hosted demos are useful evidence, but they
+do not certify private clusters, sensitive-data deployments, or production
+operations.
+
 Release cadence and post releases
 ---------------------------------
 

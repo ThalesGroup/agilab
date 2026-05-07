@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import datetime
+import json
 import logging
 import os
-import pickle
 import time
 import uuid
 from pathlib import Path
@@ -15,6 +16,9 @@ from agi_env import AgiEnv
 from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher
 
 logger = logging.getLogger(__name__)
+
+SERVICE_TASK_SCHEMA = "agi.service.task.v1"
+SERVICE_TASK_SUFFIX = ".task.json"
 
 _SERVICE_RECOVERABLE_EXCEPTIONS = (
     ConnectionError,
@@ -43,6 +47,16 @@ def wrap_worker_chunk(payload: Any, worker_index: int) -> Any:
         "total_workers": len(payload),
         "worker_idx": worker_index,
     }
+
+
+def _service_task_json_default(obj: Any) -> Any:
+    if isinstance(obj, (datetime.date, datetime.datetime)):
+        return obj.isoformat()
+    if isinstance(obj, Path):
+        return str(obj)
+    if callable(obj):
+        return getattr(obj, "__name__", str(obj))
+    raise TypeError(f"Type {type(obj)} is not JSON serializable for service task payload")
 
 
 def _prepare_service_worker_args(agi_cls: Any, env: AgiEnv) -> Dict[str, Any]:
@@ -776,24 +790,27 @@ async def submit(
     for worker_idx, worker_addr in enumerate(service_workers):
         safe_worker = agi_cls._service_safe_worker_name(worker_addr)
 
-        filename = f"{submit_seq:06d}-{batch_id}-{worker_idx:03d}-{safe_worker}.task.pkl"
+        filename = f"{submit_seq:06d}-{batch_id}-{worker_idx:03d}-{safe_worker}{SERVICE_TASK_SUFFIX}"
         task_path = pending_dir / filename
         tmp_path = task_path.with_suffix(task_path.suffix + ".tmp")
 
         payload = {
-            "schema": "agi.service.task.v1",
+            "schema": SERVICE_TASK_SCHEMA,
             "task_id": batch_id,
             "task_name": batch_name,
             "created_at": time.time(),
             "worker_idx": worker_idx,
             "worker": str(worker_addr),
-            "plan": agi_cls._wrap_worker_chunk(work_plan or [], worker_idx),
+            "plan": agi_cls._wrap_worker_chunk(
+                WorkDispatcher._convert_functions_to_names(work_plan or []),
+                worker_idx,
+            ),
             "metadata": agi_cls._wrap_worker_chunk(work_plan_metadata or [], worker_idx),
             "args": effective_args,
         }
 
-        with open(tmp_path, "wb") as stream:
-            pickle.dump(payload, stream, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(tmp_path, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, default=_service_task_json_default, sort_keys=True)
         os.replace(tmp_path, task_path)
         queued_files.append(str(task_path))
 

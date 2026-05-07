@@ -36,6 +36,10 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
     assert checks["security_policy_present"]["status"] == "pass"
     assert checks["locked_dependencies_present"]["status"] == "pass"
     assert checks["optional_ai_dependency_boundary"]["status"] == "pass"
+    assert checks["service_queue_json_payload_contract"]["status"] == "pass"
+    assert checks["service_queue_json_payload_contract"]["details"]["task_suffix"] == ".task.json"
+    assert checks["operator_shell_install_boundary_documented"]["status"] == "pass"
+    assert checks["pypi_trusted_publishing_only"]["status"] == "pass"
 
     output = tmp_path / "security-hygiene.json"
     assert module.main(["--output", str(output), "--compact"]) == 0

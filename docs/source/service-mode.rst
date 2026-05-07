@@ -16,6 +16,18 @@ That choice keeps service mode aligned with the normal worker contract, but it
 also means operators should think in queue semantics rather than interactive
 request/response semantics.
 
+Service queue security contract
+-------------------------------
+
+Service task files use non-executable JSON payloads with schema
+``agi.service.task.v1`` and the ``*.task.json`` suffix. Workers reject legacy
+``*.task.pkl`` files by moving them to ``failed`` without deserializing them.
+
+The queue is still trusted scheduler-owned state, not a multi-tenant input
+surface. Keep the queue directory writable only by the scheduler/operator that
+submits work, and run workers without unnecessary secrets or filesystem access
+when apps or generated code are not fully trusted.
+
 When to use it
 --------------
 

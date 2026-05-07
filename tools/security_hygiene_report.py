@@ -15,6 +15,23 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = "agilab.security_hygiene.v1"
 PIP_AUDIT_COMMAND = "pip-audit --format json --output pip-audit.json"
 SBOM_COMMAND = "cyclonedx-py environment --output-format JSON --output-file sbom-cyclonedx.json"
+SERVICE_QUEUE_FILES = (
+    "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/base_worker_service_support.py",
+    "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/service_lifecycle_support.py",
+    "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/service_state_support.py",
+)
+SCAN_EXCLUDED_PARTS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "site-packages",
+    "test",
+}
 
 
 def _check_result(
@@ -92,6 +109,98 @@ def _component_count(payload: dict[str, Any] | list[Any] | None) -> int | None:
     return None
 
 
+def _read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="ignore") if path.is_file() else ""
+
+
+def _service_queue_payload_check(repo_root: Path) -> dict[str, Any]:
+    texts = {
+        relative_path: _read_text(repo_root / relative_path)
+        for relative_path in SERVICE_QUEUE_FILES
+    }
+    combined = "\n".join(texts.values())
+    passed = (
+        "pickle.load" not in combined
+        and "pickle.dump" not in combined
+        and ".task.json" in combined
+        and "LEGACY_SERVICE_TASK_SUFFIX" in combined
+        and "rejecting legacy pickle service task" in combined
+        and "json.dump" in texts[SERVICE_QUEUE_FILES[1]]
+    )
+    return _check_result(
+        "service_queue_json_payload_contract",
+        "Service queue uses non-executable JSON payloads",
+        passed,
+        "Service tasks are JSON files; legacy pickle task files are quarantined without deserialization",
+        evidence=list(SERVICE_QUEUE_FILES),
+        details={
+            "forbidden_tokens": ["pickle.load", "pickle.dump"],
+            "task_suffix": ".task.json",
+            "legacy_suffix": ".task.pkl",
+        },
+    )
+
+
+def _shell_execution_boundary_check(repo_root: Path, security_text: str) -> dict[str, Any]:
+    shell_true_hits: list[str] = []
+    for base in ("src/agilab", "tools", "install.sh"):
+        path = repo_root / base
+        if path.is_file():
+            candidates = [path]
+        elif path.is_dir():
+            candidates = sorted(
+                candidate
+                for candidate in path.rglob("*")
+                if candidate.is_file()
+                and SCAN_EXCLUDED_PARTS.isdisjoint(candidate.relative_to(repo_root).parts)
+            )
+        else:
+            candidates = []
+        for candidate in candidates:
+            if candidate == Path(__file__).resolve():
+                continue
+            if candidate.suffix not in {".py", ".sh"} and candidate.name != "install.sh":
+                continue
+            text = _read_text(candidate)
+            if "shell=True" in text or "| sh" in text:
+                shell_true_hits.append(str(candidate.relative_to(repo_root)))
+
+    documented = (
+        "trusted-operator boundary" in security_text
+        and "shell execution" in security_text
+        and "install profiles" in security_text
+    )
+    return _check_result(
+        "operator_shell_install_boundary_documented",
+        "Shell and installer boundary is documented",
+        documented,
+        "Shell execution and powerful installer profiles are documented as trusted-operator surfaces",
+        evidence=["SECURITY.md"],
+        details={"shell_or_pipe_shell_files": sorted(set(shell_true_hits))},
+    )
+
+
+def _pypi_trusted_publishing_check(repo_root: Path) -> dict[str, Any]:
+    workflow = repo_root / ".github" / "workflows" / "pypi-publish.yaml"
+    text = _read_text(workflow)
+    passed = (
+        "id-token: write" in text
+        and "PYPI_TRUSTED_PUBLISHING" in text
+        and "PyPI publication requires Trusted Publishing/OIDC" in text
+        and "PYPI_API_TOKEN" not in text
+        and "PYPI_SECRET" not in text
+        and "PYPI_TOKEN" not in text
+        and "password:" not in text
+    )
+    return _check_result(
+        "pypi_trusted_publishing_only",
+        "PyPI publishing requires OIDC Trusted Publishing",
+        passed,
+        "The PyPI workflow refuses long-lived token publishing and requires Trusted Publishing/OIDC",
+        evidence=[".github/workflows/pypi-publish.yaml"],
+    )
+
+
 def build_report(
     *,
     repo_root: Path = REPO_ROOT,
@@ -152,6 +261,9 @@ def build_report(
                 "sbom_command": SBOM_COMMAND,
             },
         ),
+        _service_queue_payload_check(repo_root),
+        _shell_execution_boundary_check(repo_root, security_text),
+        _pypi_trusted_publishing_check(repo_root),
     ]
 
     pip_audit_provided, pip_audit_payload, pip_audit_error = _read_json_artifact(pip_audit_json)

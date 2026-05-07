@@ -63,6 +63,22 @@ organization's security requirements in mind. At minimum:
 - Treat AGILAB command execution as a trusted-operator boundary. Shared deployments should restrict
   project roots, environment variables, writable paths, and network access according to the team
   threat model.
+- Treat shell execution and install profiles as privileged operator surfaces. The installer can
+  prepare development, local-model, and cluster dependencies; use an isolated lab machine or
+  container for untrusted apps, and review dry-run/log output before enabling optional system-level
+  profiles.
+- Treat the service queue as scheduler-owned state. Workers process ``*.task.json`` payloads with
+  the ``agi.service.task.v1`` schema, and legacy ``*.task.pkl`` files are quarantined without
+  deserialization. The queue directory must be writable only by the trusted scheduler/operator.
+- Treat generated code as untrusted until reviewed. Run external or model-generated app code in a
+  constrained environment with limited filesystem, network, CPU, RAM, and secret access.
+- Treat local ``~/.agilab/.env`` secrets as developer convenience only. Prefer OS keyrings,
+  enterprise vaults, or short-lived environment variables for shared, sensitive, or production-like
+  deployments.
+- Treat public release evidence as bounded evidence, not production certification. PyPI publishing
+  should use Trusted Publishing/OIDC, SBOM and vulnerability scan artifacts should be archived when
+  available, and deployments that handle sensitive data need their own threat model and acceptance
+  profile.
 
 For end-to-end secure deployments or bespoke threat modelling, please engage your Thales security
 contact or submit a request via <https://cpl.thalesgroup.com/fr/contact-us>.

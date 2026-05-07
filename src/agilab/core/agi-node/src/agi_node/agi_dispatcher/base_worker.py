@@ -29,7 +29,6 @@ import getpass
 import inspect
 import json
 import os
-import pickle
 import shutil
 import stat
 import subprocess
@@ -531,7 +530,6 @@ class BaseWorker(abc.ABC):
                         logger_obj=logger,
                         path_cls=Path,
                         open_fn=open,
-                        pickle_module=pickle,
                         os_module=os,
                         time_module=time,
                         traceback_module=traceback,

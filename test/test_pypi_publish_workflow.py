@@ -34,7 +34,7 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
     assert "uv run --dev --project agi-cluster python -m pytest" not in text
 
 
-def test_pypi_publish_skips_existing_artifacts_and_supports_token_or_trusted_auth() -> None:
+def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "id-token: write" in text
@@ -43,9 +43,12 @@ def test_pypi_publish_skips_existing_artifacts_and_supports_token_or_trusted_aut
     assert "tools/pypi_distribution_state.py" in text
     assert "steps.library-pypi-state.outputs.all-exist != 'true'" in text
     assert "steps.agilab-pypi-state.outputs.all-exist != 'true'" in text
-    assert "secrets.PYPI_API_TOKEN || secrets.PYPI_SECRET" in text
     assert "PYPI_TRUSTED_PUBLISHING" in text
+    assert "PyPI publication requires Trusted Publishing/OIDC" in text
     assert "packages-dir: dist-library/" in text
     assert "packages-dir: dist/" in text
+    assert "PYPI_API_TOKEN" not in text
+    assert "PYPI_SECRET" not in text
+    assert "PYPI_TOKEN" not in text
     assert "TWINE_PASSWORD" not in text
     assert "twine upload" not in text

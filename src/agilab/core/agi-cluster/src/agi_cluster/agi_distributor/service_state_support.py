@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 _SERVICE_IO_EXCEPTIONS = (OSError, ValueError, TypeError, json.JSONDecodeError)
 _SERVICE_FALLBACK_EXCEPTIONS = (AttributeError, OSError, RuntimeError)
 _SERVICE_EXPORT_EXCEPTIONS = _SERVICE_IO_EXCEPTIONS + (RuntimeError,)
+SERVICE_TASK_SUFFIX = ".task.json"
+LEGACY_SERVICE_TASK_SUFFIX = ".task.pkl"
 
 
 def _fallback_service_path(env: AgiEnv, relative_path: Path) -> Path:
@@ -336,11 +338,12 @@ def init_service_queue(
     )
 
     for stale_dir in (queue_paths["pending"], queue_paths["running"]):
-        for stale_task in sorted(stale_dir.glob("*.task.pkl"), key=lambda candidate: candidate.name):
-            try:
-                stale_task.unlink()
-            except FileNotFoundError:
-                continue
+        for pattern in (f"*{SERVICE_TASK_SUFFIX}", f"*{LEGACY_SERVICE_TASK_SUFFIX}"):
+            for stale_task in sorted(stale_dir.glob(pattern), key=lambda candidate: candidate.name):
+                try:
+                    stale_task.unlink()
+                except FileNotFoundError:
+                    continue
     for heartbeat_file in sorted(queue_paths["heartbeats"].glob("*.json"), key=lambda candidate: candidate.name):
         try:
             heartbeat_file.unlink()
@@ -361,7 +364,11 @@ def service_queue_counts(agi_cls: Any) -> Dict[str, int]:
 
     for name, path in mapping.items():
         if path and path.exists():
-            counts[name] = sum(1 for _ in path.glob("*.task.pkl"))
+            counts[name] = sum(
+                1
+                for pattern in (f"*{SERVICE_TASK_SUFFIX}", f"*{LEGACY_SERVICE_TASK_SUFFIX}")
+                for _ in path.glob(pattern)
+            )
     return counts
 
 
@@ -369,7 +376,7 @@ def service_cleanup_artifacts(agi_cls: Any) -> Dict[str, int]:
     def _cleanup_dir(
         path: Optional[Path],
         *,
-        pattern: str,
+        pattern: str | tuple[str, ...],
         ttl_sec: float,
         max_files: int,
     ) -> int:
@@ -380,7 +387,15 @@ def service_cleanup_artifacts(agi_cls: Any) -> Dict[str, int]:
         kept: List[Tuple[float, Path]] = []
         removed = 0
 
-        for file_path in sorted(path.glob(pattern), key=lambda candidate: candidate.name):
+        patterns = (pattern,) if isinstance(pattern, str) else tuple(pattern)
+        for file_path in sorted(
+            (
+                candidate
+                for item_pattern in patterns
+                for candidate in path.glob(item_pattern)
+            ),
+            key=lambda candidate: candidate.name,
+        ):
             try:
                 mtime = file_path.stat().st_mtime
             except FileNotFoundError:
@@ -410,13 +425,13 @@ def service_cleanup_artifacts(agi_cls: Any) -> Dict[str, int]:
     return {
         "done": _cleanup_dir(
             agi_cls._service_queue_done,
-            pattern="*.task.pkl",
+            pattern=(f"*{SERVICE_TASK_SUFFIX}", f"*{LEGACY_SERVICE_TASK_SUFFIX}"),
             ttl_sec=max(float(agi_cls._service_cleanup_done_ttl_sec), 0.0),
             max_files=max(int(agi_cls._service_cleanup_done_max_files), 0),
         ),
         "failed": _cleanup_dir(
             agi_cls._service_queue_failed,
-            pattern="*.task.pkl",
+            pattern=(f"*{SERVICE_TASK_SUFFIX}", f"*{LEGACY_SERVICE_TASK_SUFFIX}"),
             ttl_sec=max(float(agi_cls._service_cleanup_failed_ttl_sec), 0.0),
             max_files=max(int(agi_cls._service_cleanup_failed_max_files), 0),
         ),
