@@ -774,7 +774,7 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     edit_token = pipeline_lab._global_dag_source_token(
         "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
     )
-    assert ("Edit workflow contract", f"demo_global_runner_edit_contract_{edit_token}") in fake_st.checkbox_calls
+    assert ("Edit workplan", f"demo_global_runner_edit_contract_{edit_token}") in fake_st.checkbox_calls
     assert not fake_st.multiselect_calls
 
 
@@ -909,13 +909,42 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any(call[0] == "demo_global_runner_dispatch_next" for call in fake_st.button_calls)
     assert ("Show graph", "demo_global_runner_show_graph") in fake_st.checkbox_calls
+    assert ("Show snippet code", "demo_global_runner_show_snippets") in fake_st.checkbox_calls
     assert not fake_st.graphviz_sources
-    unit_tables = [
+    assert not any(kind == "code" and "print('load')" in message for kind, message in fake_st.messages)
+    workplan_tables = [
         table
         for table in fake_st.dataframes
-        if isinstance(table, list) and table and isinstance(table[0], dict) and "unit" in table[0]
+        if isinstance(table, list) and table and isinstance(table[0], dict) and "stage" in table[0]
     ]
-    assert any(row["unit"] == "step_001" and row["executor"] == "runpy" for table in unit_tables for row in table)
+    assert any(row["stage"] == "step_001" and row["runs"] == "runpy" for table in workplan_tables for row in table)
+
+
+def test_global_runner_panel_shows_selected_project_step_snippet_code(monkeypatch, tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+    ]
+    fake_st = _FakeStreamlit(
+        checkboxes={"demo_global_runner_show_snippets": True},
+        selectboxes={"demo_global_runner_snippet_step": "step_002"},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_steps=steps,
+        steps_file=tmp_path / "lab_steps.toml",
+    )
+
+    assert ("Show snippet code", "demo_global_runner_show_snippets") in fake_st.checkbox_calls
+    assert fake_st.session_state["demo_global_runner_snippet_step"] == "step_002"
+    assert any(kind == "caption" and message == "Prompt: Train model" for kind, message in fake_st.messages)
+    assert any(kind == "code" and "print('train')" in message for kind, message in fake_st.messages)
+    assert not any(kind == "code" and "print('load')" in message for kind, message in fake_st.messages)
 
 
 def test_global_runner_panel_project_steps_dispatch_is_preview_only(monkeypatch, tmp_path):
@@ -1445,7 +1474,7 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
         for label, _options, key in fake_st.multiselect_calls
     )
     assert any(
-        label == "Stage connections" and key == f"demo_global_runner_edges_{token}"
+        label == "Artifact handoffs" and key == f"demo_global_runner_edges_{token}"
         for label, _options, key in fake_st.multiselect_calls
     )
     assert not fake_st.data_editor_calls
@@ -1653,12 +1682,17 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
     assert alpha["contract_execution"]["summary_metrics"]["stage_completed"] == 1
     assert alpha["execution_contract"] == {"entrypoint": "alpha_project.alpha"}
     assert beta["execution_contract"] == {"entrypoint": "beta_project.beta"}
-    unit_tables = [
+    workplan_tables = [
         table
         for table in fake_st.dataframes
-        if isinstance(table, list) and table and isinstance(table[0], dict) and "executor" in table[0]
+        if isinstance(table, list) and table and isinstance(table[0], dict) and "runs" in table[0]
     ]
-    assert any(row["executor"] == "alpha_project.alpha" for table in unit_tables for row in table)
+    assert any(row["stage"] == "alpha" and row["runs"] == "alpha_project.alpha" for table in workplan_tables for row in table)
+    assert any(
+        row["stage"] == "beta" and row["needs"] == "alpha_metrics from alpha"
+        for table in workplan_tables
+        for row in table
+    )
     assert any("exec: alpha_project.alpha" in source for source in fake_st.graphviz_sources)
     assert any(kind == "success" and "Executed `alpha`" in message for kind, message in fake_st.messages)
 
