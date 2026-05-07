@@ -949,12 +949,72 @@ def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp
     assert any("other DAGs stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
 
+def test_global_runner_panel_selects_workspace_draft_as_preview_only(monkeypatch, tmp_path):
+    draft_dir = tmp_path / ".agilab" / "global_dags"
+    draft_dir.mkdir(parents=True)
+    draft_path = draft_dir / "workspace-dag.json"
+    sample_text = Path("docs/source/data/multi_app_dag_sample.json").read_text(encoding="utf-8")
+    draft_path.write_text(sample_text, encoding="utf-8")
+    fake_st = _FakeStreamlit(
+        selectboxes={
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE,
+            "demo_global_runner_workspace_dag": str(draft_path),
+        }
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="uav_queue_project", target="uav_queue_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE
+    assert fake_st.session_state["demo_global_runner_workspace_dag"] == str(draft_path)
+    assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
+    assert any("other DAGs stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
+
+
+def test_global_dag_execution_history_rows_skip_planning_and_sort_latest_first():
+    rows = pipeline_lab._global_dag_execution_history_rows(
+        {
+            "events": [
+                {
+                    "timestamp": "2026-05-07T00:00:00Z",
+                    "kind": "run_planned",
+                    "unit_id": "",
+                    "from_status": "",
+                    "to_status": "planned",
+                    "detail": "created",
+                },
+                {
+                    "timestamp": "2026-05-07T00:01:00Z",
+                    "kind": "unit_dispatched",
+                    "unit_id": "queue_baseline",
+                    "from_status": "runnable",
+                    "to_status": "running",
+                    "detail": "preview",
+                },
+                {
+                    "timestamp": "2026-05-07T00:02:00Z",
+                    "kind": "unit_completed",
+                    "unit_id": "queue_baseline",
+                    "from_status": "running",
+                    "to_status": "completed",
+                    "detail": "real run",
+                },
+            ]
+        }
+    )
+
+    assert [row["Event"] for row in rows] == ["unit completed", "unit dispatched"]
+    assert rows[0]["Stage"] == "queue_baseline"
+    assert rows[0]["Status"] == "running -> completed"
+
+
 def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         {
             "demo_global_runner_dag_path": "docs/source/data/multi_app_dag_sample.json",
         },
-        checkboxes={"demo_global_runner_show_custom_path": True},
+        selectboxes={"demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_CUSTOM},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="flight_project", target="flight_project")
