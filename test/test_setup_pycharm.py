@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import logging
 from pathlib import Path
 import subprocess
 import sys
@@ -44,6 +45,43 @@ def _jdk_table_with_agilab_sdk(path: Path, project_root: Path) -> Path:
         encoding="utf-8",
     )
     return jdk_table
+
+
+def test_jdk_table_discovers_pycharm_community_sdk_table(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "home"
+    ce_options = (
+        home
+        / "Library"
+        / "Application Support"
+        / "JetBrains"
+        / "PyCharmCE2026.1"
+        / "options"
+    )
+    ce_options.mkdir(parents=True)
+    monkeypatch.setattr(setup_pycharm.Path, "home", lambda: home)
+    monkeypatch.setattr(setup_pycharm.sys, "platform", "darwin")
+
+    table = setup_pycharm.JdkTable("Python SDK")
+
+    assert table.jdk_tables == [ce_options / "jdk.table.xml"]
+
+
+def test_jdk_table_warns_when_no_pycharm_sdk_target_exists(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    monkeypatch.setattr(setup_pycharm.Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr(setup_pycharm.sys, "platform", "darwin")
+
+    with caplog.at_level(logging.WARNING):
+        table = setup_pycharm.JdkTable("Python SDK")
+
+    assert table.jdk_tables == []
+    assert "Open PyCharm or PyCharm Community Edition once" in caplog.text
 
 
 def test_jdk_table_detects_conflicting_agilab_source_root(tmp_path: Path) -> None:
