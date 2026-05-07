@@ -82,6 +82,40 @@ must be refreshed deliberately.
 For example, if an app renames a runtime argument, older saved snippets that
 still pass the removed name must be regenerated or replaced before they can run.
 
+Multi-app DAG orchestration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The **Multi-app DAG orchestration** expander is the transition path from a
+single-project pipeline to a cross-app artifact graph.
+
+Use the ``DAG source`` selector to make the source explicit:
+
+* ``Sample library`` loads checked-in public examples from
+  ``docs/source/data/multi_app_dag*.json``.
+* ``Workspace drafts`` loads DAGs saved from the current project workspace under
+  ``.agilab/global_dags``.
+* ``Custom path`` loads an external JSON contract by path.
+
+The editor keeps normal users away from raw JSON by default. Define stages,
+artifacts, and stage connections with list selectors, then use ``Check DAG`` to
+validate the schema and handoffs. ``Show generated JSON`` is available for code
+review or export, but it is not the primary editing flow.
+
+Execution is intentionally conservative:
+
+* ``Dispatch next runnable`` is a preview action. It updates the persisted
+  runner state and graph without claiming that an app really ran.
+* ``Run next stage`` is only available for the checked-in UAV queue to relay
+  sample. It executes one controlled stage at a time through AGILAB app
+  entrypoints, records produced artifacts, and unlocks the relay stage when the
+  queue metrics are available.
+* Workspace drafts and custom DAGs remain preview-only until AGILAB has a
+  specific safe executor for that contract.
+
+The panel shows the current readiness metrics, graph, artifact handoffs, and
+execution history. Use the history table to distinguish preview dispatch events
+from controlled real stage completions before promoting a DAG into a broader
+orchestration flow.
+
 Notebook export
 ~~~~~~~~~~~~~~~
 PIPELINE can export the current lab as a runnable supervisor notebook. This is

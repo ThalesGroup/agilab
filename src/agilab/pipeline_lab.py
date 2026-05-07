@@ -180,6 +180,14 @@ GLOBAL_DAG_REAL_EXECUTION_SCOPE = "controlled_uav_queue_to_relay_stage"
 GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
 GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
 GLOBAL_DAG_EDGE_COLUMNS = ["from", "to", "artifact", "handoff"]
+GLOBAL_DAG_SOURCE_SAMPLES = "Sample library"
+GLOBAL_DAG_SOURCE_WORKSPACE = "Workspace drafts"
+GLOBAL_DAG_SOURCE_CUSTOM = "Custom path"
+GLOBAL_DAG_SOURCE_OPTIONS = [
+    GLOBAL_DAG_SOURCE_SAMPLES,
+    GLOBAL_DAG_SOURCE_WORKSPACE,
+    GLOBAL_DAG_SOURCE_CUSTOM,
+]
 
 
 @dataclass(frozen=True)
@@ -282,19 +290,22 @@ def _global_dag_label(path_text: str, repo_root: Path) -> str:
     return f"{label} - {fallback}" if label else fallback
 
 
-def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
-    paths: list[Path] = []
+def _global_dag_sample_options(repo_root: Path) -> list[str]:
     docs_data_dir = repo_root / "docs" / "source" / "data"
-    if docs_data_dir.is_dir():
-        paths.extend(sorted(docs_data_dir.glob("multi_app_dag*.json")))
-    draft_dir = _global_dag_draft_dir(lab_dir)
-    if draft_dir.is_dir():
-        paths.extend(sorted(draft_dir.glob("*.json")))
+    paths = sorted(docs_data_dir.glob("multi_app_dag*.json")) if docs_data_dir.is_dir() else []
+    return [_repo_relative_text(path, repo_root) for path in paths]
 
+
+def _global_dag_workspace_options(repo_root: Path, lab_dir: Path) -> list[str]:
+    draft_dir = _global_dag_draft_dir(lab_dir)
+    paths = sorted(draft_dir.glob("*.json")) if draft_dir.is_dir() else []
+    return [_repo_relative_text(path, repo_root) for path in paths]
+
+
+def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
     options: list[str] = []
     seen: set[str] = set()
-    for path in paths:
-        option = _repo_relative_text(path, repo_root)
+    for option in [*_global_dag_sample_options(repo_root), *_global_dag_workspace_options(repo_root, lab_dir)]:
         if option in seen:
             continue
         seen.add(option)
@@ -1293,6 +1304,32 @@ def _artifact_handoffs_for_display(state: Dict[str, Any]) -> list[dict[str, str]
     return rows
 
 
+def _global_dag_execution_history_rows(state: Dict[str, Any]) -> list[dict[str, str]]:
+    events = state.get("events", [])
+    if not isinstance(events, list):
+        return []
+    rows: list[dict[str, str]] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        kind = str(event.get("kind", "")).strip()
+        if not kind or kind == "run_planned":
+            continue
+        from_status = str(event.get("from_status", "")).strip()
+        to_status = str(event.get("to_status", "")).strip()
+        rows.append(
+            {
+                "Time": str(event.get("timestamp", "")),
+                "Stage": str(event.get("unit_id", "")) or "-",
+                "Event": kind.replace("_", " "),
+                "Status": " -> ".join(part for part in [from_status, to_status] if part) or "-",
+                "Detail": str(event.get("detail", "")),
+            }
+        )
+    rows.sort(key=lambda row: row["Time"], reverse=True)
+    return rows
+
+
 def _global_dag_units(state: Dict[str, Any]) -> list[dict[str, Any]]:
     units = state.get("units", [])
     if not isinstance(units, list):
@@ -1460,20 +1497,34 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
     with st.expander("Multi-app DAG orchestration", expanded=True):
         repo_root = _repo_root_for_global_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
+        source_key = f"{index_page_str}_global_runner_source"
         library_key = f"{index_page_str}_global_runner_library"
+        workspace_key = f"{index_page_str}_global_runner_workspace_dag"
         dag_input_key = f"{index_page_str}_global_runner_dag_path"
-        library_options = _global_dag_library_options(repo_root, lab_dir)
+        sample_options = _global_dag_sample_options(repo_root)
+        workspace_options = _global_dag_workspace_options(repo_root, lab_dir)
+        library_options = [*sample_options, *workspace_options]
         default_dag_text = (
             _repo_relative_text(default_dag_path, repo_root)
             if default_dag_path is not None
             else ""
         )
+        if source_key not in st.session_state or st.session_state[source_key] not in GLOBAL_DAG_SOURCE_OPTIONS:
+            st.session_state[source_key] = (
+                GLOBAL_DAG_SOURCE_SAMPLES
+                if default_dag_text in sample_options or sample_options
+                else GLOBAL_DAG_SOURCE_WORKSPACE
+                if workspace_options
+                else GLOBAL_DAG_SOURCE_CUSTOM
+            )
         if library_key not in st.session_state or st.session_state[library_key] not in library_options:
             st.session_state[library_key] = (
                 default_dag_text
-                if default_dag_text in library_options
-                else library_options[0] if library_options else ""
+                if default_dag_text in sample_options
+                else sample_options[0] if sample_options else ""
             )
+        if workspace_key not in st.session_state or st.session_state[workspace_key] not in workspace_options:
+            st.session_state[workspace_key] = workspace_options[0] if workspace_options else ""
         if dag_input_key not in st.session_state:
             st.session_state[dag_input_key] = ""
 
@@ -1484,29 +1535,44 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
             "Safety boundary: preview dispatch updates runner state only; it does not claim live app execution."
         )
         st.markdown("**1. Choose a starting point**")
-        selected_dag_text = st.selectbox(
-            "DAG template or saved draft",
-            library_options or [""],
-            key=library_key,
-            format_func=lambda value: _global_dag_label(value, repo_root),
-            help="Choose a checked-in sample or one of your saved workspace drafts.",
+        dag_source = st.selectbox(
+            "DAG source",
+            GLOBAL_DAG_SOURCE_OPTIONS,
+            key=source_key,
+            help=(
+                "Use samples for guided demos, workspace drafts for saved edits, "
+                "or a custom path for an external contract."
+            ),
         )
-        show_custom_path = st.checkbox(
-            "Use a custom DAG path",
-            key=f"{index_page_str}_global_runner_show_custom_path",
-            help="Only needed when the DAG JSON is outside the template/draft library.",
-        )
-        override_dag_text = ""
-        if show_custom_path:
-            override_dag_text = st.text_input(
+        selected_dag_text = ""
+        if dag_source == GLOBAL_DAG_SOURCE_SAMPLES:
+            selected_dag_text = st.selectbox(
+                "DAG sample",
+                sample_options or [""],
+                key=library_key,
+                format_func=lambda value: _global_dag_label(value, repo_root),
+                help="Choose a checked-in sample. The UAV queue to relay sample is the only live-run enabled DAG.",
+            )
+        elif dag_source == GLOBAL_DAG_SOURCE_WORKSPACE:
+            if not workspace_options:
+                st.info("No workspace DAG draft has been saved for this project yet.")
+            selected_dag_text = st.selectbox(
+                "Workspace DAG",
+                workspace_options or [""],
+                key=workspace_key,
+                format_func=lambda value: _global_dag_label(value, repo_root),
+                help="Choose a DAG JSON saved from this project workspace.",
+            )
+        else:
+            selected_dag_text = st.text_input(
                 "Custom DAG path",
                 key=dag_input_key,
                 help=(
-                    "Leave empty to use the selected sample/draft. Relative paths resolve from "
-                    "the AGILAB checkout root."
+                    "Relative paths resolve from the AGILAB checkout root. Custom DAGs stay preview-only "
+                    "until a controlled executor is explicitly implemented."
                 ),
             )
-        dag_text = str(override_dag_text or selected_dag_text or "").strip()
+        dag_text = str(selected_dag_text or "").strip()
         dag_path = _resolve_global_dag_input(dag_text, repo_root)
         base_payload, load_error = _load_global_dag_payload(dag_path)
         if load_error:
@@ -1753,6 +1819,13 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         if artifact_rows:
             st.caption("Artifact handoffs")
             st.dataframe(artifact_rows, hide_index=True, width="stretch")
+
+        history_rows = _global_dag_execution_history_rows(state)
+        if history_rows:
+            st.caption("Execution history")
+            st.dataframe(history_rows, hide_index=True, width="stretch")
+        else:
+            st.caption("Execution history: no stage has been dispatched yet.")
 
         real_run_supported = _controlled_global_dag_real_run_supported(state, dag_path, repo_root)
         if real_run_supported:
