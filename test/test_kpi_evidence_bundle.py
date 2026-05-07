@@ -201,8 +201,8 @@ def test_revision_traceability_report_contract_fingerprints_repo() -> None:
     assert check["details"]["summary"]["schema"] == "agilab.revision_traceability.v1"
     assert check["details"]["summary"]["execution_mode"] == "revision_traceability_static"
     assert check["details"]["summary"]["core_component_count"] == 5
-    assert check["details"]["summary"]["builtin_app_count"] == 8
-    assert check["details"]["summary"]["app_fingerprint_count"] == 8
+    assert check["details"]["summary"]["builtin_app_count"] == 9
+    assert check["details"]["summary"]["app_fingerprint_count"] == 9
     assert check["details"]["summary"]["command_execution_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
     assert "revision_traceability_builtin_apps" in check["details"]["check_ids"]
@@ -248,7 +248,7 @@ def test_supply_chain_attestation_report_contract_fingerprints_package() -> None
     assert check["details"]["summary"]["page_lib_release_graph_aligned"] is True
     assert check["details"]["summary"]["aligned_internal_dependency_pins"] is True
     assert check["details"]["summary"]["mismatched_internal_dependency_pin_count"] == 0
-    assert check["details"]["summary"]["builtin_app_pyproject_count"] == 8
+    assert check["details"]["summary"]["builtin_app_pyproject_count"] == 9
     assert check["details"]["summary"]["aligned_builtin_app_versions"] is True
     assert check["details"]["summary"]["mismatched_builtin_app_version_count"] == 0
     assert check["details"]["summary"]["aligned_builtin_app_internal_dependency_bounds"] is True
@@ -909,7 +909,7 @@ def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None
     check = module._check_reduce_contract_adoption_guardrail(Path.cwd())
 
     assert check["status"] == "pass"
-    assert check["details"]["checked_app_count"] == 7
+    assert check["details"]["checked_app_count"] == 8
     assert check["details"]["template_only_exemptions"] == {
         "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
     }

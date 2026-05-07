@@ -44,6 +44,7 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
         "execution_polars_project",
         "flight_project",
         "meteo_forecast_project",
+        "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",
     ]
