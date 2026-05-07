@@ -904,6 +904,25 @@ def _available_artifact_ids(state: Dict[str, Any]) -> set[str]:
     return available_artifact_ids(state)
 
 
+def _global_dag_executor_label(unit: Dict[str, Any]) -> str:
+    contract = unit.get("execution_contract")
+    if not isinstance(contract, dict):
+        return "preview"
+
+    entrypoint = str(contract.get("entrypoint", "")).strip()
+    if entrypoint:
+        return entrypoint
+
+    command = contract.get("command")
+    if isinstance(command, str) and command.strip():
+        return f"command: {command.strip()}"
+    if isinstance(command, list):
+        command_text = " ".join(str(part).strip() for part in command if str(part).strip())
+        if command_text:
+            return f"command: {command_text}"
+    return "preview"
+
+
 def _controlled_global_dag_real_run_supported(
     state: Dict[str, Any],
     dag_path: Path | None,
@@ -926,6 +945,7 @@ def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
             {
                 "unit": str(unit.get("id", "")),
                 "app": str(unit.get("app", "")),
+                "executor": _global_dag_executor_label(unit),
                 "status": str(unit.get("dispatch_status", "")),
                 "depends_on": ", ".join(str(item) for item in unit.get("depends_on", []) if str(item)),
                 "blocked_by": ", ".join(
@@ -1148,7 +1168,9 @@ def _global_dag_dot(state: Dict[str, Any]) -> str:
             continue
         status = str(unit.get("dispatch_status", ""))
         app = str(unit.get("app", ""))
-        label = f"{unit_id}\\n{app}\\n{status}"
+        executor = _global_dag_executor_label(unit)
+        executor_line = f"\\nexec: {executor}" if executor != "preview" else ""
+        label = f"{unit_id}\\n{app}\\n{status}{executor_line}"
         fill = status_colors.get(status, "#f8fafc")
         lines.append(f"  {_dot_quote(unit_id)} [label={_dot_quote(label)}, fillcolor={_dot_quote(fill)}];")
         for artifact in unit.get("produces", []):
