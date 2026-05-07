@@ -1,0 +1,23 @@
+[[steps]]
+D = "Load diagnostic cases"
+Q = "Read TeSciA-style diagnostic cases from the shared input directory."
+M = "deterministic"
+C = "Load JSON cases and validate the case schema."
+E = "case_id, symptom, proposed_diagnosis"
+R = "validated_cases"
+
+[[steps]]
+D = "Challenge the diagnosis"
+Q = "Compare symptoms, evidence, assumptions, and candidate fixes."
+M = "deterministic"
+C = "Score evidence quality, root-cause fit, fix strength, and regression coverage."
+E = "validated_cases"
+R = "diagnostic_reports"
+
+[[steps]]
+D = "Export regression plan"
+Q = "Write a user-facing better-fix recommendation and concrete regression plan."
+M = "deterministic"
+C = "Export JSON, CSV, and reduce-contract summaries for each case."
+E = "diagnostic_reports"
+R = "tescia_diagnostic/reports"

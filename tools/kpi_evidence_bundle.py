@@ -331,8 +331,8 @@ def _check_revision_traceability_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("schema") == "agilab.revision_traceability.v1"
             and summary.get("execution_mode") == "revision_traceability_static"
             and summary.get("core_component_count") == 5
-            and summary.get("builtin_app_count") == 8
-            and summary.get("app_fingerprint_count") == 8
+            and summary.get("builtin_app_count") == 9
+            and summary.get("app_fingerprint_count") == 9
             and summary.get("command_execution_count") == 0
             and summary.get("network_probe_count") == 0
         )
@@ -431,7 +431,7 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("mismatched_internal_dependency_pin_count") == 0
             and summary.get("page_lib_component_count") == 1
             and summary.get("page_lib_release_graph_aligned") is True
-            and summary.get("builtin_app_pyproject_count") == 8
+            and summary.get("builtin_app_pyproject_count") == 9
             and summary.get("aligned_builtin_app_versions") is True
             and summary.get("mismatched_builtin_app_version_count") == 0
             and summary.get("aligned_builtin_app_internal_dependency_bounds") is True

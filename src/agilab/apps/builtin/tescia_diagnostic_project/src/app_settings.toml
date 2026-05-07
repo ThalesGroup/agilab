@@ -1,0 +1,25 @@
+[args]
+data_in = "tescia_diagnostic/cases"
+data_out = "tescia_diagnostic/reports"
+files = "*.json"
+nfile = 1
+minimum_evidence_confidence = 0.65
+minimum_regression_coverage = 0.6
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 2
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
