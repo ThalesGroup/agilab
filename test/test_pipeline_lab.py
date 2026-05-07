@@ -110,6 +110,7 @@ class _FakeStreamlit:
         self.dataframes: list[object] = []
         self.graphviz_sources: list[str] = []
         self.multiselect_calls: list[tuple[str, list[object], str | None]] = []
+        self.selectbox_calls: list[tuple[str, list[object], str | None]] = []
         self.text_area_labels: list[str] = []
         self.column_config = _FakeColumnConfig()
 
@@ -172,6 +173,7 @@ class _FakeStreamlit:
         return _Ctx(self)
 
     def selectbox(self, _label, options, key=None, help=None, **_kwargs):
+        self.selectbox_calls.append((str(_label), list(options), key))
         value = self._selectboxes.get(key, self.session_state.get(key, options[0]))
         self.session_state[key] = value
         return value
@@ -758,6 +760,7 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     assert state_path.is_file()
     state = pipeline_lab.load_runner_state(state_path)
     assert state["source"]["dag_path"] == "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
     assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
@@ -779,6 +782,7 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG
     assert state["source"]["dag_path"] == (
         "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
     )
@@ -893,6 +897,7 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
     )
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_PROJECT
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STEPS
     assert state["source"]["source_type"] == "lab_steps"
     assert state["summary"]["runnable_unit_ids"] == ["step_001"]
@@ -908,6 +913,33 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
         if isinstance(table, list) and table and isinstance(table[0], dict) and "unit" in table[0]
     ]
     assert any(row["unit"] == "step_001" and row["executor"] == "runpy" for table in unit_tables for row in table)
+
+
+def test_pipeline_scope_multi_app_dag_excludes_project_steps_source(monkeypatch, tmp_path):
+    steps = [
+        {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
+        {"D": "Train model", "Q": "Train model", "M": "gpt-b", "C": "print('train')", "E": "", "R": ""},
+    ]
+    fake_st = _FakeStreamlit(
+        {"demo_pipeline_scope": pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG},
+        selectboxes={"demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    pipeline_lab._render_global_runner_state_panel(
+        env,
+        tmp_path,
+        "demo",
+        pipeline_steps=steps,
+        steps_file=tmp_path / "lab_steps.toml",
+    )
+
+    dag_source_calls = [call for call in fake_st.selectbox_calls if call[0] == "DAG source"]
+    assert dag_source_calls
+    assert pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STEPS not in dag_source_calls[-1][1]
+    assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG
+    assert fake_st.session_state["demo_global_runner_source"] != pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STEPS
 
 
 def test_global_runner_panel_project_steps_dispatch_is_preview_only(monkeypatch, tmp_path):
@@ -1837,7 +1869,7 @@ def test_global_runner_error_diagnostic_renders_as_code(monkeypatch, tmp_path):
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("error", "Multi-app DAG orchestration preview is unavailable.") in fake_st.messages
+    assert ("error", "Multi-app DAG preview is unavailable.") in fake_st.messages
     assert ("caption", "Full diagnostic") in fake_st.messages
     assert ("code", "bad dag\nline 2") in fake_st.messages
 

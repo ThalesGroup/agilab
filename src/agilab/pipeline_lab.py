@@ -218,7 +218,7 @@ logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.json")
 GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_flight_sample.json")
-GLOBAL_DAG_EMPTY_STATE = "No global DAG units are available."
+GLOBAL_DAG_EMPTY_STATE = "No pipeline graph stages are available."
 GLOBAL_DAG_DRAFT_DIRNAME = "global_dags"
 GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
 GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
@@ -228,6 +228,9 @@ GLOBAL_DAG_SOURCE_APP_TEMPLATES = "App templates"
 GLOBAL_DAG_SOURCE_SAMPLES = "Sample library"
 GLOBAL_DAG_SOURCE_WORKSPACE = "Workspace drafts"
 GLOBAL_DAG_SOURCE_CUSTOM = "Custom path"
+PIPELINE_SCOPE_PROJECT = "Project pipeline"
+PIPELINE_SCOPE_MULTI_APP_DAG = "Multi-app DAG"
+PIPELINE_SCOPE_OPTIONS = [PIPELINE_SCOPE_PROJECT, PIPELINE_SCOPE_MULTI_APP_DAG]
 GLOBAL_DAG_SOURCE_OPTIONS = [
     GLOBAL_DAG_SOURCE_PROJECT_STEPS,
     GLOBAL_DAG_SOURCE_APP_TEMPLATES,
@@ -426,6 +429,30 @@ def _apply_global_dag_pending_source_selection(
         st.session_state[dag_input_key] = dag_text
 
 
+def _pipeline_scope_from_source(source_value: Any, has_project_steps: bool) -> str:
+    if str(source_value or "") == GLOBAL_DAG_SOURCE_PROJECT_STEPS:
+        return PIPELINE_SCOPE_PROJECT
+    if source_value:
+        return PIPELINE_SCOPE_MULTI_APP_DAG
+    return PIPELINE_SCOPE_PROJECT if has_project_steps else PIPELINE_SCOPE_MULTI_APP_DAG
+
+
+def _default_multi_app_dag_source(
+    *,
+    default_dag_text: str,
+    app_template_options: list[str],
+    sample_options: list[str],
+    workspace_options: list[str],
+) -> str:
+    if default_dag_text in app_template_options or app_template_options:
+        return GLOBAL_DAG_SOURCE_APP_TEMPLATES
+    if default_dag_text in sample_options or sample_options:
+        return GLOBAL_DAG_SOURCE_SAMPLES
+    if workspace_options:
+        return GLOBAL_DAG_SOURCE_WORKSPACE
+    return GLOBAL_DAG_SOURCE_CUSTOM
+
+
 def _global_dag_library_options(repo_root: Path, lab_dir: Path) -> list[str]:
     options: list[str] = []
     seen: set[str] = set()
@@ -544,7 +571,7 @@ def _empty_global_dag_payload() -> dict[str, Any]:
     return {
         "schema": MULTI_APP_DAG_SCHEMA,
         "dag_id": "new-global-dag",
-        "label": "New global DAG",
+        "label": "New multi-app DAG",
         "description": "",
         "execution": {
             "mode": "sequential_dependency_order",
@@ -1203,7 +1230,7 @@ def _global_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
 
 def _render_global_dag_readiness(state: Dict[str, Any]) -> None:
     summary = _global_dag_readiness_summary(state)
-    st.markdown("**DAG readiness**")
+    st.markdown("**Pipeline graph readiness**")
     stage_col, dependency_col, runnable_col, blocked_col = st.columns(4)
     stage_col.metric("Stages", int(summary["stage_count"]))
     dependency_col.metric("Dependencies", int(summary["dependency_count"]))
@@ -2066,7 +2093,7 @@ def _render_global_runner_state_view(
         key=f"{index_page_str}_global_runner_dispatch_next",
         kind="run",
         help=(
-            "Move the next runnable global DAG unit to running state without executing the app."
+            "Move the next runnable pipeline stage to running state without executing the app."
             if not dispatch_disabled
             else "Preview dispatch is disabled after a controlled live stage run starts; use Run next stage."
         ),
@@ -2090,9 +2117,10 @@ def _render_global_runner_state_panel(
     pipeline_steps: list[dict[str, Any]] | None = None,
     steps_file: Path | None = None,
 ) -> None:
-    with st.expander("Multi-app DAG orchestration", expanded=True):
+    with st.expander("Pipeline graph", expanded=True):
         repo_root = _repo_root_for_global_dag()
         default_dag_path = _global_runner_dag_path(env, repo_root)
+        scope_key = f"{index_page_str}_pipeline_scope"
         source_key = f"{index_page_str}_global_runner_source"
         app_template_key = f"{index_page_str}_global_runner_app_template"
         library_key = f"{index_page_str}_global_runner_library"
@@ -2103,9 +2131,32 @@ def _render_global_runner_state_panel(
         workspace_options = _global_dag_workspace_options(repo_root, lab_dir)
         library_options = [*app_template_options, *sample_options, *workspace_options]
         project_step_rows = _pipeline_dag_step_rows(pipeline_steps)
+        default_dag_text = (
+            _repo_relative_text(default_dag_path, repo_root)
+            if default_dag_path is not None
+            else ""
+        )
+        if scope_key not in st.session_state or st.session_state[scope_key] not in PIPELINE_SCOPE_OPTIONS:
+            st.session_state[scope_key] = _pipeline_scope_from_source(
+                st.session_state.get(source_key),
+                bool(project_step_rows),
+            )
+        pipeline_scope = compact_choice(
+            st,
+            "Pipeline scope",
+            PIPELINE_SCOPE_OPTIONS,
+            key=scope_key,
+            help=(
+                "Use Project pipeline for the current lab_steps.toml graph, or Multi-app DAG "
+                "for cross-app artifact contracts."
+            ),
+            inline_limit=2,
+        )
+        if pipeline_scope == PIPELINE_SCOPE_PROJECT:
+            st.session_state[source_key] = GLOBAL_DAG_SOURCE_PROJECT_STEPS
         source_options = (
-            GLOBAL_DAG_SOURCE_OPTIONS
-            if project_step_rows
+            [GLOBAL_DAG_SOURCE_PROJECT_STEPS]
+            if pipeline_scope == PIPELINE_SCOPE_PROJECT
             else [source for source in GLOBAL_DAG_SOURCE_OPTIONS if source != GLOBAL_DAG_SOURCE_PROJECT_STEPS]
         )
         _apply_global_dag_pending_source_selection(
@@ -2120,22 +2171,16 @@ def _render_global_runner_state_panel(
             workspace_options=workspace_options,
             source_options=source_options,
         )
-        default_dag_text = (
-            _repo_relative_text(default_dag_path, repo_root)
-            if default_dag_path is not None
-            else ""
-        )
         if source_key not in st.session_state or st.session_state[source_key] not in source_options:
             st.session_state[source_key] = (
                 GLOBAL_DAG_SOURCE_PROJECT_STEPS
-                if project_step_rows
-                else GLOBAL_DAG_SOURCE_APP_TEMPLATES
-                if default_dag_text in app_template_options or app_template_options
-                else GLOBAL_DAG_SOURCE_SAMPLES
-                if default_dag_text in sample_options or sample_options
-                else GLOBAL_DAG_SOURCE_WORKSPACE
-                if workspace_options
-                else GLOBAL_DAG_SOURCE_CUSTOM
+                if pipeline_scope == PIPELINE_SCOPE_PROJECT
+                else _default_multi_app_dag_source(
+                    default_dag_text=default_dag_text,
+                    app_template_options=app_template_options,
+                    sample_options=sample_options,
+                    workspace_options=workspace_options,
+                )
             )
         if app_template_key not in st.session_state or st.session_state[app_template_key] not in app_template_options:
             st.session_state[app_template_key] = (
@@ -2158,22 +2203,8 @@ def _render_global_runner_state_panel(
         if save_notice:
             st.success(str(save_notice))
 
-        st.caption(
-            "Coordinate app stages through artifact contracts. Use project steps below for single-app execution."
-        )
-        st.caption(
-            "Safety boundary: preview dispatch updates runner state only; it does not claim live app execution."
-        )
-        st.markdown("**1. Choose a starting point**")
-        dag_source = st.selectbox(
-            "DAG source",
-            source_options,
-            key=source_key,
-            help=(
-                "Use project steps for the current lab_steps.toml, samples for guided demos, "
-                "workspace drafts for saved edits, or a custom path for an external contract."
-            ),
-        )
+        st.caption("One graph surface for the current project pipeline and cross-app DAG contracts.")
+        dag_source = st.session_state[source_key]
         selected_dag_text = ""
         if dag_source == GLOBAL_DAG_SOURCE_PROJECT_STEPS:
             reset_clicked = action_button(
@@ -2215,6 +2246,19 @@ def _render_global_runner_state_panel(
                 dag_label_override="Project steps",
             )
             return
+        st.caption(
+            "Safety boundary: preview dispatch updates runner state only; it does not claim live app execution."
+        )
+        st.markdown("**1. Choose a starting point**")
+        dag_source = st.selectbox(
+            "DAG source",
+            source_options,
+            key=source_key,
+            help=(
+                "Use templates for checked-in executable contracts, samples for guided demos, "
+                "workspace drafts for saved edits, or a custom path for an external contract."
+            ),
+        )
         if dag_source == GLOBAL_DAG_SOURCE_APP_TEMPLATES:
             if not app_template_options:
                 st.info("No app DAG template is bundled for this active project yet.")
@@ -2528,7 +2572,7 @@ def _render_global_runner_state_panel(
             dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path, env=env)
             distributed_preview_rows = _global_dag_distributed_request_preview_rows(env, state, repo_root)
         except Exception as exc:
-            st.error("Multi-app DAG orchestration preview is unavailable.")
+            st.error("Multi-app DAG preview is unavailable.")
             st.caption("Full diagnostic")
             st.code(str(exc), language="text")
             return
