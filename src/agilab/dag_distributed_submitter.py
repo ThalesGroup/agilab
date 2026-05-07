@@ -114,6 +114,43 @@ def build_global_dag_distributed_stage_submitter(
     return _submit_stage
 
 
+def build_distributed_request_preview_rows(
+    state: Mapping[str, Any],
+    *,
+    repo_root: Path,
+    config: DagDistributedStageConfig,
+) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    units = state.get("units")
+    if not isinstance(units, list):
+        return rows
+    for unit in units:
+        if not isinstance(unit, Mapping):
+            continue
+        contract = unit.get("execution_contract")
+        if not isinstance(contract, Mapping) or not contract:
+            continue
+        unit_id = str(unit.get("id", "") or "stage").strip() or "stage"
+        app_name = str(unit.get("app", "") or "").strip()
+        request_payload = request_payload_from_execution_contract(contract)
+        rows.append(
+            {
+                "Stage": unit_id,
+                "App": app_name or "-",
+                "Status": str(unit.get("dispatch_status", "") or "-"),
+                "Backend": "distributed",
+                "Nodes": str(config.worker_nodes),
+                "Worker slots": str(config.worker_slots),
+                "Scheduler": config.scheduler,
+                "Workers Data Path": config.workers_data_path,
+                "Mode": str(config.mode),
+                "Apps path": _preview_apps_path(repo_root, app_name),
+                "Request": _compact_json(request_payload),
+            }
+        )
+    return rows
+
+
 def submit_distributed_stage(
     *,
     config: DagDistributedStageConfig,
@@ -277,6 +314,23 @@ def request_payload_from_execution_contract(contract: Mapping[str, Any]) -> dict
         "benchmark_best_single_node": bool(contract.get("benchmark_best_single_node", False)),
     }
     return payload
+
+
+def _preview_apps_path(repo_root: Path, app_name: str) -> str:
+    if not app_name:
+        return "-"
+    try:
+        apps_path = resolve_stage_apps_path(repo_root, app_name)
+    except RuntimeError:
+        return "missing"
+    try:
+        return apps_path.resolve(strict=False).relative_to(repo_root.resolve(strict=False)).as_posix()
+    except ValueError:
+        return str(apps_path)
+
+
+def _compact_json(value: Mapping[str, Any]) -> str:
+    return json.dumps(_jsonable(dict(value)), sort_keys=True, separators=(",", ":"))
 
 
 def _stage_run_script(

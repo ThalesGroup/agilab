@@ -206,6 +206,13 @@ _dag_distributed_submitter_module = import_agilab_module(
 build_global_dag_distributed_stage_submitter = (
     _dag_distributed_submitter_module.build_global_dag_distributed_stage_submitter
 )
+build_distributed_request_preview_rows = (
+    _dag_distributed_submitter_module.build_distributed_request_preview_rows
+)
+dag_distributed_stage_config_from_settings = (
+    _dag_distributed_submitter_module.dag_distributed_stage_config_from_settings
+)
+load_dag_distributed_settings = _dag_distributed_submitter_module.load_dag_distributed_settings
 
 logger = logging.getLogger(__name__)
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
@@ -890,6 +897,21 @@ def _global_dag_engine(
         run_relay_fn=run_global_dag_relay_followup_app,
         stage_submit_fn=stage_submitter,
     )
+
+
+def _global_dag_distributed_request_preview_rows(
+    env: AgiEnv,
+    state: dict[str, Any],
+    repo_root: Path,
+) -> list[dict[str, str]]:
+    settings = load_dag_distributed_settings(env, st.session_state.get("app_settings"))
+    config = dag_distributed_stage_config_from_settings(
+        settings,
+        verbose=int(st.session_state.get("cluster_verbose", 0) or 0),
+    )
+    if config is None:
+        return []
+    return build_distributed_request_preview_rows(state, repo_root=repo_root, config=config)
 
 
 def _runner_state_dag_matches(
@@ -1898,6 +1920,7 @@ def _render_global_runner_state_view(
     repo_root: Path,
     index_page_str: str,
     dag_label_override: str = "",
+    distributed_request_preview_rows: list[dict[str, str]] | None = None,
 ) -> None:
     summary = state.get("summary", {})
     if not isinstance(summary, dict):
@@ -1961,6 +1984,15 @@ def _render_global_runner_state_view(
                     "Streamlit process; distributed backend delegates each ready stage to the configured submitter."
                 ),
             )
+            if stage_backend == GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED:
+                st.caption("Distributed stage request preview")
+                if distributed_request_preview_rows:
+                    st.dataframe(distributed_request_preview_rows, hide_index=True, width="stretch")
+                else:
+                    st.warning(
+                        "Distributed backend is selected, but the active ORCHESTRATE cluster settings "
+                        "do not provide a complete scheduler, workers, and Workers Data Path request."
+                    )
         run_next_col, run_ready_col = st.columns(2)
         with run_next_col:
             run_stage_clicked = action_button(
@@ -2494,6 +2526,7 @@ def _render_global_runner_state_panel(
                 reset=reset_clicked,
             )
             dag_engine = _global_dag_engine(repo_root, lab_dir, dag_path, env=env)
+            distributed_preview_rows = _global_dag_distributed_request_preview_rows(env, state, repo_root)
         except Exception as exc:
             st.error("Multi-app DAG orchestration preview is unavailable.")
             st.caption("Full diagnostic")
@@ -2507,6 +2540,7 @@ def _render_global_runner_state_panel(
             dag_engine=dag_engine,
             repo_root=repo_root,
             index_page_str=index_page_str,
+            distributed_request_preview_rows=distributed_preview_rows,
         )
 
 

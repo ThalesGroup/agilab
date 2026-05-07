@@ -111,6 +111,10 @@ Execution is intentionally conservative:
   current UI process; ``Distributed backend`` submits each ready stage through
   the configured backend and records ``distributed_stage`` provenance in the
   DAG state.
+  When ``Distributed backend`` is selected, PIPELINE shows the exact
+  per-stage request preview before the run buttons: app, scheduler, worker
+  nodes/slots, workers data path, mode integer, apps path, and the JSON
+  ``RunRequest`` payload that will be sent for each stage.
   The built-in submitter is configured from the active app's saved
   **ORCHESTRATE** cluster settings: ``cluster_enabled`` must be true, a
   scheduler, workers, and ``Workers Data Path`` must be present, and each DAG
@@ -130,10 +134,29 @@ Executable stage contracts are deliberately small:
 * ``nodes[].execution.command`` is an optional command-list executor for
   deterministic local stages. Prefer a JSON list such as
   ``["python", "-m", "package.module"]`` over a shell string.
+* ``nodes[].execution.params``, ``steps``, ``data_in``, ``data_out``, and
+  ``reset_target`` are preserved from the DAG template into the execution plan,
+  runner state, distributed request preview, and distributed submission
+  evidence. This keeps cross-app DAG execution auditable instead of relying on
+  hidden defaults.
 * ``produces`` and ``consumes`` declare the artifact contract between stages.
   Executable app templates must declare at least one produced artifact per
   controlled stage so the runner can publish evidence and unlock downstream
   stages.
+
+Use the smoke validator before a live two-node run:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python tools/dag_distributed_stage_smoke.py \
+     --scheduler 192.168.20.111:8786 \
+     --workers '{"192.168.20.111": 1, "192.168.20.15": 1}' \
+     --workers-data-path clustershare/agi \
+     --compact
+
+Add ``--execute`` only after SSH, SSHFS, app installs, and ORCHESTRATE cluster
+settings are known good. Without ``--execute``, the command writes a dry-run
+evidence JSON under ``test-results/`` and does not start Dask workers.
 
 The panel shows the current readiness metrics, graph, artifact handoffs, and
 execution history. Use the history table to distinguish preview dispatch events
