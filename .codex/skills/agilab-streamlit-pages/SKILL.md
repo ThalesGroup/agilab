@@ -95,7 +95,11 @@ Use this skill when editing:
   "not configured", or "no artifact discovered".
 - Use product-facing labels instead of internal implementation terms:
   - `Workflow graph` instead of `DAG shape`
-  - `Stages` and `dependencies` instead of graph-only jargon such as nodes and edges
+  - `Stages` and `dependencies` for project workflow instead of graph-only jargon such as nodes and edges
+  - `Plan`, `steps`, `outputs`, `Creates`, and `Uses` for multi-app workplans
+    before technical DAG, artifact, node, or edge wording
+  - hide generated graphs behind an explicit `Show graph` control when the
+    graph can be too small to read
   - `Project name` when the widget selects a project
 - Derived header values must be computed locally from existing evidence when possible.
   For example, count ORCHESTRATE runs from `run_*.log` files under the app run
