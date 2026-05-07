@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import os
-import pickle
 import re
 import time
 import traceback
 from contextlib import suppress
 from pathlib import Path
 from typing import Any, Callable
+
+SERVICE_TASK_SCHEMA = "agi.service.task.v1"
+SERVICE_TASK_SUFFIX = ".task.json"
+LEGACY_SERVICE_TASK_SUFFIX = ".task.pkl"
 
 
 def resolve_service_queue_root(
@@ -93,13 +96,48 @@ def _dump_service_payload(
     payload: dict[str, Any],
     *,
     open_fn: Callable[..., Any] = open,
-    pickle_module: Any = pickle,
+    json_module: Any = json,
+    pickle_module: Any | None = None,
     os_module: Any = os,
 ) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
-    with open_fn(tmp, "wb") as stream:
-        pickle_module.dump(payload, stream, protocol=pickle_module.HIGHEST_PROTOCOL)
+    payload.setdefault("schema", SERVICE_TASK_SCHEMA)
+    with open_fn(tmp, "w", encoding="utf-8") as stream:
+        json_module.dump(payload, stream, sort_keys=True)
     os_module.replace(tmp, path)
+
+
+def _load_service_payload(
+    path: Path,
+    *,
+    open_fn: Callable[..., Any] = open,
+    json_module: Any = json,
+) -> dict[str, Any]:
+    with open_fn(path, "r", encoding="utf-8") as stream:
+        payload = json_module.load(stream)
+    if not isinstance(payload, dict):
+        raise ValueError("service task payload must be a JSON object")
+    if payload.get("schema") != SERVICE_TASK_SCHEMA:
+        raise ValueError(f"unsupported service task schema: {payload.get('schema')!r}")
+    return payload
+
+
+def _reject_legacy_service_task(
+    pending_path: Path,
+    *,
+    failed_dir: Path,
+    worker_id: int,
+    logger_obj: Any,
+) -> None:
+    logger_obj.error(
+        "worker #%s: rejecting legacy pickle service task %s; service tasks must use %s",
+        worker_id,
+        pending_path,
+        SERVICE_TASK_SUFFIX,
+    )
+    failed_path = failed_dir / pending_path.name
+    with suppress(FileNotFoundError):
+        pending_path.replace(failed_path)
 
 
 def _task_matches_worker(
@@ -129,7 +167,8 @@ def run_service_queue(
     logger_obj: Any,
     path_cls: type[Path] = Path,
     open_fn: Callable[..., Any] = open,
-    pickle_module: Any = pickle,
+    json_module: Any = json,
+    pickle_module: Any | None = None,
     os_module: Any = os,
     time_module: Any = time,
     traceback_module: Any = traceback,
@@ -138,23 +177,33 @@ def run_service_queue(
     processed = 0
     failures = 0
     idle_wait = poll if poll > 0 else 0.05
+    json_decode_error = getattr(json_module, "JSONDecodeError", ValueError)
     read_errors = (
         OSError,
-        EOFError,
         ValueError,
-        AttributeError,
-        ImportError,
-        pickle_module.PickleError,
+        TypeError,
+        json_decode_error,
     )
 
     write_heartbeat("running")
     while not stop_event.is_set():
         write_heartbeat("running")
         claimed = False
-        for pending_path in sorted(queue_dirs["pending"].glob("*.task.pkl")):
+        for legacy_path in sorted(queue_dirs["pending"].glob(f"*{LEGACY_SERVICE_TASK_SUFFIX}")):
+            _reject_legacy_service_task(
+                legacy_path,
+                failed_dir=queue_dirs["failed"],
+                worker_id=worker_id,
+                logger_obj=logger_obj,
+            )
+
+        for pending_path in sorted(queue_dirs["pending"].glob(f"*{SERVICE_TASK_SUFFIX}")):
             try:
-                with open_fn(pending_path, "rb") as stream:
-                    payload = pickle_module.load(stream)
+                payload = _load_service_payload(
+                    pending_path,
+                    open_fn=open_fn,
+                    json_module=json_module,
+                )
             except FileNotFoundError:
                 continue
             except read_errors as exc:
@@ -200,6 +249,7 @@ def run_service_queue(
                     queue_dirs["done"] / pending_path.name,
                     payload,
                     open_fn=open_fn,
+                    json_module=json_module,
                     pickle_module=pickle_module,
                     os_module=os_module,
                 )
@@ -217,6 +267,7 @@ def run_service_queue(
                     queue_dirs["failed"] / pending_path.name,
                     payload,
                     open_fn=open_fn,
+                    json_module=json_module,
                     pickle_module=pickle_module,
                     os_module=os_module,
                 )

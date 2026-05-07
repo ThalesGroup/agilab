@@ -401,10 +401,11 @@ def test_service_queue_counts_reads_task_files(tmp_path):
     for folder in (pending, running, done, failed):
         folder.mkdir(parents=True, exist_ok=True)
 
-    (pending / "a.task.pkl").write_text("x", encoding="utf-8")
-    (pending / "b.task.pkl").write_text("x", encoding="utf-8")
-    (running / "c.task.pkl").write_text("x", encoding="utf-8")
-    (done / "d.task.pkl").write_text("x", encoding="utf-8")
+    (pending / "a.task.json").write_text("x", encoding="utf-8")
+    (pending / "b.task.json").write_text("x", encoding="utf-8")
+    (running / "c.task.json").write_text("x", encoding="utf-8")
+    (done / "d.task.json").write_text("x", encoding="utf-8")
+    (failed / "legacy.task.pkl").write_text("x", encoding="utf-8")
 
     agi._service_queue_pending = pending
     agi._service_queue_running = running
@@ -415,7 +416,7 @@ def test_service_queue_counts_reads_task_files(tmp_path):
         "pending": 2,
         "running": 1,
         "done": 1,
-        "failed": 0,
+        "failed": 1,
     }
 
 
@@ -426,7 +427,7 @@ def test_init_service_queue_removes_stale_pending_running_and_heartbeats(tmp_pat
     for name in ("pending", "running", "done", "failed", "heartbeats"):
         (queue_root / name).mkdir(parents=True, exist_ok=True)
 
-    stale_pending = queue_root / "pending" / "old.task.pkl"
+    stale_pending = queue_root / "pending" / "old.task.json"
     stale_running = queue_root / "running" / "old.task.pkl"
     stale_heartbeat = queue_root / "heartbeats" / "old.json"
     stale_pending.write_text("x", encoding="utf-8")
@@ -448,7 +449,7 @@ def test_init_service_queue_ignores_missing_files_during_cleanup(monkeypatch, tm
     for name in ("pending", "running", "done", "failed", "heartbeats"):
         (queue_root / name).mkdir(parents=True, exist_ok=True)
 
-    stale_pending = queue_root / "pending" / "old.task.pkl"
+    stale_pending = queue_root / "pending" / "old.task.json"
     stale_running = queue_root / "running" / "old.task.pkl"
     stale_heartbeat = queue_root / "heartbeats" / "old.json"
     stale_pending.write_text("x", encoding="utf-8")
@@ -506,8 +507,8 @@ def test_service_cleanup_artifacts_ignores_racing_stat_and_unlink(monkeypatch, t
     for folder in (done, failed, heartbeats):
         folder.mkdir(parents=True, exist_ok=True)
 
-    done_file = done / "done.task.pkl"
-    failed_file = failed / "failed.task.pkl"
+    done_file = done / "done.task.json"
+    failed_file = failed / "failed.task.json"
     heartbeat_file = heartbeats / "heartbeat.json"
     done_file.write_text("x", encoding="utf-8")
     failed_file.write_text("x", encoding="utf-8")
@@ -719,9 +720,9 @@ def test_service_cleanup_artifacts_ttl_and_max_files(tmp_path):
     for folder in (done_dir, failed_dir, hb_dir):
         folder.mkdir(parents=True, exist_ok=True)
 
-    done_old = done_dir / "old.task.pkl"
-    done_new = done_dir / "new.task.pkl"
-    failed_old = failed_dir / "old.task.pkl"
+    done_old = done_dir / "old.task.json"
+    done_new = done_dir / "new.task.json"
+    failed_old = failed_dir / "old.task.json"
     hb_old = hb_dir / "old.json"
     hb_new = hb_dir / "new.json"
     for file_path in (done_old, done_new, failed_old, hb_old, hb_new):
@@ -764,9 +765,9 @@ def test_service_cleanup_artifacts_removes_overflow_and_ignores_missing_unlinks(
     for folder in (done_dir, failed_dir, hb_dir):
         folder.mkdir(parents=True, exist_ok=True)
 
-    done_a = done_dir / "a.task.pkl"
-    done_b = done_dir / "b.task.pkl"
-    done_c = done_dir / "c.task.pkl"
+    done_a = done_dir / "a.task.json"
+    done_b = done_dir / "b.task.json"
+    done_c = done_dir / "c.task.json"
     for idx, file_path in enumerate((done_a, done_b, done_c), start=1):
         file_path.write_text("x", encoding="utf-8")
         os.utime(file_path, (100 + idx, 100 + idx))
@@ -801,7 +802,7 @@ def test_service_cleanup_artifacts_ttl_ignores_missing_unlink(tmp_path, monkeypa
     agi = _build_agi()
     done_dir = tmp_path / "done"
     done_dir.mkdir(parents=True, exist_ok=True)
-    stale = done_dir / "stale.task.pkl"
+    stale = done_dir / "stale.task.json"
     stale.write_text("x", encoding="utf-8")
     old = time.time() - 1000
     os.utime(stale, (old, old))

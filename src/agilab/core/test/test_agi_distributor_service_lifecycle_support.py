@@ -1,6 +1,5 @@
 import asyncio
 import json
-import pickle
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -920,8 +919,9 @@ async def test_agi_submit_queues_tasks_for_service_workers(monkeypatch, tmp_path
 
     queued_file = Path(result["queued_files"][0])
     assert queued_file.exists()
-    with open(queued_file, "rb") as stream:
-        payload = pickle.load(stream)
+    assert queued_file.name.endswith(".task.json")
+    payload = json.loads(queued_file.read_text(encoding="utf-8"))
+    assert payload["schema"] == "agi.service.task.v1"
     assert payload["task_name"] == "test-batch"
     assert payload["worker_idx"] == 0
     assert payload["worker"] == "127.0.0.1:8787"

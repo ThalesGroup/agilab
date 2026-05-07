@@ -103,4 +103,16 @@ def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
     assert "runs mypy with ``--strict``" in policy
     assert "``setup.py`` is intentionally kept alongside ``pyproject.toml``" in policy
     assert "It is not a\nleftover from an incomplete packaging migration." in policy
+    assert "Real PyPI publication must use GitHub OIDC Trusted Publishing" in policy
+    assert "Long-lived PyPI\nAPI tokens are not part of the normal release path" in policy
     assert "setup.py is intentionally kept alongside pyproject.toml; it is not a migration\nleftover." in readme
+
+
+def test_service_mode_documents_non_executable_queue_contract() -> None:
+    service_mode = (DOCS_SOURCE / "service-mode.rst").read_text(encoding="utf-8")
+
+    assert "Service queue security contract" in service_mode
+    assert "agi.service.task.v1" in service_mode
+    assert "*.task.json" in service_mode
+    assert "*.task.pkl" in service_mode
+    assert "without deserializing" in service_mode
