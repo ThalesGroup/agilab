@@ -290,7 +290,7 @@ async def start(
                 pid_file = f"dask_worker_{i}_{j}.pid"
                 if is_local:
                     wenv_abs = env.wenv_abs
-                    cmd = [
+                    local_cmd = [
                         *shlex.split(str(env.uv), posix=os.name != "nt"),
                         "--project",
                         str(wenv_abs),
@@ -304,16 +304,16 @@ async def start(
                         str(wenv_abs / pid_file),
                     ]
                     process_env = background_jobs_support.background_env_from_prefixes(cmd_prefix, dask_env)
-                    agi_cls._exec_bg(cmd, str(wenv_abs), env=process_env)
+                    agi_cls._exec_bg(local_cmd, str(wenv_abs), env=process_env)
                 else:
                     wenv_rel = env.wenv_rel
-                    cmd = (
+                    remote_cmd = (
                         f'{cmd_prefix}{dask_env}{env.uv} --project {wenv_rel} run --no-sync '
                         f'dask worker '
                         f'tcp://{agi_cls._scheduler} --no-nanny --pid-file {wenv_rel.parent / pid_file}'
                     )
-                    create_task_fn(agi_cls.exec_ssh_async(ip, cmd))
-                    log.info(f"Launched remote worker in background on {ip}: {cmd}")
+                    create_task_fn(agi_cls.exec_ssh_async(ip, remote_cmd))
+                    log.info(f"Launched remote worker in background on {ip}: {remote_cmd}")
 
             except _WORKER_START_EXCEPTIONS as exc:
                 log.error(f"Failed to start worker on {ip}: {exc}")
