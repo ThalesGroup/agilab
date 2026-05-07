@@ -75,6 +75,24 @@ def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:
     assert offenders == ["view_maps_network"]
 
 
+def test_unexpected_core_page_entries_flags_stale_renamed_pages() -> None:
+    module = _load_module()
+
+    offenders = module.unexpected_core_page_entries(
+        [
+            {"path": "src/agilab/pages/1_PROJECT.py"},
+            {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
+            {"path": "src/agilab/pages/3_WORKFLOW.py"},
+            {"path": "src/agilab/pages/4_ANALYSIS.py"},
+            {"path": "src/agilab/pages/1_\u25b6\ufe0f PROJECT.py"},
+            {"path": "src/agilab/pages/3_PIPELINE.py"},
+            {"path": "src/agilab/pages/1_PROJECT.py/child"},
+        ]
+    )
+
+    assert offenders == ["1_\u25b6\ufe0f PROJECT.py", "3_PIPELINE.py"]
+
+
 def test_check_route_rejects_localhost_connection_body() -> None:
     module = _load_module()
 
@@ -91,6 +109,24 @@ def test_check_route_rejects_localhost_connection_body() -> None:
 
     assert result.success is False
     assert "127.0.0.1" in result.detail
+
+
+def test_check_route_rejects_streamlit_api_exception_body() -> None:
+    module = _load_module()
+
+    def _fetcher(_url: str, _timeout: float):
+        return 200, "streamlit.errors.StreamlitAPIException: Multiple Pages specified"
+
+    result = module.check_route(
+        "https://demo.hf.space",
+        module.RouteSpec("demo"),
+        timeout=1.0,
+        fetcher=_fetcher,
+        clock=iter([0.0, 0.2]).__next__,
+    )
+
+    assert result.success is False
+    assert "streamlitapiexception" in result.detail
 
 
 def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
@@ -113,6 +149,8 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
             2.8,
             2.8,
             3.6,
+            3.6,
+            4.5,
         ]
     )
 
@@ -120,7 +158,20 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
         return 200, "ok"
 
     def _fetch_json(_url: str, _timeout: float):
-        return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
+        if _url.endswith("src/agilab/apps"):
+            return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
+        if _url.endswith("src/agilab/pages"):
+            return [
+                {"path": "src/agilab/pages/1_PROJECT.py"},
+                {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
+                {"path": "src/agilab/pages/3_WORKFLOW.py"},
+                {"path": "src/agilab/pages/4_ANALYSIS.py"},
+            ]
+        return [
+            {"path": "src/agilab/apps-pages/view_maps"},
+            {"path": "src/agilab/apps-pages/view_forecast_analysis"},
+            {"path": "src/agilab/apps-pages/view_release_decision"},
+        ]
 
     summary = module.run_smoke(
         space_id="demo/agilab",
@@ -133,9 +184,13 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     )
 
     assert summary.success is True
-    assert summary.total_duration_seconds == 3.6
+    assert summary.total_duration_seconds == 4.5
     assert summary.within_target is True
-    assert [check.label for check in summary.checks][-2:] == ["public app tree", "public pages tree"]
+    assert [check.label for check in summary.checks][-3:] == [
+        "public app tree",
+        "public pages tree",
+        "core pages tree",
+    ]
 
 
 def test_main_json_returns_failure_for_private_app(monkeypatch, capsys) -> None:
