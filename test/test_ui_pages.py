@@ -454,7 +454,9 @@ def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
     assert "streamlit.sidebar.columns([0.76, 0.24], vertical_alignment=\"bottom\")" in selector_source
     assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' in selector_source
     assert 'st.switch_page(Path("pages/1_PROJECT.py"))' in pipeline_source
-    assert 'st.sidebar.columns([0.76, 0.24], vertical_alignment="center")' in pipeline_source
+    assert 'st.sidebar.columns([0.64, 0.36], vertical_alignment="center")' in pipeline_source
+    assert "#4A90E2" in pipeline_source
+    assert "min-height:2.35rem" in pipeline_source
     assert '"Open UI"' not in pipeline_source
     assert '"Open"' in pipeline_source
 
@@ -839,7 +841,8 @@ def test_explore_page_multiselect(mock_ui_env):
     
     # Ensure that the button was created for it
     btns = [b.label for b in at.button]
-    assert "Open view_maps" in btns
+    assert "Open view_maps" not in btns
+    assert "Open" in btns
 
 
 def test_explore_page_default_view_does_not_mutate_widget_state_after_render(mock_ui_env):
@@ -1028,7 +1031,8 @@ def test_edit_page_load(mock_ui_env):
     assert all("Project workspace" not in value for value in markdown_values)
     assert all("Identity, editable files" not in str(item.value) for item in at.caption)
     assert any("Edit project files" in value for value in markdown_values)
-    assert any(button.label == "Export project" for button in at.sidebar.button)
+    assert any(button.label == "Export" for button in at.sidebar.button)
+    assert all(button.label != "Export project" for button in at.sidebar.button)
     markdown_text = "\n".join(markdown_values)
     assert "Worker class" in markdown_text
     assert "Source files" not in markdown_text
@@ -1164,8 +1168,9 @@ def test_explore_page_multiple_views_selected(mock_ui_env):
     assert not at.exception
 
     btns = [b.label for b in at.button]
-    assert "Open view_maps" in btns
-    assert "Open view_barycentric" in btns
+    assert "Open view_maps" not in btns
+    assert "Open view_barycentric" not in btns
+    assert btns.count("Open") >= 2
 
 
 def test_explore_page_deselect_view(mock_ui_env):
@@ -1190,7 +1195,8 @@ def test_explore_page_deselect_view(mock_ui_env):
 
     btns = [b.label for b in at.button]
     assert "Open view_maps" not in btns
-    assert "Open view_barycentric" in btns
+    assert "Open view_barycentric" not in btns
+    assert btns.count("Open") == 1
 
 
 def test_app_args_form_no_changes(mock_ui_env):

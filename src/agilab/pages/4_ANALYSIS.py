@@ -1524,7 +1524,7 @@ def _render_analysis_view_cards(
                 action_cols = st.columns([0.68, 0.32])
                 with action_cols[0]:
                     if st.button(
-                        f"Open {display_label}",
+                        "Open",
                         type="primary" if is_default else "secondary",
                         width="stretch",
                         key=f"analysis_open_view__{_short_page_token(view_path)}",
