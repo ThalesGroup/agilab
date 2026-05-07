@@ -6,6 +6,16 @@ nfile = 1
 minimum_evidence_confidence = 0.65
 minimum_regression_coverage = 0.6
 reset_target = false
+case_source = "bundled"
+generated_cases_filename = "tescia_diagnostic_cases.generated.json"
+regenerate_cases = false
+ai_provider = "gpt-oss"
+ai_endpoint = "http://127.0.0.1:8000/v1/responses"
+ai_model = "gpt-oss-120b"
+ai_topic = "AGILAB engineering diagnostics, cluster runs, pipeline DAGs, and evidence-backed fixes"
+ai_case_count = 2
+ai_temperature = 0.2
+ai_timeout_s = 120.0
 
 [cluster]
 verbose = 1

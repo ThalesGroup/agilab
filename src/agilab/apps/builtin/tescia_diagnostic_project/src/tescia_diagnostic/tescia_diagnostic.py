@@ -19,6 +19,7 @@ from .app_args import (
     load_args,
     merge_args,
 )
+from .generator import DiagnosticCaseGenerationError, generate_case_file
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class TesciaDiagnostic(BaseWorker):
         self,
         env,
         args: TesciaDiagnosticArgs | None = None,
+        _generate_case_file_fn=generate_case_file,
         **kwargs: ArgsOverrides,
     ) -> None:
         self.env = env
@@ -46,6 +48,7 @@ class TesciaDiagnostic(BaseWorker):
 
         self.args = ensure_defaults(args, env=env)
         self.args = self._apply_managed_pc_paths(self.args)
+        self._generate_case_file_fn = _generate_case_file_fn
         self.args.data_in = env.resolve_share_path(self.args.data_in)
         self.args.data_out = env.resolve_share_path(self.args.data_out)
         self.data_out = self.args.data_out
@@ -69,6 +72,10 @@ class TesciaDiagnostic(BaseWorker):
         return Path(__file__).resolve().parent / "sample_data" / "tescia_diagnostic_cases.json"
 
     def _ensure_dataset(self, data_in: Path) -> None:
+        if self.args.case_source == "standalone_ai":
+            self._ensure_generated_dataset(data_in)
+            return
+
         existing = sorted(data_in.glob(self.args.files))
         if existing:
             return
@@ -78,6 +85,30 @@ class TesciaDiagnostic(BaseWorker):
         destination = data_in / sample.name
         shutil.copy2(sample, destination)
         logger.info("Seeded TeSciA diagnostic cases at %s", destination)
+
+    def _ensure_generated_dataset(self, data_in: Path) -> None:
+        destination = data_in / self.args.generated_cases_filename
+        if destination.is_file() and not self.args.regenerate_cases:
+            return
+        try:
+            self._generate_case_file_fn(
+                data_in,
+                filename=self.args.generated_cases_filename,
+                provider=self.args.ai_provider,
+                endpoint=self.args.ai_endpoint,
+                model=self.args.ai_model,
+                topic=self.args.ai_topic,
+                case_count=self.args.ai_case_count,
+                temperature=self.args.ai_temperature,
+                timeout_s=self.args.ai_timeout_s,
+            )
+        except DiagnosticCaseGenerationError as exc:
+            raise RuntimeError(
+                "Standalone AI case generation failed. Start the configured local "
+                "AI endpoint or switch TeSciA case source back to 'bundled'. "
+                f"Details: {exc}"
+            ) from exc
+        logger.info("Generated TeSciA diagnostic cases at %s", destination)
 
     @classmethod
     def from_toml(
@@ -103,12 +134,17 @@ class TesciaDiagnostic(BaseWorker):
         return self.args.model_dump(mode="json")
 
     def build_distribution(self, workers):
-        files = sorted(self.args.data_in.glob(self.args.files))
+        file_pattern = (
+            self.args.generated_cases_filename
+            if self.args.case_source == "standalone_ai"
+            else self.args.files
+        )
+        files = sorted(self.args.data_in.glob(file_pattern))
         if self.args.nfile > 0:
             files = files[: self.args.nfile]
         if not files:
             raise FileNotFoundError(
-                f"No diagnostic case file found in {self.args.data_in} with pattern {self.args.files!r}"
+                f"No diagnostic case file found in {self.args.data_in} with pattern {file_pattern!r}"
             )
 
         weights = [(str(path), max(int(path.stat().st_size // 1024), 1)) for path in files]
