@@ -2,31 +2,8 @@
 
 from __future__ import annotations
 
-import html
+from pathlib import Path
 from typing import Any, Callable, Iterable
-from urllib.parse import urlencode
-
-
-def _project_edit_link_markup(project: str, label: str) -> str:
-    """Return a same-tab PROJECT link styled as a compact button."""
-    query = urlencode({"active_app": project})
-    href = f"PROJECT?{query}"
-    return (
-        '<a class="agilab-project-edit-link" '
-        f'href="{html.escape(href, quote=True)}" target="_self">'
-        f"{html.escape(label)}</a>"
-        "<style>"
-        ".agilab-project-edit-link{"
-        "display:block;text-align:center;text-decoration:none;"
-        "border:1px solid rgba(49,51,63,.25);border-radius:.5rem;"
-        "padding:.45rem .75rem;margin:-.2rem 0 .75rem 0;"
-        "font-weight:600;color:inherit;background:rgba(255,255,255,.04);"
-        "}"
-        ".agilab-project-edit-link:hover{"
-        "border-color:rgba(49,51,63,.45);background:rgba(49,51,63,.06);"
-        "}"
-        "</style>"
-    )
 
 
 def _unique_project_names(projects: Iterable[Any]) -> list[str]:
@@ -63,7 +40,7 @@ def render_project_selector(
     *,
     on_change: Callable[[str], None],
     key: str = "project_selectbox",
-    label: str = "Project name",
+    label: str = "Project",
     help_text: str = "Project workspace used by this page. Type in the dropdown to search.",
     show_edit_button: bool = True,
     edit_label: str = "Edit",
@@ -83,7 +60,12 @@ def render_project_selector(
         streamlit.session_state.pop(key, None)
 
     default_index = project_names.index(current) if current in project_names else 0
-    selection = streamlit.sidebar.selectbox(
+    selector_host = streamlit.sidebar
+    edit_host = streamlit.sidebar
+    if show_edit_button:
+        selector_host, edit_host = streamlit.sidebar.columns([0.76, 0.24], vertical_alignment="bottom")
+
+    selection = selector_host.selectbox(
         label,
         project_names,
         index=default_index,
@@ -91,10 +73,9 @@ def render_project_selector(
         help=help_text,
     )
     if show_edit_button:
-        streamlit.sidebar.markdown(
-            _project_edit_link_markup(selection, edit_label),
-            unsafe_allow_html=True,
-        )
+        if edit_host.button(edit_label, key=f"{key}__edit", help=f"Edit {selection}.", use_container_width=True):
+            streamlit.query_params["active_app"] = selection
+            streamlit.switch_page(Path("pages/1_PROJECT.py"))
     if selection != current:
         on_change(selection)
     return selection

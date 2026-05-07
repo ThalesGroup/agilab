@@ -451,9 +451,9 @@ def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
     assert 'title="ORCHESTRATE"' in source
     assert 'title="PIPELINE"' in source
     assert 'title="ANALYSIS"' in source
-    assert "agilab-project-edit-link" in selector_source
-    assert "PROJECT?{query}" in selector_source
-    assert '_project_edit_link_markup(selected_lab, "Edit")' in pipeline_source
+    assert "_project_edit_button_style" in selector_source
+    assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' in selector_source
+    assert 'st.switch_page(Path("pages/1_PROJECT.py"))' in pipeline_source
 
 
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
@@ -1360,11 +1360,11 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         at.run()
         assert not at.exception
         assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
-        assert [selectbox.label for selectbox in at.sidebar.selectbox][0] == "Project name"
+        assert [selectbox.label for selectbox in at.sidebar.selectbox][0] == "Project"
         assert "Runtime diagnostics" not in _element_labels(at.sidebar)
         assert "Diagnostics level" not in _element_labels(at.sidebar)
         project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert project_select.label == "Project name"
+        assert project_select.label == "Project"
         assert "Type in the dropdown to search." in str(project_select.help)
         sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
         sidebar_caption = "\n".join(str(item.value) for item in at.sidebar.caption)
@@ -1430,7 +1430,7 @@ def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(m
 
         assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
         project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert project_select.label == "Project name"
+        assert project_select.label == "Project"
         assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
 
         project_select.set_value("sb3_trainer_project").run()
