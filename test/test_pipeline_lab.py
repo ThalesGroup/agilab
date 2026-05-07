@@ -764,17 +764,17 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
     assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
     assert ("expander", "True") in fake_st.messages
-    assert ("metric", "Stages=2") in fake_st.messages
-    assert ("metric", "Dependencies=1") in fake_st.messages
+    assert ("metric", "Steps=2") in fake_st.messages
+    assert ("metric", "Inputs=1") in fake_st.messages
     assert (
         "caption",
-        "Next action: Dispatch `flight_context`.",
+        "Next action: Preview `flight_context`.",
     ) in fake_st.messages
     assert ("dataframe", "2") in fake_st.messages
     edit_token = pipeline_lab._global_dag_source_token(
         "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
     )
-    assert ("Edit workplan", f"demo_global_runner_edit_contract_{edit_token}") in fake_st.checkbox_calls
+    assert ("Edit plan", f"demo_global_runner_edit_contract_{edit_token}") in fake_st.checkbox_calls
     assert not fake_st.multiselect_calls
 
 
@@ -792,8 +792,8 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["blocked_unit_ids"] == ["relay_followup"]
-    assert ("metric", "Execution mode=Executable") in fake_st.messages
-    assert ("metric", "Adapter=uav_queue_to_relay_controlled") in fake_st.messages
+    assert ("metric", "Run mode=Executable") in fake_st.messages
+    assert ("metric", "Runner=uav_queue_to_relay_controlled") in fake_st.messages
     assert any(call[0] == "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
 
 
@@ -822,7 +822,7 @@ def test_global_runner_readiness_summary_prioritizes_running_and_scope():
 
     assert summary["stage_count"] == 3
     assert summary["dependency_count"] == 1
-    assert summary["next_action"] == "Monitor running stage `alpha`."
+    assert summary["next_action"] == "Monitor running step `alpha`."
     assert summary["execution_scope"] == "live app execution"
 
 
@@ -848,8 +848,8 @@ def test_global_runner_readiness_summary_describes_blocked_artifact():
         }
     )
 
-    assert summary["next_action"] == "Wait for `consumer` until `producer_metrics` is available."
-    assert summary["execution_scope"] == "preview dispatch, no app execution claimed"
+    assert summary["next_action"] == "Wait for `consumer` until `producer_metrics` is ready."
+    assert summary["execution_scope"] == "preview only, no app run"
 
 
 def test_pipeline_steps_runner_state_builds_single_app_preview_dag(tmp_path):
@@ -904,8 +904,8 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
     assert state["source"]["source_type"] == "lab_steps"
     assert state["summary"]["runnable_unit_ids"] == ["step_001"]
     assert state["summary"]["blocked_unit_ids"] == ["step_002"]
-    assert ("metric", "Contract=Project steps") in fake_st.messages
-    assert ("metric", "Execution mode=Preview-only") in fake_st.messages
+    assert ("metric", "Plan=Project steps") in fake_st.messages
+    assert ("metric", "Run mode=Preview-only") in fake_st.messages
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any(call[0] == "demo_global_runner_dispatch_next" for call in fake_st.button_calls)
     assert ("Show graph", "demo_global_runner_show_graph") in fake_st.checkbox_calls
@@ -915,9 +915,9 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
     workplan_tables = [
         table
         for table in fake_st.dataframes
-        if isinstance(table, list) and table and isinstance(table[0], dict) and "stage" in table[0]
+        if isinstance(table, list) and table and isinstance(table[0], dict) and "Step" in table[0]
     ]
-    assert any(row["stage"] == "step_001" and row["runs"] == "runpy" for table in workplan_tables for row in table)
+    assert any(row["Step"] == "step_001" and row["Runs with"] == "runpy" for table in workplan_tables for row in table)
 
 
 def test_global_runner_panel_shows_selected_project_step_snippet_code(monkeypatch, tmp_path):
@@ -1200,7 +1200,7 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
     assert state["summary"]["completed_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
-    assert ("metric", "Execution mode=Executable") in fake_st.messages
+    assert ("metric", "Run mode=Executable") in fake_st.messages
 
 
 def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path):
@@ -1312,10 +1312,10 @@ def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("metric", "Execution mode=Preview-only") in fake_st.messages
-    assert ("metric", "Adapter=preview only") in fake_st.messages
+    assert ("metric", "Run mode=Preview-only") in fake_st.messages
+    assert ("metric", "Runner=preview only") in fake_st.messages
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
-    assert any("other DAGs stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
+    assert any("other plans stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
 
 def test_global_runner_panel_selects_workspace_draft_as_preview_only(monkeypatch, tmp_path):
@@ -1337,10 +1337,10 @@ def test_global_runner_panel_selects_workspace_draft_as_preview_only(monkeypatch
 
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE
     assert fake_st.session_state["demo_global_runner_workspace_dag"] == str(draft_path)
-    assert ("metric", "Execution mode=Preview-only") in fake_st.messages
-    assert ("metric", "Adapter=preview only") in fake_st.messages
+    assert ("metric", "Run mode=Preview-only") in fake_st.messages
+    assert ("metric", "Runner=preview only") in fake_st.messages
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
-    assert any("other DAGs stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
+    assert any("other plans stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
 
 def test_global_dag_execution_history_rows_skip_planning_and_sort_latest_first():
@@ -1461,20 +1461,20 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
     assert state["source"]["dag_path"] == str(draft_path)
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
-    assert any(kind == "success" and "Saved DAG draft" in message for kind, message in fake_st.messages)
+    assert any(kind == "success" and "Saved plan draft" in message for kind, message in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
     assert fake_st.session_state[pipeline_lab._global_dag_pending_source_key("demo")] == {
         "source": pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE,
         "dag_path": str(draft_path),
     }
     assert "Edit DAG JSON draft" not in fake_st.text_area_labels
-    assert any(label == "Stages" for label, _options, _key in fake_st.multiselect_calls)
+    assert any(label == "Steps" for label, _options, _key in fake_st.multiselect_calls)
     assert any(
-        label == "Produces" and key == f"demo_global_runner_produces_{token}"
+        label == "Creates" and key == f"demo_global_runner_produces_{token}"
         for label, _options, key in fake_st.multiselect_calls
     )
     assert any(
-        label == "Needs" and key == f"demo_global_runner_needs_{token}"
+        label == "Uses" and key == f"demo_global_runner_needs_{token}"
         for label, _options, key in fake_st.multiselect_calls
     )
     draft_payload = json.loads(draft_path.read_text(encoding="utf-8"))
@@ -1509,7 +1509,7 @@ def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, 
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("error", "DAG draft is not valid.") in fake_st.messages
+    assert ("error", "Plan draft is not valid.") in fake_st.messages
     assert ("caption", "Validation details") in fake_st.messages
     assert any(kind == "code" and "dag_id is required" in message for kind, message in fake_st.messages)
     assert not (tmp_path / ".agilab" / "global_dags").exists()
@@ -1638,7 +1638,7 @@ def test_global_runner_panel_saves_executable_app_template(monkeypatch, tmp_path
         "source": pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES,
         "dag_path": "src/agilab/apps/builtin/alpha_project/dag_templates/alpha-beta-executable.json",
     }
-    assert any(kind == "success" and "Saved executable app DAG template" in message for kind, message in fake_st.messages)
+    assert any(kind == "success" and "Saved executable app workflow template" in message for kind, message in fake_st.messages)
 
     fake_st._buttons = {}
     pipeline_lab._render_global_runner_state_panel(env, tmp_path / "lab", "demo")
@@ -1696,11 +1696,15 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
     workplan_tables = [
         table
         for table in fake_st.dataframes
-        if isinstance(table, list) and table and isinstance(table[0], dict) and "runs" in table[0]
+        if isinstance(table, list) and table and isinstance(table[0], dict) and "Runs with" in table[0]
     ]
-    assert any(row["stage"] == "alpha" and row["runs"] == "alpha_project.alpha" for table in workplan_tables for row in table)
     assert any(
-        row["stage"] == "beta" and row["needs"] == "alpha_metrics from alpha"
+        row["Step"] == "alpha" and row["Runs with"] == "alpha_project.alpha"
+        for table in workplan_tables
+        for row in table
+    )
+    assert any(
+        row["Step"] == "beta" and row["Uses"] == "alpha_metrics from alpha"
         for table in workplan_tables
         for row in table
     )
@@ -1737,9 +1741,9 @@ def test_global_runner_artifact_handoffs_mark_available_and_missing():
         }
     )
 
-    assert [row["status"] for row in rows] == ["available", "missing"]
-    assert rows[0]["from_app"] == "upstream_project"
-    assert rows[1]["to"] == "consumer"
+    assert [row["Status"] for row in rows] == ["available", "missing"]
+    assert rows[0]["From app"] == "upstream_project"
+    assert rows[1]["Used by step"] == "consumer"
 
 
 def test_global_runner_error_diagnostic_renders_as_code(monkeypatch, tmp_path):
@@ -1754,7 +1758,7 @@ def test_global_runner_error_diagnostic_renders_as_code(monkeypatch, tmp_path):
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("error", "Multi-app DAG orchestration preview is unavailable.") in fake_st.messages
+    assert ("error", "Multi-app plan preview is unavailable.") in fake_st.messages
     assert ("caption", "Full diagnostic") in fake_st.messages
     assert ("code", "bad dag\nline 2") in fake_st.messages
 
