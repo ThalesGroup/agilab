@@ -145,7 +145,7 @@ def test_start_pipeline_run_command_refuses_blocked_actions_without_side_effects
     )
 
     assert result.status is pipeline_page_state.PipelineCommandStatus.REFUSED
-    assert "No visible pipeline steps" in result.message
+    assert "No visible workflow steps" in result.message
     assert session_state == {}
     assert calls == []
 
@@ -185,7 +185,7 @@ def test_start_pipeline_run_command_sets_running_status_and_logs_path(tmp_path):
     assert pushed == [
         (
             "demo",
-            f"Run pipeline started... logs will be saved to {tmp_path / 'pipeline.log'}",
+            f"Run workflow started... logs will be saved to {tmp_path / 'pipeline.log'}",
             placeholder,
         )
     ]
@@ -222,7 +222,7 @@ def test_start_pipeline_run_command_force_run_continues_without_log_file(tmp_pat
     assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
     assert result.details["force_lock_clear"] is True
     assert result.details["log_error"] == "no log"
-    assert pushed == ["Run pipeline started... (unable to prepare log file: no log)"]
+    assert pushed == ["Run workflow started... (unable to prepare log file: no log)"]
 
 
 def test_start_pipeline_run_command_marks_failed_when_logging_raises(tmp_path):
