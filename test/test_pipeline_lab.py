@@ -1470,13 +1470,24 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
     assert "Edit DAG JSON draft" not in fake_st.text_area_labels
     assert any(label == "Stages" for label, _options, _key in fake_st.multiselect_calls)
     assert any(
-        label == "Produced artifacts" and key == f"demo_global_runner_produces_{token}"
+        label == "Produces" and key == f"demo_global_runner_produces_{token}"
         for label, _options, key in fake_st.multiselect_calls
     )
     assert any(
-        label == "Artifact handoffs" and key == f"demo_global_runner_edges_{token}"
+        label == "Needs" and key == f"demo_global_runner_needs_{token}"
         for label, _options, key in fake_st.multiselect_calls
     )
+    draft_payload = json.loads(draft_path.read_text(encoding="utf-8"))
+    assert draft_payload["edges"] == [
+        {
+            "from": "flight_context",
+            "to": "meteo_forecast_review",
+            "artifact": "flight_reduce_summary",
+            "handoff": "Use flight trajectory reduce summary as the forecast-review context.",
+        }
+    ]
+    meteo_node = next(node for node in draft_payload["nodes"] if node["id"] == "meteo_forecast_review")
+    assert meteo_node["consumes"][0]["id"] == "flight_reduce_summary"
     assert not fake_st.data_editor_calls
 
 

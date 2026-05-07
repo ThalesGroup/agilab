@@ -793,6 +793,38 @@ def _selected_handoff_rows(
     return [handoff_options[key] for key in handoff_keys if key in handoff_options]
 
 
+def _workplan_output_rows(artifact_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {
+            "stage": row.get("node", ""),
+            "produces": row.get("id", ""),
+            "kind": row.get("kind", ""),
+            "path": row.get("path", ""),
+        }
+        for row in artifact_rows
+    ]
+
+
+def _need_option_label(option_key: str, need_options: dict[str, dict[str, str]]) -> str:
+    need = need_options.get(option_key, {})
+    target = need.get("to", "")
+    artifact = need.get("artifact", "")
+    source = need.get("from", "")
+    return f"{target} needs {artifact} from {source}"
+
+
+def _workplan_need_rows(need_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    return [
+        {
+            "stage": row.get("to", ""),
+            "needs": row.get("artifact", ""),
+            "from": row.get("from", ""),
+            "handoff": row.get("handoff", ""),
+        }
+        for row in need_rows
+    ]
+
+
 def _consumes_rows_from_handoffs(
     handoff_rows: list[dict[str, str]],
     artifact_options: dict[str, dict[str, str]],
@@ -2379,8 +2411,7 @@ def _render_global_runner_state_panel(
         table_keys = {
             "stages": f"{index_page_str}_global_runner_stages_{token}",
             "produces": f"{index_page_str}_global_runner_produces_{token}",
-            "consumes": f"{index_page_str}_global_runner_consumes_{token}",
-            "edges": f"{index_page_str}_global_runner_edges_{token}",
+            "needs": f"{index_page_str}_global_runner_needs_{token}",
         }
         selected_stage_ids = st.session_state.get(table_keys["stages"])
         if (
@@ -2404,7 +2435,7 @@ def _render_global_runner_state_panel(
         else:
             st.warning("Select at least two stages to form a valid multi-app DAG.")
 
-        st.markdown("**Choose outputs**")
+        st.markdown("**Stage outputs**")
         artifact_options = _global_dag_artifact_options(selected_stage_ids, tables)
         artifact_option_keys = list(artifact_options)
         default_artifact_keys = _default_artifact_keys(artifact_options, tables)
@@ -2415,52 +2446,52 @@ def _render_global_runner_state_panel(
         ):
             st.session_state[table_keys["produces"]] = default_artifact_keys
         selected_artifact_keys = st.multiselect(
-            "Produced artifacts",
+            "Produces",
             artifact_option_keys,
             key=table_keys["produces"],
             format_func=lambda key: _artifact_option_label(key, artifact_options),
-            help="Choose artifacts exposed by the selected stages. No node ids need to be typed.",
+            help="Choose outputs exposed by the selected stages. Workplan needs can use these outputs.",
         )
         produces_value = _selected_artifact_rows(selected_artifact_keys, artifact_options)
         if produces_value:
-            st.dataframe(produces_value, hide_index=True, width="stretch")
+            st.dataframe(_workplan_output_rows(produces_value), hide_index=True, width="stretch")
         else:
-            st.warning("Select at least one produced artifact before connecting stages.")
+            st.warning("Select at least one output before adding stage needs.")
 
-        st.markdown("**Link stages**")
+        st.markdown("**Stage needs**")
         selected_artifact_options = {
             key: artifact_options[key]
             for key in selected_artifact_keys
             if key in artifact_options
         }
-        handoff_options = _global_dag_handoff_options(
+        need_options = _global_dag_handoff_options(
             selected_stage_ids,
             selected_artifact_options,
             base_payload,
         )
-        handoff_option_keys = list(handoff_options)
-        default_handoff_keys = _default_handoff_keys(handoff_options, base_payload)
-        selected_handoff_keys = st.session_state.get(table_keys["edges"])
+        need_option_keys = list(need_options)
+        default_need_keys = _default_handoff_keys(need_options, base_payload)
+        selected_need_keys = st.session_state.get(table_keys["needs"])
         if (
-            not isinstance(selected_handoff_keys, list)
-            or any(key not in handoff_options for key in selected_handoff_keys)
+            not isinstance(selected_need_keys, list)
+            or any(key not in need_options for key in selected_need_keys)
         ):
-            st.session_state[table_keys["edges"]] = default_handoff_keys
-        selected_handoff_keys = st.multiselect(
-            "Artifact handoffs",
-            handoff_option_keys,
-            key=table_keys["edges"],
-            format_func=lambda key: _handoff_option_label(key, handoff_options),
-            help="Choose artifact handoffs between selected stages instead of typing from/to ids.",
+            st.session_state[table_keys["needs"]] = default_need_keys
+        selected_need_keys = st.multiselect(
+            "Needs",
+            need_option_keys,
+            key=table_keys["needs"],
+            format_func=lambda key: _need_option_label(key, need_options),
+            help="Choose which stage needs an output from another stage. Artifact handoffs are generated automatically.",
         )
-        edges_value = _selected_handoff_rows(selected_handoff_keys, handoff_options)
+        edges_value = _selected_handoff_rows(selected_need_keys, need_options)
         consumes_value = _consumes_rows_from_handoffs(edges_value, selected_artifact_options)
         if edges_value:
-            st.dataframe(edges_value, hide_index=True, width="stretch")
+            st.dataframe(_workplan_need_rows(edges_value), hide_index=True, width="stretch")
         else:
-            st.warning("Select at least one stage connection to create a runnable cross-app DAG.")
+            st.warning("Select at least one stage need to create a cross-app workplan.")
         if consumes_value:
-            st.caption("Consumed artifacts inferred from selected connections")
+            st.caption("Consumed artifacts are derived from selected needs.")
             st.dataframe(consumes_value, hide_index=True, width="stretch")
 
         visual_payload = _global_dag_payload_from_visual_editor(
