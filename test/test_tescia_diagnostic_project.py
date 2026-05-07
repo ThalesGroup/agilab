@@ -4,6 +4,7 @@ import json
 import runpy
 import sys
 from pathlib import Path
+import tomllib
 from types import SimpleNamespace
 
 import pytest
@@ -24,6 +25,7 @@ class _FakeEnv:
         self.AGILAB_EXPORT_ABS = tmp_path / "export"
         self.agi_share_path = tmp_path / "share"
         self.agi_share_path_abs = tmp_path / "share"
+        self.app_settings_file = tmp_path / "app_settings.toml"
         self.agi_share_path.mkdir(parents=True, exist_ok=True)
 
     def share_root_path(self) -> Path:
@@ -357,6 +359,36 @@ def test_tescia_manager_can_seed_generated_cases_from_injected_ai_engine(monkeyp
     work_plan, metadata, *_ = app.build_distribution({"127.0.0.1": 1})
     assert work_plan == [[[str(seeded)]]]
     assert metadata[0][0]["diagnostic_file"] == "ai_cases.json"
+
+
+def test_tescia_app_args_form_exposes_standalone_ai_controls(monkeypatch, tmp_path) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from streamlit.testing.v1 import AppTest
+    from tescia_diagnostic import DEFAULT_GPT_OSS_ENDPOINT, DEFAULT_GPT_OSS_MODEL
+
+    env = _FakeEnv(tmp_path)
+    at = AppTest.from_file(str(APP_ROOT / "src" / "app_args_form.py"), default_timeout=20)
+    at.session_state["env"] = env
+
+    at.run()
+
+    assert not at.exception
+    source = at.selectbox(key="tescia_diagnostic_project:app_args_form:case_source")
+    assert source.options == ["Bundled deterministic sample", "Generate with standalone AI"]
+    assert source.value == "bundled"
+    assert not any(text_input.label == "AI endpoint" for text_input in at.text_input)
+
+    source.set_value("standalone_ai").run()
+
+    assert not at.exception
+    assert at.selectbox(key="tescia_diagnostic_project:app_args_form:ai_provider").value == "gpt-oss"
+    assert at.text_input(key="tescia_diagnostic_project:app_args_form:ai_endpoint").value == DEFAULT_GPT_OSS_ENDPOINT
+    assert at.text_input(key="tescia_diagnostic_project:app_args_form:ai_model").value == DEFAULT_GPT_OSS_MODEL
+    with Path(env.app_settings_file).open("rb") as f:
+        payload = tomllib.load(f)
+    assert payload["args"]["case_source"] == "standalone_ai"
+    assert payload["args"]["ai_endpoint"] == DEFAULT_GPT_OSS_ENDPOINT
 
 
 def test_tescia_worker_exports_json_csv_and_reduce_artifacts(monkeypatch, tmp_path) -> None:
