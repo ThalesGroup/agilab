@@ -776,6 +776,8 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["blocked_unit_ids"] == ["relay_followup"]
+    assert any("DAG execution: Executable" in message for kind, message in fake_st.messages if kind == "caption")
+    assert any(call[0] == "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
 
 
 def test_global_runner_readiness_summary_prioritizes_running_and_scope():
@@ -893,6 +895,35 @@ def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatc
     assert relay["unblocked_by"] == ["queue_metrics"]
     assert any(kind == "success" and "queue_baseline" in message for kind, message in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
+
+
+def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    calls: list[Path] = []
+
+    def _fake_queue_run(*, repo_root: Path, run_root: Path) -> dict[str, object]:
+        calls.append(run_root)
+        run_root.mkdir(parents=True, exist_ok=True)
+        return {
+            "summary_metrics_path": "queue/summary.json",
+            "reduce_artifact_path": "queue/reduce.json",
+            "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
+        }
+
+    monkeypatch.setattr(pipeline_lab, "run_global_dag_queue_baseline_app", _fake_queue_run)
+    env = SimpleNamespace(app="uav_queue_project", target="uav_queue_project")
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
+    assert state["source"]["dag_path"] == (
+        "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+    )
+    assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "queue_baseline"]
+    assert state["summary"]["completed_unit_ids"] == ["queue_baseline"]
+    assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
+    assert any("DAG execution: Executable" in message for kind, message in fake_st.messages if kind == "caption")
 
 
 def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatch, tmp_path):

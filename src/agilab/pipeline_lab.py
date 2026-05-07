@@ -929,6 +929,19 @@ def _global_dag_execution_scope(state: Dict[str, Any]) -> str:
     return "live app execution" if real_execution else "preview dispatch, no app execution claimed"
 
 
+def _global_dag_execution_status(state: Dict[str, Any], support: Any) -> str:
+    if not bool(getattr(support, "supported", False)):
+        return str(getattr(support, "status", "Preview-only") or "Preview-only")
+    failed = _global_dag_status_ids(state, "failed")
+    if failed:
+        return "Blocked: failed stage"
+    if _global_dag_unit_count(state) and len(_global_dag_status_ids(state, "completed")) == _global_dag_unit_count(state):
+        return "Completed"
+    if _global_dag_status_ids(state, "blocked") and not _global_dag_status_ids(state, "runnable"):
+        return "Blocked: missing artifact"
+    return str(getattr(support, "status", "Executable") or "Executable")
+
+
 def _global_dag_readiness_summary(state: Dict[str, Any]) -> dict[str, Any]:
     return {
         "stage_count": _global_dag_unit_count(state),
@@ -1346,7 +1359,10 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         if dag_label:
             st.caption(f"DAG contract: `{dag_label}`")
         st.caption(f"State file: `{state_path}`")
+        real_run_support = dag_engine.real_run_support(state)
+        execution_status = _global_dag_execution_status(state, real_run_support)
         _render_global_dag_readiness(state)
+        st.caption(f"DAG execution: {execution_status} - {real_run_support.message}")
         running_col, completed_col, failed_col = st.columns(3)
         running_col.metric("Running", int(summary.get("running_count", 0) or 0))
         completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
@@ -1374,7 +1390,7 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
         else:
             st.caption("Execution history: no stage has been dispatched yet.")
 
-        real_run_supported = dag_engine.real_run_supported(state)
+        real_run_supported = real_run_support.supported
         if real_run_supported:
             run_stage_clicked = action_button(
                 st,
@@ -1382,8 +1398,8 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
                 key=f"{index_page_str}_global_runner_run_next_stage",
                 kind="run",
                 help=(
-                    "Execute the next ready stage through the controlled UAV queue to relay sample. "
-                    "Only this checked-in sample is allowed to run from the DAG preview."
+                    f"Execute the next ready stage through `{real_run_support.adapter}`. "
+                    "Only checked-in DAGs with a controlled adapter marker can run from this view."
                 ),
             )
             if run_stage_clicked:
@@ -1402,7 +1418,7 @@ def _render_global_runner_state_panel(env: AgiEnv, lab_dir: Path, index_page_str
                     st.warning(result.message)
         else:
             st.caption(
-                "Live stage execution is available only for the checked-in UAV queue to relay sample; "
+                "Live stage execution requires a checked-in DAG with a controlled adapter marker; "
                 "other DAGs stay preview-only."
             )
 

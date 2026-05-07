@@ -55,6 +55,8 @@ def test_app_dag_templates_discovers_active_app_owned_template():
     assert templates[0].label == "UAV queue to relay"
     payload = json.loads(templates[0].path.read_text(encoding="utf-8"))
     assert multi_app_dag.validate_multi_app_dag(payload, repo_root=repo_root).ok
+    assert payload["execution"]["runner_status"] == "controlled_real_stage_execution"
+    assert payload["execution"]["adapter"] == "uav_queue_to_relay_controlled"
 
 
 def test_app_dag_templates_can_fallback_to_all_templates_when_active_app_has_none():
