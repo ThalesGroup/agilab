@@ -57,6 +57,13 @@ First mount or otherwise expose the same backing directory on every node. The
 scheduler and workers may see that storage at different local paths, but both
 paths must point to the same shared filesystem.
 
+This shared-filesystem check is only required when at least one configured
+worker is remote. For a local-only Dask cluster, for example workers configured
+as ``127.0.0.1`` or ``localhost``, the scheduler and workers already see the
+same local filesystem. In that case an APFS path such as
+``/Users/<user>/clustershare/<name>`` is valid, no SSHFS mount is required, and
+ORCHESTRATE should not report the path as a remote-share problem.
+
 Example placeholders:
 
 - scheduler path: ``/path/to/scheduler/clustershare/agilab-two-node``
