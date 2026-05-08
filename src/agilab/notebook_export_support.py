@@ -18,7 +18,7 @@ NOTEBOOK_EXPORT_SCHEMA = "agilab.notebook_export.v1"
 NOTEBOOK_EXPORT_SCHEMA_VERSION = 1
 PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 ALLOW_WORKSPACE_SIBLING_APPS_ENV = "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
-APPS_REPOSITORY_ENV_KEYS = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
+APPS_REPOSITORY_ENV_KEYS = ("APPS_REPOSITORY",)
 
 PYCHARM_NOTEBOOK_SITECUSTOMIZE = """\
 from __future__ import annotations
@@ -803,7 +803,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                         yield from emit(sibling / "apps")
                         yield from emit(sibling / "src" / "agilab" / "apps")
 
-            for env_key in ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY"):
+            for env_key in ("APPS_REPOSITORY",):
                 apps_repository = str(os.environ.get(env_key) or "").strip()
                 if apps_repository:
                     repo_path = Path(apps_repository).expanduser()
@@ -833,7 +833,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 f"project={{project_name or app_name or '<unknown>'}}. "
                 f"Current active_app={{active_app or '<missing>'}}. "
                 "Re-export the notebook from AGILAB with the correct project selected, "
-                "or set APPS_REPOSITORY / AGILAB_APPS_REPOSITORY so the project root can be discovered."
+                "or set APPS_REPOSITORY so the project root can be discovered."
             )
 
 

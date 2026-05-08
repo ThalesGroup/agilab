@@ -1931,11 +1931,9 @@ def test_notebook_helper_replays_app_shorthand_stages_as_agi_run_scripts(tmp_pat
     ) in captured["script"]
 
 
-@pytest.mark.parametrize("env_key", ["APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY"])
 def test_notebook_helper_replays_app_shorthand_stages_from_apps_repository_when_active_app_is_stale(
     tmp_path,
     monkeypatch,
-    env_key,
 ):
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -1996,7 +1994,7 @@ def test_notebook_helper_replays_app_shorthand_stages_from_apps_repository_when_
         return _Result()
 
     original_run = namespace["subprocess"].run
-    monkeypatch.setenv(env_key, str(repo_apps))
+    monkeypatch.setenv("APPS_REPOSITORY", str(repo_apps))
     try:
         namespace["subprocess"].run = _fake_run
         namespace["run_agilab_stage"](0, capture_output=False)

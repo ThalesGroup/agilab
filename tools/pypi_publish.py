@@ -268,7 +268,7 @@ def publishable_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
 UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
 ALL_PACKAGE_NAMES = [name for name, *_ in publishable_libs()] + [UMBRELLA[0]]
 
-APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY")
+APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY",)
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
 APPS_REPO_REMOTE_ENV = "APPS_REPOSITORY_REMOTE"
 DOCS_REPO_ENV_KEYS: tuple[str, ...] = ("DOCS_REPOSITORY",)
