@@ -651,6 +651,156 @@ def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> 
     ]
 
 
+def test_probe_selected_actions_first_recollects_between_stateful_actions(tmp_path) -> None:
+    module = _load_module()
+    events: list[str] = []
+    current_widgets = [
+        {"id": "combo", "kind": "button", "label": "Run \u2192 Load \u2192 Export", "scope": "main"},
+    ]
+
+    class _Locator:
+        def __init__(self, widget_id: str, count: int = 1):
+            self.widget_id = widget_id
+            self._count = count
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return self._count
+
+        def inner_text(self, timeout):
+            return ""
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **_kwargs):
+            events.append(self.widget_id)
+            if self.widget_id == "combo":
+                current_widgets[:] = [
+                    {"id": "export", "kind": "button", "label": "EXPORT dataframe", "scope": "main"},
+                ]
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script in {
+                module.CLOSE_EXPANDERS_JS,
+                module.OPEN_EXPANDERS_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [dict(widget) for widget in current_widgets]
+            raise AssertionError(script)
+
+        def locator(self, selector):
+            if selector in {"body", "[data-testid='stSpinner']"}:
+                return _Locator(selector, count=0 if selector != "body" else 1)
+            widget_id = selector.split("'")[1]
+            return _Locator(widget_id)
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+    module._wait_for_action_outcome = lambda page, **_kwargs: (None, True)
+    try:
+        probes = module._probe_selected_actions_first(
+            _Page(),
+            app_name="flight_project",
+            display="ORCHESTRATE",
+            widget_timeout_ms=100,
+            click_action_labels=["Run -> Load -> Export", "EXPORT dataframe"],
+            preselect_labels=[],
+            missing_selected_action_policy="fail",
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert events == ["combo", "export"]
+    assert [(probe.label, probe.status) for probe in probes] == [
+        ("Run \u2192 Load \u2192 Export", "interacted"),
+        ("EXPORT dataframe", "interacted"),
+    ]
+
+
+def test_probe_selected_actions_first_fails_disabled_selected_action(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def inner_text(self, timeout):
+            return ""
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return False
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script in {module.CLOSE_EXPANDERS_JS, module.OPEN_EXPANDERS_JS}:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [{"id": "delete", "kind": "button", "label": "Delete output", "scope": "main"}]
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return []
+            return []
+
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator()
+            return _Locator()
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    probes = module._probe_selected_actions_first(
+        _Page(),
+        app_name="flight_project",
+        display="ORCHESTRATE",
+        widget_timeout_ms=100,
+        click_action_labels=["Delete output"],
+        preselect_labels=[],
+        missing_selected_action_policy="fail",
+        action_timeout_ms=100,
+        upload_file=tmp_path / "fixture.txt",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "not fired" in probes[0].detail
+
+
 def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction(tmp_path) -> None:
     module = _load_module()
 
@@ -1389,6 +1539,81 @@ def test_selected_action_button_waits_for_delayed_feedback_error(tmp_path) -> No
     assert "Distribution build failed" in detail
     assert feedback_calls["value"] >= 3
     assert clicks == [{"timeout": 1000}]
+
+
+def test_action_outcome_does_not_settle_on_soft_feedback_before_late_error() -> None:
+    module = _load_module()
+    feedback_calls = {"value": 0}
+
+    class _Locator:
+        def count(self):
+            return 0
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script in {module.OPEN_EXPANDERS_JS, module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS}:
+                return []
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                feedback_calls["value"] += 1
+                if feedback_calls["value"] == 1:
+                    return [{"kind": "info", "detail": "Logs saved"}]
+                return [{"kind": "error", "detail": "AGI execution failed."}]
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    error, settled = module._wait_for_action_outcome(
+        _Page(),
+        timeout_ms=1000,
+        require_feedback=True,
+        baseline_feedback=set(),
+    )
+
+    assert settled is True
+    assert "AGI execution failed" in str(error)
+    assert feedback_calls["value"] >= 2
+
+
+def test_action_outcome_can_settle_when_next_selected_action_appears() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def count(self):
+            return 0
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [{"id": "confirm", "kind": "button", "label": "Confirm delete", "scope": "main"}]
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    error, settled = module._wait_for_action_outcome(
+        _Page(),
+        timeout_ms=1000,
+        require_feedback=True,
+        baseline_feedback=set(),
+        settle_action_labels=["Confirm delete"],
+    )
+
+    assert error is None
+    assert settled is True
 
 
 def test_selected_action_button_detects_failure_in_orchestration_log_expander(tmp_path) -> None:

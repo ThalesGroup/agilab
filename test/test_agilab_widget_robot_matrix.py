@@ -27,8 +27,9 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert [scenario.name for scenario in scenarios] == [
         "isolated-core-pages",
         "current-home-actions",
+        "current-home-orchestrate-journey",
     ]
-    isolated, current_home = scenarios
+    isolated, current_home, journey = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
@@ -38,6 +39,12 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert current_home.click_action_labels == "CHECK distribute,Run -> Load -> Export"
     assert current_home.preselect_labels == "Run now"
     assert current_home.missing_selected_action_policy == "ignore-absent"
+    assert journey.runtime_isolation == "current-home"
+    assert journey.pages == "ORCHESTRATE"
+    assert journey.action_button_policy == "click-selected"
+    assert "Load output" in journey.click_action_labels
+    assert "EXPORT dataframe" in journey.click_action_labels
+    assert "Confirm delete" in journey.click_action_labels
 
 
 def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
@@ -110,14 +117,19 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
     results = module.run_matrix(scenarios, options=options, runner=_fake_runner, keep_going=True)
     summary = module.summarize_matrix(results)
 
-    assert seen == ["isolated-core-pages", "current-home-actions"]
+    assert seen == [
+        "isolated-core-pages",
+        "current-home-actions",
+        "current-home-orchestrate-journey",
+    ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 2
-    assert summary["page_count"] == 4
-    assert summary["widget_count"] == 10
-    assert summary["interacted_count"] == 6
-    assert summary["probed_count"] == 4
+    assert summary["scenario_count"] == 3
+    assert summary["page_count"] == 6
+    assert summary["widget_count"] == 15
+    assert summary["interacted_count"] == 9
+    assert summary["probed_count"] == 6
     assert summary["failed_scenarios"] == []
+    assert summary["failure_samples"] == []
 
 
 def test_run_matrix_fail_fast_stops_on_first_failed_scenario(tmp_path) -> None:
@@ -160,6 +172,57 @@ def test_run_matrix_fail_fast_stops_on_first_failed_scenario(tmp_path) -> None:
     assert seen == ["isolated-core-pages"]
     assert summary["success"] is False
     assert summary["failed_scenarios"] == ["isolated-core-pages"]
+
+
+def test_summarize_matrix_reports_failure_samples(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["current-home-orchestrate-journey"]
+    result = module.ScenarioResult(
+        scenario=scenario,
+        argv=["robot"],
+        returncode=1,
+        duration_seconds=1.0,
+        summary_path=tmp_path / "summary.json",
+        progress_path=tmp_path / "progress.ndjson",
+        summary={
+            "success": False,
+            "page_count": 1,
+            "widget_count": 3,
+            "interacted_count": 1,
+            "probed_count": 1,
+            "skipped_count": 0,
+            "failed_count": 1,
+            "pages": [
+                {
+                    "app": "flight_project",
+                    "page": "ORCHESTRATE",
+                    "failures": [
+                        {
+                            "kind": "button",
+                            "label": "Run -> Load -> Export",
+                            "detail": "AGI execution failed.",
+                        }
+                    ],
+                }
+            ],
+        },
+        output="",
+    )
+
+    summary = module.summarize_matrix([result])
+
+    assert summary["success"] is False
+    assert summary["failed_scenarios"] == ["current-home-orchestrate-journey"]
+    assert summary["failure_samples"] == [
+        {
+            "scenario": "current-home-orchestrate-journey",
+            "app": "flight_project",
+            "page": "ORCHESTRATE",
+            "kind": "button",
+            "label": "Run -> Load -> Export",
+            "detail": "AGI execution failed.",
+        }
+    ]
 
 
 def test_main_print_only_json_lists_commands(tmp_path, capsys) -> None:
