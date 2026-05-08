@@ -18,9 +18,9 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab==2026.05.07`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab==2026.05.08`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.05.07 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.07>`__
+     - `v2026.05.08 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.08>`__
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``4f6ff8391fc8ec8fb0e0f92c413aa747bace000b``
    * - Public guardrails
@@ -39,7 +39,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install agilab==2026.05.07
+     python -m pip install agilab==2026.05.08
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The public GitHub Actions matrix validated the packaged first proof on
@@ -66,7 +66,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install agilab==2026.05.07
+   python -m pip install agilab==2026.05.08
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
