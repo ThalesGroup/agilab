@@ -1,4 +1,4 @@
-"""Environment-file editor and runtime synchronization for the About page."""
+"""Environment-file editor and runtime synchronization for the main page."""
 
 from __future__ import annotations
 

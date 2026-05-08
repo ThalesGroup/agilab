@@ -207,7 +207,7 @@ It proves the recommended newcomer startup path is healthy. Specifically, it
 checks that:
 
 - the lightweight ``agi_env`` preinit smoke works
-- the ``About`` page boots
+- the main page boots
 - the ``ORCHESTRATE`` page boots against the built-in ``flight_project``
 
 It does **not** replace the full first visible workflow proof. Passing

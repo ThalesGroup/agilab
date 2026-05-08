@@ -1,4 +1,4 @@
-"""Display-only helpers for the AGILab About page."""
+"""Display-only helpers for the AGILAB main page."""
 
 from __future__ import annotations
 

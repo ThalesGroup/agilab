@@ -1,2 +1,1 @@
-"""Implementation modules for the AGILab About page."""
-
+"""Implementation modules for the AGILAB main page."""
