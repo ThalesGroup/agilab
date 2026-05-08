@@ -63,7 +63,7 @@ summary = "passed component coverage and badge freshness checks"
 summary = "A clean package install can run the public first proof:"
 commands = [
   "python -m pip install {package_spec}",
-  "agilab first-proof --json --max-seconds 60",
+  "python -m agilab.lab_run first-proof --json --max-seconds 60",
 ]
 
 [verification]
@@ -73,7 +73,7 @@ commands = [
   ". .venv/bin/activate",
   "python -m pip install --upgrade pip",
   "python -m pip install {package_spec}",
-  "agilab first-proof --json --max-seconds 60",
+  "python -m agilab.lab_run first-proof --json --max-seconds 60",
 ]
 follow_up = "Use :doc:`quick-start` when you want the fuller source-checkout path with the built-in app installation and Streamlit UI."
 

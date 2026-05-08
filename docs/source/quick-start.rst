@@ -57,14 +57,14 @@ package, private-app, and cluster variables during the first 10 minutes.
 
 **Published package install or upgrade**::
 
-   uv --preview-features extra-build-dependencies tool upgrade agilab
+   uv --preview-features extra-build-dependencies tool install --upgrade agilab
    agilab first-proof --json
 
 If you installed AGILAB inside an activated project environment instead of as a
 ``uv`` tool, upgrade that environment explicitly::
 
    uv pip install --upgrade agilab
-   agilab first-proof --json
+   python -m agilab.lab_run first-proof --json
 
 The adoption checkpoint is always the same: ``run_manifest.json`` reports
 ``status: pass`` and the default ``flight_project`` analysis view opens. If it
@@ -202,8 +202,8 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
     uv venv
     source .venv/bin/activate
     uv pip install agilab
-    agilab first-proof --json
-    uv run agilab
+    python -m agilab.lab_run first-proof --json
+    python -m agilab.lab_run
 
 Optional feature stacks stay out of the base package install. Add
 ``agilab[ai]`` for AI assistant features such as OpenAI, Mistral, and
