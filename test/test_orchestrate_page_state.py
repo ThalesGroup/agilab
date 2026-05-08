@@ -161,6 +161,27 @@ def test_orchestrate_page_state_blocks_remote_dask_without_shared_workers_path(t
     assert "local share" in state.run_disabled_reason
 
 
+def test_orchestrate_page_state_blocks_cluster_share_warning():
+    state = orchestrate_page_state.build_orchestrate_page_state(
+        cluster_params={
+            "cluster_enabled": True,
+            "pool": True,
+            "cython": True,
+            "rapids": False,
+            "workers": {"127.0.0.1": 2},
+            "workers_data_path": "clustershare/agi",
+        },
+        selected_benchmark_modes=[],
+        cluster_share_issue="Cluster is enabled but the data directory appears local.",
+        deps=_deps(),
+    )
+
+    assert state.status is orchestrate_page_state.OrchestrateWorkflowStatus.BLOCKED
+    assert state.can_run is False
+    assert state.cluster_share_issue == "Cluster is enabled but the data directory appears local."
+    assert "appears local" in state.run_disabled_reason
+
+
 def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
     active_app = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
     cmd = "asyncio.run(main())"

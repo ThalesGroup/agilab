@@ -266,6 +266,10 @@ def _seed_probeable_venv(venv: Path) -> None:
         package_dir = site_packages / module_name
         package_dir.mkdir(parents=True, exist_ok=True)
         (package_dir / "__init__.py").write_text("", encoding="utf-8")
+        if module_name == "agi_cluster":
+            distributor_dir = package_dir / "agi_distributor"
+            distributor_dir.mkdir(parents=True, exist_ok=True)
+            (distributor_dir / "__init__.py").write_text("class StageRequest: ...\n", encoding="utf-8")
 
 
 def _current_app_state_name(at: AppTest) -> str:
@@ -594,6 +598,11 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    cluster_share = mock_ui_env["apps_dir"].parent / "clustershare"
+    cluster_share.mkdir(parents=True, exist_ok=True)
+    env.AGI_CLUSTER_SHARE = str(cluster_share)
+    env.envars = dict(getattr(env, "envars", {}) or {})
+    env.envars["AGI_CLUSTER_SHARE"] = str(cluster_share)
     at.session_state["env"] = env
     at.session_state["app_settings"] = {
         "args": {},
@@ -603,7 +612,7 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
             "pool": True,
             "scheduler": "192.168.20.111:8786",
             "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
-            "workers_data_path": str(mock_ui_env["apps_dir"].parent / "clustershare"),
+            "workers_data_path": str(cluster_share),
         },
     }
     _seed_env_editor_state(at, env)
@@ -1180,12 +1189,23 @@ def test_execute_page_workers_data_path(mock_ui_env):
 
     # Set workers data path
     wdp_key = f"cluster_workers_data_path__{app_state_name}"
-    at.session_state[wdp_key] = "/data/shared"
-    at.run()
+    at.text_input(key=wdp_key).set_value("/data/shared").run()
     assert not at.exception
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     assert cluster_state.get("workers_data_path", at.session_state[wdp_key]) == "/data/shared"
+    with open(env.app_settings_file, "rb") as file:
+        persisted_settings = tomllib.load(file)
+    assert persisted_settings["cluster"]["workers_data_path"] == "/data/shared"
+
+    at.text_input(key=wdp_key).set_value("").run()
+    assert not at.exception
+    app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
+    cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
+    assert cluster_state.get("workers_data_path") == ""
+    with open(env.app_settings_file, "rb") as file:
+        persisted_settings = tomllib.load(file)
+    assert persisted_settings["cluster"]["workers_data_path"] == ""
 
 
 def test_execute_service_snippet_maps_runtime_health_settings():

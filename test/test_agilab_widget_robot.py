@@ -63,6 +63,7 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.json_output is None
     assert args.quiet_progress is False
     assert args.runtime_isolation == "isolated"
+    assert args.missing_selected_action_policy == "fail"
 
 
 def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
@@ -451,6 +452,131 @@ def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
     assert probes[-1].kind == "selected_action"
     assert probes[-1].status == "failed"
     assert "not fired" in probes[-1].detail
+
+
+def test_missing_selected_action_probe_can_ignore_absent_label() -> None:
+    module = _load_module()
+    probes: list[module.WidgetProbe] = []
+
+    module._append_missing_selected_action_probes(
+        probes,
+        app_name="execution_pandas_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        click_action_labels=["Run -> Load -> Export"],
+        missing_selected_action_policy="ignore-absent",
+    )
+
+    assert probes == []
+
+
+def test_missing_selected_action_probe_still_fails_found_unfired_label_when_absent_is_ignored() -> None:
+    module = _load_module()
+    probes = [
+        module.WidgetProbe(
+            "flight_project",
+            "ORCHESTRATE",
+            "button",
+            "Run -> Load -> Export",
+            "skipped",
+            "clicked action button but UI did not settle within 180.0s",
+            "http://demo",
+        )
+    ]
+
+    module._append_missing_selected_action_probes(
+        probes,
+        app_name="flight_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        click_action_labels=["Run -> Load -> Export"],
+        missing_selected_action_policy="ignore-absent",
+    )
+
+    assert probes[-1].kind == "selected_action"
+    assert probes[-1].status == "failed"
+    assert "not fired" in probes[-1].detail
+
+
+def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> None:
+    module = _load_module()
+    events: list[str] = []
+    current_widgets = [
+        {"id": "run-now", "kind": "segmented_control", "label": "Run now", "scope": "main"},
+        {"id": "cluster", "kind": "checkbox", "label": "Cluster", "scope": "main"},
+        {"id": "combo", "kind": "button", "label": "Run \u2192 Load \u2192 Export", "scope": "main"},
+    ]
+
+    class _Locator:
+        def __init__(self, widget_id: str, count: int = 1):
+            self.widget_id = widget_id
+            self._count = count
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return self._count
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            events.append(self.widget_id)
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [dict(widget) for widget in current_widgets]
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return []
+            raise AssertionError(script)
+
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator("spinner", count=0)
+            widget_id = selector.split("'")[1]
+            return _Locator(widget_id)
+
+        def wait_for_timeout(self, ms):
+            return None
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+    module._wait_for_action_outcome = lambda page, timeout_ms: (None, True)
+    try:
+        probes = module._probe_selected_actions_first(
+            _Page(),
+            app_name="flight_project",
+            display="ORCHESTRATE",
+            widget_timeout_ms=100,
+            click_action_labels=["Run -> Load -> Export"],
+            preselect_labels=["Run now"],
+            missing_selected_action_policy="fail",
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert events == ["run-now", "combo"]
+    assert [(probe.kind, probe.status) for probe in probes] == [
+        ("segmented_control", "interacted"),
+        ("button", "interacted"),
+    ]
 
 
 def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction(tmp_path) -> None:

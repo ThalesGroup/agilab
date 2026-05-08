@@ -63,6 +63,10 @@ def _seed_fake_venv_modules(venv: Path, *modules: str) -> Path:
         package_dir = site_packages / module
         package_dir.mkdir(parents=True, exist_ok=True)
         (package_dir / "__init__.py").write_text("", encoding="utf-8")
+        if module == "agi_cluster":
+            distributor_dir = package_dir / "agi_distributor"
+            distributor_dir.mkdir(parents=True, exist_ok=True)
+            (distributor_dir / "__init__.py").write_text("class StageRequest: ...\n", encoding="utf-8")
     return site_packages
 
 
@@ -634,6 +638,25 @@ def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) 
     assert status["worker_ready"] is True
     assert status["manager_missing_modules"] == ("agi_cluster",)
     assert status["manager_problem"] == "missing modules: agi_cluster"
+
+
+def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path: Path) -> None:
+    active_app = tmp_path / "meteo_forecast_project"
+    worker_root = tmp_path / "wenv" / "meteo_forecast_worker"
+    manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_env", "agi_node", "agi_cluster")
+    worker_site = _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node")
+    stale_distributor = manager_site / "agi_cluster" / "agi_distributor"
+    stale_distributor.mkdir(parents=True, exist_ok=True)
+    (stale_distributor / "__init__.py").write_text("class StepRequest: ...\n", encoding="utf-8")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert worker_site.exists()
+    assert status["manager_ready"] is False
+    assert status["worker_ready"] is True
+    assert status["manager_missing_symbols"] == ("agi_cluster.agi_distributor.StageRequest",)
+    assert status["manager_problem"] == "missing symbols: agi_cluster.agi_distributor.StageRequest"
 
 
 def test_app_install_status_detects_editable_pth_import_roots(tmp_path: Path) -> None:

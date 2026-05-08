@@ -1249,6 +1249,60 @@ def test_render_cluster_settings_ui_password_auth_clears_credentials_and_ignores
     assert fake_st.infos[-1] == "Run mode 4: dask"
 
 
+def test_render_cluster_settings_ui_persists_cleared_workers_data_path(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_enabled__demo_project": True,
+            "cluster_cython__demo_project": False,
+            "cluster_pool__demo_project": False,
+            "cluster_rapids__demo_project": False,
+            "cluster_use_key__demo_project": True,
+            "cluster_user__demo_project": "agi",
+            "cluster_ssh_key__demo_project": "",
+            "cluster_scheduler__demo_project": "",
+            "cluster_workers__demo_project": "",
+            "cluster_workers_data_path__demo_project": "",
+        },
+        session_state={
+            "app_settings": {
+                "cluster": {
+                    "cluster_enabled": True,
+                    "workers_data_path": "/old/share",
+                }
+            },
+            "benchmark": False,
+        },
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+    _disable_lan_defaults(monkeypatch)
+
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda _raw: None,
+        parse_and_validate_workers=lambda _raw: None,
+        write_app_settings_toml=lambda _path, settings: settings,
+        clear_load_toml_cache=lambda: None,
+        set_env_var=lambda _key, _value: None,
+        agi_env_envars={},
+    )
+    share = tmp_path / "share"
+    share.mkdir()
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=Path("clustershare"),
+        share_root_path=lambda: share,
+        user="agi",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+
+    cluster = fake_st.session_state.app_settings["cluster"]
+    assert cluster["workers_data_path"] == ""
+
+
 def test_render_cluster_settings_ui_password_auth_uses_stored_user_for_credentials(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         widget_values={

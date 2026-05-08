@@ -75,6 +75,7 @@ class OrchestratePageState:
     raw_workers_data_path: Any
     workers_data_path: str
     workers_data_path_issue: str
+    cluster_share_issue: str
     rapids_enabled: bool
     can_run: bool
     run_disabled_reason: str
@@ -607,6 +608,7 @@ def build_orchestrate_page_state(
     selected_benchmark_modes: Sequence[Any],
     benchmark_best_single_node: bool = False,
     local_share_path: Any = None,
+    cluster_share_issue: str = "",
     deps: OrchestratePageStateDeps,
 ) -> OrchestratePageState:
     """Build the pure ORCHESTRATE run-mode view model."""
@@ -640,10 +642,11 @@ def build_orchestrate_page_state(
         workers_data_path=raw_workers_data_path,
         local_share_path=local_share_path,
     )
-    can_run = not bool(workers_data_path_issue)
+    run_disabled_reason = workers_data_path_issue or str(cluster_share_issue or "")
+    can_run = not bool(run_disabled_reason)
     status = (
         OrchestrateWorkflowStatus.BLOCKED
-        if workers_data_path_issue
+        if run_disabled_reason
         else OrchestrateWorkflowStatus.BENCHMARK
         if benchmark_enabled
         else OrchestrateWorkflowStatus.SINGLE_RUN
@@ -669,7 +672,8 @@ def build_orchestrate_page_state(
         raw_workers_data_path=raw_workers_data_path,
         workers_data_path=deps.optional_string_expr(enabled, raw_workers_data_path),
         workers_data_path_issue=workers_data_path_issue,
+        cluster_share_issue=str(cluster_share_issue or ""),
         rapids_enabled=rapids_enabled,
         can_run=can_run,
-        run_disabled_reason=workers_data_path_issue,
+        run_disabled_reason=run_disabled_reason,
     )
