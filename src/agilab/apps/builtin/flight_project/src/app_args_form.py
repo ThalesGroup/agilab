@@ -91,7 +91,7 @@ except Exception:
     share_root = None
 
 st.caption(
-    "Paths are resolved relative to `AGI_SHARE_DIR` (shared storage)."
+    "Paths are resolved relative to `AGI_CLUSTER_SHARE` (shared storage)."
     + (f" Current share root: `{share_root}`." if share_root else "")
     + " This public built-in app runs file-based Flight input only."
 )

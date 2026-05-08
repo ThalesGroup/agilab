@@ -29,7 +29,6 @@ _AGIENV_PROCESS_ENV_KEYS = {
     "AGI_EXPORT_DIR",
     "AGI_LOCAL_SHARE",
     "AGI_LOG_DIR",
-    "AGI_SHARE_DIR",
     "AGILAB_SHARE_USER",
     "APP_DEFAULT",
     "APPS_PATH",
@@ -351,7 +350,6 @@ def test_user_workspace_app_settings_override_source_cluster_toggle(tmp_path: Pa
 
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
-    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
 
     fake_apps = tmp_path / "apps"
     fake_app = fake_apps / "mycode_project"
@@ -382,7 +380,6 @@ def test_cluster_share_missing_raises_for_cluster_enabled_app(tmp_path: Path, mo
         "AGI_CLUSTER_ENABLED=1\nAGI_CLUSTER_SHARE=/nonexistent_cluster_share\n"
     )
     monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
-    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
     share_dir = fake_home / ".local" / "share" / "agilab"
     share_dir.mkdir(parents=True, exist_ok=True)
     (share_dir / ".agilab-path").write_text(str(agipath) + "\n")
@@ -427,7 +424,6 @@ def test_cluster_enabled_raises_when_app_src_invalid(tmp_path: Path, monkeypatch
     )
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
-    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
 
     # Create an app with an unusable `src` entry to mimic a transient broken path
     # during local build steps (e.g. pre-Cython local compilation).
@@ -461,7 +457,6 @@ def test_cluster_enabled_from_process_env_when_app_src_invalid(tmp_path: Path, m
     monkeypatch.setenv("AGI_CLUSTER_SHARE", str(share_dir / "cluster_shared"))
     (share_dir / "cluster_shared").mkdir(exist_ok=True, parents=True)
 
-    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
     fake_apps = tmp_path / "apps"
     bad_app = fake_apps / "broken_project"
     bad_app.mkdir(parents=True, exist_ok=True)
@@ -496,7 +491,7 @@ def test_cluster_share_same_as_local_share_raises(tmp_path: Path, monkeypatch):
     )
 
     monkeypatch.setenv("HOME", str(fake_home))
-    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
+    monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
 
     fake_apps = tmp_path / "apps"
     fake_app = fake_apps / app_name
@@ -2345,7 +2340,7 @@ def test_share_root_resolution_worker_uses_runtime_home_and_init_honours_share_o
     (share_dir / ".agilab-path").write_text(str(agipath) + "\n", encoding="utf-8")
     (fake_home / ".agilab").mkdir(parents=True, exist_ok=True)
     (fake_home / ".agilab" / ".env").write_text(
-        "AGI_SHARE_DIR=cluster_mount\nSTREAMLIT_SERVER_MAX_MESSAGE_SIZE=256\nIS_SOURCE_ENV=yes\n",
+        "AGI_CLUSTER_SHARE=cluster_mount\nSTREAMLIT_SERVER_MAX_MESSAGE_SIZE=256\nIS_SOURCE_ENV=yes\n",
         encoding="utf-8",
     )
 

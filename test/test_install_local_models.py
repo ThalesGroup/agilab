@@ -108,14 +108,14 @@ def test_root_installer_default_share_dir_is_user_scoped() -> None:
     script_text = INSTALL_SH.read_text(encoding="utf-8")
     function_body = "\n".join(
         [
-            _extract_function(script_text, "default_agi_share_user", "default_agi_share_dir"),
-            _extract_function(script_text, "default_agi_share_dir"),
+            _extract_function(script_text, "default_agi_share_user", "default_agi_cluster_share"),
+            _extract_function(script_text, "default_agi_cluster_share"),
         ]
     )
     bash_script = f"""#!/usr/bin/env bash
 set -euo pipefail
 {function_body}
-USER='alice@example.com' default_agi_share_dir
+USER='alice@example.com' default_agi_cluster_share
 """
     completed = subprocess.run(
         ["bash", "-c", bash_script],
@@ -125,7 +125,7 @@ USER='alice@example.com' default_agi_share_dir
     )
 
     assert completed.stdout.strip() == "clustershare/alice_example.com"
-    assert 'AGI_SHARE_DIR="${AGI_SHARE_DIR:-clustershare}"' not in script_text
+    assert 'AGI_CLUSTER_SHARE="${AGI_CLUSTER_SHARE:-clustershare}"' not in script_text
 
 
 def test_root_installer_refuses_ephemeral_validation_paths_with_real_home() -> None:
@@ -143,8 +143,8 @@ YELLOW=''
 NC=''
 HOME=/home/agilab-user
 AGI_INSTALL_PATH=/home/agilab-user/agilab-release-check-demo/agilab
-AGI_SHARE_DIR=/home/agilab-user/agilab-release-check-demo/agilab/clustershare
-AGI_LOCAL_DIR=/home/agilab-user/agilab-release-check-demo/agilab/localshare
+AGI_CLUSTER_SHARE=/home/agilab-user/agilab-release-check-demo/agilab/clustershare
+AGI_LOCAL_SHARE=/home/agilab-user/agilab-release-check-demo/agilab/localshare
 {function_body}
 guard_ephemeral_validation_env
 """
@@ -173,8 +173,8 @@ YELLOW=''
 NC=''
 HOME=/home/agilab-user/agilab-release-check-demo/home
 AGI_INSTALL_PATH=/home/agilab-user/agilab-release-check-demo/agilab
-AGI_SHARE_DIR=/home/agilab-user/agilab-release-check-demo/agilab/clustershare
-AGI_LOCAL_DIR=/home/agilab-user/agilab-release-check-demo/agilab/localshare
+AGI_CLUSTER_SHARE=/home/agilab-user/agilab-release-check-demo/agilab/clustershare
+AGI_LOCAL_SHARE=/home/agilab-user/agilab-release-check-demo/agilab/localshare
 {function_body}
 guard_ephemeral_validation_env
 """
@@ -193,7 +193,7 @@ def test_app_installer_uses_same_user_scoped_share_default() -> None:
 
     assert "from agi_env.runtime_bootstrap_support import default_cluster_share" in apps_install_text
     assert "Path(default_cluster_share(environ=os.environ))" in apps_install_text
-    assert 'os.environ.get("AGI_SHARE_DIR",default_cluster_share(environ=os.environ),' in compact_text
+    assert 'os.environ.get("AGI_CLUSTER_SHARE",default_cluster_share(environ=os.environ),' in compact_text
 
 
 def test_enduser_installer_normalizes_requested_local_models_and_deduplicates_aliases() -> None:

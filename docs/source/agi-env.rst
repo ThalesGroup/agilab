@@ -27,11 +27,10 @@ Share directory resolution
 ``AgiEnv.agi_share_path_abs``.
 The path is derived from environment settings using the following precedence:
 
-1. ``AGI_SHARE_DIR`` from the current process environment, then ``.env``. This is the user-facing override.
-2. ``AGI_CLUSTER_SHARE`` from the current process environment (e.g. ssh session, service unit), then ``.env``.
-3. ``AGI_CLUSTER_SHARE`` fallback ``clustershare/<user>`` when no explicit
+1. ``AGI_CLUSTER_SHARE`` from the current process environment, then ``.env``.
+2. ``AGI_CLUSTER_SHARE`` fallback ``clustershare/<user>`` when no explicit
    cluster share is configured.
-4. ``AGI_LOCAL_SHARE`` (default ``~/localshare``) when cluster mode is disabled.
+3. ``AGI_LOCAL_SHARE`` (default ``~/localshare``) when cluster mode is disabled.
 
 The ``<user>`` segment is derived from ``AGILAB_SHARE_USER``, then ``USER``,
 then ``USERNAME``, and is sanitised before being used as a path component.

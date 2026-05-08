@@ -117,7 +117,7 @@ def resolve_share_runtime_config(
         or default_cluster_share(environ=environ)
     )
 
-    share_dir_override = clean_envar_value_fn(envars, "AGI_SHARE_DIR", fallback_to_process=True)
+    share_dir_override = clean_envar_value_fn(envars, "AGI_CLUSTER_SHARE", fallback_to_process=True)
     if share_dir_override is not None:
         cluster_share = share_dir_override
         try:

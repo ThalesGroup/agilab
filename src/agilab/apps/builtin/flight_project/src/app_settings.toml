@@ -70,7 +70,7 @@ excluded_views = [
 ]
 
 [pages.view_maps_network]
-dataset_base_choice = "AGI_SHARE_DIR"
+dataset_base_choice = "AGI_CLUSTER_SHARE"
 dataset_custom_base = ""
 dataset_subpath = "flight/dataframe"
 default_traj_globs = [
@@ -79,7 +79,7 @@ default_traj_globs = [
 ]
 
 [view_maps_network]
-base_dir_choice = "AGI_SHARE_DIR"
+base_dir_choice = "AGI_CLUSTER_SHARE"
 input_datadir = ""
 datadir_rel = "flight/dataframe"
 file_ext_choice = "all"

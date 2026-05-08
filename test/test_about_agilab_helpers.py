@@ -1329,7 +1329,7 @@ def test_resolve_share_dir_path_accepts_relative_value(tmp_path):
 
 
 def test_resolve_share_dir_path_rejects_invalid_value(tmp_path):
-    with pytest.raises(ValueError, match="AGI_SHARE_DIR"):
+    with pytest.raises(ValueError, match="AGI_CLUSTER_SHARE"):
         about_agilab._resolve_share_dir_path("\0bad-path", home_path=tmp_path)
 
 

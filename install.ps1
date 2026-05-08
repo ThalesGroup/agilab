@@ -9,8 +9,8 @@ param(
     [switch]$InstallApps,
     [switch]$TestApps,
     [switch]$TestCore,
-    [string]$AgiShareDir,
-    [string]$AgiLocalDir,
+    [string]$AgiClusterShare,
+    [string]$AgiLocalShare,
     [string]$InstallAppsList,
     [switch]$NonInteractive
 )
@@ -111,7 +111,7 @@ $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 Ensure-Directory $LocalDir
 $AgiPathFile = Join-Path $LocalDir ".agilab-path"
 
-$DefaultShareDir = if ($AgiShareDir) { $AgiShareDir } elseif ($env:AGI_SHARE_DIR) { $env:AGI_SHARE_DIR } else { Join-Path $env:USERPROFILE "clustershare" }
+$DefaultShareDir = if ($AgiClusterShare) { $AgiClusterShare } elseif ($env:AGI_CLUSTER_SHARE) { $env:AGI_CLUSTER_SHARE } else { Join-Path $env:USERPROFILE "clustershare" }
 function Get-EnvValueFromFile {
     param([string]$FilePath, [string]$Key)
     if (-not (Test-Path -LiteralPath $FilePath)) { return "" }
@@ -121,13 +121,12 @@ function Get-EnvValueFromFile {
     return $value
 }
 if (-not $DefaultShareDir) {
-    $DefaultShareDir = Get-EnvValueFromFile (Join-Path $env:USERPROFILE ".agilab\.env") "AGI_SHARE_DIR"
+    $DefaultShareDir = Get-EnvValueFromFile (Join-Path $env:USERPROFILE ".agilab\.env") "AGI_CLUSTER_SHARE"
 }
 if (-not $DefaultShareDir) {
-    $DefaultShareDir = Get-EnvValueFromFile (Join-Path $InstallPathFull ".agilab\.env") "AGI_SHARE_DIR"
+    $DefaultShareDir = Get-EnvValueFromFile (Join-Path $InstallPathFull ".agilab\.env") "AGI_CLUSTER_SHARE"
 }
-$DefaultLocalShare = if ($AgiLocalDir) { $AgiLocalDir }
-    elseif ($env:AGI_LOCAL_DIR) { $env:AGI_LOCAL_DIR }
+$DefaultLocalShare = if ($AgiLocalShare) { $AgiLocalShare }
     elseif ($env:AGI_LOCAL_SHARE) { $env:AGI_LOCAL_SHARE }
     else { Join-Path $env:USERPROFILE "localshare" }
 
@@ -161,14 +160,14 @@ function Ensure-ShareDir {
     if ([string]::IsNullOrWhiteSpace($ShareDir)) {
         if ($NonInteractiveMode) {
             if (-not [string]::IsNullOrWhiteSpace($ClusterCredentials)) {
-                Write-Failure "AGI_SHARE_DIR not provided and cluster credentials specified; cannot proceed in non-interactive mode."
+                Write-Failure "AGI_CLUSTER_SHARE not provided and cluster credentials specified; cannot proceed in non-interactive mode."
                 exit 1
             }
             $ShareDir = $FallbackDir
         } else {
-            $ShareDir = Read-Host "Enter AGI_SHARE_DIR path (or press Enter to abort)"
+            $ShareDir = Read-Host "Enter AGI_CLUSTER_SHARE path (or press Enter to abort)"
             if ([string]::IsNullOrWhiteSpace($ShareDir)) {
-                Write-Failure "AGI_SHARE_DIR not provided. Aborting."
+                Write-Failure "AGI_CLUSTER_SHARE not provided. Aborting."
                 exit 1
             }
         }
@@ -178,12 +177,12 @@ function Ensure-ShareDir {
     $FallbackDir = Normalize-UserPath $FallbackDir
 
     if (-not [string]::IsNullOrWhiteSpace($ShareDir)) {
-        Write-Info ("AGI_SHARE_DIR resolved to: {0}" -f $ShareDir)
+        Write-Info ("AGI_CLUSTER_SHARE resolved to: {0}" -f $ShareDir)
     }
 
     if (Test-ShareMounted -Path $ShareDir) {
-        $env:AGI_SHARE_DIR = $ShareDir
-        if (-not $env:AGI_LOCAL_DIR) { $env:AGI_LOCAL_DIR = $FallbackDir }
+        $env:AGI_CLUSTER_SHARE = $ShareDir
+        if (-not $env:AGI_LOCAL_SHARE) { $env:AGI_LOCAL_SHARE = $FallbackDir }
         return
     }
 
@@ -192,30 +191,30 @@ function Ensure-ShareDir {
             Write-Failure "$ShareDir is not mounted. Cluster installs require the shared path; aborting (non-interactive)."
             exit 1
         }
-        Write-Warn ("AGI_SHARE_DIR {0} unavailable; non-interactive mode: using fallback {1}." -f $ShareDir, $FallbackDir)
+        Write-Warn ("AGI_CLUSTER_SHARE {0} unavailable; non-interactive mode: using fallback {1}." -f $ShareDir, $FallbackDir)
         Ensure-Directory $FallbackDir
-        $env:AGI_LOCAL_DIR = $FallbackDir
-        $env:AGI_SHARE_DIR = $FallbackDir
+        $env:AGI_LOCAL_SHARE = $FallbackDir
+        $env:AGI_CLUSTER_SHARE = $FallbackDir
         return
     }
 
-    Write-Warn "AGI_SHARE_DIR is unavailable at $ShareDir."
+    Write-Warn "AGI_CLUSTER_SHARE is unavailable at $ShareDir."
     Write-Host "Choose an option:" -ForegroundColor Yellow
     Write-Host "  1) Use local fallback at $FallbackDir"
     Write-Host "  2) Wait for $ShareDir to be mounted (mandatory for cluster installs; timeout 120s)"
     $choice = Read-Host "Enter 1 or 2 (default: 1)"
     if ($choice -eq "" -or $choice -eq "1") {
         Ensure-Directory $FallbackDir
-        $env:AGI_LOCAL_DIR = $FallbackDir
-        $env:AGI_SHARE_DIR = $FallbackDir
-        Write-Success "Using local fallback AGI_LOCAL_DIR=$env:AGI_LOCAL_DIR"
+        $env:AGI_LOCAL_SHARE = $FallbackDir
+        $env:AGI_CLUSTER_SHARE = $FallbackDir
+        Write-Success "Using local fallback AGI_LOCAL_SHARE=$env:AGI_LOCAL_SHARE"
     }
     elseif ($choice -eq "2") {
         Write-Info "Waiting for $ShareDir to become available (timeout 120s)..."
         $waited = 0
         while ($waited -lt 120) {
             if (Test-Path -LiteralPath $ShareDir) {
-                $env:AGI_SHARE_DIR = $ShareDir
+                $env:AGI_CLUSTER_SHARE = $ShareDir
                 Write-Success "$ShareDir is available. Continuing."
                 return
             }
@@ -278,12 +277,12 @@ if (-not $ResolvedLocalShare) {
 
 if (-not $NonInteractiveMode) {
     $shareDisplay = if ($ResolvedShareDir) { $ResolvedShareDir } else { "<unset>" }
-    $shareInput = Read-Host "AGI_SHARE_DIR is '$shareDisplay'. Press Enter to accept or type a new path"
+    $shareInput = Read-Host "AGI_CLUSTER_SHARE is '$shareDisplay'. Press Enter to accept or type a new path"
     if (-not [string]::IsNullOrWhiteSpace($shareInput)) {
         $ResolvedShareDir = Normalize-UserPath $shareInput
     }
     $localDisplay = if ($ResolvedLocalShare) { $ResolvedLocalShare } else { "<unset>" }
-    $localInput = Read-Host "AGI_LOCAL_DIR fallback is '$localDisplay'. Press Enter to accept or type a new path"
+    $localInput = Read-Host "AGI_LOCAL_SHARE fallback is '$localDisplay'. Press Enter to accept or type a new path"
     if (-not [string]::IsNullOrWhiteSpace($localInput)) {
         $ResolvedLocalShare = Normalize-UserPath $localInput
     }
@@ -482,7 +481,6 @@ function Write-AgiPath {
     $agilabPath = Join-Path $env:USERPROFILE ".agilab"
     Ensure-Directory $agilabPath
     $agilabRoot | Set-Content -Encoding UTF8 -Path $AgiPathFile
-    [Environment]::SetEnvironmentVariable('AGI_ROOT', $agilabRoot, [EnvironmentVariableTarget]::User)
     Write-Success "Installation root path recorded in $AgiPathFile"
 }
 

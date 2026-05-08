@@ -139,7 +139,7 @@ Use this checker for automation/monitoring:
 
 Health JSON is written by default to:
 
-- ``${AGI_SHARE_DIR}/service/<app_target>/health.json``
+- ``${AGI_CLUSTER_SHARE}/service/<app_target>/health.json``
 
 Operator snapshot JSON written from the ORCHESTRATE page is stored at:
 

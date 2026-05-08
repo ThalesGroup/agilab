@@ -82,7 +82,7 @@ summarises the supported keys.
    * - ``AGILAB_LLM_TIMEOUT``
      - ``120``
      - Request timeout in seconds for the OpenAI-compatible assistant provider.
-   * - ``AGI_SHARE_DIR``
+   * - ``AGI_CLUSTER_SHARE``
      - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
      - User-facing knob for the shared datasets/outputs root. Prefer the relative
        user-scoped form so mixed macOS/Linux/Windows nodes can resolve it under
@@ -136,7 +136,7 @@ Cluster isolation note
 For cluster-enabled use cases, treat the share directory as part of the user's
 workspace contract, not as a generic team dropbox.
 
-- The default ``AGI_SHARE_DIR`` / ``AGI_CLUSTER_SHARE`` root is user-scoped.
+- The default ``AGI_CLUSTER_SHARE`` root is user-scoped.
 - If you override it, keep one root per user.
 - Each user should also use their own real worker login account or explicit
   ``user@host`` targets when connecting to the cluster.

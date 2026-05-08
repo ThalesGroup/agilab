@@ -635,7 +635,7 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
         active_app_path = _resolve_app_path(apps_path, st.session_state.get("app"))
 
     if active_app_path is None:
-        active_app_path = _resolve_app_path(apps_path, os.environ.get("AGILAB_APP"))
+        active_app_path = _resolve_app_path(apps_path, os.environ.get("APP_DEFAULT"))
 
     if active_app_path is None:
         last_app = load_last_active_app()
@@ -647,7 +647,7 @@ def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
 
     if active_app_path is None:
         st.error(
-            "Could not determine the active project. Please select a project first or set AGILAB_APP."
+            "Could not determine the active project. Please select a project first or set APP_DEFAULT."
         )
         st.stop()
 

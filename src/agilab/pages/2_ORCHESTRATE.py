@@ -505,7 +505,6 @@ class _ShareRootOverrideEnv:
         env_vars = getattr(self._env, "envars", None)
         payload = dict(env_vars) if isinstance(env_vars, dict) else {}
         payload["AGI_CLUSTER_SHARE"] = str(self._share_root)
-        payload["AGI_SHARE_DIR"] = str(self._share_root)
         return payload
 
     def share_root_path(self) -> Path:
@@ -589,8 +588,8 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
         f"Cluster is enabled but the data directory `{share_resolved}` appears local. "
         f"(detected fstype: `{fstype}`) "
         "Set `AGI_CLUSTER_SHARE` to the scheduler-side source path and `Workers Data Path` "
-        "to the worker-side SSHFS/shared mount target, "
-        "or set `AGI_SHARE_DIR` to a shared mount/symlink when not using the cluster-share contract."
+        "to the worker-side SSHFS/shared mount target, or point `AGI_CLUSTER_SHARE` "
+        "at a shared mount/symlink when not using the SSHFS cluster-share contract."
         f"{extra}"
     )
 

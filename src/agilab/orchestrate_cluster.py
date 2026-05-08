@@ -129,7 +129,7 @@ def persist_env_var_if_changed(
 def _describe_share_path(env: Any) -> str:
     share_raw = env.agi_share_path
     if not share_raw:
-        return "not set. Set `AGI_SHARE_DIR` to a shared mount (or symlink to one) so remote workers can read outputs."
+        return "not set. Set `AGI_CLUSTER_SHARE` to a shared mount (or symlink to one) so remote workers can read outputs."
 
     share_display = str(share_raw)
     resolved_display: Optional[Path] = None
@@ -286,7 +286,7 @@ def _env_cluster_share_setting(env: Any) -> str | None:
     raw_value = getattr(env, "AGI_CLUSTER_SHARE", None)
     envars = getattr(env, "envars", None)
     if not raw_value and isinstance(envars, dict):
-        raw_value = envars.get("AGI_CLUSTER_SHARE") or envars.get("AGI_SHARE_DIR")
+        raw_value = envars.get("AGI_CLUSTER_SHARE")
     if not raw_value:
         raw_value = getattr(env, "agi_share_path", None)
     if not raw_value:

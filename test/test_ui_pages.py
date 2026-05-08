@@ -368,9 +368,9 @@ def load_args_from_toml(path):
     # Patch sys.argv and env variables
     with patch("sys.argv", test_argv):
         with patch.dict(os.environ, {
-            "AGILAB_APP": "flight_project",
+            "APP_DEFAULT": "flight_project",
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
-            "AGI_SHARE_DIR": str(tmp_path),
+            "AGI_CLUSTER_SHARE": str(tmp_path),
             "AGI_EXPORT_DIR": str(export_dir),
             "AGI_LOG_DIR": str(log_dir),
             "AGI_LOCAL_SHARE": str(local_share_dir),

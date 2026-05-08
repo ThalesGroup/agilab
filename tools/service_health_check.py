@@ -41,7 +41,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--health-output-path",
         default="",
-        help="Optional output path for health JSON (absolute or AGI_SHARE_DIR-relative).",
+        help="Optional output path for health JSON (absolute or AGI_CLUSTER_SHARE-relative).",
     )
     parser.add_argument(
         "--allow-idle",
