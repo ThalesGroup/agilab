@@ -30,7 +30,7 @@ Use one dominant structure per figure.
 - Architecture stack
   Use for system decomposition, layer interaction, deployment, or component boundaries.
 - Pipeline or workflow
-  Use for ordered steps, data flow, preprocessing/training/inference paths, or app orchestration.
+  Use for ordered stages, data flow, preprocessing/training/inference paths, or app orchestration.
 - Training loop or methodology
   Use for RL loops, optimization flow, actor/critic separation, feedback paths, or evaluation cycles.
 - Comparison grid

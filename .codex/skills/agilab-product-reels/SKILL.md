@@ -39,7 +39,7 @@ Do not make a feature tour. A short reel needs one story only.
 
 ## Semantic Guardrails
 
-- Do not show an empty replayable step or empty generated snippet.
+- Do not show an empty replayable stage or empty generated snippet.
 - Do not end on decorative `ANALYSIS`; show real evidence.
 - Do not show a “map” without credible geographic meaning.
 - Do not imply unsupported product behavior.
@@ -55,7 +55,7 @@ If the content feels weak, improve the story before polishing the visuals.
 3. Decide which content must be visible in each page:
    - `PROJECT`: scenario or app context
    - `ORCHESTRATE`: runnable packaging / orchestration intent
-   - `WORKFLOW`: replayable snippet, saved step content, or workflow graph
+   - `WORKFLOW`: replayable snippet, saved stage content, or workflow graph
    - `ANALYSIS`: visible outcome or comparison evidence
 4. Generate or refresh the reel.
 5. Extract fresh frames and inspect them before treating the reel as ready.

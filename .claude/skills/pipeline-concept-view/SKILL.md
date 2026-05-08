@@ -17,7 +17,7 @@ view and clearer workflow semantics.
 - Add `pipeline_view.dot` or `pipeline_view.json`
 - Align a conceptual diagram with real app behavior
 - Keep `Conceptual view` and `Execution view` consistent
-- Review `lab_stages.toml` for readability and step naming quality
+- Review `lab_stages.toml` for readability and stage naming quality
 - Clarify inferred IO flow without changing runtime behavior
 
 ## Workflow
@@ -28,7 +28,7 @@ view and clearer workflow semantics.
 4. Rename or regroup labels for business meaning rather than implementation noise.
 5. Keep the conceptual view in app-owned files.
 6. Let the generic UI render it when present.
-7. Update execution labels if the conceptual view or step review reveals naming drift.
+7. Update execution labels if the conceptual view or stage review reveals naming drift.
 8. Keep behavior unchanged unless the user explicitly wants runtime changes.
 
 ## Naming Boundary
