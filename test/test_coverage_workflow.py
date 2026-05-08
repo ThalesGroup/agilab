@@ -154,6 +154,20 @@ def test_agi_gui_coverage_includes_pipeline_run_controls() -> None:
     assert "test/test_pipeline_run_controls.py" in run_block
 
 
+def test_agi_gui_coverage_explicit_test_files_exist() -> None:
+    run_block = _agi_gui_run_block()
+    explicit_tests: set[Path] = set()
+    for line in run_block.splitlines():
+        token = line.strip().removesuffix("\\").strip()
+        if not token.startswith("test/") or "*" in token:
+            continue
+        explicit_tests.add(Path(token))
+
+    missing = sorted(path.as_posix() for path in explicit_tests if not path.is_file())
+
+    assert not missing, f"coverage.yml references missing explicit test files: {missing}"
+
+
 def test_agi_gui_coverage_includes_tracking_facade() -> None:
     run_block = _agi_gui_run_block()
 
