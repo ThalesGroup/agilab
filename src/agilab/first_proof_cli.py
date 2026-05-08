@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+from importlib import metadata as importlib_metadata
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -23,6 +25,14 @@ FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 DEFAULT_MAX_SECONDS = 10 * 60
 IGNORED_OUTPUT_PATTERNS = (
     "missing ScriptRunContext! This warning can be ignored when running in bare mode.",
+)
+RUNTIME_DISTRIBUTIONS = (
+    "agilab",
+    "agi-core",
+    "agi-env",
+    "agi-node",
+    "agi-cluster",
+    "agi-gui",
 )
 
 
@@ -68,6 +78,28 @@ def _agilab_package_marker_root() -> Path:
 
 def _agilab_path_marker() -> Path:
     return Path.home() / ".local" / "share" / "agilab" / ".agilab-path"
+
+
+def _distribution_version(distribution: str) -> str | None:
+    try:
+        return importlib_metadata.version(distribution)
+    except importlib_metadata.PackageNotFoundError:
+        return None
+
+
+def runtime_identity() -> dict[str, object]:
+    """Return the installed runtime that this proof actually validates."""
+    launcher = shutil.which("agilab")
+    return {
+        "python_executable": sys.executable,
+        "package_root": str(PACKAGE_ROOT),
+        "runtime_root": str(_runtime_root()),
+        "launcher_path": launcher,
+        "distributions": {
+            distribution: _distribution_version(distribution)
+            for distribution in RUNTIME_DISTRIBUTIONS
+        },
+    }
 
 
 def write_agilab_path_marker() -> Path:
@@ -389,6 +421,7 @@ def build_run_manifest(
     manifest_path: Path,
 ) -> run_manifest.RunManifest:
     failed_step = summary.get("failed_step")
+    identity = runtime_identity()
     validations = [
         run_manifest.RunManifestValidation(
             label="proof_steps",
@@ -403,6 +436,7 @@ def build_run_manifest(
                 "expected_steps": summary.get("expected_steps"),
                 "command_labels": [command.label for command in commands],
                 "result_labels": [result.label for result in results],
+                "runtime_identity": identity,
             },
         ),
         run_manifest.RunManifestValidation(
@@ -473,6 +507,13 @@ def render_human(
         "AGILAB first proof",
         f"active app: {active_app}",
     ]
+    identity = runtime_identity()
+    distributions = dict(identity.get("distributions", {}))
+    agilab_version = distributions.get("agilab") or "unknown"
+    lines.append(f"agilab version: {agilab_version}")
+    lines.append(f"python: {identity.get('python_executable')}")
+    if identity.get("launcher_path"):
+        lines.append(f"launcher: {identity.get('launcher_path')}")
     if print_only:
         lines.append("mode: print-only")
         lines.append(f"kpi target: <= {max_seconds:.2f}s")
@@ -551,6 +592,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     manifest_path = resolve_manifest_path(active_app, args.manifest_out)
 
     if args.print_only:
+        identity = runtime_identity()
         if args.json:
             print(
                 json.dumps(
@@ -558,6 +600,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "active_app": str(active_app),
                         "with_install": args.with_install,
                         "kpi_target_seconds": args.max_seconds,
+                        "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
+                        "runtime_identity": identity,
                         "run_manifest_path": str(manifest_path),
                         "run_manifest_filename": run_manifest.RUN_MANIFEST_FILENAME,
                         "commands": [
@@ -604,9 +648,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_manifest.write_run_manifest(manifest, manifest_path)
 
     if args.json:
+        identity = runtime_identity()
         payload = {
             "active_app": str(active_app),
             "with_install": args.with_install,
+            "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
+            "runtime_identity": identity,
             **summary,
             "results": [asdict(result) for result in results],
         }

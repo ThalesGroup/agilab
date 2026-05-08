@@ -30,7 +30,7 @@ Use this runbook whenever you:
   timings, `flow` matches local GitHub workflow profiles, `badge` catches stale coverage badges,
   and `docs` keeps the public mirror aligned. Use `--print-only` to audit the expanded commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
-  agilab`, run `uv --preview-features extra-build-dependencies tool upgrade agilab` to pick up the latest wheel.
+  agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
   it from the source tree swaps in the published wheel and discards your local changes.
 - **Process ownership**: Treat existing terminals, Codex CLI sessions, dev servers, and

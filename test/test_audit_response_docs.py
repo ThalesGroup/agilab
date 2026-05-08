@@ -32,7 +32,10 @@ def test_compatibility_matrix_promotes_clean_package_install_evidence() -> None:
     assert 'id = "published-package-route"' in matrix
     assert 'status = "validated"' in matrix
     assert 'platforms = ["Linux CI", "macOS CI", "Windows CI"]' in matrix
-    assert "python -m pip install agilab && agilab first-proof --json" in matrix
+    assert (
+        "python -m pip install agilab && python -m agilab.lab_run first-proof --json"
+        in matrix
+    )
     assert "60-second first-proof runtime budget" in matrix
     assert "Platform coverage snapshot" in docs
     assert "macOS local" in docs
@@ -58,7 +61,7 @@ def test_demo_page_keeps_three_generic_demo_routes() -> None:
     assert "python -m pip install agilab" in demos
     assert "tools/public_proof_scenarios.py --compact" in demos
     assert "--first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json" in demos
-    assert "agilab first-proof --json --max-seconds 60" in demos
+    assert "python -m agilab.lab_run first-proof --json --max-seconds 60" in demos
     assert "tools/service_health_check.py --format json" in demos
 
 
@@ -79,7 +82,7 @@ def test_release_proof_page_collects_public_audit_evidence() -> None:
     assert f"docs-source-guard run {ci_runs['docs-source-guard']['run_id']}" in page
     assert f"coverage run {ci_runs['coverage']['run_id']}" in page
     assert release["hf_space_commit"] in page
-    assert "agilab first-proof --json --max-seconds 60" in page
+    assert "python -m agilab.lab_run first-proof --json --max-seconds 60" in page
     assert "does not certify every remote cluster topology" in normalized_page
     assert "release-proof" in index
     assert ":doc:`release-proof`" in demos

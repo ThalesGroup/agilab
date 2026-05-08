@@ -40,7 +40,7 @@ What was proved
   .. code-block:: bash
 
      python -m pip install agilab==2026.05.07
-     agilab first-proof --json --max-seconds 60
+     python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The public GitHub Actions matrix validated the packaged first proof on
   Ubuntu, macOS, and Windows runners.
@@ -64,7 +64,7 @@ the current source checkout:
    . .venv/bin/activate
    python -m pip install --upgrade pip
    python -m pip install agilab==2026.05.07
-   agilab first-proof --json --max-seconds 60
+   python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
 built-in app installation and Streamlit UI.
