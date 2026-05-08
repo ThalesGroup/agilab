@@ -1224,7 +1224,7 @@ def _cluster_resource_totals(
 
 
 def active_app_cluster_information_lines(env: Any) -> list[tuple[str, str]]:
-    """Return active-app scheduler and cluster context for sidebar display."""
+    """Return active-app scheduler and cluster context for execution display."""
     settings = _active_app_settings(env)
     cluster_params = _cluster_params_from_settings(settings)
     lan_cache_path = _lan_discovery_cache_path_for_env(env)
@@ -1269,77 +1269,128 @@ def active_app_cluster_information_lines(env: Any) -> list[tuple[str, str]]:
     return lines
 
 
-def _sidebar_system_information_html(lines: list[tuple[str, str]]) -> str:
+def _information_value_state(value: Any) -> str:
+    normalized_value = str(value).strip().lower()
+    return (
+        "incomplete"
+        if any(
+            token in normalized_value
+            for token in ("missing", "not configured", "not detected", "unknown", "unavailable", "unreachable")
+        )
+        else "ready"
+    )
+
+
+def _execution_context_information_html(lines: list[tuple[str, str]]) -> str:
     rows = []
     for label, value in lines:
         escaped_label = html.escape(label)
         escaped_value = html.escape(value)
         escaped_aria_label = html.escape(f"{label}: {value}", quote=True)
-        normalized_value = str(value).strip().lower()
-        value_state = (
-            "incomplete"
-            if any(
-                token in normalized_value
-                for token in ("missing", "not configured", "not detected", "unknown", "unavailable", "unreachable")
-            )
-            else "ready"
-        )
+        value_state = _information_value_state(value)
         rows.append(
-            f"<div class='agilab-sidebar-system-row' aria-label='{escaped_aria_label}'>"
-            f"<span class='agilab-sidebar-system-label'>{escaped_label}</span>"
-            "<span class='agilab-sidebar-system-colon'>:</span>"
-            f"<span class='agilab-sidebar-system-value agilab-sidebar-system-value--{value_state}'>{escaped_value}</span>"
+            f"<div class='agilab-execution-context-item' aria-label='{escaped_aria_label}'>"
+            f"<span class='agilab-execution-context-label'>{escaped_label}</span>"
+            f"<span class='agilab-execution-context-value agilab-execution-context-value--{value_state}'>"
+            f"{escaped_value}</span>"
             "</div>"
         )
     return (
         "<style>"
-        ".agilab-sidebar-system {"
-        "display:grid;"
-        "gap:.2rem;"
-        "margin:.4rem 0 .65rem 0;"
+        ".agilab-execution-context {"
+        "margin:.35rem 0 1rem 0;"
+        "padding:1rem 1.1rem;"
+        "border:1px solid rgba(155,191,255,.22);"
+        "border-radius:1rem;"
+        "background:linear-gradient(135deg,rgba(19,35,56,.92),rgba(30,44,54,.88));"
+        "box-shadow:0 18px 44px rgba(0,0,0,.18);"
+        "}"
+        ".agilab-execution-context-header {"
+        "display:flex;"
+        "justify-content:space-between;"
+        "gap:1rem;"
+        "align-items:flex-start;"
+        "margin-bottom:.85rem;"
+        "}"
+        ".agilab-execution-context-kicker {"
+        "font-size:.72rem;"
+        "letter-spacing:.08em;"
+        "text-transform:uppercase;"
+        "color:rgba(220,233,255,.64);"
+        "font-weight:720;"
+        "}"
+        ".agilab-execution-context-title {"
+        "font-size:1.05rem;"
+        "line-height:1.2;"
+        "font-weight:760;"
+        "color:#f7f2e8;"
+        "}"
+        ".agilab-execution-context-note {"
         "font-size:.78rem;"
-        "line-height:1.28;"
+        "color:rgba(247,242,232,.66);"
+        "max-width:21rem;"
+        "text-align:right;"
         "}"
-        ".agilab-sidebar-system-row {"
+        ".agilab-execution-context-grid {"
         "display:grid;"
-        "grid-template-columns:max-content .45rem minmax(0,1fr);"
-        "column-gap:.18rem;"
-        "align-items:start;"
+        "grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));"
+        "gap:.65rem;"
         "}"
-        ".agilab-sidebar-system-label {"
-        "color:rgba(247,242,232,.62);"
-        "white-space:nowrap;"
+        ".agilab-execution-context-item {"
+        "padding:.65rem .7rem;"
+        "border-radius:.72rem;"
+        "background:rgba(255,255,255,.055);"
+        "border:1px solid rgba(255,255,255,.075);"
+        "min-width:0;"
         "}"
-        ".agilab-sidebar-system-colon {"
-        "color:rgba(247,242,232,.42);"
-        "text-align:center;"
+        ".agilab-execution-context-label {"
+        "display:block;"
+        "font-size:.72rem;"
+        "color:rgba(247,242,232,.58);"
+        "margin-bottom:.18rem;"
         "}"
-        ".agilab-sidebar-system-value {"
-        "font-weight:650;"
+        ".agilab-execution-context-value {"
+        "display:block;"
+        "font-size:.9rem;"
+        "font-weight:720;"
+        "line-height:1.25;"
         "overflow-wrap:anywhere;"
         "}"
-        ".agilab-sidebar-system-value--ready {"
+        ".agilab-execution-context-value--ready {"
         "color:#72d6b4;"
         "}"
-        ".agilab-sidebar-system-value--incomplete {"
+        ".agilab-execution-context-value--incomplete {"
         "color:#ffbe5e;"
         "}"
+        "@media (max-width: 700px) {"
+        ".agilab-execution-context-header {display:block;}"
+        ".agilab-execution-context-note {text-align:left;margin-top:.45rem;}"
+        "}"
         "</style>"
-        "<div class='agilab-sidebar-system'>"
+        "<div class='agilab-execution-context' role='group' aria-label='Execution environment'>"
+        "<div class='agilab-execution-context-header'>"
+        "<div>"
+        "<div class='agilab-execution-context-kicker'>ORCHESTRATE context</div>"
+        "<div class='agilab-execution-context-title'>Execution environment</div>"
+        "</div>"
+        "<div class='agilab-execution-context-note'>INSTALL, DISTRIBUTE, and RUN use this active project and resource context.</div>"
+        "</div>"
+        "<div class='agilab-execution-context-grid'>"
         f"{''.join(rows)}"
+        "</div>"
         "</div>"
     )
 
 
-def _sidebar_cluster_refresh_requested(env: Any) -> bool:
-    button = getattr(st.sidebar, "button", None)
+def _execution_context_refresh_requested(env: Any) -> bool:
+    button = getattr(st, "button", None)
     if not callable(button):
         return False
     try:
         return bool(
             button(
                 "Refresh cluster info",
-                key=f"about_cluster_info_refresh__{_safe_text(getattr(env, 'app', '')) or 'default'}",
+                key=f"orchestrate_cluster_info_refresh__{_safe_text(getattr(env, 'app', '')) or 'default'}",
                 help="Clear cached cluster probes and reload the LAN discovery inventory.",
             )
         )
@@ -1347,21 +1398,28 @@ def _sidebar_cluster_refresh_requested(env: Any) -> bool:
         return bool(button("Refresh cluster info"))
 
 
-def render_sidebar_system_information(env: Any) -> None:
-    """Render active-app scheduler and cluster context in the sidebar."""
-    if _sidebar_cluster_refresh_requested(env):
-        _clear_cluster_probe_caches()
-        try:
-            st.session_state.pop(_cluster_probe_signature_state_key(env), None)
-        except (AttributeError, RuntimeError):
-            pass
+def _clear_execution_context_probe_state(env: Any) -> None:
+    _clear_cluster_probe_caches()
+    try:
+        st.session_state.pop(_cluster_probe_signature_state_key(env), None)
+    except (AttributeError, RuntimeError):
+        pass
+
+
+def render_execution_context_panel(env: Any) -> None:
+    """Render active-app scheduler and cluster context in ORCHESTRATE."""
+    if _execution_context_refresh_requested(env):
+        _clear_execution_context_probe_state(env)
     lines = active_app_cluster_information_lines(env)
-    markdown = getattr(st.sidebar, "markdown", None)
+    markdown = getattr(st, "markdown", None)
     if callable(markdown):
-        markdown(_sidebar_system_information_html(lines), unsafe_allow_html=True)
+        markdown(_execution_context_information_html(lines), unsafe_allow_html=True)
         return
+    caption = getattr(st, "caption", None)
+    if callable(caption):
+        caption("Execution environment")
     for label, value in lines:
-        st.sidebar.caption(f"{label}: {value}")
+        st.write(f"{label}: {value}")
 
 
 @lru_cache(maxsize=8)

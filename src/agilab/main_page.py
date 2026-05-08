@@ -173,6 +173,7 @@ _page_docs_module = _import_agilab_module_or_stop(
     fallback_name="agilab_page_docs_fallback",
 )
 get_docs_menu_items = _page_docs_module.get_docs_menu_items
+docs_menu_url = _page_docs_module.docs_menu_url
 
 _pinned_expander_module = _import_agilab_module_or_stop(
     "agilab.pinned_expander",
@@ -268,6 +269,18 @@ def render_sidebar_version(version: str) -> None:
         markdown_fn(style_text, unsafe_allow_html=True)
         return
     st.sidebar.caption(version_label)
+
+
+def render_sidebar_documentation_link() -> None:
+    """Keep the Main Page sidebar useful without mixing in execution state."""
+    docs_url = docs_menu_url("agilab-help.html")
+    markdown_fn = getattr(st.sidebar, "markdown", None)
+    if callable(markdown_fn):
+        markdown_fn(f"[Documentation]({docs_url})")
+        return
+    caption_fn = getattr(st.sidebar, "caption", None)
+    if callable(caption_fn):
+        caption_fn(f"Documentation: {docs_url}")
 
 
 def _sync_onboarding_module() -> None:
@@ -539,14 +552,9 @@ def page(env: Any) -> None:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
-
-    try:
-        _sync_layout_module()
-        _about_layout.render_sidebar_system_information(env)
-    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
-        pass
+    render_sidebar_documentation_link()
     render_pinned_expanders(st)
-    render_page_context(st, page_label="ABOUT", env=env)
+    render_page_context(st, page_label="MAIN_PAGE", env=env)
 
     with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
         _render_env_editor(env)

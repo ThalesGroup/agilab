@@ -77,6 +77,12 @@ _INSTALL_LOG_NON_FATAL_LINE_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
     if tokens
 )
 
+_MANAGER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node", "agi_cluster")
+_WORKER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node")
+_MANAGER_REQUIRED_SYMBOLS: tuple[tuple[str, str], ...] = (
+    ("agi_cluster.agi_distributor", "StageRequest"),
+)
+
 
 def _python_string(value: Any) -> str:
     return json.dumps(str(value))
@@ -965,22 +971,173 @@ def benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _venv_python_path(venv: Path) -> Path:
+    if os.name == "nt":
+        return venv / "Scripts" / "python.exe"
+    python = venv / "bin" / "python"
+    return python if python.exists() else venv / "bin" / "python3"
+
+
+def _venv_site_package_dirs(venv: Path) -> tuple[Path, ...]:
+    if os.name == "nt":
+        candidates = [venv / "Lib" / "site-packages"]
+    else:
+        candidates = sorted((venv / "lib").glob("python*/site-packages"))
+    return tuple(candidate for candidate in candidates if candidate.exists() and candidate.is_dir())
+
+
+def _pth_import_roots(site_packages: Path) -> tuple[Path, ...]:
+    roots: list[Path] = []
+    try:
+        pth_files = sorted(site_packages.glob("*.pth"))
+    except OSError:
+        return ()
+    for pth_file in pth_files:
+        try:
+            lines = pth_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or line.startswith("import "):
+                continue
+            candidate = Path(line).expanduser()
+            if not candidate.is_absolute():
+                candidate = site_packages / candidate
+            try:
+                candidate = candidate.resolve(strict=False)
+            except OSError:
+                pass
+            if candidate.exists() and candidate.is_dir():
+                roots.append(candidate)
+    return tuple(dict.fromkeys(roots))
+
+
+def _module_available_on_root(root: Path, module: str) -> bool:
+    package_path = root / module
+    if package_path.exists():
+        return True
+    for suffix in (".py", ".so", ".pyd", ".dylib"):
+        if (root / f"{module}{suffix}").exists():
+            return True
+    return False
+
+
+def _module_source_candidates(root: Path, dotted_module: str) -> tuple[Path, ...]:
+    module_path = root.joinpath(*dotted_module.split("."))
+    return (
+        module_path / "__init__.py",
+        module_path.with_suffix(".py"),
+    )
+
+
+def _symbol_available_on_root(root: Path, dotted_module: str, symbol: str) -> bool:
+    for source in _module_source_candidates(root, dotted_module):
+        try:
+            if source.is_file() and symbol in source.read_text(encoding="utf-8", errors="replace"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def _missing_modules_on_import_roots(venv: Path, modules: Sequence[str]) -> tuple[tuple[str, ...], tuple[Path, ...]]:
+    site_packages = _venv_site_package_dirs(venv)
+    editable_roots = tuple(root for site in site_packages for root in _pth_import_roots(site))
+    roots = tuple(dict.fromkeys((*site_packages, *editable_roots)))
+    missing = tuple(
+        module
+        for module in modules
+        if not any(_module_available_on_root(root, module) for root in roots)
+    )
+    return missing, roots
+
+
+def _missing_symbols_on_import_roots(
+    roots: Sequence[Path],
+    symbols: Sequence[tuple[str, str]],
+) -> tuple[str, ...]:
+    return tuple(
+        f"{module}.{symbol}"
+        for module, symbol in symbols
+        if not any(_symbol_available_on_root(root, module, symbol) for root in roots)
+    )
+
+
+def _venv_import_status(
+    venv: Path,
+    modules: Sequence[str],
+    required_symbols: Sequence[tuple[str, str]] = (),
+) -> dict[str, Any]:
+    exists = venv.exists() or venv.is_symlink()
+    python = _venv_python_path(venv)
+    if not exists:
+        return {
+            "exists": False,
+            "imports_ready": False,
+            "missing_modules": tuple(modules),
+            "problem": f"environment path does not exist: {venv}",
+            "python": python,
+        }
+    if not python.exists():
+        return {
+            "exists": True,
+            "imports_ready": False,
+            "missing_modules": ("python",),
+            "problem": f"python executable is missing: {python}",
+            "python": python,
+        }
+
+    missing, roots = _missing_modules_on_import_roots(venv, modules)
+    missing_symbols = () if missing else _missing_symbols_on_import_roots(roots, required_symbols)
+    imports_ready = not missing and not missing_symbols
+    problem = ""
+    if missing:
+        problem = "missing modules: " + ", ".join(str(module) for module in missing)
+    elif missing_symbols:
+        problem = "missing symbols: " + ", ".join(str(symbol) for symbol in missing_symbols)
+    return {
+        "exists": True,
+        "imports_ready": imports_ready,
+        "missing_modules": missing,
+        "missing_symbols": missing_symbols,
+        "problem": problem,
+        "python": python,
+        "import_roots": roots,
+    }
+
+
 def is_app_installed(env: Any) -> bool:
-    """Return whether both manager and worker virtual environments are present."""
-    manager_venv = env.active_app / ".venv"
-    worker_venv = env.wenv_abs / ".venv"
-    return manager_venv.exists() and worker_venv.exists()
+    """Return whether manager and worker environments are runnable."""
+    status = app_install_status(env)
+    return bool(status["manager_ready"] and status["worker_ready"])
 
 
 def app_install_status(env: Any) -> dict[str, Any]:
-    """Return a cached status map for manager/worker installation readiness."""
+    """Return manager/worker installation readiness, including runtime imports."""
     manager_venv = env.active_app / ".venv"
     worker_venv = env.wenv_abs / ".venv"
+    manager_imports = _venv_import_status(manager_venv, _MANAGER_REQUIRED_MODULES, _MANAGER_REQUIRED_SYMBOLS)
+    worker_imports = _venv_import_status(worker_venv, _WORKER_REQUIRED_MODULES)
+    manager_ready = bool(manager_imports["exists"] and manager_imports["imports_ready"])
+    worker_ready = bool(worker_imports["exists"] and worker_imports["imports_ready"])
     return {
-        "manager_ready": manager_venv.exists(),
-        "worker_ready": worker_venv.exists(),
+        "manager_ready": manager_ready,
+        "worker_ready": worker_ready,
+        "manager_exists": bool(manager_imports["exists"]),
+        "worker_exists": bool(worker_imports["exists"]),
+        "manager_imports_ready": bool(manager_imports["imports_ready"]),
+        "worker_imports_ready": bool(worker_imports["imports_ready"]),
+        "manager_missing_modules": manager_imports["missing_modules"],
+        "worker_missing_modules": worker_imports["missing_modules"],
+        "manager_missing_symbols": manager_imports.get("missing_symbols", ()),
+        "worker_missing_symbols": worker_imports.get("missing_symbols", ()),
+        "manager_problem": manager_imports["problem"],
+        "worker_problem": worker_imports["problem"],
         "manager_venv": manager_venv,
         "worker_venv": worker_venv,
+        "manager_python": manager_imports["python"],
+        "worker_python": worker_imports["python"],
     }
 
 

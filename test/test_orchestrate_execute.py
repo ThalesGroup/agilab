@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -116,6 +117,31 @@ def test_collect_candidate_roots_expands_relative_paths_from_home(monkeypatch, t
     ]
 
 
+def test_collect_candidate_roots_resolves_app_args_with_share_path(tmp_path):
+    share_root = tmp_path / "clustershare"
+
+    def _resolve_share_path(raw_path: Path | str) -> Path:
+        return share_root / Path(raw_path)
+
+    env = SimpleNamespace(
+        dataframe_path=None,
+        app_data_rel=None,
+        resolve_share_path=_resolve_share_path,
+    )
+    roots = orchestrate_execute.collect_candidate_roots(
+        env,
+        {
+            "data_in": "flight/dataset",
+            "data_out": "flight/dataframe",
+        },
+    )
+
+    assert roots == [
+        share_root / "flight/dataframe",
+        share_root / "flight/dataset",
+    ]
+
+
 def test_find_preview_target_ignores_empty_and_metadata_files(tmp_path):
     output_dir = tmp_path / "output"
     output_dir.mkdir()
@@ -126,13 +152,42 @@ def test_find_preview_target_ignores_empty_and_metadata_files(tmp_path):
     metadata_csv = output_dir / "._artifact.csv"
     metadata_csv.write_text("metadata")
 
+    reduce_summary = output_dir / "reduce_summary_worker_0.json"
+    reduce_summary.write_text('{"name": "flight_reduce_summary"}', encoding="utf-8")
+
     valid_csv = output_dir / "artifact.csv"
     valid_csv.write_text("a,b\n1,2\n")
+    os.utime(reduce_summary, (valid_csv.stat().st_mtime + 5, valid_csv.stat().st_mtime + 5))
 
     target, files = orchestrate_execute.find_preview_target([output_dir])
 
     assert target == valid_csv
     assert files == [valid_csv]
+
+
+def test_find_preview_target_prefers_flight_dataframe_over_newer_reduce_summary(tmp_path):
+    output_dir = tmp_path / "flight" / "dataframe"
+    output_dir.mkdir(parents=True)
+
+    plane_60 = output_dir / "60.parquet"
+    plane_60.write_text("parquet placeholder for plane 60", encoding="utf-8")
+    plane_61 = output_dir / "61.parquet"
+    plane_61.write_text("parquet placeholder for plane 61", encoding="utf-8")
+    reduce_summary = output_dir / "reduce_summary_worker_0.json"
+    reduce_summary.write_text('{"name": "flight_reduce_summary"}', encoding="utf-8")
+    run_manifest = output_dir / "run_manifest.json"
+    run_manifest.write_text('{"kind": "agilab.run_manifest"}', encoding="utf-8")
+
+    base_mtime = plane_60.stat().st_mtime
+    os.utime(plane_60, (base_mtime, base_mtime))
+    os.utime(plane_61, (base_mtime + 1, base_mtime + 1))
+    os.utime(reduce_summary, (base_mtime + 10, base_mtime + 10))
+    os.utime(run_manifest, (base_mtime + 11, base_mtime + 11))
+
+    target, files = orchestrate_execute.find_preview_target([output_dir])
+
+    assert target == plane_61
+    assert files == [plane_60, plane_61]
 
 
 def test_find_preview_target_returns_none_when_latest_file_disappears(tmp_path, monkeypatch):
@@ -229,6 +284,16 @@ def test_pending_execute_action_round_trip():
     assert session_state[orchestrate_execute.PENDING_EXECUTE_ACTION_KEY] == "run"
     assert orchestrate_execute.consume_pending_execute_action(session_state) == "run"
     assert orchestrate_execute.consume_pending_execute_action(session_state) is None
+
+
+def test_execute_notice_round_trip_renders_and_clears():
+    fake_st = _FakeStreamlit()
+    orchestrate_execute.queue_execute_notice(fake_st.session_state, kind="success", message="Loaded output.")
+
+    orchestrate_execute.render_execute_notice(fake_st, fake_st.session_state)
+
+    assert ("success", "Loaded output.") in fake_st.messages
+    assert orchestrate_execute.EXECUTE_NOTICE_KEY not in fake_st.session_state
 
 
 def test_render_graph_preview_draws_and_labels_source(monkeypatch):
@@ -487,8 +552,24 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     assert "__source__" in fake_st.session_state["loaded_df"].columns
     assert any(kind == "success" and "Loaded dataframe preview from 2 files" in msg for kind, msg in fake_st.messages)
     assert any(kind == "success" and "Dataframe exported successfully" in msg for kind, msg in fake_st.messages)
+    assert fake_st.session_state[orchestrate_execute.EXECUTE_NOTICE_KEY]["kind"] == "success"
+    assert ("rerun_fragment_or_app", "called") in fake_st.messages
     assert ("markdown", "#### 5. Execute and inspect outputs") in fake_st.messages
     assert any(kind == "preview" for kind, _ in fake_st.messages)
+
+    fake_st.button_calls.clear()
+    fake_st._buttons = {}
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=deps,
+    )
+    delete_call = next(kwargs for key, kwargs in fake_st.button_calls if key == "delete_data_main")
+    assert delete_call["disabled"] is False
 
 
 @pytest.mark.asyncio
@@ -803,6 +884,7 @@ async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp
     buttons = editor_calls[-1]["buttons"]
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
+    assert editor_calls[-1]["theme"] == "dark"
     assert panels["orchestrate_run_logs"]["title"] == "Run logs: flight_project"
     assert panels["orchestrate_run_logs"]["body"] == "existing log"
     assert panels["orchestrate_run_logs"]["source"] == f"ORCHESTRATE {tmp_path / 'run.log'}"

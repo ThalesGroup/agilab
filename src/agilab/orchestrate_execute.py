@@ -66,10 +66,13 @@ render_log_actions = _workflow_ui.render_log_actions
 render_workflow_timeline = _workflow_ui.render_workflow_timeline
 
 PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
+EXECUTE_NOTICE_KEY = "_orchestrate_execute_notice"
 RUN_LOGS_PIN_ID = "orchestrate_run_logs"
 PREVIEW_FILE_PATTERNS = ("*.parquet", "*.csv", "*.json", "*.gml")
 PREVIEW_MAX_SEARCH_FILES = int(os.environ.get("AGILAB_PREVIEW_MAX_SEARCH_FILES", "1000"))
 PREVIEW_MAX_FILE_BYTES = int(os.environ.get("AGILAB_PREVIEW_MAX_FILE_BYTES", str(25 * 1024 * 1024)))
+PREVIEW_METADATA_FILENAMES = {"run_manifest.json", "notebook_import_view_plan.json"}
+PREVIEW_METADATA_PREFIXES = ("._", "reduce_summary_worker_")
 
 
 @dataclass(frozen=True)
@@ -96,20 +99,33 @@ class OrchestrateExecuteDeps:
 def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> list[Path]:
     candidate_roots: list[Path] = []
 
-    def _attach_root(raw_path: Optional[Path | str]) -> None:
+    def _resolve_root(raw_path: Path | str, *, prefer_share: bool) -> Path:
+        path = Path(raw_path).expanduser()
+        if path.is_absolute():
+            return path
+        if prefer_share:
+            resolve_share_path = getattr(env, "resolve_share_path", None)
+            if callable(resolve_share_path):
+                try:
+                    return Path(resolve_share_path(path)).expanduser()
+                except (OSError, TypeError, ValueError):
+                    pass
+        return Path.home() / path
+
+    def _attach_root(raw_path: Optional[Path | str], *, prefer_share: bool = False) -> None:
         if not raw_path:
             return
-        path = Path(raw_path).expanduser()
-        if not path.is_absolute():
-            path = Path.home() / path
-        candidate_roots.append(path)
+        candidate_roots.append(_resolve_root(raw_path, prefer_share=prefer_share))
 
     _attach_root(getattr(env, "dataframe_path", None))
+
+    if isinstance(active_args, dict):
+        _attach_root(active_args.get("data_out"), prefer_share=True)
+
     _attach_root(getattr(env, "app_data_rel", None))
 
     if isinstance(active_args, dict):
-        _attach_root(active_args.get("data_in"))
-        _attach_root(active_args.get("data_out"))
+        _attach_root(active_args.get("data_in"), prefer_share=True)
 
     unique_roots: list[Path] = []
     seen_roots: set[str] = set()
@@ -123,10 +139,15 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
 
 def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
     search_files: list[Path] = []
+    seen_files: set[str] = set()
 
     def _append_candidate(candidate: Path) -> bool:
         if len(search_files) >= PREVIEW_MAX_SEARCH_FILES:
             return False
+        key = str(candidate)
+        if key in seen_files:
+            return True
+        seen_files.add(key)
         search_files.append(candidate)
         return True
 
@@ -142,12 +163,17 @@ def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
     return search_files
 
 
+def _is_preview_metadata_file(file_path: Path) -> bool:
+    name = file_path.name
+    return name in PREVIEW_METADATA_FILENAMES or any(name.startswith(prefix) for prefix in PREVIEW_METADATA_PREFIXES)
+
+
 def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], list[Path]]:
     search_files = _preview_candidate_paths(candidate_roots)
 
     filtered_records: list[tuple[Path, float]] = []
     for file_path in search_files:
-        if file_path.name.startswith("._"):
+        if _is_preview_metadata_file(file_path):
             continue
         try:
             file_stat = file_path.stat()
@@ -177,6 +203,25 @@ def queue_pending_execute_action(session_state, action: str) -> None:
 
 def consume_pending_execute_action(session_state) -> Optional[str]:
     return session_state.pop(PENDING_EXECUTE_ACTION_KEY, None)
+
+
+def queue_execute_notice(session_state, *, kind: str, message: str) -> None:
+    if kind not in {"success", "info", "warning", "error"}:
+        kind = "info"
+    session_state[EXECUTE_NOTICE_KEY] = {"kind": kind, "message": message}
+
+
+def render_execute_notice(streamlit_api, session_state) -> None:
+    notice = session_state.pop(EXECUTE_NOTICE_KEY, None)
+    if not isinstance(notice, dict):
+        return
+    message = str(notice.get("message") or "").strip()
+    if not message:
+        return
+    renderer = getattr(streamlit_api, str(notice.get("kind") or "info"), None)
+    if not callable(renderer):
+        renderer = streamlit_api.info
+    renderer(message)
 
 
 def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional[str]) -> None:
@@ -233,6 +278,8 @@ async def render_execute_section(
     existing_run_log = st.session_state.get("run_log_cache", "").strip()
     run_log_expander = None
     log_container = None
+    if controls_visible:
+        render_execute_notice(st, st.session_state)
 
     def _run_log_pin_title() -> str:
         app_name = str(getattr(env, "app", "") or "project")
@@ -255,6 +302,7 @@ async def render_execute_section(
             source=_run_log_source(),
             empty_message="No run logs yet.",
             info_name="Run logs",
+            theme="dark",
         )
 
     def _ensure_run_log_expander(*, expanded: bool):
@@ -546,6 +594,8 @@ async def render_execute_section(
             else:
                 st.session_state["loaded_source_path"] = target_file
                 suffix = target_file.suffix.lower()
+                loaded_output_changed = False
+                load_notice: tuple[str, str] | None = None
                 try:
                     if suffix in {".csv", ".parquet"}:
                         latest_mtime = target_file.stat().st_mtime
@@ -583,13 +633,18 @@ async def render_execute_section(
                             st.session_state["loaded_df"] = loaded_df
                             st.session_state["_force_export_open"] = True
                             st.session_state.pop("loaded_graph", None)
+                            loaded_output_changed = True
                             if len(candidate_batch) > 1:
-                                st.success(
+                                message = (
                                     f"Loaded dataframe preview from {len(candidate_batch)} files "
                                     f"(latest: {target_file.name})."
                                 )
+                                st.success(message)
+                                load_notice = ("success", message)
                             else:
-                                st.success(f"Loaded dataframe preview from {target_file.name}.")
+                                message = f"Loaded dataframe preview from {target_file.name}."
+                                st.success(message)
+                                load_notice = ("success", message)
                         else:
                             st.warning(f"{target_file.name} is empty; nothing to preview.")
                     elif suffix == ".json":
@@ -599,13 +654,19 @@ async def render_execute_section(
                             st.session_state["loaded_df"] = None
                             st.session_state["_force_export_open"] = False
                             st.session_state["loaded_graph"] = graph
-                            st.success(f"Loaded network graph from {target_file.name}.")
+                            loaded_output_changed = True
+                            message = f"Loaded network graph from {target_file.name}."
+                            st.success(message)
+                            load_notice = ("success", message)
                         else:
                             loaded_df = pd.json_normalize(payload)
                             st.session_state["loaded_df"] = loaded_df
                             st.session_state["_force_export_open"] = True
                             st.session_state.pop("loaded_graph", None)
-                            st.info(f"Parsed JSON payload as tabular data from {target_file.name}.")
+                            loaded_output_changed = True
+                            message = f"Parsed JSON payload as tabular data from {target_file.name}."
+                            st.info(message)
+                            load_notice = ("info", message)
                     elif suffix == ".gml":
                         graph = nx.read_gml(target_file)
                         edge_df = nx.to_pandas_edgelist(graph)
@@ -613,7 +674,10 @@ async def render_execute_section(
                             st.session_state["loaded_df"] = edge_df
                             st.session_state["_force_export_open"] = True
                             st.session_state["loaded_graph"] = graph
-                            st.success(f"Loaded topology edges from {target_file.name}.")
+                            loaded_output_changed = True
+                            message = f"Loaded topology edges from {target_file.name}."
+                            st.success(message)
+                            load_notice = ("success", message)
                         else:
                             node_df = pd.DataFrame(
                                 [(node, data) for node, data in graph.nodes(data=True)],
@@ -625,13 +689,30 @@ async def render_execute_section(
                                 st.session_state["loaded_df"] = node_df
                                 st.session_state["_force_export_open"] = True
                                 st.session_state["loaded_graph"] = graph
-                                st.info(f"Showing node metadata from {target_file.name}.")
+                                loaded_output_changed = True
+                                message = f"Showing node metadata from {target_file.name}."
+                                st.info(message)
+                                load_notice = ("info", message)
                     else:
                         st.warning(f"Unsupported file format: {target_file.suffix}")
                 except json.JSONDecodeError as exc:
                     st.error(f"Failed to decode JSON from {target_file.name}: {exc}")
                 except (OSError, RuntimeError, TypeError, ValueError, nx.NetworkXError) as exc:
                     st.error(f"Unable to load {target_file.name}: {exc}")
+                if loaded_output_changed:
+                    if load_notice:
+                        queue_execute_notice(st.session_state, kind=load_notice[0], message=load_notice[1])
+                    record_action_history(
+                        st.session_state,
+                        page_label="ORCHESTRATE",
+                        env=env,
+                        title="Output loaded",
+                        status="done",
+                        detail=f"Previewing {target_file.name}",
+                        artifact=target_file,
+                    )
+                    st.session_state["dataframe_deleted"] = False
+                    _rerun_fragment_or_app()
 
     if show_run_panel and delete_clicked:
         delete_action = _current_artifact_state().delete_action

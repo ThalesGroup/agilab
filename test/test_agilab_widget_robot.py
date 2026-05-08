@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -62,6 +63,8 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.resume_from_progress is None
     assert args.json_output is None
     assert args.quiet_progress is False
+    assert args.runtime_isolation == "isolated"
+    assert args.missing_selected_action_policy == "fail"
 
 
 def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
@@ -73,6 +76,17 @@ def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
         assert exc.code == 2
     else:
         raise AssertionError("expected parser rejection for invalid action-button mode")
+
+
+def test_widget_robot_main_requires_labels_for_selected_action_buttons() -> None:
+    module = _load_module()
+
+    try:
+        module.main(["--interaction-mode", "full", "--action-button-policy", "click-selected"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser rejection for selected action buttons without labels")
 
 
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:
@@ -128,6 +142,12 @@ def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
     assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_project")
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
+
+
+def test_normalized_label_treats_ascii_and_unicode_arrows_as_equal() -> None:
+    module = _load_module()
+
+    assert module._normalized_label("Run -> Load -> Export") == module._normalized_label("Run \u2192 Load \u2192 Export")
 
 
 def test_normalize_remote_url_maps_huggingface_space_page_to_runtime() -> None:
@@ -208,6 +228,111 @@ def test_build_seeded_server_env_isolates_home_and_share_paths(tmp_path) -> None
     assert seeded.env["AGI_LOCAL_SHARE"] == str(tmp_path / "localshare")
     assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
     assert (tmp_path / "localshare" / "flight" / "dataframe" / "00_robot_flight.csv").is_file()
+
+
+def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    class _WebRobot:
+        @staticmethod
+        def build_server_env():
+            return {"PATH": "robot-path", "HOME": "/real-home"}
+
+    seeded = module.build_seeded_server_env(
+        _WebRobot(),
+        app_name="flight_project",
+        runtime_root=tmp_path / "runtime",
+        seed_demo_artifacts=False,
+        runtime_isolation="current-home",
+    )
+
+    assert seeded.env["HOME"] == str(fake_home)
+    assert "AGI_LOCAL_SHARE" not in seeded.env
+    assert seeded.share_root == fake_home / "localshare"
+    assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
+
+
+def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text(
+        "AGI_CLUSTER_SHARE=missing-clustershare\nAGI_LOCAL_SHARE=localshare\n",
+        encoding="utf-8",
+    )
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is not None
+    assert "environment_blocked" in detail
+    assert "AGI_CLUSTER_SHARE" in detail
+    assert "missing-clustershare" in detail
+    assert str(app_settings) in detail
+
+
+def test_current_home_action_preflight_allows_disabled_cluster_with_missing_share(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text("AGI_CLUSTER_SHARE=missing-clustershare\n", encoding="utf-8")
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is None
+
+
+def test_current_home_action_preflight_blocks_same_cluster_and_local_share(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    share = fake_home / "share"
+    share.mkdir(parents=True)
+    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text(f"AGI_CLUSTER_SHARE={share}\nAGI_LOCAL_SHARE={share}\n", encoding="utf-8")
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["CHECK distribute"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is not None
+    assert "both resolve" in detail
+    assert str(share) in detail
 
 
 def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
@@ -370,6 +495,711 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert module._same_widget(main_widget, sidebar_widget) is False
     assert "[data-testid='stSidebar']" in module.WIDGET_COLLECTOR_JS
     assert "scope: scopeFor(el)" in module.WIDGET_COLLECTOR_JS
+    assert 'removeAttribute("data-agilab-widget-id")' in module.WIDGET_COLLECTOR_JS
+    assert "window.__agilabWidgetRobotRunId" in module.WIDGET_COLLECTOR_JS
+    assert 'details:not([open])' in module.WIDGET_COLLECTOR_JS
+    assert "details.contains(target)" in module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS
+    assert "details.open = true" in module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS
+    assert "orchestration log" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
+    assert "stCodeBlock" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
+    assert "stStatus" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+    assert "stToast" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "fatalTextNeedles" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "diagnostic" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
+
+
+def test_action_log_error_collectors_ignore_generic_failure_words() -> None:
+    module = _load_module()
+    broad_needles = {"error", "exception", "failed", "failure", "worker failed"}
+    scripts = [
+        module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+        module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+        module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+    ]
+
+    for script in scripts:
+        arrays = re.findall(r"const\s+(?:errorNeedles|fatalTextNeedles)\s*=\s*\[(.*?)\];", script, re.DOTALL)
+        assert arrays
+        for array_body in arrays:
+            values = set(re.findall(r'"([^"]+)"', array_body))
+            assert broad_needles.isdisjoint(values)
+            assert "distribution build failed" in values
+
+
+def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:
+    module = _load_module()
+
+    class _Page:
+        def evaluate(self, script):
+            assert script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+            return [{"kind": "error", "detail": "AGI execution failed."}]
+
+    assert module._visible_streamlit_issue_detail(_Page()) == "error: AGI execution failed."
+
+
+def test_selected_action_matching_can_require_enabled_button() -> None:
+    module = _load_module()
+    widgets = [
+        {"kind": "button", "label": "EXPORT dataframe", "disabled": True},
+        {"kind": "button", "label": "Load output", "disabled": False},
+    ]
+
+    assert len(module._selected_action_matches(widgets, "EXPORT dataframe")) == 1
+    assert module._selected_action_matches(widgets, "EXPORT dataframe", require_enabled=True) == []
+
+
+def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None:
+    module = _load_module()
+    issues: list[dict[str, str]] = []
+
+    module._record_browser_issue(
+        issues,
+        kind="console.error",
+        detail="Failed to load resource: the server responded with a status of 404 (favicon.ico)",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="console.error",
+        detail="Uncaught RuntimeError: AGI execution failed.",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="console.error",
+        detail="Uncaught RuntimeError: AGI execution failed.",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="pageerror",
+        detail="TypeError: broken widget callback",
+    )
+
+    assert issues == [
+        {"kind": "console.error", "detail": "Uncaught RuntimeError: AGI execution failed."},
+        {"kind": "pageerror", "detail": "TypeError: broken widget callback"},
+    ]
+
+
+def test_append_browser_issue_probes_uses_new_issue_checkpoint() -> None:
+    module = _load_module()
+    probes: list[module.WidgetProbe] = []
+    issues = [
+        {"kind": "pageerror", "detail": "TypeError: old page failure"},
+        {"kind": "console.error", "detail": "Uncaught RuntimeError: AGI execution failed."},
+    ]
+
+    appended = module._append_browser_issue_probes(
+        probes,
+        app_name="flight_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        browser_issues=issues,
+        start_index=1,
+    )
+
+    assert appended is True
+    assert len(probes) == 1
+    assert probes[0].kind == "browser_error"
+    assert probes[0].label == "console.error"
+    assert "AGI execution failed" in probes[0].detail
+
+
+def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
+    module = _load_module()
+    probes = [
+        module.WidgetProbe(
+            "flight_project",
+            "ORCHESTRATE",
+            "button",
+            "Run -> Load -> Export",
+            "probed",
+            "action button browser-clickable; callback not selected for firing",
+            "http://demo",
+        )
+    ]
+
+    module._append_missing_selected_action_probes(
+        probes,
+        app_name="flight_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        click_action_labels=["Run -> Load -> Export"],
+    )
+
+    assert probes[-1].kind == "selected_action"
+    assert probes[-1].status == "failed"
+    assert "not fired" in probes[-1].detail
+
+
+def test_missing_selected_action_probe_can_ignore_absent_label() -> None:
+    module = _load_module()
+    probes: list[module.WidgetProbe] = []
+
+    module._append_missing_selected_action_probes(
+        probes,
+        app_name="execution_pandas_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        click_action_labels=["Run -> Load -> Export"],
+        missing_selected_action_policy="ignore-absent",
+    )
+
+    assert probes == []
+
+
+def test_missing_selected_action_probe_still_fails_found_unfired_label_when_absent_is_ignored() -> None:
+    module = _load_module()
+    probes = [
+        module.WidgetProbe(
+            "flight_project",
+            "ORCHESTRATE",
+            "button",
+            "Run -> Load -> Export",
+            "skipped",
+            "clicked action button but UI did not settle within 180.0s",
+            "http://demo",
+        )
+    ]
+
+    module._append_missing_selected_action_probes(
+        probes,
+        app_name="flight_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        click_action_labels=["Run -> Load -> Export"],
+        missing_selected_action_policy="ignore-absent",
+    )
+
+    assert probes[-1].kind == "selected_action"
+    assert probes[-1].status == "failed"
+    assert "not fired" in probes[-1].detail
+
+
+def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> None:
+    module = _load_module()
+    events: list[str] = []
+    evaluate_events: list[str] = []
+    current_widgets = [
+        {"id": "run-now", "kind": "segmented_control", "label": "Run now", "scope": "main"},
+        {"id": "cluster", "kind": "checkbox", "label": "Cluster", "scope": "main"},
+        {"id": "combo", "kind": "button", "label": "Run \u2192 Load \u2192 Export", "scope": "main"},
+    ]
+
+    class _Locator:
+        def __init__(self, widget_id: str, count: int = 1):
+            self.widget_id = widget_id
+            self._count = count
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return self._count
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            events.append(self.widget_id)
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script == module.CLOSE_EXPANDERS_JS:
+                evaluate_events.append("close")
+                return 0
+            if script == module.OPEN_EXPANDERS_JS:
+                evaluate_events.append("open")
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                evaluate_events.append("collect")
+                return [dict(widget) for widget in current_widgets]
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return []
+            raise AssertionError(script)
+
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator("spinner", count=0)
+            widget_id = selector.split("'")[1]
+            return _Locator(widget_id)
+
+        def wait_for_timeout(self, ms):
+            return None
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+    module._wait_for_action_outcome = lambda page, **_kwargs: (None, True)
+    try:
+        probes = module._probe_selected_actions_first(
+            _Page(),
+            app_name="flight_project",
+            display="ORCHESTRATE",
+            widget_timeout_ms=100,
+            click_action_labels=["Run -> Load -> Export"],
+            preselect_labels=["Run now"],
+            missing_selected_action_policy="fail",
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert events == ["run-now", "combo"]
+    assert evaluate_events[:2] == ["close", "collect"]
+    assert evaluate_events.count("close") >= 2
+    assert [(probe.kind, probe.status) for probe in probes] == [
+        ("segmented_control", "interacted"),
+        ("button", "interacted"),
+    ]
+
+
+def test_probe_selected_actions_first_recollects_between_stateful_actions(tmp_path) -> None:
+    module = _load_module()
+    events: list[str] = []
+    current_widgets = [
+        {"id": "combo", "kind": "button", "label": "Run \u2192 Load \u2192 Export", "scope": "main"},
+    ]
+
+    class _Locator:
+        def __init__(self, widget_id: str, count: int = 1):
+            self.widget_id = widget_id
+            self._count = count
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return self._count
+
+        def inner_text(self, timeout):
+            return ""
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **_kwargs):
+            events.append(self.widget_id)
+            if self.widget_id == "combo":
+                current_widgets[:] = [
+                    {"id": "export", "kind": "button", "label": "EXPORT dataframe", "scope": "main"},
+                ]
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script in {
+                module.CLOSE_EXPANDERS_JS,
+                module.OPEN_EXPANDERS_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [dict(widget) for widget in current_widgets]
+            raise AssertionError(script)
+
+        def locator(self, selector):
+            if selector in {"body", "[data-testid='stSpinner']"}:
+                return _Locator(selector, count=0 if selector != "body" else 1)
+            widget_id = selector.split("'")[1]
+            return _Locator(widget_id)
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    original_wait_for_action_outcome = module._wait_for_action_outcome
+    module._wait_for_action_outcome = lambda page, **_kwargs: (None, True)
+    try:
+        probes = module._probe_selected_actions_first(
+            _Page(),
+            app_name="flight_project",
+            display="ORCHESTRATE",
+            widget_timeout_ms=100,
+            click_action_labels=["Run -> Load -> Export", "EXPORT dataframe"],
+            preselect_labels=[],
+            missing_selected_action_policy="fail",
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+        )
+    finally:
+        module._wait_for_action_outcome = original_wait_for_action_outcome
+
+    assert events == ["combo", "export"]
+    assert [(probe.label, probe.status) for probe in probes] == [
+        ("Run \u2192 Load \u2192 Export", "interacted"),
+        ("EXPORT dataframe", "interacted"),
+    ]
+
+
+def test_probe_selected_actions_first_allows_idle_settle_for_already_ready_load(tmp_path) -> None:
+    module = _load_module()
+    probe_kwargs: list[dict] = []
+    current_widgets = [
+        {"id": "load", "kind": "button", "label": "Load output", "scope": "main"},
+        {"id": "export", "kind": "button", "label": "EXPORT dataframe", "scope": "main"},
+    ]
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script in {module.CLOSE_EXPANDERS_JS, module.OPEN_EXPANDERS_JS}:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [dict(widget) for widget in current_widgets]
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    original_probe_widget = module._probe_widget
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+
+    def fake_probe_widget(page, widget, **kwargs):
+        probe_kwargs.append({"label": widget["label"], **kwargs})
+        return "interacted", "clicked action button"
+
+    try:
+        module._probe_widget = fake_probe_widget
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
+        probes = module._probe_selected_actions_first(
+            _Page(),
+            app_name="data_io_2026_project",
+            display="ORCHESTRATE",
+            widget_timeout_ms=100,
+            click_action_labels=["Load output", "EXPORT dataframe"],
+            preselect_labels=[],
+            missing_selected_action_policy="fail",
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+        )
+    finally:
+        module._probe_widget = original_probe_widget
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert [probe.label for probe in probes] == ["Load output", "EXPORT dataframe"]
+    assert probe_kwargs[0]["allow_idle_settle"] is True
+    assert probe_kwargs[1]["allow_idle_settle"] is False
+
+
+def test_probe_selected_actions_first_stops_after_selected_action_failure(tmp_path) -> None:
+    module = _load_module()
+    called: list[str] = []
+    current_widgets = [
+        {"id": "run", "kind": "button", "label": "Run \u2192 Load \u2192 Export", "scope": "main"},
+        {"id": "load", "kind": "button", "label": "Load output", "scope": "main"},
+    ]
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script in {module.CLOSE_EXPANDERS_JS, module.OPEN_EXPANDERS_JS}:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [dict(widget) for widget in current_widgets]
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    original_probe_widget = module._probe_widget
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+
+    def fake_probe_widget(page, widget, **_kwargs):
+        called.append(widget["label"])
+        return "failed", "button click rendered Streamlit error: error: AGI execution failed."
+
+    try:
+        module._probe_widget = fake_probe_widget
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
+        probes = module._probe_selected_actions_first(
+            _Page(),
+            app_name="flight_project",
+            display="ORCHESTRATE",
+            widget_timeout_ms=100,
+            click_action_labels=["Run -> Load -> Export", "Load output"],
+            preselect_labels=[],
+            missing_selected_action_policy="fail",
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+        )
+    finally:
+        module._probe_widget = original_probe_widget
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert called == ["Run \u2192 Load \u2192 Export"]
+    assert [probe.label for probe in probes] == ["Run \u2192 Load \u2192 Export"]
+    assert probes[0].status == "failed"
+
+
+def test_probe_selected_actions_first_allows_known_no_output_placeholder_app(tmp_path) -> None:
+    module = _load_module()
+    called: list[str] = []
+    current_widgets = [
+        {"id": "combo", "kind": "button", "label": "Run \u2192 Load \u2192 Export", "scope": "main"},
+        {"id": "load", "kind": "button", "label": "Load output", "scope": "main"},
+        {"id": "delete", "kind": "button", "label": "Delete output", "scope": "main"},
+    ]
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script in {module.CLOSE_EXPANDERS_JS, module.OPEN_EXPANDERS_JS}:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [dict(widget) for widget in current_widgets]
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    original_probe_widget = module._probe_widget
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+
+    def fake_probe_widget(page, widget, **_kwargs):
+        called.append(widget["label"])
+        return "skipped", "clicked action button but UI did not settle within 60.0s"
+
+    try:
+        module._probe_widget = fake_probe_widget
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
+        probes = module._probe_selected_actions_first(
+            _Page(),
+            app_name="mycode_project",
+            display="ORCHESTRATE",
+            widget_timeout_ms=100,
+            click_action_labels=["Run -> Load -> Export", "Load output", "Delete output"],
+            preselect_labels=[],
+            missing_selected_action_policy="fail",
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+        )
+    finally:
+        module._probe_widget = original_probe_widget
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert called == ["Run \u2192 Load \u2192 Export"]
+    assert len(probes) == 1
+    assert probes[0].status == "probed"
+    assert "no concrete output is expected" in probes[0].detail
+
+
+def test_probe_selected_actions_first_allows_idle_settle_for_confirm_delete(tmp_path) -> None:
+    module = _load_module()
+    allow_idle_values: list[bool] = []
+    current_widgets = [{"id": "confirm", "kind": "button", "label": "Confirm delete", "scope": "main"}]
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script in {module.CLOSE_EXPANDERS_JS, module.OPEN_EXPANDERS_JS}:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [dict(widget) for widget in current_widgets]
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    original_probe_widget = module._probe_widget
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+
+    def fake_probe_widget(page, widget, **kwargs):
+        allow_idle_values.append(kwargs["allow_idle_settle"])
+        return "interacted", "clicked action button"
+
+    try:
+        module._probe_widget = fake_probe_widget
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
+        probes = module._probe_selected_actions_first(
+            _Page(),
+            app_name="flight_project",
+            display="ORCHESTRATE",
+            widget_timeout_ms=100,
+            click_action_labels=["Confirm delete"],
+            preselect_labels=[],
+            missing_selected_action_policy="fail",
+            action_timeout_ms=100,
+            upload_file=tmp_path / "fixture.txt",
+        )
+    finally:
+        module._probe_widget = original_probe_widget
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert allow_idle_values == [True]
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+
+
+def test_probe_selected_actions_first_fails_disabled_selected_action(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def inner_text(self, timeout):
+            return ""
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return False
+
+    class _Page:
+        url = "http://demo"
+
+        def evaluate(self, script):
+            if script in {module.CLOSE_EXPANDERS_JS, module.OPEN_EXPANDERS_JS}:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [{"id": "delete", "kind": "button", "label": "Delete output", "scope": "main"}]
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return []
+            return []
+
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator()
+            return _Locator()
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    probes = module._probe_selected_actions_first(
+        _Page(),
+        app_name="flight_project",
+        display="ORCHESTRATE",
+        widget_timeout_ms=100,
+        click_action_labels=["Delete output"],
+        preselect_labels=[],
+        missing_selected_action_policy="fail",
+        action_timeout_ms=100,
+        upload_file=tmp_path / "fixture.txt",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "not fired" in probes[0].detail
+
+
+def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def is_checked(self, timeout):
+            return False
+
+        def click(self, **_kwargs):
+            return None
+
+    class _Page:
+        url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [
+                    {
+                        "id": "w1",
+                        "kind": "checkbox",
+                        "label": "Cluster",
+                        "testid": "stCheckbox",
+                        "path": "input:nth-of-type(1)",
+                        "scope": "main",
+                    }
+                ]
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return [{"kind": "error", "detail": "AGI execution failed."}]
+            return []
+
+        def locator(self, _selector):
+            return _Locator()
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    probes = module._collect_and_probe_current_view(
+        _Page(),
+        app_name="flight_project",
+        page_name="ORCHESTRATE",
+        widget_timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "upload.txt",
+        restore_view=None,
+        known=set(),
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert probes[0].kind == "checkbox"
+    assert "AGI execution failed" in probes[0].detail
 
 
 def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
@@ -452,6 +1282,274 @@ def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
     assert result.status == "failed"
     assert result.failed_count == 1
     assert any(probe.kind == "active_app" for probe in result.failures)
+
+
+def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text("AGI_CLUSTER_SHARE=missing-clustershare\n", encoding="utf-8")
+
+    class _Locator:
+        def __init__(self, count_value: int = 0):
+            self._count_value = count_value
+
+        def nth(self, _index):
+            return self
+
+        @property
+        def first(self):
+            return self
+
+        def count(self) -> int:
+            return self._count_value
+
+    class _Page:
+        def __init__(self) -> None:
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+
+        def goto(self, *_args, **_kwargs):
+            return None
+
+        def wait_for_timeout(self, _ms) -> None:
+            return None
+
+        def locator(self, selector):
+            if selector == "[role='tab']":
+                return _Locator(0)
+            return _Locator(0)
+
+        def evaluate(self, script):
+            if script in {module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS, module.WIDGET_COLLECTOR_JS}:
+                return []
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            return []
+
+    web_robot = module._load_web_robot()
+    original_web_robot_assert = web_robot.assert_page_healthy
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    original_probe_selected_actions_first = module._probe_selected_actions_first
+    web_robot.assert_page_healthy = lambda *args, **_kwargs: web_robot.RobotStep(
+        "health",
+        True,
+        0.0,
+        "ok",
+        "http://127.0.0.1:8501",
+    )
+
+    def fail_if_clicked(*_args, **_kwargs):
+        raise AssertionError("selected actions should be blocked before click")
+
+    try:
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: 0
+        module._probe_selected_actions_first = fail_if_clicked
+        result = module.sweep_page(
+            _Page(),
+            web_robot=web_robot,
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_project",
+            app_name="flight_project",
+            page_name="ORCHESTRATE",
+            timeout=module.DEFAULT_TIMEOUT_SECONDS,
+            widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=["Run -> Load -> Export"],
+            upload_file=Path("does-not-exist.txt"),
+            screenshot_dir=None,
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+            runtime_isolation="current-home",
+            server_env={"AGI_CLUSTER_ENABLED": "0"},
+            home_root=fake_home,
+        )
+    finally:
+        web_robot.assert_page_healthy = original_web_robot_assert
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+        module._probe_selected_actions_first = original_probe_selected_actions_first
+
+    assert result.success is False
+    assert result.status == "environment_blocked"
+    assert result.failed_count == 1
+    assert result.failures[0].kind == "environment_preflight"
+    assert "environment_blocked" in result.failures[0].detail
+    assert "missing-clustershare" in result.failures[0].detail
+
+
+def test_sweep_page_marks_visible_error_message_as_failed() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, count_value: int = 0):
+            self._count_value = count_value
+
+        def nth(self, _index):
+            return self
+
+        @property
+        def first(self):
+            return self
+
+        def count(self) -> int:
+            return self._count_value
+
+    class _Page:
+        def __init__(self) -> None:
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+
+        def goto(self, *_args, **_kwargs):
+            return None
+
+        def wait_for_timeout(self, _ms) -> None:
+            return None
+
+        def locator(self, selector):
+            if selector == "[role='tab']":
+                return _Locator(0)
+            return _Locator(0)
+
+        def evaluate(self, script):
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return [{"kind": "error", "detail": "AGI execution failed."}]
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return []
+            return []
+
+    web_robot = module._load_web_robot()
+    original_web_robot_assert = web_robot.assert_page_healthy
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    web_robot.assert_page_healthy = lambda *args, **_kwargs: web_robot.RobotStep(
+        "health",
+        True,
+        0.0,
+        "ok",
+        "http://127.0.0.1:8501",
+    )
+
+    try:
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: 0
+        result = module.sweep_page(
+            _Page(),
+            web_robot=web_robot,
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_project",
+            app_name="flight_project",
+            page_name="ORCHESTRATE",
+            timeout=module.DEFAULT_TIMEOUT_SECONDS,
+            widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
+            interaction_mode="full",
+            action_button_policy="trial",
+            upload_file=Path("does-not-exist.txt"),
+            screenshot_dir=None,
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+        )
+    finally:
+        web_robot.assert_page_healthy = original_web_robot_assert
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert result.success is False
+    assert result.status == "failed"
+    assert result.failed_count == 1
+    assert result.failures[0].kind == "visible_error"
+    assert "AGI execution failed" in result.failures[0].detail
+
+
+def test_sweep_page_marks_browser_page_error_as_failed() -> None:
+    module = _load_module()
+    browser_issues: list[dict[str, str]] = []
+
+    class _Locator:
+        def __init__(self, count_value: int = 0):
+            self._count_value = count_value
+
+        def nth(self, _index):
+            return self
+
+        @property
+        def first(self):
+            return self
+
+        def count(self) -> int:
+            return self._count_value
+
+    class _Page:
+        def __init__(self) -> None:
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+
+        def goto(self, *_args, **_kwargs):
+            browser_issues.append({"kind": "pageerror", "detail": "TypeError: broken widget callback"})
+            return None
+
+        def wait_for_timeout(self, _ms) -> None:
+            return None
+
+        def locator(self, selector):
+            if selector == "[role='tab']":
+                return _Locator(0)
+            return _Locator(0)
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return []
+            if script == module.SCROLL_METRICS_JS:
+                return {"y": 0, "height": 1000, "scrollHeight": 1000}
+            return []
+
+    web_robot = module._load_web_robot()
+    original_web_robot_assert = web_robot.assert_page_healthy
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    web_robot.assert_page_healthy = lambda *args, **_kwargs: web_robot.RobotStep(
+        "health",
+        True,
+        0.0,
+        "ok",
+        "http://127.0.0.1:8501",
+    )
+
+    try:
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: 0
+        result = module.sweep_page(
+            _Page(),
+            web_robot=web_robot,
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_project",
+            app_name="flight_project",
+            page_name="ORCHESTRATE",
+            timeout=module.DEFAULT_TIMEOUT_SECONDS,
+            widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
+            interaction_mode="full",
+            action_button_policy="trial",
+            upload_file=Path("does-not-exist.txt"),
+            screenshot_dir=None,
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+            browser_issues=browser_issues,
+        )
+    finally:
+        web_robot.assert_page_healthy = original_web_robot_assert
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert result.success is False
+    assert result.status == "failed"
+    assert result.failed_count == 1
+    assert result.failures[0].kind == "browser_error"
+    assert result.failures[0].label == "pageerror"
+    assert "broken widget callback" in result.failures[0].detail
 
 
 def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
@@ -649,6 +1747,649 @@ def test_action_buttons_are_probed_by_default(tmp_path) -> None:
     assert clicks == [{"timeout": 100, "trial": True}]
 
 
+def test_hidden_data_editor_after_collection_is_not_a_matrix_failure(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return False
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "data_editor", "label": "Stage table"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "probed"
+    assert "visible table content was still detected" in detail
+
+
+def test_selected_action_button_clicks_and_detects_visible_error(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return [{"kind": "error", "detail": "AGI execution failed."}]
+            return []
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "Run \u2192 Load \u2192 Export"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        action_timeout_ms=100,
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "failed"
+    assert "AGI execution failed" in detail
+    assert clicks == [{"timeout": 100}]
+
+
+def test_selected_action_button_reopens_expanders_to_detect_action_error(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+    expanded = {"value": False}
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                expanded["value"] = True
+                return 1
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS and expanded["value"]:
+                return [{"kind": "error", "detail": "Distribution build failed."}]
+            return []
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "CHECK distribute"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["CHECK distribute"],
+        action_timeout_ms=100,
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "failed"
+    assert "Distribution build failed" in detail
+    assert clicks == [{"timeout": 100}]
+
+
+def test_selected_action_button_waits_for_delayed_feedback_error(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+    clicked = {"value": False}
+    feedback_calls = {"value": 0}
+
+    class _Locator:
+        def __init__(self, count=1):
+            self._count = count
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return self._count
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicked["value"] = True
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator(count=0)
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return []
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                if not clicked["value"]:
+                    return []
+                feedback_calls["value"] += 1
+                if feedback_calls["value"] < 3:
+                    return []
+                return [{"kind": "error", "detail": "Distribution build failed."}]
+            return []
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "CHECK distribute"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["CHECK distribute"],
+        action_timeout_ms=1000,
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "failed"
+    assert "Distribution build failed" in detail
+    assert feedback_calls["value"] >= 3
+    assert clicks == [{"timeout": 1000}]
+
+
+def test_action_outcome_does_not_settle_on_soft_feedback_before_late_error() -> None:
+    module = _load_module()
+    feedback_calls = {"value": 0}
+
+    class _Locator:
+        def count(self):
+            return 0
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script in {module.OPEN_EXPANDERS_JS, module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS}:
+                return []
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                feedback_calls["value"] += 1
+                if feedback_calls["value"] == 1:
+                    return [{"kind": "info", "detail": "Logs saved"}]
+                return [{"kind": "error", "detail": "AGI execution failed."}]
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    error, settled = module._wait_for_action_outcome(
+        _Page(),
+        timeout_ms=1000,
+        require_feedback=True,
+        baseline_feedback=set(),
+    )
+
+    assert settled is True
+    assert "AGI execution failed" in str(error)
+    assert feedback_calls["value"] >= 2
+
+
+def test_action_outcome_can_settle_when_next_selected_action_appears() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def count(self):
+            return 0
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [{"id": "confirm", "kind": "button", "label": "Confirm delete", "scope": "main"}]
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    error, settled = module._wait_for_action_outcome(
+        _Page(),
+        timeout_ms=1000,
+        require_feedback=True,
+        baseline_feedback=set(),
+        settle_action_labels=["Confirm delete"],
+        allow_idle_settle=True,
+    )
+
+    assert error is None
+    assert settled is True
+
+
+def test_action_outcome_can_settle_on_soft_feedback_when_target_was_already_ready() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def count(self):
+            return 0
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+            }:
+                return []
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                return [{"kind": "info", "detail": "Run mode 0: python"}]
+            if script == module.WIDGET_COLLECTOR_JS:
+                return []
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    error, settled = module._wait_for_action_outcome(
+        _Page(),
+        timeout_ms=50,
+        require_feedback=True,
+        baseline_feedback=set(),
+        settle_action_labels=["Confirm delete"],
+        allow_idle_settle=True,
+    )
+
+    assert error is None
+    assert settled is True
+
+
+def test_action_outcome_can_idle_settle_for_already_ready_idempotent_action() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def count(self):
+            return 0
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script in {
+                module.OPEN_EXPANDERS_JS,
+                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
+                module.WIDGET_COLLECTOR_JS,
+            }:
+                return []
+            return []
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    error, settled = module._wait_for_action_outcome(
+        _Page(),
+        timeout_ms=50,
+        require_feedback=True,
+        baseline_feedback=set(),
+        settle_action_labels=["Confirm delete"],
+        allow_idle_settle=True,
+    )
+
+    assert error is None
+    assert settled is True
+
+
+def test_selected_action_button_detects_failure_in_orchestration_log_expander(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+    clicked = {"value": False}
+    action_log_calls = {"value": 0}
+
+    class _Locator:
+        def __init__(self, count=1):
+            self._count = count
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return self._count
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicked["value"] = True
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator(count=0)
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 1
+            if script in {module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS, module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS}:
+                return []
+            if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
+                if not clicked["value"]:
+                    return []
+                action_log_calls["value"] += 1
+                return [{"kind": "error", "detail": "Distribution build failed. Traceback: worker build error"}]
+            return []
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "CHECK distribute"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["CHECK distribute"],
+        action_timeout_ms=1000,
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "failed"
+    assert "Distribution build failed" in detail
+    assert action_log_calls["value"] >= 1
+    assert clicks == [{"timeout": 1000}]
+
+
+def test_selected_action_baseline_includes_stale_action_log_feedback() -> None:
+    module = _load_module()
+
+    class _Page:
+        def evaluate(self, script):
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                return [{"kind": "info", "detail": "Ready"}]
+            if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
+                return [{"kind": "success", "detail": "Distribution built successfully."}]
+            return []
+
+    signatures = module._visible_streamlit_feedback_signatures(_Page())
+    feedback = module._new_visible_streamlit_feedback(_Page(), signatures)
+
+    assert signatures == {
+        ("info", "Ready"),
+        ("success", "Distribution built successfully."),
+    }
+    assert feedback is None
+
+
+def test_new_visible_feedback_detects_action_log_failure_after_baseline() -> None:
+    module = _load_module()
+    clicked = {"value": False}
+
+    class _Page:
+        def evaluate(self, script):
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                return [{"kind": "info", "detail": "Ready"}]
+            if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
+                if clicked["value"]:
+                    return [{"kind": "error", "detail": "Distribution build failed."}]
+                return []
+            return []
+
+    page = _Page()
+    signatures = module._visible_streamlit_feedback_signatures(page)
+    clicked["value"] = True
+    feedback = module._new_visible_streamlit_feedback(page, signatures)
+
+    assert signatures == {("info", "Ready")}
+    assert feedback == {"kind": "error", "detail": "Distribution build failed."}
+
+
+def test_new_visible_feedback_prioritizes_success_over_incidental_info() -> None:
+    module = _load_module()
+
+    class _Page:
+        def evaluate(self, script):
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                return [
+                    {"kind": "info", "detail": "Run mode 0: python"},
+                    {"kind": "success", "detail": "Distribution built successfully."},
+                ]
+            if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
+                return []
+            return []
+
+    feedback = module._new_visible_streamlit_feedback(_Page(), set())
+
+    assert feedback == {"kind": "success", "detail": "Distribution built successfully."}
+
+
+def test_unselected_action_button_is_trial_clicked_only(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "INSTALL"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "probed"
+    assert "not selected" in detail
+    assert clicks == [{"timeout": 100, "trial": True}]
+
+
+def test_preselected_compact_choice_clicks_only_matching_label(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+    waits: list[int] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def wait_for_timeout(self, ms):
+            waits.append(ms)
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "segmented_control", "label": "Run now"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        preselect_labels=["Run now"],
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "interacted"
+    assert "selected compact choice" in detail
+    assert clicks == [{"timeout": 100}]
+    assert waits == [500]
+
+
+def test_expanders_hidden_after_collection_are_structural_probes(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return False
+
+    class _Page:
+        def locator(self, _selector):
+            return _Locator()
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "expander", "label": "Install logs"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "probed"
+    assert "expanded content" in detail
+
+
 def test_text_inputs_are_filled_and_restored(tmp_path) -> None:
     module = _load_module()
     fills: list[str] = []
@@ -696,6 +2437,71 @@ def test_text_inputs_are_filled_and_restored(tmp_path) -> None:
     assert status == "interacted"
     assert "restored" in detail
     assert fills == ["original robot", "original"]
+
+
+def test_file_uploader_uses_ipynb_fixture_for_notebook_upload(tmp_path) -> None:
+    module = _load_module()
+    uploads: list[dict[str, object]] = []
+
+    class _FileInput:
+        @property
+        def first(self):
+            return self
+
+        def set_input_files(self, value, timeout):
+            uploads.append({"value": value, "timeout": timeout})
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def locator(self, selector):
+            assert selector == "input[type='file']"
+            return _FileInput()
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {
+            "id": "w1",
+            "kind": "file_uploader",
+            "label": "Import notebook upload Upload 200MB per file • IPYNB",
+        },
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "interacted"
+    assert "(.ipynb)" in detail
+    assert len(uploads) == 1
+    uploaded = Path(str(uploads[0]["value"]))
+    assert uploaded.suffix == ".ipynb"
+    assert json.loads(uploaded.read_text(encoding="utf-8"))["nbformat"] == 4
 
 
 def test_parse_csv_splits_and_strips_values() -> None:

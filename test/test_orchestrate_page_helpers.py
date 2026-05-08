@@ -1027,6 +1027,24 @@ def test_update_delete_confirm_state_sets_and_clears_flag(monkeypatch):
 def test_is_app_installed_requires_manager_and_worker_venvs():
     module = _load_orchestrate_module()
 
+    def seed_fake_venv(venv: Path, *modules: str) -> None:
+        python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+        python.parent.mkdir(parents=True, exist_ok=True)
+        python.write_text("# fake python for install status test\n", encoding="utf-8")
+        if os.name == "nt":
+            site_packages = venv / "Lib" / "site-packages"
+        else:
+            site_packages = venv / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+        site_packages.mkdir(parents=True, exist_ok=True)
+        for module_name in modules:
+            package_dir = site_packages / module_name
+            package_dir.mkdir(parents=True, exist_ok=True)
+            (package_dir / "__init__.py").write_text("", encoding="utf-8")
+            if module_name == "agi_cluster":
+                distributor_dir = package_dir / "agi_distributor"
+                distributor_dir.mkdir(parents=True, exist_ok=True)
+                (distributor_dir / "__init__.py").write_text("class StageRequest: ...\n", encoding="utf-8")
+
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
         active_app = root / "flight_trajectory_project"
@@ -1041,13 +1059,13 @@ def test_is_app_installed_requires_manager_and_worker_venvs():
         assert status["worker_ready"] is False
         assert module._is_app_installed(env) is False
 
-        (active_app / ".venv").mkdir()
+        seed_fake_venv(active_app / ".venv", "agi_env", "agi_node", "agi_cluster")
         status = module._app_install_status(env)
         assert status["manager_ready"] is True
         assert status["worker_ready"] is False
         assert module._is_app_installed(env) is False
 
-        (worker_root / ".venv").mkdir()
+        seed_fake_venv(worker_root / ".venv", "agi_env", "agi_node")
         status = module._app_install_status(env)
         assert status["manager_ready"] is True
         assert status["worker_ready"] is True
@@ -1111,7 +1129,7 @@ async def test_check_distribution_action_reports_success_and_uses_controller_run
 
 
 @pytest.mark.asyncio
-async def test_check_distribution_action_reports_stderr_failure(tmp_path: Path):
+async def test_check_distribution_action_accepts_stderr_when_process_succeeds(tmp_path: Path):
     module = _load_orchestrate_module()
     project_path = tmp_path / "project"
     captured: dict[str, object] = {}
@@ -1135,17 +1153,96 @@ async def test_check_distribution_action_reports_stderr_failure(tmp_path: Path):
         project_path=project_path,
     )
 
-    assert result.status == "error"
-    assert result.title == "Distribution build failed."
-    assert result.detail == "worker failed"
-    assert "retry CHECK distribute" in str(result.next_action)
+    assert result.status == "success"
+    assert result.title == "Distribution built successfully."
+    assert result.detail is None
     assert captured == {"cmd": "pass", "venv": project_path}
     assert result.data["runtime_root"] == project_path
+    assert result.data["stderr"] == "worker failed"
     assert result.data["dist_log"] == (
         "building distribution",
         "worker failed",
         "partial output",
     )
+
+
+@pytest.mark.asyncio
+async def test_check_distribution_action_prefers_controller_runtime_when_available(tmp_path: Path):
+    module = _load_orchestrate_module()
+    controller_root = tmp_path / "controller"
+    project_path = tmp_path / "project"
+    captured: dict[str, object] = {}
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        captured["cmd"] = cmd
+        captured["venv"] = venv
+        log_callback("building distribution")
+        return "distribution ready", ""
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=False,
+        is_worker_env=False,
+        agi_cluster=controller_root,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=project_path,
+    )
+
+    assert result.status == "success"
+    assert captured == {"cmd": "pass", "venv": controller_root}
+    assert result.data["runtime_root"] == controller_root
+
+
+@pytest.mark.asyncio
+async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Path):
+    module = _load_orchestrate_module()
+    project_path = tmp_path / "project"
+    stderr_log = "\n".join(
+        [
+            "flight_project.runtime_misc_support.initialize_runtime_state AGI instance created for target flight with verbosity 1",
+            "WARNING: Cache entry deserialization failed, entry ignored",
+            "flight_project.execution_support.run @python3.13: export PATH=\"~/.local/bin:$PATH\";uv --quiet run --no-sync python '/Users/agi/wenv/cli.py' kill 92836",
+            "flight_project.runtime_distribution_support.run_local debug=False",
+            "flight_project.execution_support.run_async Executing in /Users/agi/wenv/flight_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_worker --python 3.13.13 python -c \"from pathlib import Path",
+            "from agi_env import AgiEnv",
+            "from agi_node.agi_dispatcher import  BaseWorker",
+            "import asyncio",
+            "async def main():",
+            "  env = AgiEnv(apps_path=Path('/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin'), app='flight_project', verbose=1)",
+            "  BaseWorker._new(env=env, mode=48, verbose=1, args={'data_source': 'file', 'data_in': 'flight/dataset', 'data_out': 'flight/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
+            "  res = await BaseWorker._run(env=env, mode=48, workers={'127.0.0.1': 2}, args={'data_source': 'file', 'data_in': 'flight/dataset', 'data_out': 'flight/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
+            "  print(res)",
+            "if __name__ == '__main__':",
+            "  asyncio.run(main())\"",
+        ]
+    )
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        log_callback("building distribution")
+        return "None", stderr_log
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=False,
+        is_worker_env=False,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=project_path,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Distribution built successfully."
+    assert result.data["stderr"] == stderr_log
+    assert result.data["dist_log"] == ("building distribution", *stderr_log.splitlines(), "None")
 
 
 @pytest.mark.asyncio
@@ -1473,6 +1570,35 @@ def test_cluster_args_share_warning_accepts_sshfs_contract_with_local_scheduler_
         {
             "cluster_enabled": True,
             "workers_data_path": "/home/agi/clustershare/agi",
+            "workers": {"192.168.20.130": 1},
+        },
+    )
+
+    assert warning is None
+
+
+def test_cluster_args_share_warning_accepts_local_cluster_on_local_filesystem(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+    monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
+    monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
+    local_share = tmp_path / "localshare" / "agi"
+    scheduler_share = tmp_path / "clustershare" / "agi"
+    local_share.mkdir(parents=True)
+    scheduler_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=Path("localshare/agi"),
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={},
+    )
+
+    warning = module._cluster_args_share_warning(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": "/home/agi/clustershare/agi",
+            "workers": {"127.0.0.1": 2},
         },
     )
 
@@ -1504,6 +1630,7 @@ def test_cluster_args_share_warning_accepts_cluster_share_as_active_share_path(m
         {
             "cluster_enabled": True,
             "workers_data_path": str(scheduler_share),
+            "workers": {"192.168.20.130": 1},
         },
     )
 
@@ -1529,6 +1656,7 @@ def test_cluster_args_share_warning_rejects_cluster_share_that_points_to_local_s
         {
             "cluster_enabled": True,
             "workers_data_path": "/home/agi/clustershare/agi",
+            "workers": {"192.168.20.130": 1},
         },
     )
 
@@ -1554,6 +1682,7 @@ def test_cluster_args_share_warning_reports_stale_local_workers_path(monkeypatch
         {
             "cluster_enabled": True,
             "workers_data_path": str(local_share),
+            "workers": {"192.168.20.130": 1},
         },
     )
 
