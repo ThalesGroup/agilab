@@ -372,6 +372,91 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert "scope: scopeFor(el)" in module.WIDGET_COLLECTOR_JS
 
 
+def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:
+    module = _load_module()
+
+    class _Page:
+        def evaluate(self, script):
+            assert script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+            return [{"kind": "error", "detail": "AGI execution failed."}]
+
+    assert module._visible_streamlit_issue_detail(_Page()) == "error: AGI execution failed."
+
+
+def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def is_checked(self, timeout):
+            return False
+
+        def click(self, **_kwargs):
+            return None
+
+    class _Page:
+        url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return [
+                    {
+                        "id": "w1",
+                        "kind": "checkbox",
+                        "label": "Cluster",
+                        "testid": "stCheckbox",
+                        "path": "input:nth-of-type(1)",
+                        "scope": "main",
+                    }
+                ]
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return [{"kind": "error", "detail": "AGI execution failed."}]
+            return []
+
+        def locator(self, _selector):
+            return _Locator()
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    probes = module._collect_and_probe_current_view(
+        _Page(),
+        app_name="flight_project",
+        page_name="ORCHESTRATE",
+        widget_timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "upload.txt",
+        restore_view=None,
+        known=set(),
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert probes[0].kind == "checkbox"
+    assert "AGI execution failed" in probes[0].detail
+
+
 def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
     module = _load_module()
 
@@ -452,6 +537,89 @@ def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
     assert result.status == "failed"
     assert result.failed_count == 1
     assert any(probe.kind == "active_app" for probe in result.failures)
+
+
+def test_sweep_page_marks_visible_error_message_as_failed() -> None:
+    module = _load_module()
+
+    class _Locator:
+        def __init__(self, count_value: int = 0):
+            self._count_value = count_value
+
+        def nth(self, _index):
+            return self
+
+        @property
+        def first(self):
+            return self
+
+        def count(self) -> int:
+            return self._count_value
+
+    class _Page:
+        def __init__(self) -> None:
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+
+        def goto(self, *_args, **_kwargs):
+            return None
+
+        def wait_for_timeout(self, _ms) -> None:
+            return None
+
+        def locator(self, selector):
+            if selector == "[role='tab']":
+                return _Locator(0)
+            return _Locator(0)
+
+        def evaluate(self, script):
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return [{"kind": "error", "detail": "AGI execution failed."}]
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return []
+            return []
+
+    web_robot = module._load_web_robot()
+    original_web_robot_assert = web_robot.assert_page_healthy
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    web_robot.assert_page_healthy = lambda *args, **_kwargs: web_robot.RobotStep(
+        "health",
+        True,
+        0.0,
+        "ok",
+        "http://127.0.0.1:8501",
+    )
+
+    try:
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: 0
+        result = module.sweep_page(
+            _Page(),
+            web_robot=web_robot,
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_project",
+            app_name="flight_project",
+            page_name="ORCHESTRATE",
+            timeout=module.DEFAULT_TIMEOUT_SECONDS,
+            widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
+            interaction_mode="full",
+            action_button_policy="trial",
+            upload_file=Path("does-not-exist.txt"),
+            screenshot_dir=None,
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+        )
+    finally:
+        web_robot.assert_page_healthy = original_web_robot_assert
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert result.success is False
+    assert result.status == "failed"
+    assert result.failed_count == 1
+    assert result.failures[0].kind == "visible_error"
+    assert "AGI execution failed" in result.failures[0].detail
 
 
 def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
@@ -647,6 +815,41 @@ def test_action_buttons_are_probed_by_default(tmp_path) -> None:
     assert status == "probed"
     assert "callback not fired" in detail
     assert clicks == [{"timeout": 100, "trial": True}]
+
+
+def test_expanders_hidden_after_collection_are_structural_probes(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            return None
+
+        def is_visible(self, timeout):
+            return False
+
+    class _Page:
+        def locator(self, _selector):
+            return _Locator()
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "expander", "label": "Install logs"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "probed"
+    assert "expanded content" in detail
 
 
 def test_text_inputs_are_filled_and_restored(tmp_path) -> None:
