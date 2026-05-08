@@ -20,10 +20,10 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.05.07"
+package_version = "2026.05.08"
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.05.07"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.07"
+github_release_tag = "v2026.05.08"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.08"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
 hf_space_commit = "4f6ff8391fc8ec8fb0e0f92c413aa747bace000b"
