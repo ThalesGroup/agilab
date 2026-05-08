@@ -414,6 +414,11 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert module._same_widget(main_widget, sidebar_widget) is False
     assert "[data-testid='stSidebar']" in module.WIDGET_COLLECTOR_JS
     assert "scope: scopeFor(el)" in module.WIDGET_COLLECTOR_JS
+    assert 'removeAttribute("data-agilab-widget-id")' in module.WIDGET_COLLECTOR_JS
+    assert "window.__agilabWidgetRobotRunId" in module.WIDGET_COLLECTOR_JS
+    assert 'details:not([open])' in module.WIDGET_COLLECTOR_JS
+    assert "orchestration log" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
+    assert "stCodeBlock" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
 
 
 def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:
@@ -501,6 +506,7 @@ def test_missing_selected_action_probe_still_fails_found_unfired_label_when_abse
 def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> None:
     module = _load_module()
     events: list[str] = []
+    evaluate_events: list[str] = []
     current_widgets = [
         {"id": "run-now", "kind": "segmented_control", "label": "Run now", "scope": "main"},
         {"id": "cluster", "kind": "checkbox", "label": "Cluster", "scope": "main"},
@@ -538,9 +544,14 @@ def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> 
         url = "http://demo"
 
         def evaluate(self, script):
+            if script == module.CLOSE_EXPANDERS_JS:
+                evaluate_events.append("close")
+                return 0
             if script == module.OPEN_EXPANDERS_JS:
+                evaluate_events.append("open")
                 return 0
             if script == module.WIDGET_COLLECTOR_JS:
+                evaluate_events.append("collect")
                 return [dict(widget) for widget in current_widgets]
             if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
                 return []
@@ -556,7 +567,7 @@ def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> 
             return None
 
     original_wait_for_action_outcome = module._wait_for_action_outcome
-    module._wait_for_action_outcome = lambda page, timeout_ms: (None, True)
+    module._wait_for_action_outcome = lambda page, **_kwargs: (None, True)
     try:
         probes = module._probe_selected_actions_first(
             _Page(),
@@ -573,6 +584,8 @@ def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> 
         module._wait_for_action_outcome = original_wait_for_action_outcome
 
     assert events == ["run-now", "combo"]
+    assert evaluate_events[:2] == ["close", "collect"]
+    assert evaluate_events.count("close") >= 2
     assert [(probe.kind, probe.status) for probe in probes] == [
         ("segmented_control", "interacted"),
         ("button", "interacted"),
@@ -1121,6 +1134,170 @@ def test_selected_action_button_reopens_expanders_to_detect_action_error(tmp_pat
     assert status == "failed"
     assert "Distribution build failed" in detail
     assert clicks == [{"timeout": 100}]
+
+
+def test_selected_action_button_waits_for_delayed_feedback_error(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+    clicked = {"value": False}
+    feedback_calls = {"value": 0}
+
+    class _Locator:
+        def __init__(self, count=1):
+            self._count = count
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return self._count
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicked["value"] = True
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator(count=0)
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return []
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                if not clicked["value"]:
+                    return []
+                feedback_calls["value"] += 1
+                if feedback_calls["value"] < 3:
+                    return []
+                return [{"kind": "error", "detail": "Distribution build failed."}]
+            return []
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "CHECK distribute"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["CHECK distribute"],
+        action_timeout_ms=1000,
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "failed"
+    assert "Distribution build failed" in detail
+    assert feedback_calls["value"] >= 3
+    assert clicks == [{"timeout": 1000}]
+
+
+def test_selected_action_button_detects_failure_in_orchestration_log_expander(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+    clicked = {"value": False}
+    action_log_calls = {"value": 0}
+
+    class _Locator:
+        def __init__(self, count=1):
+            self._count = count
+
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return self._count
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicked["value"] = True
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            if selector == "[data-testid='stSpinner']":
+                return _Locator(count=0)
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 1
+            if script in {module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS, module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS}:
+                return []
+            if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
+                if not clicked["value"]:
+                    return []
+                action_log_calls["value"] += 1
+                return [{"kind": "error", "detail": "Distribution build failed. Traceback: worker build error"}]
+            return []
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "CHECK distribute"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["CHECK distribute"],
+        action_timeout_ms=1000,
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "failed"
+    assert "Distribution build failed" in detail
+    assert action_log_calls["value"] >= 1
+    assert clicks == [{"timeout": 1000}]
+
+
+def test_selected_action_baseline_does_not_hide_action_log_failures() -> None:
+    module = _load_module()
+
+    class _Page:
+        def evaluate(self, script):
+            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+                return [{"kind": "info", "detail": "Ready"}]
+            if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
+                return [{"kind": "error", "detail": "Distribution build failed."}]
+            return []
+
+    signatures = module._visible_streamlit_feedback_signatures(_Page())
+    feedback = module._new_visible_streamlit_feedback(_Page(), signatures)
+
+    assert signatures == {("info", "Ready")}
+    assert feedback == {"kind": "error", "detail": "Distribution build failed."}
 
 
 def test_unselected_action_button_is_trial_clicked_only(tmp_path) -> None:
