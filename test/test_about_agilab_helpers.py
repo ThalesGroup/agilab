@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import importlib.util
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -421,6 +422,30 @@ def test_refresh_env_from_file_updates_env_map_and_apps_path(tmp_path, monkeypat
     assert env.envars["APPS_PATH"] == str(apps_dir)
     assert env.apps_path == apps_dir.resolve()
     assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
+
+
+def test_refresh_env_from_file_ignores_commented_template_defaults(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                '# AGI_EXPORT_DIR="export"',
+                'OPENAI_MODEL="gpt-5.4"',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", env_file)
+    monkeypatch.delenv("AGI_EXPORT_DIR", raising=False)
+    about_agilab.st.session_state.pop("env_file_mtime_ns", None)
+
+    env = SimpleNamespace(envars={}, apps_path="old/path")
+
+    about_agilab._refresh_env_from_file(env)
+
+    assert "AGI_EXPORT_DIR" not in env.envars
+    assert "AGI_EXPORT_DIR" not in os.environ
+    assert env.envars["OPENAI_MODEL"] == "gpt-5.4"
 
 
 def test_refresh_env_from_file_ignores_bad_envars_mapping(tmp_path, monkeypatch):

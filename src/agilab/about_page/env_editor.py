@@ -337,7 +337,7 @@ def _refresh_env_from_file(env: Any) -> None:
     if last_mtime is not None and last_mtime == current_mtime:
         return
 
-    env_map = _load_env_file_map(ENV_FILE_PATH)
+    env_map = _load_env_file_map(ENV_FILE_PATH, include_commented=False)
     if not env_map:
         st.session_state["env_file_mtime_ns"] = current_mtime
         return

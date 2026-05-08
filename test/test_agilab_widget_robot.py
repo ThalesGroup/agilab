@@ -66,6 +66,7 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.runtime_isolation == "isolated"
     assert args.missing_selected_action_policy == "fail"
     assert args.assert_orchestrate_artifacts is False
+    assert args.assert_workflow_artifacts is False
 
 
 def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
@@ -93,12 +94,13 @@ def test_widget_robot_main_requires_labels_for_selected_action_buttons() -> None
 def test_widget_robot_main_rejects_remote_artifact_assertions() -> None:
     module = _load_module()
 
-    try:
-        module.main(["--url", "http://localhost:8501", "--assert-orchestrate-artifacts"])
-    except SystemExit as exc:
-        assert exc.code == 2
-    else:
-        raise AssertionError("expected parser rejection for remote artifact assertions")
+    for flag in ("--assert-orchestrate-artifacts", "--assert-workflow-artifacts"):
+        try:
+            module.main(["--url", "http://localhost:8501", flag])
+        except SystemExit as exc:
+            assert exc.code == 2
+        else:
+            raise AssertionError(f"expected parser rejection for remote artifact assertions with {flag}")
 
 
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:
@@ -288,6 +290,185 @@ def test_build_orchestrate_artifact_context_uses_agilab_env_file(tmp_path) -> No
     assert context.export_root == fake_home / "exports"
     assert context.share_root == fake_home / "local"
     assert context.cluster_share_root == fake_home / "cluster"
+
+
+def test_build_workflow_artifact_context_uses_agilab_env_file(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("AGI_EXPORT_DIR=exports\n", encoding="utf-8")
+
+    context = module.build_workflow_artifact_context(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=fake_home,
+        server_env={},
+    )
+
+    assert context.export_root == fake_home / "exports"
+
+
+def test_build_workflow_artifact_context_prefers_robot_server_env(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text("AGI_EXPORT_DIR=stale-home-export\n", encoding="utf-8")
+
+    context = module.build_workflow_artifact_context(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=fake_home,
+        server_env={"AGI_EXPORT_DIR": str(tmp_path / "robot-export")},
+    )
+
+    assert context.export_root == tmp_path / "robot-export"
+
+
+def test_workflow_page_artifact_validation_skips_apps_without_source_stages(tmp_path) -> None:
+    module = _load_module()
+    app_root = tmp_path / "empty_project"
+    app_root.mkdir()
+    context = module.WorkflowArtifactContext(
+        app_name="empty_project",
+        active_app_query=str(app_root),
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+
+    probes = module.validate_workflow_page_artifacts(
+        context=context,
+        display="WORKFLOW",
+        url="http://demo",
+    )
+
+    assert probes == []
+
+
+def test_workflow_page_artifact_validation_fails_when_export_contract_missing(tmp_path) -> None:
+    module = _load_module()
+    app_root = tmp_path / "flight_project"
+    app_root.mkdir()
+    (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
+    context = module.WorkflowArtifactContext(
+        app_name="flight_project",
+        active_app_query=str(app_root),
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+
+    probes = module.validate_workflow_page_artifacts(
+        context=context,
+        display="WORKFLOW",
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "was not restored" in probes[0].detail
+
+
+def test_workflow_page_artifact_validation_requires_versioned_export_contract(tmp_path) -> None:
+    module = _load_module()
+    app_root = tmp_path / "flight_project"
+    app_root.mkdir()
+    (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
+    export_contract = tmp_path / "export" / "flight" / "lab_stages.toml"
+    export_contract.parent.mkdir(parents=True)
+    export_contract.write_text("[flight]\n", encoding="utf-8")
+    context = module.WorkflowArtifactContext(
+        app_name="flight_project",
+        active_app_query=str(app_root),
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+
+    probes = module.validate_workflow_page_artifacts(
+        context=context,
+        display="WORKFLOW",
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "missing __meta__" in probes[0].detail
+
+
+def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -> None:
+    module = _load_module()
+    app_root = tmp_path / "flight_project"
+    app_root.mkdir()
+    (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
+    export_contract = tmp_path / "export" / "flight" / "lab_stages.toml"
+    export_contract.parent.mkdir(parents=True)
+    export_contract.write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
+    context = module.WorkflowArtifactContext(
+        app_name="flight_project",
+        active_app_query=str(app_root),
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+
+    probes = module.validate_workflow_page_artifacts(
+        context=context,
+        display="WORKFLOW",
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+    assert "restored and versioned" in probes[0].detail
+
+
+def test_workflow_action_artifact_validation_detects_missing_run_log(tmp_path) -> None:
+    module = _load_module()
+    context = module.WorkflowArtifactContext(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+
+    probes = module.validate_workflow_action_artifacts(
+        context=context,
+        display="WORKFLOW",
+        selected_label="Run workflow",
+        before_logs=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "without creating or modifying a run log" in probes[0].detail
+
+
+def test_workflow_action_artifact_validation_verifies_run_log_change(tmp_path) -> None:
+    module = _load_module()
+    context = module.WorkflowArtifactContext(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+    before_logs = module._snapshot_workflow_run_logs(context)
+    log_file = tmp_path / "log" / "execute" / "flight" / "pipeline_20260508.log"
+    log_file.parent.mkdir(parents=True)
+    log_file.write_text("Run workflow started\n", encoding="utf-8")
+
+    probes = module.validate_workflow_action_artifacts(
+        context=context,
+        display="WORKFLOW",
+        selected_label="Run workflow",
+        before_logs=before_logs,
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+    assert "run log side effect verified" in probes[0].detail
 
 
 def test_orchestrate_artifact_validation_fails_when_load_output_has_no_file(tmp_path) -> None:
