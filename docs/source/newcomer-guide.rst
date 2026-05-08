@@ -141,7 +141,7 @@ Common newcomer traps
   local success gives you a clean baseline for later SSH debugging.
 - **Expecting private or optional apps to appear automatically**:
   public built-in apps live under ``src/agilab/apps/builtin``; extra apps
-  usually require ``APPS_REPOSITORY`` / ``AGILAB_APPS_REPOSITORY``.
+  require ``APPS_REPOSITORY`` to point at the external apps repository.
 - **Running ``uvx agilab`` from the source tree**:
   from a repository checkout, use the source commands documented in
   :doc:`quick-start` so you do not accidentally run the published wheel.
