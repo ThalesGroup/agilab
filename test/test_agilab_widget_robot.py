@@ -254,6 +254,86 @@ def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypa
     assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
 
 
+def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text(
+        "AGI_CLUSTER_SHARE=missing-clustershare\nAGI_LOCAL_SHARE=localshare\n",
+        encoding="utf-8",
+    )
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is not None
+    assert "environment_blocked" in detail
+    assert "AGI_CLUSTER_SHARE" in detail
+    assert "missing-clustershare" in detail
+    assert str(app_settings) in detail
+
+
+def test_current_home_action_preflight_allows_disabled_cluster_with_missing_share(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text("AGI_CLUSTER_SHARE=missing-clustershare\n", encoding="utf-8")
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is None
+
+
+def test_current_home_action_preflight_blocks_same_cluster_and_local_share(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    share = fake_home / "share"
+    share.mkdir(parents=True)
+    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text(f"AGI_CLUSTER_SHARE={share}\nAGI_LOCAL_SHARE={share}\n", encoding="utf-8")
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["CHECK distribute"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is not None
+    assert "both resolve" in detail
+    assert str(share) in detail
+
+
 def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
     module = _load_module()
     texts = iter(["Initializing environment...", "Ready"])
@@ -955,6 +1035,104 @@ def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
     assert result.status == "failed"
     assert result.failed_count == 1
     assert any(probe.kind == "active_app" for probe in result.failures)
+
+
+def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings.parent.mkdir(parents=True)
+    app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.write_text("AGI_CLUSTER_SHARE=missing-clustershare\n", encoding="utf-8")
+
+    class _Locator:
+        def __init__(self, count_value: int = 0):
+            self._count_value = count_value
+
+        def nth(self, _index):
+            return self
+
+        @property
+        def first(self):
+            return self
+
+        def count(self) -> int:
+            return self._count_value
+
+    class _Page:
+        def __init__(self) -> None:
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+
+        def goto(self, *_args, **_kwargs):
+            return None
+
+        def wait_for_timeout(self, _ms) -> None:
+            return None
+
+        def locator(self, selector):
+            if selector == "[role='tab']":
+                return _Locator(0)
+            return _Locator(0)
+
+        def evaluate(self, script):
+            if script in {module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS, module.WIDGET_COLLECTOR_JS}:
+                return []
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            return []
+
+    web_robot = module._load_web_robot()
+    original_web_robot_assert = web_robot.assert_page_healthy
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    original_probe_selected_actions_first = module._probe_selected_actions_first
+    web_robot.assert_page_healthy = lambda *args, **_kwargs: web_robot.RobotStep(
+        "health",
+        True,
+        0.0,
+        "ok",
+        "http://127.0.0.1:8501",
+    )
+
+    def fail_if_clicked(*_args, **_kwargs):
+        raise AssertionError("selected actions should be blocked before click")
+
+    try:
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: 0
+        module._probe_selected_actions_first = fail_if_clicked
+        result = module.sweep_page(
+            _Page(),
+            web_robot=web_robot,
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_project",
+            app_name="flight_project",
+            page_name="ORCHESTRATE",
+            timeout=module.DEFAULT_TIMEOUT_SECONDS,
+            widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=["Run -> Load -> Export"],
+            upload_file=Path("does-not-exist.txt"),
+            screenshot_dir=None,
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+            runtime_isolation="current-home",
+            server_env={"AGI_CLUSTER_ENABLED": "0"},
+            home_root=fake_home,
+        )
+    finally:
+        web_robot.assert_page_healthy = original_web_robot_assert
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+        module._probe_selected_actions_first = original_probe_selected_actions_first
+
+    assert result.success is False
+    assert result.status == "environment_blocked"
+    assert result.failed_count == 1
+    assert result.failures[0].kind == "environment_preflight"
+    assert "environment_blocked" in result.failures[0].detail
+    assert "missing-clustershare" in result.failures[0].detail
 
 
 def test_sweep_page_marks_visible_error_message_as_failed() -> None:
