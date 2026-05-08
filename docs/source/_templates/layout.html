@@ -3,6 +3,11 @@
 {% block sidebartitle %}
 {{ super() }}
 {% if docs_version %}
-<div class="agilab-doc-version">Docs version {{ docs_version }}</div>
+<div class="agilab-doc-version">
+  <span>Current release {{ docs_version }}</span>
+  {% if docs_build_revision %}
+  <span class="agilab-doc-build">Docs build {{ docs_build_revision }}</span>
+  {% endif %}
+</div>
 {% endif %}
 {% endblock %}
