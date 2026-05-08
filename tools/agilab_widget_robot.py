@@ -7,6 +7,7 @@ import argparse
 import csv
 import importlib.util
 import json
+import re
 import sys
 import tempfile
 import time
@@ -63,6 +64,11 @@ PAGE_MIN_WIDGETS = {"": 5, "PROJECT": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALY
 
 WIDGET_COLLECTOR_JS = r"""
 () => {
+  for (const el of document.querySelectorAll("[data-agilab-widget-id]")) {
+    el.removeAttribute("data-agilab-widget-id");
+  }
+  window.__agilabWidgetRobotRunId = (window.__agilabWidgetRobotRunId || 0) + 1;
+  const runId = window.__agilabWidgetRobotRunId;
   const specs = [
     ["button", "[data-testid='stButton'] button"],
     ["form_submit_button", "[data-testid='stFormSubmitButton'] button"],
@@ -84,6 +90,7 @@ WIDGET_COLLECTOR_JS = r"""
     ["expander", "[data-testid='stExpander'] summary, details summary"],
   ];
   const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
     const rect = el.getBoundingClientRect();
     const style = window.getComputedStyle(el);
     return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
@@ -130,7 +137,7 @@ WIDGET_COLLECTOR_JS = r"""
     for (const el of document.querySelectorAll(selector)) {
       if (!visible(el) || seen.has(el)) continue;
       seen.add(el);
-      const id = `agilab-widget-${nextId++}`;
+      const id = `agilab-widget-${runId}-${nextId++}`;
       el.setAttribute("data-agilab-widget-id", id);
       widgets.push({
         id,
@@ -155,7 +162,51 @@ OPEN_EXPANDERS_JS = r"""
   let changed = 0;
   for (const details of document.querySelectorAll("details")) {
     if (!details.open) {
-      details.open = true;
+      const summary = details.querySelector(":scope > summary") || details.querySelector("summary");
+      if (summary) {
+        summary.click();
+      } else {
+        details.open = true;
+      }
+      changed += 1;
+    }
+  }
+  return changed;
+}
+"""
+
+CLOSE_EXPANDERS_JS = r"""
+() => {
+  let changed = 0;
+  for (const details of document.querySelectorAll("details")) {
+    if (details.open) {
+      const summary = details.querySelector(":scope > summary") || details.querySelector("summary");
+      if (summary) {
+        summary.click();
+      } else {
+        details.open = false;
+      }
+      changed += 1;
+    }
+  }
+  return changed;
+}
+"""
+
+CLOSE_EXPANDERS_EXCEPT_WIDGET_JS = r"""
+(widgetId) => {
+  const target = document.querySelector(`[data-agilab-widget-id="${widgetId}"]`);
+  if (!target) return 0;
+  let changed = 0;
+  for (const details of document.querySelectorAll("details")) {
+    if (details.contains(target)) continue;
+    if (details.open) {
+      const summary = details.querySelector(":scope > summary") || details.querySelector("summary");
+      if (summary) {
+        summary.click();
+      } else {
+        details.open = false;
+      }
       changed += 1;
     }
   }
@@ -175,9 +226,19 @@ SCROLL_METRICS_JS = r"""
 }
 """
 
+SCROLL_WIDGET_TO_CENTER_JS = r"""
+(widgetId) => {
+  const target = document.querySelector(`[data-agilab-widget-id="${widgetId}"]`);
+  if (!target) return false;
+  target.scrollIntoView({block: "center", inline: "center"});
+  return true;
+}
+"""
+
 VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
 () => {
   const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
     const rect = el.getBoundingClientRect();
     const style = window.getComputedStyle(el);
     return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
@@ -219,6 +280,108 @@ VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
     }
   }
   return issues;
+}
+"""
+
+VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
+() => {
+  const visible = (el) => {
+    if (el.closest("details:not([open])") && !el.closest("summary")) return false;
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const errorNeedles = [
+    "agi execution failed",
+    "error",
+    "exception",
+    "traceback",
+    "failed",
+    "failure",
+    "modulenotfounderror",
+    "no module named",
+    "streamlitapi",
+  ];
+  const feedback = [];
+  const push = (kind, el, fallback) => {
+    const detail = clean(el.innerText || el.textContent || fallback).slice(0, 500);
+    feedback.push({kind, detail: detail || fallback});
+  };
+  for (const el of document.querySelectorAll("[data-testid='stException']")) {
+    if (visible(el)) {
+      push("exception", el, "Streamlit exception rendered");
+    }
+  }
+  for (const el of document.querySelectorAll("[data-testid='stAlert'], [data-testid='stAlertContainer']")) {
+    if (!visible(el)) continue;
+    const text = clean(el.innerText || el.textContent || "");
+    const metadata = clean([
+      el.getAttribute("aria-label"),
+      el.getAttribute("role"),
+      el.getAttribute("class"),
+      el.getAttribute("data-testid"),
+    ].join(" ")).toLowerCase();
+    const combined = `${metadata} ${text.toLowerCase()}`;
+    if (errorNeedles.some((needle) => combined.includes(needle))) {
+      push("error", el, "Streamlit error alert rendered");
+    } else if (combined.includes("success") || combined.includes("successfully")) {
+      push("success", el, "Streamlit success alert rendered");
+    } else if (combined.includes("warning")) {
+      push("warning", el, "Streamlit warning alert rendered");
+    } else {
+      push("info", el, "Streamlit alert rendered");
+    }
+  }
+  return feedback;
+}
+"""
+
+ACTION_LOG_FEEDBACK_COLLECTOR_JS = r"""
+() => {
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const errorNeedles = [
+    "agi execution failed",
+    "distribution build failed",
+    "error",
+    "exception",
+    "traceback",
+    "failed",
+    "failure",
+    "modulenotfounderror",
+    "no module named",
+    "streamlitapi",
+  ];
+  const logTitleNeedles = [
+    "orchestration log",
+    "execution log",
+    "install log",
+    "run log",
+    "service log",
+  ];
+  const feedback = [];
+  const push = (kind, el, fallback) => {
+    const detail = clean(el.innerText || el.textContent || fallback).slice(0, 500);
+    feedback.push({kind, detail: detail || fallback});
+  };
+  const hasFailure = (text) => {
+    const value = clean(text).toLowerCase();
+    return value && errorNeedles.some((needle) => value.includes(needle));
+  };
+  for (const details of document.querySelectorAll("details")) {
+    const summary = details.querySelector(":scope > summary") || details.querySelector("summary");
+    const title = clean(summary ? (summary.innerText || summary.textContent || "") : "").toLowerCase();
+    if (!logTitleNeedles.some((needle) => title.includes(needle))) continue;
+    for (const el of details.querySelectorAll("[data-testid='stException'], [data-testid='stAlert'], [data-testid='stAlertContainer'], [data-testid='stCodeBlock'], pre, code")) {
+      if (hasFailure(el.innerText || el.textContent || "")) {
+        push("error", el, "action log failure rendered");
+      }
+    }
+    if (feedback.length === 0 && hasFailure(details.innerText || details.textContent || "")) {
+      push("error", details, "action log failure rendered");
+    }
+  }
+  return feedback;
 }
 """
 
@@ -938,19 +1101,49 @@ def _short_detail(detail: str, *, limit: int = 500) -> str:
     return detail if len(detail) <= limit else detail[: limit - 3] + "..."
 
 
-def _widget_locator(page: Any, widget: dict[str, Any]) -> Any:
+def _widget_locator(page: Any, widget: dict[str, Any], *, force_refresh: bool = False) -> Any:
     locator = page.locator(f"[data-agilab-widget-id='{widget['id']}']").first
-    try:
-        if locator.count() > 0:
+    if not force_refresh:
+        try:
+            if locator.count() > 0:
+                return locator
+        except Exception:
             return locator
-    except Exception:
-        return locator
     refreshed = page.evaluate(WIDGET_COLLECTOR_JS)
     for candidate in refreshed:
         if _widget_fingerprint(candidate) == _widget_fingerprint(widget) or _same_widget(widget, candidate):
             widget["id"] = candidate["id"]
             return page.locator(f"[data-agilab-widget-id='{widget['id']}']").first
     return locator
+
+
+def _button_locator_by_label(page: Any, label: str) -> Any | None:
+    if not hasattr(page, "get_by_role"):
+        return None
+    try:
+        locator = page.get_by_role("button", name=re.compile(re.escape(label), re.IGNORECASE))
+    except TypeError:
+        try:
+            locator = page.get_by_role("button", name=label)
+        except Exception:
+            return None
+    except Exception:
+        return None
+    try:
+        count = locator.count()
+    except Exception:
+        return getattr(locator, "first", locator)
+    if count <= 0:
+        return None
+    for index in range(min(count, 20)):
+        try:
+            candidate = locator.nth(index)
+            if candidate.is_visible(timeout=500):
+                return candidate
+        except Exception:
+            continue
+    return locator.first
+    return None
 
 
 def _page_scroll_positions(page: Any) -> list[int]:
@@ -991,6 +1184,47 @@ def _visible_streamlit_issue_detail(page: Any) -> str | None:
     detail = str(first.get("detail") or "visible Streamlit issue rendered")
     suffix = f" (+{len(issues) - 1} more)" if len(issues) > 1 else ""
     return _short_detail(f"{kind}: {detail}{suffix}")
+
+
+def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) -> list[dict[str, str]]:
+    feedback_items: list[Any] = []
+    scripts = [VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS]
+    if include_action_logs:
+        scripts.append(ACTION_LOG_FEEDBACK_COLLECTOR_JS)
+    for script in scripts:
+        try:
+            feedback = page.evaluate(script)
+        except Exception:
+            continue
+        if isinstance(feedback, list):
+            feedback_items.extend(feedback)
+    normalized: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in feedback_items:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or "info")
+        detail = str(item.get("detail") or "visible Streamlit alert rendered")
+        signature = (kind, detail)
+        if signature in seen:
+            continue
+        seen.add(signature)
+        normalized.append({"kind": kind, "detail": detail})
+    return normalized
+
+
+def _visible_streamlit_feedback_signatures(page: Any) -> set[tuple[str, str]]:
+    return {(item["kind"], item["detail"]) for item in _visible_streamlit_feedback(page, include_action_logs=False)}
+
+
+def _new_visible_streamlit_feedback(
+    page: Any,
+    baseline_feedback: set[tuple[str, str]],
+) -> dict[str, str] | None:
+    for item in _visible_streamlit_feedback(page):
+        if (item["kind"], item["detail"]) not in baseline_feedback:
+            return item
+    return None
 
 
 def _visible_exception_detail(page: Any) -> str | None:
@@ -1119,6 +1353,34 @@ def _preselect_matching_widgets(
     return probes
 
 
+def _close_all_expanders(page: Any) -> None:
+    try:
+        page.evaluate(CLOSE_EXPANDERS_JS)
+        _wait_for_timeout(page, 150)
+    except Exception:
+        pass
+
+
+def _open_all_expanders(page: Any) -> None:
+    try:
+        page.evaluate(OPEN_EXPANDERS_JS)
+        _wait_for_timeout(page, 250)
+    except Exception:
+        pass
+
+
+def _selected_action_matches(widgets: Sequence[dict[str, Any]], selected_label: str) -> list[dict[str, Any]]:
+    selected = _normalized_label(selected_label)
+    if not selected:
+        return []
+    return [
+        widget
+        for widget in widgets
+        if str(widget.get("kind", "")) in ACTION_BUTTON_KINDS
+        and selected in _normalized_label(str(widget.get("label", "")))
+    ]
+
+
 def _probe_selected_actions_first(
     page: Any,
     *,
@@ -1132,8 +1394,14 @@ def _probe_selected_actions_first(
     upload_file: Path,
 ) -> list[WidgetProbe]:
     probes: list[WidgetProbe] = []
-    page.evaluate(OPEN_EXPANDERS_JS)
+    _close_all_expanders(page)
     widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+    if preselect_labels and not any(
+        str(widget.get("kind", "")) in CHOICE_BUTTON_KINDS | {"radio"} and _label_matches(widget, preselect_labels)
+        for widget in widgets
+    ):
+        _open_all_expanders(page)
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
     probes.extend(
         _preselect_matching_widgets(
             page,
@@ -1145,19 +1413,22 @@ def _probe_selected_actions_first(
         )
     )
     if probes:
-        page.evaluate(OPEN_EXPANDERS_JS)
+        wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
+        wait_for_widgets_ready(page, page_name=display, timeout_ms=widget_timeout_ms)
+        _wait_for_timeout(page, 1000)
+        wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
+        _close_all_expanders(page)
         widgets = page.evaluate(WIDGET_COLLECTOR_JS)
 
     for selected_label in click_action_labels:
-        selected = _normalized_label(selected_label)
-        if not selected:
+        if not _normalized_label(selected_label):
             continue
-        matches = [
-            widget
-            for widget in widgets
-            if str(widget.get("kind", "")) in ACTION_BUTTON_KINDS
-            and selected in _normalized_label(str(widget.get("label", "")))
-        ]
+        matches = _selected_action_matches(widgets, selected_label)
+        if not matches:
+            _open_all_expanders(page)
+            wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
+            expanded_widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+            matches = _selected_action_matches(expanded_widgets, selected_label)
         if not matches:
             if missing_selected_action_policy == "fail":
                 probes.append(
@@ -1216,6 +1487,22 @@ def _click_with_force_fallback(locator: Any, *, timeout_ms: float) -> None:
         locator.click(timeout=timeout_ms, force=True)
 
 
+def _close_expanders_except_widget(page: Any, widget: dict[str, Any]) -> None:
+    try:
+        page.evaluate(CLOSE_EXPANDERS_EXCEPT_WIDGET_JS, str(widget.get("id") or ""))
+        _wait_for_timeout(page, 150)
+    except Exception:
+        pass
+
+
+def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:
+    try:
+        page.evaluate(SCROLL_WIDGET_TO_CENTER_JS, str(widget.get("id") or ""))
+        _wait_for_timeout(page, 100)
+    except Exception:
+        pass
+
+
 def _visible_spinner_count(page: Any) -> int:
     try:
         return int(page.locator("[data-testid='stSpinner']").count())
@@ -1223,11 +1510,18 @@ def _visible_spinner_count(page: Any) -> int:
         return 0
 
 
-def _wait_for_action_outcome(page: Any, *, timeout_ms: float) -> tuple[str | None, bool]:
+def _wait_for_action_outcome(
+    page: Any,
+    *,
+    timeout_ms: float,
+    require_feedback: bool = False,
+    baseline_feedback: set[tuple[str, str]] | None = None,
+) -> tuple[str | None, bool]:
     deadline = time.perf_counter() + timeout_ms / 1000.0
     min_observation_deadline = time.perf_counter() + min(5.0, timeout_ms / 1000.0)
     busy_seen = False
     idle_seen = 0
+    baseline_feedback = set(baseline_feedback or ())
     while True:
         try:
             page.evaluate(OPEN_EXPANDERS_JS)
@@ -1236,14 +1530,22 @@ def _wait_for_action_outcome(page: Any, *, timeout_ms: float) -> tuple[str | Non
         issue = _visible_streamlit_issue_detail(page)
         if issue:
             return issue, True
+        if require_feedback:
+            feedback = _new_visible_streamlit_feedback(page, baseline_feedback)
+            if feedback is not None:
+                kind = feedback["kind"]
+                detail = feedback["detail"]
+                if kind in {"error", "exception"}:
+                    return _short_detail(f"{kind}: {detail}"), True
+                return None, True
         if _visible_spinner_count(page) > 0:
             busy_seen = True
             idle_seen = 0
-        elif busy_seen:
+        elif busy_seen and not require_feedback:
             idle_seen += 1
             if idle_seen >= 3:
                 return None, True
-        elif time.perf_counter() >= min_observation_deadline:
+        elif not require_feedback and time.perf_counter() >= min_observation_deadline:
             return None, True
         if time.perf_counter() >= deadline:
             return None, False
@@ -1267,8 +1569,34 @@ def _probe_widget(
         return "probed", "disabled state verified"
     locator = _widget_locator(page, widget)
     kind = str(widget.get("kind", ""))
+    is_selected_action = (
+        kind in ACTION_BUTTON_KINDS
+        and action_button_policy == "click-selected"
+        and _action_label_matches(widget, click_action_labels)
+    )
     try:
         locator.scroll_into_view_if_needed(timeout=timeout_ms)
+        if not locator.is_visible(timeout=timeout_ms):
+            if is_selected_action:
+                _open_all_expanders(page)
+                locator = _widget_locator(page, widget, force_refresh=True)
+                locator.scroll_into_view_if_needed(timeout=timeout_ms)
+                _scroll_widget_to_center(page, widget)
+                locator = _widget_locator(page, widget)
+                if not locator.is_visible(timeout=timeout_ms):
+                    role_locator = _button_locator_by_label(page, str(widget.get("label", "")))
+                    if role_locator is not None:
+                        role_locator.scroll_into_view_if_needed(timeout=timeout_ms)
+                        if role_locator.is_visible(timeout=timeout_ms):
+                            locator = role_locator
+                if not locator.is_visible(timeout=timeout_ms):
+                    return "skipped", "not visible after collection"
+            else:
+                if preselect_labels:
+                    return "probed", "widget became hidden after compact-choice preselection; refreshed view was swept"
+                if kind == "expander":
+                    return "probed", "expander header became hidden after collection; expanded content was still swept"
+                return "skipped", "not visible after collection"
         if not locator.is_visible(timeout=timeout_ms):
             if preselect_labels:
                 return "probed", "widget became hidden after compact-choice preselection; refreshed view was swept"
@@ -1290,8 +1618,37 @@ def _probe_widget(
                 action_button_policy == "click-selected" and _action_label_matches(widget, click_action_labels)
             )
             if should_click:
-                _click_with_force_fallback(locator, timeout_ms=timeout_ms)
-                error, settled = _wait_for_action_outcome(page, timeout_ms=action_timeout_ms)
+                require_feedback = action_button_policy == "click-selected"
+                _close_expanders_except_widget(page, widget)
+                if require_feedback:
+                    _open_all_expanders(page)
+                locator = _widget_locator(page, widget, force_refresh=require_feedback)
+                locator.scroll_into_view_if_needed(timeout=timeout_ms)
+                _scroll_widget_to_center(page, widget)
+                locator = _widget_locator(page, widget, force_refresh=require_feedback)
+                if require_feedback:
+                    role_locator = _button_locator_by_label(page, str(widget.get("label", "")))
+                    if role_locator is not None and role_locator.is_visible(timeout=timeout_ms):
+                        locator = role_locator
+                baseline_feedback = _visible_streamlit_feedback_signatures(page) if require_feedback else set()
+                if require_feedback:
+                    click_timeout_ms = max(timeout_ms, min(action_timeout_ms, 10000.0))
+                    try:
+                        locator.click(timeout=click_timeout_ms)
+                    except Exception:
+                        role_locator = _button_locator_by_label(page, str(widget.get("label", "")))
+                        if role_locator is None:
+                            raise
+                        role_locator.scroll_into_view_if_needed(timeout=timeout_ms)
+                        role_locator.click(timeout=click_timeout_ms)
+                else:
+                    _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+                error, settled = _wait_for_action_outcome(
+                    page,
+                    timeout_ms=action_timeout_ms,
+                    require_feedback=require_feedback,
+                    baseline_feedback=baseline_feedback,
+                )
                 if error:
                     return "failed", f"button click rendered Streamlit error: {error}"
                 if not settled:
