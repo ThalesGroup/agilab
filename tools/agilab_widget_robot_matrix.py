@@ -33,6 +33,7 @@ class RobotScenario:
     action_timeout_seconds: float = 90.0
     page_timeout_seconds: float = 420.0
     target_seconds: float = 1800.0
+    assert_orchestrate_artifacts: bool = False
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,7 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         action_timeout_seconds=60.0,
         page_timeout_seconds=240.0,
         target_seconds=2400.0,
+        assert_orchestrate_artifacts=True,
     ),
 }
 
@@ -225,6 +227,8 @@ def build_robot_command(
         argv.extend(["--click-action-labels", scenario.click_action_labels])
     if scenario.preselect_labels:
         argv.extend(["--preselect-labels", scenario.preselect_labels])
+    if scenario.assert_orchestrate_artifacts:
+        argv.append("--assert-orchestrate-artifacts")
     if options.url:
         argv.extend(["--url", options.url])
     if options.active_app:
