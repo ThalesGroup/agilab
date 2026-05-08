@@ -65,7 +65,7 @@ Main Content Area
   It includes the generated ``INSTALL``, ``CHECK distribute``, and ``RUN``
   snippets that are available for the active configuration. It is export-only:
   notebook import remains in :doc:`experiment-help` because import changes
-  ``lab_steps.toml`` and therefore belongs to the pipeline definition workflow.
+  ``lab_stages.toml`` and therefore belongs to the pipeline definition workflow.
 - ``Service mode (persistent workers)`` keeps long-lived worker loops alive and
   lets you trigger ``START/STATUS/HEALTH gate/STOP`` without rebuilding the execution
   context every time.

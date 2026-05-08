@@ -745,11 +745,11 @@ def _unit_execution_contract(unit: Mapping[str, Any]) -> dict[str, Any]:
         params = contract.get("run_params")
     if isinstance(params, Mapping):
         normalized["params"] = dict(params)
-    steps = contract.get("steps")
-    if not isinstance(steps, list):
-        steps = contract.get("run_steps")
-    if isinstance(steps, list):
-        normalized["steps"] = list(steps)
+    if "steps" in contract or "run_steps" in contract:
+        raise ValueError("Execution contracts must use 'stages'; legacy 'steps'/'run_steps' keys are not supported.")
+    stages = contract.get("stages")
+    if isinstance(stages, list):
+        normalized["stages"] = list(stages)
     for key in ("data_in", "data_out", "reset_target"):
         if key in contract:
             normalized[key] = contract.get(key)

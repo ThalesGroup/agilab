@@ -37,7 +37,7 @@
   <text class="chip-text" x="897" y="202" text-anchor="middle">Import generated stage</text>
   <text class="card-text" x="726" y="244">1. Open Add stage or New stage</text>
   <text class="card-text" x="726" y="276">2. Import the generated run snippet</text>
-  <text class="card-text" x="726" y="308">3. Track and rerun it from lab_steps.toml</text>
+  <text class="card-text" x="726" y="308">3. Track and rerun it from lab_stages.toml</text>
 
   <path d="M516 224 H662" fill="none" stroke="#24557a" stroke-width="5" marker-end="url(#arrow)"/>
   <text class="label" x="589" y="212" text-anchor="middle">generated snippet</text>

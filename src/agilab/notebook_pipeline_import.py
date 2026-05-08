@@ -100,8 +100,8 @@ class NotebookPipelineImportProof:
         return self.notebook_import == self.reloaded_import
 
     @property
-    def pipeline_step_count(self) -> int:
-        return _summary_int(self.notebook_import, "pipeline_step_count")
+    def pipeline_stage_count(self) -> int:
+        return _summary_int(self.notebook_import, "pipeline_stage_count")
 
     @property
     def env_hint_count(self) -> int:
@@ -118,7 +118,7 @@ class NotebookPipelineImportProof:
             "path": self.path,
             "notebook_path": self.notebook_path,
             "round_trip_ok": self.round_trip_ok,
-            "pipeline_step_count": self.pipeline_step_count,
+            "pipeline_stage_count": self.pipeline_stage_count,
             "env_hint_count": self.env_hint_count,
             "artifact_reference_count": self.artifact_reference_count,
             "notebook_import": self.notebook_import,
@@ -331,17 +331,17 @@ def _infer_artifact_role(path: str, source: str) -> str:
     return role
 
 
-def _pipeline_step_sources(notebook_import: Mapping[str, Any]) -> list[tuple[str, int, str]]:
-    steps = notebook_import.get("pipeline_steps", [])
-    if not isinstance(steps, list):
+def _pipeline_stage_sources(notebook_import: Mapping[str, Any]) -> list[tuple[str, int, str]]:
+    stages = notebook_import.get("pipeline_stages", [])
+    if not isinstance(stages, list):
         return []
     sources: list[tuple[str, int, str]] = []
-    for step in steps:
-        if not isinstance(step, dict):
+    for stage in stages:
+        if not isinstance(stage, dict):
             continue
-        step_id = str(step.get("id", "") or "")
-        source_cell_index = int(step.get("source_cell_index", 0) or 0)
-        sources.append((step_id, source_cell_index, _source_from_step(step)))
+        stage_id = str(stage.get("id", "") or "")
+        source_cell_index = int(stage.get("source_cell_index", 0) or 0)
+        sources.append((stage_id, source_cell_index, _source_from_stage(stage)))
     return sources
 
 
@@ -353,13 +353,13 @@ def _safe_node_id(prefix: str, value: str) -> str:
     return f"{prefix}_{stem}_{digest}"
 
 
-def _detect_line_risks(step_id: str, source: str) -> list[dict[str, str]]:
+def _detect_line_risks(stage_id: str, source: str) -> list[dict[str, str]]:
     risks: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for line_number, line in enumerate(source.splitlines(), start=1):
         stripped = line.strip()
         lowered = stripped.lower()
-        location = f"{step_id}:line-{line_number}" if step_id else f"line-{line_number}"
+        location = f"{stage_id}:line-{line_number}" if stage_id else f"line-{line_number}"
         candidates: list[dict[str, str]] = []
         if re.search(r"(^[!%]\s*(pip|conda)\s+install\b|\bpip\s+install\b)", lowered):
             candidates.append(
@@ -462,18 +462,18 @@ def _agilab_export_payload(notebook: Mapping[str, Any]) -> dict[str, Any]:
     return agilab_payload if isinstance(agilab_payload, dict) else {}
 
 
-def _agilab_supervisor_steps(notebook: Mapping[str, Any]) -> list[dict[str, Any]]:
+def _agilab_supervisor_stages(notebook: Mapping[str, Any]) -> list[dict[str, Any]]:
     payload = _agilab_export_payload(notebook)
-    steps = payload.get("steps", [])
-    if not isinstance(steps, list):
+    stages = payload.get("stages", [])
+    if not isinstance(stages, list):
         return []
-    return [step for step in steps if isinstance(step, dict)]
+    return [stage for stage in stages if isinstance(stage, dict)]
 
 
-def _supervisor_context_text(step: Mapping[str, Any]) -> str:
+def _supervisor_context_text(stage: Mapping[str, Any]) -> str:
     parts = [
-        str(step.get("description", "") or "").strip(),
-        str(step.get("question", "") or "").strip(),
+        str(stage.get("description", "") or "").strip(),
+        str(stage.get("question", "") or "").strip(),
     ]
     return "\n\n".join(part for part in parts if part)
 
@@ -483,21 +483,21 @@ def _build_from_supervisor_metadata(
     notebook: Mapping[str, Any],
     source_notebook: Path | str,
     run_id: str,
-    supervisor_steps: list[dict[str, Any]],
+    supervisor_stages: list[dict[str, Any]],
 ) -> dict[str, Any]:
     payload = _agilab_export_payload(notebook)
     cells = _notebook_cells(notebook)
-    pipeline_steps: list[dict[str, Any]] = []
+    pipeline_stages: list[dict[str, Any]] = []
     context_blocks: list[dict[str, Any]] = []
     all_env_hints: list[str] = []
     all_artifact_references: list[dict[str, Any]] = []
 
-    for step_index, step in enumerate(supervisor_steps, start=1):
-        source = str(step.get("code", "") or "")
+    for stage_index, stage in enumerate(supervisor_stages, start=1):
+        source = str(stage.get("code", "") or "")
         if not source.strip():
             continue
-        context_id = f"agilab-step-{step_index}-context"
-        context_text = _supervisor_context_text(step)
+        context_id = f"agilab-stage-{stage_index}-context"
+        context_text = _supervisor_context_text(stage)
         context_blocks.append(
             {
                 "id": context_id,
@@ -507,13 +507,13 @@ def _build_from_supervisor_metadata(
             }
         )
         env_hints = extract_env_hints(source)
-        artifact_references = extract_artifact_references(source, step_index)
+        artifact_references = extract_artifact_references(source, stage_index)
         all_env_hints.extend(env_hints)
         all_artifact_references.extend(artifact_references)
-        pipeline_steps.append(
+        pipeline_stages.append(
             {
-                "id": f"supervisor-step-{step_index}",
-                "order": len(pipeline_steps) + 1,
+                "id": f"supervisor-stage-{stage_index}",
+                "order": len(pipeline_stages) + 1,
                 "source_cell_index": 0,
                 "cell_type": "code",
                 "execution_count": None,
@@ -523,13 +523,13 @@ def _build_from_supervisor_metadata(
                 "env_hints": env_hints,
                 "artifact_references": artifact_references,
                 "runnable": True,
-                "description": str(step.get("description", "") or ""),
-                "question": str(step.get("question", "") or ""),
-                "model": str(step.get("model", "") or ""),
-                "runtime": str(step.get("runtime", "") or ""),
-                "env": str(step.get("env", "") or ""),
+                "description": str(stage.get("description", "") or ""),
+                "question": str(stage.get("question", "") or ""),
+                "model": str(stage.get("model", "") or ""),
+                "runtime": str(stage.get("runtime", "") or ""),
+                "env": str(stage.get("env", "") or ""),
                 "pipeline_mapping": {
-                    "format": "lab_steps.toml-preview",
+                    "format": "lab_stages.toml-preview",
                     "description_field": "D",
                     "question_field": "Q",
                     "model_field": "M",
@@ -560,22 +560,22 @@ def _build_from_supervisor_metadata(
             "kernel_name": _kernel_name(notebook),
             "export_mode": str(payload.get("export_mode", "") or ""),
             "project_name": str(payload.get("project_name", "") or ""),
-            "steps_file": str(payload.get("steps_file", "") or ""),
+            "stages_file": str(payload.get("stages_file", "") or ""),
         },
         "summary": {
             "cell_count": len(cells),
             "code_cell_count": code_cell_count,
             "markdown_cell_count": markdown_cell_count,
-            "supervisor_step_count": len(supervisor_steps),
-            "pipeline_step_count": len(pipeline_steps),
+            "supervisor_stage_count": len(supervisor_stages),
+            "pipeline_stage_count": len(pipeline_stages),
             "context_block_count": len(context_blocks),
             "env_hint_count": len(env_hints_unique),
             "artifact_reference_count": len(all_artifact_references),
             "execution_count_present_count": 0,
-            "step_ids": [step["id"] for step in pipeline_steps],
+            "stage_ids": [stage["id"] for stage in pipeline_stages],
             "context_ids": [block["id"] for block in context_blocks],
         },
-        "pipeline_steps": pipeline_steps,
+        "pipeline_stages": pipeline_stages,
         "context_blocks": context_blocks,
         "env_hints": env_hints_unique,
         "artifact_references": all_artifact_references,
@@ -587,7 +587,7 @@ def _build_from_supervisor_metadata(
             "preserves_execution_counts": True,
             "extracts_environment_hints": True,
             "extracts_artifact_references": True,
-            "preserves_lab_steps_fields": True,
+            "preserves_lab_stages_fields": True,
         },
     }
 
@@ -598,17 +598,17 @@ def build_notebook_pipeline_import(
     source_notebook: Path | str,
     run_id: str = DEFAULT_RUN_ID,
 ) -> dict[str, Any]:
-    supervisor_steps = _agilab_supervisor_steps(notebook)
-    if supervisor_steps:
+    supervisor_stages = _agilab_supervisor_stages(notebook)
+    if supervisor_stages:
         return _build_from_supervisor_metadata(
             notebook=notebook,
             source_notebook=source_notebook,
             run_id=run_id,
-            supervisor_steps=supervisor_steps,
+            supervisor_stages=supervisor_stages,
         )
 
     cells = _notebook_cells(notebook)
-    pipeline_steps: list[dict[str, Any]] = []
+    pipeline_stages: list[dict[str, Any]] = []
     context_blocks: list[dict[str, Any]] = []
     pending_context_ids: list[str] = []
     all_env_hints: list[str] = []
@@ -640,10 +640,10 @@ def build_notebook_pipeline_import(
         all_artifact_references.extend(artifact_references)
         if cell.get("execution_count") is not None:
             execution_count_present += 1
-        pipeline_steps.append(
+        pipeline_stages.append(
             {
                 "id": f"cell-{cell_index}",
-                "order": len(pipeline_steps) + 1,
+                "order": len(pipeline_stages) + 1,
                 "source_cell_index": cell_index,
                 "cell_type": cell_type,
                 "execution_count": cell.get("execution_count"),
@@ -654,7 +654,7 @@ def build_notebook_pipeline_import(
                 "artifact_references": artifact_references,
                 "runnable": True,
                 "pipeline_mapping": {
-                    "format": "lab_steps.toml-preview",
+                    "format": "lab_stages.toml-preview",
                     "description_field": "D",
                     "question_field": "Q",
                     "model_field": "M",
@@ -686,15 +686,15 @@ def build_notebook_pipeline_import(
             "cell_count": len(cells),
             "code_cell_count": code_cell_count,
             "markdown_cell_count": markdown_cell_count,
-            "pipeline_step_count": len(pipeline_steps),
+            "pipeline_stage_count": len(pipeline_stages),
             "context_block_count": len(context_blocks),
             "env_hint_count": len(env_hints_unique),
             "artifact_reference_count": len(all_artifact_references),
             "execution_count_present_count": execution_count_present,
-            "step_ids": [step["id"] for step in pipeline_steps],
+            "stage_ids": [stage["id"] for stage in pipeline_stages],
             "context_ids": [block["id"] for block in context_blocks],
         },
-        "pipeline_steps": pipeline_steps,
+        "pipeline_stages": pipeline_stages,
         "context_blocks": context_blocks,
         "env_hints": env_hints_unique,
         "artifact_references": all_artifact_references,
@@ -734,12 +734,12 @@ def _context_summary(context_ids: list[str], contexts: Mapping[str, str]) -> str
     return ""
 
 
-def _source_from_step(step: Mapping[str, Any]) -> str:
-    return "".join(_coerce_source_lines(step.get("source_lines", [])))
+def _source_from_stage(stage: Mapping[str, Any]) -> str:
+    return "".join(_coerce_source_lines(stage.get("source_lines", [])))
 
 
-def _artifact_paths(step: Mapping[str, Any]) -> list[str]:
-    references = step.get("artifact_references", [])
+def _artifact_paths(stage: Mapping[str, Any]) -> list[str]:
+    references = stage.get("artifact_references", [])
     if not isinstance(references, list):
         return []
     paths: list[str] = []
@@ -752,64 +752,64 @@ def _artifact_paths(step: Mapping[str, Any]) -> list[str]:
     return paths
 
 
-def _step_env_hints(step: Mapping[str, Any]) -> list[str]:
-    hints = step.get("env_hints", [])
+def _stage_env_hints(stage: Mapping[str, Any]) -> list[str]:
+    hints = stage.get("env_hints", [])
     if isinstance(hints, list):
         return [str(hint) for hint in hints]
     return []
 
 
-def build_lab_steps_preview(
+def build_lab_stages_preview(
     notebook_import: Mapping[str, Any],
     *,
     module_name: str = "notebook_import_project",
 ) -> dict[str, list[dict[str, Any]]]:
-    """Project imported notebook metadata into AGILAB lab_steps TOML entries."""
-    module_name = str(module_name or "lab_steps")
+    """Project imported notebook metadata into AGILAB lab_stages TOML entries."""
+    module_name = str(module_name or "lab_stages")
     contexts = _context_lookup(notebook_import)
     source = notebook_import.get("source", {})
     source_notebook = ""
     if isinstance(source, dict):
         source_notebook = str(source.get("source_notebook", "") or "")
     execution_mode = str(notebook_import.get("execution_mode", "not_executed_import"))
-    steps = notebook_import.get("pipeline_steps", [])
-    if not isinstance(steps, list):
+    stages = notebook_import.get("pipeline_stages", [])
+    if not isinstance(stages, list):
         return {module_name: []}
 
     entries: list[dict[str, Any]] = []
-    for step in steps:
-        if not isinstance(step, dict):
+    for stage in stages:
+        if not isinstance(stage, dict):
             continue
-        code = _source_from_step(step)
+        code = _source_from_stage(stage)
         if not code.strip():
             continue
         context_ids = [
             str(context_id)
-            for context_id in step.get("context_ids", [])
+            for context_id in stage.get("context_ids", [])
             if str(context_id)
         ]
         entry: dict[str, Any] = {
-            "D": str(step.get("description", "") or "")
+            "D": str(stage.get("description", "") or "")
             or _context_summary(context_ids, contexts),
-            "Q": str(step.get("question", "") or "")
-            or f"Imported notebook cell {step.get('id', '')}",
+            "Q": str(stage.get("question", "") or "")
+            or f"Imported notebook cell {stage.get('id', '')}",
             "C": code,
-            "M": str(step.get("model", "") or ""),
-            "NB_CELL_ID": str(step.get("id", "")),
-            "NB_CELL_INDEX": int(step.get("source_cell_index", 0) or 0),
+            "M": str(stage.get("model", "") or ""),
+            "NB_CELL_ID": str(stage.get("id", "")),
+            "NB_CELL_INDEX": int(stage.get("source_cell_index", 0) or 0),
             "NB_CONTEXT_IDS": context_ids,
-            "NB_ENV_HINTS": _step_env_hints(step),
-            "NB_ARTIFACT_REFERENCES": _artifact_paths(step),
+            "NB_ENV_HINTS": _stage_env_hints(stage),
+            "NB_ARTIFACT_REFERENCES": _artifact_paths(stage),
             "NB_EXECUTION_MODE": execution_mode,
             "NB_SOURCE_NOTEBOOK": source_notebook,
         }
-        execution_count = step.get("execution_count")
+        execution_count = stage.get("execution_count")
         if execution_count is not None:
             entry["NB_EXECUTION_COUNT"] = int(execution_count)
-        runtime = str(step.get("runtime", "") or "")
+        runtime = str(stage.get("runtime", "") or "")
         if runtime:
             entry["R"] = runtime
-        env = str(step.get("env", "") or "")
+        env = str(stage.get("env", "") or "")
         if env:
             entry["E"] = env
         entries.append(entry)
@@ -818,9 +818,9 @@ def build_lab_steps_preview(
 
 def build_notebook_artifact_contract(notebook_import: Mapping[str, Any]) -> dict[str, Any]:
     """Build an app-neutral input/output contract from imported notebook metadata."""
-    step_sources = {
+    stage_sources = {
         source_cell_index: source
-        for _step_id, source_cell_index, source in _pipeline_step_sources(notebook_import)
+        for _stage_id, source_cell_index, source in _pipeline_stage_sources(notebook_import)
     }
     references = notebook_import.get("artifact_references", [])
     iterable_references = references if isinstance(references, list) else []
@@ -833,7 +833,7 @@ def build_notebook_artifact_contract(notebook_import: Mapping[str, Any]) -> dict
         if not path:
             continue
         source_cell_index = int(reference.get("source_cell_index", 0) or 0)
-        source = step_sources.get(source_cell_index, "")
+        source = stage_sources.get(source_cell_index, "")
         inferred_role = _infer_artifact_role(path, source)
         entry = by_path.setdefault(
             path,
@@ -868,11 +868,11 @@ def build_notebook_import_preflight(notebook_import: Mapping[str, Any]) -> dict[
     artifact_contract = build_notebook_artifact_contract(notebook_import)
     risks: list[dict[str, str]] = []
 
-    pipeline_step_count = int(summary_map.get("pipeline_step_count", 0) or 0)
+    pipeline_stage_count = int(summary_map.get("pipeline_stage_count", 0) or 0)
     markdown_cell_count = int(summary_map.get("markdown_cell_count", 0) or 0)
     execution_count_present = int(summary_map.get("execution_count_present_count", 0) or 0)
 
-    if pipeline_step_count <= 0:
+    if pipeline_stage_count <= 0:
         risks.append(
             _risk(
                 "error",
@@ -881,13 +881,13 @@ def build_notebook_import_preflight(notebook_import: Mapping[str, Any]) -> dict[
                 "Notebook import produced no runnable code cells.",
             )
         )
-    if markdown_cell_count <= 0 and pipeline_step_count > 0:
+    if markdown_cell_count <= 0 and pipeline_stage_count > 0:
         risks.append(
             _risk(
                 "warning",
                 "missing_markdown_context",
                 "notebook",
-                "Notebook has code cells but no markdown context for step names.",
+                "Notebook has code cells but no markdown context for stage names.",
             )
         )
     if execution_count_present > 0:
@@ -900,8 +900,8 @@ def build_notebook_import_preflight(notebook_import: Mapping[str, Any]) -> dict[
             )
         )
 
-    for step_id, _source_cell_index, source in _pipeline_step_sources(notebook_import):
-        risks.extend(_detect_line_risks(step_id, source))
+    for stage_id, _source_cell_index, source in _pipeline_stage_sources(notebook_import):
+        risks.extend(_detect_line_risks(stage_id, source))
 
     for item in artifact_contract.get("references", []):
         if not isinstance(item, dict):
@@ -929,14 +929,14 @@ def build_notebook_import_preflight(notebook_import: Mapping[str, Any]) -> dict[
     return {
         "schema": PREFLIGHT_SCHEMA,
         "status": risk_status,
-        "safe_to_import": counts.get("error", 0) == 0 and pipeline_step_count > 0,
+        "safe_to_import": counts.get("error", 0) == 0 and pipeline_stage_count > 0,
         "cleanup_required": counts.get("warning", 0) > 0,
         "risk_counts": counts,
         "summary": {
             "cell_count": int(summary_map.get("cell_count", 0) or 0),
             "code_cell_count": int(summary_map.get("code_cell_count", 0) or 0),
             "markdown_cell_count": markdown_cell_count,
-            "pipeline_step_count": pipeline_step_count,
+            "pipeline_stage_count": pipeline_stage_count,
             "env_hint_count": int(summary_map.get("env_hint_count", 0) or 0),
             "artifact_reference_count": int(summary_map.get("artifact_reference_count", 0) or 0),
             "input_count": len(artifact_contract.get("inputs", [])),
@@ -961,24 +961,24 @@ def build_notebook_import_contract(
     iterable_risks = risks if isinstance(risks, list) else []
     source = notebook_import.get("source", {})
     summary = notebook_import.get("summary", {})
-    steps = notebook_import.get("pipeline_steps", [])
-    iterable_steps = steps if isinstance(steps, list) else []
+    stages = notebook_import.get("pipeline_stages", [])
+    iterable_stages = stages if isinstance(stages, list) else []
 
-    contract_steps: list[dict[str, Any]] = []
-    for step in iterable_steps:
-        if not isinstance(step, dict):
+    contract_stages: list[dict[str, Any]] = []
+    for stage in iterable_stages:
+        if not isinstance(stage, dict):
             continue
-        contract_steps.append(
+        contract_stages.append(
             {
-                "id": str(step.get("id", "") or ""),
-                "order": int(step.get("order", 0) or 0),
-                "source_cell_index": int(step.get("source_cell_index", 0) or 0),
-                "description": str(step.get("description", "") or ""),
-                "question": str(step.get("question", "") or ""),
-                "context_ids": list(step.get("context_ids", []) or []),
-                "env_hints": list(step.get("env_hints", []) or []),
-                "artifact_references": _artifact_paths(step),
-                "execution_count": step.get("execution_count"),
+                "id": str(stage.get("id", "") or ""),
+                "order": int(stage.get("order", 0) or 0),
+                "source_cell_index": int(stage.get("source_cell_index", 0) or 0),
+                "description": str(stage.get("description", "") or ""),
+                "question": str(stage.get("question", "") or ""),
+                "context_ids": list(stage.get("context_ids", []) or []),
+                "env_hints": list(stage.get("env_hints", []) or []),
+                "artifact_references": _artifact_paths(stage),
+                "execution_count": stage.get("execution_count"),
             }
         )
 
@@ -1008,7 +1008,7 @@ def build_notebook_import_contract(
             for risk in iterable_risks
             if isinstance(risk, dict) and risk.get("level") == "error"
         ],
-        "steps": contract_steps,
+        "stages": contract_stages,
     }
 
 
@@ -1101,34 +1101,34 @@ def build_notebook_import_pipeline_view(
             }
         )
 
-    step_node_ids: list[str] = []
-    steps = notebook_import.get("pipeline_steps", [])
-    for step in steps if isinstance(steps, list) else []:
-        if not isinstance(step, dict):
+    stage_node_ids: list[str] = []
+    stages = notebook_import.get("pipeline_stages", [])
+    for stage in stages if isinstance(stages, list) else []:
+        if not isinstance(stage, dict):
             continue
-        step_id = str(step.get("id", "") or "")
-        if not step_id:
+        stage_id = str(stage.get("id", "") or "")
+        if not stage_id:
             continue
-        node_id = _safe_node_id("cell", step_id)
-        step_node_ids.append(node_id)
-        context_ids = [str(context_id) for context_id in step.get("context_ids", []) if str(context_id)]
+        node_id = _safe_node_id("cell", stage_id)
+        stage_node_ids.append(node_id)
+        context_ids = [str(context_id) for context_id in stage.get("context_ids", []) if str(context_id)]
         label = (
-            str(step.get("description", "") or "")
-            or str(step.get("question", "") or "")
+            str(stage.get("description", "") or "")
+            or str(stage.get("question", "") or "")
             or _context_summary(context_ids, context_texts)
-            or f"Notebook cell {step_id}"
+            or f"Notebook cell {stage_id}"
         )
-        artifact_paths = _artifact_paths(step)
+        artifact_paths = _artifact_paths(stage)
         add_node(
             {
                 "id": node_id,
                 "label": label,
                 "kind": "notebook_code_cell",
-                "role": "pipeline_step",
-                "source_cell_index": int(step.get("source_cell_index", 0) or 0),
-                "source_cell_id": step_id,
+                "role": "pipeline_stage",
+                "source_cell_index": int(stage.get("source_cell_index", 0) or 0),
+                "source_cell_id": stage_id,
                 "context_ids": context_ids,
-                "env_hints": _step_env_hints(step),
+                "env_hints": _stage_env_hints(stage),
                 "artifact_references": artifact_paths,
             }
         )
@@ -1150,7 +1150,7 @@ def build_notebook_import_pipeline_view(
                         "role": reference_roles.get(path, "unknown"),
                         "path": path,
                         "suffix": Path(path).suffix.lower(),
-                        "source_cell_indices": [int(step.get("source_cell_index", 0) or 0)],
+                        "source_cell_indices": [int(stage.get("source_cell_index", 0) or 0)],
                     }
                 )
             role = reference_roles.get(path, "unknown")
@@ -1184,8 +1184,8 @@ def build_notebook_import_pipeline_view(
         artifact_node_id = artifact_node_ids.get(path)
         if artifact_node_id:
             add_edge(artifact_node_id, analysis_node_id, "analysis_consumes", artifact=path)
-    if not edges and step_node_ids:
-        add_edge(step_node_ids[-1], analysis_node_id, "analysis_candidate")
+    if not edges and stage_node_ids:
+        add_edge(stage_node_ids[-1], analysis_node_id, "analysis_candidate")
 
     return {
         "schema": PIPELINE_VIEW_SCHEMA,
@@ -1602,7 +1602,7 @@ def write_notebook_import_view_plan(
     return path
 
 
-def write_lab_steps_preview(
+def write_lab_stages_preview(
     path: Path,
     preview: Mapping[str, list[Mapping[str, Any]]],
 ) -> Path:
@@ -1657,8 +1657,8 @@ def persist_notebook_pipeline_import(
         issues.append(_issue("schema", "notebook import schema is invalid"))
     if notebook_import.get("execution_mode") != "not_executed_import":
         issues.append(_issue("execution_mode", "notebook import must not execute cells"))
-    if not notebook_import.get("pipeline_steps"):
-        issues.append(_issue("pipeline_steps", "notebook import produced no pipeline stages"))
+    if not notebook_import.get("pipeline_stages"):
+        issues.append(_issue("pipeline_stages", "notebook import produced no pipeline stages"))
 
     return NotebookPipelineImportProof(
         ok=not issues,

@@ -402,9 +402,9 @@ Current shipped baseline:
   notebook-to-pipeline import contract from a checked-in `.ipynb`; it preserves
   markdown context, code cells, import hints, execution-count metadata, and
   artifact references as `not_executed_import` pipeline-stage evidence, writes a
-  richer `lab_steps.toml` preview, and feeds the existing `WORKFLOW` upload path
+  richer `lab_stages.toml` preview, and feeds the existing `WORKFLOW` upload path
 - `tools/notebook_roundtrip_report.py --compact` validates
-  `lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`
+  `lab_stages.toml -> supervisor notebook -> import -> lab_stages preview`
   preservation for saved stage description, prompt, model, code, runtime,
   import hints, and artifact references
 - `tools/notebook_union_environment_report.py --compact` validates a

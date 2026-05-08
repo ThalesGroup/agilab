@@ -44,26 +44,26 @@ _code_editor_support_module = import_agilab_module(
 )
 normalize_custom_buttons = _code_editor_support_module.normalize_custom_buttons
 
-_pipeline_steps_module = import_agilab_module(
-    "agilab.pipeline_steps",
+_pipeline_stages_module = import_agilab_module(
+    "agilab.pipeline_stages",
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "pipeline_steps.py",
-    fallback_name="agilab_pipeline_steps_fallback",
+    fallback_path=Path(__file__).resolve().parent / "pipeline_stages.py",
+    fallback_name="agilab_pipeline_stages_fallback",
 )
-ORCHESTRATE_LOCKED_SOURCE_KEY = _pipeline_steps_module.ORCHESTRATE_LOCKED_SOURCE_KEY
-ORCHESTRATE_LOCKED_STEP_KEY = _pipeline_steps_module.ORCHESTRATE_LOCKED_STEP_KEY
-get_available_virtualenvs = _pipeline_steps_module.get_available_virtualenvs
-_is_displayable_step = _pipeline_steps_module.is_displayable_step
-_is_orchestrate_locked_step = _pipeline_steps_module.is_orchestrate_locked_step
-_load_sequence_preferences = _pipeline_steps_module.load_sequence_preferences
-_module_keys = _pipeline_steps_module.module_keys
-_normalize_imported_orchestrate_snippet = _pipeline_steps_module.normalize_imported_orchestrate_snippet
-normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
-_orchestrate_snippet_source = _pipeline_steps_module.orchestrate_snippet_source
-_persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
-_snippet_source_guidance = _pipeline_steps_module.snippet_source_guidance
-_step_label_for_multiselect = _pipeline_steps_module.step_label_for_multiselect
-_step_summary = _pipeline_steps_module.step_summary
+ORCHESTRATE_LOCKED_SOURCE_KEY = _pipeline_stages_module.ORCHESTRATE_LOCKED_SOURCE_KEY
+ORCHESTRATE_LOCKED_STAGE_KEY = _pipeline_stages_module.ORCHESTRATE_LOCKED_STAGE_KEY
+get_available_virtualenvs = _pipeline_stages_module.get_available_virtualenvs
+_is_displayable_stage = _pipeline_stages_module.is_displayable_stage
+_is_orchestrate_locked_stage = _pipeline_stages_module.is_orchestrate_locked_stage
+_load_sequence_preferences = _pipeline_stages_module.load_sequence_preferences
+_module_keys = _pipeline_stages_module.module_keys
+_normalize_imported_orchestrate_snippet = _pipeline_stages_module.normalize_imported_orchestrate_snippet
+normalize_runtime_path = _pipeline_stages_module.normalize_runtime_path
+_orchestrate_snippet_source = _pipeline_stages_module.orchestrate_snippet_source
+_persist_sequence_preferences = _pipeline_stages_module.persist_sequence_preferences
+_snippet_source_guidance = _pipeline_stages_module.snippet_source_guidance
+_stage_label_for_multiselect = _pipeline_stages_module.stage_label_for_multiselect
+_stage_summary = _pipeline_stages_module.stage_summary
 
 _pipeline_page_state_module = import_agilab_module(
     "agilab.pipeline_page_state",
@@ -75,8 +75,8 @@ PipelinePageStateDeps = _pipeline_page_state_module.PipelinePageStateDeps
 PipelineAction = _pipeline_page_state_module.PipelineAction
 build_pipeline_page_state = _pipeline_page_state_module.build_pipeline_page_state
 clear_pipeline_run_logs = _pipeline_page_state_module.clear_pipeline_run_logs
-delete_all_pipeline_steps_command = _pipeline_page_state_module.delete_all_pipeline_steps_command
-delete_pipeline_step_command = _pipeline_page_state_module.delete_pipeline_step_command
+delete_all_pipeline_stages_command = _pipeline_page_state_module.delete_all_pipeline_stages_command
+delete_pipeline_stage_command = _pipeline_page_state_module.delete_pipeline_stage_command
 finish_pipeline_run_command = _pipeline_page_state_module.finish_pipeline_run_command
 start_pipeline_run_command = _pipeline_page_state_module.start_pipeline_run_command
 undo_pipeline_delete_command = _pipeline_page_state_module.undo_pipeline_delete_command
@@ -111,9 +111,9 @@ _pipeline_runtime_module = import_agilab_module(
 )
 build_mlflow_process_env = _pipeline_runtime_module.build_mlflow_process_env
 _is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
-_label_for_step_runtime = _pipeline_runtime_module.label_for_step_runtime
+_label_for_stage_runtime = _pipeline_runtime_module.label_for_stage_runtime
 log_mlflow_artifacts = _pipeline_runtime_module.log_mlflow_artifacts
-_python_for_step = _pipeline_runtime_module.python_for_step
+_python_for_stage = _pipeline_runtime_module.python_for_stage
 start_mlflow_run = _pipeline_runtime_module.start_mlflow_run
 wrap_code_with_mlflow_resume = _pipeline_runtime_module.wrap_code_with_mlflow_resume
 
@@ -224,8 +224,8 @@ GLOBAL_DAG_DRAFT_DIRNAME = "global_dags"
 GLOBAL_DAG_NODE_COLUMNS = ["id", "app", "purpose"]
 GLOBAL_DAG_ARTIFACT_COLUMNS = ["node", "id", "kind", "path"]
 GLOBAL_DAG_EDGE_COLUMNS = ["from", "to", "artifact", "handoff"]
-GLOBAL_DAG_SOURCE_PROJECT_STEPS = "Project stages"
-GLOBAL_DAG_SOURCE_PROJECT_STEPS_LEGACY = "Project steps"
+GLOBAL_DAG_SOURCE_PROJECT_STAGES = "Project stages"
+GLOBAL_DAG_SOURCE_PROJECT_STAGES_LEGACY = "Project stages"
 GLOBAL_DAG_SOURCE_APP_TEMPLATES = "App templates"
 GLOBAL_DAG_SOURCE_SAMPLES = "Sample library"
 GLOBAL_DAG_SOURCE_WORKSPACE = "Workspace drafts"
@@ -234,14 +234,14 @@ PIPELINE_SCOPE_PROJECT = "Project workflow"
 PIPELINE_SCOPE_MULTI_APP_DAG = "Multi-app DAG"
 PIPELINE_SCOPE_OPTIONS = [PIPELINE_SCOPE_PROJECT, PIPELINE_SCOPE_MULTI_APP_DAG]
 GLOBAL_DAG_SOURCE_OPTIONS = [
-    GLOBAL_DAG_SOURCE_PROJECT_STEPS,
+    GLOBAL_DAG_SOURCE_PROJECT_STAGES,
     GLOBAL_DAG_SOURCE_APP_TEMPLATES,
     GLOBAL_DAG_SOURCE_SAMPLES,
     GLOBAL_DAG_SOURCE_WORKSPACE,
     GLOBAL_DAG_SOURCE_CUSTOM,
 ]
-PIPELINE_STEP_STARTED_RE = re.compile(r"\b(?:Running|Run)\s+(?:stage|step)\s+(\d+)\b", re.IGNORECASE)
-PIPELINE_STEP_COMPLETED_RE = re.compile(r"\b(?:Stage|Step)\s+(\d+):\s+engine=", re.IGNORECASE)
+PIPELINE_STAGE_STARTED_RE = re.compile(r"\b(?:Running|Run)\s+(?:stage|stage)\s+(\d+)\b", re.IGNORECASE)
+PIPELINE_STAGE_COMPLETED_RE = re.compile(r"\b(?:Stage|Stage)\s+(\d+):\s+engine=", re.IGNORECASE)
 
 
 def _global_dag_pending_source_key(index_page_str: str) -> str:
@@ -259,7 +259,7 @@ def _normalize_editor_text(raw: Optional[str]) -> str:
     return text if text.strip() else ""
 
 
-def _resolve_step_engine(entry_engine: str, ui_engine: str, venv_root: str) -> str:
+def _resolve_stage_engine(entry_engine: str, ui_engine: str, venv_root: str) -> str:
     if ui_engine and ui_engine != entry_engine:
         if entry_engine.startswith("agi.") and ui_engine == "runpy":
             return entry_engine
@@ -415,8 +415,8 @@ def _apply_global_dag_pending_source_selection(
     if not isinstance(pending, dict):
         return
     source = str(pending.get("source", "")).strip()
-    if source == GLOBAL_DAG_SOURCE_PROJECT_STEPS_LEGACY:
-        source = GLOBAL_DAG_SOURCE_PROJECT_STEPS
+    if source == GLOBAL_DAG_SOURCE_PROJECT_STAGES_LEGACY:
+        source = GLOBAL_DAG_SOURCE_PROJECT_STAGES
     dag_text = str(pending.get("dag_path", "")).strip()
     valid_sources = source_options or GLOBAL_DAG_SOURCE_OPTIONS
     if source not in valid_sources or not dag_text:
@@ -433,12 +433,12 @@ def _apply_global_dag_pending_source_selection(
         st.session_state[dag_input_key] = dag_text
 
 
-def _pipeline_scope_from_source(source_value: Any, has_project_steps: bool) -> str:
-    if str(source_value or "") in {GLOBAL_DAG_SOURCE_PROJECT_STEPS, GLOBAL_DAG_SOURCE_PROJECT_STEPS_LEGACY}:
+def _pipeline_scope_from_source(source_value: Any, has_project_stages: bool) -> str:
+    if str(source_value or "") in {GLOBAL_DAG_SOURCE_PROJECT_STAGES, GLOBAL_DAG_SOURCE_PROJECT_STAGES_LEGACY}:
         return PIPELINE_SCOPE_PROJECT
     if source_value:
         return PIPELINE_SCOPE_MULTI_APP_DAG
-    return PIPELINE_SCOPE_PROJECT if has_project_steps else PIPELINE_SCOPE_MULTI_APP_DAG
+    return PIPELINE_SCOPE_PROJECT if has_project_stages else PIPELINE_SCOPE_MULTI_APP_DAG
 
 
 def _default_multi_app_dag_source(
@@ -1182,7 +1182,7 @@ def _global_dag_workplan_rows_for_display(state: Dict[str, Any]) -> list[dict[st
     return rows
 
 
-def _render_project_step_snippet_preview(
+def _render_project_stage_snippet_preview(
     snippet_rows: list[dict[str, str]] | None,
     *,
     index_page_str: str,
@@ -1199,7 +1199,7 @@ def _render_project_step_snippet_preview(
 
     row_by_unit = {row["unit"]: row for row in snippet_rows}
     options = list(row_by_unit)
-    selected_key = f"{index_page_str}_global_runner_snippet_step"
+    selected_key = f"{index_page_str}_global_runner_snippet_stage"
     if st.session_state.get(selected_key) not in row_by_unit:
         st.session_state[selected_key] = options[0]
 
@@ -1478,25 +1478,25 @@ def _global_dag_dot(state: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _pipeline_dag_step_rows(pipeline_steps: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+def _pipeline_dag_stage_rows(pipeline_stages: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for step in pipeline_steps or []:
-        if isinstance(step, dict) and _is_displayable_step(step):
-            rows.append(step)
+    for stage in pipeline_stages or []:
+        if isinstance(stage, dict) and _is_displayable_stage(stage):
+            rows.append(stage)
     return rows
 
 
-def _pipeline_step_unit_id(index: int) -> str:
+def _pipeline_stage_unit_id(index: int) -> str:
     return f"stage_{index + 1:03d}"
 
 
-def _pipeline_step_artifact_id(unit_id: str) -> str:
+def _pipeline_stage_artifact_id(unit_id: str) -> str:
     return f"{unit_id}_complete"
 
 
-def _pipeline_step_executor_label(step: dict[str, Any]) -> str:
-    engine = str(step.get("R", "") or "").strip()
-    runtime = str(step.get("E", "") or "").strip()
+def _pipeline_stage_executor_label(stage: dict[str, Any]) -> str:
+    engine = str(stage.get("R", "") or "").strip()
+    runtime = str(stage.get("E", "") or "").strip()
     if engine:
         return engine
     if runtime:
@@ -1504,47 +1504,47 @@ def _pipeline_step_executor_label(step: dict[str, Any]) -> str:
     return "runpy"
 
 
-def _pipeline_step_purpose(step: dict[str, Any], index: int) -> str:
-    description = str(step.get("D", "") or "").strip()
+def _pipeline_stage_purpose(stage: dict[str, Any], index: int) -> str:
+    description = str(stage.get("D", "") or "").strip()
     if description:
         return description
-    summary = _step_summary(step, width=96)
+    summary = _stage_summary(stage, width=96)
     return summary or f"Project stage {index + 1}"
 
 
-def _pipeline_steps_digest(pipeline_steps: list[dict[str, Any]]) -> str:
+def _pipeline_stages_digest(pipeline_stages: list[dict[str, Any]]) -> str:
     normalized = [
         {
-            "D": str(step.get("D", "") or ""),
-            "Q": str(step.get("Q", "") or ""),
-            "M": str(step.get("M", "") or ""),
-            "C": str(step.get("C", "") or ""),
-            "E": str(step.get("E", "") or ""),
-            "R": str(step.get("R", "") or ""),
+            "D": str(stage.get("D", "") or ""),
+            "Q": str(stage.get("Q", "") or ""),
+            "M": str(stage.get("M", "") or ""),
+            "C": str(stage.get("C", "") or ""),
+            "E": str(stage.get("E", "") or ""),
+            "R": str(stage.get("R", "") or ""),
         }
-        for step in pipeline_steps
+        for stage in pipeline_stages
     ]
     payload = json.dumps(normalized, sort_keys=True, ensure_ascii=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _pipeline_step_snippet_rows(pipeline_steps: list[dict[str, Any]] | None) -> list[dict[str, str]]:
+def _pipeline_stage_snippet_rows(pipeline_stages: list[dict[str, Any]] | None) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
-    for index, step in enumerate(_pipeline_dag_step_rows(pipeline_steps)):
-        code = str(step.get("C", "") or "")
+    for index, stage in enumerate(_pipeline_dag_stage_rows(pipeline_stages)):
+        code = str(stage.get("C", "") or "")
         if not code.strip():
             continue
-        unit_id = _pipeline_step_unit_id(index)
-        summary = _pipeline_step_purpose(step, index)
+        unit_id = _pipeline_stage_unit_id(index)
+        summary = _pipeline_stage_purpose(stage, index)
         label = f"{unit_id} - {summary}" if summary else unit_id
         rows.append(
             {
                 "unit": unit_id,
                 "label": label,
                 "summary": summary,
-                "prompt": str(step.get("Q", "") or "").strip(),
-                "model": str(step.get("M", "") or "").strip(),
-                "source": _orchestrate_snippet_source(step),
+                "prompt": str(stage.get("Q", "") or "").strip(),
+                "model": str(stage.get("M", "") or "").strip(),
+                "source": _orchestrate_snippet_source(stage),
                 "code": code,
             }
         )
@@ -1579,11 +1579,11 @@ def _pipeline_log_lines_from_session(index_page: str, session_state: Mapping[str
     return lines
 
 
-def _step_indices_from_log_pattern(
+def _stage_indices_from_log_pattern(
     lines: list[str],
     pattern: re.Pattern[str],
     *,
-    step_count: int,
+    stage_count: int,
 ) -> list[int]:
     indices: list[int] = []
     for line in lines:
@@ -1592,24 +1592,24 @@ def _step_indices_from_log_pattern(
                 index = int(match.group(1)) - 1
             except (TypeError, ValueError):
                 continue
-            if 0 <= index < step_count:
+            if 0 <= index < stage_count:
                 indices.append(index)
     return indices
 
 
-def _pipeline_steps_execution_evidence(
+def _pipeline_stages_execution_evidence(
     *,
     index_page: str,
     session_state: Mapping[str, Any] | None,
-    steps_file: Path | None,
-    step_count: int,
+    stages_file: Path | None,
+    stage_count: int,
 ) -> dict[str, Any]:
-    if not index_page or session_state is None or step_count <= 0:
+    if not index_page or session_state is None or stage_count <= 0:
         return {"has_evidence": False}
     lines = _pipeline_log_lines_from_session(index_page, session_state)
     last_status = str(session_state.get(f"{index_page}__last_run_status") or "").strip().lower()
-    started_order = _step_indices_from_log_pattern(lines, PIPELINE_STEP_STARTED_RE, step_count=step_count)
-    completed_order = _step_indices_from_log_pattern(lines, PIPELINE_STEP_COMPLETED_RE, step_count=step_count)
+    started_order = _stage_indices_from_log_pattern(lines, PIPELINE_STAGE_STARTED_RE, stage_count=stage_count)
+    completed_order = _stage_indices_from_log_pattern(lines, PIPELINE_STAGE_COMPLETED_RE, stage_count=stage_count)
     completed = sorted(set(completed_order))
     running: list[int] = []
     failed: list[int] = []
@@ -1621,9 +1621,9 @@ def _pipeline_steps_execution_evidence(
 
     log_file = str(session_state.get(f"{index_page}__last_run_log_file") or "").strip()
     log_mtime = _path_mtime(log_file)
-    steps_mtime = _path_mtime(steps_file)
+    stages_mtime = _path_mtime(stages_file)
     stale = bool(last_status or completed or started_order) and (
-        log_mtime is not None and steps_mtime is not None and steps_mtime > log_mtime
+        log_mtime is not None and stages_mtime is not None and stages_mtime > log_mtime
     )
     sync_payload = {
         "last_status": last_status,
@@ -1632,7 +1632,7 @@ def _pipeline_steps_execution_evidence(
         "failed": failed,
         "log_file": log_file,
         "log_mtime": log_mtime,
-        "steps_mtime": steps_mtime,
+        "stages_mtime": stages_mtime,
         "stale": stale,
     }
     sync_token = hashlib.sha256(json.dumps(sync_payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()
@@ -1645,13 +1645,13 @@ def _pipeline_steps_execution_evidence(
         "started": sorted(set(started_order)),
         "log_file": log_file,
         "log_mtime": log_mtime,
-        "steps_mtime": steps_mtime,
+        "stages_mtime": stages_mtime,
         "stale": stale,
         "sync_token": sync_token,
     }
 
 
-def _pipeline_steps_unit_index(unit: Mapping[str, Any]) -> int | None:
+def _pipeline_stages_unit_index(unit: Mapping[str, Any]) -> int | None:
     try:
         index = int(unit.get("order_index", -1))
     except (TypeError, ValueError):
@@ -1659,7 +1659,7 @@ def _pipeline_steps_unit_index(unit: Mapping[str, Any]) -> int | None:
     return index if index >= 0 else None
 
 
-def _pipeline_steps_update_operator_ui(
+def _pipeline_stages_update_operator_ui(
     unit: dict[str, Any],
     *,
     status: str,
@@ -1682,7 +1682,7 @@ def _pipeline_steps_update_operator_ui(
     }
 
 
-def _pipeline_steps_set_artifact_statuses(
+def _pipeline_stages_set_artifact_statuses(
     state: dict[str, Any],
     available_artifacts: set[str],
     status: str = "planned",
@@ -1697,23 +1697,23 @@ def _pipeline_steps_set_artifact_statuses(
         artifact["status"] = "available" if artifact_id in available_artifacts else status
 
 
-def _apply_pipeline_steps_execution_evidence(state: dict[str, Any], evidence: Mapping[str, Any]) -> None:
+def _apply_pipeline_stages_execution_evidence(state: dict[str, Any], evidence: Mapping[str, Any]) -> None:
     if not evidence.get("has_evidence"):
         return
     completed = {int(index) for index in evidence.get("completed", [])}
     running = {int(index) for index in evidence.get("running", [])}
     failed = {int(index) for index in evidence.get("failed", [])}
     available_artifacts = {
-        _pipeline_step_artifact_id(_pipeline_step_unit_id(index))
+        _pipeline_stage_artifact_id(_pipeline_stage_unit_id(index))
         for index in completed
     }
     units = [unit for unit in state.get("units", []) if isinstance(unit, dict)]
     for unit in units:
-        index = _pipeline_steps_unit_index(unit)
+        index = _pipeline_stages_unit_index(unit)
         if index is None:
             continue
-        unit_id = _pipeline_step_unit_id(index)
-        artifact_id = _pipeline_step_artifact_id(unit_id)
+        unit_id = _pipeline_stage_unit_id(index)
+        artifact_id = _pipeline_stage_artifact_id(unit_id)
         dependency_ids = [
             str(dependency.get("artifact", ""))
             for dependency in unit.get("artifact_dependencies", [])
@@ -1721,28 +1721,28 @@ def _apply_pipeline_steps_execution_evidence(state: dict[str, Any], evidence: Ma
         ]
         if index in completed:
             unit["dispatch_status"] = "completed"
-            _pipeline_steps_update_operator_ui(
+            _pipeline_stages_update_operator_ui(
                 unit,
                 status="completed",
                 message=f"{unit_id} is completed according to the latest workflow run log.",
             )
         elif index in failed:
             unit["dispatch_status"] = "failed"
-            _pipeline_steps_update_operator_ui(
+            _pipeline_stages_update_operator_ui(
                 unit,
                 status="failed",
                 message=f"{unit_id} failed in the latest workflow run log.",
             )
         elif index in running:
             unit["dispatch_status"] = "running"
-            _pipeline_steps_update_operator_ui(
+            _pipeline_stages_update_operator_ui(
                 unit,
                 status="running",
                 message=f"{unit_id} is running according to the latest workflow run log.",
             )
         elif all(dependency_id in available_artifacts for dependency_id in dependency_ids):
             unit["dispatch_status"] = "runnable"
-            _pipeline_steps_update_operator_ui(
+            _pipeline_stages_update_operator_ui(
                 unit,
                 status="runnable",
                 message=f"{unit_id} is ready because its project-stage dependencies are satisfied.",
@@ -1750,7 +1750,7 @@ def _apply_pipeline_steps_execution_evidence(state: dict[str, Any], evidence: Ma
         else:
             missing = [dependency_id for dependency_id in dependency_ids if dependency_id not in available_artifacts]
             unit["dispatch_status"] = "blocked"
-            _pipeline_steps_update_operator_ui(
+            _pipeline_stages_update_operator_ui(
                 unit,
                 status="blocked",
                 message=f"{unit_id} waits for previous project-stage evidence.",
@@ -1760,27 +1760,27 @@ def _apply_pipeline_steps_execution_evidence(state: dict[str, Any], evidence: Ma
             if isinstance(produced, dict) and produced.get("artifact") == artifact_id:
                 produced["status"] = "available" if artifact_id in available_artifacts else "planned"
 
-    _pipeline_steps_set_artifact_statuses(state, available_artifacts)
+    _pipeline_stages_set_artifact_statuses(state, available_artifacts)
     source = state.setdefault("source", {})
     if isinstance(source, dict):
         source["execution_sync"] = {
             "has_evidence": True,
             "status": str(evidence.get("last_status", "")),
-            "completed_step_indices": list(evidence.get("completed", [])),
-            "running_step_indices": list(evidence.get("running", [])),
-            "failed_step_indices": list(evidence.get("failed", [])),
+            "completed_stage_indices": list(evidence.get("completed", [])),
+            "running_stage_indices": list(evidence.get("running", [])),
+            "failed_stage_indices": list(evidence.get("failed", [])),
             "log_file": str(evidence.get("log_file", "")),
             "sync_token": str(evidence.get("sync_token", "")),
             "stale": bool(evidence.get("stale")),
         }
     provenance = state.setdefault("provenance", {})
     if isinstance(provenance, dict):
-        provenance["dispatch_mode"] = "pipeline_steps_log_sync"
+        provenance["dispatch_mode"] = "pipeline_stages_log_sync"
         provenance["real_app_execution"] = False
-    _pipeline_steps_dag_summary(state)
+    _pipeline_stages_dag_summary(state)
 
 
-def _pipeline_steps_state_has_execution_sync(state: Mapping[str, Any]) -> bool:
+def _pipeline_stages_state_has_execution_sync(state: Mapping[str, Any]) -> bool:
     source = state.get("source", {})
     if not isinstance(source, Mapping):
         return False
@@ -1788,7 +1788,7 @@ def _pipeline_steps_state_has_execution_sync(state: Mapping[str, Any]) -> bool:
     return isinstance(sync, Mapping) and bool(sync.get("has_evidence"))
 
 
-def _mark_pipeline_steps_state_stale(
+def _mark_pipeline_stages_state_stale(
     state: dict[str, Any],
     *,
     reason: str,
@@ -1798,23 +1798,23 @@ def _mark_pipeline_steps_state_stale(
         if not isinstance(unit, dict):
             continue
         unit["dispatch_status"] = "stale"
-        _pipeline_steps_update_operator_ui(
+        _pipeline_stages_update_operator_ui(
             unit,
             status="stale",
             message=reason,
         )
-    _pipeline_steps_set_artifact_statuses(state, set(), status="stale")
+    _pipeline_stages_set_artifact_statuses(state, set(), status="stale")
     state["run_status"] = "stale"
     source = state.setdefault("source", {})
     if isinstance(source, dict):
         source["stale_from_digest"] = True
-        source["previous_steps_digest"] = previous_digest
+        source["previous_stages_digest"] = previous_digest
         source["execution_sync"] = {
             "has_evidence": True,
             "status": "stale",
-            "completed_step_indices": [],
-            "running_step_indices": [],
-            "failed_step_indices": [],
+            "completed_stage_indices": [],
+            "running_stage_indices": [],
+            "failed_stage_indices": [],
             "log_file": "",
             "sync_token": "",
             "stale": True,
@@ -1822,7 +1822,7 @@ def _mark_pipeline_steps_state_stale(
         }
     provenance = state.setdefault("provenance", {})
     if isinstance(provenance, dict):
-        provenance["dispatch_mode"] = "pipeline_steps_stale_preview"
+        provenance["dispatch_mode"] = "pipeline_stages_stale_preview"
         provenance["real_app_execution"] = False
     events = state.get("events")
     if not isinstance(events, list):
@@ -1838,10 +1838,10 @@ def _mark_pipeline_steps_state_stale(
             "detail": reason,
         }
     )
-    _pipeline_steps_dag_summary(state)
+    _pipeline_stages_dag_summary(state)
 
 
-def _pipeline_steps_dag_summary(state: dict[str, Any]) -> dict[str, Any]:
+def _pipeline_stages_dag_summary(state: dict[str, Any]) -> dict[str, Any]:
     units = [unit for unit in state.get("units", []) if isinstance(unit, dict)]
     events = state.get("events", [])
     running_ids = [str(unit.get("id", "")) for unit in units if unit.get("dispatch_status") == "running"]
@@ -1879,23 +1879,23 @@ def _pipeline_steps_dag_summary(state: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
-def _build_pipeline_steps_runner_state(
+def _build_pipeline_stages_runner_state(
     env: AgiEnv,
     *,
-    steps_file: Path | None,
-    pipeline_steps: list[dict[str, Any]],
+    stages_file: Path | None,
+    pipeline_stages: list[dict[str, Any]],
     now: str | None = None,
 ) -> dict[str, Any]:
     timestamp = now or _global_dag_now_iso()
     app_name = _active_app_name(env) or "project"
-    steps_digest = _pipeline_steps_digest(pipeline_steps)
+    stages_digest = _pipeline_stages_digest(pipeline_stages)
     units: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
-    for index, step in enumerate(pipeline_steps):
-        unit_id = _pipeline_step_unit_id(index)
-        artifact_id = _pipeline_step_artifact_id(unit_id)
-        previous_unit_id = _pipeline_step_unit_id(index - 1) if index else ""
-        previous_artifact_id = _pipeline_step_artifact_id(previous_unit_id) if previous_unit_id else ""
+    for index, stage in enumerate(pipeline_stages):
+        unit_id = _pipeline_stage_unit_id(index)
+        artifact_id = _pipeline_stage_artifact_id(unit_id)
+        previous_unit_id = _pipeline_stage_unit_id(index - 1) if index else ""
+        previous_artifact_id = _pipeline_stage_artifact_id(previous_unit_id) if previous_unit_id else ""
         dependencies = []
         if previous_artifact_id:
             dependencies.append(
@@ -1914,9 +1914,9 @@ def _build_pipeline_steps_runner_state(
                 "id": unit_id,
                 "order_index": index,
                 "app": app_name,
-                "executor": _pipeline_step_executor_label(step),
+                "executor": _pipeline_stage_executor_label(stage),
                 "plan_status": "planned",
-                "plan_runner_status": "lab_steps_preview",
+                "plan_runner_status": "lab_stages_preview",
                 "dispatch_status": status,
                 "depends_on": [previous_unit_id] if previous_unit_id else [],
                 "artifact_dependencies": dependencies,
@@ -1957,17 +1957,17 @@ def _build_pipeline_steps_runner_state(
                     "blocked_by_artifacts": blocked_artifacts,
                 },
                 "provenance": {
-                    "source_plan_schema": "agilab.lab_steps_dag_preview.v1",
-                    "source_plan_runner_status": "lab_steps_preview",
+                    "source_plan_schema": "agilab.lab_stages_dag_preview.v1",
+                    "source_plan_runner_status": "lab_stages_preview",
                     "source_dag": "project stages",
                     "source_unit_id": unit_id,
                     "source_app": app_name,
-                    "pipeline_view": "single_app_lab_steps",
+                    "pipeline_view": "single_app_lab_stages",
                     "runner_state_mode": "read_only_preview",
-                    "planning_mode": "lab_steps_compatibility",
+                    "planning_mode": "lab_stages_compatibility",
                     "lab_stage_index": index,
-                    "lab_stage_model": str(step.get("M", "") or ""),
-                    "lab_stage_summary": _pipeline_step_purpose(step, index),
+                    "lab_stage_model": str(stage.get("M", "") or ""),
+                    "lab_stage_summary": _pipeline_stage_purpose(stage, index),
                 },
             }
         )
@@ -1990,15 +1990,15 @@ def _build_pipeline_steps_runner_state(
         "ok": bool(units),
         "issues": [],
         "source": {
-            "dag_path": GLOBAL_DAG_SOURCE_PROJECT_STEPS,
-            "source_type": "lab_steps",
-            "steps_file": str(steps_file.expanduser()) if steps_file is not None else "",
-            "steps_digest": steps_digest,
-            "step_count": len(pipeline_steps),
-            "stage_count": len(pipeline_steps),
+            "dag_path": GLOBAL_DAG_SOURCE_PROJECT_STAGES,
+            "source_type": "lab_stages",
+            "stages_file": str(stages_file.expanduser()) if stages_file is not None else "",
+            "stages_digest": stages_digest,
+            "stage_count": len(pipeline_stages),
+            "stage_count": len(pipeline_stages),
             "execution_order": [unit["id"] for unit in units],
-            "plan_schema": "agilab.lab_steps_dag_preview.v1",
-            "plan_runner_status": "lab_steps_preview",
+            "plan_schema": "agilab.lab_stages_dag_preview.v1",
+            "plan_runner_status": "lab_stages_preview",
             "runner_state_mode": "read_only_preview",
         },
         "units": units,
@@ -2010,60 +2010,60 @@ def _build_pipeline_steps_runner_state(
                 "unit_id": "",
                 "from_status": "",
                 "to_status": "planned",
-                "detail": "project lab_steps.toml rendered as a preview-only single-app stage DAG",
+                "detail": "project lab_stages.toml rendered as a preview-only single-app stage DAG",
             }
         ],
         "provenance": {
             "source_dag": "project stages",
-            "source_plan_schema": "agilab.lab_steps_dag_preview.v1",
+            "source_plan_schema": "agilab.lab_stages_dag_preview.v1",
             "source_runner_state_schema": "agilab.global_pipeline_runner_state.v1",
-            "dispatch_mode": "pipeline_steps_preview",
+            "dispatch_mode": "pipeline_stages_preview",
             "real_app_execution": False,
         },
     }
-    _pipeline_steps_dag_summary(state)
+    _pipeline_stages_dag_summary(state)
     return state
 
 
-def _pipeline_steps_state_matches(
+def _pipeline_stages_state_matches(
     state: dict[str, Any],
     *,
-    steps_file: Path | None,
-    pipeline_steps: list[dict[str, Any]],
+    stages_file: Path | None,
+    pipeline_stages: list[dict[str, Any]],
 ) -> bool:
     source = state.get("source", {})
-    if not isinstance(source, dict) or source.get("source_type") != "lab_steps":
+    if not isinstance(source, dict) or source.get("source_type") != "lab_stages":
         return False
-    expected_steps_file = str(steps_file.expanduser()) if steps_file is not None else ""
+    expected_stages_file = str(stages_file.expanduser()) if stages_file is not None else ""
     return (
-        str(source.get("steps_file", "")) == expected_steps_file
-        and str(source.get("steps_digest", "")) == _pipeline_steps_digest(pipeline_steps)
+        str(source.get("stages_file", "")) == expected_stages_file
+        and str(source.get("stages_digest", "")) == _pipeline_stages_digest(pipeline_stages)
     )
 
 
-def _load_or_create_pipeline_steps_runner_state(
+def _load_or_create_pipeline_stages_runner_state(
     env: AgiEnv,
     lab_dir: Path,
     *,
-    steps_file: Path | None,
-    pipeline_steps: list[dict[str, Any]],
+    stages_file: Path | None,
+    pipeline_stages: list[dict[str, Any]],
     index_page: str = "",
     session_state: Mapping[str, Any] | None = None,
     reset: bool = False,
 ) -> tuple[dict[str, Any], Path]:
     state_path = lab_dir / ".agilab" / GLOBAL_RUNNER_STATE_FILENAME
-    evidence = _pipeline_steps_execution_evidence(
+    evidence = _pipeline_stages_execution_evidence(
         index_page=index_page,
         session_state=session_state,
-        steps_file=steps_file,
-        step_count=len(pipeline_steps),
+        stages_file=stages_file,
+        stage_count=len(pipeline_stages),
     )
     if state_path.is_file() and not reset:
         state = load_runner_state(state_path)
-        if _pipeline_steps_state_matches(
+        if _pipeline_stages_state_matches(
             state,
-            steps_file=steps_file,
-            pipeline_steps=pipeline_steps,
+            stages_file=stages_file,
+            pipeline_stages=pipeline_stages,
         ):
             source = state.get("source", {})
             execution_sync = source.get("execution_sync", {}) if isinstance(source, dict) else {}
@@ -2072,44 +2072,44 @@ def _load_or_create_pipeline_steps_runner_state(
                 and str(execution_sync.get("sync_token", "")) == str(evidence.get("sync_token", ""))
             ):
                 return state, state_path
-        elif _pipeline_steps_state_has_execution_sync(state) and not evidence.get("has_evidence"):
+        elif _pipeline_stages_state_has_execution_sync(state) and not evidence.get("has_evidence"):
             previous_source = state.get("source", {})
             previous_digest = (
-                str(previous_source.get("steps_digest", ""))
+                str(previous_source.get("stages_digest", ""))
                 if isinstance(previous_source, dict)
                 else ""
             )
-            stale_state = _build_pipeline_steps_runner_state(
+            stale_state = _build_pipeline_stages_runner_state(
                 env,
-                steps_file=steps_file,
-                pipeline_steps=pipeline_steps,
+                stages_file=stages_file,
+                pipeline_stages=pipeline_stages,
             )
-            _mark_pipeline_steps_state_stale(
+            _mark_pipeline_stages_state_stale(
                 stale_state,
-                reason="lab_steps.toml changed after the last observed workflow run.",
+                reason="lab_stages.toml changed after the last observed workflow run.",
                 previous_digest=previous_digest,
             )
             write_runner_state(state_path, stale_state)
             return stale_state, state_path
 
-    state = _build_pipeline_steps_runner_state(
+    state = _build_pipeline_stages_runner_state(
         env,
-        steps_file=steps_file,
-        pipeline_steps=pipeline_steps,
+        stages_file=stages_file,
+        pipeline_stages=pipeline_stages,
     )
     if evidence.get("has_evidence"):
         if evidence.get("stale"):
-            _mark_pipeline_steps_state_stale(
+            _mark_pipeline_stages_state_stale(
                 state,
-                reason="lab_steps.toml is newer than the latest workflow run log.",
+                reason="lab_stages.toml is newer than the latest workflow run log.",
                 previous_digest=(
-                    str(state.get("source", {}).get("steps_digest", ""))
+                    str(state.get("source", {}).get("stages_digest", ""))
                     if isinstance(state.get("source"), dict)
                     else ""
                 ),
             )
         else:
-            _apply_pipeline_steps_execution_evidence(state, evidence)
+            _apply_pipeline_stages_execution_evidence(state, evidence)
     write_runner_state(state_path, state)
     return state, state_path
 
@@ -2123,7 +2123,7 @@ def _render_global_runner_state_view(
     repo_root: Path,
     index_page_str: str,
     dag_label_override: str = "",
-    project_step_snippet_rows: list[dict[str, str]] | None = None,
+    project_stage_snippet_rows: list[dict[str, str]] | None = None,
     distributed_request_preview_rows: list[dict[str, str]] | None = None,
 ) -> None:
     summary = state.get("summary", {})
@@ -2169,8 +2169,8 @@ def _render_global_runner_state_view(
         st.dataframe(workplan_rows, hide_index=True, width="stretch")
     else:
         st.caption(GLOBAL_DAG_EMPTY_STATE)
-    _render_project_step_snippet_preview(
-        project_step_snippet_rows,
+    _render_project_stage_snippet_preview(
+        project_stage_snippet_rows,
         index_page_str=index_page_str,
     )
 
@@ -2312,8 +2312,8 @@ def _render_global_runner_state_panel(
     lab_dir: Path,
     index_page_str: str,
     *,
-    pipeline_steps: list[dict[str, Any]] | None = None,
-    steps_file: Path | None = None,
+    pipeline_stages: list[dict[str, Any]] | None = None,
+    stages_file: Path | None = None,
 ) -> None:
     with st.expander("Workflow graph", expanded=True):
         repo_root = _repo_root_for_global_dag()
@@ -2328,7 +2328,7 @@ def _render_global_runner_state_panel(
         sample_options = _global_dag_sample_options(repo_root)
         workspace_options = _global_dag_workspace_options(repo_root, lab_dir)
         library_options = [*app_template_options, *sample_options, *workspace_options]
-        project_step_rows = _pipeline_dag_step_rows(pipeline_steps)
+        project_stage_rows = _pipeline_dag_stage_rows(pipeline_stages)
         default_dag_text = (
             _repo_relative_text(default_dag_path, repo_root)
             if default_dag_path is not None
@@ -2337,7 +2337,7 @@ def _render_global_runner_state_panel(
         if scope_key not in st.session_state or st.session_state[scope_key] not in PIPELINE_SCOPE_OPTIONS:
             st.session_state[scope_key] = _pipeline_scope_from_source(
                 st.session_state.get(source_key),
-                bool(project_step_rows),
+                bool(project_stage_rows),
             )
         pipeline_scope = compact_choice(
             st,
@@ -2345,17 +2345,17 @@ def _render_global_runner_state_panel(
             PIPELINE_SCOPE_OPTIONS,
             key=scope_key,
             help=(
-                "Use Project workflow for the current lab_steps.toml graph, or Multi-app DAG "
+                "Use Project workflow for the current lab_stages.toml graph, or Multi-app DAG "
                 "for cross-app artifact contracts."
             ),
             inline_limit=2,
         )
         if pipeline_scope == PIPELINE_SCOPE_PROJECT:
-            st.session_state[source_key] = GLOBAL_DAG_SOURCE_PROJECT_STEPS
+            st.session_state[source_key] = GLOBAL_DAG_SOURCE_PROJECT_STAGES
         source_options = (
-            [GLOBAL_DAG_SOURCE_PROJECT_STEPS]
+            [GLOBAL_DAG_SOURCE_PROJECT_STAGES]
             if pipeline_scope == PIPELINE_SCOPE_PROJECT
-            else [source for source in GLOBAL_DAG_SOURCE_OPTIONS if source != GLOBAL_DAG_SOURCE_PROJECT_STEPS]
+            else [source for source in GLOBAL_DAG_SOURCE_OPTIONS if source != GLOBAL_DAG_SOURCE_PROJECT_STAGES]
         )
         _apply_global_dag_pending_source_selection(
             index_page_str,
@@ -2371,7 +2371,7 @@ def _render_global_runner_state_panel(
         )
         if source_key not in st.session_state or st.session_state[source_key] not in source_options:
             st.session_state[source_key] = (
-                GLOBAL_DAG_SOURCE_PROJECT_STEPS
+                GLOBAL_DAG_SOURCE_PROJECT_STAGES
                 if pipeline_scope == PIPELINE_SCOPE_PROJECT
                 else _default_multi_app_dag_source(
                     default_dag_text=default_dag_text,
@@ -2404,7 +2404,7 @@ def _render_global_runner_state_panel(
         st.caption("Select a workplan, review readiness, and run only controlled templates.")
         dag_source = st.session_state[source_key]
         selected_dag_text = ""
-        if dag_source == GLOBAL_DAG_SOURCE_PROJECT_STEPS:
+        if dag_source == GLOBAL_DAG_SOURCE_PROJECT_STAGES:
             reset_clicked = action_button(
                 st,
                 "Reset preview state",
@@ -2412,7 +2412,7 @@ def _render_global_runner_state_panel(
                 kind="reset",
                 help="Rebuild the preview runner state from the current project stages.",
             )
-            if not project_step_rows:
+            if not project_stage_rows:
                 st.info("No project stages are recorded yet.")
             else:
                 st.caption(
@@ -2420,11 +2420,11 @@ def _render_global_runner_state_panel(
                     "Use the existing stage controls below for real execution."
                 )
             try:
-                state, state_path = _load_or_create_pipeline_steps_runner_state(
+                state, state_path = _load_or_create_pipeline_stages_runner_state(
                     env,
                     lab_dir,
-                    steps_file=steps_file,
-                    pipeline_steps=project_step_rows,
+                    stages_file=stages_file,
+                    pipeline_stages=project_stage_rows,
                     index_page=index_page_str,
                     session_state=st.session_state,
                     reset=reset_clicked,
@@ -2441,8 +2441,8 @@ def _render_global_runner_state_panel(
                 dag_engine=_global_dag_engine(repo_root, lab_dir, None, env=env),
                 repo_root=repo_root,
                 index_page_str=index_page_str,
-                dag_label_override=GLOBAL_DAG_SOURCE_PROJECT_STEPS,
-                project_step_snippet_rows=_pipeline_step_snippet_rows(project_step_rows),
+                dag_label_override=GLOBAL_DAG_SOURCE_PROJECT_STAGES,
+                project_stage_snippet_rows=_pipeline_stage_snippet_rows(project_stage_rows),
             )
             return
         st.caption(
@@ -2819,13 +2819,13 @@ def _render_global_runner_state_panel(
 
 @dataclass(frozen=True)
 class PipelineLabDeps:
-    load_all_steps: Callable[..., Any]
-    save_step: Callable[..., Any]
-    remove_step: Callable[..., Any]
-    force_persist_step: Callable[..., Any]
+    load_all_stages: Callable[..., Any]
+    save_stage: Callable[..., Any]
+    remove_stage: Callable[..., Any]
+    force_persist_stage: Callable[..., Any]
     capture_pipeline_snapshot: Callable[..., Any]
     restore_pipeline_snapshot: Callable[..., Any]
-    run_all_steps: Callable[..., Any]
+    run_all_stages: Callable[..., Any]
     prepare_run_log_file: Callable[..., Any]
     get_run_placeholder: Callable[..., Any]
     push_run_log: Callable[..., Any]
@@ -2840,11 +2840,11 @@ class PipelineLabDeps:
     refresh_pipeline_run_lock: Callable[..., Any]
     acquire_pipeline_run_lock: Callable[..., Any]
     release_pipeline_run_lock: Callable[..., Any]
-    label_for_step_runtime: Callable[..., Any]
-    python_for_step: Callable[..., Any]
+    label_for_stage_runtime: Callable[..., Any]
+    python_for_stage: Callable[..., Any]
     python_for_venv: Callable[..., Any]
     stream_run_command: Callable[..., Any]
-    run_locked_step: Callable[..., Any]
+    run_locked_stage: Callable[..., Any]
     load_pipeline_conceptual_dot: Callable[..., Any]
     render_pipeline_view: Callable[..., Any]
     default_df: str
@@ -2852,7 +2852,7 @@ class PipelineLabDeps:
     safe_service_template_marker: str
 
 
-def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps") -> Dict[str, Path]:
+def get_existing_snippets(env: AgiEnv, stages_file: Path, deps: "PipelineLabDeps") -> Dict[str, Path]:
     """Discover reusable snippet files and return a label->path mapping."""
     _ensure_safe_service_template = deps.ensure_safe_service_template
     SAFE_SERVICE_START_TEMPLATE_FILENAME = deps.safe_service_template_filename
@@ -2861,14 +2861,14 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
     snippet_file = st.session_state.get("snippet_file")
     safe_service_template = _ensure_safe_service_template(
         env,
-        steps_file,
+        stages_file,
         template_filename=SAFE_SERVICE_START_TEMPLATE_FILENAME,
         marker=SAFE_SERVICE_START_TEMPLATE_MARKER,
         debug_log=logger.debug,
     )
 
     registry = discover_pipeline_snippets(
-        steps_file=steps_file,
+        stages_file=stages_file,
         app_name=str(getattr(env, "app", "")),
         explicit_snippet=snippet_file,
         safe_service_template=safe_service_template,
@@ -2903,18 +2903,18 @@ def get_existing_snippets(env: AgiEnv, steps_file: Path, deps: "PipelineLabDeps"
 def display_lab_tab(
     lab_dir: Path,
     index_page_str: str,
-    steps_file: Path,
+    stages_file: Path,
     module_path: Path,
     env: AgiEnv,
     deps: "PipelineLabDeps",
 ) -> None:
-    load_all_steps = deps.load_all_steps
-    save_step = deps.save_step
-    remove_step = deps.remove_step
-    _force_persist_step = deps.force_persist_step
+    load_all_stages = deps.load_all_stages
+    save_stage = deps.save_stage
+    remove_stage = deps.remove_stage
+    _force_persist_stage = deps.force_persist_stage
     _capture_pipeline_snapshot = deps.capture_pipeline_snapshot
     _restore_pipeline_snapshot = deps.restore_pipeline_snapshot
-    run_all_steps = deps.run_all_steps
+    run_all_stages = deps.run_all_stages
     _prepare_run_log_file = deps.prepare_run_log_file
     _get_run_placeholder = deps.get_run_placeholder
     _push_run_log = deps.push_run_log
@@ -2927,11 +2927,11 @@ def display_lab_tab(
     _refresh_pipeline_run_lock = deps.refresh_pipeline_run_lock
     _acquire_pipeline_run_lock = deps.acquire_pipeline_run_lock
     _release_pipeline_run_lock = deps.release_pipeline_run_lock
-    _label_for_step_runtime = deps.label_for_step_runtime
-    _python_for_step = deps.python_for_step
+    _label_for_stage_runtime = deps.label_for_stage_runtime
+    _python_for_stage = deps.python_for_stage
     _python_for_venv = deps.python_for_venv
     _stream_run_command = deps.stream_run_command
-    _run_locked_step = deps.run_locked_step
+    _run_locked_stage = deps.run_locked_stage
     load_pipeline_conceptual_dot = deps.load_pipeline_conceptual_dot
     render_pipeline_view = deps.render_pipeline_view
     DEFAULT_DF = deps.default_df
@@ -2942,50 +2942,50 @@ def display_lab_tab(
         except TypeError:
             deps.configure_assistant_engine(env)
 
-    # Reset active step and count to reflect persisted steps
-    persisted_steps = load_all_steps(module_path, steps_file, index_page_str) or []
-    if not persisted_steps and steps_file.exists():
+    # Reset active stage and count to reflect persisted stages
+    persisted_stages = load_all_stages(module_path, stages_file, index_page_str) or []
+    if not persisted_stages and stages_file.exists():
         try:
             import tomllib
-            with open(steps_file, "rb") as f:
+            with open(stages_file, "rb") as f:
                 raw = tomllib.load(f)
             module_key = _module_keys(module_path)[0]
-            fallback_steps = raw.get(module_key, [])
-            if isinstance(fallback_steps, list):
-                persisted_steps = [s for s in fallback_steps if _is_displayable_step(s)]
+            fallback_stages = raw.get(module_key, [])
+            if isinstance(fallback_stages, list):
+                persisted_stages = [s for s in fallback_stages if _is_displayable_stage(s)]
         except (AttributeError, OSError, TypeError, tomllib.TOMLDecodeError):
             pass
-    total_steps = len(persisted_steps)
+    total_stages = len(persisted_stages)
     safe_prefix = index_page_str.replace("/", "_")
-    total_steps_key = f"{safe_prefix}_total_steps"
-    prev_total = st.session_state.get(total_steps_key)
+    total_stages_key = f"{safe_prefix}_total_stages"
+    prev_total = st.session_state.get(total_stages_key)
     st.session_state[index_page_str][0] = 0
-    st.session_state[index_page_str][-1] = total_steps
+    st.session_state[index_page_str][-1] = total_stages
 
     sequence_state_key = f"{index_page_str}__run_sequence"
     stored_sequence = st.session_state.get(sequence_state_key)
     if stored_sequence is None:
-        stored_sequence = _load_sequence_preferences(module_path, steps_file)
+        stored_sequence = _load_sequence_preferences(module_path, stages_file)
         st.session_state[sequence_state_key] = stored_sequence
 
-    if total_steps == 0:
+    if total_stages == 0:
         if stored_sequence:
             st.session_state[sequence_state_key] = []
-            _persist_sequence_preferences(module_path, steps_file, [])
+            _persist_sequence_preferences(module_path, stages_file, [])
     else:
-        current_sequence = [idx for idx in stored_sequence if 0 <= idx < total_steps]
+        current_sequence = [idx for idx in stored_sequence if 0 <= idx < total_stages]
         if not current_sequence:
-            current_sequence = list(range(total_steps))
-        elif isinstance(prev_total, int) and total_steps > prev_total:
-            for idx in range(prev_total, total_steps):
+            current_sequence = list(range(total_stages))
+        elif isinstance(prev_total, int) and total_stages > prev_total:
+            for idx in range(prev_total, total_stages):
                 if idx not in current_sequence:
                     current_sequence.append(idx)
         if current_sequence != st.session_state[sequence_state_key]:
             st.session_state[sequence_state_key] = current_sequence
-            _persist_sequence_preferences(module_path, steps_file, current_sequence)
+            _persist_sequence_preferences(module_path, stages_file, current_sequence)
 
-    if prev_total != total_steps:
-        st.session_state[total_steps_key] = total_steps
+    if prev_total != total_stages:
+        st.session_state[total_stages_key] = total_stages
         expander_reset_key = f"{safe_prefix}_expander_open"
         st.session_state[expander_reset_key] = {}
 
@@ -3006,7 +3006,7 @@ def display_lab_tab(
         else:
             selected_map.pop(idx_key, None)
 
-    snippet_option_map = get_existing_snippets(env, steps_file, deps)
+    snippet_option_map = get_existing_snippets(env, stages_file, deps)
     snippet_guidance = _snippet_source_guidance(
         bool(snippet_option_map),
         env.app,
@@ -3015,16 +3015,16 @@ def display_lab_tab(
         env,
         lab_dir,
         index_page_str,
-        pipeline_steps=persisted_steps,
-        steps_file=steps_file,
+        pipeline_stages=persisted_stages,
+        stages_file=stages_file,
     )
-    step_source_key = f"{safe_prefix}_new_step_source"
+    stage_source_key = f"{safe_prefix}_new_stage_source"
     source_options = [GENERATE_STAGE_SOURCE] + list(snippet_option_map.keys())
-    if st.session_state.get(step_source_key) not in source_options:
-        st.session_state[step_source_key] = source_options[0]
+    if st.session_state.get(stage_source_key) not in source_options:
+        st.session_state[stage_source_key] = source_options[0]
 
     # No stages yet: allow creating the first one via Generate code
-    if total_steps == 0:
+    if total_stages == 0:
         st.info("No stages recorded yet. Generate your first stage below.")
         st.info(snippet_guidance)
         new_q_key = f"{index_page_str}_new_q"
@@ -3032,16 +3032,16 @@ def display_lab_tab(
         if new_q_key not in st.session_state:
             st.session_state[new_q_key] = ""
         with st.expander("New stage", expanded=True):
-            step_source = compact_choice(
+            stage_source = compact_choice(
                 st,
                 "Stage source",
                 source_options,
-                key=step_source_key,
+                key=stage_source_key,
                 help="Select `Generate stage` to use the code generator, or choose an existing snippet to import as read-only.",
                 inline_limit=5,
             )
 
-            if step_source == GENERATE_STAGE_SOURCE:
+            if stage_source == GENERATE_STAGE_SOURCE:
                 _render_assistant_engine_near_prompt()
                 st.text_area(
                     "Ask code generator:",
@@ -3062,7 +3062,7 @@ def display_lab_tab(
                 run_new = action_button(
                     st,
                     "Generate code",
-                    key=f"{safe_prefix}_add_first_step_btn",
+                    key=f"{safe_prefix}_add_first_stage_btn",
                     kind="generate",
                 )
                 if run_new:
@@ -3078,19 +3078,19 @@ def display_lab_tab(
                         expander_state = st.session_state.setdefault(expander_state_key, {})
                         expander_state[0] = True
                         st.session_state[expander_state_key] = expander_state
-                        save_step(
+                        save_stage(
                             module_path,
                             answer,
                             0,
                             1,
-                            steps_file,
+                            stages_file,
                             venv_map=venv_map,
                             engine_map=eng_map,
                         )
                         _bump_history_revision()
                         st.rerun()
             else:
-                snippet_path = snippet_option_map.get(step_source)
+                snippet_path = snippet_option_map.get(stage_source)
                 snippet_code = ""
                 if snippet_path:
                     try:
@@ -3123,25 +3123,25 @@ def display_lab_tab(
                             default_runtime=manager_runtime or "",
                         )
                         df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
-                        question = f"Imported snippet: {snippet_path.name if snippet_path else step_source}"
+                        question = f"Imported snippet: {snippet_path.name if snippet_path else stage_source}"
                         detail = f"Imported from {snippet_path}" if snippet_path else ""
                         answer = [df_path, question, "snippet", normalized_code, detail]
                         venv_map = {0: import_runtime} if import_runtime else {}
                         eng_map = {0: import_engine}
                         extra_fields = {
-                            ORCHESTRATE_LOCKED_STEP_KEY: True,
+                            ORCHESTRATE_LOCKED_STAGE_KEY: True,
                             ORCHESTRATE_LOCKED_SOURCE_KEY: str(snippet_path) if snippet_path else "",
                         }
                         expander_state_key = f"{safe_prefix}_expander_open"
                         expander_state = st.session_state.setdefault(expander_state_key, {})
                         expander_state[0] = True
                         st.session_state[expander_state_key] = expander_state
-                        save_step(
+                        save_stage(
                             module_path,
                             answer,
                             0,
                             1,
-                            steps_file,
+                            stages_file,
                             venv_map=venv_map,
                             engine_map=eng_map,
                             extra_fields=extra_fields,
@@ -3163,18 +3163,18 @@ def display_lab_tab(
     def _build_page_state(*, include_lock: bool = False):
         return build_pipeline_page_state(
             index_page=index_page_str,
-            steps_file=steps_file,
-            steps=persisted_steps,
+            stages_file=stages_file,
+            stages=persisted_stages,
             sequence=st.session_state.get(sequence_state_key, []),
             session_state=st.session_state,
             selected_lab=lab_dir,
             env=env,
             deps=PipelinePageStateDeps(
-                is_displayable_step=lambda entry: _is_displayable_step(dict(entry)),
-                is_runnable_step=lambda entry: _pipeline_steps_module.is_runnable_step(dict(entry)),
-                step_summary=lambda entry: _step_summary(dict(entry), width=80),
-                step_label=lambda idx, entry: _step_label_for_multiselect(idx, dict(entry), env=env),
-                find_legacy_agi_run_steps=_pipeline_steps_module.find_legacy_agi_run_steps,
+                is_displayable_stage=lambda entry: _is_displayable_stage(dict(entry)),
+                is_runnable_stage=lambda entry: _pipeline_stages_module.is_runnable_stage(dict(entry)),
+                stage_summary=lambda entry: _stage_summary(dict(entry), width=80),
+                stage_label=lambda idx, entry: _stage_label_for_multiselect(idx, dict(entry), env=env),
+                find_legacy_agi_run_stages=_pipeline_stages_module.find_legacy_agi_run_stages,
                 inspect_pipeline_run_lock=_inspect_pipeline_run_lock if include_lock else None,
             ),
         )
@@ -3182,18 +3182,18 @@ def display_lab_tab(
     render_page_state = _build_page_state()
 
     @st.fragment
-    def _render_pipeline_step_fragment(step: int, entry: Dict[str, Any]) -> None:
-        # Per-step keys
-        q_key = f"{safe_prefix}_q_step_{step}"
-        code_val_key = f"{safe_prefix}_code_step_{step}"
-        select_key = f"{safe_prefix}_venv_{step}"
-        rev_key = f"{safe_prefix}_editor_rev_{step}"
-        pending_q_key = f"{safe_prefix}_pending_q_{step}"
-        pending_c_key = f"{safe_prefix}_pending_c_{step}"
-        undo_key = f"{safe_prefix}_undo_{step}"
+    def _render_pipeline_stage_fragment(stage: int, entry: Dict[str, Any]) -> None:
+        # Per-stage keys
+        q_key = f"{safe_prefix}_q_stage_{stage}"
+        code_val_key = f"{safe_prefix}_code_stage_{stage}"
+        select_key = f"{safe_prefix}_venv_{stage}"
+        rev_key = f"{safe_prefix}_editor_rev_{stage}"
+        pending_q_key = f"{safe_prefix}_pending_q_{stage}"
+        pending_c_key = f"{safe_prefix}_pending_c_{stage}"
+        undo_key = f"{safe_prefix}_undo_{stage}"
         apply_q_key = f"{q_key}_apply_pending"
         apply_c_key = f"{code_val_key}_apply_pending"
-        confirm_delete_key = f"{safe_prefix}_confirm_delete_{step}"
+        confirm_delete_key = f"{safe_prefix}_confirm_delete_{stage}"
 
         # Apply any pending updates (set during a previous run-trigger) before rendering widgets.
         pending_q = st.session_state.pop(pending_q_key, None)
@@ -3211,9 +3211,9 @@ def display_lab_tab(
         initial_c = entry.get("C", "")
         apply_q = st.session_state.pop(apply_q_key, None)
         apply_c = st.session_state.pop(apply_c_key, None)
-        init_key = f"{safe_prefix}_step_init_{step}"
-        resync_sig_key = f"{safe_prefix}_editor_resync_sig_{step}"
-        ignore_blank_key = f"{safe_prefix}_ignore_blank_editor_{step}"
+        init_key = f"{safe_prefix}_stage_init_{stage}"
+        resync_sig_key = f"{safe_prefix}_editor_resync_sig_{stage}"
+        ignore_blank_key = f"{safe_prefix}_ignore_blank_editor_{stage}"
         seeded_c: Optional[str] = None
         if not st.session_state.get(init_key):
             st.session_state[q_key] = apply_q if apply_q is not None else initial_q
@@ -3244,11 +3244,11 @@ def display_lab_tab(
             initial_snapshot = (entry.get("Q", ""), entry.get("C", ""))
             st.session_state[undo_key] = [initial_snapshot]
 
-        current_path = _valid_runtime_path(selected_map.get(step, ""))
+        current_path = _valid_runtime_path(selected_map.get(stage, ""))
         if not current_path:
             entry_venv = _valid_runtime_path(entry.get("E", ""))
             if entry_venv:
-                selected_map[step] = entry_venv
+                selected_map[stage] = entry_venv
                 current_path = entry_venv
         venv_labels = ["Use AGILAB environment"] + available_venvs
         if current_path and current_path not in venv_labels:
@@ -3258,17 +3258,17 @@ def display_lab_tab(
             "Q": st.session_state.get(q_key, entry.get("Q", "")),
             "C": st.session_state.get(code_val_key, entry.get("C", "")),
         }
-        summary = _step_summary(live_entry, width=80)
+        summary = _stage_summary(live_entry, width=80)
         dirty_key = f"{q_key}_dirty"
         if st.session_state.pop(dirty_key, False):
             _rerun_fragment_or_app()
-        expanded_flag = expander_state.get(step, False)
+        expanded_flag = expander_state.get(stage, False)
         title_suffix = summary if summary else "No description yet"
-        expander_title = f"{step + 1} {title_suffix}"
-        is_locked_step = _is_orchestrate_locked_step(entry)
+        expander_title = f"{stage + 1} {title_suffix}"
+        is_locked_stage = _is_orchestrate_locked_stage(entry)
         locked_source = _orchestrate_snippet_source(entry)
-        if is_locked_step:
-            expander_title = f"{step + 1} 🔒 ORCHESTRATE • {title_suffix}"
+        if is_locked_stage:
+            expander_title = f"{stage + 1} 🔒 ORCHESTRATE • {title_suffix}"
 
         with st.expander(expander_title, expanded=expanded_flag):
             venv_col, _ = st.columns([3, 2], gap="small")
@@ -3286,20 +3286,20 @@ def display_lab_tab(
                     venv_labels,
                     key=select_key,
                     help="Choose which virtual environment should execute this stage.",
-                    disabled=is_locked_step,
+                    disabled=is_locked_stage,
                     inline_limit=4,
                 )
                 selected_path = "" if selected_label == venv_labels[0] else _valid_runtime_path(selected_label)
                 if selected_path:
-                    selected_map[step] = selected_path
+                    selected_map[stage] = selected_path
                 else:
-                    selected_map.pop(step, None)
+                    selected_map.pop(stage, None)
 
-            computed_engine = "agi.run" if selected_map.get(step) else "runpy"
-            engine_map[step] = computed_engine
+            computed_engine = "agi.run" if selected_map.get(stage) else "runpy"
+            engine_map[stage] = computed_engine
             st.session_state["lab_selected_engine"] = computed_engine
 
-            if is_locked_step:
+            if is_locked_stage:
                 if locked_source:
                     source_name = Path(locked_source).name if locked_source else locked_source
                     if source_name:
@@ -3312,14 +3312,14 @@ def display_lab_tab(
                 if action_button(
                     st,
                     "Run imported stage",
-                    key=f"{safe_prefix}_run_locked_{step}",
+                    key=f"{safe_prefix}_run_locked_{stage}",
                     kind="run",
                 ):
-                    _run_locked_step(
+                    _run_locked_stage(
                         env,
                         index_page_str,
-                        steps_file,
-                        step,
+                        stages_file,
+                        stage,
                         entry,
                         selected_map,
                         engine_map,
@@ -3333,21 +3333,21 @@ def display_lab_tab(
                         is_valid_runtime_root=_is_valid_runtime_root,
                         python_for_venv=_python_for_venv,
                         stream_run_command=_stream_run_command,
-                        step_summary=_step_summary,
+                        stage_summary=_stage_summary,
                     )
 
                 if st.session_state.get(confirm_delete_key, False):
                     delete_clicked = action_button(
                         st,
                         "Confirm remove",
-                        key=f"{safe_prefix}_delete_confirm_{step}",
+                        key=f"{safe_prefix}_delete_confirm_{stage}",
                         kind="destructive",
                         type="primary",
                     )
                     cancel_delete_clicked = action_button(
                         st,
                         "Cancel",
-                        key=f"{safe_prefix}_delete_cancel_{step}",
+                        key=f"{safe_prefix}_delete_cancel_{stage}",
                         kind="cancel",
                     )
                     arm_delete_clicked = False
@@ -3357,7 +3357,7 @@ def display_lab_tab(
                     arm_delete_clicked = action_button(
                         st,
                         "Remove",
-                        key=f"{safe_prefix}_delete_{step}",
+                        key=f"{safe_prefix}_delete_{stage}",
                         kind="remove",
                     )
 
@@ -3368,16 +3368,16 @@ def display_lab_tab(
                     st.session_state.pop(confirm_delete_key, None)
                     _rerun_fragment_or_app()
                 if delete_clicked:
-                    result = delete_pipeline_step_command(
+                    result = delete_pipeline_stage_command(
                         session_state=st.session_state,
                         index_page=index_page_str,
-                        step_index=step,
+                        stage_index=stage,
                         lab_dir=lab_dir,
-                        steps_file=steps_file,
-                        persisted_steps=persisted_steps,
+                        stages_file=stages_file,
+                        persisted_stages=persisted_stages,
                         selected_map=selected_map,
                         capture_pipeline_snapshot=_capture_pipeline_snapshot,
-                        remove_step=remove_step,
+                        remove_stage=remove_stage,
                     )
                     if not result.ok:
                         st.warning(result.message)
@@ -3404,7 +3404,7 @@ def display_lab_tab(
                 save_pressed = action_button(
                     st,
                     "Save",
-                    key=f"{safe_prefix}_save_{step}",
+                    key=f"{safe_prefix}_save_{stage}",
                     kind="save",
                     type="secondary",
                 )
@@ -3412,14 +3412,14 @@ def display_lab_tab(
                 run_pressed = action_button(
                     st,
                     "Gen code",
-                    key=f"{safe_prefix}_run_{step}",
+                    key=f"{safe_prefix}_run_{stage}",
                     kind="generate",
                 )
             with btn_revert:
                 revert_pressed = action_button(
                     st,
                     "Undo",
-                    key=f"{safe_prefix}_revert_{step}",
+                    key=f"{safe_prefix}_revert_{stage}",
                     kind="revert",
                 )
             with btn_delete:
@@ -3427,21 +3427,21 @@ def display_lab_tab(
                     delete_clicked = action_button(
                         st,
                         "Confirm remove",
-                        key=f"{safe_prefix}_delete_confirm_{step}",
+                        key=f"{safe_prefix}_delete_confirm_{stage}",
                         kind="destructive",
                         type="primary",
                     )
                     cancel_delete_clicked = action_button(
                         st,
                         "Cancel",
-                        key=f"{safe_prefix}_delete_cancel_{step}",
+                        key=f"{safe_prefix}_delete_cancel_{stage}",
                         kind="cancel",
                     )
                 else:
                     arm_delete_clicked = action_button(
                         st,
                         "Remove",
-                        key=f"{safe_prefix}_delete_{step}",
+                        key=f"{safe_prefix}_delete_{stage}",
                         kind="remove",
                     )
 
@@ -3454,7 +3454,7 @@ def display_lab_tab(
 
             code_text = st.session_state.get(code_val_key, "")
             rev = st.session_state.get(rev_key, 0)
-            editor_key = f"{safe_prefix}a{step}-{rev}"
+            editor_key = f"{safe_prefix}a{stage}-{rev}"
             snippet_dict = code_editor(
                 code_text if code_text.endswith("\n") else code_text + "\n",
                 height=(min(30, len(code_text)) if code_text else 100),
@@ -3483,17 +3483,17 @@ def display_lab_tab(
                 st.session_state[undo_key] = undo_stack if undo_stack else [(restored_q, restored_c)]
                 st.session_state[pending_q_key] = restored_q
                 st.session_state[pending_c_key] = restored_c
-                save_step(
+                save_stage(
                     module_path,
                     [entry.get("D", ""), restored_q, entry.get("M", ""), restored_c],
-                    step,
-                    total_steps,
-                    steps_file,
+                    stage,
+                    total_stages,
+                    stages_file,
                     venv_map=selected_map,
                     engine_map=engine_map,
                 )
                 _bump_history_revision()
-                expander_state[step] = True
+                expander_state[stage] = True
                 st.session_state[expander_state_key] = expander_state
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
                 _rerun_fragment_or_app()
@@ -3504,28 +3504,28 @@ def display_lab_tab(
                 st.session_state[undo_key] = undo_stack
                 st.session_state[code_val_key] = code_current
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
-                expander_state[step] = True
+                expander_state[stage] = True
                 st.session_state[expander_state_key] = expander_state
-                save_step(
+                save_stage(
                     module_path,
                     [entry.get("D", ""), st.session_state.get(q_key, ""), entry.get("M", ""), code_current],
-                    step,
-                    total_steps,
-                    steps_file,
+                    stage,
+                    total_stages,
+                    stages_file,
                     venv_map=selected_map,
                     engine_map=engine_map,
                 )
-                _force_persist_step(
+                _force_persist_stage(
                     module_path,
-                    steps_file,
-                    step,
+                    stages_file,
+                    stage,
                     {
                         "D": entry.get("D", ""),
                         "Q": st.session_state.get(q_key, ""),
                         "M": entry.get("M", ""),
                         "C": code_current,
-                        "E": normalize_runtime_path(selected_map.get(step, "")),
-                        "R": engine_map.get(step, "") or ("agi.run" if selected_map.get(step) else "runpy"),
+                        "E": normalize_runtime_path(selected_map.get(stage, "")),
+                        "R": engine_map.get(stage, "") or ("agi.run" if selected_map.get(stage) else "runpy"),
                     },
                 )
                 st.session_state[pending_q_key] = st.session_state.get(q_key, "")
@@ -3536,8 +3536,8 @@ def display_lab_tab(
                 _rerun_fragment_or_app()
 
             overlay_type = snippet_dict.get("type") if snippet_dict else None
-            overlay_flag_key = f"{safe_prefix}_overlay_done_{step}"
-            overlay_sig_key = f"{safe_prefix}_overlay_sig_{step}"
+            overlay_flag_key = f"{safe_prefix}_overlay_done_{stage}"
+            overlay_sig_key = f"{safe_prefix}_overlay_sig_{stage}"
             current_sig = (
                 overlay_type,
                 snippet_dict.get("text") if snippet_dict else None,
@@ -3566,28 +3566,28 @@ def display_lab_tab(
                 code_current = _normalize_editor_text(code_current)
                 st.session_state[code_val_key] = code_current
                 st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
-                expander_state[step] = True
+                expander_state[stage] = True
                 st.session_state[expander_state_key] = expander_state
-                save_step(
+                save_stage(
                     module_path,
                     [entry.get("D", ""), st.session_state.get(q_key, ""), entry.get("M", ""), code_current],
-                    step,
-                    total_steps,
-                    steps_file,
+                    stage,
+                    total_stages,
+                    stages_file,
                     venv_map=selected_map,
                     engine_map=engine_map,
                 )
-                _force_persist_step(
+                _force_persist_stage(
                     module_path,
-                    steps_file,
-                    step,
+                    stages_file,
+                    stage,
                     {
                         "D": entry.get("D", ""),
                         "Q": st.session_state.get(q_key, ""),
                         "M": entry.get("M", ""),
                         "C": code_current,
-                        "E": normalize_runtime_path(selected_map.get(step, "")),
-                        "R": engine_map.get(step, "") or ("agi.run" if selected_map.get(step) else "runpy"),
+                        "E": normalize_runtime_path(selected_map.get(stage, "")),
+                        "R": engine_map.get(stage, "") or ("agi.run" if selected_map.get(stage) else "runpy"),
                     },
                 )
                 _bump_history_revision()
@@ -3607,23 +3607,23 @@ def display_lab_tab(
                 if snippet_dict is None:
                     return
                 code_to_run = snippet_dict.get("text", st.session_state.get(code_val_key, ""))
-                venv_root = normalize_runtime_path(selected_map.get(step, ""))
+                venv_root = normalize_runtime_path(selected_map.get(stage, ""))
                 entry_runtime_raw = normalize_runtime_path(entry.get("E", ""))
                 entry_runtime = entry_runtime_raw if _is_valid_runtime_root(entry_runtime_raw) else ""
                 if not venv_root and entry_runtime:
                     venv_root = entry_runtime
-                    selected_map[step] = entry_runtime
+                    selected_map[stage] = entry_runtime
                 if not venv_root:
                     fallback_venv = normalize_runtime_path(st.session_state.get("lab_selected_venv", ""))
                     if fallback_venv and _is_valid_runtime_root(fallback_venv):
                         venv_root = fallback_venv
-                        selected_map[step] = fallback_venv
+                        selected_map[stage] = fallback_venv
                         if fallback_venv not in venv_labels:
                             venv_labels.append(fallback_venv)
                         st.session_state[select_key] = fallback_venv
                 entry_engine = str(entry.get("R", "") or "")
-                ui_engine = str(engine_map.get(step) or "")
-                engine = _resolve_step_engine(entry_engine, ui_engine, venv_root)
+                ui_engine = str(engine_map.get(stage) or "")
+                engine = _resolve_stage_engine(entry_engine, ui_engine, venv_root)
                 if venv_root and engine == "runpy":
                     engine = "agi.run"
                 if engine.startswith("agi.") and not venv_root:
@@ -3631,7 +3631,7 @@ def display_lab_tab(
                     if _is_valid_runtime_root(fallback_runtime):
                         venv_root = fallback_runtime
                         st.session_state["lab_selected_venv"] = venv_root
-                engine_map[step] = engine
+                engine_map[stage] = engine
                 if venv_root:
                     st.session_state["lab_selected_venv"] = venv_root
                 stored_placeholder = st.session_state.get(run_placeholder_key)
@@ -3645,84 +3645,84 @@ def display_lab_tab(
                     log_file_path, log_error = _prepare_run_log_file(
                         index_page_str,
                         env,
-                        prefix=f"stage_{step + 1}",
+                        prefix=f"stage_{stage + 1}",
                     )
                     if log_file_path:
                         _push_run_log(
                             index_page_str,
-                            f"Run stage {step + 1} started… logs will be saved to {log_file_path}",
+                            f"Run stage {stage + 1} started… logs will be saved to {log_file_path}",
                             stored_placeholder,
                         )
                     else:
                         _push_run_log(
                             index_page_str,
-                            f"Run stage {step + 1} started… (unable to prepare log file: {log_error})",
+                            f"Run stage {stage + 1} started… (unable to prepare log file: {log_error})",
                             stored_placeholder,
                         )
                     try:
-                        target_base = Path(steps_file).parent.resolve()
+                        target_base = Path(stages_file).parent.resolve()
                         target_base.mkdir(parents=True, exist_ok=True)
                         run_output = ""
-                        summary = _step_summary({"Q": entry.get("Q", ""), "C": code_to_run})
-                        step_tags = {
+                        summary = _stage_summary({"Q": entry.get("Q", ""), "C": code_to_run})
+                        stage_tags = {
                             "agilab.component": "pipeline-stage",
                             "agilab.app": str(getattr(env, "app", "") or ""),
-                            "agilab.lab": Path(steps_file).parent.name,
-                            "agilab.stage_index": step + 1,
+                            "agilab.lab": Path(stages_file).parent.name,
+                            "agilab.stage_index": stage + 1,
                             "agilab.engine": engine,
                             "agilab.runtime": venv_root or "",
                             "agilab.summary": summary,
                         }
-                        step_params = {
+                        stage_params = {
                             "description": entry.get("D", ""),
                             "question": st.session_state.get(q_key, ""),
                             "model": entry.get("M", ""),
                             "runtime": venv_root or "",
                             "engine": engine,
                         }
-                        step_files: List[Any] = []
+                        stage_files: List[Any] = []
                         with start_mlflow_run(
                             env,
-                            run_name=f"{getattr(env, 'app', 'agilab')}:{Path(steps_file).parent.name}:stage_{step + 1}",
-                            tags=step_tags,
-                            params=step_params,
-                        ) as step_tracking:
-                            step_env = build_mlflow_process_env(
+                            run_name=f"{getattr(env, 'app', 'agilab')}:{Path(stages_file).parent.name}:stage_{stage + 1}",
+                            tags=stage_tags,
+                            params=stage_params,
+                        ) as stage_tracking:
+                            stage_env = build_mlflow_process_env(
                                 env,
-                                run_id=step_tracking["run"].info.run_id if step_tracking else None,
+                                run_id=stage_tracking["run"].info.run_id if stage_tracking else None,
                             )
                             if engine == "runpy":
                                 run_output = run_lab(
                                     [entry.get("D", ""), st.session_state.get(q_key, ""), code_to_run],
                                     snippet_file,
                                     env.copilot_file,
-                                    env_overrides=step_env,
+                                    env_overrides=stage_env,
                                 )
-                                step_files.append(Path(snippet_file))
+                                stage_files.append(Path(snippet_file))
                             else:
                                 script_path = (target_base / "AGI_run.py").resolve()
                                 script_path.write_text(wrap_code_with_mlflow_resume(code_to_run))
-                                step_files.append(script_path)
-                                python_cmd = _python_for_step(venv_root, engine=engine, code=code_to_run)
+                                stage_files.append(script_path)
+                                python_cmd = _python_for_stage(venv_root, engine=engine, code=code_to_run)
                                 run_output = _stream_run_command(
                                     env,
                                     index_page_str,
                                     [str(python_cmd), str(script_path)],
                                     cwd=target_base,
                                     placeholder=stored_placeholder,
-                                    extra_env=step_env,
+                                    extra_env=stage_env,
                                 )
-                            env_label = _label_for_step_runtime(venv_root, engine=engine, code=code_to_run)
+                            env_label = _label_for_stage_runtime(venv_root, engine=engine, code=code_to_run)
                             _push_run_log(
                                 index_page_str,
-                                f"Stage {step + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                                f"Stage {stage + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
                                 stored_placeholder,
                             )
                             preview = (run_output or "").strip()
                             if preview:
                                 _push_run_log(
                                     index_page_str,
-                                    f"Output (stage {step + 1}):\n{preview}",
+                                    f"Output (stage {stage + 1}):\n{preview}",
                                     stored_placeholder,
                                 )
                                 if "No such file or directory" in preview:
@@ -3736,19 +3736,19 @@ def display_lab_tab(
                             elif engine == "runpy":
                                 _push_run_log(
                                     index_page_str,
-                                    f"Output (stage {step + 1}): runpy executed (no captured stdout)",
+                                    f"Output (stage {stage + 1}): runpy executed (no captured stdout)",
                                     stored_placeholder,
                                 )
                             export_target = st.session_state.get("df_file_out", "")
                             if export_target:
-                                step_files.append(export_target)
-                            if step_tracking:
+                                stage_files.append(export_target)
+                            if stage_tracking:
                                 log_mlflow_artifacts(
-                                    step_tracking,
+                                    stage_tracking,
                                     text_artifacts={
-                                        f"stage_{step + 1}/stdout.txt": preview or "",
+                                        f"stage_{stage + 1}/stdout.txt": preview or "",
                                     },
-                                    file_artifacts=step_files,
+                                    file_artifacts=stage_files,
                                     tags={"agilab.status": "completed"},
                                 )
                     finally:
@@ -3804,12 +3804,12 @@ def display_lab_tab(
                     if len(answer) > 4:
                         answer[4] = fixed_detail
 
-                save_step(
+                save_stage(
                     module_path,
                     answer,
-                    step,
-                    total_steps,
-                    steps_file,
+                    stage,
+                    total_stages,
+                    stages_file,
                     venv_map=selected_map,
                     engine_map=engine_map,
                 )
@@ -3827,13 +3827,13 @@ def display_lab_tab(
                 )
                 detail = answer[4] if len(answer) > 4 else ""
                 if detail:
-                    detail_store[step] = detail
+                    detail_store[stage] = detail
                 env_label = (
-                    Path(selected_map.get(step, "")).name
-                    if selected_map.get(step)
+                    Path(selected_map.get(stage, "")).name
+                    if selected_map.get(stage)
                     else "default env"
                 )
-                summary = _step_summary(
+                summary = _stage_summary(
                     {
                         "Q": answer[1] if len(answer) > 1 else "",
                         "C": answer[4] if len(answer) > 4 else "",
@@ -3841,25 +3841,25 @@ def display_lab_tab(
                 )
                 _push_run_log(
                     index_page_str,
-                    f"Stage {step + 1}: engine={engine_map.get(step,'')}, env={env_label}, summary=\"{summary}\"",
+                    f"Stage {stage + 1}: engine={engine_map.get(stage,'')}, env={env_label}, summary=\"{summary}\"",
                     _get_run_placeholder(index_page_str),
                 )
-                expander_state[step] = True
+                expander_state[stage] = True
                 st.session_state[expander_state_key] = expander_state
                 _rerun_fragment_or_app()
 
             if delete_clicked:
                 st.session_state.pop(confirm_delete_key, None)
-                result = delete_pipeline_step_command(
+                result = delete_pipeline_stage_command(
                     session_state=st.session_state,
                     index_page=index_page_str,
-                    step_index=step,
+                    stage_index=stage,
                     lab_dir=lab_dir,
-                    steps_file=steps_file,
-                    persisted_steps=persisted_steps,
+                    stages_file=stages_file,
+                    persisted_stages=persisted_stages,
                     selected_map=selected_map,
                     capture_pipeline_snapshot=_capture_pipeline_snapshot,
-                    remove_step=remove_step,
+                    remove_stage=remove_stage,
                 )
                 if not result.ok:
                     st.warning(result.message)
@@ -3871,14 +3871,14 @@ def display_lab_tab(
         with st.expander("Conceptual view", expanded=False):
             st.graphviz_chart(conceptual_dot, width="content")
 
-    render_steps = [persisted_steps[item.index] for item in render_page_state.visible_steps]
+    render_stages = [persisted_stages[item.index] for item in render_page_state.visible_stages]
     render_pipeline_view(
-        render_steps,
+        render_stages,
         title="Execution view" if conceptual_dot else "Workflow view",
     )
 
-    for visible_step in render_page_state.visible_steps:
-        _render_pipeline_step_fragment(visible_step.index, persisted_steps[visible_step.index])
+    for visible_stage in render_page_state.visible_stages:
+        _render_pipeline_stage_fragment(visible_stage.index, persisted_stages[visible_stage.index])
 
     # Add-stage expander to append a new stage at the end
     new_q_key = f"{safe_prefix}_new_q"
@@ -3887,15 +3887,15 @@ def display_lab_tab(
         st.session_state[new_q_key] = ""
     with st.expander("Add stage", expanded=False):
         st.info(snippet_guidance)
-        step_source = compact_choice(
+        stage_source = compact_choice(
             st,
             "Stage source",
             source_options,
-            key=step_source_key,
+            key=stage_source_key,
             help="Select `Generate stage` to use the code generator, or choose an existing snippet to import as read-only.",
             inline_limit=5,
         )
-        if step_source == GENERATE_STAGE_SOURCE:
+        if stage_source == GENERATE_STAGE_SOURCE:
             _render_assistant_engine_near_prompt()
             st.text_area(
                 "Ask code generator:",
@@ -3913,7 +3913,7 @@ def display_lab_tab(
                 inline_limit=4,
             )
             selected_path = "" if selected_new_venv == venv_labels[0] else _valid_runtime_path(selected_new_venv)
-            run_new = action_button(st, "Generate code", key=f"{safe_prefix}_add_step_btn", kind="generate")
+            run_new = action_button(st, "Generate code", key=f"{safe_prefix}_add_stage_btn", kind="generate")
             if run_new:
                 prompt_text = st.session_state.get(new_q_key, "").strip()
                 if prompt_text:
@@ -3948,7 +3948,7 @@ def display_lab_tab(
                             answer[2] = fixed_model
                         if len(answer) > 4:
                             answer[4] = fixed_detail
-                    new_idx = len(persisted_steps)
+                    new_idx = len(persisted_stages)
                     venv_map = selected_map.copy()
                     engine_map_local = engine_map.copy()
                     if selected_path:
@@ -3956,12 +3956,12 @@ def display_lab_tab(
                         engine_map_local[new_idx] = "agi.run"
                     else:
                         engine_map_local[new_idx] = "runpy"
-                    save_step(
+                    save_stage(
                         module_path,
                         answer,
                         new_idx,
                         new_idx + 1,
-                        steps_file,
+                        stages_file,
                         venv_map=venv_map,
                         engine_map=engine_map_local,
                     )
@@ -3974,7 +3974,7 @@ def display_lab_tab(
                 else:
                     st.warning("Enter a prompt before generating code.")
         else:
-            snippet_path = snippet_option_map.get(step_source)
+            snippet_path = snippet_option_map.get(stage_source)
             snippet_code = ""
             if snippet_path:
                 try:
@@ -3995,7 +3995,7 @@ def display_lab_tab(
             import_new = action_button(
                 st,
                 "Add snippet",
-                key=f"{safe_prefix}_add_step_snippet_btn",
+                key=f"{safe_prefix}_add_stage_snippet_btn",
                 kind="add",
             )
             if import_new:
@@ -4007,8 +4007,8 @@ def display_lab_tab(
                         default_runtime=manager_runtime or "",
                     )
                     df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
-                    new_idx = len(persisted_steps)
-                    question = f"Imported snippet: {snippet_path.name if snippet_path else step_source}"
+                    new_idx = len(persisted_stages)
+                    question = f"Imported snippet: {snippet_path.name if snippet_path else stage_source}"
                     detail = f"Imported from {snippet_path}" if snippet_path else ""
                     answer = [df_path, question, "snippet", normalized_code, detail]
                     venv_map = selected_map.copy()
@@ -4019,15 +4019,15 @@ def display_lab_tab(
                         venv_map.pop(new_idx, None)
                     engine_map_local[new_idx] = import_engine
                     extra_fields = {
-                        ORCHESTRATE_LOCKED_STEP_KEY: True,
+                        ORCHESTRATE_LOCKED_STAGE_KEY: True,
                         ORCHESTRATE_LOCKED_SOURCE_KEY: str(snippet_path) if snippet_path else "",
                     }
-                    save_step(
+                    save_stage(
                         module_path,
                         answer,
                         new_idx,
                         new_idx + 1,
-                        steps_file,
+                        stages_file,
                         venv_map=venv_map,
                         engine_map=engine_map_local,
                         extra_fields=extra_fields,
@@ -4040,8 +4040,8 @@ def display_lab_tab(
 
     sequence_state_key = f"{index_page_str}__run_sequence"
     sequence_widget_key = f"{safe_prefix}_run_sequence_widget"
-    if total_steps > 0:
-        sequence_options = [item.index for item in render_page_state.visible_steps]
+    if total_stages > 0:
+        sequence_options = [item.index for item in render_page_state.visible_stages]
         stored_sequence = [idx for idx in st.session_state.get(sequence_state_key, sequence_options) if idx in sequence_options]
         stored_sequence = stored_sequence or sequence_options
         st.session_state[sequence_state_key] = stored_sequence
@@ -4055,7 +4055,7 @@ def display_lab_tab(
                 st.session_state[sequence_widget_key] = stored_sequence
 
         def _format_sequence_option(idx: int) -> str:
-            return _step_label_for_multiselect(idx, persisted_steps[idx], env=env)
+            return _stage_label_for_multiselect(idx, persisted_stages[idx], env=env)
 
         selected_sequence = st.multiselect(
             "Execution sequence",
@@ -4068,10 +4068,10 @@ def display_lab_tab(
         final_sequence = sanitized_selection or sequence_options
         if st.session_state.get(sequence_state_key) != final_sequence:
             st.session_state[sequence_state_key] = final_sequence
-            _persist_sequence_preferences(module_path, steps_file, final_sequence)
+            _persist_sequence_preferences(module_path, stages_file, final_sequence)
 
     page_state = _build_page_state(include_lock=True)
-    if page_state.stale_step_refs and page_state.run_disabled_reason:
+    if page_state.stale_stage_refs and page_state.run_disabled_reason:
         st.warning(page_state.run_disabled_reason)
 
     lock_state = page_state.lock_state
@@ -4218,7 +4218,7 @@ def display_lab_tab(
 
     undo_delete_clicked = False
     undo_payload = st.session_state.get(delete_undo_key)
-    if isinstance(undo_payload, dict) and isinstance(undo_payload.get("steps"), list):
+    if isinstance(undo_payload, dict) and isinstance(undo_payload.get("stages"), list):
         undo_label = str(undo_payload.get("label", "last delete"))
         undo_delete_clicked = action_button(
             st,
@@ -4233,7 +4233,7 @@ def display_lab_tab(
             session_state=st.session_state,
             index_page=index_page_str,
             module_path=module_path,
-            steps_file=steps_file,
+            stages_file=stages_file,
             sequence_widget_key=sequence_widget_key,
             restore_pipeline_snapshot=_restore_pipeline_snapshot,
         )
@@ -4260,15 +4260,15 @@ def display_lab_tab(
             st.rerun()
             return
         run_placeholder = start_result.details.get("log_placeholder")
-        # Collapse all step expanders after running the pipeline
+        # Collapse all stage expanders after running the pipeline
         st.session_state[expander_state_key] = {}
         try:
             with status_container(st, "Running workflow...", state="running", expanded=True) as run_status:
                 try:
-                    run_all_steps(
+                    run_all_stages(
                         lab_dir,
                         index_page_str,
-                        steps_file,
+                        stages_file,
                         module_path,
                         env,
                         log_placeholder=run_placeholder,
@@ -4315,16 +4315,16 @@ def display_lab_tab(
         st.rerun()
 
     if delete_all_clicked:
-        result = delete_all_pipeline_steps_command(
+        result = delete_all_pipeline_stages_command(
             session_state=st.session_state,
             index_page=index_page_str,
             lab_dir=lab_dir,
             module_path=module_path,
-            steps_file=steps_file,
-            persisted_steps=persisted_steps,
+            stages_file=stages_file,
+            persisted_stages=persisted_stages,
             sequence_widget_key=sequence_widget_key,
             capture_pipeline_snapshot=_capture_pipeline_snapshot,
-            remove_step=remove_step,
+            remove_stage=remove_stage,
             bump_history_revision=_bump_history_revision,
             persist_sequence_preferences=_persist_sequence_preferences,
             confirm_key=delete_all_confirm_key,
@@ -4352,7 +4352,7 @@ def display_lab_tab(
     latest_status = last_run_status or ("done" if last_log_file or log_body else "waiting")
     pipeline_artifacts: list[dict[str, Any]] = [
         {"label": "Dataframe", "path": st.session_state.get("df_file"), "kind": "dataframe", "preview": False},
-        {"label": "Stage contract", "path": steps_file, "kind": "toml", "preview": False},
+        {"label": "Stage contract", "path": stages_file, "kind": "toml", "preview": False},
         {"label": "Run log", "path": last_log_file, "kind": "log"},
     ]
     for pipeline_view_path in (lab_dir / "pipeline_view.json", lab_dir / "pipeline_view.dot"):
@@ -4367,11 +4367,11 @@ def display_lab_tab(
 
     render_workflow_timeline(
         st,
-        steps=(
+        items=(
             {
                 "label": "Define stages",
-                "state": "done" if total_steps else "waiting",
-                "detail": f"{total_steps} stage(s)",
+                "state": "done" if total_stages else "waiting",
+                "detail": f"{total_stages} stage(s)",
             },
             {
                 "label": "Run workflow",

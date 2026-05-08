@@ -14,11 +14,11 @@ import tomllib
 
 from agi_env import AgiEnv
 
-ORCHESTRATE_LOCKED_STEP_KEY = "_orchestrate_locked_step"
+ORCHESTRATE_LOCKED_STAGE_KEY = "_orchestrate_locked_stage"
 ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
-LAB_STEPS_META_KEY = "__meta__"
-LAB_STEPS_SCHEMA = "agilab.lab_steps.v1"
-LAB_STEPS_SCHEMA_VERSION = 1
+LAB_STAGES_META_KEY = "__meta__"
+LAB_STAGES_SCHEMA = "agilab.lab_stages.v1"
+LAB_STAGES_SCHEMA_VERSION = 1
 LEGACY_AGI_RUN_KEYWORDS = frozenset(
     {
         "args",
@@ -34,45 +34,45 @@ LEGACY_AGI_RUN_KEYWORDS = frozenset(
 logger = logging.getLogger(__name__)
 
 
-def ensure_lab_steps_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Stamp lab_steps data with the current persisted artifact contract."""
-    meta = data.get(LAB_STEPS_META_KEY)
+def ensure_lab_stages_metadata(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Stamp lab_stages data with the current persisted artifact contract."""
+    meta = data.get(LAB_STAGES_META_KEY)
     if not isinstance(meta, dict):
         meta = {}
-        data[LAB_STEPS_META_KEY] = meta
-    meta.setdefault("schema", LAB_STEPS_SCHEMA)
-    meta.setdefault("version", LAB_STEPS_SCHEMA_VERSION)
+        data[LAB_STAGES_META_KEY] = meta
+    meta.setdefault("schema", LAB_STAGES_SCHEMA)
+    meta.setdefault("version", LAB_STAGES_SCHEMA_VERSION)
     return data
 
 
-def lab_steps_contract_error(data: Dict[str, Any]) -> str:
-    """Return a refusal reason when lab_steps metadata is unsupported."""
-    meta = data.get(LAB_STEPS_META_KEY, {})
+def lab_stages_contract_error(data: Dict[str, Any]) -> str:
+    """Return a refusal reason when lab_stages metadata is unsupported."""
+    meta = data.get(LAB_STAGES_META_KEY, {})
     if meta in ({}, None):
         return ""
     if not isinstance(meta, dict):
-        return "lab_steps.toml __meta__ must be a TOML table."
+        return "lab_stages.toml __meta__ must be a TOML table."
     raw_version = meta.get("version")
     if raw_version in (None, ""):
         return ""
     try:
         version = int(raw_version)
     except (TypeError, ValueError):
-        return f"Unsupported lab_steps.toml schema version {raw_version!r}."
-    if version < 1 or version > LAB_STEPS_SCHEMA_VERSION:
+        return f"Unsupported lab_stages.toml schema version {raw_version!r}."
+    if version < 1 or version > LAB_STAGES_SCHEMA_VERSION:
         return (
-            f"Unsupported lab_steps.toml schema version {version}; "
+            f"Unsupported lab_stages.toml schema version {version}; "
             "upgrade AGILAB before editing this pipeline."
         )
     return ""
 
 
-def prepare_lab_steps_for_write(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate and stamp lab_steps data before persisting it."""
-    error = lab_steps_contract_error(data)
+def prepare_lab_stages_for_write(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Validate and stamp lab_stages data before persisting it."""
+    error = lab_stages_contract_error(data)
     if error:
         raise ValueError(error)
-    return ensure_lab_steps_metadata(data)
+    return ensure_lab_stages_metadata(data)
 
 def normalize_imported_orchestrate_snippet(
     code: Any,
@@ -83,7 +83,7 @@ def normalize_imported_orchestrate_snippet(
     if not isinstance(code, str):
         return code, "agi.run" if default_runtime else "runpy", default_runtime
 
-    app_name = extract_step_app_name(code)
+    app_name = extract_stage_app_name(code)
     runtime = app_name or default_runtime
 
     if "from agi_cluster.agi_distributor import AGI" in code or "AGI." in code:
@@ -135,7 +135,7 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]], env: Optional[AgiEnv
     return str(candidate)
 
 
-def step_summary(entry: Optional[Dict[str, Any]], width: int = 60) -> str:
+def stage_summary(entry: Optional[Dict[str, Any]], width: int = 60) -> str:
     """Return a concise summary for a workflow stage entry."""
     if not isinstance(entry, dict):
         return ""
@@ -154,12 +154,12 @@ def step_summary(entry: Optional[Dict[str, Any]], width: int = 60) -> str:
     return ""
 
 
-def step_project_name(entry: Optional[Dict[str, Any]], env: Optional[AgiEnv] = None) -> str:
+def stage_project_name(entry: Optional[Dict[str, Any]], env: Optional[AgiEnv] = None) -> str:
     """Return the best available project/app name for a saved workflow stage."""
     if not isinstance(entry, dict):
         return ""
 
-    app_name = extract_step_app_name(entry.get("C", ""))
+    app_name = extract_stage_app_name(entry.get("C", ""))
     if app_name:
         return app_name
 
@@ -182,15 +182,15 @@ def step_project_name(entry: Optional[Dict[str, Any]], env: Optional[AgiEnv] = N
     return text.split("/")[-1].strip() if text else ""
 
 
-def step_label_for_multiselect(
+def stage_label_for_multiselect(
     idx: int,
     entry: Optional[Dict[str, Any]],
     *,
     env: Optional[AgiEnv] = None,
 ) -> str:
     """Label for the stage-order multiselect widget."""
-    summary = step_summary(entry)
-    project = step_project_name(entry, env=env)
+    summary = stage_summary(entry)
+    project = stage_project_name(entry, env=env)
     if summary and project:
         return f"Stage {idx + 1}: [{project}] {summary}"
     if summary:
@@ -200,20 +200,20 @@ def step_label_for_multiselect(
     return f"Stage {idx + 1}"
 
 
-def step_button_label(display_idx: int, step_idx: int, entry: Optional[Dict[str, Any]]) -> str:
+def stage_button_label(display_idx: int, stage_idx: int, entry: Optional[Dict[str, Any]]) -> str:
     """Label for a rendered stage button respecting the selected order."""
-    summary = step_summary(entry)
+    summary = stage_summary(entry)
     if summary:
         return f"{display_idx + 1}. {summary}"
-    return f"{display_idx + 1}. Stage {step_idx + 1}"
+    return f"{display_idx + 1}. Stage {stage_idx + 1}"
 
 
-def upgrade_legacy_step_code(code: Any) -> Any:
+def upgrade_legacy_stage_code(code: Any) -> Any:
     """Legacy snippet migration has been removed; return code unchanged."""
     return code
 
 
-def extract_step_app_name(code: Any) -> str:
+def extract_stage_app_name(code: Any) -> str:
     """Extract the app/project name referenced by a saved AGI snippet."""
     if not isinstance(code, str) or not code:
         return ""
@@ -241,39 +241,39 @@ def looks_like_runtime_reference(raw: Any) -> bool:
     return False
 
 
-def upgrade_legacy_step_runtime(raw_runtime: Any, *, engine: Any, app_name: str) -> Any:
+def upgrade_legacy_stage_runtime(raw_runtime: Any, *, engine: Any, app_name: str) -> Any:
     """Legacy runtime migration has been removed; keep the stored runtime unchanged."""
     return raw_runtime
 
 
-def upgrade_legacy_step_entry(entry: Any) -> bool:
+def upgrade_legacy_stage_entry(entry: Any) -> bool:
     """Legacy stage migration has been removed; do not mutate entries implicitly."""
     return False
 
 
-def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int]:
+def upgrade_stages_file(stages_file: Path, *, write: bool = True) -> Dict[str, int]:
     """Legacy lab-stage migration has been removed; report scan counts only."""
-    if not steps_file.exists():
-        return {"files": 0, "changed_steps": 0, "scanned_steps": 0}
+    if not stages_file.exists():
+        return {"files": 0, "changed_stages": 0, "scanned_stages": 0}
 
     try:
-        with steps_file.open("rb") as handle:
+        with stages_file.open("rb") as handle:
             data = tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError):
-        return {"files": 0, "changed_steps": 0, "scanned_steps": 0}
+        return {"files": 0, "changed_stages": 0, "scanned_stages": 0}
 
-    scanned_steps = 0
+    scanned_stages = 0
     for key, entries in data.items():
-        if key == LAB_STEPS_META_KEY or not isinstance(entries, list):
+        if key == LAB_STAGES_META_KEY or not isinstance(entries, list):
             continue
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            scanned_steps += 1
-    return {"files": 1, "changed_steps": 0, "scanned_steps": scanned_steps}
+            scanned_stages += 1
+    return {"files": 1, "changed_stages": 0, "scanned_stages": scanned_stages}
 
 
-def upgrade_exported_steps(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> bool:
+def upgrade_exported_stages(module: Union[str, Path], stages_file: Path, env: Optional[AgiEnv] = None) -> bool:
     """Legacy exported-stage migration has been removed; this is now a no-op."""
     return False
 
@@ -348,7 +348,7 @@ def _append_lab_name(values: List[str], raw: Any) -> None:
     _append_unique(values, name or text)
 
 
-def _lab_step_key_candidates(module: Union[str, Path], env: Optional[AgiEnv] = None) -> List[str]:
+def _lab_stage_key_candidates(module: Union[str, Path], env: Optional[AgiEnv] = None) -> List[str]:
     names: List[str] = []
     for key in module_keys(module, env=env):
         _append_unique(names, key)
@@ -392,8 +392,8 @@ def _coerce_app_dir(raw: Any) -> Optional[Path]:
     return path.parent if path.name == "src" else path
 
 
-def _candidate_lab_step_dirs(module: Union[str, Path], env: Optional[AgiEnv] = None) -> List[Path]:
-    names = _lab_step_key_candidates(module, env=env)
+def _candidate_lab_stage_dirs(module: Union[str, Path], env: Optional[AgiEnv] = None) -> List[Path]:
+    names = _lab_stage_key_candidates(module, env=env)
     candidates: List[Path] = []
 
     if env is not None:
@@ -436,22 +436,22 @@ def _candidate_lab_step_dirs(module: Union[str, Path], env: Optional[AgiEnv] = N
     return _dedupe_paths(candidates)
 
 
-def _iter_lab_steps_sources(
+def _iter_lab_stages_sources(
     module: Union[str, Path],
-    steps_file: Path,
+    stages_file: Path,
     env: Optional[AgiEnv] = None,
 ) -> Iterator[Path]:
-    for app_dir in _candidate_lab_step_dirs(module, env=env):
+    for app_dir in _candidate_lab_stage_dirs(module, env=env):
         try:
             if not app_dir.is_dir():
                 continue
         except (OSError, RuntimeError):
             continue
-        exact = app_dir / steps_file.name
+        exact = app_dir / stages_file.name
         if exact.is_file():
             yield exact
         try:
-            for source in sorted(app_dir.glob("lab_steps*.toml")):
+            for source in sorted(app_dir.glob("lab_stages*.toml")):
                 if source != exact and source.is_file():
                     yield source
         except OSError:
@@ -468,7 +468,7 @@ def _same_path(left: Path, right: Path) -> bool:
             return str(left) == str(right)
 
 
-def _select_lab_steps_payload(
+def _select_lab_stages_payload(
     source: Path,
     key_candidates: List[str],
 ) -> Optional[Tuple[Dict[str, Any], str, List[Dict[str, Any]]]]:
@@ -493,7 +493,7 @@ def _select_lab_steps_payload(
 
     fallback: List[Tuple[Dict[str, Any], str, List[Dict[str, Any]]]] = []
     for key, entries in data.items():
-        if key == LAB_STEPS_META_KEY:
+        if key == LAB_STAGES_META_KEY:
             continue
         selected = _usable(str(key), entries)
         if selected is not None:
@@ -501,17 +501,17 @@ def _select_lab_steps_payload(
     return fallback[0] if len(fallback) == 1 else None
 
 
-def restore_missing_export_steps(
+def restore_missing_export_stages(
     module: Union[str, Path],
-    steps_file: Path,
+    stages_file: Path,
     env: Optional[AgiEnv] = None,
 ) -> Optional[Path]:
-    """Restore a missing/empty exported lab_steps.toml from the app source tree.
+    """Restore a missing/empty exported lab_stages.toml from the app source tree.
 
     The export copy is user-editable state, so this function deliberately refuses
     to overwrite any non-empty file.
     """
-    target = Path(steps_file)
+    target = Path(stages_file)
     try:
         if target.exists() and target.stat().st_size > 0:
             return None
@@ -520,14 +520,14 @@ def restore_missing_export_steps(
 
     env_obj = env or st.session_state.get("env")
     primary_key = module_keys(module, env=env_obj)[0]
-    key_candidates = _lab_step_key_candidates(module, env=env_obj)
+    key_candidates = _lab_stage_key_candidates(module, env=env_obj)
     if primary_key not in key_candidates:
         key_candidates.insert(0, primary_key)
 
-    for source in _iter_lab_steps_sources(module, target, env=env_obj):
+    for source in _iter_lab_stages_sources(module, target, env=env_obj):
         if _same_path(source, target):
             continue
-        selected = _select_lab_steps_payload(source, key_candidates)
+        selected = _select_lab_stages_payload(source, key_candidates)
         if selected is None:
             continue
 
@@ -540,7 +540,7 @@ def restore_missing_export_steps(
                 for key in key_candidates:
                     if key != primary_key:
                         normalized.pop(key, None)
-            meta = normalized.get(LAB_STEPS_META_KEY)
+            meta = normalized.get(LAB_STAGES_META_KEY)
             if isinstance(meta, dict):
                 primary_meta_key = sequence_meta_key(primary_key)
                 for key in key_candidates:
@@ -552,7 +552,7 @@ def restore_missing_export_steps(
                     if old_meta_key != primary_meta_key:
                         meta.pop(old_meta_key, None)
             with target.open("wb") as handle:
-                tomli_w.dump(_convert_paths_to_strings(prepare_lab_steps_for_write(normalized)), handle)
+                tomli_w.dump(_convert_paths_to_strings(prepare_lab_stages_for_write(normalized)), handle)
             logger.info("Restored missing Workflow stage contract %s from %s", target, source)
             return source
         except (OSError, TypeError, ValueError) as exc:
@@ -560,12 +560,12 @@ def restore_missing_export_steps(
     return None
 
 
-def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> None:
+def ensure_primary_module_key(module: Union[str, Path], stages_file: Path, env: Optional[AgiEnv] = None) -> None:
     """Ensure stages are stored under the primary module key."""
-    if not steps_file.exists():
+    if not stages_file.exists():
         return
     try:
-        with steps_file.open("rb") as handle:
+        with stages_file.open("rb") as handle:
             data = tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError):
         return
@@ -592,7 +592,7 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
 
     candidates: List[Tuple[str, List[Dict[str, Any]]]] = []
     for key, entries in data.items():
-        if key == LAB_STEPS_META_KEY:
+        if key == LAB_STAGES_META_KEY:
             continue
         if isinstance(entries, list) and entries and _matches_module(str(key)):
             candidates.append((key, entries))
@@ -612,28 +612,28 @@ def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: O
             data.pop(key, None)
 
     try:
-        with steps_file.open("wb") as handle:
-            tomli_w.dump(_convert_paths_to_strings(prepare_lab_steps_for_write(data)), handle)
+        with stages_file.open("wb") as handle:
+            tomli_w.dump(_convert_paths_to_strings(prepare_lab_stages_for_write(data)), handle)
     except (OSError, TypeError, ValueError):
-        logger.warning("Failed to normalize module keys for %s", steps_file)
+        logger.warning("Failed to normalize module keys for %s", stages_file)
 
 
 def sequence_meta_key(module_key: str) -> str:
     return f"{module_key}__sequence"
 
 
-def load_sequence_preferences(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> List[int]:
+def load_sequence_preferences(module: Union[str, Path], stages_file: Path, env: Optional[AgiEnv] = None) -> List[int]:
     """Return the stored execution order for a module, if any."""
     module_key = module_keys(module, env=env)[0]
     try:
-        with steps_file.open("rb") as handle:
+        with stages_file.open("rb") as handle:
             data = tomllib.load(handle)
     except FileNotFoundError:
         return []
     except tomllib.TOMLDecodeError as exc:
-        logger.warning("Failed to parse sequence metadata from %s: %s", steps_file, exc)
+        logger.warning("Failed to parse sequence metadata from %s: %s", stages_file, exc)
         return []
-    meta = data.get(LAB_STEPS_META_KEY, {})
+    meta = data.get(LAB_STAGES_META_KEY, {})
     if not isinstance(meta, dict):
         return []
     raw_sequence = meta.get(sequence_meta_key(module_key), [])
@@ -644,7 +644,7 @@ def load_sequence_preferences(module: Union[str, Path], steps_file: Path, env: O
 
 def persist_sequence_preferences(
     module: Union[str, Path],
-    steps_file: Path,
+    stages_file: Path,
     sequence: List[int],
     env: Optional[AgiEnv] = None,
 ) -> None:
@@ -652,8 +652,8 @@ def persist_sequence_preferences(
     module_key = module_keys(module, env=env)[0]
     normalized = [int(idx) for idx in sequence if isinstance(idx, int) and idx >= 0]
     try:
-        if steps_file.exists():
-            with steps_file.open("rb") as handle:
+        if stages_file.exists():
+            with stages_file.open("rb") as handle:
                 data = tomllib.load(handle)
         else:
             data = {}
@@ -661,24 +661,24 @@ def persist_sequence_preferences(
         logger.error("Failed to load stages while saving sequence metadata: %s", exc)
         return
     try:
-        prepare_lab_steps_for_write(data)
+        prepare_lab_stages_for_write(data)
     except ValueError as exc:
-        logger.error("Refusing to persist execution sequence to %s: %s", steps_file, exc)
+        logger.error("Refusing to persist execution sequence to %s: %s", stages_file, exc)
         return
-    meta = data.setdefault(LAB_STEPS_META_KEY, {})
+    meta = data.setdefault(LAB_STAGES_META_KEY, {})
     meta_key = sequence_meta_key(module_key)
     if meta.get(meta_key) == normalized:
         return
     meta[meta_key] = normalized
     try:
-        steps_file.parent.mkdir(parents=True, exist_ok=True)
-        with steps_file.open("wb") as handle:
-            tomli_w.dump(_convert_paths_to_strings(prepare_lab_steps_for_write(data)), handle)
+        stages_file.parent.mkdir(parents=True, exist_ok=True)
+        with stages_file.open("wb") as handle:
+            tomli_w.dump(_convert_paths_to_strings(prepare_lab_stages_for_write(data)), handle)
     except (OSError, TypeError, ValueError) as exc:
-        logger.error("Failed to persist execution sequence to %s: %s", steps_file, exc)
+        logger.error("Failed to persist execution sequence to %s: %s", stages_file, exc)
 
 
-def is_displayable_step(entry: Dict[str, Any]) -> bool:
+def is_displayable_stage(entry: Dict[str, Any]) -> bool:
     """Return True if a stage should be shown in the UI."""
     if not entry:
         return False
@@ -691,7 +691,7 @@ def is_displayable_step(entry: Dict[str, Any]) -> bool:
     return False
 
 
-def is_runnable_step(entry: Dict[str, Any]) -> bool:
+def is_runnable_stage(entry: Dict[str, Any]) -> bool:
     """Return True if a stage has executable code content."""
     if not entry:
         return False
@@ -729,36 +729,36 @@ def legacy_agi_run_call_lines(code: Any) -> List[int]:
     return sorted(set(lines))
 
 
-def find_legacy_agi_run_steps(
-    steps: List[Dict[str, Any]],
+def find_legacy_agi_run_stages(
+    stages: List[Dict[str, Any]],
     sequence: Optional[List[int]] = None,
 ) -> List[Dict[str, Any]]:
     """Return selected pipeline stages that still use the pre-RunRequest AGI.run API."""
-    selected = sequence if sequence is not None else list(range(len(steps)))
-    stale_steps: List[Dict[str, Any]] = []
+    selected = sequence if sequence is not None else list(range(len(stages)))
+    stale_stages: List[Dict[str, Any]] = []
     for idx in selected:
-        if idx < 0 or idx >= len(steps):
+        if idx < 0 or idx >= len(stages):
             continue
-        entry = steps[idx]
-        if not isinstance(entry, dict) or not is_runnable_step(entry):
+        entry = stages[idx]
+        if not isinstance(entry, dict) or not is_runnable_stage(entry):
             continue
         lines = legacy_agi_run_call_lines(entry.get("C", ""))
         if not lines:
             continue
-        stale_steps.append(
+        stale_stages.append(
             {
                 "index": idx,
-                "step": idx + 1,
+                "stage": idx + 1,
                 "line": lines[0],
                 "lines": lines,
-                "summary": step_summary(entry, width=80),
-                "project": step_project_name(entry),
+                "summary": stage_summary(entry, width=80),
+                "project": stage_project_name(entry),
             }
         )
-    return stale_steps
+    return stale_stages
 
 
-def looks_like_step(value: Any) -> bool:
+def looks_like_stage(value: Any) -> bool:
     """Heuristic: True when value represents a non-negative integer stage index."""
     try:
         return int(value) >= 0
@@ -770,7 +770,7 @@ def prune_invalid_entries(entries: List[Dict[str, Any]], keep_index: Optional[in
     """Remove invalid stages, optionally preserving the entry at keep_index."""
     pruned: List[Dict[str, Any]] = []
     for idx, entry in enumerate(entries):
-        if is_displayable_step(entry) or (keep_index is not None and idx == keep_index):
+        if is_displayable_stage(entry) or (keep_index is not None and idx == keep_index):
             pruned.append(entry)
     return pruned
 
@@ -868,11 +868,11 @@ def snippet_source_guidance(has_snippets: bool, app_name: str) -> str:
     )
 
 
-def is_orchestrate_locked_step(entry: Dict[str, Any]) -> bool:
+def is_orchestrate_locked_stage(entry: Dict[str, Any]) -> bool:
     """Return True for stages that originated from an ORCHESTRATE snippet."""
     if not isinstance(entry, dict):
         return False
-    value = entry.get(ORCHESTRATE_LOCKED_STEP_KEY)
+    value = entry.get(ORCHESTRATE_LOCKED_STAGE_KEY)
     if isinstance(value, bool):
         return value
     if isinstance(value, str):

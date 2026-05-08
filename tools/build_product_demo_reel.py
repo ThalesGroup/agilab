@@ -960,7 +960,7 @@ def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: in
         draw.text((38, line_y), line, font=code_font, fill=fill)
         line_y += 24
     draw.rounded_rectangle((box_w - 154, box_h - 56, box_w - 26, box_h - 24), radius=14, fill=(18, 39, 60, 255))
-    draw.text((box_w - 133, box_h - 47), "saved in lab_steps", font=FONT_STEP, fill=WHITE)
+    draw.text((box_w - 133, box_h - 47), "saved in lab_stages", font=FONT_STEP, fill=WHITE)
     canvas.alpha_composite(panel, (box_x, box_y))
 
 
@@ -1149,7 +1149,7 @@ def draw_uav_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x
     draw.rounded_rectangle((194, box_h - 58, 376, box_h - 24), radius=14, fill=(18, 56, 44, 255))
     draw.text((212, box_h - 49), "writes queue telemetry", font=FONT_STEP, fill=WHITE)
     draw.rounded_rectangle((box_w - 124, box_h - 58, box_w - 26, box_h - 24), radius=14, fill=(18, 39, 60, 255))
-    draw.text((box_w - 104, box_h - 49), "lab_steps", font=FONT_STEP, fill=WHITE)
+    draw.text((box_w - 104, box_h - 49), "lab_stages", font=FONT_STEP, fill=WHITE)
     canvas.alpha_composite(panel, (box_x, box_y))
 
 

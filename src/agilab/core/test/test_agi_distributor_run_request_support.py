@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from agi_cluster.agi_distributor import RunRequest, StepRequest
-from agi_cluster.agi_distributor.run_request_support import RUN_STEPS_KEY
+from agi_cluster.agi_distributor import RunRequest, StageRequest
+from agi_cluster.agi_distributor.run_request_support import RUN_STAGES_KEY
 
 
-def test_run_request_separates_app_fields_from_dispatch_steps() -> None:
+def test_run_request_separates_app_fields_from_dispatch_stages() -> None:
     request = RunRequest(
         params={"seed": 0},
-        steps=[StepRequest(name="uav_graph_routing_ppo", args={"time_horizon": 16})],
+        stages=[StageRequest(name="uav_graph_routing_ppo", args={"time_horizon": 16})],
         data_in="network_sim/pipeline",
         data_out="uav_graph_routing/pipeline",
         reset_target=False,
@@ -23,7 +23,7 @@ def test_run_request_separates_app_fields_from_dispatch_steps() -> None:
     }
     assert request.to_dispatch_kwargs() == {
         "seed": 0,
-        RUN_STEPS_KEY: [{"name": "uav_graph_routing_ppo", "args": {"time_horizon": 16}}],
+        RUN_STAGES_KEY: [{"name": "uav_graph_routing_ppo", "args": {"time_horizon": 16}}],
         "data_in": "network_sim/pipeline",
         "data_out": "uav_graph_routing/pipeline",
         "reset_target": False,
@@ -35,9 +35,9 @@ def test_run_request_rejects_legacy_top_level_args() -> None:
         RunRequest(params={"args": [{"name": "demo", "args": {}}]})
 
 
-def test_step_request_requires_mapping_args() -> None:
-    with pytest.raises(TypeError, match="StepRequest.args must be a mapping"):
-        StepRequest(name="demo", args=["bad"])  # type: ignore[arg-type]
+def test_stage_request_requires_mapping_args() -> None:
+    with pytest.raises(TypeError, match="StageRequest.args must be a mapping"):
+        StageRequest(name="demo", args=["bad"])  # type: ignore[arg-type]
 
 
 def test_run_request_with_execution_updates_only_runtime_controls() -> None:

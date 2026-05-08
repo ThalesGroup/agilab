@@ -38,9 +38,9 @@ from agilab.notebook_pipeline_import import (
     DEFAULT_RUN_ID,
     PERSISTENCE_FORMAT,
     SCHEMA,
-    build_lab_steps_preview,
+    build_lab_stages_preview,
     persist_notebook_pipeline_import,
-    write_lab_steps_preview,
+    write_lab_stages_preview,
 )
 
 
@@ -107,7 +107,7 @@ def _load_failure_report(notebook_path: Path | None, exc: Exception) -> dict[str
         "report": "Notebook pipeline import report",
         "status": "fail",
         "scope": (
-            "Reads a Jupyter notebook and projects it into AGILAB pipeline-step "
+            "Reads a Jupyter notebook and projects it into AGILAB pipeline-stage "
             "metadata without executing notebook cells."
         ),
         "notebook_path": str(evidence_path),
@@ -127,7 +127,7 @@ def build_report(
     repo_root: Path = REPO_ROOT,
     notebook_path: Path | None = None,
     output_path: Path | None = None,
-    lab_steps_output_path: Path | None = None,
+    lab_stages_output_path: Path | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
     if output_path is None:
@@ -137,15 +137,15 @@ def build_report(
                 repo_root=repo_root,
                 notebook_path=notebook_path,
                 output_path=root / "notebook_pipeline_import.json",
-                lab_steps_output_path=lab_steps_output_path
-                or (root / "lab_steps_preview.toml"),
+                lab_stages_output_path=lab_stages_output_path
+                or (root / "lab_stages_preview.toml"),
             )
     return _build_report_with_paths(
         repo_root=repo_root,
         notebook_path=notebook_path,
         output_path=output_path,
-        lab_steps_output_path=lab_steps_output_path
-        or output_path.with_suffix(".lab_steps.toml"),
+        lab_stages_output_path=lab_stages_output_path
+        or output_path.with_suffix(".lab_stages.toml"),
     )
 
 
@@ -154,7 +154,7 @@ def _build_report_with_paths(
     repo_root: Path,
     notebook_path: Path | None,
     output_path: Path,
-    lab_steps_output_path: Path,
+    lab_stages_output_path: Path,
 ) -> dict[str, Any]:
     try:
         proof = persist_notebook_pipeline_import(
@@ -169,23 +169,23 @@ def _build_report_with_paths(
     state = proof.notebook_import
     summary = state.get("summary", {})
     provenance = state.get("provenance", {})
-    steps = state.get("pipeline_steps", [])
-    iterable_steps = steps if isinstance(steps, list) else []
+    stages = state.get("pipeline_stages", [])
+    iterable_stages = stages if isinstance(stages, list) else []
     context_blocks = state.get("context_blocks", [])
     artifact_references = state.get("artifact_references", [])
     env_hints = state.get("env_hints", [])
-    lab_steps_preview = build_lab_steps_preview(
+    lab_stages_preview = build_lab_stages_preview(
         state,
         module_name="notebook_import_project",
     )
-    lab_steps_path = write_lab_steps_preview(lab_steps_output_path, lab_steps_preview)
-    reloaded_lab_steps = tomllib.loads(lab_steps_path.read_text(encoding="utf-8"))
-    preview_steps = reloaded_lab_steps.get("notebook_import_project", [])
-    iterable_preview_steps = preview_steps if isinstance(preview_steps, list) else []
-    preview_code_cells = [step.get("C") for step in iterable_preview_steps]
+    lab_stages_path = write_lab_stages_preview(lab_stages_output_path, lab_stages_preview)
+    reloaded_lab_stages = tomllib.loads(lab_stages_path.read_text(encoding="utf-8"))
+    preview_stages = reloaded_lab_stages.get("notebook_import_project", [])
+    iterable_preview_stages = preview_stages if isinstance(preview_stages, list) else []
+    preview_code_cells = [stage.get("C") for stage in iterable_preview_stages]
     source_code_cells = [
-        "".join(step.get("source_lines", []))
-        for step in iterable_steps
+        "".join(stage.get("source_lines", []))
+        for stage in iterable_stages
     ]
 
     checks = [
@@ -218,17 +218,17 @@ def _build_report_with_paths(
             summary.get("cell_count") == 4
             and summary.get("code_cell_count") == 2
             and summary.get("markdown_cell_count") == 2
-            and summary.get("pipeline_step_count") == 2
+            and summary.get("pipeline_stage_count") == 2
             and summary.get("context_block_count") == 2,
-            "notebook import preserves code cells as steps and markdown as context",
+            "notebook import preserves code cells as stages and markdown as context",
             evidence=[proof.notebook_path],
             details={
                 "cell_count": summary.get("cell_count"),
                 "code_cell_count": summary.get("code_cell_count"),
                 "markdown_cell_count": summary.get("markdown_cell_count"),
-                "pipeline_step_count": summary.get("pipeline_step_count"),
+                "pipeline_stage_count": summary.get("pipeline_stage_count"),
                 "context_block_count": summary.get("context_block_count"),
-                "step_ids": summary.get("step_ids"),
+                "stage_ids": summary.get("stage_ids"),
                 "context_ids": summary.get("context_ids"),
             },
         ),
@@ -254,22 +254,22 @@ def _build_report_with_paths(
             details={
                 "env_hints": env_hints,
                 "artifact_references": artifact_references,
-                "step_count": len(iterable_steps),
+                "stage_count": len(iterable_stages),
             },
         ),
         _check_result(
             "notebook_pipeline_import_context_links",
             "Notebook pipeline import context links",
-            [step.get("context_ids") for step in iterable_steps]
+            [stage.get("context_ids") for stage in iterable_stages]
             == [["markdown-1"], ["markdown-3"]]
-            and all(step.get("runnable") is True for step in iterable_steps)
+            and all(stage.get("runnable") is True for stage in iterable_stages)
             and all(
-                step.get("pipeline_mapping", {}).get("code_field") == "C"
-                for step in iterable_steps
+                stage.get("pipeline_mapping", {}).get("code_field") == "C"
+                for stage in iterable_stages
             ),
-            "notebook import links markdown context to following pipeline steps",
+            "notebook import links markdown context to following pipeline stages",
             evidence=["src/agilab/notebook_pipeline_import.py"],
-            details={"steps": iterable_steps, "context_blocks": context_blocks},
+            details={"stages": iterable_stages, "context_blocks": context_blocks},
         ),
         _check_result(
             "notebook_pipeline_import_execution_boundary",
@@ -283,22 +283,22 @@ def _build_report_with_paths(
             details={"provenance": provenance, "summary": summary},
         ),
         _check_result(
-            "notebook_pipeline_import_lab_steps_preview",
-            "Notebook pipeline import lab_steps preview",
-            Path(lab_steps_path).is_file()
-            and lab_steps_preview == reloaded_lab_steps
-            and len(iterable_preview_steps) == 2
+            "notebook_pipeline_import_lab_stages_preview",
+            "Notebook pipeline import lab_stages preview",
+            Path(lab_stages_path).is_file()
+            and lab_stages_preview == reloaded_lab_stages
+            and len(iterable_preview_stages) == 2
             and preview_code_cells == source_code_cells
-            and [step.get("NB_CELL_ID") for step in iterable_preview_steps]
+            and [stage.get("NB_CELL_ID") for stage in iterable_preview_stages]
             == ["cell-2", "cell-4"]
-            and iterable_preview_steps[0].get("NB_CONTEXT_IDS") == ["markdown-1"]
-            and iterable_preview_steps[1].get("NB_ARTIFACT_REFERENCES")
+            and iterable_preview_stages[0].get("NB_CONTEXT_IDS") == ["markdown-1"]
+            and iterable_preview_stages[1].get("NB_ARTIFACT_REFERENCES")
             == ["artifacts/summary.json", "artifacts/trajectory.png"],
-            "notebook import writes a richer lab_steps.toml preview",
-            evidence=[str(lab_steps_path)],
+            "notebook import writes a richer lab_stages.toml preview",
+            evidence=[str(lab_stages_path)],
             details={
-                "lab_steps_path": str(lab_steps_path),
-                "lab_steps_preview": reloaded_lab_steps,
+                "lab_stages_path": str(lab_stages_path),
+                "lab_stages_preview": reloaded_lab_stages,
             },
         ),
         _check_result(
@@ -324,7 +324,7 @@ def _build_report_with_paths(
         "scope": (
             "Reads a Jupyter notebook and projects markdown, code, import hints, "
             "execution-count metadata, and artifact references into AGILAB "
-            "pipeline-step metadata. It does not execute notebook cells."
+            "pipeline-stage metadata. It does not execute notebook cells."
         ),
         "notebook_path": proof.notebook_path,
         "summary": {
@@ -342,14 +342,14 @@ def _build_report_with_paths(
             "cell_count": summary.get("cell_count"),
             "code_cell_count": summary.get("code_cell_count"),
             "markdown_cell_count": summary.get("markdown_cell_count"),
-            "pipeline_step_count": summary.get("pipeline_step_count"),
+            "pipeline_stage_count": summary.get("pipeline_stage_count"),
             "context_block_count": summary.get("context_block_count"),
             "env_hint_count": summary.get("env_hint_count"),
             "artifact_reference_count": summary.get("artifact_reference_count"),
             "execution_count_present_count": summary.get("execution_count_present_count"),
-            "lab_steps_preview_path": str(lab_steps_path),
-            "lab_steps_preview_step_count": len(iterable_preview_steps),
-            "step_ids": summary.get("step_ids"),
+            "lab_stages_preview_path": str(lab_stages_path),
+            "lab_stages_preview_stage_count": len(iterable_preview_stages),
+            "stage_ids": summary.get("stage_ids"),
             "context_ids": summary.get("context_ids"),
             "issues": [issue.as_dict() for issue in proof.issues],
         },
@@ -379,10 +379,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional JSON evidence output path.",
     )
     parser.add_argument(
-        "--lab-steps-output",
+        "--lab-stages-output",
         type=Path,
         default=None,
-        help="Optional lab_steps.toml preview output path.",
+        help="Optional lab_stages.toml preview output path.",
     )
     parser.add_argument(
         "--compact",
@@ -397,7 +397,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = build_report(
         notebook_path=args.notebook,
         output_path=args.output,
-        lab_steps_output_path=args.lab_steps_output,
+        lab_stages_output_path=args.lab_stages_output,
     )
     if args.compact:
         print(json.dumps(report, sort_keys=True, separators=(",", ":")))

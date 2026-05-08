@@ -216,7 +216,7 @@ Use this runbook whenever you:
   - `max_unhealthy` (int)
   - `max_restart_rate` (float, `0.0` to `1.0`)
   Use `tools/service_health_check.py` for CLI checks (`--format json|prometheus`).
-- **History metadata**: `lab_steps.toml` now records an `M` field for each step so the
+- **History metadata**: `lab_stages.toml` now records an `M` field for each step so the
   saved history shows which model produced the snippet. Older automations should ignore
   unknown keys.
 - **PyCharm Local History recovery**: If Git does not have the version you need, use

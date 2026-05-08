@@ -172,7 +172,7 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     assert wizard["run_manifest_filename"] == "run_manifest.json"
     assert wizard["remediation_status"] == "missing"
     assert "tools/compatibility_report.py --manifest" in wizard["evidence_commands"][1]
-    assert wizard["steps"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+    assert wizard["stages"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
 
 
 def test_run_manifest_contract_reports_stable_schema() -> None:
@@ -620,16 +620,16 @@ def test_notebook_pipeline_import_report_contract_preserves_notebook_metadata() 
     assert check["details"]["summary"]["round_trip_ok"] is True
     assert check["details"]["summary"]["code_cell_count"] == 2
     assert check["details"]["summary"]["markdown_cell_count"] == 2
-    assert check["details"]["summary"]["pipeline_step_count"] == 2
+    assert check["details"]["summary"]["pipeline_stage_count"] == 2
     assert check["details"]["summary"]["context_block_count"] == 2
-    assert check["details"]["summary"]["lab_steps_preview_step_count"] == 2
+    assert check["details"]["summary"]["lab_stages_preview_stage_count"] == 2
     assert check["details"]["summary"]["env_hint_count"] == 3
     assert check["details"]["summary"]["artifact_reference_count"] == 3
     assert "notebook_pipeline_import_context_links" in check["details"]["check_ids"]
-    assert "notebook_pipeline_import_lab_steps_preview" in check["details"]["check_ids"]
+    assert "notebook_pipeline_import_lab_stages_preview" in check["details"]["check_ids"]
 
 
-def test_notebook_roundtrip_report_contract_preserves_lab_steps_fields() -> None:
+def test_notebook_roundtrip_report_contract_preserves_lab_stages_fields() -> None:
     module = _load_module()
 
     check = module._check_notebook_roundtrip_report(Path.cwd())
@@ -637,12 +637,12 @@ def test_notebook_roundtrip_report_contract_preserves_lab_steps_fields() -> None
     assert check["status"] == "pass"
     assert check["details"]["summary"]["execution_mode"] == "not_executed_import"
     assert check["details"]["summary"]["import_mode"] == "agilab_supervisor_metadata"
-    assert check["details"]["summary"]["supervisor_step_count"] == 2
-    assert check["details"]["summary"]["pipeline_step_count"] == 2
-    assert check["details"]["summary"]["lab_steps_round_trip_ok"] is True
+    assert check["details"]["summary"]["supervisor_stage_count"] == 2
+    assert check["details"]["summary"]["pipeline_stage_count"] == 2
+    assert check["details"]["summary"]["lab_stages_round_trip_ok"] is True
     assert check["details"]["summary"]["env_hint_count"] == 3
     assert check["details"]["summary"]["artifact_reference_count"] == 3
-    assert "notebook_roundtrip_lab_steps_fields" in check["details"]["check_ids"]
+    assert "notebook_roundtrip_lab_stages_fields" in check["details"]["check_ids"]
 
 
 def test_notebook_union_environment_report_contract_guards_mixed_runtimes() -> None:
@@ -653,7 +653,7 @@ def test_notebook_union_environment_report_contract_guards_mixed_runtimes() -> N
     assert check["status"] == "pass"
     assert check["details"]["summary"]["compatible_union_mode"] == "single_kernel_union_candidate"
     assert check["details"]["summary"]["incompatible_union_mode"] == "supervisor_notebook_required"
-    assert check["details"]["summary"]["compatible_step_count"] == 2
+    assert check["details"]["summary"]["compatible_stage_count"] == 2
     assert check["details"]["summary"]["code_cell_count"] == 2
     assert check["details"]["summary"]["incompatible_issue_count"] >= 2
     assert "notebook_union_environment_mixed_runtime_guard" in check["details"]["check_ids"]

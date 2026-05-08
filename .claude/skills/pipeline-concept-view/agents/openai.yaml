@@ -1,4 +1,4 @@
 interface:
   display_name: "Pipeline Concept View"
-  short_description: "Add conceptual views or clarify lab_steps semantics"
-  default_prompt: "Use $pipeline-concept-view to add a conceptual pipeline view beside the execution one, or to review lab_steps.toml for clearer semantics and flow."
+  short_description: "Add conceptual views or clarify lab_stages semantics"
+  default_prompt: "Use $pipeline-concept-view to add a conceptual pipeline view beside the execution one, or to review lab_stages.toml for clearer semantics and flow."

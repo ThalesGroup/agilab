@@ -111,10 +111,14 @@ def _request_from_payload(
     rapids_enabled: bool = False,
 ) -> RunRequest:
     payload = dict(args)
-    steps = payload.pop("args", []) or []
+    stages = payload.pop("stages", []) or []
+    if "args" in payload:
+        raise ValueError("Legacy run payload key 'args' is no longer supported; use 'stages'.")
+    if "steps" in payload:
+        raise ValueError("Legacy run payload key 'steps' is no longer supported; use 'stages'.")
     return RunRequest(
         params=payload,
-        steps=steps,
+        stages=stages,
         scheduler=scheduler,
         workers=workers,
         workers_data_path=workers_data_path,

@@ -24,7 +24,7 @@ Use these patterns as the default direction for future workflow-page changes.
   `empty`, `generated`, `stale`, `runnable`, `running`, `failed`, or
   `complete`.
 - **Versioned Artifact Contracts**: new generated artifacts should carry schema
-  metadata and a migration or refusal path. This applies to `lab_steps.toml`,
+  metadata and a migration or refusal path. This applies to `lab_stages.toml`,
   snippets, exported notebooks, screenshots, app settings, and run manifests.
 - **Facade Boundary**: pages should depend on `agi_gui` and page-support
   helpers. If a low-level `agi_env` or worker dependency is unavoidable,
@@ -50,7 +50,7 @@ The Pipeline-first slice is now the reference implementation:
 - Move `RUN` and `CLEAR LOGS` behind typed command-result functions.
 - Represent stale snippets, missing logs, and runnable labs as state instead of
   rediscovering them in individual widgets.
-- Stamp newly saved `lab_steps.toml` files with schema metadata and refuse
+- Stamp newly saved `lab_stages.toml` files with schema metadata and refuse
   unsupported future versions before editing.
 - Keep Streamlit as the rendering adapter; do not move page behavior into
   `agi-env` or worker internals.
@@ -82,7 +82,7 @@ The Pipeline-first slice is now the reference implementation:
   a first execute/combo workflow-state slice; the full install/distribute/run
   workflow still needs explicit state models.
 - Versioned Artifact Contracts: partially done. `AGILAB_SNIPPET_API`, run
-  manifest schema support, `lab_steps.toml` v1 metadata/refusal support,
+  manifest schema support, `lab_stages.toml` v1 metadata/refusal support,
   exported notebook metadata v1 support, and `app_settings.toml` v1
   write-time metadata/refusal support exist. Screenshot evidence now has a v1
   `screenshot_manifest.json` helper/CLI, and the maintained Playwright robot

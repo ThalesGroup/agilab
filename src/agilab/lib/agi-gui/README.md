@@ -44,10 +44,10 @@ from agi_gui.ux_widgets import compact_choice, status_container, toast
 
 selected = compact_choice(
     st.sidebar,
-    "Steps file",
-    available_steps_files,
+    "Stages file",
+    available_stages_files,
     key="index_page",
-    default=available_steps_files[0],
+    default=available_stages_files[0],
 )
 
 with status_container(st, "Running pipeline...", state="running") as status:

@@ -72,7 +72,7 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
                 "execution_contract": {
                     "entrypoint": "alpha.extract_context",
                     "params": {"scenario": "demo"},
-                    "steps": [{"name": "prepare", "args": {"n": 2}}],
+                    "stages": [{"name": "prepare", "args": {"n": 2}}],
                     "data_in": "alpha/input",
                     "data_out": "alpha/output",
                     "reset_target": False,
@@ -173,7 +173,7 @@ def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
                 "execution_contract": {
                     "entrypoint": "alpha.extract_context",
                     "params": {"scenario": "demo"},
-                    "steps": [{"name": "prepare", "args": {"n": 2}}],
+                    "stages": [{"name": "prepare", "args": {"n": 2}}],
                     "data_in": "alpha/input",
                     "data_out": "alpha/output",
                     "reset_target": False,
@@ -206,7 +206,7 @@ def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
     unit = result.state["units"][0]
     assert unit["contract_execution"]["summary_metrics"]["custom_runner"] == 1
     assert unit["contract_execution"]["execution_contract"]["params"] == {"scenario": "demo"}
-    assert unit["contract_execution"]["execution_contract"]["steps"] == [
+    assert unit["contract_execution"]["execution_contract"]["stages"] == [
         {"name": "prepare", "args": {"n": 2}}
     ]
     assert unit["contract_execution"]["execution_contract"]["data_in"] == "alpha/input"

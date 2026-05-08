@@ -20,8 +20,8 @@ Sidebar
   reachable, and falls back to the locally generated docs build when available.
 - ``Lab Directory``: choose the module whose lab artefacts you want to work on.
   The selection points at ``${AGILAB_EXPORT_ABS}/<module>`` and initialises
-  ``lab_steps.toml`` if it does not exist yet.
-- ``Stages``: pick the ``lab_steps`` file relative to the export directory. When
+  ``lab_stages.toml`` if it does not exist yet.
+- ``Stages``: pick the ``lab_stages`` file relative to the export directory. When
   you change the selection the assistant reloads the stored conversation.
 - ``DataFrame``: select which CSV (or parquet) is mounted for the assistant. The
   resolved absolute path lives under ``${AGILAB_EXPORT_ABS}``.
@@ -33,7 +33,7 @@ Main Content Area
 
 ASSISTANT
 ~~~~~~~~~
-Each lab is organised as a sequence of stages stored in ``lab_steps.toml``.
+Each lab is organised as a sequence of stages stored in ``lab_stages.toml``.
 The numbered buttons at the top let you jump between them. Ask questions or
 describe transformations in the text area—AGILab forwards the prompt to the
 Responses API together with the selected DataFrame metadata. The code editor
@@ -41,7 +41,7 @@ reacts to the toolbar actions:
 
 * ``Save`` keeps the snippet as-is in the current stage.
 * ``Next`` persists the snippet and advances to a fresh stage.
-* ``Remove`` deletes the stage from ``lab_steps.toml``.
+* ``Remove`` deletes the stage from ``lab_stages.toml``.
 * ``Run`` writes the snippet to ``lab_snippet.py``, executes it and stores any
   produced dataframe under ``lab_out.csv`` so the preview and the
   Orchestrate/Analysis pages can consume the result.
@@ -82,7 +82,7 @@ The **Workflow graph** expander is the transition path from a single-project
 pipeline to cross-app artifact orchestration. Use the ``Pipeline scope``
 selector to choose what the graph represents:
 
-* ``Project workflow`` renders the current ``lab_steps.toml`` as a read-only
+* ``Project workflow`` renders the current ``lab_stages.toml`` as a read-only
   compatibility graph. It explains stage order and dependencies, while the
   existing stage controls remain the source of truth for real single-project
   execution.
@@ -179,30 +179,30 @@ The closed-by-default ``Notebook`` expander keeps notebook import and export
 near the pipeline definition instead of in the sidebar:
 
 * ``Import notebook`` uploads an ``.ipynb`` file and previews the stages that
-  would be merged into ``lab_steps.toml``.
-* ``Download pipeline notebook`` exports the current lab as ``lab_steps.ipynb``.
+  would be merged into ``lab_stages.toml``.
+* ``Download pipeline notebook`` exports the current lab as ``lab_stages.ipynb``.
 
 WORKFLOW can export the current lab as a runnable supervisor notebook. This is
 not just a static dump of code cells.
 
-* The notebook is written beside ``lab_steps.toml`` as ``lab_steps.ipynb``.
+* The notebook is written beside ``lab_stages.toml`` as ``lab_stages.ipynb``.
 * You can open it outside the AGILAB UI in Jupyter-compatible tools such as
   JupyterLab or PyCharm.
 * For a source checkout, prefer the mirror under
-  ``exported_notebooks/<module>/lab_steps.ipynb`` and launch it from the AGILAB
+  ``exported_notebooks/<module>/lab_stages.ipynb`` and launch it from the AGILAB
   root project explicitly, for example:
 
   .. code-block:: bash
 
      CHECKOUT="${AGILAB_CHECKOUT:-/path/to/checkout}"
-     uv --project "$CHECKOUT" run --with jupyterlab jupyter lab exported_notebooks/<module>/lab_steps.ipynb
+     uv --project "$CHECKOUT" run --with jupyterlab jupyter lab exported_notebooks/<module>/lab_stages.ipynb
 
   or execute it headlessly with:
 
   .. code-block:: bash
 
      CHECKOUT="${AGILAB_CHECKOUT:-/path/to/checkout}"
-     uv --project "$CHECKOUT" run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace exported_notebooks/<module>/lab_steps.ipynb
+     uv --project "$CHECKOUT" run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace exported_notebooks/<module>/lab_stages.ipynb
 
 * The exported notebook keeps the recorded per-stage runtime and environment
   metadata instead of flattening the whole pipeline into one implicit kernel
@@ -231,7 +231,7 @@ Pipeline execution and MLflow tracking now share the same runtime contract:
 
 * ``Run pipeline`` creates one parent MLflow run for the whole lab execution.
 * Every executed stage becomes a nested MLflow run with its own metadata.
-* The tracked metadata comes from ``lab_steps.toml`` and includes the stage
+* The tracked metadata comes from ``lab_stages.toml`` and includes the stage
   description, prompt/question, selected model, execution engine, and runtime.
 * Captured stdout, the executed snippet, the run log, and produced dataframe
   artefacts are logged to the same tracking store when they exist.
@@ -263,7 +263,7 @@ stages, so both execution paths are visible from the same MLflow UI.
 
 HISTORY
 ~~~~~~~
-Inspect or tweak the raw ``lab_steps.toml`` via the code editor. Saving the
+Inspect or tweak the raw ``lab_stages.toml`` via the code editor. Saving the
 file here immediately refreshes the assistant tab.
 
 Troubleshooting and checks
@@ -271,7 +271,7 @@ Troubleshooting and checks
 
 Use these checks if Workflow stages are confusing or fail to execute:
 
-- If numbered stage buttons do not match ``lab_steps.toml``, open **HISTORY** and
+- If numbered stage buttons do not match ``lab_stages.toml``, open **HISTORY** and
   confirm the selected file is the current module's lab file.
 - If execution fails on a stale path, regenerate or re-import the snippet in
   WORKFLOW before rerunning the stage.
@@ -292,5 +292,5 @@ See also
 - :doc:`distributed-workers` for the full distributed workflow from ORCHESTRATE configuration to imported Pipeline stage.
 - :doc:`execute-help` for generating reliable snippets before running a stage.
 - :doc:`apps-pages` for analysis-side visualisations after a successful run.
-- :doc:`roadmap/versioned-pipeline-steps` for the proposed structured successor
-  to raw generated snippets in ``lab_steps.toml``.
+- :doc:`roadmap/versioned-pipeline-stages` for the proposed structured successor
+  to raw generated snippets in ``lab_stages.toml``.

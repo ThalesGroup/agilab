@@ -27,7 +27,7 @@ def _pipeline_role_from_question(question: Any) -> str:
     return ""
 
 
-def _pipeline_step_kind(entry: Dict[str, Any]) -> str:
+def _pipeline_stage_kind(entry: Dict[str, Any]) -> str:
     """Infer the execution kind from the saved engine marker."""
     raw = str(entry.get("R", "") or "").strip().lower()
     if raw == "agi.install":
@@ -249,7 +249,7 @@ def load_pipeline_conceptual_dot(env: Optional[AgiEnv], lab_dir: Optional[Path])
     return None, ""
 
 
-def _pipeline_infer_entry(step_index: int, entry: Dict[str, Any]) -> Dict[str, Any]:
+def _pipeline_infer_entry(stage_index: int, entry: Dict[str, Any]) -> Dict[str, Any]:
     """Infer pipeline metadata from a lab stage entry."""
     code = str(entry.get("C", "") or "")
     role = _pipeline_role_from_question(entry.get("Q", ""))
@@ -257,14 +257,14 @@ def _pipeline_infer_entry(step_index: int, entry: Dict[str, Any]) -> Dict[str, A
     agi_call_kind, kwargs = _pipeline_find_agi_call(code)
     consumes = {key: value for key, value in kwargs.items() if key.endswith("_in")}
     produces = {key: value for key, value in kwargs.items() if key.endswith("_out")}
-    kind = _pipeline_step_kind(entry)
+    kind = _pipeline_stage_kind(entry)
     if kind == "stage" and agi_call_kind:
         kind = agi_call_kind
     group = _pipeline_group_from_project(project)
     return {
-        "index": step_index,
-        "label": f"{step_index + 1}",
-        "role": role or f"Stage {step_index + 1}",
+        "index": stage_index,
+        "label": f"{stage_index + 1}",
+        "role": role or f"Stage {stage_index + 1}",
         "kind": kind,
         "project": project,
         "group": group,

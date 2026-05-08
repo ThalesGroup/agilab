@@ -21,7 +21,7 @@ layer rather than to any single application.
 ## Problem
 
 Today, AGILab stores many generated stages as raw Python code in
-``lab_steps.toml``. Even when a stage originates from **ORCHESTRATE**, the saved
+``lab_stages.toml``. Even when a stage originates from **ORCHESTRATE**, the saved
 artifact is still a snippet, not a structured execution spec.
 
 This has several drawbacks:
@@ -124,7 +124,7 @@ For ``raw_python`` stages:
 
 - removes fragile text-rewrite migrations from the critical path
 - makes stage drift visible instead of hidden
-- produces more readable ``lab_steps.toml`` diffs
+- produces more readable ``lab_stages.toml`` diffs
 - reduces regressions caused by legacy path or contract rewrites
 - separates product-supported templates from user-owned custom code
 - keeps orchestration concerns separate from app concerns

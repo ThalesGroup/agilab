@@ -6,6 +6,8 @@ import types
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 class _CaptureCodeSink:
     def __init__(self) -> None:
@@ -81,6 +83,34 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert "benchmark_best_single_node=True" in run_snippet
     assert 'RUN_PARAMS = json.loads(\'{"foo": "bar", "n": 2}\')' in run_snippet
     assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in run_snippet
+
+
+def test_build_run_snippet_uses_stages_and_rejects_legacy_args_key():
+    env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
+
+    run_snippet = orchestrate_page_support.build_run_snippet(
+        env=env,
+        verbose=1,
+        run_mode=0,
+        scheduler="None",
+        workers="None",
+        run_args={"stages": [{"name": "prepare", "args": {"n": 2}}]},
+    )
+
+    assert "StageRequest(" in run_snippet
+    assert "RunRequest(" in run_snippet
+    assert "stages=run_stages" in run_snippet
+    assert "RUN_STAGES_PAYLOAD" in run_snippet
+
+    with pytest.raises(ValueError, match="Legacy run settings key 'args'"):
+        orchestrate_page_support.build_run_snippet(
+            env=env,
+            verbose=1,
+            run_mode=0,
+            scheduler="None",
+            workers="None",
+            run_args={"args": [{"name": "prepare", "args": {"n": 2}}]},
+        )
 
 
 def test_build_agi_snippets_do_not_inject_source_core_paths_for_source_env():

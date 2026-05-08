@@ -9,11 +9,11 @@ _EXECUTION_EXPORTS = (
     "ensure_safe_service_template",
     "python_for_venv",
     "uses_controller_python",
-    "python_for_step",
-    "label_for_step_runtime",
+    "python_for_stage",
+    "label_for_stage_runtime",
     "is_valid_runtime_root",
     "stream_run_command",
-    "run_locked_step",
+    "run_locked_stage",
 )
 
 _MLFLOW_EXPORTS = (
@@ -58,11 +58,11 @@ safe_service_start_template = _pipeline_runtime_execution_support.safe_service_s
 ensure_safe_service_template = _pipeline_runtime_execution_support.ensure_safe_service_template
 python_for_venv = _pipeline_runtime_execution_support.python_for_venv
 uses_controller_python = _pipeline_runtime_execution_support.uses_controller_python
-python_for_step = _pipeline_runtime_execution_support.python_for_step
-label_for_step_runtime = _pipeline_runtime_execution_support.label_for_step_runtime
+python_for_stage = _pipeline_runtime_execution_support.python_for_stage
+label_for_stage_runtime = _pipeline_runtime_execution_support.label_for_stage_runtime
 is_valid_runtime_root = _pipeline_runtime_execution_support.is_valid_runtime_root
 stream_run_command = _pipeline_runtime_execution_support.stream_run_command
-run_locked_step = _pipeline_runtime_execution_support.run_locked_step
+run_locked_stage = _pipeline_runtime_execution_support.run_locked_stage
 
 _pipeline_runtime_mlflow_support = import_agilab_module(
     "agilab.pipeline_runtime_mlflow_support",

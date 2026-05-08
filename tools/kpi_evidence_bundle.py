@@ -186,7 +186,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             and wizard_content["compatibility_report_status"] == "pass"
             and wizard_content["proof_command_labels"] == labels
             and wizard_content["run_manifest_filename"] == "run_manifest.json"
-            and [label for label, _ in wizard_content["steps"]] == [
+            and [label for label, _ in wizard_content["stages"]] == [
                 "PROJECT",
                 "ORCHESTRATE",
                 "ANALYSIS",
@@ -207,7 +207,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
                 "compatibility_status": wizard_content.get("compatibility_status"),
                 "compatibility_report_status": wizard_content.get("compatibility_report_status"),
                 "run_manifest_filename": wizard_content.get("run_manifest_filename"),
-                "steps": [label for label, _ in wizard_content.get("steps", [])],
+                "stages": [label for label, _ in wizard_content.get("stages", [])],
                 "remediation_status": wizard_state.get("remediation_status"),
                 "evidence_commands": wizard_state.get("evidence_commands"),
             },
@@ -1525,9 +1525,9 @@ def _check_notebook_pipeline_import_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("round_trip_ok") is True
             and summary.get("code_cell_count") == 2
             and summary.get("markdown_cell_count") == 2
-            and summary.get("pipeline_step_count") == 2
+            and summary.get("pipeline_stage_count") == 2
             and summary.get("context_block_count") == 2
-            and summary.get("lab_steps_preview_step_count") == 2
+            and summary.get("lab_stages_preview_stage_count") == 2
             and int(summary.get("env_hint_count", 0) or 0) >= 3
             and int(summary.get("artifact_reference_count", 0) or 0) >= 3
         )
@@ -1571,9 +1571,9 @@ def _check_notebook_roundtrip_report(repo_root: Path) -> dict[str, Any]:
             report.get("status") == "pass"
             and summary.get("execution_mode") == "not_executed_import"
             and summary.get("import_mode") == "agilab_supervisor_metadata"
-            and summary.get("supervisor_step_count") == 2
-            and summary.get("pipeline_step_count") == 2
-            and summary.get("lab_steps_round_trip_ok") is True
+            and summary.get("supervisor_stage_count") == 2
+            and summary.get("pipeline_stage_count") == 2
+            and summary.get("lab_stages_round_trip_ok") is True
             and int(summary.get("env_hint_count", 0) or 0) >= 3
             and int(summary.get("artifact_reference_count", 0) or 0) >= 3
         )
@@ -1590,7 +1590,7 @@ def _check_notebook_roundtrip_report(repo_root: Path) -> dict[str, Any]:
         "Notebook round-trip report contract",
         ok,
         (
-            "notebook round-trip report preserves lab_steps fields through "
+            "notebook round-trip report preserves lab_stages fields through "
             "supervisor export and non-executing import"
             if ok
             else "notebook round-trip report is failing or disconnected"
@@ -1615,7 +1615,7 @@ def _check_notebook_union_environment_report(repo_root: Path) -> dict[str, Any]:
             report.get("status") == "pass"
             and summary.get("compatible_union_mode") == "single_kernel_union_candidate"
             and summary.get("incompatible_union_mode") == "supervisor_notebook_required"
-            and summary.get("compatible_step_count") == 2
+            and summary.get("compatible_stage_count") == 2
             and summary.get("code_cell_count") == 2
             and int(summary.get("incompatible_issue_count", 0) or 0) >= 2
         )

@@ -122,8 +122,8 @@ def _has_stale_builtin_apps_root(text: str) -> bool:
     return stale_marker_root in text and current_marker_root not in text
 
 
-def _seed_lab_steps(app_slug: str) -> None:
-    """Copy lab_steps*.toml into ~/export/<app_slug> if missing."""
+def _seed_lab_stages(app_slug: str) -> None:
+    """Copy lab_stages*.toml into ~/export/<app_slug> if missing."""
 
     if not app_slug:
         return
@@ -141,7 +141,7 @@ def _seed_lab_steps(app_slug: str) -> None:
         print(f"[WARN] Unable to create export dir {target_dir}: {exc}")
         return
 
-    for source in sorted(app_dir.glob("lab_steps*.toml")):
+    for source in sorted(app_dir.glob("lab_stages*.toml")):
         destination = target_dir / source.name
         if destination.exists():
             continue
@@ -185,7 +185,7 @@ def _seed_app_settings(app_slug: str) -> None:
 
 
 _seed_example_scripts(module)
-_seed_lab_steps(module)
+_seed_lab_stages(module)
 _seed_app_settings(module)
 
 

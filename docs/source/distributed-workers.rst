@@ -277,7 +277,7 @@ The normal reuse path is:
 3. Import the generated snippet as the stage source, or regenerate it from the
    latest current settings.
 4. Run the imported stage from WORKFLOW so the distributed orchestration becomes
-   part of ``lab_steps.toml`` and the tracked experiment history.
+   part of ``lab_stages.toml`` and the tracked experiment history.
 
 Important: imported snippets are snapshots. If you change worker hosts,
 execution flags, or app arguments in ORCHESTRATE, regenerate or re-import the
@@ -288,7 +288,7 @@ snippet before running it again in WORKFLOW.
    :align: center
    :class: diagram-panel diagram-wide
 
-   WORKFLOW is where the generated distributed snippet becomes a tracked, reusable stage in ``lab_steps.toml``.
+   WORKFLOW is where the generated distributed snippet becomes a tracked, reusable stage in ``lab_stages.toml``.
 
 Best Practices
 --------------

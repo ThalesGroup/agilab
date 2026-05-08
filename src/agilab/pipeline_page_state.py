@@ -25,11 +25,11 @@ class PipelineCommandStatus(str, Enum):
 
 
 class PipelineAction(str, Enum):
-    ADD_STEP = "add_step"
+    ADD_STAGE = "add_stage"
     CLEAR_LOGS = "clear_logs"
-    DELETE_STEP = "delete_step"
-    DELETE_ALL = "delete_all"
-    UNDO_DELETE = "undo_delete"
+    DELETE_STAGE = "delete_stage"
+    DELETE_ALL_STAGES = "delete_all_stages"
+    UNDO_DELETE_STAGES = "undo_delete_stages"
     RUN_PIPELINE = "run_pipeline"
     FORCE_RUN = "force_run"
 
@@ -46,7 +46,7 @@ class PipelineCommandResult:
 
 
 @dataclass(frozen=True)
-class PipelineVisibleStep:
+class PipelineVisibleStage:
     index: int
     label: str
     summary: str
@@ -56,17 +56,17 @@ class PipelineVisibleStep:
 @dataclass(frozen=True)
 class PipelinePageState:
     index_page: str
-    steps_file: Path
+    stages_file: Path
     selected_lab: str
     status: PipelineWorkflowStatus
-    total_steps: int
-    visible_steps: Tuple[PipelineVisibleStep, ...]
+    total_stages: int
+    visible_stages: Tuple[PipelineVisibleStage, ...]
     execution_sequence: Tuple[int, ...]
-    stale_step_refs: Tuple[Mapping[str, Any], ...]
+    stale_stage_refs: Tuple[Mapping[str, Any], ...]
     lock_state: Optional[Mapping[str, Any]]
     run_logs: Tuple[str, ...]
     last_run_log_file: str
-    runnable_step_count: int
+    runnable_stage_count: int
     can_run: bool
     can_force_run: bool
     run_disabled_reason: str
@@ -74,7 +74,7 @@ class PipelinePageState:
     blocked_actions: Mapping[PipelineAction, str]
 
 
-def _default_is_displayable_step(entry: Mapping[str, Any]) -> bool:
+def _default_is_displayable_stage(entry: Mapping[str, Any]) -> bool:
     question = entry.get("Q", "")
     if isinstance(question, str) and question.strip():
         return True
@@ -82,12 +82,12 @@ def _default_is_displayable_step(entry: Mapping[str, Any]) -> bool:
     return isinstance(code, str) and bool(code.strip())
 
 
-def _default_is_runnable_step(entry: Mapping[str, Any]) -> bool:
+def _default_is_runnable_stage(entry: Mapping[str, Any]) -> bool:
     code = entry.get("C", "")
     return isinstance(code, str) and bool(code.strip())
 
 
-def _default_step_summary(entry: Mapping[str, Any]) -> str:
+def _default_stage_summary(entry: Mapping[str, Any]) -> str:
     question = str(entry.get("Q") or "").strip()
     if question:
         return " ".join(question.split())
@@ -97,13 +97,13 @@ def _default_step_summary(entry: Mapping[str, Any]) -> str:
     return ""
 
 
-def _default_step_label(idx: int, entry: Mapping[str, Any]) -> str:
-    summary = _default_step_summary(entry)
+def _default_stage_label(idx: int, entry: Mapping[str, Any]) -> str:
+    summary = _default_stage_summary(entry)
     return f"Stage {idx + 1}: {summary}" if summary else f"Stage {idx + 1}"
 
 
-def _default_find_legacy_steps(
-    _steps: Sequence[Mapping[str, Any]],
+def _default_find_legacy_stages(
+    _stages: Sequence[Mapping[str, Any]],
     _sequence: Sequence[int],
 ) -> Sequence[Mapping[str, Any]]:
     return ()
@@ -111,17 +111,17 @@ def _default_find_legacy_steps(
 
 @dataclass(frozen=True)
 class PipelinePageStateDeps:
-    is_displayable_step: Callable[[Mapping[str, Any]], bool] = _default_is_displayable_step
-    is_runnable_step: Callable[[Mapping[str, Any]], bool] = _default_is_runnable_step
-    step_summary: Callable[[Mapping[str, Any]], str] = _default_step_summary
-    step_label: Callable[[int, Mapping[str, Any]], str] = _default_step_label
-    find_legacy_agi_run_steps: Callable[
+    is_displayable_stage: Callable[[Mapping[str, Any]], bool] = _default_is_displayable_stage
+    is_runnable_stage: Callable[[Mapping[str, Any]], bool] = _default_is_runnable_stage
+    stage_summary: Callable[[Mapping[str, Any]], str] = _default_stage_summary
+    stage_label: Callable[[int, Mapping[str, Any]], str] = _default_stage_label
+    find_legacy_agi_run_stages: Callable[
         [Sequence[Mapping[str, Any]], Sequence[int]], Sequence[Mapping[str, Any]]
-    ] = _default_find_legacy_steps
+    ] = _default_find_legacy_stages
     inspect_pipeline_run_lock: Optional[Callable[[Any], Optional[Mapping[str, Any]]]] = None
 
 
-def normalize_execution_sequence(total_steps: int, sequence: Optional[Sequence[Any]]) -> Tuple[int, ...]:
+def normalize_execution_sequence(total_stages: int, sequence: Optional[Sequence[Any]]) -> Tuple[int, ...]:
     """Return a valid execution order, defaulting to all stages when selection is empty."""
     selected: list[int] = []
     seen: set[int] = set()
@@ -130,46 +130,46 @@ def normalize_execution_sequence(total_steps: int, sequence: Optional[Sequence[A
             idx = int(raw)
         except (TypeError, ValueError):
             continue
-        if 0 <= idx < total_steps and idx not in seen:
+        if 0 <= idx < total_stages and idx not in seen:
             selected.append(idx)
             seen.add(idx)
-    if not selected and total_steps:
-        selected = list(range(total_steps))
+    if not selected and total_stages:
+        selected = list(range(total_stages))
     return tuple(selected)
 
 
-def _coerce_steps(steps: Sequence[Mapping[str, Any]]) -> Tuple[Mapping[str, Any], ...]:
+def _coerce_stages(stages: Sequence[Mapping[str, Any]]) -> Tuple[Mapping[str, Any], ...]:
     coerced: list[Mapping[str, Any]] = []
-    for entry in steps:
+    for entry in stages:
         if isinstance(entry, Mapping):
             coerced.append(entry)
     return tuple(coerced)
 
 
-def _format_stale_step_refs(stale_steps: Sequence[Mapping[str, Any]]) -> str:
+def _format_stale_stage_refs(stale_stages: Sequence[Mapping[str, Any]]) -> str:
     refs: list[str] = []
-    for item in stale_steps[:5]:
-        step = item.get("step", "?")
+    for item in stale_stages[:5]:
+        stage = item.get("stage", "?")
         line = item.get("line", "?")
         summary = str(item.get("summary") or "").strip()
         project = str(item.get("project") or "").strip()
-        label = f"stage {step}, line {line}"
+        label = f"stage {stage}, line {line}"
         if project:
             label += f", {project}"
         if summary:
             label += f": {summary}"
         refs.append(label)
-    if len(stale_steps) > 5:
-        refs.append(f"{len(stale_steps) - 5} more")
+    if len(stale_stages) > 5:
+        refs.append(f"{len(stale_stages) - 5} more")
     return "; ".join(refs)
 
 
-def _selected_lab_name(raw: Any, steps_file: Path, env: Any = None) -> str:
+def _selected_lab_name(raw: Any, stages_file: Path, env: Any = None) -> str:
     candidates = [
         raw,
         getattr(env, "selected_lab", None),
         getattr(env, "lab", None),
-        steps_file.parent,
+        stages_file.parent,
         getattr(env, "app", None),
     ]
     for candidate in candidates:
@@ -192,30 +192,30 @@ def _selected_lab_name(raw: Any, steps_file: Path, env: Any = None) -> str:
 
 def _derive_actions(
     *,
-    total_steps: int,
+    total_stages: int,
     has_undo_snapshot: bool,
     can_run: bool,
     can_force_run: bool,
     lock_state: Optional[Mapping[str, Any]],
     run_disabled_reason: str,
-    runnable_step_count: int,
-    stale_step_refs: Sequence[Mapping[str, Any]],
+    runnable_stage_count: int,
+    stale_stage_refs: Sequence[Mapping[str, Any]],
 ) -> tuple[Tuple[PipelineAction, ...], Mapping[PipelineAction, str]]:
     available: list[PipelineAction] = [
-        PipelineAction.ADD_STEP,
+        PipelineAction.ADD_STAGE,
         PipelineAction.CLEAR_LOGS,
     ]
     blocked: dict[PipelineAction, str] = {}
-    if total_steps > 0:
-        available.extend([PipelineAction.DELETE_STEP, PipelineAction.DELETE_ALL])
+    if total_stages > 0:
+        available.extend([PipelineAction.DELETE_STAGE, PipelineAction.DELETE_ALL_STAGES])
     else:
-        blocked[PipelineAction.DELETE_STEP] = "No workflow stage is available to delete."
-        blocked[PipelineAction.DELETE_ALL] = "No workflow stages are available to delete."
+        blocked[PipelineAction.DELETE_STAGE] = "No workflow stage is available to delete."
+        blocked[PipelineAction.DELETE_ALL_STAGES] = "No workflow stages are available to delete."
 
     if has_undo_snapshot:
-        available.append(PipelineAction.UNDO_DELETE)
+        available.append(PipelineAction.UNDO_DELETE_STAGES)
     else:
-        blocked[PipelineAction.UNDO_DELETE] = "No delete snapshot is available to restore."
+        blocked[PipelineAction.UNDO_DELETE_STAGES] = "No delete snapshot is available to restore."
 
     if can_run:
         available.append(PipelineAction.RUN_PIPELINE)
@@ -227,9 +227,9 @@ def _derive_actions(
     if can_force_run:
         available.append(PipelineAction.FORCE_RUN)
     else:
-        if stale_step_refs:
+        if stale_stage_refs:
             reason = run_disabled_reason or "Stale snippets must be regenerated before force-run."
-        elif runnable_step_count == 0:
+        elif runnable_stage_count == 0:
             reason = run_disabled_reason or "No selected workflow stage contains runnable code."
         elif not lock_state:
             reason = "No pipeline lock is present."
@@ -243,8 +243,8 @@ def _derive_actions(
 def build_pipeline_page_state(
     *,
     index_page: str,
-    steps_file: Path,
-    steps: Sequence[Mapping[str, Any]],
+    stages_file: Path,
+    stages: Sequence[Mapping[str, Any]],
     sequence: Optional[Sequence[Any]],
     session_state: Mapping[str, Any],
     selected_lab: Any = None,
@@ -252,46 +252,46 @@ def build_pipeline_page_state(
     deps: PipelinePageStateDeps = PipelinePageStateDeps(),
 ) -> PipelinePageState:
     """Build a pure view-model for the WORKFLOW controls."""
-    step_entries = _coerce_steps(steps)
-    total_steps = len(step_entries)
-    execution_sequence = normalize_execution_sequence(total_steps, sequence)
+    stage_entries = _coerce_stages(stages)
+    total_stages = len(stage_entries)
+    execution_sequence = normalize_execution_sequence(total_stages, sequence)
 
-    visible_steps: list[PipelineVisibleStep] = []
-    for idx, entry in enumerate(step_entries):
-        if not deps.is_displayable_step(entry):
+    visible_stages: list[PipelineVisibleStage] = []
+    for idx, entry in enumerate(stage_entries):
+        if not deps.is_displayable_stage(entry):
             continue
-        visible_steps.append(
-            PipelineVisibleStep(
+        visible_stages.append(
+            PipelineVisibleStage(
                 index=idx,
-                label=str(deps.step_label(idx, entry)),
-                summary=str(deps.step_summary(entry)),
-                runnable=bool(deps.is_runnable_step(entry)),
+                label=str(deps.stage_label(idx, entry)),
+                summary=str(deps.stage_summary(entry)),
+                runnable=bool(deps.is_runnable_stage(entry)),
             )
         )
 
-    stale_step_refs = tuple(dict(item) for item in deps.find_legacy_agi_run_steps(step_entries, execution_sequence))
+    stale_stage_refs = tuple(dict(item) for item in deps.find_legacy_agi_run_stages(stage_entries, execution_sequence))
     lock_state = deps.inspect_pipeline_run_lock(env) if deps.inspect_pipeline_run_lock else None
     lock_state = dict(lock_state) if isinstance(lock_state, Mapping) else None
     active_lock = bool(lock_state and not lock_state.get("is_stale"))
     stale_lock = bool(lock_state and lock_state.get("is_stale"))
 
     selected_runnable = {
-        step.index
-        for step in visible_steps
-        if step.runnable and step.index in execution_sequence
+        stage.index
+        for stage in visible_stages
+        if stage.runnable and stage.index in execution_sequence
     }
-    runnable_step_count = len(selected_runnable)
+    runnable_stage_count = len(selected_runnable)
     run_logs_key = f"{index_page}__run_logs"
     raw_logs = session_state.get(run_logs_key, ())
     run_logs = tuple(str(line) for line in raw_logs) if isinstance(raw_logs, Sequence) and not isinstance(raw_logs, str) else ()
     last_status = str(session_state.get(f"{index_page}__last_run_status") or "").strip().lower()
     last_run_log_file = str(session_state.get(f"{index_page}__last_run_log_file") or "")
     undo_payload = session_state.get(f"{index_page}__undo_delete_snapshot")
-    has_undo_snapshot = isinstance(undo_payload, Mapping) and isinstance(undo_payload.get("steps"), list)
+    has_undo_snapshot = isinstance(undo_payload, Mapping) and isinstance(undo_payload.get("stages"), list)
 
     run_disabled_reason = ""
-    if stale_step_refs:
-        detail = _format_stale_step_refs(stale_step_refs)
+    if stale_stage_refs:
+        detail = _format_stale_stage_refs(stale_stage_refs)
         run_disabled_reason = (
             "Selected stages contain stale AGI.run snippets that must be regenerated "
             f"before execution: {detail}."
@@ -303,10 +303,10 @@ def build_pipeline_page_state(
         status = PipelineWorkflowStatus.RUNNING
     elif stale_lock:
         status = PipelineWorkflowStatus.STALE
-    elif not visible_steps:
-        run_disabled_reason = f"No visible workflow stages were loaded from {steps_file}."
+    elif not visible_stages:
+        run_disabled_reason = f"No visible workflow stages were loaded from {stages_file}."
         status = PipelineWorkflowStatus.EMPTY
-    elif runnable_step_count == 0:
+    elif runnable_stage_count == 0:
         run_disabled_reason = "No selected workflow stage contains runnable code."
         status = PipelineWorkflowStatus.GENERATED
     elif last_status in {"failed", "error"}:
@@ -316,32 +316,32 @@ def build_pipeline_page_state(
     else:
         status = PipelineWorkflowStatus.RUNNABLE
 
-    can_run = not run_disabled_reason and runnable_step_count > 0
-    can_force_run = bool(lock_state) and not stale_step_refs and runnable_step_count > 0
+    can_run = not run_disabled_reason and runnable_stage_count > 0
+    can_force_run = bool(lock_state) and not stale_stage_refs and runnable_stage_count > 0
     available_actions, blocked_actions = _derive_actions(
-        total_steps=total_steps,
+        total_stages=total_stages,
         has_undo_snapshot=has_undo_snapshot,
         can_run=can_run,
         can_force_run=can_force_run,
         lock_state=lock_state,
         run_disabled_reason=run_disabled_reason,
-        runnable_step_count=runnable_step_count,
-        stale_step_refs=stale_step_refs,
+        runnable_stage_count=runnable_stage_count,
+        stale_stage_refs=stale_stage_refs,
     )
 
     return PipelinePageState(
         index_page=index_page,
-        steps_file=Path(steps_file),
-        selected_lab=_selected_lab_name(selected_lab, Path(steps_file), env=env),
+        stages_file=Path(stages_file),
+        selected_lab=_selected_lab_name(selected_lab, Path(stages_file), env=env),
         status=status,
-        total_steps=total_steps,
-        visible_steps=tuple(visible_steps),
+        total_stages=total_stages,
+        visible_stages=tuple(visible_stages),
         execution_sequence=execution_sequence,
-        stale_step_refs=stale_step_refs,
+        stale_stage_refs=stale_stage_refs,
         lock_state=lock_state,
         run_logs=run_logs,
         last_run_log_file=last_run_log_file,
-        runnable_step_count=runnable_step_count,
+        runnable_stage_count=runnable_stage_count,
         can_run=can_run,
         can_force_run=can_force_run,
         run_disabled_reason=run_disabled_reason,
@@ -482,58 +482,58 @@ def _snapshot_with_delete_metadata(
     label: str,
     timestamp: str | None,
 ) -> dict[str, Any]:
-    snapshot = dict(raw_snapshot) if isinstance(raw_snapshot, Mapping) else {"steps": []}
+    snapshot = dict(raw_snapshot) if isinstance(raw_snapshot, Mapping) else {"stages": []}
     snapshot["label"] = label
     snapshot["timestamp"] = _delete_timestamp(timestamp)
     return snapshot
 
 
-def delete_pipeline_step_command(
+def delete_pipeline_stage_command(
     *,
     session_state: MutableMapping[str, Any],
     index_page: str,
-    step_index: int,
+    stage_index: int,
     lab_dir: Path,
-    steps_file: Path,
-    persisted_steps: Sequence[Mapping[str, Any]],
+    stages_file: Path,
+    persisted_stages: Sequence[Mapping[str, Any]],
     selected_map: MutableMapping[Any, Any],
     capture_pipeline_snapshot: Callable[..., Any],
-    remove_step: Callable[..., Any],
+    remove_stage: Callable[..., Any],
     timestamp: str | None = None,
 ) -> PipelineCommandResult:
     """Delete one WORKFLOW stage through a typed command boundary."""
-    if step_index < 0 or step_index >= len(persisted_steps):
+    if stage_index < 0 or stage_index >= len(persisted_stages):
         return PipelineCommandResult(
             status=PipelineCommandStatus.REFUSED,
-            message=f"Stage {step_index + 1} cannot be deleted because it is not available.",
-            details={"index_page": index_page, "step_index": step_index},
+            message=f"Stage {stage_index + 1} cannot be deleted because it is not available.",
+            details={"index_page": index_page, "stage_index": stage_index},
         )
 
     undo_key = f"{index_page}__undo_delete_snapshot"
     try:
         snapshot = _snapshot_with_delete_metadata(
-            capture_pipeline_snapshot(index_page, list(persisted_steps)),
-            label=f"remove stage {step_index + 1}",
+            capture_pipeline_snapshot(index_page, list(persisted_stages)),
+            label=f"remove stage {stage_index + 1}",
             timestamp=timestamp,
         )
         session_state[undo_key] = snapshot
-        selected_map.pop(step_index, None)
-        remove_step(lab_dir, str(step_index), steps_file, index_page)
+        selected_map.pop(stage_index, None)
+        remove_stage(lab_dir, str(stage_index), stages_file, index_page)
     except Exception as exc:
         return PipelineCommandResult(
             status=PipelineCommandStatus.FAILED,
-            message=f"Could not delete stage {step_index + 1}: {exc}",
-            details={"index_page": index_page, "step_index": step_index, "error": str(exc)},
+            message=f"Could not delete stage {stage_index + 1}: {exc}",
+            details={"index_page": index_page, "stage_index": stage_index, "error": str(exc)},
         )
 
     return PipelineCommandResult(
         status=PipelineCommandStatus.SUCCESS,
-        message=f"Stage {step_index + 1} deleted.",
-        details={"index_page": index_page, "step_index": step_index, "undo_key": undo_key},
+        message=f"Stage {stage_index + 1} deleted.",
+        details={"index_page": index_page, "stage_index": stage_index, "undo_key": undo_key},
     )
 
 
-def _coerce_total_steps(session_state: Mapping[str, Any], index_page: str, fallback: int) -> int:
+def _coerce_total_stages(session_state: Mapping[str, Any], index_page: str, fallback: int) -> int:
     page_state = session_state.get(index_page)
     if isinstance(page_state, Sequence) and not isinstance(page_state, (str, bytes)) and page_state:
         try:
@@ -545,25 +545,25 @@ def _coerce_total_steps(session_state: Mapping[str, Any], index_page: str, fallb
     return max(fallback, 0)
 
 
-def delete_all_pipeline_steps_command(
+def delete_all_pipeline_stages_command(
     *,
     session_state: MutableMapping[str, Any],
     index_page: str,
     lab_dir: Path,
     module_path: Path,
-    steps_file: Path,
-    persisted_steps: Sequence[Mapping[str, Any]],
+    stages_file: Path,
+    persisted_stages: Sequence[Mapping[str, Any]],
     sequence_widget_key: str,
     capture_pipeline_snapshot: Callable[..., Any],
-    remove_step: Callable[..., Any],
+    remove_stage: Callable[..., Any],
     bump_history_revision: Callable[..., Any],
     persist_sequence_preferences: Callable[..., Any],
     confirm_key: str | None = None,
     timestamp: str | None = None,
 ) -> PipelineCommandResult:
     """Delete every WORKFLOW stage while preserving an undo snapshot."""
-    total_steps = _coerce_total_steps(session_state, index_page, len(persisted_steps))
-    if total_steps <= 0:
+    total_stages = _coerce_total_stages(session_state, index_page, len(persisted_stages))
+    if total_stages <= 0:
         if confirm_key:
             session_state.pop(confirm_key, None)
         return PipelineCommandResult(
@@ -577,13 +577,13 @@ def delete_all_pipeline_steps_command(
         if confirm_key:
             session_state.pop(confirm_key, None)
         snapshot = _snapshot_with_delete_metadata(
-            capture_pipeline_snapshot(index_page, list(persisted_steps)),
+            capture_pipeline_snapshot(index_page, list(persisted_stages)),
             label="delete pipeline",
             timestamp=timestamp,
         )
         session_state[undo_key] = snapshot
-        for idx_remove in reversed(range(total_steps)):
-            remove_step(lab_dir, str(idx_remove), steps_file, index_page)
+        for stage_idx_remove in reversed(range(total_stages)):
+            remove_stage(lab_dir, str(stage_idx_remove), stages_file, index_page)
         session_state[index_page] = [0, "", "", "", "", "", 0]
         session_state[f"{index_page}__details"] = {}
         session_state[f"{index_page}__venv_map"] = {}
@@ -594,18 +594,18 @@ def delete_all_pipeline_steps_command(
         session_state[f"{index_page}__force_blank_q"] = True
         session_state[f"{index_page}__q_rev"] = session_state.get(f"{index_page}__q_rev", 0) + 1
         bump_history_revision()
-        persist_sequence_preferences(module_path, steps_file, [])
+        persist_sequence_preferences(module_path, stages_file, [])
     except Exception as exc:
         return PipelineCommandResult(
             status=PipelineCommandStatus.FAILED,
             message=f"Could not delete workflow stages: {exc}",
-            details={"index_page": index_page, "count": total_steps, "error": str(exc)},
+            details={"index_page": index_page, "count": total_stages, "error": str(exc)},
         )
 
     return PipelineCommandResult(
         status=PipelineCommandStatus.SUCCESS,
-        message=f"Deleted {total_steps} workflow stage(s).",
-        details={"index_page": index_page, "count": total_steps, "undo_key": undo_key},
+        message=f"Deleted {total_stages} workflow stage(s).",
+        details={"index_page": index_page, "count": total_stages, "undo_key": undo_key},
     )
 
 
@@ -614,14 +614,14 @@ def undo_pipeline_delete_command(
     session_state: MutableMapping[str, Any],
     index_page: str,
     module_path: Path,
-    steps_file: Path,
+    stages_file: Path,
     sequence_widget_key: str,
     restore_pipeline_snapshot: Callable[..., Any],
 ) -> PipelineCommandResult:
     """Restore the latest WORKFLOW delete snapshot through a typed command boundary."""
     undo_key = f"{index_page}__undo_delete_snapshot"
     undo_payload = session_state.get(undo_key)
-    if not (isinstance(undo_payload, Mapping) and isinstance(undo_payload.get("steps"), list)):
+    if not (isinstance(undo_payload, Mapping) and isinstance(undo_payload.get("stages"), list)):
         return PipelineCommandResult(
             status=PipelineCommandStatus.NO_OP,
             message="No deleted workflow state is available to restore.",
@@ -631,7 +631,7 @@ def undo_pipeline_delete_command(
     try:
         restore_error = restore_pipeline_snapshot(
             module_path,
-            steps_file,
+            stages_file,
             index_page,
             sequence_widget_key,
             dict(undo_payload),

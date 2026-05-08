@@ -3,7 +3,7 @@
 `global_dag_project` is the built-in AGILAB example for cross-app workflow
 contracts.
 
-It does not compete with an app-local `lab_steps.toml`. Instead, it shows how a
+It does not compete with an app-local `lab_stages.toml`. Instead, it shows how a
 global DAG connects independent built-in apps through explicit artifact
 handoffs.
 

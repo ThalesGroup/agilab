@@ -200,9 +200,9 @@ def test_pipeline_run_controls_uses_explicit_module_aliases() -> None:
     _ensure_repo_agilab_package()
     module = importlib.import_module("agilab.pipeline_run_controls")
 
-    assert callable(module._pipeline_steps.step_summary)
+    assert callable(module._pipeline_stages.stage_summary)
     assert callable(module._pipeline_runtime.start_mlflow_run)
     assert callable(module._pipeline_runtime.start_tracker_run)
     assert module._logging_utils.LOG_PATH_LIMIT > 0
-    assert not hasattr(module, "_step_summary")
+    assert not hasattr(module, "_stage_summary")
     assert not hasattr(module, "LOG_PATH_LIMIT")

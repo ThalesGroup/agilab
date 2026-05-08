@@ -87,15 +87,15 @@ Research experimentation evidence
 AGILab's research experimentation value is strongest when teams need to turn
 interactive exploration into a replayable, inspectable workflow:
 
-- ``lab_steps.toml`` records experiment stages, prompts, selected model, runtime,
+- ``lab_stages.toml`` records experiment stages, prompts, selected model, runtime,
   and execution metadata
 - supervisor notebook export keeps the saved pipeline runnable outside the UI
 - the notebook-to-pipeline import report reads a checked-in ``.ipynb`` and
   preserves markdown context, code cells, import hints, execution-count
-  metadata, artifact references, and richer ``lab_steps.toml`` preview output
+  metadata, artifact references, and richer ``lab_stages.toml`` preview output
   as ``not_executed_import`` pipeline-stage evidence
-- the notebook round-trip report validates ``lab_steps.toml -> supervisor
-  notebook -> import -> lab_steps preview`` so saved stage fields survive the
+- the notebook round-trip report validates ``lab_stages.toml -> supervisor
+  notebook -> import -> lab_stages preview`` so saved stage fields survive the
   non-executing bridge in both directions
 - the notebook union-environment report allows a ``single-kernel union
   notebook`` only for compatible stages and keeps mixed-runtime pipelines on the
@@ -158,14 +158,14 @@ from a working idea to an app-shaped prototype without losing the experiment
 history:
 
 - app templates and isolated app/page environments keep prototypes reproducible
-- ``lab_steps.toml`` and supervisor notebook export preserve the working
+- ``lab_stages.toml`` and supervisor notebook export preserve the working
   sequence
 - the notebook-to-pipeline import contract proves the reverse direction by
   turning code cells into pipeline-stage metadata and markdown cells into linked
   context blocks, then feeds the existing ``WORKFLOW`` upload path without
   running the notebook
 - the notebook round-trip report checks that supervisor export metadata can be
-  re-imported into ``lab_steps.toml`` preview fields without losing D/Q/M/C/R
+  re-imported into ``lab_stages.toml`` preview fields without losing D/Q/M/C/R
   stage values
 - the notebook union-environment report makes the single-kernel shortcut
   explicit and prevents mixed environments from being flattened accidentally
@@ -318,7 +318,7 @@ between research experiments and engineering validation:
   close the first reverse-notebook bridge while preserving the non-execution
   boundary
 - a notebook round-trip report that validates the first bidirectional
-  ``lab_steps.toml`` and supervisor-notebook preservation path
+  ``lab_stages.toml`` and supervisor-notebook preservation path
 - a notebook union-environment report that makes compatible single-kernel
   notebooks possible without weakening the supervisor fallback boundary
 - a data connector facility report that starts the practical external-data

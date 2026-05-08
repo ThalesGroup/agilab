@@ -50,30 +50,30 @@ _pipeline_runtime_module = import_agilab_module(
 )
 _is_valid_runtime_root = _pipeline_runtime_module.is_valid_runtime_root
 
-_pipeline_steps_module = import_agilab_module(
-    "agilab.pipeline_steps",
+_pipeline_stages_module = import_agilab_module(
+    "agilab.pipeline_stages",
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "pipeline_steps.py",
-    fallback_name="agilab_pipeline_steps_fallback",
+    fallback_path=Path(__file__).resolve().parent / "pipeline_stages.py",
+    fallback_name="agilab_pipeline_stages_fallback",
 )
-_bump_history_revision = _pipeline_steps_module.bump_history_revision
-_ensure_primary_module_key = _pipeline_steps_module.ensure_primary_module_key
-_prepare_lab_steps_for_write = _pipeline_steps_module.prepare_lab_steps_for_write
-_is_displayable_step = _pipeline_steps_module.is_displayable_step
-_looks_like_step = _pipeline_steps_module.looks_like_step
-_module_keys = _pipeline_steps_module.module_keys
-normalize_runtime_path = _pipeline_steps_module.normalize_runtime_path
-_persist_sequence_preferences = _pipeline_steps_module.persist_sequence_preferences
-_prune_invalid_entries = _pipeline_steps_module.prune_invalid_entries
+_bump_history_revision = _pipeline_stages_module.bump_history_revision
+_ensure_primary_module_key = _pipeline_stages_module.ensure_primary_module_key
+_prepare_lab_stages_for_write = _pipeline_stages_module.prepare_lab_stages_for_write
+_is_displayable_stage = _pipeline_stages_module.is_displayable_stage
+_looks_like_stage = _pipeline_stages_module.looks_like_stage
+_module_keys = _pipeline_stages_module.module_keys
+normalize_runtime_path = _pipeline_stages_module.normalize_runtime_path
+_persist_sequence_preferences = _pipeline_stages_module.persist_sequence_preferences
+_prune_invalid_entries = _pipeline_stages_module.prune_invalid_entries
 
-_pipeline_step_templates_module = import_agilab_module(
-    "agilab.pipeline_step_templates",
+_pipeline_stage_templates_module = import_agilab_module(
+    "agilab.pipeline_stage_templates",
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "pipeline_step_templates.py",
-    fallback_name="agilab_pipeline_step_templates_fallback",
+    fallback_path=Path(__file__).resolve().parent / "pipeline_stage_templates.py",
+    fallback_name="agilab_pipeline_stage_templates_fallback",
 )
-PIPELINE_STEP_TEMPLATE_ID_KEY = _pipeline_step_templates_module.PIPELINE_STEP_TEMPLATE_ID_KEY
-PIPELINE_STEP_TEMPLATE_VERSION_KEY = _pipeline_step_templates_module.PIPELINE_STEP_TEMPLATE_VERSION_KEY
+PIPELINE_STAGE_TEMPLATE_ID_KEY = _pipeline_stage_templates_module.PIPELINE_STAGE_TEMPLATE_ID_KEY
+PIPELINE_STAGE_TEMPLATE_VERSION_KEY = _pipeline_stage_templates_module.PIPELINE_STAGE_TEMPLATE_VERSION_KEY
 
 _notebook_export_support_module = import_agilab_module(
     "agilab.notebook_export_support",
@@ -92,7 +92,7 @@ _notebook_pipeline_import_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parent / "notebook_pipeline_import.py",
     fallback_name="agilab_notebook_pipeline_import_fallback",
 )
-build_lab_steps_preview = _notebook_pipeline_import_module.build_lab_steps_preview
+build_lab_stages_preview = _notebook_pipeline_import_module.build_lab_stages_preview
 build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook_import_contract
 build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
@@ -160,7 +160,7 @@ def _emit_notebook_preflight_result(
     error_count = int(risk_counts.get("error", 0) or 0)
     message = (
         f"Notebook import preflight: {status}; "
-        f"{int(summary.get('pipeline_step_count', 0) or 0)} stage(s), "
+        f"{int(summary.get('pipeline_stage_count', 0) or 0)} stage(s), "
         f"{int(summary.get('input_count', 0) or 0)} input(s), "
         f"{int(summary.get('output_count', 0) or 0)} output(s). "
         f"Contract: {contract_path.name}"
@@ -181,14 +181,14 @@ def _notebook_import_preview_key(index_page: str) -> str:
 
 def _notebook_import_module_name(module_dir: Path) -> str:
     module = Path(module_dir).name
-    return module or "lab_steps"
+    return module or "lab_stages"
 
 
 def build_notebook_import_preview(
     uploaded_file: Any,
     module_dir: Path,
 ) -> Dict[str, Any] | None:
-    """Build notebook import preview data without writing lab_steps.toml."""
+    """Build notebook import preview data without writing lab_stages.toml."""
     if not uploaded_file:
         _emit_streamlit_message("error", "No uploaded notebook provided.")
         return None
@@ -212,7 +212,7 @@ def build_notebook_import_preview(
         source_notebook=source_name,
     )
     preflight = build_notebook_import_preflight(notebook_import)
-    toml_content = build_lab_steps_preview(notebook_import, module_name=module)
+    toml_content = build_lab_stages_preview(notebook_import, module_name=module)
     contract = build_notebook_import_contract(
         notebook_import,
         preflight=preflight,
@@ -221,7 +221,7 @@ def build_notebook_import_preview(
     return {
         "source_name": source_name,
         "module": module,
-        "cell_count": int(notebook_import.get("summary", {}).get("pipeline_step_count", 0) or 0),
+        "cell_count": int(notebook_import.get("summary", {}).get("pipeline_stage_count", 0) or 0),
         "toml_content": toml_content,
         "notebook_import": notebook_import,
         "preflight": preflight,
@@ -232,20 +232,20 @@ def build_notebook_import_preview(
 def write_notebook_import_preview(
     preview: Dict[str, Any],
     module_dir: Path,
-    steps_file: Path,
+    stages_file: Path,
 ) -> int:
     """Persist a previously built notebook import preview."""
     module_dir = Path(module_dir)
-    steps_file = Path(steps_file)
+    stages_file = Path(stages_file)
     toml_content = preview.get("toml_content", {})
     preflight = preview.get("preflight", {})
     notebook_import = preview.get("notebook_import", {})
     module = str(preview.get("module", "") or _notebook_import_module_name(module_dir))
     cell_count = int(preview.get("cell_count", 0) or 0)
 
-    steps_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(steps_file, "wb") as toml_file:
-        tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(toml_content)), toml_file)
+    stages_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(stages_file, "wb") as toml_file:
+        tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(toml_content)), toml_file)
 
     contract_path = module_dir / "notebook_import_contract.json"
     pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
@@ -289,53 +289,53 @@ def is_query_valid(query: Any) -> bool:
     return isinstance(query, list) and bool(query[2])
 
 
-def get_steps_list(module: Path, steps_file: Path) -> List[Any]:
+def get_stages_list(module: Path, stages_file: Path) -> List[Any]:
     """Get the list of stages for a module from a TOML file."""
     module_path = Path(module)
     try:
-        with open(steps_file, "rb") as f:
-            steps = tomllib.load(f)
+        with open(stages_file, "rb") as f:
+            stages = tomllib.load(f)
     except (FileNotFoundError, tomllib.TOMLDecodeError):
         return []
 
     for key in _module_keys(module_path):
-        entries = steps.get(key)
+        entries = stages.get(key)
         if isinstance(entries, list):
             return entries
     return []
 
 
-def get_steps_dict(module: Path, steps_file: Path) -> Dict[str, Any]:
+def get_stages_dict(module: Path, stages_file: Path) -> Dict[str, Any]:
     """Get the stages dictionary from a TOML file."""
     module_path = Path(module)
     try:
-        with open(steps_file, "rb") as f:
-            steps = tomllib.load(f)
+        with open(stages_file, "rb") as f:
+            stages = tomllib.load(f)
     except (FileNotFoundError, tomllib.TOMLDecodeError):
-        steps = {}
+        stages = {}
     else:
         keys = _module_keys(module_path)
         primary = keys[0]
         for alt_key in keys[1:]:
             if alt_key != primary:
-                steps.pop(alt_key, None)
-    return steps
+                stages.pop(alt_key, None)
+    return stages
 
 
-def remove_step(
+def remove_stage(
     module: Path,
-    step: str,
-    steps_file: Path,
+    stage: str,
+    stages_file: Path,
     index_page: str,
 ) -> int:
-    """Remove a stage from the lab_steps compatibility file."""
+    """Remove a stage from the lab_stages contract."""
     module_path = Path(module)
-    steps = get_steps_dict(module_path, steps_file)
+    stages = get_stages_dict(module_path, stages_file)
     module_keys = _module_keys(module_path)
-    module_key = next((key for key in module_keys if key in steps), module_keys[0])
-    steps.setdefault(module_key, [])
-    nsteps = len(steps.get(module_key, []))
-    index_step = int(step)
+    module_key = next((key for key in module_keys if key in stages), module_keys[0])
+    stages.setdefault(module_key, [])
+    nstages = len(stages.get(module_key, []))
+    index_stage = int(stage)
     details_key = f"{index_page}__details"
     details_store = st.session_state.setdefault(details_key, {})
     venv_key = f"{index_page}__venv_map"
@@ -343,71 +343,71 @@ def remove_step(
     engine_key = f"{index_page}__engine_map"
     engine_store = st.session_state.setdefault(engine_key, {})
     sequence_key = f"{index_page}__run_sequence"
-    sequence_store = st.session_state.setdefault(sequence_key, list(range(nsteps)))
-    if 0 <= index_step < nsteps:
-        del steps[module_key][index_step]
-        nsteps -= 1
-        st.session_state[index_page][0] = max(0, nsteps - 1)
-        st.session_state[index_page][-1] = nsteps
+    sequence_store = st.session_state.setdefault(sequence_key, list(range(nstages)))
+    if 0 <= index_stage < nstages:
+        del stages[module_key][index_stage]
+        nstages -= 1
+        st.session_state[index_page][0] = max(0, nstages - 1)
+        st.session_state[index_page][-1] = nstages
         shifted: Dict[int, str] = {}
         vshifted: Dict[int, str] = {}
         eshifted: Dict[int, str] = {}
         for idx, text in details_store.items():
-            if idx < index_step:
+            if idx < index_stage:
                 shifted[idx] = text
-            elif idx > index_step:
+            elif idx > index_stage:
                 shifted[idx - 1] = text
         st.session_state[details_key] = shifted
         for idx, path in venv_store.items():
-            if idx < index_step:
+            if idx < index_stage:
                 vshifted[idx] = path
-            elif idx > index_step:
+            elif idx > index_stage:
                 vshifted[idx - 1] = path
         st.session_state[venv_key] = vshifted
         for idx, engine in engine_store.items():
-            if idx < index_step:
+            if idx < index_stage:
                 eshifted[idx] = engine
-            elif idx > index_step:
+            elif idx > index_stage:
                 eshifted[idx - 1] = engine
         st.session_state[engine_key] = eshifted
         new_sequence: List[int] = []
         for idx in sequence_store:
-            if idx == index_step:
+            if idx == index_stage:
                 continue
-            new_idx = idx - 1 if idx > index_step else idx
-            if 0 <= new_idx < nsteps and new_idx not in new_sequence:
+            new_idx = idx - 1 if idx > index_stage else idx
+            if 0 <= new_idx < nstages and new_idx not in new_sequence:
                 new_sequence.append(new_idx)
-        if nsteps > 0 and not new_sequence:
-            new_sequence = list(range(nsteps))
+        if nstages > 0 and not new_sequence:
+            new_sequence = list(range(nstages))
         st.session_state[sequence_key] = new_sequence
     else:
         st.session_state[index_page][0] = 0
         st.session_state[venv_key] = venv_store
         st.session_state[engine_key] = engine_store
-        st.session_state[sequence_key] = [idx for idx in sequence_store if idx < nsteps]
+        st.session_state[sequence_key] = [idx for idx in sequence_store if idx < nstages]
 
-    steps[module_key] = _prune_invalid_entries(steps[module_key])
-    nsteps = len(steps[module_key])
-    st.session_state[index_page][-1] = nsteps
+    stages[module_key] = _prune_invalid_entries(stages[module_key])
+    nstages = len(stages[module_key])
+    st.session_state[index_page][-1] = nstages
     current_sequence = st.session_state.get(sequence_key, [])
-    _persist_sequence_preferences(module_path, steps_file, current_sequence)
+    _persist_sequence_preferences(module_path, stages_file, current_sequence)
 
     try:
-        serializable_steps = convert_paths_to_strings(_prepare_lab_steps_for_write(steps))
-        with open(steps_file, "wb") as f:
-            tomli_w.dump(serializable_steps, f)
+        serializable_stages = convert_paths_to_strings(_prepare_lab_stages_for_write(stages))
+        with open(stages_file, "wb") as f:
+            tomli_w.dump(serializable_stages, f)
     except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save stage contract: {e}")
         logger.error(
-            "Error writing TOML in remove_step: %s",
+            "Error writing TOML in remove_stage: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
         )
 
     _bump_history_revision()
-    return nsteps
+    return nstages
 
 
-def _normalize_pipeline_step_entry(raw_entry: Any) -> Dict[str, Any] | None:
+def _normalize_pipeline_stage_entry(raw_entry: Any) -> Dict[str, Any] | None:
     """Normalize core editor fields while preserving versioned stage metadata."""
     if not isinstance(raw_entry, dict):
         return None
@@ -420,43 +420,43 @@ def _normalize_pipeline_step_entry(raw_entry: Any) -> Dict[str, Any] | None:
     normalized["E"] = normalize_runtime_path(raw_entry.get("E", "")) if raw_entry.get("E") else ""
     normalized["R"] = str(raw_entry.get("R", "") or "")
 
-    for key in (PIPELINE_STEP_TEMPLATE_ID_KEY, PIPELINE_STEP_TEMPLATE_VERSION_KEY):
+    for key in (PIPELINE_STAGE_TEMPLATE_ID_KEY, PIPELINE_STAGE_TEMPLATE_VERSION_KEY):
         if key in raw_entry:
             normalized[key] = raw_entry[key]
     return normalized
 
 
-def _write_steps_for_module(
+def _write_stages_for_module(
     module: Path,
-    steps_file: Path,
-    module_steps: List[Dict[str, Any]],
+    stages_file: Path,
+    module_stages: List[Dict[str, Any]],
 ) -> int:
-    """Overwrite the module stage list in ``steps_file`` and refresh notebook export."""
+    """Overwrite the module stage list in ``stages_file`` and refresh notebook export."""
     module_path = Path(module)
-    steps = get_steps_dict(module_path, steps_file)
+    stages = get_stages_dict(module_path, stages_file)
     module_key = _module_keys(module_path)[0]
 
-    normalized_steps: List[Dict[str, Any]] = []
-    for raw_entry in module_steps:
-        normalized_entry = _normalize_pipeline_step_entry(raw_entry)
+    normalized_stages: List[Dict[str, Any]] = []
+    for raw_entry in module_stages:
+        normalized_entry = _normalize_pipeline_stage_entry(raw_entry)
         if normalized_entry is not None:
-            normalized_steps.append(normalized_entry)
+            normalized_stages.append(normalized_entry)
 
-    steps[module_key] = _prune_invalid_entries(normalized_steps)
-    serializable_steps = convert_paths_to_strings(_prepare_lab_steps_for_write(steps))
-    with open(steps_file, "wb") as f:
-        tomli_w.dump(serializable_steps, f)
-    toml_to_notebook(steps, steps_file)
-    return len(steps[module_key])
+    stages[module_key] = _prune_invalid_entries(normalized_stages)
+    serializable_stages = convert_paths_to_strings(_prepare_lab_stages_for_write(stages))
+    with open(stages_file, "wb") as f:
+        tomli_w.dump(serializable_stages, f)
+    toml_to_notebook(stages, stages_file)
+    return len(stages[module_key])
 
 
-def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _capture_pipeline_snapshot(index_page: str, stages: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Capture the current pipeline state so delete actions can be undone."""
-    steps_snapshot: List[Dict[str, Any]] = []
-    for raw_entry in steps:
-        normalized_entry = _normalize_pipeline_step_entry(raw_entry)
+    stages_snapshot: List[Dict[str, Any]] = []
+    for raw_entry in stages:
+        normalized_entry = _normalize_pipeline_stage_entry(raw_entry)
         if normalized_entry is not None:
-            steps_snapshot.append(normalized_entry)
+            stages_snapshot.append(normalized_entry)
 
     details_key = f"{index_page}__details"
     venv_key = f"{index_page}__venv_map"
@@ -469,7 +469,7 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
             idx = int(raw_idx)
         except (TypeError, ValueError):
             continue
-        if 0 <= idx < len(steps_snapshot):
+        if 0 <= idx < len(stages_snapshot):
             details_snapshot[idx] = str(text or "")
 
     venv_snapshot: Dict[int, str] = {}
@@ -478,7 +478,7 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
             idx = int(raw_idx)
         except (TypeError, ValueError):
             continue
-        if 0 <= idx < len(steps_snapshot):
+        if 0 <= idx < len(stages_snapshot):
             normalized = normalize_runtime_path(raw_path)
             if normalized:
                 venv_snapshot[idx] = normalized
@@ -489,34 +489,34 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
             idx = int(raw_idx)
         except (TypeError, ValueError):
             continue
-        if 0 <= idx < len(steps_snapshot):
+        if 0 <= idx < len(stages_snapshot):
             engine_snapshot[idx] = str(engine or "")
 
-    raw_sequence = st.session_state.get(sequence_key, list(range(len(steps_snapshot))))
+    raw_sequence = st.session_state.get(sequence_key, list(range(len(stages_snapshot))))
     sequence_snapshot: List[int] = []
     for raw_idx in raw_sequence:
         try:
             idx = int(raw_idx)
         except (TypeError, ValueError):
             continue
-        if 0 <= idx < len(steps_snapshot) and idx not in sequence_snapshot:
+        if 0 <= idx < len(stages_snapshot) and idx not in sequence_snapshot:
             sequence_snapshot.append(idx)
-    if len(steps_snapshot) > 0 and not sequence_snapshot:
-        sequence_snapshot = list(range(len(steps_snapshot)))
+    if len(stages_snapshot) > 0 and not sequence_snapshot:
+        sequence_snapshot = list(range(len(stages_snapshot)))
 
     page_state = st.session_state.get(index_page, [0])
     try:
-        active_step = int(page_state[0]) if isinstance(page_state, list) and page_state else 0
+        active_stage = int(page_state[0]) if isinstance(page_state, list) and page_state else 0
     except (TypeError, ValueError):
-        active_step = 0
+        active_stage = 0
 
     return {
-        "steps": steps_snapshot,
+        "stages": stages_snapshot,
         "details": details_snapshot,
         "venv_map": venv_snapshot,
         "engine_map": engine_snapshot,
         "sequence": sequence_snapshot,
-        "active_step": active_step,
+        "active_stage": active_stage,
         "selected_venv": normalize_runtime_path(st.session_state.get("lab_selected_venv", "")),
         "selected_engine": str(st.session_state.get("lab_selected_engine", "") or ""),
     }
@@ -526,13 +526,13 @@ def _reset_pipeline_editor_state(index_page: str) -> None:
     """Drop per-stage widget keys so restored snapshots reseed editor state from disk."""
     safe_prefix = index_page.replace("/", "_")
     key_prefixes = (
-        f"{safe_prefix}_q_step_",
-        f"{safe_prefix}_code_step_",
+        f"{safe_prefix}_q_stage_",
+        f"{safe_prefix}_code_stage_",
         f"{safe_prefix}_venv_",
         f"{safe_prefix}_editor_rev_",
         f"{safe_prefix}_pending_q_",
         f"{safe_prefix}_pending_c_",
-        f"{safe_prefix}_step_init_",
+        f"{safe_prefix}_stage_init_",
         f"{safe_prefix}_editor_resync_sig_",
         f"{safe_prefix}_ignore_blank_editor_",
         f"{safe_prefix}_undo_",
@@ -545,17 +545,17 @@ def _reset_pipeline_editor_state(index_page: str) -> None:
 
 def _restore_pipeline_snapshot(
     module_path: Path,
-    steps_file: Path,
+    stages_file: Path,
     index_page: str,
     sequence_widget_key: str,
     snapshot: Dict[str, Any],
 ) -> Optional[str]:
     """Restore stages and UI state from a previously captured snapshot."""
     try:
-        steps_snapshot = snapshot.get("steps", [])
-        if not isinstance(steps_snapshot, list):
-            steps_snapshot = []
-        nsteps = _write_steps_for_module(module_path, steps_file, steps_snapshot)
+        stages_snapshot = snapshot.get("stages", [])
+        if not isinstance(stages_snapshot, list):
+            stages_snapshot = []
+        nstages = _write_stages_for_module(module_path, stages_file, stages_snapshot)
 
         details_key = f"{index_page}__details"
         venv_key = f"{index_page}__venv_map"
@@ -568,7 +568,7 @@ def _restore_pipeline_snapshot(
                 idx = int(raw_idx)
             except (TypeError, ValueError):
                 continue
-            if 0 <= idx < nsteps:
+            if 0 <= idx < nstages:
                 details_map[idx] = str(text or "")
         st.session_state[details_key] = details_map
 
@@ -578,7 +578,7 @@ def _restore_pipeline_snapshot(
                 idx = int(raw_idx)
             except (TypeError, ValueError):
                 continue
-            if 0 <= idx < nsteps:
+            if 0 <= idx < nstages:
                 normalized = normalize_runtime_path(raw_path)
                 if normalized:
                     venv_map[idx] = normalized
@@ -590,7 +590,7 @@ def _restore_pipeline_snapshot(
                 idx = int(raw_idx)
             except (TypeError, ValueError):
                 continue
-            if 0 <= idx < nsteps:
+            if 0 <= idx < nstages:
                 engine_map[idx] = str(engine or "")
         st.session_state[engine_key] = engine_map
 
@@ -602,12 +602,12 @@ def _restore_pipeline_snapshot(
                     idx = int(raw_idx)
                 except (TypeError, ValueError):
                     continue
-                if 0 <= idx < nsteps and idx not in restored_sequence:
+                if 0 <= idx < nstages and idx not in restored_sequence:
                     restored_sequence.append(idx)
-        if nsteps > 0 and not restored_sequence:
-            restored_sequence = list(range(nsteps))
+        if nstages > 0 and not restored_sequence:
+            restored_sequence = list(range(nstages))
         st.session_state[sequence_key] = restored_sequence
-        _persist_sequence_preferences(module_path, steps_file, restored_sequence)
+        _persist_sequence_preferences(module_path, stages_file, restored_sequence)
         st.session_state.pop(sequence_widget_key, None)
         st.session_state.pop(f"{index_page}__clear_q", None)
         st.session_state.pop(f"{index_page}__force_blank_q", None)
@@ -620,32 +620,32 @@ def _restore_pipeline_snapshot(
             page_state = [0, "", "", "", "", "", 0]
             st.session_state[index_page] = page_state
 
-        if nsteps > 0:
+        if nstages > 0:
             try:
-                active_step = int(snapshot.get("active_step", 0))
+                active_stage = int(snapshot.get("active_stage", 0))
             except (TypeError, ValueError):
-                active_step = 0
-            active_step = max(0, min(active_step, nsteps - 1))
-            active_entry = steps_snapshot[active_step] if active_step < len(steps_snapshot) else {}
+                active_stage = 0
+            active_stage = max(0, min(active_stage, nstages - 1))
+            active_entry = stages_snapshot[active_stage] if active_stage < len(stages_snapshot) else {}
             if not isinstance(active_entry, dict):
                 active_entry = {}
-            page_state[0] = active_step
+            page_state[0] = active_stage
             page_state[1:6] = [
                 active_entry.get("D", ""),
                 active_entry.get("Q", ""),
                 active_entry.get("M", ""),
                 active_entry.get("C", ""),
-                details_map.get(active_step, ""),
+                details_map.get(active_stage, ""),
             ]
             restored_selected_venv = normalize_runtime_path(snapshot.get("selected_venv", ""))
             if not restored_selected_venv:
-                restored_selected_venv = normalize_runtime_path(venv_map.get(active_step, ""))
+                restored_selected_venv = normalize_runtime_path(venv_map.get(active_stage, ""))
             st.session_state["lab_selected_venv"] = (
                 restored_selected_venv if _is_valid_runtime_root(restored_selected_venv) else ""
             )
             restored_selected_engine = str(snapshot.get("selected_engine", "") or "")
             if not restored_selected_engine:
-                restored_selected_engine = engine_map.get(active_step, "") or (
+                restored_selected_engine = engine_map.get(active_stage, "") or (
                     "agi.run" if st.session_state.get("lab_selected_venv") else "runpy"
                 )
             st.session_state["lab_selected_engine"] = restored_selected_engine
@@ -654,24 +654,24 @@ def _restore_pipeline_snapshot(
             st.session_state["lab_selected_venv"] = ""
             st.session_state["lab_selected_engine"] = "runpy"
 
-        page_state[-1] = nsteps
+        page_state[-1] = nstages
         _bump_history_revision()
         return None
     except (AttributeError, IndexError, KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.error(
             "Undo restore failed for %s: %s",
-            bound_log_value(steps_file, LOG_PATH_LIMIT),
+            bound_log_value(stages_file, LOG_PATH_LIMIT),
             bound_log_value(exc, LOG_DETAIL_LIMIT),
         )
         return str(exc)
 
 
 def resolve_pycharm_notebook_path(
-    steps_file: Path,
+    stages_file: Path,
     export_context: Any | None = None,
 ) -> Path | None:
     """Return the repo-local PyCharm notebook path when a source checkout is available."""
-    mirror_path = str(pycharm_notebook_mirror_path(steps_file, export_context=export_context) or "").strip()
+    mirror_path = str(pycharm_notebook_mirror_path(stages_file, export_context=export_context) or "").strip()
     if not mirror_path:
         return None
     try:
@@ -729,7 +729,7 @@ def toml_to_notebook(
 def save_query(
     module: Path,
     query: List[Any],
-    steps_file: Path,
+    stages_file: Path,
     index_page: str,
 ) -> None:
     """Save the query to the stage contract if valid."""
@@ -738,12 +738,12 @@ def save_query(
         venv_map = st.session_state.get(f"{index_page}__venv_map", {})
         engine_map = st.session_state.get(f"{index_page}__engine_map", {})
         # Persist only D, Q, M, and C
-        query[-1], _ = save_step(
+        query[-1], _ = save_stage(
             module_path,
             query[1:5],
             query[0],
             query[-1],
-            steps_file,
+            stages_file,
             venv_map=venv_map,
             engine_map=engine_map,
         )
@@ -751,56 +751,56 @@ def save_query(
     export_df()
 
 
-def save_step(
+def save_stage(
     module: Path,
     query: List[Any],
-    current_step: int,
-    nsteps: int,
-    steps_file: Path,
+    current_stage: int,
+    nstages: int,
+    stages_file: Path,
     venv_map: Optional[Dict[int, str]] = None,
     engine_map: Optional[Dict[int, str]] = None,
     extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Tuple[int, Dict[str, Any]]:
-    """Save a stage in the lab_steps compatibility file."""
+    """Save a stage in the lab_stages contract."""
     st.session_state["_experiment_last_save_skipped"] = False
     module_path = Path(module)
     # Normalize types
     try:
-        nsteps = int(nsteps)
+        nstages = int(nstages)
     except (TypeError, ValueError):
-        nsteps = 0
+        nstages = 0
     try:
-        index_step = int(current_step)
+        index_stage = int(current_stage)
     except (TypeError, ValueError):
-        index_step = 0
-    if steps_file.exists():
-        with open(steps_file, "rb") as f:
-            steps = tomllib.load(f)
+        index_stage = 0
+    if stages_file.exists():
+        with open(stages_file, "rb") as f:
+            stages = tomllib.load(f)
     else:
-        os.makedirs(steps_file.parent, exist_ok=True)
-        steps = {}
+        os.makedirs(stages_file.parent, exist_ok=True)
+        stages = {}
 
     module_keys = _module_keys(module_path)
     module_str = module_keys[0]
-    steps.setdefault(module_str, [])
+    stages.setdefault(module_str, [])
     for alt_key in module_keys[1:]:
-        if alt_key in steps:
-            alt_entries = steps.pop(alt_key)
-            if not steps[module_str] or len(alt_entries) > len(steps[module_str]):
-                steps[module_str] = alt_entries
+        if alt_key in stages:
+            alt_entries = stages.pop(alt_key)
+            if not stages[module_str] or len(alt_entries) > len(stages[module_str]):
+                stages[module_str] = alt_entries
 
     # Capture any existing entry so we can preserve values when maps aren't provided
     existing_entry: Dict[str, Any] = {}
-    if 0 <= index_step < len(steps[module_str]):
-        current_entry = steps[module_str][index_step]
+    if 0 <= index_stage < len(stages[module_str]):
+        current_entry = stages[module_str][index_stage]
         if isinstance(current_entry, dict):
             existing_entry = current_entry
 
     # Persist D, Q, M, and C (+ E/R when provided). Preserve existing metadata
     # fields (for locked snippets and future extension keys).
     # - [D, Q, M, C]
-    # - [step, D, Q, M, C, ...]
-    if len(query) >= 5 and _looks_like_step(query[0]):
+    # - [stage, D, Q, M, C, ...]
+    if len(query) >= 5 and _looks_like_stage(query[0]):
         d_idx, q_idx, m_idx, c_idx = 1, 2, 3, 4
     else:
         d_idx, q_idx, m_idx, c_idx = 0, 1, 2, 3
@@ -822,7 +822,7 @@ def save_step(
         pass
     if venv_map is not None:
         try:
-            entry["E"] = normalize_runtime_path(venv_map.get(index_step, ""))
+            entry["E"] = normalize_runtime_path(venv_map.get(index_stage, ""))
         except (AttributeError, RuntimeError, TypeError, ValueError):
             entry["E"] = ""
     elif "E" in existing_entry:
@@ -830,7 +830,7 @@ def save_step(
 
     if engine_map is not None:
         try:
-            entry["R"] = str(engine_map.get(index_step, "") or "")
+            entry["R"] = str(engine_map.get(index_stage, "") or "")
         except (AttributeError, RuntimeError, TypeError, ValueError):
             entry["R"] = ""
     elif "R" in existing_entry:
@@ -847,62 +847,62 @@ def save_step(
             else:
                 entry[key] = value
 
-    nsteps_saved = len(steps[module_str])
-    nsteps = max(int(nsteps), nsteps_saved)
+    nstages_saved = len(stages[module_str])
+    nstages = max(int(nstages), nstages_saved)
 
-    if index_step < nsteps_saved:
-        steps[module_str][index_step] = entry
+    if index_stage < nstages_saved:
+        stages[module_str][index_stage] = entry
     else:
-        steps[module_str].append(entry)
+        stages[module_str].append(entry)
 
-    steps[module_str] = _prune_invalid_entries(steps[module_str], keep_index=index_step)
-    nsteps = len(steps[module_str])
+    stages[module_str] = _prune_invalid_entries(stages[module_str], keep_index=index_stage)
+    nstages = len(stages[module_str])
 
     try:
-        serializable_steps = convert_paths_to_strings(_prepare_lab_steps_for_write(steps))
-        with open(steps_file, "wb") as f:
-            tomli_w.dump(serializable_steps, f)
+        serializable_stages = convert_paths_to_strings(_prepare_lab_stages_for_write(stages))
+        with open(stages_file, "wb") as f:
+            tomli_w.dump(serializable_stages, f)
     except (OSError, TypeError, ValueError) as e:
         st.error(f"Failed to save stage contract: {e}")
         logger.error(
-            "Error writing TOML in save_step: %s",
+            "Error writing TOML in save_stage: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
         )
         st.session_state["_experiment_last_save_skipped"] = True
-        return nsteps, entry
+        return nstages, entry
 
-    toml_to_notebook(steps, steps_file)
-    return nsteps, entry
+    toml_to_notebook(stages, stages_file)
+    return nstages, entry
 
 
-def _force_persist_step(
+def _force_persist_stage(
     module_path: Path,
-    steps_file: Path,
-    step_idx: int,
+    stages_file: Path,
+    stage_idx: int,
     entry: Dict[str, Any],
 ) -> None:
-    """Ensure the given entry is written to steps_file at step_idx."""
+    """Ensure the given entry is written to stages_file at stage_idx."""
     try:
         module_key = _module_keys(module_path)[0]
-        steps: Dict[str, Any] = {}
-        if steps_file.exists():
-            with open(steps_file, "rb") as f:
-                steps = tomllib.load(f)
-        steps.setdefault(module_key, [])
-        while len(steps[module_key]) <= step_idx:
-            steps[module_key].append({})
-        current = steps[module_key][step_idx]
+        stages: Dict[str, Any] = {}
+        if stages_file.exists():
+            with open(stages_file, "rb") as f:
+                stages = tomllib.load(f)
+        stages.setdefault(module_key, [])
+        while len(stages[module_key]) <= stage_idx:
+            stages[module_key].append({})
+        current = stages[module_key][stage_idx]
         merged = dict(current) if isinstance(current, dict) else {}
         merged.update(convert_paths_to_strings(entry))
-        steps[module_key][step_idx] = merged
-        steps_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(steps_file, "wb") as f:
-            tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(steps)), f)
+        stages[module_key][stage_idx] = merged
+        stages_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(stages_file, "wb") as f:
+            tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(stages)), f)
     except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
         logger.error(
             "Force persist failed for stage %s -> %s: %s",
-            step_idx,
-            bound_log_value(steps_file, LOG_PATH_LIMIT),
+            stage_idx,
+            bound_log_value(stages_file, LOG_PATH_LIMIT),
             bound_log_value(exc, LOG_DETAIL_LIMIT),
         )
 
@@ -916,8 +916,8 @@ def notebook_to_toml(
     if preview is None:
         return 0
     try:
-        steps_file = Path(module_dir) / toml_file_name
-        return write_notebook_import_preview(preview, module_dir, steps_file)
+        stages_file = Path(module_dir) / toml_file_name
+        return write_notebook_import_preview(preview, module_dir, stages_file)
     except (OSError, TypeError, ValueError) as e:
         _emit_streamlit_message("error", f"Failed to save TOML file: {e}")
         logger.error(
@@ -954,7 +954,7 @@ def on_preview_notebook_import(
         "info",
         (
             "Notebook import preview ready: "
-            f"{int(summary.get('pipeline_step_count', 0) or 0)} stage(s), "
+            f"{int(summary.get('pipeline_stage_count', 0) or 0)} stage(s), "
             f"{int(summary.get('input_count', 0) or 0)} input(s), "
             f"{int(summary.get('output_count', 0) or 0)} output(s)."
         ),
@@ -963,7 +963,7 @@ def on_preview_notebook_import(
 
 def confirm_notebook_import_preview(
     module_dir: Path,
-    steps_file: Path,
+    stages_file: Path,
     index_page: str,
 ) -> int:
     """Persist the current notebook import preview and update editor state."""
@@ -973,7 +973,7 @@ def confirm_notebook_import_preview(
         _emit_streamlit_message("error", "No notebook import preview is available.")
         return 0
     try:
-        cell_count = write_notebook_import_preview(preview, module_dir, steps_file)
+        cell_count = write_notebook_import_preview(preview, module_dir, stages_file)
     except (OSError, TypeError, ValueError) as exc:
         _emit_streamlit_message("error", f"Failed to save notebook import preview: {exc}")
         logger.error(
@@ -1001,7 +1001,7 @@ def cancel_notebook_import_preview(index_page: str) -> None:
 
 def render_notebook_import_preview(
     module_dir: Path,
-    steps_file: Path,
+    stages_file: Path,
     index_page: str,
 ) -> None:
     """Render confirm/cancel controls for the current notebook import preview."""
@@ -1016,7 +1016,7 @@ def render_notebook_import_preview(
     if callable(caption):
         caption(
             "Notebook preview: "
-            f"{int(summary.get('pipeline_step_count', 0) or 0)} stage(s), "
+            f"{int(summary.get('pipeline_stage_count', 0) or 0)} stage(s), "
             f"{int(summary.get('input_count', 0) or 0)} input(s), "
             f"{int(summary.get('output_count', 0) or 0)} output(s), "
             f"{int(risk_counts.get('warning', 0) or 0)} warning(s)."
@@ -1025,36 +1025,36 @@ def render_notebook_import_preview(
     if not callable(button):
         return
     if button("Import preview", key=f"{index_page}__confirm_notebook_import"):
-        confirm_notebook_import_preview(module_dir, steps_file, index_page)
+        confirm_notebook_import_preview(module_dir, stages_file, index_page)
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)
 
 
 def refresh_notebook_export(
-    steps_file: Path,
+    stages_file: Path,
     export_context: Any | None = None,
 ) -> Path | None:
     """Rebuild the notebook export for a given stage contract and return its path."""
-    if not steps_file.exists():
+    if not stages_file.exists():
         return None
     try:
-        with open(steps_file, "rb") as f:
-            steps = tomllib.load(f)
+        with open(stages_file, "rb") as f:
+            stages = tomllib.load(f)
     except (OSError, TypeError, tomllib.TOMLDecodeError) as exc:
         _emit_streamlit_message(
             "error",
-            f"Unable to export notebook: failed to load {steps_file}: {exc}",
+            f"Unable to export notebook: failed to load {stages_file}: {exc}",
         )
-        logger.error("Unable to load stage contract %s for notebook export: %s", steps_file, exc)
+        logger.error("Unable to load stage contract %s for notebook export: %s", stages_file, exc)
         return None
-    toml_to_notebook(steps, steps_file, export_context=export_context)
-    return steps_file.with_suffix(".ipynb")
+    toml_to_notebook(stages, stages_file, export_context=export_context)
+    return stages_file.with_suffix(".ipynb")
 
 
 def on_import_notebook(
     key: str,
     module_dir: Path,
-    steps_file: Path,
+    stages_file: Path,
     index_page: str,
 ) -> None:
     """Handle notebook file import via sidebar uploader."""
@@ -1067,7 +1067,7 @@ def on_import_notebook(
 
     cell_count = notebook_to_toml(
         uploaded_file,
-        steps_file.name,
+        stages_file.name,
         module_dir,
     )
     if cell_count > 0:
@@ -1079,22 +1079,22 @@ def on_import_notebook(
         st.session_state[index_page][-1] = cell_count
     st.session_state.page_broken = True
 
-def display_history_tab(steps_file: Path, module_path: Path) -> None:
+def display_history_tab(stages_file: Path, module_path: Path) -> None:
     """Display the HISTORY tab with code editor for the stage contract."""
-    if steps_file.exists():
-        with open(steps_file, "rb") as f:
+    if stages_file.exists():
+        with open(stages_file, "rb") as f:
             raw_data = tomllib.load(f)
         cleaned: Dict[str, List[Dict[str, Any]]] = {}
         for mod, entries in raw_data.items():
             if isinstance(entries, list):
-                filtered = [entry for entry in entries if _is_displayable_step(entry)]
+                filtered = [entry for entry in entries if _is_displayable_stage(entry)]
                 if filtered:
                     cleaned[mod] = filtered
         code = json.dumps(cleaned, indent=2)
     else:
         code = "{}"
     history_rev = st.session_state.get("history_rev", 0)
-    action_onsteps = code_editor(
+    action_on_stages = code_editor(
         code,
         height=min(30, len(code)),
         theme="contrast",
@@ -1102,19 +1102,19 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
         info=get_info_bar(),
         component_props=get_css_text(),
         props={"style": {"borderRadius": "0px 0px 8px 8px"}},
-        key=f"steps_{module_path}_{history_rev}",
+        key=f"stages_{module_path}_{history_rev}",
     )
-    if action_onsteps["type"] == "save":
+    if action_on_stages["type"] == "save":
         try:
-            data = json.loads(action_onsteps["text"] or "{}")
+            data = json.loads(action_on_stages["text"] or "{}")
             cleaned: Dict[str, List[Dict[str, Any]]] = {}
             for mod, entries in data.items():
                 if isinstance(entries, list):
-                    filtered = [entry for entry in entries if _is_displayable_step(entry)]
+                    filtered = [entry for entry in entries if _is_displayable_stage(entry)]
                     if filtered:
                         cleaned[mod] = filtered
-            with open(steps_file, "wb") as f:
-                tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(cleaned)), f)
+            with open(stages_file, "wb") as f:
+                tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(cleaned)), f)
             _bump_history_revision()
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
             st.error(f"Failed to save stage contract from editor: {e}")

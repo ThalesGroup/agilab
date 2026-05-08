@@ -44,7 +44,7 @@ git ls-files 'src/agilab/apps/**' | sort
 find src/agilab/apps/builtin src/agilab/apps/templates -maxdepth 4 -type f \
   \( -name 'README.md' -o -name 'pyproject.toml' -o -name 'app_args_form.py' \
      -o -name 'app_settings.toml' -o -name 'pre_prompt.json' \
-     -o -name 'lab_steps.toml' -o -name 'pipeline_view.dot' \
+     -o -name 'lab_stages.toml' -o -name 'pipeline_view.dot' \
      -o -name 'notebook_export.toml' -o -name 'notebook_import_views.toml' \) -print | sort
 ```
 
@@ -74,7 +74,7 @@ For packaged built-in apps and templates, also require:
 - `src/app_args_form.py`, `src/app_settings.toml`, and `src/pre_prompt.json`
 - any app-declared notebook manifests such as `notebook_export.toml` or
   `notebook_import_views.toml`
-- conceptual pipeline files such as `lab_steps.toml` or `pipeline_view.dot` when
+- conceptual pipeline files such as `lab_stages.toml` or `pipeline_view.dot` when
   the app documents or UI references them
 - app-owned preview/template payloads under `dag_templates/`,
   `scenario_templates/`, `service_templates/`, or `tracking_templates/` when an

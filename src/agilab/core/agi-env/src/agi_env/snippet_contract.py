@@ -31,7 +31,7 @@ _AGI_API_TOKENS = (
     "AGI.serve(",
     "AGI.get_distrib(",
     "RunRequest(",
-    "StepRequest(",
+    "StageRequest(",
 )
 
 

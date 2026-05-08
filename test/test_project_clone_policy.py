@@ -484,7 +484,7 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
     assert result.data["source_notebook"] == "notebooks/source/Demo_Notebook.ipynb"
     assert result.data["notebook_import_cell_count"] == 1
 
-    steps = tomllib.loads((dest_root / "lab_steps.toml").read_text(encoding="utf-8"))
+    steps = tomllib.loads((dest_root / "lab_stages.toml").read_text(encoding="utf-8"))
     assert steps["notebook_demo_project"][0]["D"] == "Load data"
     assert steps["notebook_demo_project"][0]["NB_SOURCE_NOTEBOOK"] == (
         "notebooks/source/Demo_Notebook.ipynb"
@@ -525,7 +525,7 @@ def test_create_project_from_notebook_blocks_non_runnable_notebook(tmp_path: Pat
 
     assert result.status == "error"
     assert result.title == "Notebook cannot create a project yet."
-    assert "steps=0" in str(result.detail)
+    assert "stages=0" in str(result.detail)
     assert clone_calls == []
     assert not (tmp_path / "notes_only_project").exists()
 

@@ -53,7 +53,7 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
         ],
         "evidence_files": [
             "src/agilab/apps/builtin/meteo_forecast_project/pyproject.toml",
-            "src/agilab/apps/builtin/meteo_forecast_project/lab_steps.toml",
+            "src/agilab/apps/builtin/meteo_forecast_project/lab_stages.toml",
             "src/agilab/apps/builtin/meteo_forecast_project/pipeline_view.dot",
             "src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py",
             "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py",

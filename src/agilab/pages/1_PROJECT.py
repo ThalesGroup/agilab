@@ -122,7 +122,7 @@ _notebook_pipeline_import_module = import_agilab_module(
     fallback_path=Path(__file__).resolve().parents[1] / "notebook_pipeline_import.py",
     fallback_name="agilab_notebook_pipeline_import_fallback",
 )
-_build_lab_steps_preview = _notebook_pipeline_import_module.build_lab_steps_preview
+_build_lab_stages_preview = _notebook_pipeline_import_module.build_lab_stages_preview
 _build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook_import_contract
 _build_notebook_import_pipeline_view = (
     _notebook_pipeline_import_module.build_notebook_import_pipeline_view
@@ -140,7 +140,7 @@ CREATE_MODE_TEMPLATE = "Template clone"
 CREATE_MODE_NOTEBOOK = "From notebook"
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
-NOTEBOOK_STEPS_FILE = "lab_steps.toml"
+NOTEBOOK_STEPS_FILE = "lab_stages.toml"
 
 CLONE_ENV_STRATEGY_LABELS = {
     "share_source_venv": "Temporary clone (share source .venv)",
@@ -2414,8 +2414,8 @@ def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) 
     return {
         "source_name": source_name,
         "module": module,
-        "cell_count": int(notebook_import.get("summary", {}).get("pipeline_step_count", 0) or 0),
-        "toml_content": _build_lab_steps_preview(notebook_import, module_name=module),
+        "cell_count": int(notebook_import.get("summary", {}).get("pipeline_stage_count", 0) or 0),
+        "toml_content": _build_lab_stages_preview(notebook_import, module_name=module),
         "notebook_import": notebook_import,
         "preflight": preflight,
         "contract": _build_notebook_import_contract(
@@ -2429,16 +2429,16 @@ def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) 
 def _write_project_notebook_import_preview(
     preview: dict,
     module_dir: Path,
-    steps_file: Path,
+    stages_file: Path,
 ) -> int:
     module_dir = Path(module_dir)
-    steps_file = Path(steps_file)
+    stages_file = Path(stages_file)
     module = str(preview.get("module", "") or module_dir.name or "notebook_import_project")
     preflight = preview.get("preflight", {})
     notebook_import = preview.get("notebook_import", {})
 
-    steps_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(steps_file, "wb") as toml_file:
+    stages_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(stages_file, "wb") as toml_file:
         tomli_w.dump(preview.get("toml_content", {}), toml_file)
 
     contract = _build_notebook_import_contract(
@@ -2481,7 +2481,7 @@ def _notebook_import_blocking_detail(preflight) -> str:
     risk_counts = preflight.get("risk_counts", {})
     details = [
         f"status={preflight.get('status', 'unknown')}",
-        f"steps={int(summary.get('pipeline_step_count', 0) or 0)}",
+        f"stages={int(summary.get('pipeline_stage_count', 0) or 0)}",
         f"errors={int(risk_counts.get('error', 0) or 0)}",
         f"warnings={int(risk_counts.get('warning', 0) or 0)}",
     ]
@@ -2594,11 +2594,11 @@ def _create_project_from_notebook_action(
         return clone_result
 
     notebook_path = dest_root / notebook_relative_path
-    steps_file = dest_root / NOTEBOOK_STEPS_FILE
+    stages_file = dest_root / NOTEBOOK_STEPS_FILE
     try:
         notebook_path.parent.mkdir(parents=True, exist_ok=True)
         notebook_path.write_bytes(notebook_bytes)
-        cell_count = _write_project_notebook_import_preview(preview, dest_root, steps_file)
+        cell_count = _write_project_notebook_import_preview(preview, dest_root, stages_file)
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         return ActionResult.error(
             f"Project '{new_name}' was created, but notebook import failed.",
@@ -2610,7 +2610,7 @@ def _create_project_from_notebook_action(
                 "dest_root": dest_root,
                 "source_notebook": notebook_relative_path.as_posix(),
                 "notebook_path": notebook_path,
-                "steps_file": steps_file,
+                "stages_file": stages_file,
                 "preflight": preflight,
             },
         )
@@ -2624,7 +2624,7 @@ def _create_project_from_notebook_action(
             "dest_root": dest_root,
             "source_notebook": notebook_relative_path.as_posix(),
             "notebook_path": notebook_path,
-            "steps_file": steps_file,
+            "stages_file": stages_file,
             "notebook_import_cell_count": cell_count,
             "notebook_import_preflight": preflight,
             "notebook_import_contract": preview.get("contract", {}),

@@ -1056,15 +1056,20 @@ def sidebar_views():
     )
 
 
-def on_df_change(module_dir, index_page, df_file=None, steps_file=None):
+def load_last_stage(_module_dir, _stages_file, _index_page_str):
+    """Optional hook used by legacy sidebar integrations after dataframe changes."""
+    return None
+
+
+def on_df_change(module_dir, index_page, df_file=None, stages_file=None):
     return _on_df_change_impl(
         module_dir,
         index_page,
         df_file,
-        steps_file,
+        stages_file,
         session_state=st.session_state,
         resolve_selected_df_path_fn=resolve_selected_df_path,
-        load_last_step_fn=load_last_step,
+        load_last_stage_fn=load_last_stage,
         logger=logger,
         path_cls=Path,
     )

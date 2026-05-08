@@ -18,7 +18,7 @@ def build_mlflow_process_env(
     env: AgiEnv,
     *,
     tracking_uri: str,
-    step_run_id_env: str,
+    stage_run_id_env: str,
     run_id: str | None = None,
     base_env: Optional[Dict[str, str]] = None,
 ) -> Dict[str, str]:
@@ -29,10 +29,10 @@ def build_mlflow_process_env(
     if apps_path:
         process_env["APPS_PATH"] = str(apps_path)
     if run_id:
-        process_env[step_run_id_env] = str(run_id)
+        process_env[stage_run_id_env] = str(run_id)
         process_env["MLFLOW_RUN_ID"] = str(run_id)
     else:
-        process_env.pop(step_run_id_env, None)
+        process_env.pop(stage_run_id_env, None)
         process_env.pop("MLFLOW_RUN_ID", None)
     return process_env
 
@@ -244,7 +244,7 @@ def ensure_default_mlflow_experiment(
 
 @contextmanager
 def temporary_env_overrides(overrides: Optional[Dict[str, Any]]):
-    """Temporarily apply environment overrides for in-process step execution."""
+    """Temporarily apply environment overrides for in-process stage execution."""
     if not overrides:
         yield
         return
@@ -448,7 +448,7 @@ def log_mlflow_artifacts(
             mlflow.log_artifact(str(artifact_path))
 
 
-def wrap_code_with_mlflow_resume(code: str, *, step_run_id_env: str) -> str:
+def wrap_code_with_mlflow_resume(code: str, *, stage_run_id_env: str) -> str:
     """Resume a controller-created MLflow run inside subprocess-executed user code."""
     body = code if code.endswith("\n") else code + "\n"
     indented = "".join(f"    {line}\n" for line in body.splitlines()) if body.strip() else "    pass\n"
@@ -461,7 +461,7 @@ def wrap_code_with_mlflow_resume(code: str, *, step_run_id_env: str) -> str:
         "    _agilab_tracking_uri = os.environ.get('MLFLOW_TRACKING_URI')\n"
         "    if _agilab_tracking_uri:\n"
         "        _agilab_mlflow.set_tracking_uri(_agilab_tracking_uri)\n"
-        f"    _agilab_run_id = os.environ.get('{step_run_id_env}') or os.environ.get('MLFLOW_RUN_ID')\n"
+        f"    _agilab_run_id = os.environ.get('{stage_run_id_env}') or os.environ.get('MLFLOW_RUN_ID')\n"
         "    if _agilab_run_id:\n"
         "        _agilab_active_run = _agilab_mlflow.start_run(run_id=_agilab_run_id)\n"
         "except (ImportError, RuntimeError, AttributeError, ValueError, TypeError):\n"

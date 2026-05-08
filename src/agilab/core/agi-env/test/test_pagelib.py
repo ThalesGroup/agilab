@@ -2409,7 +2409,7 @@ def test_pagelib_wrapper_functions_delegate_selection_helpers(monkeypatch):
     monkeypatch.setattr(pagelib, "_sidebar_views_impl", _capture_sidebar)
     monkeypatch.setattr(pagelib, "_on_df_change_impl", _capture_df)
     monkeypatch.setattr(pagelib, "on_lab_change", lambda *_args, **_kwargs: None, raising=False)
-    monkeypatch.setattr(pagelib, "load_last_step", lambda *_args, **_kwargs: None, raising=False)
+    monkeypatch.setattr(pagelib, "load_last_stage", lambda *_args, **_kwargs: None, raising=False)
 
     assert pagelib.select_project(["demo_project"], "demo_project") == "selected"
     assert pagelib.resolve_active_app(SimpleNamespace(app="demo_project")) == ("demo_project", True)

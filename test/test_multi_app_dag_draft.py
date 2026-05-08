@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 import sys
 
+import pytest
+
 
 def _ensure_agilab_package_path() -> None:
     package_root = Path("src/agilab").resolve()
@@ -126,7 +128,7 @@ def test_dag_draft_preserves_existing_node_execution_contract():
                     "execution": {
                         "entrypoint": "custom.queue",
                         "params": {"scenario": "demo"},
-                        "steps": [{"name": "prepare", "args": {"n": 2}}],
+                        "stages": [{"name": "prepare", "args": {"n": 2}}],
                         "data_in": "queue/input",
                         "data_out": "queue/output",
                         "reset_target": False,
@@ -156,12 +158,42 @@ def test_dag_draft_preserves_existing_node_execution_contract():
     assert payload["nodes"][0]["execution"] == {
         "entrypoint": "custom.queue",
         "params": {"scenario": "demo"},
-        "steps": [{"name": "prepare", "args": {"n": 2}}],
+        "stages": [{"name": "prepare", "args": {"n": 2}}],
         "data_in": "queue/input",
         "data_out": "queue/output",
         "reset_target": False,
     }
     assert payload["nodes"][1]["execution"] == {"entrypoint": "uav_relay_queue_project.relay"}
+
+
+def test_dag_draft_rejects_legacy_node_execution_steps_contract():
+    with pytest.raises(ValueError, match="Legacy execution keys 'steps'/'run_steps'"):
+        multi_app_dag_draft.build_dag_payload_from_editor(
+            {
+                "execution": multi_app_dag_draft.CONTROLLED_CONTRACT_EXECUTION,
+                "nodes": [
+                    {
+                        "id": "queue",
+                        "app": "uav_queue_project",
+                        "execution": {
+                            "entrypoint": "custom.queue",
+                            "steps": [{"name": "prepare", "args": {"n": 2}}],
+                        },
+                    }
+                ],
+            },
+            dag_id="uav-queue-relay",
+            label="UAV queue to relay",
+            description="Pass queue metrics to the relay app.",
+            stage_rows=[
+                {"id": "queue", "app": "uav_queue_project", "purpose": "Generate queue metrics."},
+                {"id": "relay", "app": "uav_relay_queue_project", "purpose": "Consume queue metrics."},
+            ],
+            produced_artifact_rows=[],
+            consumed_artifact_rows=[],
+            handoff_rows=[],
+            controlled_contract_execution=True,
+        )
 
 
 def test_dag_draft_validation_guidance_is_actionable_for_users():

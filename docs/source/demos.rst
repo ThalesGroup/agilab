@@ -41,7 +41,7 @@ What each route is for
   smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the web UI.
 - **Notebook migration demo**: use :doc:`notebook-migration-skforecast-meteo`
   when you want the notebook-to-AGILAB story: source notebooks, migrated
-  ``lab_steps.toml``, ``pipeline_view.dot``, exported forecast artifacts, and
+  ``lab_stages.toml``, ``pipeline_view.dot``, exported forecast artifacts, and
   the hosted ``meteo_forecast_project`` analysis route.
 - **Advanced Proof Pack**: use :doc:`advanced-proof-pack` after the first demo
   when you want the deeper packaged proof routes: ``data_io_2026_project``,

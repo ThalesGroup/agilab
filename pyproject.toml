@@ -330,7 +330,7 @@ agilab = [
     "apps/install.py",
     "apps/builtin/*/pyproject.toml",
     "apps/builtin/*/README.md",
-    "apps/builtin/*/lab_steps.toml",
+    "apps/builtin/*/lab_stages.toml",
     "apps/builtin/*/dag_templates/*.json",
     "apps/builtin/*/scenario_templates/*.json",
     "apps/builtin/*/service_templates/*.json",

@@ -288,7 +288,7 @@ def test_meteo_notebook_migration_assets_are_complete_and_packaged() -> None:
         "notebooks/02_backtest_temperature_forecast.ipynb",
         "notebooks/03_compare_predictions.ipynb",
         "data/meteo_fr_daily_sample.csv",
-        "migrated_project/lab_steps.toml",
+        "migrated_project/lab_stages.toml",
         "migrated_project/pipeline_view.dot",
         "analysis_artifacts/forecast_metrics.json",
         "analysis_artifacts/forecast_predictions.csv",
@@ -580,7 +580,7 @@ def test_positioning_docs_capture_research_experimentation_evidence() -> None:
     assert "Research experimentation evidence" in text
     assert "Research experimentation" in text
     assert _kpi_score("Research experimentation") in text
-    assert "lab_steps.toml" in text
+    assert "lab_stages.toml" in text
     assert "supervisor notebook export" in text
     assert "MLflow tracking" in text
     assert "notebook-migration example" in text

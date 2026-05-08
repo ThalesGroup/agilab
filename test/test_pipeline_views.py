@@ -93,8 +93,8 @@ def test_pipeline_format_io_items_hides_redundant_names():
 def test_pipeline_view_helper_functions_cover_text_group_and_labels():
     assert pipeline_views._pipeline_role_from_question(" \nPlan route\nThen execute") == "Plan route"
     assert pipeline_views._pipeline_role_from_question(None) == ""
-    assert pipeline_views._pipeline_step_kind({"R": "agi.install"}) == "install"
-    assert pipeline_views._pipeline_step_kind({"R": "runpy"}) == "python"
+    assert pipeline_views._pipeline_stage_kind({"R": "agi.install"}) == "install"
+    assert pipeline_views._pipeline_stage_kind({"R": "runpy"}) == "python"
     assert pipeline_views._pipeline_group_from_project("flight_trajectory_project") == "trajectory"
     assert pipeline_views._pipeline_group_from_project("") == ""
     assert "\n" in pipeline_views._pipeline_wrap_text("alpha beta gamma delta", width=8)

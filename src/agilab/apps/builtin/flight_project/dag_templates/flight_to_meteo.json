@@ -29,7 +29,7 @@
           "datemax": "2021-01-01",
           "output_format": "parquet"
         },
-        "steps": [],
+        "stages": [],
         "data_in": "flight/dataset",
         "data_out": "flight/dataframe",
         "reset_target": false
@@ -59,7 +59,7 @@
           "n_estimators": 100,
           "random_state": 42
         },
-        "steps": [],
+        "stages": [],
         "data_in": "meteo_forecast/dataset",
         "data_out": "meteo_forecast/results",
         "reset_target": false

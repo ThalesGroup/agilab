@@ -108,7 +108,7 @@ class SnippetCandidateRegistry:
 
 def discover_pipeline_snippets(
     *,
-    steps_file: Path,
+    stages_file: Path,
     app_name: str,
     explicit_snippet: str | Path | None = None,
     safe_service_template: str | Path | None = None,
@@ -134,7 +134,7 @@ def discover_pipeline_snippets(
         discovered.append(SnippetCandidateSpec(path=path, source=source))
 
     add_candidate(explicit_snippet, source="session_state")
-    add_candidate(Path(steps_file).parent / "AGI_run.py", source="lab_run")
+    add_candidate(Path(stages_file).parent / "AGI_run.py", source="lab_run")
     add_candidate(safe_service_template, source="safe_service_template")
 
     for runenv_snippet in _runenv_snippet_candidates(

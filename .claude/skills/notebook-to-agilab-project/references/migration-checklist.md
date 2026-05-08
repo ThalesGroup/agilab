@@ -10,7 +10,7 @@
 ## AGILAB side
 
 - `app_settings.toml` carries the stable args.
-- `lab_steps.toml` captures the semantic sequence.
+- `lab_stages.toml` captures the semantic sequence.
 - `pipeline_view.dot` explains the pipeline in business terms.
 - `ANALYSIS` reads exported files instead of rerunning notebook code.
 

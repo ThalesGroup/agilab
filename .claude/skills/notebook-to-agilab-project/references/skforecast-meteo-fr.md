@@ -13,7 +13,7 @@ AGILAB migration.
 
 ## Target AGILAB shape
 
-- `lab_steps.toml`
+- `lab_stages.toml`
   - `load_clean`
   - `build_features`
   - `backtest_forecaster`

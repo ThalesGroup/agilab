@@ -50,7 +50,7 @@ from .base_worker import BaseWorker
 logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 workers_default = {socket.gethostbyname("localhost"): 1}
-RUN_STEPS_KEY = "_agilab_run_steps"
+RUN_STAGES_KEY = "_agilab_run_stages"
 
 
 class WorkDispatcher:
@@ -66,30 +66,32 @@ class WorkDispatcher:
     @staticmethod
     def _split_dispatch_args(args):
         target_args = dict(args or {})
-        run_steps = target_args.pop(RUN_STEPS_KEY, [])
-        if run_steps is None:
-            run_steps = []
-        if not isinstance(run_steps, list):
-            raise TypeError(f"{RUN_STEPS_KEY} must be a list of workflow step payloads")
-        return target_args, run_steps
+        if "_agilab_run_steps" in target_args:
+            raise TypeError("Legacy dispatch key '_agilab_run_steps' is no longer supported; use '_agilab_run_stages'.")
+        run_stages = target_args.pop(RUN_STAGES_KEY, [])
+        if run_stages is None:
+            run_stages = []
+        if not isinstance(run_stages, list):
+            raise TypeError(f"{RUN_STAGES_KEY} must be a list of workflow stage payloads")
+        return target_args, run_stages
 
     @staticmethod
-    def _apply_run_steps(target_inst, run_steps):
-        if not run_steps:
+    def _apply_run_stages(target_inst, run_stages):
+        if not run_stages:
             return
 
         args_obj = getattr(target_inst, "args", None)
         if isinstance(args_obj, dict):
             if "args" not in args_obj:
-                raise TypeError(f"{type(target_inst).__name__} does not accept RunRequest.steps")
-            args_obj["args"] = run_steps
+                raise TypeError(f"{type(target_inst).__name__} does not accept RunRequest.stages")
+            args_obj["args"] = run_stages
         elif hasattr(args_obj, "args"):
-            setattr(args_obj, "args", run_steps)
+            setattr(args_obj, "args", run_stages)
         else:
-            raise TypeError(f"{type(target_inst).__name__} does not accept RunRequest.steps")
+            raise TypeError(f"{type(target_inst).__name__} does not accept RunRequest.stages")
 
         if isinstance(WorkDispatcher.args, dict):
-            WorkDispatcher.args["args"] = run_steps
+            WorkDispatcher.args["args"] = run_stages
 
     @staticmethod
     def _convert_functions_to_names(workers_plan):
@@ -111,10 +113,10 @@ class WorkDispatcher:
     @staticmethod
     async def _do_distrib(env, workers, args):
         """Build the distribution plan for ``env`` given worker layout and args."""
-        target_args, run_steps = WorkDispatcher._split_dispatch_args(args)
+        target_args, run_stages = WorkDispatcher._split_dispatch_args(args)
         cache_args = dict(target_args)
-        if run_steps:
-            cache_args[RUN_STEPS_KEY] = run_steps
+        if run_stages:
+            cache_args[RUN_STAGES_KEY] = run_stages
 
         base_worker_dir = str(env.agi_cluster / "src")
         if base_worker_dir not in sys.path:
@@ -130,7 +132,7 @@ class WorkDispatcher:
 
         target_class = getattr(target_module, env.target_class)
         target_inst = target_class(env, **target_args)
-        WorkDispatcher._apply_run_steps(target_inst, run_steps)
+        WorkDispatcher._apply_run_stages(target_inst, run_stages)
 
         file = env.distribution_tree
         workers_plan = []

@@ -27,8 +27,8 @@ from agilab.snippet_registry import (
 def test_discover_pipeline_snippets_returns_typed_deterministic_registry(tmp_path: Path) -> None:
     lab_dir = tmp_path / "lab"
     lab_dir.mkdir()
-    steps_file = lab_dir / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = lab_dir / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     lab_snippet = lab_dir / "AGI_run.py"
     lab_snippet.write_text("print('lab')\n", encoding="utf-8")
 
@@ -53,7 +53,7 @@ def test_discover_pipeline_snippets_returns_typed_deterministic_registry(tmp_pat
     os.utime(runenv_snippet, (runenv_time, runenv_time))
 
     registry = discover_pipeline_snippets(
-        steps_file=steps_file,
+        stages_file=stages_file,
         app_name="flight",
         explicit_snippet=explicit,
         safe_service_template=safe_template,
@@ -78,8 +78,8 @@ def test_discover_pipeline_snippets_returns_typed_deterministic_registry(tmp_pat
 
 
 def test_discover_pipeline_snippets_filters_stale_and_wrong_app_runenv_snippets(tmp_path: Path) -> None:
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     runenv = tmp_path / "runenv"
     runenv.mkdir()
 
@@ -112,7 +112,7 @@ def test_discover_pipeline_snippets_filters_stale_and_wrong_app_runenv_snippets(
     os.utime(wrong_app, (runenv_time, runenv_time))
 
     registry = discover_pipeline_snippets(
-        steps_file=steps_file,
+        stages_file=stages_file,
         app_name="flight",
         runenv_root=runenv,
         app_settings_file=app_settings,

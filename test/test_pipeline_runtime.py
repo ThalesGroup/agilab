@@ -310,7 +310,7 @@ def test_python_for_venv_and_runtime_helpers_cover_fallbacks(tmp_path, monkeypat
 
     assert pipeline_runtime.python_for_venv(None) == default_python
     assert pipeline_runtime.python_for_venv(tmp_path / "missing") == default_python
-    assert pipeline_runtime.label_for_step_runtime(None, engine="runpy", code="print('x')") == "default env"
+    assert pipeline_runtime.label_for_stage_runtime(None, engine="runpy", code="print('x')") == "default env"
     assert pipeline_runtime.is_valid_runtime_root(None) is False
 
     class BrokenPath:
@@ -380,7 +380,7 @@ def test_build_mlflow_process_env_injects_tracking_and_run_id(tmp_path):
     assert process_env["MLFLOW_TRACKING_URI"] == pipeline_runtime.sqlite_uri_for_path(
         (tmp_path / "mlflow-store" / "mlflow.db").resolve()
     )
-    assert process_env[pipeline_runtime.MLFLOW_STEP_RUN_ID_ENV] == "run-123"
+    assert process_env[pipeline_runtime.MLFLOW_STAGE_RUN_ID_ENV] == "run-123"
     assert process_env["MLFLOW_RUN_ID"] == "run-123"
 
 
@@ -397,7 +397,7 @@ def test_uses_controller_python_detects_agi_cluster_snippet():
     assert pipeline_runtime.uses_controller_python("runpy", code) is False
 
 
-def test_python_for_step_keeps_app_env_for_non_controller_snippet(tmp_path, monkeypatch):
+def test_python_for_stage_keeps_app_env_for_non_controller_snippet(tmp_path, monkeypatch):
     runtime_root = tmp_path / "runtime_root"
     nested_python = runtime_root / ".venv" / "bin" / "python"
     nested_python.parent.mkdir(parents=True)
@@ -410,8 +410,8 @@ def test_python_for_step_keeps_app_env_for_non_controller_snippet(tmp_path, monk
     agi_code = "from agi_cluster.agi_distributor import AGI\nprint('x')\n"
     direct_code = "from agi_env import AgiEnv\nprint('x')\n"
 
-    assert pipeline_runtime.python_for_step(runtime_root, engine="agi.run", code=agi_code) == controller_python
-    assert pipeline_runtime.python_for_step(runtime_root, engine="agi.run", code=direct_code) == nested_python
+    assert pipeline_runtime.python_for_stage(runtime_root, engine="agi.run", code=agi_code) == controller_python
+    assert pipeline_runtime.python_for_stage(runtime_root, engine="agi.run", code=direct_code) == nested_python
 
 
 def test_temporary_env_overrides_restores_previous_values(monkeypatch):
@@ -443,13 +443,13 @@ def test_runtime_helper_edges_cover_run_id_cleanup_and_metric_failures(tmp_path,
         env,
         base_env={
             "KEEP": "1",
-            pipeline_runtime.MLFLOW_STEP_RUN_ID_ENV: "stale-step",
+            pipeline_runtime.MLFLOW_STAGE_RUN_ID_ENV: "stale-stage",
             "MLFLOW_RUN_ID": "stale",
         },
     )
 
     assert process_env["KEEP"] == "1"
-    assert pipeline_runtime.MLFLOW_STEP_RUN_ID_ENV not in process_env
+    assert pipeline_runtime.MLFLOW_STAGE_RUN_ID_ENV not in process_env
     assert "MLFLOW_RUN_ID" not in process_env
 
     monkeypatch.setenv("AGILAB_TEMP_KEEP", "before")
@@ -486,7 +486,7 @@ def test_runtime_helper_edges_cover_run_id_cleanup_and_metric_failures(tmp_path,
 def test_wrap_code_with_mlflow_resume_uses_env_run_id():
     wrapped = pipeline_runtime.wrap_code_with_mlflow_resume("print('hello')")
 
-    assert pipeline_runtime.MLFLOW_STEP_RUN_ID_ENV in wrapped
+    assert pipeline_runtime.MLFLOW_STAGE_RUN_ID_ENV in wrapped
     assert "MLFLOW_TRACKING_URI" in wrapped
     assert "mlflow.start_run(run_id=_agilab_run_id)" in wrapped
     assert "print('hello')" in wrapped
@@ -546,7 +546,7 @@ def test_start_mlflow_run_sets_uri_logs_tags_and_params(tmp_path, monkeypatch):
         env,
         run_name="pipeline",
         tags={"k": "v"},
-        params={"step_count": 2},
+        params={"stage_count": 2},
         nested=True,
     ) as tracking:
         assert tracking["run"].info.run_id == "run-1"
@@ -562,7 +562,7 @@ def test_start_mlflow_run_sets_uri_logs_tags_and_params(tmp_path, monkeypatch):
         )
     ]
     assert fake_mlflow.tags["k"] == "v"
-    assert fake_mlflow.params["step_count"] == "2"
+    assert fake_mlflow.params["stage_count"] == "2"
     assert fake_mlflow.run_requests == [{"run_name": "pipeline", "nested": True}]
 
 
@@ -600,7 +600,7 @@ def test_start_tracker_run_exposes_backend_neutral_logging_methods(monkeypatch, 
         SimpleNamespace(MLFLOW_TRACKING_DIR=tmp_path),
         run_name="pipeline",
         tags={"kind": "demo"},
-        params={"step_count": 1},
+        params={"stage_count": 1},
         nested=True,
     ) as tracker:
         assert tracker
@@ -619,7 +619,7 @@ def test_start_tracker_run_exposes_backend_neutral_logging_methods(monkeypatch, 
         {
             "run_name": "pipeline",
             "tags": {"kind": "demo"},
-            "params": {"step_count": 1},
+            "params": {"stage_count": 1},
             "nested": True,
         }
     ]
@@ -1108,8 +1108,8 @@ def test_safe_service_start_template_preserves_builtin_apps_path(tmp_path):
 
 
 def test_ensure_safe_service_template_preserves_manual_file(tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     template_path = tmp_path / "AGI_safe_service.py"
     template_path.write_text("# manual\nprint('keep')\n", encoding="utf-8")
     env = SimpleNamespace(
@@ -1120,7 +1120,7 @@ def test_ensure_safe_service_template_preserves_manual_file(tmp_path):
 
     resolved = pipeline_runtime.ensure_safe_service_template(
         env,
-        steps_file,
+        stages_file,
         template_filename="AGI_safe_service.py",
         marker="# AUTO",
         debug_log=lambda *_args, **_kwargs: None,
@@ -1131,8 +1131,8 @@ def test_ensure_safe_service_template_preserves_manual_file(tmp_path):
 
 
 def test_ensure_safe_service_template_writes_generated_content(tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     env = SimpleNamespace(
         app_settings_file=tmp_path / "missing.toml",
         apps_path=tmp_path / "apps",
@@ -1141,7 +1141,7 @@ def test_ensure_safe_service_template_writes_generated_content(tmp_path):
 
     resolved = pipeline_runtime.ensure_safe_service_template(
         env,
-        steps_file,
+        stages_file,
         template_filename="AGI_safe_service.py",
         marker="# AUTO",
         debug_log=lambda *_args, **_kwargs: None,
@@ -1152,8 +1152,8 @@ def test_ensure_safe_service_template_writes_generated_content(tmp_path):
 
 
 def test_ensure_safe_service_template_is_noop_when_content_matches(tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     template_path = tmp_path / "AGI_safe_service.py"
     env = SimpleNamespace(
         app_settings_file=tmp_path / "missing.toml",
@@ -1165,7 +1165,7 @@ def test_ensure_safe_service_template_is_noop_when_content_matches(tmp_path):
 
     resolved = pipeline_runtime.ensure_safe_service_template(
         env,
-        steps_file,
+        stages_file,
         template_filename="AGI_safe_service.py",
         marker="# AUTO",
         debug_log=lambda *_args, **_kwargs: None,
@@ -1176,7 +1176,7 @@ def test_ensure_safe_service_template_is_noop_when_content_matches(tmp_path):
 
 
 def test_ensure_safe_service_template_logs_and_returns_none_on_write_error(tmp_path):
-    steps_file = tmp_path / "missing" / "lab_steps.toml"
+    stages_file = tmp_path / "missing" / "lab_stages.toml"
     env = SimpleNamespace(
         app_settings_file=tmp_path / "missing.toml",
         apps_path=tmp_path / "apps",
@@ -1193,7 +1193,7 @@ def test_ensure_safe_service_template_logs_and_returns_none_on_write_error(tmp_p
     with patch.object(Path, "write_text", fail_write_text):
         resolved = pipeline_runtime.ensure_safe_service_template(
             env,
-            steps_file,
+            stages_file,
             template_filename="AGI_safe_service.py",
             marker="# AUTO",
             debug_log=lambda message, *_args: debug_calls.append(message),
@@ -1203,7 +1203,7 @@ def test_ensure_safe_service_template_logs_and_returns_none_on_write_error(tmp_p
     assert debug_calls
 
 
-def test_label_for_step_runtime_describes_controller_and_runtime_env(tmp_path, monkeypatch):
+def test_label_for_stage_runtime_describes_controller_and_runtime_env(tmp_path, monkeypatch):
     runtime_root = tmp_path / "worker_env"
     runtime_root.mkdir()
     controller_python = tmp_path / "controller" / "python"
@@ -1214,11 +1214,11 @@ def test_label_for_step_runtime_describes_controller_and_runtime_env(tmp_path, m
     agi_code = "from agi_cluster.agi_distributor import AGI\nawait AGI.run(None)\n"
 
     assert (
-        pipeline_runtime.label_for_step_runtime(runtime_root, engine="agi.run", code=agi_code)
+        pipeline_runtime.label_for_stage_runtime(runtime_root, engine="agi.run", code=agi_code)
         == "controller env -> worker_env"
     )
     assert (
-        pipeline_runtime.label_for_step_runtime(runtime_root, engine="runpy", code="print('x')")
+        pipeline_runtime.label_for_stage_runtime(runtime_root, engine="runpy", code="print('x')")
         == "worker_env"
     )
 
@@ -1480,12 +1480,12 @@ def test_log_mlflow_artifacts_handles_empty_tracking_and_log_text_support(tmp_pa
     assert calls["texts"] == [("demo", "logs/stdout.txt")]
 
 
-def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
+def test_run_locked_stage_runpy_executes_and_logs(tmp_path, monkeypatch):
     snippet_file = tmp_path / "snippet.py"
     codex_file = tmp_path / "codex.py"
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
-    run_log = tmp_path / "step_1.log"
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
+    run_log = tmp_path / "stage_1.log"
     logs: list[str] = []
     released: list[str] = []
 
@@ -1498,7 +1498,7 @@ def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
     def fake_start_mlflow_run(*_args, **_kwargs):
         yield {"run": SimpleNamespace(info=SimpleNamespace(run_id="run-123"))}
 
-    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "default env")
+    monkeypatch.setattr(pipeline_runtime, "label_for_stage_runtime", lambda *_args, **_kwargs: "default env")
     monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {"MLFLOW_RUN_ID": "run-123"})
     monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
     monkeypatch.setattr(pipeline_runtime, "run_lab", lambda *_args, **_kwargs: "runpy output")
@@ -1512,12 +1512,12 @@ def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
     )
     placeholder = SimpleNamespace(caption=lambda message: logs.append(f"CAPTION:{message}"))
 
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         env,
         "page",
-        steps_file,
+        stages_file,
         0,
-        {"D": "demo step", "Q": "question", "C": "print('hello')"},
+        {"D": "demo stage", "Q": "question", "C": "print('hello')"},
         {},
         {},
         normalize_runtime_path=lambda value: str(value or ""),
@@ -1530,7 +1530,7 @@ def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
         is_valid_runtime_root=lambda *_args, **_kwargs: False,
         python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
         stream_run_command=lambda **_kwargs: "unused",
-        step_summary=lambda _entry, _limit: "summary",
+        stage_summary=lambda _entry, _limit: "summary",
     )
 
     assert fake_streamlit.session_state["page__run_logs"] == []
@@ -1541,7 +1541,7 @@ def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
     assert released == ["lock"]
 
 
-def test_run_locked_step_handles_missing_snippet_and_lock_refusal(tmp_path, monkeypatch):
+def test_run_locked_stage_handles_missing_snippet_and_lock_refusal(tmp_path, monkeypatch):
     logs: list[str] = []
     fake_streamlit = types.ModuleType("streamlit")
     fake_streamlit.session_state = {}
@@ -1549,13 +1549,13 @@ def test_run_locked_step_handles_missing_snippet_and_lock_refusal(tmp_path, monk
     monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
 
     env = SimpleNamespace(app="demo", active_app="", apps_path=tmp_path / "apps", copilot_file=tmp_path / "copilot.py")
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
 
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         env,
         "page",
-        steps_file,
+        stages_file,
         0,
         {"D": "demo", "Q": "question", "C": "print('x')"},
         {},
@@ -1570,16 +1570,16 @@ def test_run_locked_step_handles_missing_snippet_and_lock_refusal(tmp_path, monk
         is_valid_runtime_root=lambda *_args, **_kwargs: False,
         python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
         stream_run_command=lambda **_kwargs: "",
-        step_summary=lambda *_args, **_kwargs: "summary",
+        stage_summary=lambda *_args, **_kwargs: "summary",
     )
 
     assert logs == ["ERROR:Snippet file is not configured. Reload the page and try again."]
 
     fake_streamlit.session_state = {"snippet_file": str(tmp_path / "snippet.py")}
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         env,
         "page",
-        steps_file,
+        stages_file,
         0,
         {"D": "demo", "Q": "question", "C": "print('x')"},
         {},
@@ -1594,13 +1594,13 @@ def test_run_locked_step_handles_missing_snippet_and_lock_refusal(tmp_path, monk
         is_valid_runtime_root=lambda *_args, **_kwargs: False,
         python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
         stream_run_command=lambda **_kwargs: "",
-        step_summary=lambda *_args, **_kwargs: "summary",
+        stage_summary=lambda *_args, **_kwargs: "summary",
     )
 
     assert fake_streamlit.session_state["page__run_logs"] == []
 
 
-def test_run_locked_step_refuses_stale_generated_agi_snippet(tmp_path, monkeypatch):
+def test_run_locked_stage_refuses_stale_generated_agi_snippet(tmp_path, monkeypatch):
     logs: list[str] = []
     released: list[str] = []
     fake_streamlit = types.ModuleType("streamlit")
@@ -1623,10 +1623,10 @@ async def main():
     await AGI.run(AgiEnv(apps_path="/tmp/apps", app="demo"))
 """
 
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         env,
         "page",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         0,
         {"D": "demo", "Q": "Imported snippet: AGI_run_demo.py", "C": stale_code},
         {},
@@ -1641,7 +1641,7 @@ async def main():
         is_valid_runtime_root=lambda *_args, **_kwargs: True,
         python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
         stream_run_command=lambda *_args, **_kwargs: logs.append("RUN") or "",
-        step_summary=lambda *_args, **_kwargs: "summary",
+        stage_summary=lambda *_args, **_kwargs: "summary",
     )
 
     assert any("AGILAB core snippet API changed" in line for line in logs)
@@ -1650,12 +1650,12 @@ async def main():
     assert released == ["lock"]
 
 
-def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target(tmp_path, monkeypatch):
+def test_run_locked_stage_covers_runtime_fallbacks_empty_output_and_export_target(tmp_path, monkeypatch):
     snippet_file = tmp_path / "snippet.py"
     snippet_file.write_text("print('x')", encoding="utf-8")
     codex_file = tmp_path / "codex.py"
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     runtime_root = tmp_path / "runtime"
     runtime_root.mkdir()
     export_file = tmp_path / "export.csv"
@@ -1677,7 +1677,7 @@ def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target
         yield {"run": SimpleNamespace(info=SimpleNamespace(run_id="run-999"))}
 
     artifact_calls: list[dict[str, object]] = []
-    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "runtime env")
+    monkeypatch.setattr(pipeline_runtime, "label_for_stage_runtime", lambda *_args, **_kwargs: "runtime env")
     monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {"MLFLOW_RUN_ID": "run-999"})
     monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
     monkeypatch.setattr(
@@ -1686,7 +1686,7 @@ def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target
         lambda *_args, **kwargs: artifact_calls.append(kwargs),
     )
 
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         SimpleNamespace(
             app="demo",
             active_app=str(runtime_root),
@@ -1694,9 +1694,9 @@ def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target
             copilot_file=codex_file,
         ),
         "page",
-        steps_file,
+        stages_file,
         0,
-        {"D": "demo step", "Q": "question", "C": "print('hello')", "R": "runpy"},
+        {"D": "demo stage", "Q": "question", "C": "print('hello')", "R": "runpy"},
         {},
         {},
         normalize_runtime_path=lambda value: str(value or ""),
@@ -1709,7 +1709,7 @@ def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target
         is_valid_runtime_root=lambda value: str(value) == str(runtime_root),
         python_for_venv=lambda *_args, **_kwargs: tmp_path / "runtime" / ".venv" / "bin" / "python",
         stream_run_command=lambda *_args, **_kwargs: "",
-        step_summary=lambda *_args, **_kwargs: "summary",
+        stage_summary=lambda *_args, **_kwargs: "summary",
     )
 
     assert any("unable to prepare log file: log unavailable" in line for line in logs)
@@ -1718,11 +1718,11 @@ def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target
     assert released == ["lock"]
 
 
-def test_run_locked_step_retries_active_app_when_engine_requires_runtime(tmp_path, monkeypatch):
+def test_run_locked_stage_retries_active_app_when_engine_requires_runtime(tmp_path, monkeypatch):
     snippet_file = tmp_path / "snippet.py"
     snippet_file.write_text("print('x')", encoding="utf-8")
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     active_app = tmp_path / "active-app"
     active_app.mkdir()
     logs: list[str] = []
@@ -1744,9 +1744,9 @@ def test_run_locked_step_retries_active_app_when_engine_requires_runtime(tmp_pat
 
     monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
     monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "runtime env")
+    monkeypatch.setattr(pipeline_runtime, "label_for_stage_runtime", lambda *_args, **_kwargs: "runtime env")
 
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         SimpleNamespace(
             app="demo",
             active_app=str(active_app),
@@ -1754,9 +1754,9 @@ def test_run_locked_step_retries_active_app_when_engine_requires_runtime(tmp_pat
             copilot_file=tmp_path / "copilot.py",
         ),
         "page",
-        steps_file,
+        stages_file,
         0,
-        {"D": "demo step", "Q": "question", "C": "print('hello')", "R": "agi.run"},
+        {"D": "demo stage", "Q": "question", "C": "print('hello')", "R": "agi.run"},
         {},
         {},
         normalize_runtime_path=lambda value: str(value or ""),
@@ -1769,7 +1769,7 @@ def test_run_locked_step_retries_active_app_when_engine_requires_runtime(tmp_pat
         is_valid_runtime_root=_is_valid_runtime_root,
         python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
         stream_run_command=lambda *_args, **_kwargs: "ok",
-        step_summary=lambda *_args, **_kwargs: "summary",
+        stage_summary=lambda *_args, **_kwargs: "summary",
     )
 
     assert checks.count(str(active_app)) >= 2
@@ -1777,11 +1777,11 @@ def test_run_locked_step_retries_active_app_when_engine_requires_runtime(tmp_pat
     assert fake_streamlit.session_state["lab_selected_engine"] == "agi.run"
 
 
-def test_run_locked_step_uses_active_app_as_primary_runtime_fallback(tmp_path, monkeypatch):
+def test_run_locked_stage_uses_active_app_as_primary_runtime_fallback(tmp_path, monkeypatch):
     snippet_file = tmp_path / "snippet.py"
     snippet_file.write_text("print('x')", encoding="utf-8")
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     active_app = tmp_path / "active-app"
     active_app.mkdir()
     logs: list[str] = []
@@ -1797,9 +1797,9 @@ def test_run_locked_step_uses_active_app_as_primary_runtime_fallback(tmp_path, m
 
     monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
     monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "runtime env")
+    monkeypatch.setattr(pipeline_runtime, "label_for_stage_runtime", lambda *_args, **_kwargs: "runtime env")
 
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         SimpleNamespace(
             app="demo",
             active_app=str(active_app),
@@ -1807,9 +1807,9 @@ def test_run_locked_step_uses_active_app_as_primary_runtime_fallback(tmp_path, m
             copilot_file=tmp_path / "copilot.py",
         ),
         "page",
-        steps_file,
+        stages_file,
         0,
-        {"D": "demo step", "Q": "question", "C": "print('hello')", "R": ""},
+        {"D": "demo stage", "Q": "question", "C": "print('hello')", "R": ""},
         {},
         {},
         normalize_runtime_path=lambda value: str(value or ""),
@@ -1822,18 +1822,18 @@ def test_run_locked_step_uses_active_app_as_primary_runtime_fallback(tmp_path, m
         is_valid_runtime_root=lambda value: str(value) == str(active_app),
         python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
         stream_run_command=lambda *_args, **_kwargs: "",
-        step_summary=lambda *_args, **_kwargs: "summary",
+        stage_summary=lambda *_args, **_kwargs: "summary",
     )
 
     assert fake_streamlit.session_state["lab_selected_venv"] == str(active_app)
     assert any("engine=agi.run, env=runtime env" in line for line in logs)
 
 
-def test_run_locked_step_runpy_empty_output_logs_message_and_export_target(tmp_path, monkeypatch):
+def test_run_locked_stage_runpy_empty_output_logs_message_and_export_target(tmp_path, monkeypatch):
     snippet_file = tmp_path / "snippet.py"
     snippet_file.write_text("print('x')", encoding="utf-8")
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     export_file = tmp_path / "export.csv"
     export_file.write_text("x\n1\n", encoding="utf-8")
     logs: list[str] = []
@@ -1851,7 +1851,7 @@ def test_run_locked_step_runpy_empty_output_logs_message_and_export_target(tmp_p
         yield {"run": SimpleNamespace(info=SimpleNamespace(run_id="run-321"))}
 
     artifact_calls: list[dict[str, object]] = []
-    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "default env")
+    monkeypatch.setattr(pipeline_runtime, "label_for_stage_runtime", lambda *_args, **_kwargs: "default env")
     monkeypatch.setattr(pipeline_runtime, "build_mlflow_process_env", lambda *_args, **_kwargs: {"MLFLOW_RUN_ID": "run-321"})
     monkeypatch.setattr(pipeline_runtime, "start_mlflow_run", fake_start_mlflow_run)
     monkeypatch.setattr(
@@ -1861,7 +1861,7 @@ def test_run_locked_step_runpy_empty_output_logs_message_and_export_target(tmp_p
     )
     monkeypatch.setattr(pipeline_runtime, "run_lab", lambda *_args, **_kwargs: "")
 
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         SimpleNamespace(
             app="demo",
             active_app="",
@@ -1869,9 +1869,9 @@ def test_run_locked_step_runpy_empty_output_logs_message_and_export_target(tmp_p
             copilot_file=tmp_path / "copilot.py",
         ),
         "page",
-        steps_file,
+        stages_file,
         0,
-        {"D": "demo step", "Q": "question", "C": "print('hello')"},
+        {"D": "demo stage", "Q": "question", "C": "print('hello')"},
         {},
         {},
         normalize_runtime_path=lambda value: str(value or ""),
@@ -1884,19 +1884,19 @@ def test_run_locked_step_runpy_empty_output_logs_message_and_export_target(tmp_p
         is_valid_runtime_root=lambda *_args, **_kwargs: False,
         python_for_venv=lambda *_args, **_kwargs: tmp_path / "python",
         stream_run_command=lambda *_args, **_kwargs: "",
-        step_summary=lambda *_args, **_kwargs: "summary",
+        stage_summary=lambda *_args, **_kwargs: "summary",
     )
 
     assert any("Output (stage 1): runpy executed (no captured stdout)" in line for line in logs)
     assert artifact_calls and str(export_file) in artifact_calls[0]["file_artifacts"]
 
 
-def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch):
+def test_run_locked_stage_agi_run_executes_script_and_logs(tmp_path, monkeypatch):
     snippet_file = tmp_path / "snippet.py"
     codex_file = tmp_path / "codex.py"
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
-    run_log = tmp_path / "step_1.log"
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
+    run_log = tmp_path / "stage_1.log"
     logs: list[str] = []
     releases: list[str] = []
     stream_calls: list[dict[str, object]] = []
@@ -1913,7 +1913,7 @@ def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch)
     def fake_start_mlflow_run(*_args, **_kwargs):
         yield {"run": SimpleNamespace(info=SimpleNamespace(run_id="run-456"))}
 
-    monkeypatch.setattr(pipeline_runtime, "label_for_step_runtime", lambda *_args, **_kwargs: "runtime env")
+    monkeypatch.setattr(pipeline_runtime, "label_for_stage_runtime", lambda *_args, **_kwargs: "runtime env")
     monkeypatch.setattr(
         pipeline_runtime,
         "build_mlflow_process_env",
@@ -1931,12 +1931,12 @@ def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch)
     )
     placeholder = SimpleNamespace(caption=lambda message: logs.append(f"CAPTION:{message}"))
 
-    pipeline_runtime.run_locked_step(
+    pipeline_runtime.run_locked_stage(
         env,
         "page",
-        steps_file,
+        stages_file,
         0,
-        {"D": "demo step", "Q": "question", "C": "print('hello')", "R": "agi.run"},
+        {"D": "demo stage", "Q": "question", "C": "print('hello')", "R": "agi.run"},
         {0: str(tmp_path / "runtime")},
         {},
         normalize_runtime_path=lambda value: str(value or ""),
@@ -1951,14 +1951,14 @@ def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch)
         stream_run_command=lambda env, index_page, cmd, cwd, **kwargs: stream_calls.append(
             {"cmd": cmd, "cwd": cwd, "extra_env": kwargs.get("extra_env")}
         ) or "script output",
-        step_summary=lambda _entry, _limit: "summary",
+        stage_summary=lambda _entry, _limit: "summary",
     )
 
-    script_path = steps_file.parent / "AGI_run.py"
+    script_path = stages_file.parent / "AGI_run.py"
     assert script_path.read_text(encoding="utf-8").startswith("# wrapped")
     assert Path(stream_calls[0]["cmd"][0]).name.startswith("python")
     assert stream_calls[0]["cmd"][1] == str(script_path)
-    assert stream_calls[0]["cwd"] == steps_file.parent.resolve()
+    assert stream_calls[0]["cwd"] == stages_file.parent.resolve()
     assert stream_calls[0]["extra_env"] == {"MLFLOW_RUN_ID": "run-456", "EXTRA": "1"}
     assert any("engine=agi.run, env=runtime env" in line for line in logs)
     assert any("Output (stage 1):\nscript output" in line for line in logs)
