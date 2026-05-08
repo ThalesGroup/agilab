@@ -264,7 +264,7 @@ def test_prompt_to_gpt_oss_messages_separates_system_and_normalizes_roles():
             {"role": "assistant", "content": "done"},
             {"role": "critic", "content": "fallback role"},
         ],
-        "next step?",
+        "next stage?",
     )
 
     assert instructions == "obey"
@@ -278,7 +278,7 @@ def test_prompt_to_gpt_oss_messages_separates_system_and_normalizes_roles():
         "role": "assistant",
         "content": [{"type": "text", "text": "fallback role"}],
     }
-    assert history[-1]["content"] == [{"type": "input_text", "text": "next step?"}]
+    assert history[-1]["content"] == [{"type": "input_text", "text": "next stage?"}]
 
 
 def test_format_uoaic_question_flattens_history_with_code_preamble():
@@ -642,7 +642,7 @@ def test_pipeline_ai_import_falls_back_when_pipeline_modules_are_unavailable():
         "agilab.pipeline_ai_fallback",
         "src/agilab/pipeline_ai.py",
         "agilab.pipeline_openai",
-        "agilab.pipeline_steps",
+        "agilab.pipeline_stages",
     )
 
     assert callable(fallback.chat_online)
@@ -699,11 +699,11 @@ def test_pipeline_ai_import_fallback_raises_when_pipeline_openai_local_spec_is_m
             "agilab.pipeline_ai_fallback_missing_pipeline_openai",
             "src/agilab/pipeline_ai.py",
             "agilab.pipeline_openai",
-            "agilab.pipeline_steps",
+            "agilab.pipeline_stages",
         )
 
 
-def test_pipeline_ai_import_fallback_raises_when_pipeline_steps_local_spec_is_missing(monkeypatch):
+def test_pipeline_ai_import_fallback_raises_when_pipeline_stages_local_spec_is_missing(monkeypatch):
     original_spec = importlib.util.spec_from_file_location
     fake_openai = SimpleNamespace(
         ensure_cached_api_key=lambda *_args, **_kwargs: "",
@@ -714,18 +714,18 @@ def test_pipeline_ai_import_fallback_raises_when_pipeline_steps_local_spec_is_mi
     )
 
     def _fake_spec(name, location, *args, **kwargs):
-        if name == "agilab_pipeline_steps_fallback":
+        if name == "agilab_pipeline_stages_fallback":
             return None
         return original_spec(name, location, *args, **kwargs)
 
     monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_spec)
     monkeypatch.setitem(sys.modules, "agilab.pipeline_openai", fake_openai)
 
-    with pytest.raises(ModuleNotFoundError, match="pipeline_steps"):
+    with pytest.raises(ModuleNotFoundError, match="pipeline_stages"):
         _load_module_with_missing(
-            "agilab.pipeline_ai_fallback_missing_pipeline_steps",
+            "agilab.pipeline_ai_fallback_missing_pipeline_stages",
             "src/agilab/pipeline_ai.py",
-            "agilab.pipeline_steps",
+            "agilab.pipeline_stages",
         )
 
 

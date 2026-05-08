@@ -60,7 +60,7 @@ def _check_result(
     }
 
 
-def compatible_lab_steps() -> dict[str, list[dict[str, Any]]]:
+def compatible_lab_stages() -> dict[str, list[dict[str, Any]]]:
     return {
         "notebook_union_project": [
             {
@@ -83,11 +83,11 @@ def compatible_lab_steps() -> dict[str, list[dict[str, Any]]]:
     }
 
 
-def incompatible_lab_steps() -> dict[str, list[dict[str, Any]]]:
+def incompatible_lab_stages() -> dict[str, list[dict[str, Any]]]:
     return {
         "notebook_union_project": [
             {
-                "D": "Run local step",
+                "D": "Run local stage",
                 "Q": "",
                 "M": "",
                 "C": "print('local')\n",
@@ -95,7 +95,7 @@ def incompatible_lab_steps() -> dict[str, list[dict[str, Any]]]:
                 "E": "/env/a",
             },
             {
-                "D": "Run isolated step",
+                "D": "Run isolated stage",
                 "Q": "",
                 "M": "",
                 "C": "print('isolated')\n",
@@ -150,8 +150,8 @@ def build_report(
 
 def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, Any]:
     output_dir = output_dir.expanduser()
-    compatible_plan = build_union_environment_plan(compatible_lab_steps())
-    incompatible_plan = build_union_environment_plan(incompatible_lab_steps())
+    compatible_plan = build_union_environment_plan(compatible_lab_stages())
+    incompatible_plan = build_union_environment_plan(incompatible_lab_stages())
     compatible_plan_path = write_union_environment_plan(
         output_dir / "compatible_union_plan.json",
         compatible_plan,
@@ -179,9 +179,9 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             and compatible_plan.get("run_status") == "union_candidate"
             and compatible_plan.get("union_mode") == "single_kernel_union_candidate"
             and compatible_plan.get("execution_mode") == "not_executed_union_plan"
-            and compatible_plan.get("summary", {}).get("step_count") == 2
+            and compatible_plan.get("summary", {}).get("stage_count") == 2
             and compatible_plan.get("summary", {}).get("compatible") is True,
-            "compatible runpy/current-kernel steps can produce a union notebook candidate",
+            "compatible runpy/current-kernel stages can produce a union notebook candidate",
             evidence=[str(compatible_plan_path)],
             details=compatible_plan,
         ),
@@ -207,7 +207,7 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             and incompatible_plan.get("union_mode") == "supervisor_notebook_required"
             and incompatible_plan.get("summary", {}).get("compatible") is False
             and incompatible_plan.get("summary", {}).get("issue_count") >= 2,
-            "mixed runtime or mixed environment steps stay on supervisor export",
+            "mixed runtime or mixed environment stages stay on supervisor export",
             evidence=[str(incompatible_plan_path)],
             details=incompatible_plan,
         ),
@@ -237,7 +237,7 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
         "status": "pass" if failed == 0 else "fail",
         "scope": (
             "Plans a single-kernel union notebook only for compatible runpy "
-            "steps and requires supervisor export for mixed runtimes or "
+            "stages and requires supervisor export for mixed runtimes or "
             "environments. It does not execute notebook cells."
         ),
         "summary": {
@@ -246,7 +246,7 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             "total": len(checks),
             "compatible_union_mode": compatible_plan.get("union_mode"),
             "incompatible_union_mode": incompatible_plan.get("union_mode"),
-            "compatible_step_count": compatible_plan.get("summary", {}).get("step_count"),
+            "compatible_stage_count": compatible_plan.get("summary", {}).get("stage_count"),
             "incompatible_issue_count": incompatible_plan.get("summary", {}).get("issue_count"),
             "notebook_path": str(notebook_path),
             "code_cell_count": len(code_cells),

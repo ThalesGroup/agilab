@@ -31,7 +31,7 @@ canonical source can serve both agents.
 - `codex-session-learning`: Turn prior Codex sessions into reusable bug-fix guidance, prompt routing, and validation rules.
 - `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.
 - `docx-figure-sync`: Replace embedded DOCX figures without disturbing nearby layout and captions.
-- `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views, plus `lab_steps.toml` naming/IO-flow clarification.
+- `pipeline-concept-view`: Patterns for app-specific conceptual pipeline views beside generated execution views, plus `lab_stages.toml` naming/IO-flow clarification.
 - `notebook-to-agilab-project`: Migrate a small local notebook workflow into an AGILAB project with explicit pipeline and analysis artifacts.
 - `plan-before-code`: Enforce a short planning and validation pass before multi-step code changes.
 - `report-qa-docx`: Review DOCX reports for missing figures, duplicate sections, stale wording, and caption drift.

@@ -745,7 +745,7 @@ async def render_execute_section(
     current_artifact_state = _current_artifact_state()
     render_workflow_timeline(
         st,
-        steps=(
+        items=(
             {
                 "label": "Configure",
                 "state": "done" if cmd else "blocked",

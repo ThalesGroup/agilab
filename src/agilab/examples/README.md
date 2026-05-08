@@ -16,7 +16,7 @@ the command shape stable.
 | 1 | `flight` | `flight_project` | First proof: install one app, run one file, inspect map-ready output. |
 | 2 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
 | 3 | `meteo_forecast` | `meteo_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
-| 4 | `notebook_migrations/skforecast_meteo_fr` | `meteo_forecast_project` | Packaged migration source: notebooks, artifacts, lab steps, and pipeline view. |
+| 4 | `notebook_migrations/skforecast_meteo_fr` | `meteo_forecast_project` | Packaged migration source: notebooks, artifacts, lab stages, and pipeline view. |
 | 5 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
 | 6 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
 | 7 | `global_dag_project` | `flight_project` -> `meteo_forecast_project` | Built-in app-owned global DAG contract: app nodes, artifact handoff, and runner-state preview. |
@@ -36,12 +36,12 @@ the command shape stable.
   compatibility preview, but it reads the built-in `global_dag_project` DAG
   template by default.
 - `notebook_to_dask/preview_notebook_to_dask.py` shows how notebook cells become
-  `lab_steps.toml`, a Dask solution slice, and an artifact contract.
+  `lab_stages.toml`, a Dask solution slice, and an artifact contract.
 - `tools/notebook_import_preflight.py` gives the same notebook import path a
   generic cleanup report plus artifact, pipeline-view, and app view-plan
   sidecars before you turn a notebook into a project.
 - `notebook_migrations/skforecast_meteo_fr` keeps the weather-forecast source
-  notebooks, exported artifacts, migrated `lab_steps.toml`, and conceptual
+  notebooks, exported artifacts, migrated `lab_stages.toml`, and conceptual
   pipeline view in the packaged examples tree.
 - `service_mode/preview_service_mode.py` reads a `mycode_project` built-in
   service template and explains persistent-worker operations without starting a

@@ -70,13 +70,13 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module._pipeline_runtime, "mlflow_tracking_uri", lambda _env: "sqlite:///mlflow.db")
-    monkeypatch.setattr(module._pipeline_steps, "step_summary", lambda _entry, width=80: f"summary:{width}")
+    monkeypatch.setattr(module._pipeline_stages, "stage_summary", lambda _entry, width=80: f"summary:{width}")
 
     env = SimpleNamespace(app="demo", runenv=tmp_path / "logs")
     run_name, tags, params, text_artifacts = module._mlflow_parent_payload(
         env,
         tmp_path / "lab",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         [0, 2],
     )
 
@@ -85,20 +85,20 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
     assert params == {"sequence": "1,3", "stage_count": 2}
     assert json.loads(text_artifacts["pipeline_metadata/sequence.json"])["sequence"] == [1, 3]
 
-    step_name, step_tags, step_params, step_artifacts = module._mlflow_step_payload(
+    stage_name, stage_tags, stage_params, stage_artifacts = module._mlflow_stage_payload(
         env,
         tmp_path / "lab",
-        tmp_path / "lab_steps.toml",
-        step_index=1,
+        tmp_path / "lab_stages.toml",
+        stage_index=1,
         entry={"D": "desc", "Q": "question", "M": "model", "C": "print(1)"},
         engine="agi.run",
         runtime_root="/runtime",
     )
 
-    assert step_name == "demo:lab:stage_2"
-    assert step_tags["agilab.summary"] == "summary:80"
-    assert step_params["engine"] == "agi.run"
-    assert json.loads(step_artifacts["stage_2/stage_entry.json"])["stage_index"] == 2
+    assert stage_name == "demo:lab:stage_2"
+    assert stage_tags["agilab.summary"] == "summary:80"
+    assert stage_params["engine"] == "agi.run"
+    assert json.loads(stage_artifacts["stage_2/stage_entry.json"])["stage_index"] == 2
 
     for idx in range(205):
         module._append_run_log("trim", f"log-{idx}")
@@ -365,32 +365,32 @@ def test_pipeline_run_controls_stale_owner_and_retry_exhaustion_branches(tmp_pat
     )
 
 
-def test_pipeline_run_controls_legacy_step_formatting_and_clean_abort(tmp_path, monkeypatch):
+def test_pipeline_run_controls_legacy_stage_formatting_and_clean_abort(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(module, "st", fake_st)
 
-    stale_steps = [
-        {"step": idx, "line": idx + 10, "project": f"app-{idx}", "summary": f"summary-{idx}"}
+    stale_stages = [
+        {"stage": idx, "line": idx + 10, "project": f"app-{idx}", "summary": f"summary-{idx}"}
         for idx in range(1, 7)
     ]
 
-    formatted = module._format_legacy_step_refs(stale_steps)
+    formatted = module._format_legacy_stage_refs(stale_stages)
 
     assert "stage 1, line 11, app-1: summary-1" in formatted
     assert "1 more" in formatted
 
-    assert module._abort_if_legacy_agi_run_steps(
+    assert module._abort_if_legacy_agi_run_stages(
         "page",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         [{"Q": "fresh", "C": "print('ok')"}],
         [0],
         None,
     ) is False
 
-    assert module._abort_if_legacy_agi_run_steps(
+    assert module._abort_if_legacy_agi_run_stages(
         "page",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         [{"Q": "stale", "C": "await AGI.run(app_env, mode=0)", "R": "agi.run"}],
         [0],
         None,
@@ -398,16 +398,16 @@ def test_pipeline_run_controls_legacy_step_formatting_and_clean_abort(tmp_path, 
     assert any(kind == "error" and "aborted before execution" in message for kind, message in fake_st.messages)
 
 
-def test_pipeline_run_controls_run_all_steps_executes_runpy_and_agi_run(tmp_path, monkeypatch):
+def test_pipeline_run_controls_run_all_stages_executes_runpy_and_agi_run(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"
     snippet_file.write_text("print('snippet')", encoding="utf-8")
     runtime_root = tmp_path / "runtime"
     runtime_root.mkdir()
-    steps_dir = tmp_path / "same" / "same"
-    steps_dir.mkdir(parents=True)
-    steps_file = steps_dir / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+    stages_dir = tmp_path / "same" / "same"
+    stages_dir.mkdir(parents=True)
+    stages_file = stages_dir / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     export_file = tmp_path / "export.csv"
 
     fake_st = _FakeStreamlit(
@@ -450,16 +450,16 @@ def test_pipeline_run_controls_run_all_steps_executes_runpy_and_agi_run(tmp_path
         lambda _env, *, run_id=None: {"MLFLOW_RUN_ID": run_id or ""},
     )
     monkeypatch.setattr(module._pipeline_runtime, "wrap_code_with_mlflow_resume", lambda code: f"# wrapped\n{code}")
-    monkeypatch.setattr(module._pipeline_runtime, "python_for_step", lambda *_args, **_kwargs: "pythonX")
+    monkeypatch.setattr(module._pipeline_runtime, "python_for_stage", lambda *_args, **_kwargs: "pythonX")
     monkeypatch.setattr(
         module._pipeline_runtime,
-        "label_for_step_runtime",
+        "label_for_stage_runtime",
         lambda runtime, *, engine, code: f"{engine}:{Path(runtime).name if runtime else 'default'}",
     )
     monkeypatch.setattr(module._pipeline_runtime, "is_valid_runtime_root", lambda value: str(value) == str(runtime_root))
-    monkeypatch.setattr(module._pipeline_steps, "normalize_runtime_path", lambda value: str(value or ""))
-    monkeypatch.setattr(module._pipeline_steps, "is_runnable_step", lambda entry: bool(entry.get("C")))
-    monkeypatch.setattr(module._pipeline_steps, "step_summary", lambda _entry, width=80: f"summary:{width}")
+    monkeypatch.setattr(module._pipeline_stages, "normalize_runtime_path", lambda value: str(value or ""))
+    monkeypatch.setattr(module._pipeline_stages, "is_runnable_stage", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module._pipeline_stages, "stage_summary", lambda _entry, width=80: f"summary:{width}")
     monkeypatch.setattr(module, "run_lab", lambda *_args, **_kwargs: "")
     monkeypatch.setattr(module, "save_csv", lambda _data, target: saved_exports.append(str(target)) or True)
     monkeypatch.setattr(module, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: {"path": "lock", "token": "t"})
@@ -470,20 +470,20 @@ def test_pipeline_run_controls_run_all_steps_executes_runpy_and_agi_run(tmp_path
         stream_calls.append({"cmd": cmd, "cwd": cwd, "extra_env": kwargs.get("extra_env")})
         return "No such file or directory: missing.csv"
 
-    steps = [
+    stages = [
         {"D": "first", "Q": "q1", "M": "m1", "C": "print(1)"},
         {"D": "second", "Q": "q2", "M": "m2", "C": "print(2)", "E": str(runtime_root), "R": "runpy"},
         {"D": "skip", "Q": "q3", "M": "m3", "C": ""},
     ]
     env = SimpleNamespace(app="demo", active_app=str(runtime_root), copilot_file=tmp_path / "copilot.py")
 
-    module.run_all_steps(
+    module.run_all_stages(
         tmp_path / "lab",
         "page",
-        steps_file,
+        stages_file,
         tmp_path / "module.py",
         env,
-        load_all_steps_fn=lambda *_args: steps,
+        load_all_stages_fn=lambda *_args: stages,
         stream_run_command_fn=fake_stream_run_command,
     )
 
@@ -492,11 +492,11 @@ def test_pipeline_run_controls_run_all_steps_executes_runpy_and_agi_run(tmp_path
     assert any("No such file or directory" in line for line in fake_st.session_state["page__run_logs"])
     assert any("AGI_CLUSTER_SHARE" in line for line in fake_st.session_state["page__run_logs"])
     assert stream_calls[0]["cmd"][0] == "pythonX"
-    assert stream_calls[0]["cwd"] == steps_dir.parent.resolve()
+    assert stream_calls[0]["cwd"] == stages_dir.parent.resolve()
     assert stream_calls[0]["extra_env"]["MLFLOW_RUN_ID"] == "run-3"
     assert saved_exports == [str(export_file), str(export_file)]
     assert fake_st.session_state["df_file_in"] == str(export_file)
-    assert fake_st.session_state["step_checked"] is True
+    assert fake_st.session_state["stage_checked"] is True
     assert fake_st.session_state["page"][0] == 99
     assert fake_st.session_state["lab_selected_venv"] == ""
     assert fake_st.session_state["lab_selected_engine"] == "old-engine"
@@ -508,51 +508,51 @@ def test_pipeline_run_controls_run_all_steps_executes_runpy_and_agi_run(tmp_path
     assert mlflow_calls[1]["nested"] is True
 
 
-def test_pipeline_run_controls_run_all_steps_handles_early_exits(tmp_path, monkeypatch):
+def test_pipeline_run_controls_run_all_stages_handles_early_exits(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     fake_st = _FakeStreamlit({"page": [0, "", "", "", "", "", 0]})
     monkeypatch.setattr(module, "st", fake_st)
-    monkeypatch.setattr(module._pipeline_steps, "normalize_runtime_path", lambda value: str(value or ""))
-    monkeypatch.setattr(module._pipeline_steps, "is_runnable_step", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module._pipeline_stages, "normalize_runtime_path", lambda value: str(value or ""))
+    monkeypatch.setattr(module._pipeline_stages, "is_runnable_stage", lambda entry: bool(entry.get("C")))
     env = SimpleNamespace(app="demo", active_app="", copilot_file=tmp_path / "copilot.py")
 
-    module.run_all_steps(
+    module.run_all_stages(
         tmp_path / "lab",
         "page",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         tmp_path / "module.py",
         env,
-        load_all_steps_fn=lambda *_args: [],
+        load_all_stages_fn=lambda *_args: [],
         stream_run_command_fn=lambda *_args, **_kwargs: "",
     )
     assert any(kind == "info" and "No stages available" in message for kind, message in fake_st.messages)
 
-    module.run_all_steps(
+    module.run_all_stages(
         tmp_path / "lab",
         "page",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         tmp_path / "module.py",
         env,
-        load_all_steps_fn=lambda *_args: [{"C": "print(1)"}],
+        load_all_stages_fn=lambda *_args: [{"C": "print(1)"}],
         stream_run_command_fn=lambda *_args, **_kwargs: "",
     )
     assert any(kind == "error" and "Snippet file is not configured" in message for kind, message in fake_st.messages)
 
     fake_st.session_state["snippet_file"] = str(tmp_path / "snippet.py")
     monkeypatch.setattr(module, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: None)
-    module.run_all_steps(
+    module.run_all_stages(
         tmp_path / "lab",
         "page",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         tmp_path / "module.py",
         env,
-        load_all_steps_fn=lambda *_args: [{"C": "print(1)"}],
+        load_all_stages_fn=lambda *_args: [{"C": "print(1)"}],
         stream_run_command_fn=lambda *_args, **_kwargs: "",
     )
     assert fake_st.session_state["page__run_logs"].count("Run pipeline invoked.") == 3
 
 
-def test_pipeline_run_controls_run_all_steps_reports_no_runnable_code(tmp_path, monkeypatch):
+def test_pipeline_run_controls_run_all_stages_reports_no_runnable_code(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"
     snippet_file.write_text("print('snippet')", encoding="utf-8")
@@ -573,20 +573,20 @@ def test_pipeline_run_controls_run_all_steps_reports_no_runnable_code(tmp_path, 
 
     monkeypatch.setattr(module._pipeline_runtime, "mlflow_tracking_uri", lambda _env: "")
     monkeypatch.setattr(module._pipeline_runtime, "start_mlflow_run", no_mlflow_run)
-    monkeypatch.setattr(module._pipeline_steps, "normalize_runtime_path", lambda value: str(value or ""))
-    monkeypatch.setattr(module._pipeline_steps, "is_runnable_step", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module._pipeline_stages, "normalize_runtime_path", lambda value: str(value or ""))
+    monkeypatch.setattr(module._pipeline_stages, "is_runnable_stage", lambda entry: bool(entry.get("C")))
     monkeypatch.setattr(module, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: {"path": "lock", "token": "t"})
     monkeypatch.setattr(module, "_refresh_pipeline_run_lock", lambda _handle: None)
     monkeypatch.setattr(module, "_release_pipeline_run_lock", lambda handle, *_args, **_kwargs: releases.append(handle))
 
     env = SimpleNamespace(app="demo", active_app="", copilot_file=tmp_path / "copilot.py")
-    module.run_all_steps(
+    module.run_all_stages(
         tmp_path / "lab",
         "page",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         tmp_path / "module.py",
         env,
-        load_all_steps_fn=lambda *_args: [{"D": "skip", "Q": "no code", "M": "model", "C": ""}],
+        load_all_stages_fn=lambda *_args: [{"D": "skip", "Q": "no code", "M": "model", "C": ""}],
         stream_run_command_fn=lambda *_args, **_kwargs: "should not run",
     )
 
@@ -625,13 +625,13 @@ def test_pipeline_run_controls_blocks_legacy_agi_run_before_lock(tmp_path, monke
     )
     env = SimpleNamespace(app="demo", active_app="", copilot_file=tmp_path / "copilot.py")
 
-    module.run_all_steps(
+    module.run_all_stages(
         tmp_path / "lab",
         "page",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         tmp_path / "module.py",
         env,
-        load_all_steps_fn=lambda *_args: [{"Q": "Generate flight trajectories", "C": stale_code, "R": "agi.run"}],
+        load_all_stages_fn=lambda *_args: [{"Q": "Generate flight trajectories", "C": stale_code, "R": "agi.run"}],
         stream_run_command_fn=lambda *_args, **_kwargs: "should not execute",
     )
 
@@ -640,7 +640,7 @@ def test_pipeline_run_controls_blocks_legacy_agi_run_before_lock(tmp_path, monke
     assert not any("Running stage 1" in line for line in fake_st.session_state["page__run_logs"])
 
 
-def test_pipeline_run_controls_run_all_steps_without_mlflow_tracks_runpy_no_output(tmp_path, monkeypatch):
+def test_pipeline_run_controls_run_all_stages_without_mlflow_tracks_runpy_no_output(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"
     snippet_file.write_text("print('snippet')", encoding="utf-8")
@@ -666,13 +666,13 @@ def test_pipeline_run_controls_run_all_steps_without_mlflow_tracks_runpy_no_outp
     monkeypatch.setattr(module._pipeline_runtime, "build_mlflow_process_env", lambda _env, *, run_id=None: {})
     monkeypatch.setattr(
         module._pipeline_runtime,
-        "label_for_step_runtime",
+        "label_for_stage_runtime",
         lambda runtime, *, engine, code: f"{engine}:{runtime or 'default'}",
     )
     monkeypatch.setattr(module._pipeline_runtime, "is_valid_runtime_root", lambda _value: False)
-    monkeypatch.setattr(module._pipeline_steps, "normalize_runtime_path", lambda value: str(value or ""))
-    monkeypatch.setattr(module._pipeline_steps, "is_runnable_step", lambda entry: bool(entry.get("C")))
-    monkeypatch.setattr(module._pipeline_steps, "step_summary", lambda entry, width=80: entry.get("Q", ""))
+    monkeypatch.setattr(module._pipeline_stages, "normalize_runtime_path", lambda value: str(value or ""))
+    monkeypatch.setattr(module._pipeline_stages, "is_runnable_stage", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module._pipeline_stages, "stage_summary", lambda entry, width=80: entry.get("Q", ""))
     monkeypatch.setattr(module, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: {"path": "lock", "token": "t"})
     monkeypatch.setattr(module, "_refresh_pipeline_run_lock", lambda _handle: None)
     monkeypatch.setattr(module, "_release_pipeline_run_lock", lambda handle, *_args, **_kwargs: releases.append(handle))
@@ -685,13 +685,13 @@ def test_pipeline_run_controls_run_all_steps_without_mlflow_tracks_runpy_no_outp
     )
 
     env = SimpleNamespace(app="demo", active_app="", copilot_file=tmp_path / "copilot.py")
-    module.run_all_steps(
+    module.run_all_stages(
         tmp_path / "lab",
         "page",
-        tmp_path / "steps" / "lab_steps.toml",
+        tmp_path / "stages" / "lab_stages.toml",
         tmp_path / "module.py",
         env,
-        load_all_steps_fn=lambda *_args: [{"D": "desc", "Q": "question", "M": "model", "C": "print(1)"}],
+        load_all_stages_fn=lambda *_args: [{"D": "desc", "Q": "question", "M": "model", "C": "print(1)"}],
         stream_run_command_fn=lambda *_args, **_kwargs: "should not run",
     )
 
@@ -710,7 +710,7 @@ def test_pipeline_run_controls_run_all_steps_without_mlflow_tracks_runpy_no_outp
     assert releases == [{"path": "lock", "token": "t"}]
 
 
-def test_pipeline_run_controls_run_all_steps_uses_active_app_for_agi_engine(tmp_path, monkeypatch):
+def test_pipeline_run_controls_run_all_stages_uses_active_app_for_agi_engine(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     snippet_file = tmp_path / "snippet.py"
     snippet_file.write_text("print('snippet')", encoding="utf-8")
@@ -739,18 +739,18 @@ def test_pipeline_run_controls_run_all_steps_uses_active_app_for_agi_engine(tmp_
     monkeypatch.setattr(module._pipeline_runtime, "wrap_code_with_mlflow_resume", lambda code: code)
     monkeypatch.setattr(
         module._pipeline_runtime,
-        "python_for_step",
+        "python_for_stage",
         lambda runtime, *, engine, code: f"python-for-{Path(runtime).name}",
     )
     monkeypatch.setattr(
         module._pipeline_runtime,
-        "label_for_step_runtime",
+        "label_for_stage_runtime",
         lambda runtime, *, engine, code: f"{engine}:{Path(runtime).name if runtime else 'default'}",
     )
     monkeypatch.setattr(module._pipeline_runtime, "is_valid_runtime_root", lambda value: str(value) == str(runtime_root))
-    monkeypatch.setattr(module._pipeline_steps, "normalize_runtime_path", lambda value: str(value or ""))
-    monkeypatch.setattr(module._pipeline_steps, "is_runnable_step", lambda entry: bool(entry.get("C")))
-    monkeypatch.setattr(module._pipeline_steps, "step_summary", lambda entry, width=80: entry.get("Q", ""))
+    monkeypatch.setattr(module._pipeline_stages, "normalize_runtime_path", lambda value: str(value or ""))
+    monkeypatch.setattr(module._pipeline_stages, "is_runnable_stage", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module._pipeline_stages, "stage_summary", lambda entry, width=80: entry.get("Q", ""))
     monkeypatch.setattr(module, "_acquire_pipeline_run_lock", lambda *_args, **_kwargs: {"path": "lock", "token": "t"})
     monkeypatch.setattr(module, "_refresh_pipeline_run_lock", lambda _handle: None)
     monkeypatch.setattr(module, "_release_pipeline_run_lock", lambda handle, *_args, **_kwargs: releases.append(handle))
@@ -760,13 +760,13 @@ def test_pipeline_run_controls_run_all_steps_uses_active_app_for_agi_engine(tmp_
         return "completed"
 
     env = SimpleNamespace(app="demo", active_app=str(runtime_root), copilot_file=tmp_path / "copilot.py")
-    module.run_all_steps(
+    module.run_all_stages(
         tmp_path / "lab",
         "page",
-        tmp_path / "steps" / "lab_steps.toml",
+        tmp_path / "stages" / "lab_stages.toml",
         tmp_path / "module.py",
         env,
-        load_all_steps_fn=lambda *_args: [{"D": "desc", "Q": "question", "M": "model", "C": "print(1)", "R": "agi.run"}],
+        load_all_stages_fn=lambda *_args: [{"D": "desc", "Q": "question", "M": "model", "C": "print(1)", "R": "agi.run"}],
         stream_run_command_fn=fake_stream_run_command,
     )
 

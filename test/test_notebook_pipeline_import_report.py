@@ -34,19 +34,19 @@ def test_notebook_pipeline_import_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["cell_count"] == 4
     assert report["summary"]["code_cell_count"] == 2
     assert report["summary"]["markdown_cell_count"] == 2
-    assert report["summary"]["pipeline_step_count"] == 2
+    assert report["summary"]["pipeline_stage_count"] == 2
     assert report["summary"]["context_block_count"] == 2
     assert report["summary"]["env_hint_count"] == 3
     assert report["summary"]["artifact_reference_count"] == 3
-    assert report["summary"]["lab_steps_preview_step_count"] == 2
-    assert report["summary"]["step_ids"] == ["cell-2", "cell-4"]
+    assert report["summary"]["lab_stages_preview_stage_count"] == 2
+    assert report["summary"]["stage_ids"] == ["cell-2", "cell-4"]
     assert {check["id"] for check in report["checks"]} == {
         "notebook_pipeline_import_schema",
         "notebook_pipeline_import_cells",
         "notebook_pipeline_import_metadata",
         "notebook_pipeline_import_context_links",
         "notebook_pipeline_import_execution_boundary",
-        "notebook_pipeline_import_lab_steps_preview",
+        "notebook_pipeline_import_lab_stages_preview",
         "notebook_pipeline_import_persistence",
         "notebook_pipeline_import_docs_reference",
     }
@@ -65,14 +65,14 @@ def test_notebook_pipeline_import_reads_fixture_and_round_trips(tmp_path: Path) 
 
     assert proof.ok is True
     assert proof.round_trip_ok is True
-    assert proof.pipeline_step_count == 2
+    assert proof.pipeline_stage_count == 2
     assert proof.env_hint_count == 3
     assert proof.artifact_reference_count == 3
     imported = proof.notebook_import
     assert imported["execution_mode"] == "not_executed_import"
     assert imported["provenance"]["executes_notebook"] is False
     assert imported["env_hints"] == ["json", "pandas", "pathlib"]
-    assert [step["context_ids"] for step in imported["pipeline_steps"]] == [
+    assert [stage["context_ids"] for stage in imported["pipeline_stages"]] == [
         ["markdown-1"],
         ["markdown-3"],
     ]
@@ -84,11 +84,11 @@ def test_notebook_pipeline_import_reads_fixture_and_round_trips(tmp_path: Path) 
         "artifacts/summary.json",
         "artifacts/trajectory.png",
     }
-    preview = core_module.build_lab_steps_preview(
+    preview = core_module.build_lab_stages_preview(
         imported,
         module_name="flight_project",
     )
-    assert [step["NB_CELL_ID"] for step in preview["flight_project"]] == [
+    assert [stage["NB_CELL_ID"] for stage in preview["flight_project"]] == [
         "cell-2",
         "cell-4",
     ]

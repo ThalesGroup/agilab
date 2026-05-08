@@ -27,7 +27,7 @@ APP_TRACE_FILES = (
     Path("pyproject.toml"),
     Path("src/app_settings.toml"),
     Path("pipeline_view.dot"),
-    Path("lab_steps.toml"),
+    Path("lab_stages.toml"),
     Path("notebook_export.toml"),
 )
 

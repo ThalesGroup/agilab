@@ -1,4 +1,4 @@
-# lab_steps Review Checklist
+# lab_stages Review Checklist
 
 Use this checklist when the task is more about readability than about adding a new
 conceptual diagram.

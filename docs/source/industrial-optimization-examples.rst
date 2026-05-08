@@ -30,7 +30,7 @@ apps repository. It now covers five complementary proof routes:
    * - Multi-App DAG
      - Flight, satellite, link, network, trainer, and analysis stages exchange
        explicit artifacts instead of hidden notebook state.
-     - ``lab_steps.toml`` and ``pipeline_view.dot``
+     - ``lab_stages.toml`` and ``pipeline_view.dot``
    * - Resilience / Failure Injection
      - A degraded relay is injected, then fixed routing is compared with an
        adaptive policy on the same scenario contract.

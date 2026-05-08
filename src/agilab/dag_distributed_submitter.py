@@ -316,10 +316,12 @@ def resolve_stage_apps_path(repo_root: Path, app_name: str) -> Path:
 
 def request_payload_from_execution_contract(contract: Mapping[str, Any]) -> dict[str, Any]:
     params = contract.get("params") or contract.get("run_params") or {}
-    steps = contract.get("steps") or contract.get("run_steps") or []
+    if "steps" in contract or "run_steps" in contract:
+        raise ValueError("Execution contracts must use 'stages'; legacy 'steps'/'run_steps' keys are not supported.")
+    stages = contract.get("stages") or []
     payload: dict[str, Any] = {
         "params": dict(params) if isinstance(params, Mapping) else {},
-        "steps": list(steps) if isinstance(steps, list) else [],
+        "stages": list(stages) if isinstance(stages, list) else [],
         "data_in": contract.get("data_in"),
         "data_out": contract.get("data_out"),
         "reset_target": contract.get("reset_target"),
@@ -359,7 +361,7 @@ def _stage_run_script(
 import asyncio
 import json
 
-from agi_cluster.agi_distributor import AGI, RunRequest, StepRequest
+from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest
 from agi_env import AgiEnv
 
 
@@ -379,13 +381,13 @@ async def main():
         modes_enabled={int(config.mode)!r},
         verbose={int(config.verbose)!r},
     )
-    steps = [
-        StepRequest(name=step["name"], args=step.get("args") or {{}})
-        for step in REQUEST_PAYLOAD.get("steps", [])
+    stages = [
+        StageRequest(name=stage["name"], args=stage.get("args") or {{}})
+        for stage in REQUEST_PAYLOAD.get("stages", [])
     ]
     request = RunRequest(
         params=REQUEST_PAYLOAD.get("params") or {{}},
-        steps=steps,
+        stages=stages,
         data_in=REQUEST_PAYLOAD.get("data_in"),
         data_out=REQUEST_PAYLOAD.get("data_out"),
         reset_target=REQUEST_PAYLOAD.get("reset_target"),

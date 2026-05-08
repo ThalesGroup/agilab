@@ -22,7 +22,7 @@ Core pages
 
 - :doc:`edit-help` — **PROJECT**: inspect and modify project sources and settings.
 - :doc:`execute-help` — **ORCHESTRATE**: install workers, generate distributions, and run pipelines.
-- :doc:`experiment-help` — **WORKFLOW**: iterate in ``lab_steps.toml``, run snippets against exported data, and export a runnable supervisor notebook for use outside the AGILAB UI.
+- :doc:`experiment-help` — **WORKFLOW**: iterate in ``lab_stages.toml``, run snippets against exported data, and export a runnable supervisor notebook for use outside the AGILAB UI.
 - :doc:`explore-help` — **ANALYSIS**: discover, configure, and launch page bundles.
 
 Core page tour
@@ -56,7 +56,7 @@ Use this as a page map, not as the newcomer proof path:
    distributions, configure distributed workers when needed, and generate a
    run snippet.
 3. Move to :doc:`experiment-help` (Pipeline) to import or iterate that
-   generated stage in ``lab_steps.toml`` and export a runnable supervisor
+   generated stage in ``lab_stages.toml`` and export a runnable supervisor
    notebook when you want the pipeline outside the AGILAB UI.
 4. Open :doc:`explore-help` (Analysis) to configure and launch page bundles for
    deeper views.

@@ -38,7 +38,7 @@ def load_last_active_app_name(modules: List[str]) -> Optional[str]:
 
 def on_lab_change(new_index_page: str) -> None:
     """Handle lab directory change event."""
-    st.session_state.pop("steps_file", None)
+    st.session_state.pop("stages_file", None)
     st.session_state.pop("df_file", None)
     key = str(st.session_state.get("index_page", "")) + "df"
     st.session_state.pop(key, None)

@@ -28,7 +28,7 @@
           "queue_weight": 2.5,
           "random_seed": 2026
         },
-        "steps": [],
+        "stages": [],
         "data_in": "uav_queue/scenarios",
         "data_out": "uav_queue/results",
         "reset_target": false
@@ -57,7 +57,7 @@
           "queue_weight": 2.5,
           "random_seed": 2026
         },
-        "steps": [],
+        "stages": [],
         "data_in": "uav_relay_queue/scenarios",
         "data_out": "uav_relay_queue/results",
         "reset_target": false

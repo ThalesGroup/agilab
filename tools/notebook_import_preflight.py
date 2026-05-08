@@ -32,7 +32,7 @@ _ensure_repo_on_path(REPO_ROOT)
 
 from agilab.notebook_pipeline_import import (  # noqa: E402
     DEFAULT_NOTEBOOK_RELATIVE_PATH,
-    build_lab_steps_preview,
+    build_lab_stages_preview,
     build_notebook_import_contract,
     build_notebook_import_preflight,
     build_notebook_import_pipeline_view,
@@ -121,7 +121,7 @@ def build_report(
             source_notebook=resolved_notebook,
         )
         preflight = build_notebook_import_preflight(notebook_import)
-        lab_steps_preview = build_lab_steps_preview(notebook_import, module_name=module_name)
+        lab_stages_preview = build_lab_stages_preview(notebook_import, module_name=module_name)
         contract = build_notebook_import_contract(
             notebook_import,
             preflight=preflight,
@@ -187,10 +187,10 @@ def build_report(
             "notebook_import_preflight_importable",
             "Notebook importable",
             bool(preflight.get("safe_to_import")),
-            "notebook produces at least one importable pipeline step",
+            "notebook produces at least one importable pipeline stage",
             evidence=[str(resolved_notebook)],
             details={
-                "pipeline_step_count": summary.get("pipeline_step_count"),
+                "pipeline_stage_count": summary.get("pipeline_stage_count"),
                 "safe_to_import": preflight.get("safe_to_import"),
             },
         ),
@@ -218,12 +218,12 @@ def build_report(
             details=artifact_contract,
         ),
         _check_result(
-            "notebook_import_preflight_lab_steps_preview",
-            "Notebook lab_steps preview",
-            bool(lab_steps_preview.get(module_name)),
-            "preflight can project imported cells into lab_steps preview entries",
+            "notebook_import_preflight_lab_stages_preview",
+            "Notebook lab_stages preview",
+            bool(lab_stages_preview.get(module_name)),
+            "preflight can project imported cells into lab_stages preview entries",
             evidence=["src/agilab/notebook_pipeline_import.py"],
-            details={"module_name": module_name, "step_count": len(lab_steps_preview.get(module_name, []))},
+            details={"module_name": module_name, "stage_count": len(lab_stages_preview.get(module_name, []))},
         ),
         _check_result(
             "notebook_import_preflight_pipeline_view",
@@ -315,7 +315,7 @@ def build_report(
             "cell_count": summary.get("cell_count"),
             "code_cell_count": summary.get("code_cell_count"),
             "markdown_cell_count": summary.get("markdown_cell_count"),
-            "pipeline_step_count": summary.get("pipeline_step_count"),
+            "pipeline_stage_count": summary.get("pipeline_stage_count"),
             "input_count": summary.get("input_count"),
             "output_count": summary.get("output_count"),
             "unknown_artifact_count": summary.get("unknown_artifact_count"),
@@ -375,7 +375,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--module-name",
         default="notebook_import_project",
-        help="Module key to use in the generated lab_steps preview.",
+        help="Module key to use in the generated lab_stages preview.",
     )
     parser.add_argument(
         "--compact",

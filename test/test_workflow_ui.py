@@ -186,7 +186,7 @@ def test_render_workflow_timeline_latest_run_and_artifacts(tmp_path) -> None:
 
     workflow_ui.render_workflow_timeline(
         fake_st,
-        steps=[
+        items=[
             {"label": "Configure", "state": "done", "detail": "project ready"},
             ("Run", "active", "executing"),
         ],
@@ -307,7 +307,7 @@ def test_project_state_and_basic_render_edge_cases(monkeypatch, tmp_path) -> Non
     fake_st = _FakeStreamlit()
     workflow_ui.render_log_actions(fake_st, body="only download", download_key="dl", file_name="run.log")
     workflow_ui.render_action_readiness(fake_st, actions=())
-    workflow_ui.render_workflow_timeline(fake_st, steps=("",))
+    workflow_ui.render_workflow_timeline(fake_st, items=("",))
     workflow_ui.render_command_bar(fake_st, commands=(), key_prefix="demo")
     workflow_ui.render_latest_run_card(fake_st, key_prefix="demo")
     assert ("download", "dl:False") in fake_st.events

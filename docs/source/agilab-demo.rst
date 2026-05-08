@@ -30,7 +30,7 @@ The hosted demo publishes two lightweight built-in paths:
   workflow, then open ``view_forecast_analysis`` or ``view_release_decision``
   from ``ANALYSIS``
 - use :doc:`notebook-migration-skforecast-meteo` as the companion walkthrough
-  when you want to show the source notebooks, migrated ``lab_steps.toml``,
+  when you want to show the source notebooks, migrated ``lab_stages.toml``,
   ``pipeline_view.dot``, and exported artifacts behind that hosted app
 
 This is a public preview route. It is not a replacement for the local

@@ -983,7 +983,7 @@ def test_experiment_page_load(mock_ui_env):
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     env.get_projects = MagicMock(return_value=["flight_project"])
-    # We must ensure there is a lab_steps file to not throw exceptions, or handling it safely
+    # We must ensure there is a lab_stages file to not throw exceptions, or handling it safely
     # In mock env we just pass env
     at.session_state["env"] = env
     # Mock some expected session_states for the page
@@ -1006,14 +1006,14 @@ def test_experiment_page_load(mock_ui_env):
     assert "MLflow" not in sidebar_text
 
 
-def test_pipeline_page_restores_missing_export_steps_from_project_source(mock_ui_env):
-    source_steps = mock_ui_env["project_dir"] / "lab_steps.toml"
-    source_steps.write_text(
+def test_pipeline_page_restores_missing_export_stages_from_project_source(mock_ui_env):
+    source_stages = mock_ui_env["project_dir"] / "lab_stages.toml"
+    source_stages.write_text(
         'flight_project = [{ Q = "Recover pipeline", C = "print(1)" }]\n',
         encoding="utf-8",
     )
-    target_steps = mock_ui_env["export_dir"] / "flight" / "lab_steps.toml"
-    assert not target_steps.exists()
+    target_stages = mock_ui_env["export_dir"] / "flight" / "lab_stages.toml"
+    assert not target_stages.exists()
 
     at = _app_test("src/agilab/pages/3_WORKFLOW.py")
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
@@ -1025,7 +1025,7 @@ def test_pipeline_page_restores_missing_export_steps_from_project_source(mock_ui
     at.run()
 
     assert not at.exception
-    data = tomllib.loads(target_steps.read_text(encoding="utf-8"))
+    data = tomllib.loads(target_stages.read_text(encoding="utf-8"))
     assert data["flight"][0]["Q"] == "Recover pipeline"
     assert "flight_project" not in data
 
@@ -1314,17 +1314,17 @@ def test_experiment_page_missing_openai_key(mock_ui_env):
 
 
 def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
-    """Deleting then canceling a step should rerender locally without crashing."""
+    """Deleting then canceling a stage should rerender locally without crashing."""
     export_root = tmp_path / "export"
     flight_lab_dir = export_root / "flight"
     flight_lab_dir.mkdir(parents=True, exist_ok=True)
-    (flight_lab_dir / "lab_steps.toml").write_text(
+    (flight_lab_dir / "lab_stages.toml").write_text(
         '[[flight]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
     flight_project_lab_dir = export_root / "flight_project"
     flight_project_lab_dir.mkdir(parents=True, exist_ok=True)
-    (flight_project_lab_dir / "lab_steps.toml").write_text(
+    (flight_project_lab_dir / "lab_stages.toml").write_text(
         '[[flight_project]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
@@ -1362,7 +1362,7 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
 
         at.button(key=f"{safe_prefix}_delete_cancel_0").click().run()
         assert not at.exception
-        assert at.text_area(key=f"{safe_prefix}_q_step_0").value == "demo prompt"
+        assert at.text_area(key=f"{safe_prefix}_q_stage_0").value == "demo prompt"
         confirm_state_key = f"{safe_prefix}_confirm_delete_0"
         assert not at.session_state.filtered_state.get(confirm_state_key, False)
 
@@ -1374,11 +1374,11 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
     trainer_lab = export_root / "sb3_trainer_project"
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
-    (flight_lab / "lab_steps.toml").write_text(
+    (flight_lab / "lab_stages.toml").write_text(
         '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
-    (trainer_lab / "lab_steps.toml").write_text(
+    (trainer_lab / "lab_stages.toml").write_text(
         '[[sb3_trainer_project]]\nD = ""\nQ = "trainer prompt"\nM = "dummy-model"\nC = "print(2)"\nR = "runpy"\n',
         encoding="utf-8",
     )
@@ -1431,9 +1431,9 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert not at.exception
         assert at.session_state["project_selectbox"] == target_lab
         assert at.session_state["lab_dir_selectbox"] == target_lab
-        assert Path(at.session_state["steps_file"]).parent.name == target_lab
+        assert Path(at.session_state["stages_file"]).parent.name == target_lab
         assert Path(str(at.session_state["index_page"])).parts[0] == target_lab
-        assert at.text_area(key=f"{target_lab}_lab_steps.toml_q_step_0").value == expected_prompt
+        assert at.text_area(key=f"{target_lab}_lab_stages.toml_q_stage_0").value == expected_prompt
 
 
 def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(mock_ui_env, tmp_path):
@@ -1442,11 +1442,11 @@ def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(m
     trainer_lab = export_root / "sb3_trainer_project"
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
-    (flight_lab / "lab_steps.toml").write_text(
+    (flight_lab / "lab_stages.toml").write_text(
         '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
-    (trainer_lab / "lab_steps.toml").write_text(
+    (trainer_lab / "lab_stages.toml").write_text(
         '[[sb3_trainer_project]]\nD = ""\nQ = "trainer prompt"\nM = "dummy-model"\nC = "print(2)"\nR = "runpy"\n',
         encoding="utf-8",
     )
@@ -1475,7 +1475,7 @@ def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(m
         assert not at.exception
         assert at.session_state["project_selectbox"] == "sb3_trainer_project"
         assert at.session_state["lab_dir_selectbox"] == "sb3_trainer_project"
-        assert Path(at.session_state["steps_file"]).parent.name == "sb3_trainer_project"
+        assert Path(at.session_state["stages_file"]).parent.name == "sb3_trainer_project"
 
 
 def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_env, tmp_path):
@@ -1484,11 +1484,11 @@ def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_en
     trainer_lab = export_root / "sb3_trainer_project"
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
-    (flight_lab / "lab_steps.toml").write_text(
+    (flight_lab / "lab_stages.toml").write_text(
         '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
-    (trainer_lab / "lab_steps.toml").write_text(
+    (trainer_lab / "lab_stages.toml").write_text(
         '[[sb3_trainer_project]]\nD = ""\nQ = "trainer prompt"\nM = "dummy-model"\nC = "print(2)"\nR = "runpy"\n',
         encoding="utf-8",
     )
@@ -1511,7 +1511,7 @@ def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_en
         assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
         assert "flight" not in project_select.options
         assert at.session_state["lab_dir_selectbox"] == "flight_project"
-        assert Path(at.session_state["steps_file"]).parent.name == "flight_project"
+        assert Path(at.session_state["stages_file"]).parent.name == "flight_project"
 
 
 def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tmp_path):
@@ -1520,11 +1520,11 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
     trainer_lab = export_root / "sb3_trainer_project"
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
-    (flight_lab / "lab_steps.toml").write_text(
+    (flight_lab / "lab_stages.toml").write_text(
         '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
-    (trainer_lab / "lab_steps.toml").write_text(
+    (trainer_lab / "lab_stages.toml").write_text(
         '[[sb3_trainer_project]]\nD = ""\nQ = "trainer prompt"\nM = "dummy-model"\nC = "print(2)"\nR = "runpy"\n',
         encoding="utf-8",
     )
@@ -1547,15 +1547,15 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
         project_select = at.sidebar.selectbox(key="project_selectbox")
         assert project_select.value == "sb3_trainer_project"
         assert at.session_state["lab_dir_selectbox"] == "sb3_trainer_project"
-        assert Path(at.session_state["steps_file"]).parent.name == "sb3_trainer_project"
+        assert Path(at.session_state["stages_file"]).parent.name == "sb3_trainer_project"
 
 
-def test_experiment_page_save_step_persists_prompt(mock_ui_env, tmp_path):
+def test_experiment_page_save_stage_persists_prompt(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
     lab_dir = export_root / "flight_project"
     lab_dir.mkdir(parents=True, exist_ok=True)
-    steps_file = lab_dir / "lab_steps.toml"
-    steps_file.write_text(
+    stages_file = lab_dir / "lab_stages.toml"
+    stages_file.write_text(
         '[[flight_project]]\nD = ""\nQ = "original prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
@@ -1575,21 +1575,21 @@ def test_experiment_page_save_step_persists_prompt(mock_ui_env, tmp_path):
         assert not at.exception
 
         updated_prompt = "updated prompt from AppTest"
-        at.session_state["flight_project_lab_steps.toml_q_step_0"] = updated_prompt
+        at.session_state["flight_project_lab_stages.toml_q_stage_0"] = updated_prompt
         at.run()
-        at.button(key="flight_project_lab_steps.toml_save_0").click().run()
+        at.button(key="flight_project_lab_stages.toml_save_0").click().run()
 
         assert not at.exception
-        assert updated_prompt in steps_file.read_text(encoding="utf-8")
-        assert at.text_area(key="flight_project_lab_steps.toml_q_step_0").value == updated_prompt
+        assert updated_prompt in stages_file.read_text(encoding="utf-8")
+        assert at.text_area(key="flight_project_lab_stages.toml_q_stage_0").value == updated_prompt
 
 
-def test_experiment_page_confirm_remove_updates_steps_file(mock_ui_env, tmp_path):
+def test_experiment_page_confirm_remove_updates_stages_file(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
     lab_dir = export_root / "flight_project"
     lab_dir.mkdir(parents=True, exist_ok=True)
-    steps_file = lab_dir / "lab_steps.toml"
-    steps_file.write_text(
+    stages_file = lab_dir / "lab_stages.toml"
+    stages_file.write_text(
         """
 [[flight_project]]
 D = ""
@@ -1622,14 +1622,14 @@ R = "runpy"
         at.run()
         assert not at.exception
 
-        at.button(key="flight_project_lab_steps.toml_delete_0").click().run()
+        at.button(key="flight_project_lab_stages.toml_delete_0").click().run()
         assert not at.exception
-        assert any(button.key == "flight_project_lab_steps.toml_delete_confirm_0" for button in at.button)
+        assert any(button.key == "flight_project_lab_stages.toml_delete_confirm_0" for button in at.button)
 
-        at.button(key="flight_project_lab_steps.toml_delete_confirm_0").click().run()
+        at.button(key="flight_project_lab_stages.toml_delete_confirm_0").click().run()
         assert not at.exception
 
-        stored = steps_file.read_text(encoding="utf-8")
+        stored = stages_file.read_text(encoding="utf-8")
         assert "first prompt" not in stored
         assert "second prompt" in stored
 

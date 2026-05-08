@@ -6,45 +6,45 @@ from typing import Any, TypeAlias
 
 
 RunMode: TypeAlias = int | list[int] | str | None
-RUN_STEPS_KEY = "_agilab_run_steps"
+RUN_STAGES_KEY = "_agilab_run_stages"
 
 
 @dataclass(frozen=True)
-class StepRequest:
-    """A single named AGILAB workflow step."""
+class StageRequest:
+    """A single named AGILAB workflow stage."""
 
     name: str
     args: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.name, str) or not self.name:
-            raise ValueError("StepRequest.name must be a non-empty string")
+            raise ValueError("StageRequest.name must be a non-empty string")
         if not isinstance(self.args, Mapping):
-            raise TypeError("StepRequest.args must be a mapping")
+            raise TypeError("StageRequest.args must be a mapping")
         object.__setattr__(self, "args", dict(self.args))
 
     def to_payload(self) -> dict[str, Any]:
         return {"name": self.name, "args": dict(self.args)}
 
 
-def _coerce_step_request(step: StepRequest | Mapping[str, Any]) -> StepRequest:
-    if isinstance(step, StepRequest):
-        return step
-    if not isinstance(step, Mapping):
-        raise TypeError("RunRequest.steps entries must be StepRequest or mapping values")
-    return StepRequest(name=str(step.get("name", "")), args=step.get("args") or {})
+def _coerce_stage_request(stage: StageRequest | Mapping[str, Any]) -> StageRequest:
+    if isinstance(stage, StageRequest):
+        return stage
+    if not isinstance(stage, Mapping):
+        raise TypeError("RunRequest.stages entries must be StageRequest or mapping values")
+    return StageRequest(name=str(stage.get("name", "")), args=stage.get("args") or {})
 
 
 @dataclass(frozen=True)
 class RunRequest:
     """Typed public request for AGILAB execution.
 
-    ``params`` are app-constructor arguments. ``steps`` are workflow steps and never
+    ``params`` are app-constructor arguments. ``stages`` are workflow stages and never
     get passed as a top-level ``args`` constructor value.
     """
 
     params: Mapping[str, Any] = field(default_factory=dict)
-    steps: Sequence[StepRequest | Mapping[str, Any]] = field(default_factory=tuple)
+    stages: Sequence[StageRequest | Mapping[str, Any]] = field(default_factory=tuple)
     data_in: Any = None
     data_out: Any = None
     reset_target: bool | None = None
@@ -61,11 +61,13 @@ class RunRequest:
             raise TypeError("RunRequest.params must be a mapping")
         params = dict(self.params)
         if "args" in params:
-            raise ValueError("RunRequest.params cannot contain legacy key 'args'; use steps=[...]")
-        if RUN_STEPS_KEY in params:
-            raise ValueError(f"RunRequest.params cannot contain reserved key {RUN_STEPS_KEY!r}")
+            raise ValueError("RunRequest.params cannot contain legacy key 'args'; use stages=[...]")
+        if "steps" in params:
+            raise ValueError("RunRequest.params cannot contain legacy key 'steps'; use stages=[...]")
+        if RUN_STAGES_KEY in params:
+            raise ValueError(f"RunRequest.params cannot contain reserved key {RUN_STAGES_KEY!r}")
         object.__setattr__(self, "params", params)
-        object.__setattr__(self, "steps", tuple(_coerce_step_request(step) for step in self.steps))
+        object.__setattr__(self, "stages", tuple(_coerce_stage_request(stage) for stage in self.stages))
         if self.workers is not None and not isinstance(self.workers, dict):
             raise ValueError("workers must be a dict. {'ip-address':nb-worker}")
 
@@ -81,8 +83,8 @@ class RunRequest:
 
     def to_dispatch_kwargs(self) -> dict[str, Any]:
         payload = self.to_app_kwargs()
-        if self.steps:
-            payload[RUN_STEPS_KEY] = [step.to_payload() for step in self.steps]
+        if self.stages:
+            payload[RUN_STAGES_KEY] = [stage.to_payload() for stage in self.stages]
         return payload
 
     def to_target_kwargs(self) -> dict[str, Any]:
