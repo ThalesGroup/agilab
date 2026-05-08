@@ -257,6 +257,15 @@ def _seed_probeable_venv(venv: Path) -> None:
         python.symlink_to(Path(sys.executable), target_is_directory=False)
     except OSError:
         shutil.copy2(sys.executable, python)
+    if os.name == "nt":
+        site_packages = venv / "Lib" / "site-packages"
+    else:
+        site_packages = venv / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+    site_packages.mkdir(parents=True, exist_ok=True)
+    for module_name in ("agi_env", "agi_node", "agi_cluster"):
+        package_dir = site_packages / module_name
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
 
 def _current_app_state_name(at: AppTest) -> str:

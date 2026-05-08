@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import re
 import os
-import subprocess
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -976,12 +975,66 @@ def _venv_python_path(venv: Path) -> Path:
     return python if python.exists() else venv / "bin" / "python3"
 
 
+def _venv_site_package_dirs(venv: Path) -> tuple[Path, ...]:
+    if os.name == "nt":
+        candidates = [venv / "Lib" / "site-packages"]
+    else:
+        candidates = sorted((venv / "lib").glob("python*/site-packages"))
+    return tuple(candidate for candidate in candidates if candidate.exists() and candidate.is_dir())
+
+
+def _pth_import_roots(site_packages: Path) -> tuple[Path, ...]:
+    roots: list[Path] = []
+    try:
+        pth_files = sorted(site_packages.glob("*.pth"))
+    except OSError:
+        return ()
+    for pth_file in pth_files:
+        try:
+            lines = pth_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for raw_line in lines:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or line.startswith("import "):
+                continue
+            candidate = Path(line).expanduser()
+            if not candidate.is_absolute():
+                candidate = site_packages / candidate
+            try:
+                candidate = candidate.resolve(strict=False)
+            except OSError:
+                pass
+            if candidate.exists() and candidate.is_dir():
+                roots.append(candidate)
+    return tuple(dict.fromkeys(roots))
+
+
+def _module_available_on_root(root: Path, module: str) -> bool:
+    package_path = root / module
+    if package_path.exists():
+        return True
+    for suffix in (".py", ".so", ".pyd", ".dylib"):
+        if (root / f"{module}{suffix}").exists():
+            return True
+    return False
+
+
+def _missing_modules_on_import_roots(venv: Path, modules: Sequence[str]) -> tuple[tuple[str, ...], tuple[Path, ...]]:
+    site_packages = _venv_site_package_dirs(venv)
+    editable_roots = tuple(root for site in site_packages for root in _pth_import_roots(site))
+    roots = tuple(dict.fromkeys((*site_packages, *editable_roots)))
+    missing = tuple(
+        module
+        for module in modules
+        if not any(_module_available_on_root(root, module) for root in roots)
+    )
+    return missing, roots
+
+
 def _venv_import_status(
     venv: Path,
     modules: Sequence[str],
-    *,
-    timeout_seconds: float = 5.0,
-    run_fn: Callable[..., Any] | None = None,
 ) -> dict[str, Any]:
     exists = venv.exists() or venv.is_symlink()
     python = _venv_python_path(venv)
@@ -1002,53 +1055,18 @@ def _venv_import_status(
             "python": python,
         }
 
-    code = (
-        "import importlib.util, json, sys\n"
-        "modules = sys.argv[1:]\n"
-        "missing = [name for name in modules if importlib.util.find_spec(name) is None]\n"
-        "print(json.dumps(missing))\n"
-        "raise SystemExit(1 if missing else 0)\n"
-    )
-    try:
-        if run_fn is None:
-            run_fn = subprocess.run
-        result = run_fn(
-            [str(python), "-c", code, *modules],
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        return {
-            "exists": True,
-            "imports_ready": False,
-            "missing_modules": tuple(modules),
-            "problem": f"import probe failed: {exc}",
-            "python": python,
-        }
-
-    stdout = str(getattr(result, "stdout", "") or "").strip()
-    stderr = str(getattr(result, "stderr", "") or "").strip()
-    try:
-        missing = tuple(json.loads(stdout.splitlines()[-1])) if stdout else tuple(modules)
-    except (json.JSONDecodeError, TypeError, ValueError):
-        missing = tuple(modules)
-    imports_ready = int(getattr(result, "returncode", 1)) == 0 and not missing
+    missing, roots = _missing_modules_on_import_roots(venv, modules)
+    imports_ready = not missing
     problem = ""
     if not imports_ready:
-        if missing:
-            problem = "missing modules: " + ", ".join(str(module) for module in missing)
-        elif stderr:
-            problem = stderr.splitlines()[-1]
-        else:
-            problem = f"import probe failed with exit code {getattr(result, 'returncode', 'unknown')}"
+        problem = "missing modules: " + ", ".join(str(module) for module in missing)
     return {
         "exists": True,
         "imports_ready": imports_ready,
         "missing_modules": missing,
         "problem": problem,
         "python": python,
+        "import_roots": roots,
     }
 
 

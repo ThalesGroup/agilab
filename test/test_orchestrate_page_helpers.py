@@ -1024,18 +1024,22 @@ def test_update_delete_confirm_state_sets_and_clears_flag(monkeypatch):
     assert rerun_needed is False
 
 
-def test_is_app_installed_requires_manager_and_worker_venvs(monkeypatch):
+def test_is_app_installed_requires_manager_and_worker_venvs():
     module = _load_orchestrate_module()
 
-    def fake_run(_cmd, **_kwargs):
-        return SimpleNamespace(returncode=0, stdout="[]", stderr="")
-
-    def touch_fake_python(venv: Path) -> None:
+    def seed_fake_venv(venv: Path, *modules: str) -> None:
         python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
         python.parent.mkdir(parents=True, exist_ok=True)
         python.write_text("# fake python for install status test\n", encoding="utf-8")
-
-    monkeypatch.setattr(orchestrate_page_support.subprocess, "run", fake_run)
+        if os.name == "nt":
+            site_packages = venv / "Lib" / "site-packages"
+        else:
+            site_packages = venv / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+        site_packages.mkdir(parents=True, exist_ok=True)
+        for module_name in modules:
+            package_dir = site_packages / module_name
+            package_dir.mkdir(parents=True, exist_ok=True)
+            (package_dir / "__init__.py").write_text("", encoding="utf-8")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
@@ -1051,15 +1055,13 @@ def test_is_app_installed_requires_manager_and_worker_venvs(monkeypatch):
         assert status["worker_ready"] is False
         assert module._is_app_installed(env) is False
 
-        (active_app / ".venv").mkdir()
-        touch_fake_python(active_app / ".venv")
+        seed_fake_venv(active_app / ".venv", "agi_env", "agi_node", "agi_cluster")
         status = module._app_install_status(env)
         assert status["manager_ready"] is True
         assert status["worker_ready"] is False
         assert module._is_app_installed(env) is False
 
-        (worker_root / ".venv").mkdir()
-        touch_fake_python(worker_root / ".venv")
+        seed_fake_venv(worker_root / ".venv", "agi_env", "agi_node")
         status = module._app_install_status(env)
         assert status["manager_ready"] is True
         assert status["worker_ready"] is True
