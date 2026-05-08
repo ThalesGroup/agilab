@@ -419,6 +419,10 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert 'details:not([open])' in module.WIDGET_COLLECTOR_JS
     assert "orchestration log" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
     assert "stCodeBlock" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
+    assert "stStatus" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+    assert "stToast" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "fatalTextNeedles" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "diagnostic" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
 
 
 def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:
@@ -430,6 +434,61 @@ def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:
             return [{"kind": "error", "detail": "AGI execution failed."}]
 
     assert module._visible_streamlit_issue_detail(_Page()) == "error: AGI execution failed."
+
+
+def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None:
+    module = _load_module()
+    issues: list[dict[str, str]] = []
+
+    module._record_browser_issue(
+        issues,
+        kind="console.error",
+        detail="Failed to load resource: the server responded with a status of 404 (favicon.ico)",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="console.error",
+        detail="Uncaught RuntimeError: AGI execution failed.",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="console.error",
+        detail="Uncaught RuntimeError: AGI execution failed.",
+    )
+    module._record_browser_issue(
+        issues,
+        kind="pageerror",
+        detail="TypeError: broken widget callback",
+    )
+
+    assert issues == [
+        {"kind": "console.error", "detail": "Uncaught RuntimeError: AGI execution failed."},
+        {"kind": "pageerror", "detail": "TypeError: broken widget callback"},
+    ]
+
+
+def test_append_browser_issue_probes_uses_new_issue_checkpoint() -> None:
+    module = _load_module()
+    probes: list[module.WidgetProbe] = []
+    issues = [
+        {"kind": "pageerror", "detail": "TypeError: old page failure"},
+        {"kind": "console.error", "detail": "Uncaught RuntimeError: AGI execution failed."},
+    ]
+
+    appended = module._append_browser_issue_probes(
+        probes,
+        app_name="flight_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        browser_issues=issues,
+        start_index=1,
+    )
+
+    assert appended is True
+    assert len(probes) == 1
+    assert probes[0].kind == "browser_error"
+    assert probes[0].label == "console.error"
+    assert "AGI execution failed" in probes[0].detail
 
 
 def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
@@ -829,6 +888,93 @@ def test_sweep_page_marks_visible_error_message_as_failed() -> None:
     assert result.failed_count == 1
     assert result.failures[0].kind == "visible_error"
     assert "AGI execution failed" in result.failures[0].detail
+
+
+def test_sweep_page_marks_browser_page_error_as_failed() -> None:
+    module = _load_module()
+    browser_issues: list[dict[str, str]] = []
+
+    class _Locator:
+        def __init__(self, count_value: int = 0):
+            self._count_value = count_value
+
+        def nth(self, _index):
+            return self
+
+        @property
+        def first(self):
+            return self
+
+        def count(self) -> int:
+            return self._count_value
+
+    class _Page:
+        def __init__(self) -> None:
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+
+        def goto(self, *_args, **_kwargs):
+            browser_issues.append({"kind": "pageerror", "detail": "TypeError: broken widget callback"})
+            return None
+
+        def wait_for_timeout(self, _ms) -> None:
+            return None
+
+        def locator(self, selector):
+            if selector == "[role='tab']":
+                return _Locator(0)
+            return _Locator(0)
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                return 0
+            if script == module.WIDGET_COLLECTOR_JS:
+                return []
+            if script == module.SCROLL_METRICS_JS:
+                return {"y": 0, "height": 1000, "scrollHeight": 1000}
+            return []
+
+    web_robot = module._load_web_robot()
+    original_web_robot_assert = web_robot.assert_page_healthy
+    original_wait_for_page_ready = module.wait_for_page_ready
+    original_wait_for_widgets_ready = module.wait_for_widgets_ready
+    web_robot.assert_page_healthy = lambda *args, **_kwargs: web_robot.RobotStep(
+        "health",
+        True,
+        0.0,
+        "ok",
+        "http://127.0.0.1:8501",
+    )
+
+    try:
+        module.wait_for_page_ready = lambda page, timeout_ms: None
+        module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: 0
+        result = module.sweep_page(
+            _Page(),
+            web_robot=web_robot,
+            base_url="http://127.0.0.1:8501",
+            active_app_query="flight_project",
+            app_name="flight_project",
+            page_name="ORCHESTRATE",
+            timeout=module.DEFAULT_TIMEOUT_SECONDS,
+            widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
+            interaction_mode="full",
+            action_button_policy="trial",
+            upload_file=Path("does-not-exist.txt"),
+            screenshot_dir=None,
+            page_timeout=module.DEFAULT_PAGE_TIMEOUT_SECONDS,
+            browser_issues=browser_issues,
+        )
+    finally:
+        web_robot.assert_page_healthy = original_web_robot_assert
+        module.wait_for_page_ready = original_wait_for_page_ready
+        module.wait_for_widgets_ready = original_wait_for_widgets_ready
+
+    assert result.success is False
+    assert result.status == "failed"
+    assert result.failed_count == 1
+    assert result.failures[0].kind == "browser_error"
+    assert result.failures[0].label == "pageerror"
+    assert "broken widget callback" in result.failures[0].detail
 
 
 def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
