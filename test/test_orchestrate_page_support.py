@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 import types
 from pathlib import Path
@@ -43,6 +44,13 @@ def _import_agilab_module(module_name: str):
 orchestrate_page_support = _import_agilab_module("agilab.orchestrate_page_support")
 
 from agi_env.snippet_contract import CURRENT_SNIPPET_API
+
+
+def _touch_fake_venv_python(venv: Path) -> Path:
+    python = orchestrate_page_support._venv_python_path(venv)
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.write_text("# fake python for probe tests\n", encoding="utf-8")
+    return python
 
 
 def test_build_install_and_run_snippets_embed_expected_values():
@@ -577,6 +585,56 @@ def test_log_indicates_install_failure():
         ["worker deploy failed: Process exited with non-zero exit status 2"]
     )
     assert not orchestrate_page_support.log_indicates_install_failure([])
+
+
+def test_app_install_status_rejects_stale_worker_venv_missing_core_import(monkeypatch, tmp_path: Path) -> None:
+    active_app = tmp_path / "data_io_2026_project"
+    worker_root = tmp_path / "wenv" / "data_io_2026_worker"
+    manager_venv = active_app / ".venv"
+    worker_venv = worker_root / ".venv"
+    _touch_fake_venv_python(manager_venv)
+    worker_python = _touch_fake_venv_python(worker_venv)
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    def fake_run(cmd, **_kwargs):
+        modules = tuple(cmd[3:])
+        missing = ["agi_env"] if Path(cmd[0]) == worker_python and "agi_env" in modules else []
+        return SimpleNamespace(returncode=1 if missing else 0, stdout=json.dumps(missing), stderr="")
+
+    monkeypatch.setattr(orchestrate_page_support.subprocess, "run", fake_run)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert status["manager_ready"] is True
+    assert status["worker_ready"] is False
+    assert status["worker_exists"] is True
+    assert status["worker_missing_modules"] == ("agi_env",)
+    assert status["worker_problem"] == "missing modules: agi_env"
+    assert orchestrate_page_support.is_app_installed(env) is False
+
+
+def test_app_install_status_requires_manager_agi_cluster_import(monkeypatch, tmp_path: Path) -> None:
+    active_app = tmp_path / "data_io_2026_project"
+    worker_root = tmp_path / "wenv" / "data_io_2026_worker"
+    manager_venv = active_app / ".venv"
+    worker_venv = worker_root / ".venv"
+    manager_python = _touch_fake_venv_python(manager_venv)
+    _touch_fake_venv_python(worker_venv)
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    def fake_run(cmd, **_kwargs):
+        modules = tuple(cmd[3:])
+        missing = ["agi_cluster"] if Path(cmd[0]) == manager_python and "agi_cluster" in modules else []
+        return SimpleNamespace(returncode=1 if missing else 0, stdout=json.dumps(missing), stderr="")
+
+    monkeypatch.setattr(orchestrate_page_support.subprocess, "run", fake_run)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert status["manager_ready"] is False
+    assert status["worker_ready"] is True
+    assert status["manager_missing_modules"] == ("agi_cluster",)
+    assert status["manager_problem"] == "missing modules: agi_cluster"
 
 
 def test_append_log_lines_filters_tracebacks_and_dask_noise():

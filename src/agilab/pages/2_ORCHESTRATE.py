@@ -124,6 +124,16 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.about_page.layout",
+    {
+        "render_execution_context_panel": "render_execution_context_panel",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "about_page" / "layout.py",
+    fallback_name="agilab_about_page_layout_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.page_project_selector",
     {
         "render_project_selector": "render_project_selector",
@@ -1107,11 +1117,11 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
     manager_ready = bool(install_status.get("manager_ready"))
     worker_ready = bool(install_status.get("worker_ready"))
     if manager_ready and worker_ready:
-        return "Ready", "Manager and worker environments are installed."
+        return "Ready", "Manager and worker environments can import AGILAB runtime packages."
     if manager_ready:
-        return "Needs INSTALL", "Worker environment is missing or stale."
+        return "Needs INSTALL", install_status.get("worker_problem") or "Worker environment is missing or stale."
     if worker_ready:
-        return "Needs INSTALL", "Manager environment is missing or stale."
+        return "Needs INSTALL", install_status.get("manager_problem") or "Manager environment is missing or stale."
     return "Needs INSTALL", "Manager and worker environments are not installed yet."
 
 
@@ -1349,6 +1359,12 @@ def _render_orchestrate_readiness_panel(
     active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
     manager_status, manager_path = _path_status(install_status.get("manager_venv"), venv=True)
     worker_status, worker_path = _path_status(install_status.get("worker_venv"), venv=True)
+    if not install_status.get("manager_ready"):
+        manager_status = "stale" if install_status.get("manager_exists") else "missing"
+        manager_path = install_status.get("manager_problem") or manager_path
+    if not install_status.get("worker_ready"):
+        worker_status = "stale" if install_status.get("worker_exists") else "missing"
+        worker_path = install_status.get("worker_problem") or worker_path
     run_count, run_caption = _run_history_summary(env)
 
     with st.container(border=True):
@@ -1388,7 +1404,17 @@ async def _render_deployment_panel(
         st.caption(
             "Choose local, local Dask, or LAN cluster resources, then install the manager and worker environments."
         )
-        if install_status["manager_ready"] and not install_status["worker_ready"]:
+        stale_problems = []
+        if install_status.get("manager_exists") and not install_status.get("manager_ready"):
+            stale_problems.append(str(install_status.get("manager_problem") or "manager environment is stale"))
+        if install_status.get("worker_exists") and not install_status.get("worker_ready"):
+            stale_problems.append(str(install_status.get("worker_problem") or "worker environment is stale"))
+        if stale_problems:
+            st.warning(
+                "Environment install is incomplete or stale. Run INSTALL before RUN / LOAD / EXPORT. "
+                + " | ".join(stale_problems)
+            )
+        elif install_status["manager_ready"] and not install_status["worker_ready"]:
             st.warning(
                 "Manager environment detected, but the worker environment is missing. "
                 f"Run INSTALL to rebuild the worker venv at `{install_status['worker_venv']}` "
@@ -1410,6 +1436,7 @@ async def _render_deployment_panel(
             agi_env_envars=getattr(AgiEnv, "envars", None),
         )
         render_cluster_settings_ui(env, cluster_deps)
+        render_execution_context_panel(env)
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
 
@@ -2017,21 +2044,23 @@ async def page() -> None:
             st.session_state["app_settings"] = app_settings
 
 
+    install_status = _app_install_status(env)
+    installed = bool(install_status.get("manager_ready") and install_status.get("worker_ready"))
+
     # Sidebar toggles for each page section
     if "show_install" not in st.session_state:
         st.session_state["show_install"] = True
     if "show_distribute" not in st.session_state:
         st.session_state["show_distribute"] = True
     if "show_run" not in st.session_state:
-        st.session_state["show_run"] = _is_app_installed(env)
+        st.session_state["show_run"] = installed
     if st.session_state.get("_show_run_app") != env.app:
         st.session_state["_show_run_app"] = env.app
-        st.session_state["show_run"] = _is_app_installed(env)
+        st.session_state["show_run"] = installed
 
     show_install = st.session_state["show_install"]
     show_distribute = st.session_state["show_distribute"]
-    show_run = st.session_state["show_run"] if _is_app_installed(env) else False
-    install_status = _app_install_status(env)
+    show_run = st.session_state["show_run"] if installed else False
 
     selected_verbose_int = global_diagnostics_verbose(
         session_state=st.session_state,

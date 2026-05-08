@@ -266,12 +266,12 @@ def test_action_history_records_and_renders_project_scope() -> None:
 
 def test_project_state_and_basic_render_edge_cases(monkeypatch, tmp_path) -> None:
     env = SimpleNamespace(app="", target="", mode="Serve")
-    scope = workflow_ui.workflow_state_scope("ABOUT", env)
+    scope = workflow_ui.workflow_state_scope("MAIN_PAGE", env)
     state = {workflow_ui.PROJECT_UI_STATE_KEY: "stale"}
 
     assert workflow_ui.remember_project_ui_state(
         state,
-        page_label="ABOUT",
+        page_label="MAIN_PAGE",
         env=env,
         values={"drawer": False},
     ) == {"drawer": False}
@@ -280,18 +280,18 @@ def test_project_state_and_basic_render_edge_cases(monkeypatch, tmp_path) -> Non
     state[workflow_ui.PROJECT_UI_STATE_KEY][scope] = "stale"
     assert workflow_ui.remember_project_ui_state(
         state,
-        page_label="ABOUT",
+        page_label="MAIN_PAGE",
         env=env,
         values={"drawer": True},
     ) == {"drawer": True}
     assert workflow_ui.restore_project_ui_state(
         {workflow_ui.PROJECT_UI_STATE_KEY: "stale"},
-        page_label="ABOUT",
+        page_label="MAIN_PAGE",
         env=env,
     ) == {}
     assert workflow_ui.restore_project_ui_state(
         {workflow_ui.PROJECT_UI_STATE_KEY: {scope: "stale"}},
-        page_label="ABOUT",
+        page_label="MAIN_PAGE",
         env=env,
     ) == {}
 
@@ -301,7 +301,7 @@ def test_project_state_and_basic_render_edge_cases(monkeypatch, tmp_path) -> Non
         def caption(self, body):
             events.append(("caption", str(body)))
 
-    workflow_ui.render_page_context(SimpleNamespace(sidebar=_CaptionOnly()), page_label="ABOUT", env=env)
+    workflow_ui.render_page_context(SimpleNamespace(sidebar=_CaptionOnly()), page_label="MAIN_PAGE", env=env)
     assert events == []
 
     fake_st = _FakeStreamlit()
