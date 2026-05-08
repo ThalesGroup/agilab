@@ -81,6 +81,11 @@ def test_full_public_widget_robot_sweep() -> None:
     target_seconds = os.environ.get("AGILAB_WIDGET_ROBOT_TARGET_SECONDS", "1800")
     timeout = os.environ.get("AGILAB_WIDGET_ROBOT_TIMEOUT", "90")
     widget_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_WIDGET_TIMEOUT", "3")
+    action_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_TIMEOUT", "30")
+    action_button_policy = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_BUTTON_POLICY", "trial")
+    click_action_labels = os.environ.get("AGILAB_WIDGET_ROBOT_CLICK_ACTION_LABELS", "")
+    preselect_labels = os.environ.get("AGILAB_WIDGET_ROBOT_PRESELECT_LABELS", "")
+    runtime_isolation = os.environ.get("AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION", "isolated")
     url = os.environ.get("AGILAB_WIDGET_ROBOT_URL")
     active_app = os.environ.get("AGILAB_WIDGET_ROBOT_ACTIVE_APP")
     remote_app_root = os.environ.get("AGILAB_WIDGET_ROBOT_REMOTE_APP_ROOT")
@@ -101,8 +106,18 @@ def test_full_public_widget_robot_sweep() -> None:
         widget_timeout,
         "--target-seconds",
         target_seconds,
+        "--action-button-policy",
+        action_button_policy,
+        "--action-timeout",
+        action_timeout,
+        "--runtime-isolation",
+        runtime_isolation,
         "--quiet-progress",
     ]
+    if click_action_labels:
+        command.extend(["--click-action-labels", click_action_labels])
+    if preselect_labels:
+        command.extend(["--preselect-labels", preselect_labels])
     if url:
         command.extend(["--url", url])
     if active_app:
@@ -130,6 +145,11 @@ def test_full_public_orchestrate_widget_robot_sweep() -> None:
     target_seconds = os.environ.get("AGILAB_WIDGET_ROBOT_TARGET_SECONDS", "1800")
     timeout = os.environ.get("AGILAB_WIDGET_ROBOT_TIMEOUT", "90")
     widget_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_WIDGET_TIMEOUT", "3")
+    action_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_TIMEOUT", "180")
+    action_button_policy = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_BUTTON_POLICY", "click-selected")
+    click_action_labels = os.environ.get("AGILAB_WIDGET_ROBOT_CLICK_ACTION_LABELS", "Run -> Load -> Export")
+    preselect_labels = os.environ.get("AGILAB_WIDGET_ROBOT_PRESELECT_LABELS", "Run now")
+    runtime_isolation = os.environ.get("AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION", "current-home")
     url = os.environ.get("AGILAB_WIDGET_ROBOT_URL")
     active_app = os.environ.get("AGILAB_WIDGET_ROBOT_ACTIVE_APP")
     remote_app_root = os.environ.get("AGILAB_WIDGET_ROBOT_REMOTE_APP_ROOT")
@@ -150,8 +170,18 @@ def test_full_public_orchestrate_widget_robot_sweep() -> None:
         widget_timeout,
         "--target-seconds",
         target_seconds,
+        "--action-button-policy",
+        action_button_policy,
+        "--action-timeout",
+        action_timeout,
+        "--runtime-isolation",
+        runtime_isolation,
         "--quiet-progress",
     ]
+    if click_action_labels:
+        command.extend(["--click-action-labels", click_action_labels])
+    if preselect_labels:
+        command.extend(["--preselect-labels", preselect_labels])
     if url:
         command.extend(["--url", url])
     if active_app:
