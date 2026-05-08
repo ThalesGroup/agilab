@@ -1172,6 +1172,41 @@ def test_action_buttons_are_probed_by_default(tmp_path) -> None:
     assert clicks == [{"timeout": 100, "trial": True}]
 
 
+def test_hidden_data_editor_after_collection_is_not_a_matrix_failure(tmp_path) -> None:
+    module = _load_module()
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return False
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "data_editor", "label": "Stage table"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "probed"
+    assert "visible table content was still detected" in detail
+
+
 def test_selected_action_button_clicks_and_detects_visible_error(tmp_path) -> None:
     module = _load_module()
     clicks: list[dict] = []
