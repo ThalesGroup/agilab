@@ -64,6 +64,7 @@ jobs:
             tools/install_release_proof_package.py \
             tools/public_proof_scenarios.py \
             tools/release_proof_report.py \
+            tools/ui_robot_evidence.py \
             tools/pypi_publish.py
 
       - name: Validate release proof manifest
