@@ -46,6 +46,9 @@ What was proved
   Ubuntu, macOS, and Windows runners.
 - The hosted Hugging Face Space opened the public AGILAB demo route during the
   release guardrail run.
+- The checked-in ``docs/source/data/ui_robot_evidence.json`` records the latest
+  successful all-built-in UI robot matrix sweep, including app/page/widget
+  counts and zero detected UI failures.
 - The public demo scope includes the lightweight ``flight_project`` and
   ``meteo_forecast_project`` routes documented in :doc:`agilab-demo`.
 - The release tag, PyPI package, public documentation, and hosted demo point to
@@ -78,11 +81,14 @@ command:
 
 .. code-block:: bash
 
+   uv --preview-features extra-build-dependencies run python tools/ui_robot_evidence.py --compact
    uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --refresh-from-local --refresh-from-github --render --check --check-github-runs --compact
 
 Pass ``--github-release-tag``, ``--github-release-url``, ``--hf-space-commit``,
 or ``--github-head-sha`` only when public evidence changes outside the default
-local repository and latest successful ``main`` workflow state.
+local repository and latest successful ``main`` workflow state. Use
+``tools/ui_robot_evidence.py --run-id <run>`` when the release should pin a
+specific UI robot evidence run.
 
 Scope and limits
 ----------------

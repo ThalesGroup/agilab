@@ -1,0 +1,45 @@
+{
+  "artifact": {
+    "archive_download_url": "https://api.github.com/repos/ThalesGroup/agilab/actions/artifacts/6888141795/zip",
+    "exit_code": "0",
+    "expired": false,
+    "matrix_summary_file": "test-results/ui-robot-matrix/summary.json",
+    "name": "ui-robot-matrix-1",
+    "progress_log_bytes": 22794,
+    "progress_log_file": "test-results/ui-robot-matrix/isolated-core-pages.ndjson",
+    "required_files_present": true,
+    "scenario_summary_file": "test-results/ui-robot-matrix/isolated-core-pages.json",
+    "screenshot_count": 0,
+    "size_bytes": 4902
+  },
+  "generated_at": "2026-05-08T20:34:30Z",
+  "result": {
+    "app_count": 10,
+    "failed_count": 0,
+    "failed_scenarios": [],
+    "failure_samples": [],
+    "interacted_count": 348,
+    "page_count": 30,
+    "probed_count": 184,
+    "skipped_count": 0,
+    "status": "pass",
+    "success": true,
+    "total_duration_seconds": 411.5896649649999,
+    "widget_count": 532,
+    "within_target": true
+  },
+  "schema": "agilab.ui_robot_evidence.v1",
+  "source": {
+    "conclusion": "success",
+    "created_at": "2026-05-08T20:18:44Z",
+    "event": "workflow_dispatch",
+    "head_branch": "main",
+    "head_sha": "2a36df530b48ce992fdd1c388d47ab0f46b5239a",
+    "run_attempt": "1",
+    "run_id": "25577485125",
+    "run_url": "https://github.com/ThalesGroup/agilab/actions/runs/25577485125",
+    "status": "completed",
+    "updated_at": "2026-05-08T20:26:55Z",
+    "workflow": "ui-robot-matrix"
+  }
+}
