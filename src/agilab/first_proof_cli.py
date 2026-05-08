@@ -201,7 +201,7 @@ def _ui_smoke_code(active_app: Path) -> str:
         apps_path = Path({str(apps_path)!r})
 
         if not about_page.is_file():
-            raise AssertionError(f"About page not found: {{about_page}}")
+            raise AssertionError(f"Main page not found: {{about_page}}")
         if not orchestrate_page.is_file():
             raise AssertionError(f"ORCHESTRATE page not found: {{orchestrate_page}}")
 
@@ -210,10 +210,10 @@ def _ui_smoke_code(active_app: Path) -> str:
         about.run(timeout=90)
         about_errors = list(about.exception)
         if about_errors:
-            raise AssertionError(f"About page exceptions: {{about_errors}}")
+            raise AssertionError(f"Main page exceptions: {{about_errors}}")
 
         if "env" not in about.session_state:
-            raise AssertionError("About page did not initialise AgiEnv in session_state.")
+            raise AssertionError("Main page did not initialise AgiEnv in session_state.")
 
         env = about.session_state["env"]
         orchestrate = AppTest.from_file(str(orchestrate_page), default_timeout=90)
@@ -232,7 +232,7 @@ def _ui_smoke_code(active_app: Path) -> str:
 def _ui_smoke_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="package ui smoke",
-        description="Boot the packaged About and ORCHESTRATE pages against flight_project.",
+        description="Boot the packaged main page and ORCHESTRATE page against flight_project.",
         argv=(sys.executable, "-c", _ui_smoke_code(active_app)),
         env={
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",

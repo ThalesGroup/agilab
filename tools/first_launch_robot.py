@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import importlib.util
 import json
 from pathlib import Path
 import platform
@@ -60,9 +61,16 @@ def _docs_menu_items() -> dict[str, str]:
     if src_root_str not in sys.path:
         sys.path.insert(0, src_root_str)
     try:
-        from agilab.page_docs import get_docs_menu_items
-
-        return get_docs_menu_items(html_file="agilab-help.html")
+        page_docs_path = src_root / "agilab" / "page_docs.py"
+        spec = importlib.util.spec_from_file_location(
+            "agilab_first_launch_page_docs",
+            page_docs_path,
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError(f"cannot load page docs module: {page_docs_path}")
+        page_docs = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(page_docs)
+        return page_docs.get_docs_menu_items(html_file="agilab-help.html")
     except Exception as exc:
         return {"_error": str(exc)}
 
@@ -109,9 +117,9 @@ def build_report(
             "first_launch_no_exceptions",
             "First launch renders without exceptions",
             not exceptions,
-            "About page rendered without Streamlit AppTest exceptions"
+            "Main page rendered without Streamlit AppTest exceptions"
             if not exceptions
-            else "About page raised Streamlit AppTest exceptions",
+            else "Main page raised Streamlit AppTest exceptions",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
             details={"exceptions": exceptions},
         ),

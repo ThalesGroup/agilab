@@ -1,4 +1,4 @@
-"""Startup and environment bootstrap helpers for the AGILab About page."""
+"""Startup and environment bootstrap helpers for the AGILAB main page."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ class BootstrapResult:
 
 @dataclass(frozen=True)
 class BootstrapPorts:
-    """External services used by the About-page bootstrap flow."""
+    """External services used by the main-page bootstrap flow."""
 
     agi_env_cls: Any
     activate_mlflow: Callable[[Any], Any]
@@ -39,7 +39,7 @@ class BootstrapPorts:
 
 
 def default_bootstrap_ports() -> BootstrapPorts:
-    """Load production adapters for the About-page bootstrap flow."""
+    """Load production adapters for the main-page bootstrap flow."""
     from agi_env import AgiEnv
     from agi_gui.pagelib import activate_mlflow, background_services_enabled
     from agi_gui.ui_support import load_last_active_app, store_last_active_app

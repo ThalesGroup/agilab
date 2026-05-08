@@ -25,7 +25,7 @@ def load_about_page_module(
     *,
     load_module: Callable[..., Any] | None = None,
 ) -> Any:
-    """Load the About page module from the active checkout or packaged install."""
+    """Load the main page module from the active checkout or packaged install."""
     current_path = Path(current_file).resolve()
     about_path = current_path.parents[1] / "main_page.py"
     if load_module is not None:
@@ -60,7 +60,7 @@ def ensure_page_env(
     init_done_default: bool = True,
     load_module: Callable[..., Any] | None = None,
 ) -> Any | None:
-    """Ensure the page has a bootstrapped env, delegating cold starts to About."""
+    """Ensure the page has a bootstrapped env, delegating cold starts to the main page."""
     if session_env_ready(
         streamlit.session_state,
         init_done_default=init_done_default,

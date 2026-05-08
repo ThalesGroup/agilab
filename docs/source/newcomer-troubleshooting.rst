@@ -91,14 +91,14 @@ Then rerun::
 
     uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 
-Failure 4: the web UI or About/ORCHESTRATE smoke fails
-------------------------------------------------------
+Failure 4: the web UI or Main Page/ORCHESTRATE smoke fails
+----------------------------------------------------------
 
 Symptom:
 
 - ``streamlit run src/agilab/main_page.py`` fails
 - the newcomer proof command reports a failing ``source ui smoke`` step
-- About or ORCHESTRATE raises exceptions during AppTest startup
+- Main Page or ORCHESTRATE raises exceptions during AppTest startup
 
 Recovery::
 

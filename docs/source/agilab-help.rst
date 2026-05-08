@@ -1,5 +1,5 @@
-About AGILab
-============
+Main Page
+=========
 
 This page maps the built-in AGILab web pages and shows how they fit together.
 

@@ -71,7 +71,7 @@ references, and example projects.
    :maxdepth: 2
    :caption: Pages
 
-   About AGILab <agilab-help>
+   Main Page <agilab-help>
    edit-help
    execute-help
    experiment-help

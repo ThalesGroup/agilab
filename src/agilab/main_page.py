@@ -271,7 +271,7 @@ def render_sidebar_version(version: str) -> None:
 
 
 def _sync_onboarding_module() -> None:
-    """Mirror About-page compatibility globals into onboarding helpers."""
+    """Mirror main-page compatibility globals into onboarding helpers."""
     _about_onboarding.st = st
 
 
@@ -350,7 +350,7 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
 
 
 def _sync_layout_module() -> None:
-    """Mirror About-page compatibility globals into display helpers."""
+    """Mirror main-page compatibility globals into display helpers."""
     _about_layout.st = st
     _about_layout.os = os
 
@@ -413,7 +413,7 @@ def _sync_active_app_from_query(env) -> None:
 
 
 def _sync_env_editor_module() -> None:
-    """Mirror About-page compatibility globals into the extracted env editor."""
+    """Mirror main-page compatibility globals into the extracted env editor."""
     _about_env_editor.st = st
     _about_env_editor.logger = logger
     _about_env_editor.ENV_FILE_PATH = ENV_FILE_PATH
@@ -601,7 +601,7 @@ def _ensure_navigation_environment(resources_path: Path, *, rerun_after_bootstra
 # ------------------------- Main Entrypoint -------------------------
 
 def _render_about_page_entry() -> None:
-    """Initialise the About page and display the landing UI."""
+    """Initialise the main page and display the landing UI."""
     st.set_page_config(
         page_title="AGILab",
         menu_items=get_about_content(),
@@ -633,13 +633,13 @@ def _render_about_page_entry() -> None:
 
 
 def _navigation_pages() -> list[Any]:
-    """Return the supported visible pages while keeping About hidden from the page list."""
+    """Return the supported visible pages while keeping the main page hidden from the page list."""
     root = Path(__file__).resolve().parent
     pages_root = root / "pages"
     return [
         st.Page(
             _render_about_page_entry,
-            title="About AGILAB",
+            title="Main Page",
             url_path="",
             default=True,
             visibility="hidden",

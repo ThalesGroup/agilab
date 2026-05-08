@@ -1331,7 +1331,7 @@ def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, stages_file:
 
 
 def _load_about_page_module():
-    """Load the About page module using import fallback for source and packaged layouts."""
+    """Load the main page module using import fallback for source and packaged layouts."""
     return _load_about_page_module_impl(__file__, load_module=load_local_module)
 
 

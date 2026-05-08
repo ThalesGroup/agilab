@@ -106,7 +106,7 @@ machine-readable proof record.
        uv --preview-features extra-build-dependencies run agilab first-proof --json
 
    This is the public first-proof entry point. It checks that AGILAB imports,
-   boots the About and ORCHESTRATE pages against the built-in ``flight_project``,
+   boots the main page and ORCHESTRATE page against the built-in ``flight_project``,
    and writes ``~/log/execute/flight/run_manifest.json`` with command,
    environment, timing, artifact references, and validation status.
    The source-checkout developer evidence command is the same contract through
@@ -175,7 +175,7 @@ The troubleshooting page covers the common first-run failures:
 - missing ``uv``
 - installer failure
 - built-in app path not found
-- About / ORCHESTRATE startup failure
+- Main page / ORCHESTRATE startup failure
 - no fresh output under ``~/log/execute/flight/``
 
 If you want the current public support picture before branching into other

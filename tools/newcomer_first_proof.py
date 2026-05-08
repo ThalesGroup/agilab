@@ -175,10 +175,10 @@ def _ui_smoke_code(active_app: Path) -> str:
         about.run(timeout=90)
         about_errors = list(about.exception)
         if about_errors:
-            raise AssertionError(f"About page exceptions: {{about_errors}}")
+            raise AssertionError(f"Main page exceptions: {{about_errors}}")
 
         if "env" not in about.session_state:
-            raise AssertionError("About page did not initialise AgiEnv in session_state.")
+            raise AssertionError("Main page did not initialise AgiEnv in session_state.")
 
         env = about.session_state["env"]
         orchestrate = AppTest.from_file(str(orchestrate_page), default_timeout=90)
@@ -197,7 +197,7 @@ def _ui_smoke_code(active_app: Path) -> str:
 def _ui_smoke_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="source ui smoke",
-        description="Boot the About and ORCHESTRATE pages against the selected active app.",
+        description="Boot the main page and ORCHESTRATE page against the selected active app.",
         argv=(*UV_RUN_PYTHON, "-c", _ui_smoke_code(active_app)),
         env={
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",

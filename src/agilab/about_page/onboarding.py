@@ -1,4 +1,4 @@
-"""First-proof onboarding helpers for the AGILab About page."""
+"""First-proof onboarding helpers for the AGILAB main page."""
 
 from __future__ import annotations
 

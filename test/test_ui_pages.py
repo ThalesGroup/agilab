@@ -461,7 +461,7 @@ def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
     pipeline_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
 
     assert "st.navigation(_navigation_pages()).run()" in source
-    assert 'title="About AGILAB"' in source
+    assert 'title="Main Page"' in source
     assert 'visibility="hidden"' in source
     assert 'title="PROJECT", url_path="PROJECT", visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
