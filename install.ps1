@@ -106,7 +106,6 @@ function Normalize-UserPath {
 
 $AppsRepositoryPath = if ($AppsRepository) { Normalize-RepoPath $AppsRepository } else { "" }
 $env:APPS_REPOSITORY = $AppsRepositoryPath
-$env:AGILAB_APPS_REPOSITORY = $AppsRepositoryPath
 
 $LocalDir = Join-Path $env:LOCALAPPDATA "agilab"
 Ensure-Directory $LocalDir
