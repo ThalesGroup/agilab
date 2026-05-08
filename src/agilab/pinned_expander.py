@@ -271,6 +271,7 @@ def render_pinnable_code_editor(
     empty_message: str = "No content available.",
     info_name: str = "",
     height: int | None = None,
+    theme: str = "contrast",
     max_body_chars: int = DEFAULT_MAX_BODY_CHARS,
 ) -> Any:
     """Render read-only code-editor content with toolbar-level Pin/Unpin."""
@@ -299,7 +300,7 @@ def render_pinnable_code_editor(
     response = code_editor_fn(
         text,
         height=_code_editor_height(text, height),
-        theme="contrast",
+        theme=theme,
         buttons=code_editor_pin_buttons(pinned=pinned),
         lang=language or "text",
         info={"info": [{"name": info_name or title}]},

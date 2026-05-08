@@ -182,11 +182,13 @@ def test_render_pinnable_code_editor_uses_toolbar_pin() -> None:
         key="logs-editor",
         language="text",
         source="WORKFLOW",
+        theme="dark",
     )
 
     buttons = editor_calls[-1]["buttons"]
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
+    assert editor_calls[-1]["theme"] == "dark"
     panel = fake_st.session_state[pinned_expander.PINNED_EXPANDERS_KEY]["logs"]
     assert panel["title"] == "Logs"
     assert panel["body"] == "line 1\nline 2"
