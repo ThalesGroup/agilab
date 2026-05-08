@@ -45,8 +45,11 @@ DEFAULT_PAGES = ("", "PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS")
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_WIDGET_TIMEOUT_SECONDS = 3.0
 DEFAULT_PAGE_TIMEOUT_SECONDS = 300.0
+DEFAULT_ACTION_TIMEOUT_SECONDS = 30.0
 DEFAULT_TARGET_SECONDS = 1800.0
 ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
+CHOICE_BUTTON_KINDS = {"segmented_control", "pills"}
+RUNTIME_ISOLATION_MODES = ("isolated", "current-home")
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
 PAGE_EXPECTED_TEXT = {
     "": ("AGILAB", "Start here"),
@@ -63,6 +66,8 @@ WIDGET_COLLECTOR_JS = r"""
     ["button", "[data-testid='stButton'] button"],
     ["form_submit_button", "[data-testid='stFormSubmitButton'] button"],
     ["download_button", "[data-testid='stDownloadButton'] button"],
+    ["segmented_control", "button[data-testid^='stBaseButton-segmented_control']"],
+    ["pills", "button[data-testid^='stBaseButton-pills']"],
     ["checkbox", "[data-testid='stCheckbox'] input"],
     ["toggle", "[data-testid='stToggle'] input, [role='switch']"],
     ["radio", "[data-testid='stRadio'] input"],
@@ -154,6 +159,18 @@ OPEN_EXPANDERS_JS = r"""
     }
   }
   return changed;
+}
+"""
+
+SCROLL_METRICS_JS = r"""
+() => {
+  const doc = document.documentElement;
+  const body = document.body || doc;
+  return {
+    y: window.scrollY || doc.scrollTop || body.scrollTop || 0,
+    height: window.innerHeight || doc.clientHeight || 1000,
+    scrollHeight: Math.max(body.scrollHeight || 0, doc.scrollHeight || 0),
+  };
 }
 """
 
@@ -791,20 +808,38 @@ def seed_public_demo_artifacts(app_name: str, *, export_root: Path, share_root: 
         _seed_forecast_artifacts(export_root)
 
 
-def build_seeded_server_env(web_robot: Any, *, app_name: str, runtime_root: Path, seed_demo_artifacts: bool) -> SeededRuntime:
-    home_root = runtime_root / "home"
-    export_root = runtime_root / "export"
-    share_root = runtime_root / "localshare"
-    cluster_share_root = runtime_root / "clustershare"
-    for path in (home_root, export_root, share_root, cluster_share_root):
-        path.mkdir(parents=True, exist_ok=True)
+def build_seeded_server_env(
+    web_robot: Any,
+    *,
+    app_name: str,
+    runtime_root: Path,
+    seed_demo_artifacts: bool,
+    runtime_isolation: str = "isolated",
+) -> SeededRuntime:
     env = web_robot.build_server_env()
+    if runtime_isolation == "current-home":
+        home_root = Path.home()
+        export_root = Path(env.get("AGI_EXPORT_DIR") or home_root / "export")
+        share_root = Path(env.get("AGI_LOCAL_SHARE") or home_root / "localshare")
+        cluster_share_root = Path(env.get("AGI_CLUSTER_SHARE") or home_root / "clustershare")
+        env["HOME"] = str(home_root)
+    else:
+        home_root = runtime_root / "home"
+        export_root = runtime_root / "export"
+        share_root = runtime_root / "localshare"
+        cluster_share_root = runtime_root / "clustershare"
+        for path in (home_root, export_root, share_root, cluster_share_root):
+            path.mkdir(parents=True, exist_ok=True)
+        env.update(
+            {
+                "HOME": str(home_root),
+                "AGI_EXPORT_DIR": str(export_root),
+                "AGI_LOCAL_SHARE": str(share_root),
+                "AGI_CLUSTER_SHARE": str(cluster_share_root),
+            }
+        )
     env.update(
         {
-            "HOME": str(home_root),
-            "AGI_EXPORT_DIR": str(export_root),
-            "AGI_LOCAL_SHARE": str(share_root),
-            "AGI_CLUSTER_SHARE": str(cluster_share_root),
             "AGI_CLUSTER_ENABLED": "0",
             "IS_SOURCE_ENV": "1",
         }
@@ -852,7 +887,17 @@ def wait_for_widgets_ready(page: Any, *, page_name: str, timeout_ms: float) -> i
 
 
 def _normalized_label(label: str) -> str:
-    return label.replace("keyboard_arrow_right", "").replace("keyboard_arrow_down", "").strip().lower()
+    normalized = (
+        label.replace("keyboard_arrow_right", "")
+        .replace("keyboard_arrow_down", "")
+        .replace("\u2192", "->")
+        .replace("\u27f6", "->")
+        .replace("\u21d2", "->")
+        .replace("\u279c", "->")
+        .strip()
+        .lower()
+    )
+    return " ".join(normalized.split())
 
 
 def widget_scope(widget: dict[str, Any] | WidgetProbe) -> str:
@@ -876,6 +921,18 @@ def _same_widget(widget: dict[str, Any], candidate: dict[str, Any]) -> bool:
     return bool(widget.get("testid") and widget.get("testid") == candidate.get("testid") and widget.get("path") == candidate.get("path"))
 
 
+def _label_matches(widget: dict[str, Any], selected_labels: Sequence[str]) -> bool:
+    label = _normalized_label(str(widget.get("label", "")))
+    return any(
+        selected and (selected == label or selected in label)
+        for selected in (_normalized_label(item) for item in selected_labels)
+    )
+
+
+def _action_label_matches(widget: dict[str, Any], selected_labels: Sequence[str]) -> bool:
+    return _label_matches(widget, selected_labels)
+
+
 def _short_detail(detail: str, *, limit: int = 500) -> str:
     return detail if len(detail) <= limit else detail[: limit - 3] + "..."
 
@@ -893,6 +950,32 @@ def _widget_locator(page: Any, widget: dict[str, Any]) -> Any:
             widget["id"] = candidate["id"]
             return page.locator(f"[data-agilab-widget-id='{widget['id']}']").first
     return locator
+
+
+def _page_scroll_positions(page: Any) -> list[int]:
+    try:
+        metrics = page.evaluate(SCROLL_METRICS_JS)
+    except Exception:
+        return [0]
+    if not isinstance(metrics, dict):
+        return [0]
+    height = max(int(float(metrics.get("height") or 1000)), 1)
+    scroll_height = max(int(float(metrics.get("scrollHeight") or height)), height)
+    if scroll_height <= height:
+        return [0]
+    step = max(int(height * 0.8), 400)
+    positions = list(range(0, max(scroll_height - height, 0) + 1, step))
+    positions.append(max(scroll_height - height, 0))
+    return sorted(set(positions))
+
+
+def _scroll_to(page: Any, y: int) -> None:
+    try:
+        page.evaluate("targetY => window.scrollTo(0, targetY)", y)
+    except TypeError:
+        page.evaluate(f"() => window.scrollTo(0, {int(y)})")
+    except Exception:
+        return
 
 
 def _visible_streamlit_issue_detail(page: Any) -> str | None:
@@ -944,6 +1027,42 @@ def _append_visible_streamlit_issue_probe(
     return True
 
 
+def _append_missing_selected_action_probes(
+    probes: list[WidgetProbe],
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    click_action_labels: Sequence[str],
+) -> None:
+    for selected_label in click_action_labels:
+        selected = _normalized_label(selected_label)
+        if not selected:
+            continue
+        matching_probes = [
+            probe
+            for probe in probes
+            if probe.kind in ACTION_BUTTON_KINDS and selected in _normalized_label(probe.label)
+        ]
+        if any(probe.status in {"interacted", "failed"} for probe in matching_probes):
+            continue
+        detail = "selected action button was not found in the swept page"
+        if matching_probes:
+            states = ", ".join(f"{probe.status}: {probe.detail}" for probe in matching_probes[:3])
+            detail = f"selected action button was found but not fired ({states})"
+        probes.append(
+            WidgetProbe(
+                app_name,
+                display,
+                "selected_action",
+                selected_label,
+                "failed",
+                detail,
+                url,
+            )
+        )
+
+
 def _fill_and_restore(locator: Any, value: str, *, timeout_ms: float) -> None:
     original = locator.input_value(timeout=timeout_ms)
     locator.fill(f"{original} robot" if original else value, timeout=timeout_ms)
@@ -957,6 +1076,36 @@ def _click_with_force_fallback(locator: Any, *, timeout_ms: float) -> None:
         locator.click(timeout=timeout_ms, force=True)
 
 
+def _visible_spinner_count(page: Any) -> int:
+    try:
+        return int(page.locator("[data-testid='stSpinner']").count())
+    except Exception:
+        return 0
+
+
+def _wait_for_action_outcome(page: Any, *, timeout_ms: float) -> tuple[str | None, bool]:
+    deadline = time.perf_counter() + timeout_ms / 1000.0
+    min_observation_deadline = time.perf_counter() + min(5.0, timeout_ms / 1000.0)
+    busy_seen = False
+    idle_seen = 0
+    while True:
+        issue = _visible_streamlit_issue_detail(page)
+        if issue:
+            return issue, True
+        if _visible_spinner_count(page) > 0:
+            busy_seen = True
+            idle_seen = 0
+        elif busy_seen:
+            idle_seen += 1
+            if idle_seen >= 3:
+                return None, True
+        elif time.perf_counter() >= min_observation_deadline:
+            return None, True
+        if time.perf_counter() >= deadline:
+            return None, False
+        _wait_for_timeout(page, min(250, max(10, (deadline - time.perf_counter()) * 1000.0)))
+
+
 def _probe_widget(
     page: Any,
     widget: dict[str, Any],
@@ -964,6 +1113,9 @@ def _probe_widget(
     timeout_ms: float,
     interaction_mode: str,
     action_button_policy: str,
+    click_action_labels: Sequence[str] = (),
+    preselect_labels: Sequence[str] = (),
+    action_timeout_ms: float = DEFAULT_ACTION_TIMEOUT_SECONDS * 1000.0,
     upload_file: Path,
     restore_view: Any | None,
 ) -> tuple[str, str]:
@@ -974,6 +1126,8 @@ def _probe_widget(
     try:
         locator.scroll_into_view_if_needed(timeout=timeout_ms)
         if not locator.is_visible(timeout=timeout_ms):
+            if preselect_labels:
+                return "probed", "widget became hidden after compact-choice preselection; refreshed view was swept"
             if kind == "expander":
                 return "probed", "expander header became hidden after collection; expanded content was still swept"
             return "skipped", "not visible after collection"
@@ -988,18 +1142,31 @@ def _probe_widget(
                     pass
             return "probed", f"visible/enabled ok ({kind})"
         if kind in ACTION_BUTTON_KINDS:
-            if action_button_policy == "click":
+            should_click = action_button_policy == "click" or (
+                action_button_policy == "click-selected" and _action_label_matches(widget, click_action_labels)
+            )
+            if should_click:
                 _click_with_force_fallback(locator, timeout_ms=timeout_ms)
-                _wait_for_timeout(page, 250)
-                error = _visible_streamlit_issue_detail(page)
+                error, settled = _wait_for_action_outcome(page, timeout_ms=action_timeout_ms)
                 if error:
                     return "failed", f"button click rendered Streamlit error: {error}"
+                if not settled:
+                    return "skipped", f"clicked action button but UI did not settle within {action_timeout_ms / 1000.0:.1f}s"
                 return "interacted", "clicked action button"
             try:
                 locator.click(timeout=timeout_ms, trial=True)
+                if action_button_policy == "click-selected":
+                    return "probed", "action button browser-clickable; callback not selected for firing"
                 return "probed", "action button browser-clickable; callback not fired by default"
             except Exception as exc:
                 return "probed", _short_detail(f"action button visible/enabled; trial click layout-intercepted: {exc}")
+        if kind in CHOICE_BUTTON_KINDS:
+            if _label_matches(widget, preselect_labels):
+                _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+                _wait_for_timeout(page, 500)
+                return "interacted", "selected compact choice"
+            locator.click(timeout=timeout_ms, trial=True)
+            return "probed", "compact choice browser-clickable; callback not selected for firing"
         if kind in {"checkbox", "toggle"}:
             was_checked = locator.is_checked(timeout=timeout_ms) if kind == "checkbox" else None
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
@@ -1010,6 +1177,9 @@ def _probe_widget(
                     _click_with_force_fallback(locator, timeout_ms=timeout_ms)
             return "interacted", f"clicked and restored {kind}"
         if kind == "radio":
+            if preselect_labels and not _label_matches(widget, preselect_labels):
+                locator.click(timeout=timeout_ms, trial=True)
+                return "probed", "radio option browser-clickable; callback not selected for firing"
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
             _wait_for_timeout(page, 250)
             if restore_view is not None:
@@ -1061,6 +1231,9 @@ def _collect_and_probe_current_view(
     widget_timeout_ms: float,
     interaction_mode: str,
     action_button_policy: str,
+    click_action_labels: Sequence[str] = (),
+    preselect_labels: Sequence[str] = (),
+    action_timeout_ms: float = DEFAULT_ACTION_TIMEOUT_SECONDS * 1000.0,
     upload_file: Path,
     restore_view: Any | None,
     known: set[tuple[str, str, str, str, str]],
@@ -1082,6 +1255,9 @@ def _collect_and_probe_current_view(
             timeout_ms=widget_timeout_ms,
             interaction_mode=interaction_mode,
             action_button_policy=action_button_policy,
+            click_action_labels=click_action_labels,
+            preselect_labels=preselect_labels,
+            action_timeout_ms=action_timeout_ms,
             upload_file=upload_file,
             restore_view=restore_view,
         )
@@ -1095,6 +1271,9 @@ def _collect_and_probe_current_view(
                     timeout_ms=widget_timeout_ms,
                     interaction_mode=interaction_mode,
                     action_button_policy=action_button_policy,
+                    click_action_labels=click_action_labels,
+                    preselect_labels=preselect_labels,
+                    action_timeout_ms=action_timeout_ms,
                     upload_file=upload_file,
                     restore_view=restore_view,
                 )
@@ -1134,6 +1313,9 @@ def sweep_page(
     widget_timeout: float,
     interaction_mode: str,
     action_button_policy: str,
+    click_action_labels: Sequence[str] = (),
+    preselect_labels: Sequence[str] = (),
+    action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     upload_file: Path,
     screenshot_dir: Path | None = None,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
@@ -1141,6 +1323,7 @@ def sweep_page(
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
     widget_timeout_ms = widget_timeout * 1000.0
+    action_timeout_ms = action_timeout * 1000.0
     page_deadline = None if page_timeout is None or page_timeout <= 0 else started + page_timeout
     target_url = web_robot.build_url(base_url, active_app=active_app_query) if not page_name else web_robot.build_page_url(base_url, page_name, active_app=active_app_query, current_page=str(current_page) if current_page else None)
     display = display_page or page_label(page_name)
@@ -1173,20 +1356,27 @@ def sweep_page(
             probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
         else:
             known: set[tuple[str, str, str, str, str]] = set()
-            probes.extend(
-                _collect_and_probe_current_view(
-                    page,
-                    app_name=app_name,
-                    page_name=display,
-                    widget_timeout_ms=widget_timeout_ms,
-                    interaction_mode=interaction_mode,
-                    action_button_policy=action_button_policy,
-                    upload_file=upload_file,
-                    restore_view=restore_view,
-                    known=known,
-                    page_deadline=page_deadline,
+            for scroll_y in _page_scroll_positions(page):
+                _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping scroll positions")
+                _scroll_to(page, scroll_y)
+                _wait_for_timeout(page, 100)
+                probes.extend(
+                    _collect_and_probe_current_view(
+                        page,
+                        app_name=app_name,
+                        page_name=display,
+                        widget_timeout_ms=widget_timeout_ms,
+                        interaction_mode=interaction_mode,
+                        action_button_policy=action_button_policy,
+                        click_action_labels=click_action_labels,
+                        preselect_labels=preselect_labels,
+                        action_timeout_ms=action_timeout_ms,
+                        upload_file=upload_file,
+                        restore_view=restore_view,
+                        known=known,
+                        page_deadline=page_deadline,
+                    )
                 )
-            )
             _enforce_page_deadline(page_deadline, "page watchdog expired before tab sweep")
             tab_count = page.locator("[role='tab']").count()
             for index in range(tab_count):
@@ -1196,22 +1386,37 @@ def sweep_page(
                     if tab.is_visible(timeout=widget_timeout_ms) and tab.is_enabled(timeout=widget_timeout_ms):
                         _click_with_force_fallback(tab, timeout_ms=widget_timeout_ms)
                         page.wait_for_timeout(250)
-                        probes.extend(
-                            _collect_and_probe_current_view(
-                                page,
-                                app_name=app_name,
-                                page_name=display,
-                                widget_timeout_ms=widget_timeout_ms,
-                                interaction_mode=interaction_mode,
-                                action_button_policy=action_button_policy,
-                                upload_file=upload_file,
-                                restore_view=restore_view,
-                                known=known,
-                                page_deadline=page_deadline,
+                        for scroll_y in _page_scroll_positions(page):
+                            _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping tab scroll positions")
+                            _scroll_to(page, scroll_y)
+                            _wait_for_timeout(page, 100)
+                            probes.extend(
+                                _collect_and_probe_current_view(
+                                    page,
+                                    app_name=app_name,
+                                    page_name=display,
+                                    widget_timeout_ms=widget_timeout_ms,
+                                    interaction_mode=interaction_mode,
+                                    action_button_policy=action_button_policy,
+                                    click_action_labels=click_action_labels,
+                                    preselect_labels=preselect_labels,
+                                    action_timeout_ms=action_timeout_ms,
+                                    upload_file=upload_file,
+                                    restore_view=restore_view,
+                                    known=known,
+                                    page_deadline=page_deadline,
+                                )
                             )
-                        )
                 except Exception as exc:
                     probes.append(WidgetProbe(app_name, display, "tab", f"tab #{index + 1}", "failed", _short_detail(str(exc)), page.url))
+            if action_button_policy == "click-selected":
+                _append_missing_selected_action_probes(
+                    probes,
+                    app_name=app_name,
+                    display=display,
+                    url=getattr(page, "url", target_url),
+                    click_action_labels=click_action_labels,
+                )
     except PageWatchdogTimeout as exc:
         page_status = "timed_out"
         probes.append(WidgetProbe(app_name, display, "page_watchdog", "", "failed", _short_detail(str(exc)), getattr(page, "url", target_url)))
@@ -1266,6 +1471,9 @@ def sweep_direct_apps_page(
     widget_timeout: float,
     interaction_mode: str,
     action_button_policy: str,
+    click_action_labels: Sequence[str] = (),
+    preselect_labels: Sequence[str] = (),
+    action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -1356,6 +1564,9 @@ def sweep_direct_apps_page(
                         widget_timeout=widget_timeout,
                         interaction_mode=interaction_mode,
                         action_button_policy=action_button_policy,
+                        click_action_labels=click_action_labels,
+                        preselect_labels=preselect_labels,
+                        action_timeout=action_timeout,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         page_timeout=page_timeout,
@@ -1376,10 +1587,14 @@ def sweep_app(
     widget_timeout: float,
     interaction_mode: str,
     action_button_policy: str,
+    click_action_labels: Sequence[str] = (),
+    preselect_labels: Sequence[str] = (),
+    action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
     seed_demo_artifacts: bool,
+    runtime_isolation: str,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -1393,7 +1608,13 @@ def sweep_app(
     command = web_robot.build_streamlit_command(active_app=local_active_app, apps_path=web_robot.DEFAULT_APPS_PATH, port=port)
     results: list[PageSweep] = []
     with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-runtime-") as runtime_dir:
-        seeded_runtime = build_seeded_server_env(web_robot, app_name=app_name, runtime_root=Path(runtime_dir), seed_demo_artifacts=seed_demo_artifacts)
+        seeded_runtime = build_seeded_server_env(
+            web_robot,
+            app_name=app_name,
+            runtime_root=Path(runtime_dir),
+            seed_demo_artifacts=seed_demo_artifacts,
+            runtime_isolation=runtime_isolation,
+        )
         with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url):
             health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
             if not health.success:
@@ -1448,6 +1669,9 @@ def sweep_app(
                                 widget_timeout=widget_timeout,
                                 interaction_mode=interaction_mode,
                                 action_button_policy=action_button_policy,
+                                click_action_labels=click_action_labels,
+                                preselect_labels=preselect_labels,
+                                action_timeout=action_timeout,
                                 upload_file=upload_file,
                                 screenshot_dir=screenshot_dir,
                                 page_timeout=page_timeout,
@@ -1468,6 +1692,9 @@ def sweep_app(
                     widget_timeout=widget_timeout,
                     interaction_mode=interaction_mode,
                     action_button_policy=action_button_policy,
+                    click_action_labels=click_action_labels,
+                    preselect_labels=preselect_labels,
+                    action_timeout=action_timeout,
                     browser_name=browser_name,
                     headless=headless,
                     screenshot_dir=screenshot_dir,
@@ -1493,6 +1720,9 @@ def sweep_remote_app(
     widget_timeout: float,
     interaction_mode: str,
     action_button_policy: str,
+    click_action_labels: Sequence[str] = (),
+    preselect_labels: Sequence[str] = (),
+    action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
@@ -1559,6 +1789,9 @@ def sweep_remote_app(
                         widget_timeout=widget_timeout,
                         interaction_mode=interaction_mode,
                         action_button_policy=action_button_policy,
+                        click_action_labels=click_action_labels,
+                        preselect_labels=preselect_labels,
+                        action_timeout=action_timeout,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         page_timeout=page_timeout,
@@ -1594,6 +1827,9 @@ def sweep_remote_app(
                         widget_timeout=widget_timeout,
                         interaction_mode=interaction_mode,
                         action_button_policy=action_button_policy,
+                        click_action_labels=click_action_labels,
+                        preselect_labels=preselect_labels,
+                        action_timeout=action_timeout,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         page_timeout=page_timeout,
@@ -1643,7 +1879,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--widget-timeout", type=float, default=DEFAULT_WIDGET_TIMEOUT_SECONDS)
     parser.add_argument("--page-timeout", type=float, default=DEFAULT_PAGE_TIMEOUT_SECONDS, help="Whole-page watchdog timeout in seconds. Use 0 to disable.")
     parser.add_argument("--interaction-mode", choices=("actionability", "full"), default="full")
-    parser.add_argument("--action-button-policy", choices=("trial", "click"), default="trial")
+    parser.add_argument("--action-button-policy", choices=("trial", "click", "click-selected"), default="trial")
+    parser.add_argument("--click-action-labels", default="", help="Comma-separated action button labels to fire when --action-button-policy=click-selected.")
+    parser.add_argument("--preselect-labels", default="", help="Comma-separated compact choice/radio labels to select before action probing, for example 'Run now'.")
+    parser.add_argument("--action-timeout", type=float, default=DEFAULT_ACTION_TIMEOUT_SECONDS, help="Seconds to wait for a clicked action button to settle or render an error.")
+    parser.add_argument(
+        "--runtime-isolation",
+        choices=RUNTIME_ISOLATION_MODES,
+        default="isolated",
+        help="Use isolated temporary HOME/share roots, or current-home for opt-in runs against an already installed local worker environment.",
+    )
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -1680,8 +1925,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--widget-timeout must be greater than 0")
     if args.page_timeout < 0:
         parser.error("--page-timeout must be greater than or equal to 0")
-    if args.interaction_mode == "actionability" and args.action_button_policy == "click":
-        parser.error("--action-button-policy click only applies with --interaction-mode full")
+    if args.action_timeout <= 0:
+        parser.error("--action-timeout must be greater than 0")
+    if args.interaction_mode == "actionability" and args.action_button_policy != "trial":
+        parser.error("--action-button-policy click/click-selected only applies with --interaction-mode full")
+    click_action_labels = parse_csv(args.click_action_labels)
+    preselect_labels = parse_csv(args.preselect_labels)
+    if args.action_button_policy == "click-selected" and not click_action_labels:
+        parser.error("--click-action-labels is required with --action-button-policy click-selected")
     apps = resolve_apps(args.apps)
     pages = resolve_pages(args.pages)
     global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
@@ -1715,6 +1966,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 widget_timeout=args.widget_timeout,
                 interaction_mode=args.interaction_mode,
                 action_button_policy=args.action_button_policy,
+                click_action_labels=click_action_labels,
+                preselect_labels=preselect_labels,
+                action_timeout=args.action_timeout,
                 browser_name=args.browser,
                 headless=not args.headful,
                 screenshot_dir=screenshot_dir,
@@ -1732,10 +1986,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 widget_timeout=args.widget_timeout,
                 interaction_mode=args.interaction_mode,
                 action_button_policy=args.action_button_policy,
+                click_action_labels=click_action_labels,
+                preselect_labels=preselect_labels,
+                action_timeout=args.action_timeout,
                 browser_name=args.browser,
                 headless=not args.headful,
                 screenshot_dir=screenshot_dir,
                 seed_demo_artifacts=not args.no_seed_demo_artifacts,
+                runtime_isolation=args.runtime_isolation,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,

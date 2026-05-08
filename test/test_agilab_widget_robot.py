@@ -62,6 +62,7 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.resume_from_progress is None
     assert args.json_output is None
     assert args.quiet_progress is False
+    assert args.runtime_isolation == "isolated"
 
 
 def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
@@ -73,6 +74,17 @@ def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
         assert exc.code == 2
     else:
         raise AssertionError("expected parser rejection for invalid action-button mode")
+
+
+def test_widget_robot_main_requires_labels_for_selected_action_buttons() -> None:
+    module = _load_module()
+
+    try:
+        module.main(["--interaction-mode", "full", "--action-button-policy", "click-selected"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser rejection for selected action buttons without labels")
 
 
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:
@@ -128,6 +140,12 @@ def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
     assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_project")
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
+
+
+def test_normalized_label_treats_ascii_and_unicode_arrows_as_equal() -> None:
+    module = _load_module()
+
+    assert module._normalized_label("Run -> Load -> Export") == module._normalized_label("Run \u2192 Load \u2192 Export")
 
 
 def test_normalize_remote_url_maps_huggingface_space_page_to_runtime() -> None:
@@ -208,6 +226,31 @@ def test_build_seeded_server_env_isolates_home_and_share_paths(tmp_path) -> None
     assert seeded.env["AGI_LOCAL_SHARE"] == str(tmp_path / "localshare")
     assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
     assert (tmp_path / "localshare" / "flight" / "dataframe" / "00_robot_flight.csv").is_file()
+
+
+def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    class _WebRobot:
+        @staticmethod
+        def build_server_env():
+            return {"PATH": "robot-path", "HOME": "/real-home"}
+
+    seeded = module.build_seeded_server_env(
+        _WebRobot(),
+        app_name="flight_project",
+        runtime_root=tmp_path / "runtime",
+        seed_demo_artifacts=False,
+        runtime_isolation="current-home",
+    )
+
+    assert seeded.env["HOME"] == str(fake_home)
+    assert "AGI_LOCAL_SHARE" not in seeded.env
+    assert seeded.share_root == fake_home / "localshare"
+    assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
 
 
 def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
@@ -381,6 +424,33 @@ def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:
             return [{"kind": "error", "detail": "AGI execution failed."}]
 
     assert module._visible_streamlit_issue_detail(_Page()) == "error: AGI execution failed."
+
+
+def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
+    module = _load_module()
+    probes = [
+        module.WidgetProbe(
+            "flight_project",
+            "ORCHESTRATE",
+            "button",
+            "Run -> Load -> Export",
+            "probed",
+            "action button browser-clickable; callback not selected for firing",
+            "http://demo",
+        )
+    ]
+
+    module._append_missing_selected_action_probes(
+        probes,
+        app_name="flight_project",
+        display="ORCHESTRATE",
+        url="http://demo",
+        click_action_labels=["Run -> Load -> Export"],
+    )
+
+    assert probes[-1].kind == "selected_action"
+    assert probes[-1].status == "failed"
+    assert "not fired" in probes[-1].detail
 
 
 def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction(tmp_path) -> None:
@@ -815,6 +885,159 @@ def test_action_buttons_are_probed_by_default(tmp_path) -> None:
     assert status == "probed"
     assert "callback not fired" in detail
     assert clicks == [{"timeout": 100, "trial": True}]
+
+
+def test_selected_action_button_clicks_and_detects_visible_error(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+                return [{"kind": "error", "detail": "AGI execution failed."}]
+            return []
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "Run \u2192 Load \u2192 Export"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        action_timeout_ms=100,
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "failed"
+    assert "AGI execution failed" in detail
+    assert clicks == [{"timeout": 100}]
+
+
+def test_unselected_action_button_is_trial_clicked_only(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "INSTALL"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "probed"
+    assert "not selected" in detail
+    assert clicks == [{"timeout": 100, "trial": True}]
+
+
+def test_preselected_compact_choice_clicks_only_matching_label(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+    waits: list[int] = []
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def wait_for_timeout(self, ms):
+            waits.append(ms)
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "segmented_control", "label": "Run now"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["Run -> Load -> Export"],
+        preselect_labels=["Run now"],
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "interacted"
+    assert "selected compact choice" in detail
+    assert clicks == [{"timeout": 100}]
+    assert waits == [500]
 
 
 def test_expanders_hidden_after_collection_are_structural_probes(tmp_path) -> None:
