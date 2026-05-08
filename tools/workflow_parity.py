@@ -83,6 +83,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "shared-core-typing",
             "dependency-policy",
             "cloud-emulators",
+            "ui-robot-matrix",
         ],
         help="Parity profile to run. May be passed multiple times.",
     )
@@ -141,6 +142,7 @@ def _profile_descriptions() -> dict[str, str]:
         "shared-core-typing": "Run the curated shared-core strict mypy slice.",
         "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
         "cloud-emulators": "Run account-free data connector emulator compatibility checks.",
+        "ui-robot-matrix": "Run the opt-in full widget robot scenario matrix across public built-in apps.",
     }
 
 
@@ -158,6 +160,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "shared-core-typing": _shared_core_typing_profile(),
         "dependency-policy": _dependency_policy_profile(),
         "cloud-emulators": _cloud_emulators_profile(),
+        "ui-robot-matrix": _ui_robot_matrix_profile(),
     }
 
 
@@ -783,11 +786,35 @@ def _cloud_emulators_profile() -> list[CommandSpec]:
     ]
 
 
+def _ui_robot_matrix_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="ui robot matrix",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--with",
+                "playwright",
+                "python",
+                "tools/agilab_widget_robot_matrix.py",
+                "--json",
+                "--quiet-progress",
+                "--output-dir",
+                "test-results/ui-robot-matrix",
+            ],
+            timeout_seconds=60 * 60,
+            remove_paths=["test-results/ui-robot-matrix"],
+        )
+    ]
+
+
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
-    legacy_standalone_core = {"agi-node", "agi-cluster"}
-    return [name for name in _profile_descriptions() if name not in legacy_standalone_core]
+    opt_in_profiles = {"agi-node", "agi-cluster", "ui-robot-matrix"}
+    return [name for name in _profile_descriptions() if name not in opt_in_profiles]
 
 
 def _prepare_command(spec: CommandSpec) -> None:

@@ -47,6 +47,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     strict_typing = profiles["shared-core-typing"][0]
     dependency_policy = profiles["dependency-policy"][0]
     cloud_emulators = profiles["cloud-emulators"]
+    ui_robot_matrix = profiles["ui-robot-matrix"][0]
 
     assert agi_env.timeout_seconds == 20 * 60
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
@@ -153,6 +154,13 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "--compact",
     ]
     assert cloud_emulators[1].argv[-1] == "test/test_data_connector_cloud_emulator_report.py"
+    assert ui_robot_matrix.label == "ui robot matrix"
+    assert ui_robot_matrix.timeout_seconds == 60 * 60
+    assert ui_robot_matrix.remove_paths == ["test-results/ui-robot-matrix"]
+    assert "tools/agilab_widget_robot_matrix.py" in ui_robot_matrix.argv
+    assert "--quiet-progress" in ui_robot_matrix.argv
+    assert "--json" in ui_robot_matrix.argv
+    assert _has_with_dependency(ui_robot_matrix.argv, "playwright")
 
 
 def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
@@ -165,6 +173,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "cloud-emulators" in selected
     assert "agi-node" not in selected
     assert "agi-cluster" not in selected
+    assert "ui-robot-matrix" not in selected
 
 
 def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> None:

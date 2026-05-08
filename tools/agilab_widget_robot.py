@@ -1821,12 +1821,16 @@ def _probe_widget(
                     return "probed", "widget became hidden after compact-choice preselection; refreshed view was swept"
                 if kind == "expander":
                     return "probed", "expander header became hidden after collection; expanded content was still swept"
+                if kind == "data_editor":
+                    return "probed", "data editor became hidden after collection; visible table content was still detected"
                 return "skipped", "not visible after collection"
         if not locator.is_visible(timeout=timeout_ms):
             if preselect_labels:
                 return "probed", "widget became hidden after compact-choice preselection; refreshed view was swept"
             if kind == "expander":
                 return "probed", "expander header became hidden after collection; expanded content was still swept"
+            if kind == "data_editor":
+                return "probed", "data editor became hidden after collection; visible table content was still detected"
             return "skipped", "not visible after collection"
         if not locator.is_enabled(timeout=timeout_ms):
             return "skipped", "not enabled"
