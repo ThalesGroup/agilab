@@ -1229,6 +1229,10 @@ def _wait_for_action_outcome(page: Any, *, timeout_ms: float) -> tuple[str | Non
     busy_seen = False
     idle_seen = 0
     while True:
+        try:
+            page.evaluate(OPEN_EXPANDERS_JS)
+        except Exception:
+            pass
         issue = _visible_streamlit_issue_detail(page)
         if issue:
             return issue, True

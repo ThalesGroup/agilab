@@ -1066,6 +1066,63 @@ def test_selected_action_button_clicks_and_detects_visible_error(tmp_path) -> No
     assert clicks == [{"timeout": 100}]
 
 
+def test_selected_action_button_reopens_expanders_to_detect_action_error(tmp_path) -> None:
+    module = _load_module()
+    clicks: list[dict] = []
+    expanded = {"value": False}
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def click(self, **kwargs):
+            clicks.append(kwargs)
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def evaluate(self, script):
+            if script == module.OPEN_EXPANDERS_JS:
+                expanded["value"] = True
+                return 1
+            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS and expanded["value"]:
+                return [{"kind": "error", "detail": "Distribution build failed."}]
+            return []
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {"id": "w1", "kind": "button", "label": "CHECK distribute"},
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="click-selected",
+        click_action_labels=["CHECK distribute"],
+        action_timeout_ms=100,
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "failed"
+    assert "Distribution build failed" in detail
+    assert clicks == [{"timeout": 100}]
+
+
 def test_unselected_action_button_is_trial_clicked_only(tmp_path) -> None:
     module = _load_module()
     clicks: list[dict] = []
