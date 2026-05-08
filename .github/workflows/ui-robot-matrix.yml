@@ -1,0 +1,173 @@
+name: ui-robot-matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: "Built-in apps to sweep: all or comma-separated app names."
+        required: false
+        default: "all"
+      timeout:
+        description: "Per-widget timeout in seconds."
+        required: false
+        default: "90"
+      widget_timeout:
+        description: "Low-level widget action timeout in seconds."
+        required: false
+        default: "3"
+  schedule:
+    - cron: "43 2 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui-robot-matrix-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  all-builtin-isolated-core-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+      OPENAI_API_KEY: "sk-test-ui-robot-000000000000"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          version: "0.10.7"
+
+      - name: Install Playwright browser
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --with playwright python -m playwright install --with-deps chromium
+
+      - name: Run all-builtin UI robot matrix
+        env:
+          INPUT_APPS: ${{ github.event.inputs.apps }}
+          INPUT_TIMEOUT: ${{ github.event.inputs.timeout }}
+          INPUT_WIDGET_TIMEOUT: ${{ github.event.inputs.widget_timeout }}
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/ui-robot-matrix screenshots/ui-robot-matrix
+          robot_apps="${INPUT_APPS:-all}"
+          robot_timeout="${INPUT_TIMEOUT:-90}"
+          robot_widget_timeout="${INPUT_WIDGET_TIMEOUT:-3}"
+          set +e
+          uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
+            --scenario isolated-core-pages \
+            --apps "${robot_apps}" \
+            --timeout "${robot_timeout}" \
+            --widget-timeout "${robot_widget_timeout}" \
+            --json \
+            --quiet-progress \
+            --output-dir test-results/ui-robot-matrix \
+            --screenshot-dir screenshots/ui-robot-matrix \
+            | tee test-results/ui-robot-matrix/summary.json
+          status="${PIPESTATUS[0]}"
+          set -e
+          echo "${status}" > test-results/ui-robot-matrix/exit-code.txt
+          exit "${status}"
+
+      - name: Summarize UI robot matrix
+        if: always()
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary_path = Path("test-results/ui-robot-matrix/summary.json")
+          summary_file = Path(os.environ["GITHUB_STEP_SUMMARY"])
+
+          def cell(value: object, *, limit: int = 200) -> str:
+              text = str(value if value is not None else "")
+              return text.replace("\n", " ").replace("|", "\\|")[:limit]
+
+          lines = ["## UI robot matrix"]
+          if not summary_path.is_file():
+              lines.append("")
+              lines.append("No JSON summary was produced. Check the uploaded progress log and screenshots.")
+          else:
+              try:
+                  summary = json.loads(summary_path.read_text(encoding="utf-8"))
+              except json.JSONDecodeError as exc:
+                  summary = {"success": False, "error": f"invalid JSON summary: {exc}"}
+
+              status = "PASS" if summary.get("success") is True else "FAIL"
+              lines.extend(
+                  [
+                      "",
+                      f"- Status: `{status}`",
+                      f"- Pages: `{summary.get('page_count', 0)}`",
+                      f"- Widgets: `{summary.get('widget_count', 0)}`",
+                      f"- Interacted: `{summary.get('interacted_count', 0)}`",
+                      f"- Probed: `{summary.get('probed_count', 0)}`",
+                      f"- Failed: `{summary.get('failed_count', 0)}`",
+                      "",
+                      "| Scenario | Status | Pages | Widgets | Interacted | Probed | Failed | Duration s |",
+                      "|---|---:|---:|---:|---:|---:|---:|---:|",
+                  ]
+              )
+              for scenario in summary.get("scenarios") or []:
+                  scenario_status = "PASS" if scenario.get("success") is True else "FAIL"
+                  lines.append(
+                      "| "
+                      + " | ".join(
+                          [
+                              cell(scenario.get("name")),
+                              scenario_status,
+                              cell(scenario.get("page_count", 0)),
+                              cell(scenario.get("widget_count", 0)),
+                              cell(scenario.get("interacted_count", 0)),
+                              cell(scenario.get("probed_count", 0)),
+                              cell(scenario.get("failed_count", 0)),
+                              cell(f"{float(scenario.get('duration_seconds') or 0):.1f}"),
+                          ]
+                      )
+                      + " |"
+                  )
+
+              samples = summary.get("failure_samples") or []
+              lines.append("")
+              lines.append("### Failure Samples")
+              if samples:
+                  for sample in samples[:20]:
+                      lines.append(
+                          "- "
+                          f"`{cell(sample.get('scenario'))}` "
+                          f"`{cell(sample.get('app'))}` "
+                          f"`{cell(sample.get('page'))}` "
+                          f"`{cell(sample.get('kind'))}` "
+                          f"`{cell(sample.get('label'))}`: "
+                          f"{cell(sample.get('detail'), limit=400)}"
+                      )
+              else:
+                  lines.append("No failure samples recorded.")
+
+          with summary_file.open("a", encoding="utf-8") as fh:
+              fh.write("\n".join(lines))
+              fh.write("\n")
+          PY
+
+      - name: Upload UI robot artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always()
+        with:
+          name: ui-robot-matrix-${{ github.run_attempt }}
+          path: |
+            test-results/ui-robot-matrix/**
+            screenshots/ui-robot-matrix/**
+          if-no-files-found: ignore
+          retention-days: 14

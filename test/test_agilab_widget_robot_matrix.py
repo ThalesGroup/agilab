@@ -55,6 +55,7 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     options = module.MatrixOptions(
         apps="flight_project",
         output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
         timeout_seconds=12.0,
         widget_timeout_seconds=2.0,
         quiet_progress=True,
@@ -74,6 +75,7 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     assert argv[argv.index("--click-action-labels") + 1] == "CHECK distribute,Run -> Load -> Export"
     assert argv[argv.index("--preselect-labels") + 1] == "Run now"
     assert argv[argv.index("--browser") + 1] == "webkit"
+    assert argv[argv.index("--screenshot-dir") + 1] == str(tmp_path / "screenshots" / "current-home-actions")
     assert "--headful" in argv
     assert "--quiet-progress" in argv
     assert "--no-seed-demo-artifacts" in argv
@@ -89,6 +91,7 @@ def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tm
     options = module.MatrixOptions(
         apps="flight_project",
         output_dir=tmp_path,
+        screenshot_dir=None,
         timeout_seconds=12.0,
         widget_timeout_seconds=2.0,
         quiet_progress=True,
@@ -106,6 +109,7 @@ def test_build_robot_command_enables_workflow_artifact_assertions_for_core_sweep
     options = module.MatrixOptions(
         apps="flight_project",
         output_dir=tmp_path,
+        screenshot_dir=None,
         timeout_seconds=12.0,
         widget_timeout_seconds=2.0,
         quiet_progress=True,
@@ -123,6 +127,7 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
     options = module.MatrixOptions(
         apps="flight_project",
         output_dir=tmp_path,
+        screenshot_dir=None,
         timeout_seconds=10.0,
         widget_timeout_seconds=1.0,
         quiet_progress=True,
@@ -176,6 +181,7 @@ def test_run_matrix_fail_fast_stops_on_first_failed_scenario(tmp_path) -> None:
     options = module.MatrixOptions(
         apps="flight_project",
         output_dir=tmp_path,
+        screenshot_dir=None,
         timeout_seconds=10.0,
         widget_timeout_seconds=1.0,
         quiet_progress=True,

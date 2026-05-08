@@ -803,9 +803,11 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "--quiet-progress",
                 "--output-dir",
                 "test-results/ui-robot-matrix",
+                "--screenshot-dir",
+                "screenshots/ui-robot-matrix",
             ],
             timeout_seconds=60 * 60,
-            remove_paths=["test-results/ui-robot-matrix"],
+            remove_paths=["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"],
         )
     ]
 
