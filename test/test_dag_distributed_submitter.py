@@ -191,7 +191,7 @@ def test_build_global_submitter_runs_configured_runner(tmp_path: Path) -> None:
         run_root=tmp_path / "run",
         unit={"id": "flight_context", "app": "flight_project"},
         artifact={"artifact": "stage_result"},
-        execution_contract={"params": {}, "steps": []},
+        execution_contract={"params": {}, "stages": []},
         timestamp="2026-05-07T00:00:00Z",
     )
 
@@ -235,7 +235,7 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
         execution_contract={
             "entrypoint": "flight_project.flight_context",
             "params": {"scenario": "demo"},
-            "steps": [{"name": "prepare", "args": {"n": 2}}],
+            "stages": [{"name": "prepare", "args": {"n": 2}}],
         },
         timestamp="2026-05-07T00:00:00Z",
     )
@@ -244,7 +244,7 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
     assert calls[0]["apps_path"] == repo_root / "src/agilab/apps/builtin"
     assert calls[0]["app_name"] == "flight_project"
     assert calls[0]["request_payload"]["params"] == {"scenario": "demo"}
-    assert calls[0]["request_payload"]["steps"] == [{"name": "prepare", "args": {"n": 2}}]
+    assert calls[0]["request_payload"]["stages"] == [{"name": "prepare", "args": {"n": 2}}]
     evidence_path = Path(result["submission_evidence_path"])
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert evidence["schema"] == "agilab.distributed_dag_stage_submission.v1"
@@ -294,7 +294,7 @@ def test_build_distributed_request_preview_rows_shows_exact_stage_request(tmp_pa
                     "execution_contract": {
                         "entrypoint": "flight_project.flight_context",
                         "params": {"scenario": "demo"},
-                        "steps": [{"name": "prepare", "args": {"n": 2}}],
+                        "stages": [{"name": "prepare", "args": {"n": 2}}],
                         "data_in": "flight/dataset",
                         "data_out": "flight/dataframe",
                         "reset_target": False,
@@ -322,7 +322,7 @@ def test_build_distributed_request_preview_rows_shows_exact_stage_request(tmp_pa
                 '{"benchmark_best_single_node":false,"data_in":"flight/dataset",'
                 '"data_out":"flight/dataframe","params":{"scenario":"demo"},'
                 '"rapids_enabled":false,"reset_target":false,'
-                '"steps":[{"args":{"n":2},"name":"prepare"}]}'
+                '"stages":[{"args":{"n":2},"name":"prepare"}]}'
             ),
         }
     ]
@@ -411,23 +411,21 @@ def test_payload_worker_and_evidence_helpers_cover_fallbacks(tmp_path: Path) -> 
     payload = dag_distributed_submitter.request_payload_from_execution_contract(
         {
             "run_params": {"scenario": "fallback"},
-            "run_steps": [{"name": "fallback_step"}],
+            "stages": [{"name": "fallback_stage"}],
             "params": "not-a-mapping",
-            "steps": "not-a-list",
             "rapids_enabled": 1,
             "benchmark_best_single_node": "yes",
         }
     )
     assert payload["params"] == {}
-    assert payload["steps"] == []
+    assert payload["stages"] == [{"name": "fallback_stage"}]
     assert payload["rapids_enabled"] is True
     assert payload["benchmark_best_single_node"] is True
 
-    fallback_payload = dag_distributed_submitter.request_payload_from_execution_contract(
-        {"run_params": {"scenario": "fallback"}, "run_steps": [{"name": "fallback_step"}]}
-    )
-    assert fallback_payload["params"] == {"scenario": "fallback"}
-    assert fallback_payload["steps"] == [{"name": "fallback_step"}]
+    with pytest.raises(ValueError, match="legacy 'steps'/'run_steps'"):
+        dag_distributed_submitter.request_payload_from_execution_contract(
+            {"run_params": {"scenario": "fallback"}, "run_steps": [{"name": "fallback_stage"}]}
+        )
 
     assert dag_distributed_submitter._coerce_workers("") == {}
     assert dag_distributed_submitter._coerce_workers("not valid") == {}
@@ -480,7 +478,7 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
         run_root=tmp_path / "run",
         apps_path=tmp_path / "src/agilab/apps/builtin",
         app_name="flight_project",
-        request_payload={"params": {}, "steps": []},
+        request_payload={"params": {}, "stages": []},
         timestamp="2026-05-07T00:00:00Z",
     )
 

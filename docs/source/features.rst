@@ -149,12 +149,12 @@ single notebook but less ceremony than a production MLOps platform:
   ``pyproject.toml`` / ``uv`` environments
 - ``app_args_form.py`` and ``app_settings.toml`` give prototypes a typed,
   configurable UI surface instead of hard-coded script parameters
-- ``lab_steps.toml`` and notebook import/export support let teams move between
+- ``lab_stages.toml`` and notebook import/export support let teams move between
   notebook exploration and reproducible pipeline snippets
 - the notebook-to-pipeline import report validates that bridge with
   ``tools/notebook_pipeline_import_report.py --compact``; it reads a checked-in
   ``.ipynb``, preserves markdown context and code cells, extracts import hints
-  plus artifact references, writes a richer ``lab_steps.toml`` preview used by
+  plus artifact references, writes a richer ``lab_stages.toml`` preview used by
   the existing ``WORKFLOW`` upload path, and emits ``not_executed_import``
   metadata without running notebook cells
 - the notebook import preflight report validates the generic migration boundary
@@ -167,10 +167,10 @@ single notebook but less ceremony than a production MLOps platform:
   ``notebook_import_view_plan.json`` sidecar that matches declared views to
   artifact paths without inferring UI intent from notebook cells; the
   ``WORKFLOW`` upload path now prepares that preview first and only replaces
-  ``lab_steps.toml`` after explicit confirmation
+  ``lab_stages.toml`` after explicit confirmation
 - the notebook round-trip report validates
   ``tools/notebook_roundtrip_report.py --compact`` across
-  ``lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`` so
+  ``lab_stages.toml -> supervisor notebook -> import -> lab_stages preview`` so
   saved stage description, prompt, model, code, runtime, import hints, and
   artifact references survive the non-executing round trip
 - the notebook union-environment report validates

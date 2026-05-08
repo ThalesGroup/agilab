@@ -142,7 +142,7 @@ class _State(dict):
         self[name] = value
 
 
-def test_save_step_roundtrip_writes_toml_and_notebook(monkeypatch, tmp_path):
+def test_save_stage_roundtrip_writes_toml_and_notebook(monkeypatch, tmp_path):
     fake_env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=tmp_path, envars={"OPENAI_MODEL": "gpt-x"})
     fake_st = SimpleNamespace(
         session_state={"_experiment_last_save_skipped": False, "env": fake_env},
@@ -152,34 +152,34 @@ def test_save_step_roundtrip_writes_toml_and_notebook(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
     monkeypatch.setattr(pipeline_editor, "_ensure_primary_module_key", lambda *_args, **_kwargs: None)
 
-    steps_file = tmp_path / "lab_steps.toml"
-    nsteps, entry = pipeline_editor.save_step(
+    stages_file = tmp_path / "lab_stages.toml"
+    nstages, entry = pipeline_editor.save_stage(
         tmp_path / "flight_project",
-        ["", "Describe step", "", "print('ok')"],
-        current_step=0,
-        nsteps=0,
-        steps_file=steps_file,
+        ["", "Describe stage", "", "print('ok')"],
+        current_stage=0,
+        nstages=0,
+        stages_file=stages_file,
         venv_map={0: str(tmp_path / "flight_project")},
         engine_map={0: "agi.run"},
     )
 
-    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
-    notebook = json.loads(steps_file.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
+    notebook = json.loads(stages_file.with_suffix(".ipynb").read_text(encoding="utf-8"))
 
-    assert nsteps == 1
-    assert entry["Q"] == "Describe step"
+    assert nstages == 1
+    assert entry["Q"] == "Describe stage"
     assert entry["M"] == "gpt-x"
     assert stored["__meta__"] == {
-        "schema": "agilab.lab_steps.v1",
+        "schema": "agilab.lab_stages.v1",
         "version": 1,
     }
     assert stored["flight_project"][0]["R"] == "agi.run"
     assert notebook["cells"][0]["source"] == ["print('ok')"]
 
 
-def test_remove_step_reindexes_state_and_sequence(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+def test_remove_stage_reindexes_state_and_sequence(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         """
 [[flight_project]]
 Q = "First"
@@ -209,9 +209,9 @@ C = "print(2)"
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
     monkeypatch.setattr(pipeline_editor, "_ensure_primary_module_key", lambda *_args, **_kwargs: None)
 
-    remaining = pipeline_editor.remove_step(tmp_path / "flight_project", "0", steps_file, "idx")
+    remaining = pipeline_editor.remove_stage(tmp_path / "flight_project", "0", stages_file, "idx")
 
-    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
     assert remaining == 1
     assert stored["flight_project"][0]["Q"] == "Second"
     assert fake_st.session_state["idx__details"] == {0: "d1"}
@@ -220,9 +220,9 @@ C = "print(2)"
     assert fake_st.session_state["idx__run_sequence"] == [0]
 
 
-def test_remove_step_out_of_range_preserves_state_and_reports_save_error(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+def test_remove_stage_out_of_range_preserves_state_and_reports_save_error(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         "[[flight_project]]\nQ = 'First'\nC = 'print(1)'\n",
         encoding="utf-8",
     )
@@ -247,7 +247,7 @@ def test_remove_step_out_of_range_preserves_state_and_reports_save_error(monkeyp
         SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("boom"))),
     )
 
-    remaining = pipeline_editor.remove_step(tmp_path / "flight_project", "7", steps_file, "idx")
+    remaining = pipeline_editor.remove_stage(tmp_path / "flight_project", "7", stages_file, "idx")
 
     assert remaining == 1
     assert fake_st.session_state["idx"][0] == 0
@@ -257,9 +257,9 @@ def test_remove_step_out_of_range_preserves_state_and_reports_save_error(monkeyp
     assert errors == ["Failed to save stage contract: boom"]
 
 
-def test_remove_step_middle_keeps_lower_indexes_and_rebuilds_default_sequence(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+def test_remove_stage_middle_keeps_lower_indexes_and_rebuilds_default_sequence(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         """
 [[flight_project]]
 Q = "First"
@@ -292,7 +292,7 @@ C = "print(3)"
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
     monkeypatch.setattr(pipeline_editor, "_ensure_primary_module_key", lambda *_args, **_kwargs: None)
 
-    remaining = pipeline_editor.remove_step(tmp_path / "flight_project", "1", steps_file, "idx")
+    remaining = pipeline_editor.remove_stage(tmp_path / "flight_project", "1", stages_file, "idx")
 
     assert remaining == 2
     assert fake_st.session_state["idx__details"] == {0: "d0", 1: "d2"}
@@ -314,9 +314,9 @@ def test_notebook_to_toml_imports_code_cells(monkeypatch, tmp_path):
     }
     uploaded = SimpleNamespace(read=lambda: json.dumps(notebook).encode("utf-8"))
 
-    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "flight_project")
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_stages.toml", tmp_path / "flight_project")
 
-    stored = tomllib.loads((tmp_path / "flight_project" / "lab_steps.toml").read_text(encoding="utf-8"))
+    stored = tomllib.loads((tmp_path / "flight_project" / "lab_stages.toml").read_text(encoding="utf-8"))
     assert count == 2
     assert stored["flight_project"][0]["C"] == "print('a')\n"
     assert stored["flight_project"][1]["C"] == "print('b')\n"
@@ -346,7 +346,7 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
     monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
 
-    steps = [
+    stages = [
         {
             "D": "d0",
             "Q": "q0",
@@ -360,20 +360,20 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
         },
         {"D": "d1", "Q": "q1", "M": "m1", "C": "c1", "E": str(tmp_path / "venv1"), "R": "agi.run"},
     ]
-    snapshot = pipeline_editor._capture_pipeline_snapshot("idx", steps)
-    assert snapshot["steps"][0]["template_id"] == "generic.execute"
-    assert snapshot["steps"][0]["template_version"] == 1
-    assert snapshot["steps"][0]["custom_contract"] == {"schema_version": 1}
+    snapshot = pipeline_editor._capture_pipeline_snapshot("idx", stages)
+    assert snapshot["stages"][0]["template_id"] == "generic.execute"
+    assert snapshot["stages"][0]["template_version"] == 1
+    assert snapshot["stages"][0]["custom_contract"] == {"schema_version": 1}
 
     writes = {}
-    def _write_steps(module, steps_file, module_steps):
-        writes["steps"] = module_steps
-        return len(module_steps)
+    def _write_stages(module, stages_file, module_stages):
+        writes["stages"] = module_stages
+        return len(module_stages)
 
     monkeypatch.setattr(
         pipeline_editor,
-        "_write_steps_for_module",
-        _write_steps,
+        "_write_stages_for_module",
+        _write_stages,
     )
     monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *args, **kwargs: writes.setdefault("sequence", args[2]))
     monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: writes.setdefault("bumped", True))
@@ -381,7 +381,7 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
 
     error = pipeline_editor._restore_pipeline_snapshot(
         tmp_path / "flight_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
         "idx_sequence_widget",
         snapshot,
@@ -396,21 +396,21 @@ def test_capture_and_restore_pipeline_snapshot(monkeypatch, tmp_path):
     assert fake_st.session_state["idx"][-1] == 2
     assert "idx_sequence_widget" not in fake_st.session_state
     assert writes["bumped"] is True
-    assert writes["steps"][0]["template_id"] == "generic.execute"
-    assert writes["steps"][0]["template_version"] == 1
-    assert writes["steps"][0]["custom_contract"] == {"schema_version": 1}
+    assert writes["stages"][0]["template_id"] == "generic.execute"
+    assert writes["stages"][0]["template_version"] == 1
+    assert writes["stages"][0]["custom_contract"] == {"schema_version": 1}
 
 
-def test_write_steps_for_module_preserves_step_contract_metadata(monkeypatch, tmp_path):
+def test_write_stages_for_module_preserves_stage_contract_metadata(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
-    monkeypatch.setattr(pipeline_editor, "get_steps_dict", lambda *_args, **_kwargs: {"flight_project": []})
+    monkeypatch.setattr(pipeline_editor, "get_stages_dict", lambda *_args, **_kwargs: {"flight_project": []})
     monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
 
-    steps_file = tmp_path / "lab_steps.toml"
-    count = pipeline_editor._write_steps_for_module(
+    stages_file = tmp_path / "lab_stages.toml"
+    count = pipeline_editor._write_stages_for_module(
         tmp_path / "flight_project",
-        steps_file,
+        stages_file,
         [
             {
                 "Q": "Run template",
@@ -423,14 +423,14 @@ def test_write_steps_for_module_preserves_step_contract_metadata(monkeypatch, tm
         ],
     )
 
-    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
     assert count == 1
     assert stored["flight_project"][0]["template_id"] == "generic.execute"
     assert stored["flight_project"][0]["template_version"] == 1
     assert stored["flight_project"][0]["custom_contract"] == {"schema_version": 1}
 
 
-def test_capture_pipeline_snapshot_falls_back_to_default_sequence_and_active_step(monkeypatch, tmp_path):
+def test_capture_pipeline_snapshot_falls_back_to_default_sequence_and_active_stage(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(
         session_state={
             "idx__details": {"bad": "skip"},
@@ -454,7 +454,7 @@ def test_capture_pipeline_snapshot_falls_back_to_default_sequence_and_active_ste
     assert snapshot["venv_map"] == {}
     assert snapshot["engine_map"] == {}
     assert snapshot["sequence"] == [0]
-    assert snapshot["active_step"] == 0
+    assert snapshot["active_stage"] == 0
 
 
 def test_restore_pipeline_snapshot_skips_invalid_indices_and_rebuilds_default_page_state(monkeypatch, tmp_path):
@@ -472,22 +472,22 @@ def test_restore_pipeline_snapshot_skips_invalid_indices_and_rebuilds_default_pa
     monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda _path: False)
     monkeypatch.setattr(
         pipeline_editor,
-        "_write_steps_for_module",
-        lambda _module_path, _steps_file, module_steps: len(module_steps),
+        "_write_stages_for_module",
+        lambda _module_path, _stages_file, module_stages: len(module_stages),
     )
 
     error = pipeline_editor._restore_pipeline_snapshot(
         tmp_path / "flight_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
         "idx_sequence_widget",
         {
-            "steps": [{"Q": "q0", "C": "print(0)"}, {"Q": "q1", "C": "print(1)"}],
+            "stages": [{"Q": "q0", "C": "print(0)"}, {"Q": "q1", "C": "print(1)"}],
             "details": {"bad": "skip", "1": "detail1"},
             "venv_map": {"bad": "/tmp/skip", "1": "/tmp/runtime"},
             "engine_map": {"bad": "skip", "1": "agi.run"},
             "sequence": ["bad", 1, 1],
-            "active_step": "bad",
+            "active_stage": "bad",
         },
     )
 
@@ -502,8 +502,8 @@ def test_restore_pipeline_snapshot_skips_invalid_indices_and_rebuilds_default_pa
 def test_reset_pipeline_editor_state_clears_editor_widget_keys(monkeypatch):
     fake_st = SimpleNamespace(
         session_state={
-            "demo_q_step_0": "q",
-            "demo_code_step_0": "c",
+            "demo_q_stage_0": "q",
+            "demo_code_stage_0": "c",
             "demo_venv_0": "v",
             "demo_keep": "ok",
             "demoa": "drop",
@@ -516,24 +516,24 @@ def test_reset_pipeline_editor_state_clears_editor_widget_keys(monkeypatch):
     assert fake_st.session_state == {"demo_keep": "ok"}
 
 
-def test_get_steps_list_and_dict_handle_invalid_files_and_alias_keys(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+def test_get_stages_list_and_dict_handle_invalid_files_and_alias_keys(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         "[[flight_project]]\nQ = 'first'\n"
         "[[flight]]\nQ = 'alias'\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project", "flight"])
 
-    steps = pipeline_editor.get_steps_list(tmp_path / "flight_project", steps_file)
-    stored = pipeline_editor.get_steps_dict(tmp_path / "flight_project", steps_file)
+    stages = pipeline_editor.get_stages_list(tmp_path / "flight_project", stages_file)
+    stored = pipeline_editor.get_stages_dict(tmp_path / "flight_project", stages_file)
 
-    assert steps[0]["Q"] == "first"
+    assert stages[0]["Q"] == "first"
     assert "flight" not in stored
 
     invalid_file = tmp_path / "broken.toml"
     invalid_file.write_text("[[flight_project]\n", encoding="utf-8")
-    assert pipeline_editor.get_steps_list(tmp_path / "flight_project", invalid_file) == []
+    assert pipeline_editor.get_stages_list(tmp_path / "flight_project", invalid_file) == []
 
 
 def test_convert_paths_to_strings_and_query_validation():
@@ -573,10 +573,10 @@ def test_pipeline_editor_top_level_helpers_cover_small_fallbacks(monkeypatch):
 
 
 def test_pipeline_editor_import_falls_back_when_pipeline_modules_are_unavailable():
-    fallback = _load_pipeline_editor_with_missing("agilab.pipeline_runtime", "agilab.pipeline_steps")
+    fallback = _load_pipeline_editor_with_missing("agilab.pipeline_runtime", "agilab.pipeline_stages")
 
-    assert callable(fallback.get_steps_list)
-    assert callable(fallback.save_step)
+    assert callable(fallback.get_stages_list)
+    assert callable(fallback.save_stage)
 
 
 def test_pipeline_editor_import_falls_back_when_code_editor_support_is_unavailable():
@@ -620,14 +620,14 @@ def test_pipeline_editor_import_fallback_raises_when_local_specs_are_missing(mon
 
     monkeypatch.setattr(importlib.util, "spec_from_file_location", original_spec)
 
-    def _fake_steps_spec(name, location, *args, **kwargs):
-        if name == "agilab_pipeline_steps_fallback":
+    def _fake_stages_spec(name, location, *args, **kwargs):
+        if name == "agilab_pipeline_stages_fallback":
             return None
         return original_spec(name, location, *args, **kwargs)
 
-    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_steps_spec)
-    with pytest.raises(ModuleNotFoundError, match="pipeline_steps"):
-        _load_pipeline_editor_with_missing("agilab.pipeline_steps")
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", _fake_stages_spec)
+    with pytest.raises(ModuleNotFoundError, match="pipeline_stages"):
+        _load_pipeline_editor_with_missing("agilab.pipeline_stages")
 
 
 def test_save_query_invalid_still_exports_dataframe(monkeypatch, tmp_path):
@@ -637,41 +637,41 @@ def test_save_query_invalid_still_exports_dataframe(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "export_df", lambda: calls.__setitem__("exported", calls["exported"] + 1))
     monkeypatch.setattr(
         pipeline_editor,
-        "save_step",
+        "save_stage",
         lambda *_args, **_kwargs: calls.__setitem__("saved", calls["saved"] + 1),
     )
 
-    pipeline_editor.save_query(tmp_path / "flight_project", [0, "desc", ""], tmp_path / "lab_steps.toml", "idx")
+    pipeline_editor.save_query(tmp_path / "flight_project", [0, "desc", ""], tmp_path / "lab_stages.toml", "idx")
 
     assert calls == {"exported": 1, "saved": 0}
 
 
-def test_force_persist_step_merges_existing_content(tmp_path):
+def test_force_persist_stage_merges_existing_content(tmp_path):
     module_dir = tmp_path / "flight_project"
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         "[[flight_project]]\nQ = 'first'\nC = 'print(1)'\n",
         encoding="utf-8",
     )
 
     with patch.object(pipeline_editor, "_module_keys", return_value=["flight_project"]):
-        pipeline_editor._force_persist_step(
+        pipeline_editor._force_persist_stage(
         module_dir,
-        steps_file,
+        stages_file,
         0,
         {"D": "detail", "E": Path("/tmp/runtime")},
         )
 
-    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
     assert stored["flight_project"][0]["Q"] == "first"
     assert stored["flight_project"][0]["D"] == "detail"
     assert stored["flight_project"][0]["E"] == "/tmp/runtime"
 
 
-def test_force_persist_step_swallows_invalid_toml(monkeypatch, tmp_path):
+def test_force_persist_stage_swallows_invalid_toml(monkeypatch, tmp_path):
     module_dir = tmp_path / "flight_project"
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("[[flight_project]\n", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("[[flight_project]\n", encoding="utf-8")
     logged: list[str] = []
 
     monkeypatch.setattr(
@@ -680,9 +680,9 @@ def test_force_persist_step_swallows_invalid_toml(monkeypatch, tmp_path):
         lambda message, *args: logged.append(message % args if args else message),
     )
     with patch.object(pipeline_editor, "_module_keys", return_value=["flight_project"]):
-        pipeline_editor._force_persist_step(
+        pipeline_editor._force_persist_stage(
             module_dir,
-            steps_file,
+            stages_file,
             0,
             {"D": "detail"},
         )
@@ -690,8 +690,8 @@ def test_force_persist_step_swallows_invalid_toml(monkeypatch, tmp_path):
     assert logged
 
 
-def test_write_steps_for_module_normalizes_runtime_and_exports_notebook(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
+def test_write_stages_for_module_normalizes_runtime_and_exports_notebook(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
     notebook_calls: list[dict[str, object]] = []
 
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
@@ -703,19 +703,19 @@ def test_write_steps_for_module_normalizes_runtime_and_exports_notebook(monkeypa
     monkeypatch.setattr(
         pipeline_editor,
         "toml_to_notebook",
-        lambda steps, path: notebook_calls.append({"steps": steps, "path": path}),
+        lambda stages, path: notebook_calls.append({"stages": stages, "path": path}),
     )
 
-    count = pipeline_editor._write_steps_for_module(
+    count = pipeline_editor._write_stages_for_module(
         tmp_path / "flight_project",
-        steps_file,
+        stages_file,
         [
             {"D": "demo", "Q": "q1", "M": "m1", "C": "print(1)", "E": tmp_path / "venv", "R": "agi.run"},
             {"D": "", "Q": "", "M": "", "C": ""},
         ],
     )
 
-    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
     assert count == 1
     assert stored["flight_project"] == [
         {
@@ -727,12 +727,12 @@ def test_write_steps_for_module_normalizes_runtime_and_exports_notebook(monkeypa
             "R": "agi.run",
         }
     ]
-    assert notebook_calls == [{"steps": stored, "path": steps_file}]
+    assert notebook_calls == [{"stages": stored, "path": stages_file}]
 
 
-def test_save_step_preserves_existing_runtime_and_extra_fields(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+def test_save_stage_preserves_existing_runtime_and_extra_fields(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         """
 [[flight_project]]
 Q = "first"
@@ -751,17 +751,17 @@ LOCKED = true
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
     monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
 
-    nsteps, entry = pipeline_editor.save_step(
+    nstages, entry = pipeline_editor.save_stage(
         tmp_path / "flight_project",
         ["detail", "updated question", "updated-model", "print(2)"],
-        current_step=0,
-        nsteps=1,
-        steps_file=steps_file,
+        current_stage=0,
+        nstages=1,
+        stages_file=stages_file,
         extra_fields={"LOCKED": None, "SOURCE": "copied"},
     )
 
-    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
-    assert nsteps == 1
+    stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
+    assert nstages == 1
     assert entry["E"] == "/tmp/runtime"
     assert entry["R"] == "agi.run"
     assert "LOCKED" not in entry
@@ -771,9 +771,9 @@ LOCKED = true
     assert stored["flight_project"][0]["R"] == "agi.run"
 
 
-def test_save_step_merges_alias_entries_and_reports_dump_failure(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+def test_save_stage_merges_alias_entries_and_reports_dump_failure(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         """
 [[flight]]
 Q = "alias only"
@@ -802,23 +802,23 @@ C = "print('short')"
         SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("save boom"))),
     )
 
-    nsteps, entry = pipeline_editor.save_step(
+    nstages, entry = pipeline_editor.save_stage(
         tmp_path / "flight_project",
         ["detail", "question", "model", "print(3)"],
-        current_step=1,
-        nsteps=2,
-        steps_file=steps_file,
+        current_stage=1,
+        nstages=2,
+        stages_file=stages_file,
     )
 
-    assert nsteps == 2
+    assert nstages == 2
     assert entry["Q"] == "question"
     assert fake_st.session_state["_experiment_last_save_skipped"] is True
     assert errors == ["Failed to save stage contract: save boom"]
 
 
-def test_save_step_refuses_future_lab_steps_schema(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+def test_save_stage_refuses_future_lab_stages_schema(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         "[__meta__]\nversion = 999\n[[flight_project]]\nQ = 'First'\nC = 'print(1)'\n",
         encoding="utf-8",
     )
@@ -832,19 +832,19 @@ def test_save_step_refuses_future_lab_steps_schema(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
     monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
 
-    nsteps, entry = pipeline_editor.save_step(
+    nstages, entry = pipeline_editor.save_stage(
         tmp_path / "flight_project",
         ["detail", "updated question", "model", "print(2)"],
-        current_step=0,
-        nsteps=1,
-        steps_file=steps_file,
+        current_stage=0,
+        nstages=1,
+        stages_file=stages_file,
     )
 
-    assert nsteps == 1
+    assert nstages == 1
     assert entry["Q"] == "updated question"
     assert fake_st.session_state["_experiment_last_save_skipped"] is True
     assert errors == [
-        "Failed to save stage contract: Unsupported lab_steps.toml schema version 999; "
+        "Failed to save stage contract: Unsupported lab_stages.toml schema version 999; "
         "upgrade AGILAB before editing this pipeline."
     ]
 
@@ -860,8 +860,8 @@ def test_save_query_valid_uses_runtime_and_engine_maps(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
     monkeypatch.setattr(
         pipeline_editor,
-        "save_step",
-        lambda module, query, current_step, nsteps, steps_file, venv_map=None, engine_map=None: (
+        "save_stage",
+        lambda module, query, current_stage, nstages, stages_file, venv_map=None, engine_map=None: (
             calls.setdefault("query", query),
             calls.setdefault("venv_map", venv_map),
             calls.setdefault("engine_map", engine_map),
@@ -874,7 +874,7 @@ def test_save_query_valid_uses_runtime_and_engine_maps(monkeypatch, tmp_path):
     pipeline_editor.save_query(
         tmp_path / "flight_project",
         [0, "detail", "question", "model", "print(1)", 2],
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
     )
 
@@ -890,16 +890,16 @@ def test_restore_pipeline_snapshot_reports_write_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
     monkeypatch.setattr(
         pipeline_editor,
-        "_write_steps_for_module",
+        "_write_stages_for_module",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("write boom")),
     )
 
     error = pipeline_editor._restore_pipeline_snapshot(
         tmp_path / "flight_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
         "sequence_widget",
-        {"steps": []},
+        {"stages": []},
     )
 
     assert error == "write boom"
@@ -911,7 +911,7 @@ def test_restore_pipeline_snapshot_reports_invalid_snapshot_payload(monkeypatch,
 
     error = pipeline_editor._restore_pipeline_snapshot(
         tmp_path / "flight_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
         "sequence_widget",
         None,
@@ -923,16 +923,16 @@ def test_restore_pipeline_snapshot_reports_invalid_snapshot_payload(monkeypatch,
 def test_restore_pipeline_snapshot_resets_empty_state(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(session_state={"idx": [4, "stale", "stale", "stale", "stale", "stale", 9]})
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
-    monkeypatch.setattr(pipeline_editor, "_write_steps_for_module", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(pipeline_editor, "_write_stages_for_module", lambda *_args, **_kwargs: 0)
     monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
 
     error = pipeline_editor._restore_pipeline_snapshot(
         tmp_path / "flight_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
         "sequence_widget",
-        {"steps": [], "sequence": []},
+        {"stages": [], "sequence": []},
     )
 
     assert error is None
@@ -945,7 +945,7 @@ def test_on_import_notebook_ignores_non_ipynb(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(session_state={"upload": SimpleNamespace(type="text/plain")})
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
 
-    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_steps.toml", "idx")
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
     assert "page_broken" not in fake_st.session_state
 
@@ -961,7 +961,7 @@ def test_on_import_notebook_imports_ipynb_and_marks_page_broken(monkeypatch, tmp
 
     monkeypatch.setattr(pipeline_editor, "notebook_to_toml", _fake_notebook_to_toml)
 
-    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_steps.toml", "idx")
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
     assert calls["args"][0] is uploaded
     assert fake_st.session_state["idx"][-1] == 3
@@ -994,13 +994,13 @@ def test_on_preview_notebook_import_stores_preview_without_writing(monkeypatch, 
     preview = fake_st.session_state["idx__notebook_import_preview"]
     assert preview["cell_count"] == 1
     assert preview["module"] == "demo_project"
-    assert (tmp_path / "demo_project" / "lab_steps.toml").exists() is False
+    assert (tmp_path / "demo_project" / "lab_stages.toml").exists() is False
     assert messages == [
         ("info", "Notebook import preview ready: 1 stage(s), 0 input(s), 0 output(s).")
     ]
 
 
-def test_confirm_notebook_import_preview_writes_steps_contract_and_marks_page_broken(monkeypatch, tmp_path):
+def test_confirm_notebook_import_preview_writes_stages_contract_and_marks_page_broken(monkeypatch, tmp_path):
     messages: list[tuple[str, str]] = []
     uploaded = SimpleNamespace(
         name="demo.ipynb",
@@ -1053,11 +1053,11 @@ optional_artifacts = ["data/*.csv"]
 
     count = pipeline_editor.confirm_notebook_import_preview(
         module_dir,
-        module_dir / "lab_steps.toml",
+        module_dir / "lab_stages.toml",
         "idx",
     )
 
-    stored = tomllib.loads((module_dir / "lab_steps.toml").read_text(encoding="utf-8"))
+    stored = tomllib.loads((module_dir / "lab_stages.toml").read_text(encoding="utf-8"))
     contract = json.loads((module_dir / "notebook_import_contract.json").read_text(encoding="utf-8"))
     pipeline_view = json.loads((module_dir / "notebook_import_pipeline_view.json").read_text(encoding="utf-8"))
     view_plan = json.loads((module_dir / "notebook_import_view_plan.json").read_text(encoding="utf-8"))
@@ -1079,8 +1079,8 @@ optional_artifacts = ["data/*.csv"]
 
 
 def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text(
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
         "[[demo_project]]\nQ = 'kept'\nC = 'print(1)'\n",
         encoding="utf-8",
     )
@@ -1108,9 +1108,9 @@ def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_p
     revisions: list[bool] = []
     monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: revisions.append(True))
 
-    pipeline_editor.display_history_tab(steps_file, tmp_path / "demo_project")
+    pipeline_editor.display_history_tab(stages_file, tmp_path / "demo_project")
 
-    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
+    stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
     assert stored["demo_project"] == [{"Q": "visible", "C": "print(2)"}]
     assert revisions == [True]
 
@@ -1125,7 +1125,7 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
         "dump",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("nb boom")),
     )
-    pipeline_editor.toml_to_notebook({"demo_project": [{"C": "print(1)"}]}, tmp_path / "lab_steps.toml")
+    pipeline_editor.toml_to_notebook({"demo_project": [{"C": "print(1)"}]}, tmp_path / "lab_stages.toml")
 
     uploaded = SimpleNamespace(
         read=lambda: json.dumps({"cells": [{"cell_type": "code", "source": ["print(2)"]}]}).encode("utf-8")
@@ -1135,7 +1135,7 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
         "tomli_w",
         SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("toml boom"))),
     )
-    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_stages.toml", tmp_path / "demo_project")
 
     assert count == 1
     assert errors == [
@@ -1144,8 +1144,8 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
     ]
 
 
-def test_save_step_handles_invalid_indices_and_runtime_map_failures(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
+def test_save_stage_handles_invalid_indices_and_runtime_map_failures(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
     errors: list[str] = []
 
     class _BrokenEnv:
@@ -1165,18 +1165,18 @@ def test_save_step_handles_invalid_indices_and_runtime_map_failures(monkeypatch,
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["flight_project"])
     monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
 
-    nsteps, entry = pipeline_editor.save_step(
+    nstages, entry = pipeline_editor.save_stage(
         tmp_path / "flight_project",
         ["detail", "question", "model", 42],
-        current_step="bad",
-        nsteps="bad",
-        steps_file=steps_file,
+        current_stage="bad",
+        nstages="bad",
+        stages_file=stages_file,
         venv_map=_BrokenMap(),
         engine_map=_BrokenMap(),
     )
 
-    stored = tomllib.loads(steps_file.read_text(encoding="utf-8"))
-    assert nsteps == 1
+    stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
+    assert nstages == 1
     assert entry["E"] == ""
     assert entry["R"] == ""
     assert entry["C"] == "42"
@@ -1184,9 +1184,9 @@ def test_save_step_handles_invalid_indices_and_runtime_map_failures(monkeypatch,
     assert errors == []
 
 
-def test_force_persist_step_swallows_dump_failures(monkeypatch, tmp_path):
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("", encoding="utf-8")
+def test_force_persist_stage_swallows_dump_failures(monkeypatch, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
     failures: list[str] = []
     monkeypatch.setattr(
         pipeline_editor,
@@ -1199,9 +1199,9 @@ def test_force_persist_step_swallows_dump_failures(monkeypatch, tmp_path):
         lambda message, *args: failures.append(message % args if args else message),
     )
 
-    pipeline_editor._force_persist_step(tmp_path / "flight_project", steps_file, 2, {"Q": "late"})
+    pipeline_editor._force_persist_stage(tmp_path / "flight_project", stages_file, 2, {"Q": "late"})
 
-    expected_path = pipeline_editor.bound_log_value(steps_file, pipeline_editor.LOG_PATH_LIMIT)
+    expected_path = pipeline_editor.bound_log_value(stages_file, pipeline_editor.LOG_PATH_LIMIT)
     assert failures == [f"Force persist failed for stage 2 -> {expected_path}: dump boom"]
 
 
@@ -1217,11 +1217,11 @@ def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_pat
         ),
     )
 
-    assert pipeline_editor.notebook_to_toml(None, "lab_steps.toml", tmp_path / "demo_project") == 0
+    assert pipeline_editor.notebook_to_toml(None, "lab_stages.toml", tmp_path / "demo_project") == 0
     assert (
         pipeline_editor.notebook_to_toml(
             SimpleNamespace(name="demo.txt", type="text/plain", read=lambda: b"{}"),
-            "lab_steps.toml",
+            "lab_stages.toml",
             tmp_path / "demo_project",
         )
         == 0
@@ -1229,7 +1229,7 @@ def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_pat
     assert (
         pipeline_editor.notebook_to_toml(
             SimpleNamespace(name="demo.ipynb", type="application/x-ipynb+json", read=lambda: b"{"),
-            "lab_steps.toml",
+            "lab_stages.toml",
             tmp_path / "demo_project",
         )
         == 0
@@ -1237,23 +1237,23 @@ def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_pat
     assert (
         pipeline_editor.notebook_to_toml(
             SimpleNamespace(name="demo.ipynb", type="application/x-ipynb+json", read=lambda: b"[]"),
-            "lab_steps.toml",
+            "lab_stages.toml",
             tmp_path / "demo_project",
         )
         == 0
     )
 
-    broken_steps = tmp_path / "broken.toml"
-    broken_steps.write_text("[[demo_project]\n", encoding="utf-8")
+    broken_stages = tmp_path / "broken.toml"
+    broken_stages.write_text("[[demo_project]\n", encoding="utf-8")
     assert pipeline_editor.refresh_notebook_export(tmp_path / "missing.toml") is None
-    assert pipeline_editor.refresh_notebook_export(broken_steps) is None
+    assert pipeline_editor.refresh_notebook_export(broken_stages) is None
 
     assert messages == [
         ("error", "No uploaded notebook provided."),
         ("error", "Please upload a .ipynb file."),
         ("error", "Unable to parse notebook: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"),
         ("error", "Invalid notebook format: expected a JSON object."),
-        ("error", f"Unable to export notebook: failed to load {broken_steps}: Expected ']]' at the end of an array declaration (at line 1, column 15)"),
+        ("error", f"Unable to export notebook: failed to load {broken_stages}: Expected ']]' at the end of an array declaration (at line 1, column 15)"),
     ]
 
 
@@ -1267,11 +1267,11 @@ def test_on_import_notebook_reports_missing_upload_and_empty_code_cells(monkeypa
     )
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
 
-    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_steps.toml", "idx")
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
     fake_st.session_state["upload"] = SimpleNamespace(type="application/x-ipynb+json")
     monkeypatch.setattr(pipeline_editor, "notebook_to_toml", lambda *_args, **_kwargs: 0)
-    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_steps.toml", "idx")
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
     assert messages == [
         ("error", "No notebook file was uploaded."),
@@ -1303,15 +1303,15 @@ def test_display_history_tab_covers_missing_file_and_save_error(monkeypatch, tmp
 
 
 def test_pipeline_editor_additional_branch_coverage(monkeypatch, tmp_path):
-    empty_steps = tmp_path / "empty.toml"
-    empty_steps.write_text("demo = { value = 1 }\n", encoding="utf-8")
-    assert pipeline_editor.get_steps_list(tmp_path / "demo_project", empty_steps) == []
+    empty_stages = tmp_path / "empty.toml"
+    empty_stages.write_text("demo = { value = 1 }\n", encoding="utf-8")
+    assert pipeline_editor.get_stages_list(tmp_path / "demo_project", empty_stages) == []
 
-    monkeypatch.setattr(pipeline_editor, "_prune_invalid_entries", lambda steps, keep_index=None: steps)
+    monkeypatch.setattr(pipeline_editor, "_prune_invalid_entries", lambda stages, keep_index=None: stages)
     monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
-    count = pipeline_editor._write_steps_for_module(
+    count = pipeline_editor._write_stages_for_module(
         tmp_path / "demo_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         [{"Q": "keep"}, "skip-me"],
     )
     assert count == 1
@@ -1328,20 +1328,20 @@ def test_pipeline_editor_additional_branch_coverage(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
     monkeypatch.setattr(pipeline_editor, "normalize_runtime_path", lambda value: str(value) if value else "")
     snapshot = pipeline_editor._capture_pipeline_snapshot("idx", [{"Q": "keep"}, "skip"])
-    assert snapshot["steps"] == [{"D": "", "Q": "keep", "M": "", "C": "", "E": "", "R": ""}]
-    assert snapshot["active_step"] == 0
+    assert snapshot["stages"] == [{"D": "", "Q": "keep", "M": "", "C": "", "E": "", "R": ""}]
+    assert snapshot["active_stage"] == 0
 
-    monkeypatch.setattr(pipeline_editor, "_write_steps_for_module", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(pipeline_editor, "_write_stages_for_module", lambda *_args, **_kwargs: 1)
     monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
     monkeypatch.setattr(pipeline_editor, "_reset_pipeline_editor_state", lambda _index_page: None)
     monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda _path: False)
     error = pipeline_editor._restore_pipeline_snapshot(
         tmp_path / "demo_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
         "idx_sequence_widget",
-        {"steps": "not-a-list", "sequence": []},
+        {"stages": "not-a-list", "sequence": []},
     )
     assert error is None
     assert fake_st.session_state["idx__run_sequence"] == [0]
@@ -1352,19 +1352,19 @@ def test_pipeline_editor_additional_branch_coverage(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
     monkeypatch.setattr(pipeline_editor, "_module_keys", lambda _module: ["demo_project"])
-    monkeypatch.setattr(pipeline_editor, "_looks_like_step", lambda value: str(value) == "1")
-    monkeypatch.setattr(pipeline_editor, "_prune_invalid_entries", lambda steps, keep_index=None: steps)
+    monkeypatch.setattr(pipeline_editor, "_looks_like_stage", lambda value: str(value) == "1")
+    monkeypatch.setattr(pipeline_editor, "_prune_invalid_entries", lambda stages, keep_index=None: stages)
     monkeypatch.setattr(pipeline_editor, "toml_to_notebook", lambda *_args, **_kwargs: None)
-    nsteps, entry = pipeline_editor.save_step(
+    nstages, entry = pipeline_editor.save_stage(
         tmp_path / "demo_project",
         ["1", "desc", "question", "model", "print(1)"],
-        current_step=0,
-        nsteps=0,
-        steps_file=tmp_path / "save_steps.toml",
+        current_stage=0,
+        nstages=0,
+        stages_file=tmp_path / "save_stages.toml",
         venv_map={},
         engine_map={},
     )
-    assert nsteps == 1
+    assert nstages == 1
     assert entry["D"] == "desc"
     assert entry["Q"] == "question"
     assert entry["M"] == "model"
@@ -1372,8 +1372,8 @@ def test_pipeline_editor_additional_branch_coverage(monkeypatch, tmp_path):
 
 
 
-def test_toml_to_notebook_handles_meta_string_steps_and_blank_entries(tmp_path):
-    toml_path = tmp_path / "lab_steps.toml"
+def test_toml_to_notebook_handles_meta_string_stages_and_blank_entries(tmp_path):
+    toml_path = tmp_path / "lab_stages.toml"
 
     pipeline_editor.toml_to_notebook(
         {
@@ -1403,7 +1403,7 @@ def test_pycharm_notebook_mirror_path_targets_source_checkout_for_external_expor
     (repo_root / ".idea").mkdir(parents=True, exist_ok=True)
     export_dir = tmp_path / "export" / "uav_graph_routing"
     export_dir.mkdir(parents=True, exist_ok=True)
-    steps_file = export_dir / "lab_steps.toml"
+    stages_file = export_dir / "lab_stages.toml"
 
     context = notebook_export_support.NotebookExportContext(
         project_name="uav_queue_project",
@@ -1413,11 +1413,11 @@ def test_pycharm_notebook_mirror_path_targets_source_checkout_for_external_expor
     )
 
     mirror_path = notebook_export_support.pycharm_notebook_mirror_path(
-        steps_file,
+        stages_file,
         export_context=context,
     )
 
-    assert mirror_path == str(repo_root / "exported_notebooks" / "uav_graph_routing" / "lab_steps.ipynb")
+    assert mirror_path == str(repo_root / "exported_notebooks" / "uav_graph_routing" / "lab_stages.ipynb")
 
 
 def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp_path):
@@ -1465,7 +1465,7 @@ launch_note = "Open this after the run."
     context = pipeline_editor.build_notebook_export_context(
         env,
         Path("demo_project"),
-        tmp_path / "export" / "demo_project" / "lab_steps.toml",
+        tmp_path / "export" / "demo_project" / "lab_stages.toml",
         project_name="demo_project",
     )
 
@@ -1520,7 +1520,7 @@ def test_build_notebook_export_context_enriches_builtin_uav_pages_from_manifest(
     context = pipeline_editor.build_notebook_export_context(
         env,
         Path(app_name),
-        tmp_path / "export" / app_name / "lab_steps.toml",
+        tmp_path / "export" / app_name / "lab_stages.toml",
         project_name=app_name,
     )
 
@@ -1569,7 +1569,7 @@ def test_build_notebook_export_context_prefers_valid_apps_repository_root_when_a
     context = pipeline_editor.build_notebook_export_context(
         env,
         Path("demo_project"),
-        tmp_path / "export" / "demo_project" / "lab_steps.toml",
+        tmp_path / "export" / "demo_project" / "lab_stages.toml",
         project_name="demo_project",
     )
 
@@ -1622,7 +1622,7 @@ def test_build_notebook_export_context_ignores_valid_active_app_for_other_projec
     context = pipeline_editor.build_notebook_export_context(
         env,
         Path("uav_graph_routing"),
-        tmp_path / "export" / "uav_graph_routing" / "lab_steps.toml",
+        tmp_path / "export" / "uav_graph_routing" / "lab_stages.toml",
         project_name="uav_graph_routing_project",
     )
 
@@ -1666,7 +1666,7 @@ def test_build_notebook_export_context_normalizes_repo_root_hint_without_sibling
     context = pipeline_editor.build_notebook_export_context(
         env,
         Path("demo_project"),
-        tmp_path / "export" / "demo_project" / "lab_steps.toml",
+        tmp_path / "export" / "demo_project" / "lab_stages.toml",
         project_name="demo_project",
     )
 
@@ -1713,7 +1713,7 @@ def test_build_notebook_export_context_can_scan_sibling_workspace_when_enabled(
     context = pipeline_editor.build_notebook_export_context(
         env,
         Path("demo_project"),
-        tmp_path / "export" / "demo_project" / "lab_steps.toml",
+        tmp_path / "export" / "demo_project" / "lab_stages.toml",
         project_name="demo_project",
     )
 
@@ -1756,7 +1756,7 @@ def test_build_notebook_export_context_accepts_project_suffix_alias(tmp_path):
     context = pipeline_editor.build_notebook_export_context(
         env,
         Path("uav_graph_routing"),
-        tmp_path / "export" / "uav_graph_routing" / "lab_steps.toml",
+        tmp_path / "export" / "uav_graph_routing" / "lab_stages.toml",
         project_name="uav_graph_routing",
     )
 
@@ -1771,7 +1771,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     (repo_root / ".idea").mkdir(parents=True, exist_ok=True)
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_steps.toml"
+    toml_path = export_dir / "lab_stages.toml"
     context = notebook_export_support.NotebookExportContext(
         project_name="demo_project",
         module_path="demo_project",
@@ -1800,7 +1800,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
                     "D": "Prepare data",
                     "Q": "load and clean",
                     "M": "gpt-demo",
-                    "C": "print('step-0')\n",
+                    "C": "print('stage-0')\n",
                     "E": str(tmp_path / "venv-demo"),
                     "R": "agi.run",
                 }
@@ -1811,13 +1811,13 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     )
 
     notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
-    pycharm_mirror = repo_root / "exported_notebooks" / "demo_project" / "lab_steps.ipynb"
+    pycharm_mirror = repo_root / "exported_notebooks" / "demo_project" / "lab_stages.ipynb"
     pycharm_sitecustomize = pycharm_mirror.parent / "sitecustomize.py"
     mirror_notebook = json.loads(pycharm_mirror.read_text(encoding="utf-8"))
     metadata = notebook["metadata"]["agilab"]
     helper_source = "".join(notebook["cells"][1]["source"])
-    step_source_cell = "".join(notebook["cells"][3]["source"])
-    step_runner_cell = "".join(notebook["cells"][4]["source"])
+    stage_source_cell = "".join(notebook["cells"][3]["source"])
+    stage_runner_cell = "".join(notebook["cells"][4]["source"])
     page_markdown = "".join(notebook["cells"][-2]["source"])
     analysis_source = "".join(notebook["cells"][-1]["source"])
 
@@ -1827,8 +1827,8 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert metadata["project_name"] == "demo_project"
     assert metadata["controller_python"] == sys.executable
     assert metadata["pycharm_mirror_path"] == str(pycharm_mirror)
-    assert metadata["steps"][0]["runtime"] == "agi.run"
-    assert metadata["steps"][0]["env"] == str(tmp_path / "venv-demo")
+    assert metadata["stages"][0]["runtime"] == "agi.run"
+    assert metadata["stages"][0]["env"] == str(tmp_path / "venv-demo")
     assert metadata["related_pages"][0]["module"] == "view_demo"
     assert metadata["related_pages"][0]["label"] == "Demo Analysis"
     assert metadata["related_pages"][0]["artifacts"] == ["demo.json", "demo.csv"]
@@ -1843,10 +1843,10 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "_build_shorthand_agi_script" in helper_source
     assert "_find_free_streamlit_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
-    assert step_source_cell.startswith('STEP_000_CODE = """print(\'step-0\')\n"""')
-    assert "\nprint(STEP_000_CODE)\n" in step_source_cell
-    exec(step_source_cell, {})
-    assert "run_agilab_stage(0, code_override=STEP_000_CODE)" in step_runner_cell
+    assert stage_source_cell.startswith('STAGE_000_CODE = """print(\'stage-0\')\n"""')
+    assert "\nprint(STAGE_000_CODE)\n" in stage_source_cell
+    exec(stage_source_cell, {})
+    assert "run_agilab_stage(0, code_override=STAGE_000_CODE)" in stage_runner_cell
     assert "Demo Analysis" in page_markdown
     assert "`demo.json`" in page_markdown
     assert "Open this after the run." in page_markdown
@@ -1860,10 +1860,10 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "ValuesPolicy" in pycharm_sitecustomize.read_text(encoding="utf-8")
 
 
-def test_notebook_helper_replays_app_shorthand_steps_as_agi_run_scripts(tmp_path):
+def test_notebook_helper_replays_app_shorthand_stages_as_agi_run_scripts(tmp_path):
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_steps.toml"
+    toml_path = export_dir / "lab_stages.toml"
     app_root = tmp_path / "apps" / "demo_project"
     (app_root / "src").mkdir(parents=True, exist_ok=True)
     (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
@@ -1932,14 +1932,14 @@ def test_notebook_helper_replays_app_shorthand_steps_as_agi_run_scripts(tmp_path
 
 
 @pytest.mark.parametrize("env_key", ["APPS_REPOSITORY", "AGILAB_APPS_REPOSITORY"])
-def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_active_app_is_stale(
+def test_notebook_helper_replays_app_shorthand_stages_from_apps_repository_when_active_app_is_stale(
     tmp_path,
     monkeypatch,
     env_key,
 ):
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_steps.toml"
+    toml_path = export_dir / "lab_stages.toml"
     stale_app = tmp_path / "src" / "agilab" / "apps" / "demo_project"
     (stale_app / "src").mkdir(parents=True, exist_ok=True)
     repo_apps = tmp_path / "repo-apps"
@@ -2006,13 +2006,13 @@ def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_a
     assert "ACTIVE_APP = " + repr(str(app_root)) in captured["script"]
 
 
-def test_notebook_helper_replays_app_shorthand_steps_when_active_app_is_other_project(
+def test_notebook_helper_replays_app_shorthand_stages_when_active_app_is_other_project(
     tmp_path,
     monkeypatch,
 ):
     export_dir = tmp_path / "export" / "uav_graph_routing"
     export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_steps.toml"
+    toml_path = export_dir / "lab_stages.toml"
 
     wrong_app = tmp_path / "apps" / "flight_project"
     (wrong_app / "src").mkdir(parents=True, exist_ok=True)
@@ -2096,7 +2096,7 @@ def test_notebook_helper_replays_app_shorthand_steps_when_active_app_is_other_pr
     ("allow_siblings", "expect_private_resolution"),
     [(False, False), (True, True)],
 )
-def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when_active_app_is_missing(
+def test_notebook_helper_replays_app_shorthand_stages_from_sibling_workspace_when_active_app_is_missing(
     tmp_path,
     monkeypatch,
     allow_siblings,
@@ -2115,7 +2115,7 @@ def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when
 
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_steps.toml"
+    toml_path = export_dir / "lab_stages.toml"
     context = notebook_export_support.NotebookExportContext(
         project_name="demo_project",
         module_path="demo_project",
@@ -2150,7 +2150,7 @@ def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when
     namespace["AGILAB_NOTEBOOK_EXPORT"]["active_app"] = ""
     namespace["AGILAB_NOTEBOOK_EXPORT"]["repo_root"] = str(public_repo / "src" / "agilab")
     namespace["AGILAB_NOTEBOOK_EXPORT"]["pycharm_mirror_path"] = str(
-        public_repo / "exported_notebooks" / "demo_project" / "lab_steps.ipynb"
+        public_repo / "exported_notebooks" / "demo_project" / "lab_stages.ipynb"
     )
 
     captured: dict[str, str] = {}
@@ -2185,7 +2185,7 @@ def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when
 def test_notebook_helper_replays_trainer_stack_shorthand_from_app_settings(tmp_path):
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_steps.toml"
+    toml_path = export_dir / "lab_stages.toml"
     app_root = tmp_path / "apps" / "demo_project"
     (app_root / "src").mkdir(parents=True, exist_ok=True)
     (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
@@ -2196,17 +2196,17 @@ data_in = "seed/in"
 data_out = "seed/out"
 reset_target = false
 
-[[args.args]]
+[[args.stages]]
 name = "ppo"
 
-[args.args.args]
+[args.stages.args]
 seed = 0
 total_timesteps = 5000
 
-[[args.args]]
+[[args.stages]]
 name = "ilp"
 
-[args.args.args]
+[args.stages.args]
 beam_width = 3
 """.strip()
         + "\n",
@@ -2274,8 +2274,9 @@ beam_width = 3
 
     assert '"trainer"' not in captured["script"]
     assert (
-        'RUN_ARGS = json.loads(\'{"args": [{"args": {"seed": 0, "total_timesteps": 10000}, '
-        '"name": "ppo"}], "data_in": "demo/in", "data_out": "demo/out", "reset_target": false}\')'
+        'RUN_ARGS = json.loads(\'{"data_in": "demo/in", "data_out": "demo/out", "reset_target": false, '
+        '"stages": [{"args": {"seed": 0, "total_timesteps": 10000}, '
+        '"name": "ppo"}]}\')'
     ) in captured["script"]
     assert "RUN_MODE = json.loads('0')" in captured["script"]
 
@@ -2283,7 +2284,7 @@ beam_width = 3
 def test_notebook_helper_respects_explicit_mode_in_shorthand(tmp_path):
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_steps.toml"
+    toml_path = export_dir / "lab_stages.toml"
     app_root = tmp_path / "apps" / "demo_project"
     (app_root / "src").mkdir(parents=True, exist_ok=True)
     (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
@@ -2354,8 +2355,8 @@ def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_pat
     repo_root = Path(__file__).resolve().parents[1]
     export_dir = tmp_path / "export" / "uav_graph_routing"
     export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_steps.toml"
-    mirror_path = repo_root / "exported_notebooks" / "uav_graph_routing" / "lab_steps.ipynb"
+    toml_path = export_dir / "lab_stages.toml"
+    mirror_path = repo_root / "exported_notebooks" / "uav_graph_routing" / "lab_stages.ipynb"
     sitecustomize_path = mirror_path.parent / "sitecustomize.py"
 
     try:
@@ -2431,7 +2432,7 @@ def test_pycharm_notebook_sitecustomize_blocks_python_ipynb_execution(tmp_path):
         notebook_export_support.pycharm_notebook_sitecustomize_text(),
         encoding="utf-8",
     )
-    notebook_path = shim_dir / "lab_steps.ipynb"
+    notebook_path = shim_dir / "lab_stages.ipynb"
     notebook_path.write_text('{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}\n', encoding="utf-8")
 
     import subprocess
@@ -2462,7 +2463,7 @@ def test_pycharm_notebook_sitecustomize_uses_repo_project_prefix_for_mirror(tmp_
         notebook_export_support.pycharm_notebook_sitecustomize_text(),
         encoding="utf-8",
     )
-    notebook_path = shim_dir / "lab_steps.ipynb"
+    notebook_path = shim_dir / "lab_stages.ipynb"
     notebook_path.write_text('{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}\n', encoding="utf-8")
 
     import subprocess
@@ -2501,9 +2502,9 @@ def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_p
         ).encode("utf-8"),
     )
 
-    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_stages.toml", tmp_path / "demo_project")
 
-    stored = tomllib.loads((tmp_path / "demo_project" / "lab_steps.toml").read_text(encoding="utf-8"))
+    stored = tomllib.loads((tmp_path / "demo_project" / "lab_stages.toml").read_text(encoding="utf-8"))
     assert count == 1
     assert stored["demo_project"][0]["D"] == "ignore"
     assert stored["demo_project"][0]["Q"] == "Imported notebook cell cell-3"
@@ -2544,7 +2545,7 @@ def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeyp
         ).encode("utf-8"),
     )
 
-    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", tmp_path / "demo_project")
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_stages.toml", tmp_path / "demo_project")
 
     contract = json.loads((tmp_path / "demo_project" / "notebook_import_contract.json").read_text(encoding="utf-8"))
     view_plan = json.loads((tmp_path / "demo_project" / "notebook_import_view_plan.json").read_text(encoding="utf-8"))
@@ -2568,7 +2569,7 @@ def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeyp
     ]
 
 
-def test_notebook_to_toml_uses_lab_steps_key_when_module_dir_has_no_name(monkeypatch, tmp_path):
+def test_notebook_to_toml_uses_lab_stages_key_when_module_dir_has_no_name(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(error=lambda *args, **kwargs: None)
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
     monkeypatch.chdir(tmp_path)
@@ -2581,30 +2582,30 @@ def test_notebook_to_toml_uses_lab_steps_key_when_module_dir_has_no_name(monkeyp
         ).encode("utf-8"),
     )
 
-    count = pipeline_editor.notebook_to_toml(uploaded, "lab_steps.toml", Path(""))
+    count = pipeline_editor.notebook_to_toml(uploaded, "lab_stages.toml", Path(""))
 
-    stored = tomllib.loads((tmp_path / "lab_steps.toml").read_text(encoding="utf-8"))
+    stored = tomllib.loads((tmp_path / "lab_stages.toml").read_text(encoding="utf-8"))
     assert count == 1
-    assert stored["lab_steps"][0]["C"] == "print(9)\n"
-    assert stored["lab_steps"][0]["NB_CELL_ID"] == "cell-1"
-    assert stored["lab_steps"][0]["NB_EXECUTION_MODE"] == "not_executed_import"
+    assert stored["lab_stages"][0]["C"] == "print(9)\n"
+    assert stored["lab_stages"][0]["NB_CELL_ID"] == "cell-1"
+    assert stored["lab_stages"][0]["NB_EXECUTION_MODE"] == "not_executed_import"
 
 
 def test_restore_pipeline_snapshot_rebuilds_engine_from_map_when_selection_missing(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(session_state={"idx": [0, "", "", "", "", "", 0]})
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
-    monkeypatch.setattr(pipeline_editor, "_write_steps_for_module", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(pipeline_editor, "_write_stages_for_module", lambda *_args, **_kwargs: 1)
     monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
     monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda _path: False)
 
     error = pipeline_editor._restore_pipeline_snapshot(
         tmp_path / "flight_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
         "sequence_widget",
         {
-            "steps": [{}],
+            "stages": [{}],
             "engine_map": {0: "agi.run"},
             "selected_engine": "",
             "selected_venv": "/invalid/runtime",
@@ -2620,19 +2621,19 @@ def test_restore_pipeline_snapshot_rebuilds_engine_from_map_when_selection_missi
 def test_restore_pipeline_snapshot_handles_non_dict_active_entry(monkeypatch, tmp_path):
     fake_st = SimpleNamespace(session_state={"idx": [0, "stale", "stale", "stale", "stale", "stale", 0]})
     monkeypatch.setattr(pipeline_editor, "st", fake_st)
-    monkeypatch.setattr(pipeline_editor, "_write_steps_for_module", lambda *_args, **_kwargs: 1)
+    monkeypatch.setattr(pipeline_editor, "_write_stages_for_module", lambda *_args, **_kwargs: 1)
     monkeypatch.setattr(pipeline_editor, "_persist_sequence_preferences", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
     monkeypatch.setattr(pipeline_editor, "_is_valid_runtime_root", lambda _path: False)
 
     error = pipeline_editor._restore_pipeline_snapshot(
         tmp_path / "flight_project",
-        tmp_path / "lab_steps.toml",
+        tmp_path / "lab_stages.toml",
         "idx",
         "sequence_widget",
         {
-            "steps": ["not-a-dict"],
-            "active_step": 0,
+            "stages": ["not-a-dict"],
+            "active_stage": 0,
             "sequence": [0],
         },
     )

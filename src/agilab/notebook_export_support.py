@@ -276,10 +276,10 @@ def pycharm_notebook_mirror_path(
     current_file: str | Path = __file__,
 ) -> str:
     try:
-        steps_path = Path(toml_path).expanduser().resolve(strict=False)
+        stages_path = Path(toml_path).expanduser().resolve(strict=False)
     except (OSError, RuntimeError, TypeError, ValueError):
         return ""
-    notebook_path = steps_path.with_suffix(".ipynb")
+    notebook_path = stages_path.with_suffix(".ipynb")
     repo_root = _resolve_pycharm_repo_root(export_context, current_file=current_file)
     if repo_root is None:
         return ""
@@ -289,7 +289,7 @@ def pycharm_notebook_mirror_path(
     artifact_dir = ""
     if export_context and export_context.artifact_dir:
         artifact_dir = Path(_normalize_path(export_context.artifact_dir)).name
-    folder_name = artifact_dir or steps_path.parent.name or steps_path.stem
+    folder_name = artifact_dir or stages_path.parent.name or stages_path.stem
     mirror_path = repo_root / PYCHARM_NOTEBOOK_MIRROR_ROOT / folder_name / notebook_path.name
     return str(mirror_path)
 
@@ -469,7 +469,7 @@ def _discover_page_inline_renderer(
 def build_notebook_export_context(
     env: Any,
     module_path: str | Path,
-    steps_file: str | Path,
+    stages_file: str | Path,
     *,
     project_name: str | None = None,
 ) -> NotebookExportContext:
@@ -547,7 +547,7 @@ def build_notebook_export_context(
     return NotebookExportContext(
         project_name=module_name,
         module_path=Path(module_path).as_posix(),
-        artifact_dir=str(Path(steps_file).resolve().parent),
+        artifact_dir=str(Path(stages_file).resolve().parent),
         active_app=active_app,
         app_settings_file=str(settings_file) if settings_file is not None else "",
         pages_root=pages_root,
@@ -564,15 +564,15 @@ def _build_plain_notebook(toml_data: Dict[str, Any]) -> Dict[str, Any]:
         "nbformat": 4,
         "nbformat_minor": 5,
     }
-    for module, steps in toml_data.items():
-        if module == "__meta__" or not isinstance(steps, list):
+    for module, stages in toml_data.items():
+        if module == "__meta__" or not isinstance(stages, list):
             continue
-        for step in steps:
+        for stage in stages:
             code_text = ""
-            if isinstance(step, dict):
-                code_text = str(step.get("C", "") or "")
-            elif isinstance(step, str):
-                code_text = step
+            if isinstance(stage, dict):
+                code_text = str(stage.get("C", "") or "")
+            elif isinstance(stage, str):
+                code_text = stage
             if not code_text:
                 continue
             notebook_data["cells"].append(
@@ -587,22 +587,22 @@ def _build_plain_notebook(toml_data: Dict[str, Any]) -> Dict[str, Any]:
     return notebook_data
 
 
-def _step_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
+def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     global_index = 0
-    for module, steps in toml_data.items():
-        if module == "__meta__" or not isinstance(steps, list):
+    for module, stages in toml_data.items():
+        if module == "__meta__" or not isinstance(stages, list):
             continue
-        for module_index, raw_step in enumerate(steps):
-            if isinstance(raw_step, dict):
-                code_text = str(raw_step.get("C", "") or "")
-                description = str(raw_step.get("D", "") or "")
-                question = str(raw_step.get("Q", "") or "")
-                model = str(raw_step.get("M", "") or "")
-                runtime = str(raw_step.get("R", "") or "")
-                env_root = _normalize_path(raw_step.get("E", ""))
-            elif isinstance(raw_step, str):
-                code_text = raw_step
+        for module_index, raw_stage in enumerate(stages):
+            if isinstance(raw_stage, dict):
+                code_text = str(raw_stage.get("C", "") or "")
+                description = str(raw_stage.get("D", "") or "")
+                question = str(raw_stage.get("Q", "") or "")
+                model = str(raw_stage.get("M", "") or "")
+                runtime = str(raw_stage.get("R", "") or "")
+                env_root = _normalize_path(raw_stage.get("E", ""))
+            elif isinstance(raw_stage, str):
+                code_text = raw_stage
                 description = ""
                 question = ""
                 model = ""
@@ -874,7 +874,9 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             if not run_args:
                 return dict(assignments)
 
-            nested_trainers = run_args.get("args")
+            if "args" in run_args:
+                raise ValueError("Legacy run settings key 'args' is no longer supported; use 'stages'.")
+            nested_trainers = run_args.get("stages")
             if trainer_name and isinstance(nested_trainers, list):
                 selected = None
                 for item in nested_trainers:
@@ -888,13 +890,13 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                     selected_args = {{}}
 
                 for key, value in flat_assignments.items():
-                    if key in run_args and key != "args":
+                    if key in run_args and key != "stages":
                         run_args[key] = value
                     else:
                         selected_args[key] = value
 
                 selected["args"] = selected_args
-                run_args["args"] = [selected]
+                run_args["stages"] = [selected]
                 return run_args
 
             for key, value in flat_assignments.items():
@@ -910,7 +912,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 "artifact_dir": AGILAB_NOTEBOOK_EXPORT.get("artifact_dir"),
                 "active_app": AGILAB_NOTEBOOK_EXPORT.get("active_app"),
                 "export_mode": AGILAB_NOTEBOOK_EXPORT.get("export_mode"),
-                "steps": len(AGILAB_NOTEBOOK_EXPORT.get("steps", [])),
+                "stages": len(AGILAB_NOTEBOOK_EXPORT.get("stages", [])),
                 "related_pages": related,
             }}
             print(json.dumps(summary, indent=2))
@@ -966,29 +968,29 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return renderer
 
 
-        def _resolve_step_python(step):
+        def _resolve_stage_python(stage):
             controller_python = AGILAB_NOTEBOOK_EXPORT.get("controller_python") or sys.executable
             try:
-                from agilab.pipeline_runtime import python_for_step
+                from agilab.pipeline_runtime import python_for_stage
             except Exception:
                 return controller_python
             try:
-                resolved = python_for_step(
-                    step.get("env") or None,
-                    engine=step.get("runtime") or None,
-                    code=step.get("code") or "",
+                resolved = python_for_stage(
+                    stage.get("env") or None,
+                    engine=stage.get("runtime") or None,
+                    code=stage.get("code") or "",
                     sys_executable=controller_python,
                 )
             except TypeError:
-                resolved = python_for_step(
-                    step.get("env") or None,
-                    engine=step.get("runtime") or None,
-                    code=step.get("code") or "",
+                resolved = python_for_stage(
+                    stage.get("env") or None,
+                    engine=stage.get("runtime") or None,
+                    code=stage.get("code") or "",
                 )
             return str(resolved)
 
 
-        def _step_assignments(code_text):
+        def _stage_assignments(code_text):
             try:
                 tree = ast.parse(code_text or "")
             except SyntaxError:
@@ -1005,8 +1007,8 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return assignments
 
 
-        def _step_shorthand_method(step, code_text):
-            runtime = str(step.get("runtime") or "").strip().lower()
+        def _stage_shorthand_method(stage, code_text):
+            runtime = str(stage.get("runtime") or "").strip().lower()
             if runtime.startswith("agi."):
                 return runtime.split(".", 1)[1]
             lowered = str(code_text or "").lower()
@@ -1014,17 +1016,17 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 return "install"
             if "agi.run(" in lowered:
                 return "run"
-            if "APP" in _step_assignments(code_text):
+            if "APP" in _stage_assignments(code_text):
                 return "run"
             return ""
 
 
-        def _build_shorthand_agi_script(step, code_text):
-            assignments = _step_assignments(code_text)
+        def _build_shorthand_agi_script(stage, code_text):
+            assignments = _stage_assignments(code_text)
             app_name = str(assignments.pop("APP", "") or "").strip()
             if not app_name:
                 return None
-            method = _step_shorthand_method(step, code_text)
+            method = _stage_shorthand_method(stage, code_text)
             if method not in {{"run", "install"}}:
                 return None
             active_app = resolve_active_app_root(app_name)
@@ -1039,7 +1041,9 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                     if inherited_mode not in (None, ""):
                         run_mode = inherited_mode
             run_params = dict(run_args)
-            run_steps_payload = run_params.pop("args", []) or []
+            run_stages_payload = run_params.pop("stages", []) or []
+            if "args" in run_params:
+                raise ValueError("Legacy run settings key 'args' is no longer supported; use 'stages'.")
             run_data_in = run_params.pop("data_in", None)
             run_data_out = run_params.pop("data_out", None)
             run_reset_target = run_params.pop("reset_target", None)
@@ -1053,20 +1057,20 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 ensure_ascii=False,
                 sort_keys=True,
             )
-            run_steps_literal = json.dumps(
-                run_steps_payload,
+            run_stages_literal = json.dumps(
+                run_stages_payload,
                 ensure_ascii=False,
                 sort_keys=True,
             )
             prelude = (
                 "import asyncio\\n"
                 "import json\\n"
-                "from agi_cluster.agi_distributor import AGI, RunRequest, StepRequest\\n"
+                "from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest\\n"
                 "from agi_env import AgiEnv\\n\\n"
                 f"ACTIVE_APP = {{active_app!r}}\\n"
                 f"RUN_ARGS = json.loads({{run_args_literal!r}})\\n"
                 f"RUN_PARAMS = json.loads({{run_params_literal!r}})\\n"
-                f"RUN_STEPS_PAYLOAD = json.loads({{run_steps_literal!r}})\\n"
+                f"RUN_STAGES_PAYLOAD = json.loads({{run_stages_literal!r}})\\n"
                 f"RUN_DATA_IN = json.loads({{json.dumps(run_data_in, ensure_ascii=False)!r}})\\n"
                 f"RUN_DATA_OUT = json.loads({{json.dumps(run_data_out, ensure_ascii=False)!r}})\\n"
                 f"RUN_RESET_TARGET = json.loads({{json.dumps(run_reset_target, ensure_ascii=False)!r}})\\n"
@@ -1077,13 +1081,13 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             prelude += "\\n"
             if method == "run":
                 invoke = (
-                    "    run_steps = [\\n"
-                    "        StepRequest(name=step['name'], args=step.get('args') or {{}})\\n"
-                    "        for step in RUN_STEPS_PAYLOAD\\n"
+                    "    run_stages = [\\n"
+                    "        StageRequest(name=stage['name'], args=stage.get('args') or {{}})\\n"
+                    "        for stage in RUN_STAGES_PAYLOAD\\n"
                     "    ]\\n"
                     "    request = RunRequest(\\n"
                     "        params=RUN_PARAMS,\\n"
-                    "        steps=run_steps,\\n"
+                    "        stages=run_stages,\\n"
                     "        data_in=RUN_DATA_IN,\\n"
                     "        data_out=RUN_DATA_OUT,\\n"
                     "        reset_target=RUN_RESET_TARGET,\\n"
@@ -1105,23 +1109,23 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             )
 
 
-        def _step_script_text(step, code_text):
-            shorthand = _build_shorthand_agi_script(step, code_text)
+        def _stage_script_text(stage, code_text):
+            shorthand = _build_shorthand_agi_script(stage, code_text)
             if shorthand:
                 return shorthand
             return code_text or ""
 
 
         def run_agilab_stage(stage_index, *, check=True, capture_output=True, code_override=None):
-            steps = AGILAB_NOTEBOOK_EXPORT.get("steps", [])
-            step = steps[stage_index]
+            stages = AGILAB_NOTEBOOK_EXPORT.get("stages", [])
+            stage = stages[stage_index]
             workdir = Path(AGILAB_NOTEBOOK_EXPORT.get("artifact_dir") or ".").expanduser()
             workdir.mkdir(parents=True, exist_ok=True)
-            code_text = code_override if code_override is not None else (step.get("code") or "")
-            script_text = _step_script_text(step, code_text)
-            step_for_python = dict(step)
-            step_for_python["code"] = code_text
-            python_exe = _resolve_step_python(step_for_python)
+            code_text = code_override if code_override is not None else (stage.get("code") or "")
+            script_text = _stage_script_text(stage, code_text)
+            stage_for_python = dict(stage)
+            stage_for_python["code"] = code_text
+            python_exe = _resolve_stage_python(stage_for_python)
             with tempfile.TemporaryDirectory(prefix="agilab_notebook_stage_") as tmpdir:
                 script_path = Path(tmpdir) / f"stage_{{stage_index:03d}}.py"
                 script_path.write_text(script_text, encoding="utf-8")
@@ -1140,18 +1144,8 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 result.check_returncode()
             return result
 
-
-        def run_agilab_step(step_index, *, check=True, capture_output=True, code_override=None):
-            return run_agilab_stage(
-                step_index,
-                check=check,
-                capture_output=capture_output,
-                code_override=code_override,
-            )
-
-
         def run_agilab_pipeline(stage_indices=None, *, check=True):
-            indices = list(stage_indices) if stage_indices is not None else list(range(len(AGILAB_NOTEBOOK_EXPORT.get("steps", []))))
+            indices = list(stage_indices) if stage_indices is not None else list(range(len(AGILAB_NOTEBOOK_EXPORT.get("stages", []))))
             results = []
             for stage_index in indices:
                 print(f"== Running AGILAB stage {{stage_index}} ==")
@@ -1239,21 +1233,21 @@ def _analysis_cell(page: RelatedPageExport) -> str:
     ).strip() + "\n"
 
 
-def _step_code_variable_name(step: dict[str, Any]) -> str:
-    return f"STEP_{int(step['index']):03d}_CODE"
+def _stage_code_variable_name(stage: dict[str, Any]) -> str:
+    return f"STAGE_{int(stage['index']):03d}_CODE"
 
 
-def _step_source_cell(step: dict[str, Any]) -> str:
-    variable_name = _step_code_variable_name(step)
-    code_text = str(step.get("code", "") or "").replace('"""', '\\"""')
+def _stage_source_cell(stage: dict[str, Any]) -> str:
+    variable_name = _stage_code_variable_name(stage)
+    code_text = str(stage.get("code", "") or "").replace('"""', '\\"""')
     return f'{variable_name} = """{code_text}"""\nprint({variable_name})\n'
 
 
-def _step_runner_cell(step: dict[str, Any]) -> str:
-    variable_name = _step_code_variable_name(step)
+def _stage_runner_cell(stage: dict[str, Any]) -> str:
+    variable_name = _stage_code_variable_name(stage)
     return textwrap.dedent(
         f"""
-        run_agilab_stage({int(step['index'])}, code_override={variable_name})
+        run_agilab_stage({int(stage['index'])}, code_override={variable_name})
         """
     ).strip() + "\n"
 
@@ -1306,7 +1300,7 @@ def build_notebook_document(
     if export_context is None:
         return _build_plain_notebook(toml_data)
 
-    step_records = _step_records(toml_data)
+    stage_records = _stage_records(toml_data)
     payload = {
         "project_name": export_context.project_name,
         "module_path": export_context.module_path,
@@ -1320,8 +1314,8 @@ def build_notebook_document(
         "export_mode": export_context.export_mode,
         "allow_workspace_sibling_apps": export_context.allow_workspace_sibling_apps,
         "related_pages": [asdict(page) for page in export_context.related_pages],
-        "steps": step_records,
-        "steps_file": str(Path(toml_path)),
+        "stages": stage_records,
+        "stages_file": str(Path(toml_path)),
     }
 
     cells: list[dict[str, Any]] = [
@@ -1343,17 +1337,17 @@ def build_notebook_document(
         _code_cell(_helper_cell(payload)),
     ]
 
-    for step in step_records:
+    for stage in stage_records:
         cells.append(
             _markdown_cell(
                 "\n".join(
                     [
-                        f"## Stage {step['index']}: {step.get('description') or '(no description)'}",
+                        f"## Stage {stage['index']}: {stage.get('description') or '(no description)'}",
                         "",
-                        f"- Module key: `{step.get('module')}`",
-                        f"- Question: `{step.get('question') or ''}`",
-                        f"- Runtime: `{step.get('runtime') or 'runpy'}`",
-                        f"- Environment root: `{step.get('env') or '(current kernel / controller default)'}`",
+                        f"- Module key: `{stage.get('module')}`",
+                        f"- Question: `{stage.get('question') or ''}`",
+                        f"- Runtime: `{stage.get('runtime') or 'runpy'}`",
+                        f"- Environment root: `{stage.get('env') or '(current kernel / controller default)'}`",
                         "",
                         f"- Edit the next cell if you want to override the saved stage source.",
                         f"- The runner cell below it replays the stage with its recorded runtime. Running the whole notebook executes those runner cells too.",
@@ -1361,8 +1355,8 @@ def build_notebook_document(
                 )
             )
         )
-        cells.append(_code_cell(_step_source_cell(step)))
-        cells.append(_code_cell(_step_runner_cell(step)))
+        cells.append(_code_cell(_stage_source_cell(stage)))
+        cells.append(_code_cell(_stage_runner_cell(stage)))
 
     if export_context.related_pages:
         cells.append(

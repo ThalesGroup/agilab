@@ -19,7 +19,7 @@ The source material lives in:
 
 The migrated AGILAB shape is illustrated by:
 
-- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/migrated_project/lab_steps.toml``
+- ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/migrated_project/lab_stages.toml``
 - ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/migrated_project/pipeline_view.dot``
 - ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/analysis_artifacts/forecast_metrics.json``
 - ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr/analysis_artifacts/forecast_predictions.csv``
@@ -32,7 +32,7 @@ pipeline view instead of only the runnable app scripts.
 The repo now also ships the same idea as a real built-in project:
 
 - ``src/agilab/apps/builtin/meteo_forecast_project``
-- ``src/agilab/apps/builtin/meteo_forecast_project/lab_steps.toml``
+- ``src/agilab/apps/builtin/meteo_forecast_project/lab_stages.toml``
 - ``src/agilab/apps/builtin/meteo_forecast_project/pipeline_view.dot``
 - ``src/agilab/apps/builtin/meteo_forecast_project/notebook_import_views.toml``
 
@@ -49,7 +49,7 @@ state implicit:
 
 The AGILAB version makes the same workflow explicit:
 
-- the semantic stages live in ``lab_steps.toml``
+- the semantic stages live in ``lab_stages.toml``
 - the conceptual pipeline is readable in ``pipeline_view.dot``
 - metrics and predictions are exported as stable files
 - ``ANALYSIS`` can render the result without reopening the notebooks
@@ -110,7 +110,7 @@ Suggested migration path
 
 1. Keep the original notebooks as source material.
 2. Export stable CSV/JSON artifacts first.
-3. Translate the notebook sequence into ``lab_steps.toml``.
+3. Translate the notebook sequence into ``lab_stages.toml``.
 4. Add one small ``ANALYSIS`` page that reads those artifacts.
 5. Only then move notebook logic into manager or worker code if needed.
 

@@ -5,5 +5,5 @@
 
 agilab-future-work
 workflow-maintainability-patterns
-versioned-pipeline-steps
+versioned-pipeline-stages
 ```

@@ -52,7 +52,7 @@ the building blocks to implement it explicitly:
 - reproducible run orchestration (`AGI.run`, `AGI.install`, `AGI.get_distrib`)
 - stable artifact paths (datasets, logs, checkpoints) via `AgiEnv` and share
   directory conventions
-- per-stage experiment capture via `lab_steps.toml`
+- per-stage experiment capture via `lab_stages.toml`
 
 One common pattern is “solver-as-teacher”:
 

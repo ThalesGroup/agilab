@@ -9,7 +9,7 @@ Overview
 - Demonstrates how to orchestrate file-based distributions, run inside the
   cluster pool and keep the web interface responsive while the
   worker pipeline operates asynchronously.
-- Bundles web-view lab material (``lab_steps.toml``) and prompt examples to help
+- Bundles web-view lab material (``lab_stages.toml``) and prompt examples to help
   you reproduce the workflow showcased in AGILab live demos.
 
 Scientific highlights

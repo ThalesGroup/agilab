@@ -29,7 +29,7 @@ EXAMPLE_PREVIEWS = {
     "notebook_to_dask": (
         "preview_notebook_to_dask.py",
         "notebook_to_dask_sample.ipynb",
-        "lab_steps.toml",
+        "lab_stages.toml",
         "pipeline_view.json",
     ),
     "resilience_failure_injection": (
@@ -465,7 +465,7 @@ def test_service_mode_preview_builds_health_gate_operator_summary(tmp_path: Path
 
     assert summary["example"] == "service_mode"
     assert summary["target_app"] == "mycode_project"
-    assert [step["action"] for step in summary["operator_sequence"]] == [
+    assert [action["action"] for action in summary["operator_sequence"]] == [
         "start",
         "status",
         "health",
@@ -674,7 +674,7 @@ def test_notebook_to_dask_preview_builds_migration_contract(tmp_path: Path) -> N
 
     assert summary["example"] == "notebook_to_dask"
     assert summary["notebook_import"]["execution_mode"] == "not_executed_import"
-    assert summary["notebook_import"]["summary"]["pipeline_step_count"] == 3
+    assert summary["notebook_import"]["summary"]["pipeline_stage_count"] == 3
     assert summary["notebook_import"]["env_hints"] == ["dask", "json", "pandas", "pathlib"]
     assert summary["artifact_contract"] == {
         "analysis_consumes": [
@@ -688,9 +688,9 @@ def test_notebook_to_dask_preview_builds_migration_contract(tmp_path: Path) -> N
         ],
     }
     assert summary["dask_solution"]["engine"] == "dask.dataframe"
-    assert summary["dask_solution"]["step_ids"] == ["cell-4", "cell-6"]
+    assert summary["dask_solution"]["stage_ids"] == ["cell-4", "cell-6"]
     assert summary["dask_solution"]["real_execution"] is False
-    assert summary["lab_steps_preview"]["matches_generated"] is True
+    assert summary["lab_stages_preview"]["matches_generated"] is True
     assert summary["pipeline_view"]["node_count"] == 4
     assert (tmp_path / "notebook_to_dask_preview.json").is_file()
 

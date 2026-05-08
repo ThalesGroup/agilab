@@ -36,7 +36,7 @@
 
   <g transform="translate(48,292)">
     <rect class="box" width="268" height="132" fill="#ddd6fe" />
-    <text class="caption" x="134" y="36" text-anchor="middle">lab_steps.toml</text>
+    <text class="caption" x="134" y="36" text-anchor="middle">lab_stages.toml</text>
     <text class="body" x="134" y="70" text-anchor="middle">stage definitions</text>
     <text class="body" x="134" y="92" text-anchor="middle">prompt, model, engine, runtime</text>
   </g>
@@ -63,7 +63,7 @@
   </g>
 
   <rect class="pill" x="392" y="362" width="336" height="34" />
-  <text class="small muted" x="560" y="383" text-anchor="middle">stage metadata comes from lab_steps.toml</text>
+  <text class="small muted" x="560" y="383" text-anchor="middle">stage metadata comes from lab_stages.toml</text>
 
   <g transform="translate(392,424)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />

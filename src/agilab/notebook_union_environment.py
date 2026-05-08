@@ -40,27 +40,27 @@ def _normalize_env(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _iter_step_entries(lab_steps: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+def _iter_stage_entries(lab_stages: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
     entries: list[dict[str, Any]] = []
-    for module, steps in lab_steps.items():
-        if module == "__meta__" or not isinstance(steps, list):
+    for module, stages in lab_stages.items():
+        if module == "__meta__" or not isinstance(stages, list):
             continue
-        for index, step in enumerate(steps):
-            if not isinstance(step, dict):
+        for index, stage in enumerate(stages):
+            if not isinstance(stage, dict):
                 continue
-            code = str(step.get("C", "") or "")
+            code = str(stage.get("C", "") or "")
             if not code.strip():
                 continue
             entries.append(
                 {
                     "module": str(module),
                     "module_index": index,
-                    "description": str(step.get("D", "") or ""),
-                    "question": str(step.get("Q", "") or ""),
-                    "model": str(step.get("M", "") or ""),
+                    "description": str(stage.get("D", "") or ""),
+                    "question": str(stage.get("Q", "") or ""),
+                    "model": str(stage.get("M", "") or ""),
                     "code": code,
-                    "runtime": _normalize_runtime(step.get("R")),
-                    "env": _normalize_env(step.get("E")),
+                    "runtime": _normalize_runtime(stage.get("R")),
+                    "env": _normalize_env(stage.get("E")),
                 }
             )
     return tuple(entries)
@@ -71,16 +71,16 @@ def _issue(location: str, message: str) -> NotebookUnionIssue:
 
 
 def build_union_environment_plan(
-    lab_steps: Mapping[str, Any],
+    lab_stages: Mapping[str, Any],
     *,
     run_id: str = DEFAULT_RUN_ID,
 ) -> dict[str, Any]:
-    steps = _iter_step_entries(lab_steps)
-    runtimes = sorted({step["runtime"] for step in steps})
-    envs = sorted({step["env"] for step in steps})
+    stages = _iter_stage_entries(lab_stages)
+    runtimes = sorted({stage["runtime"] for stage in stages})
+    envs = sorted({stage["env"] for stage in stages})
     issues: list[NotebookUnionIssue] = []
-    if not steps:
-        issues.append(_issue("steps", "no executable pipeline stages found"))
+    if not stages:
+        issues.append(_issue("stages", "no executable pipeline stages found"))
     if len(runtimes) > 1:
         issues.append(_issue("runtime", f"mixed runtimes require supervisor export: {runtimes}"))
     if any(runtime != "runpy" for runtime in runtimes):
@@ -106,7 +106,7 @@ def build_union_environment_plan(
             else "supervisor_notebook_required"
         ),
         "summary": {
-            "step_count": len(steps),
+            "stage_count": len(stages),
             "runtime_count": len(runtimes),
             "environment_count": len(envs),
             "compatible": compatible,
@@ -114,12 +114,12 @@ def build_union_environment_plan(
             "common_runtime": runtimes[0] if len(runtimes) == 1 else "",
             "common_environment": envs[0] if len(envs) == 1 else "",
         },
-        "steps": list(steps),
+        "stages": list(stages),
         "issues": [issue.as_dict() for issue in issues],
         "provenance": {
             "executes_notebook": False,
             "supervisor_fallback_for_mixed_runtime": True,
-            "preserves_step_order": True,
+            "preserves_stage_order": True,
         },
     }
 
@@ -138,17 +138,17 @@ def build_union_notebook(plan: Mapping[str, Any]) -> dict[str, Any]:
             ],
         }
     ]
-    for index, step in enumerate(plan.get("steps", []), start=1):
-        if not isinstance(step, dict):
+    for index, stage in enumerate(plan.get("stages", []), start=1):
+        if not isinstance(stage, dict):
             continue
         cells.append(
             {
                 "cell_type": "markdown",
                 "metadata": {},
                 "source": [
-                    f"## Stage {index}: {step.get('description', '')}\n",
-                    f"- Runtime: `{step.get('runtime', '')}`\n",
-                    f"- Environment: `{step.get('env', '') or 'current kernel'}`\n",
+                    f"## Stage {index}: {stage.get('description', '')}\n",
+                    f"- Runtime: `{stage.get('runtime', '')}`\n",
+                    f"- Environment: `{stage.get('env', '') or 'current kernel'}`\n",
                 ],
             }
         )
@@ -158,7 +158,7 @@ def build_union_notebook(plan: Mapping[str, Any]) -> dict[str, Any]:
                 "execution_count": None,
                 "metadata": {},
                 "outputs": [],
-                "source": str(step.get("code", "") or "").splitlines(keepends=True),
+                "source": str(stage.get("code", "") or "").splitlines(keepends=True),
             }
         )
     return {
@@ -169,7 +169,7 @@ def build_union_notebook(plan: Mapping[str, Any]) -> dict[str, Any]:
                 "run_id": plan.get("run_id", DEFAULT_RUN_ID),
                 "union_mode": plan.get("union_mode"),
                 "execution_mode": plan.get("execution_mode"),
-                "step_count": plan.get("summary", {}).get("step_count"),
+                "stage_count": plan.get("summary", {}).get("stage_count"),
             },
             "kernelspec": {
                 "display_name": "Python 3",

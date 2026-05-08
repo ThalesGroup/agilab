@@ -89,11 +89,11 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
-    "agilab.pipeline_steps",
+    "agilab.pipeline_stages",
     {"pipeline_export_root": "_pipeline_export_root"},
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "pipeline_steps.py",
-    fallback_name="agilab_pipeline_steps_fallback",
+    fallback_path=Path(__file__).resolve().parent / "pipeline_stages.py",
+    fallback_name="agilab_pipeline_stages_fallback",
 )
 import_agilab_symbols(
     globals(),

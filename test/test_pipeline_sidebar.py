@@ -160,7 +160,7 @@ def test_on_lab_change_updates_session_state_and_stores_last_app(monkeypatch, tm
     project_dir.mkdir(parents=True)
 
     stored: list[Path] = []
-    fake_st = SimpleNamespace(session_state=_SessionState(index_page="old_project", steps_file="x", df_file="y"))
+    fake_st = SimpleNamespace(session_state=_SessionState(index_page="old_project", stages_file="x", df_file="y"))
 
     monkeypatch.setattr(pipeline_sidebar, "st", fake_st)
     monkeypatch.setattr(pipeline_sidebar, "store_last_active_app", lambda path: stored.append(path))
@@ -174,7 +174,7 @@ def test_on_lab_change_updates_session_state_and_stores_last_app(monkeypatch, tm
     assert fake_st.session_state["project_changed"] is True
     assert fake_st.session_state["_experiment_reload_required"] is True
     assert fake_st.session_state["page_broken"] is True
-    assert "steps_file" not in fake_st.session_state
+    assert "stages_file" not in fake_st.session_state
     assert "df_file" not in fake_st.session_state
     assert stored == [project_dir]
 

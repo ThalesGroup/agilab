@@ -11,7 +11,7 @@ import numpy as np
 
 import agi_node.agi_dispatcher.agi_dispatcher as dispatcher_module
 from agi_node.agi_dispatcher import WorkDispatcher
-from agi_node.agi_dispatcher.agi_dispatcher import RUN_STEPS_KEY
+from agi_node.agi_dispatcher.agi_dispatcher import RUN_STAGES_KEY
 
 
 def test_convert_functions_to_names_handles_nested_callables():
@@ -38,7 +38,7 @@ def test_dispatcher_init_sets_class_args():
 
 
 @pytest.mark.asyncio
-async def test_do_distrib_keeps_run_steps_out_of_constructor_and_injects_model_args(tmp_path, monkeypatch):
+async def test_do_distrib_keeps_run_stages_out_of_constructor_and_injects_model_args(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
     cluster_src = tmp_path / "cluster" / "src"
     cluster_src.mkdir(parents=True)
@@ -52,7 +52,7 @@ async def test_do_distrib_keeps_run_steps_out_of_constructor_and_injects_model_a
     env.app_src.mkdir(exist_ok=True)
 
     constructor_args = []
-    step_payload = [{"name": "train", "args": {"epochs": 2}}]
+    stage_payload = [{"name": "train", "args": {"epochs": 2}}]
 
     class DemoWorkflow:
         def __init__(self, env, **kwargs):
@@ -62,8 +62,8 @@ async def test_do_distrib_keeps_run_steps_out_of_constructor_and_injects_model_a
 
         def build_distribution(self, assigned_workers):
             assert assigned_workers == {"127.0.0.1": 1}
-            assert self.args.args == step_payload
-            assert WorkDispatcher.args["args"] == step_payload
+            assert self.args.args == stage_payload
+            assert WorkDispatcher.args["args"] == stage_payload
             return [["chunk"]], [{"meta": 1}], "partition", 1, 1.0
 
     monkeypatch.setattr(
@@ -75,7 +75,7 @@ async def test_do_distrib_keeps_run_steps_out_of_constructor_and_injects_model_a
     loaded_workers, work_plan, metadata = await WorkDispatcher._do_distrib(
         env,
         {"127.0.0.1": 1},
-        {"data_in": "network", RUN_STEPS_KEY: step_payload},
+        {"data_in": "network", RUN_STAGES_KEY: stage_payload},
     )
 
     assert constructor_args == [{"data_in": "network"}]
@@ -85,7 +85,7 @@ async def test_do_distrib_keeps_run_steps_out_of_constructor_and_injects_model_a
 
 
 @pytest.mark.asyncio
-async def test_do_distrib_rejects_run_steps_for_non_workflow_app(tmp_path, monkeypatch):
+async def test_do_distrib_rejects_run_stages_for_non_workflow_app(tmp_path, monkeypatch):
     plan_path = tmp_path / "plan.json"
     cluster_src = tmp_path / "cluster" / "src"
     cluster_src.mkdir(parents=True)
@@ -111,11 +111,11 @@ async def test_do_distrib_rejects_run_steps_for_non_workflow_app(tmp_path, monke
         AsyncMock(return_value=SimpleNamespace(SimpleApp=SimpleApp)),
     )
 
-    with pytest.raises(TypeError, match="does not accept RunRequest.steps"):
+    with pytest.raises(TypeError, match="does not accept RunRequest.stages"):
         await WorkDispatcher._do_distrib(
             env,
             {"127.0.0.1": 1},
-            {"data_in": "network", RUN_STEPS_KEY: [{"name": "train", "args": {}}]},
+            {"data_in": "network", RUN_STAGES_KEY: [{"name": "train", "args": {}}]},
         )
 
 

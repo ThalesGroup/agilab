@@ -270,30 +270,30 @@ def _normalize_status(raw_status: Any) -> str:
     }.get(status, _as_text(raw_status) or "Waiting")
 
 
-def _normalize_workflow_step(step: Any) -> tuple[str, str, str]:
-    if isinstance(step, Mapping):
+def _normalize_workflow_item(item: Any) -> tuple[str, str, str]:
+    if isinstance(item, Mapping):
         return (
-            _as_text(step.get("label") or step.get("name")),
-            _normalize_status(step.get("state") if "state" in step else step.get("status")),
-            _as_text(step.get("detail") or step.get("reason") or step.get("path")),
+            _as_text(item.get("label") or item.get("name")),
+            _normalize_status(item.get("state") if "state" in item else item.get("status")),
+            _as_text(item.get("detail") or item.get("reason") or item.get("path")),
         )
-    if isinstance(step, (list, tuple)):
-        label = _as_text(step[0]) if len(step) > 0 else ""
-        status = _normalize_status(step[1]) if len(step) > 1 else "Waiting"
-        detail = _as_text(step[2]) if len(step) > 2 else ""
+    if isinstance(item, (list, tuple)):
+        label = _as_text(item[0]) if len(item) > 0 else ""
+        status = _normalize_status(item[1]) if len(item) > 1 else "Waiting"
+        detail = _as_text(item[2]) if len(item) > 2 else ""
         return label, status, detail
-    return _as_text(step), "Waiting", ""
+    return _as_text(item), "Waiting", ""
 
 
 def render_workflow_timeline(
     streamlit: Any,
     *,
-    steps: Iterable[Any],
+    items: Iterable[Any],
     title: str = "Workflow",
     expanded: bool = False,
 ) -> None:
     """Render a compact generic workflow timeline."""
-    rows = [_normalize_workflow_step(step) for step in steps]
+    rows = [_normalize_workflow_item(item) for item in items]
     rows = [(label, status, detail) for label, status, detail in rows if label]
     if not rows:
         return

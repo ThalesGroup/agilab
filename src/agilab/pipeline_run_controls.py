@@ -28,11 +28,11 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_module = _import_guard_module.import_agilab_module
 
-_pipeline_steps = import_agilab_module(
-    "agilab.pipeline_steps",
+_pipeline_stages = import_agilab_module(
+    "agilab.pipeline_stages",
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parent / "pipeline_steps.py",
-    fallback_name="agilab_pipeline_steps_fallback",
+    fallback_path=Path(__file__).resolve().parent / "pipeline_stages.py",
+    fallback_name="agilab_pipeline_stages_fallback",
 )
 _pipeline_runtime = import_agilab_module(
     "agilab.pipeline_runtime",
@@ -57,7 +57,7 @@ PIPELINE_LOCK_DEFAULT_TTL_SEC = 6 * 3600.0
 def _mlflow_parent_payload(
     env: AgiEnv,
     lab_dir: Path,
-    steps_file: Path,
+    stages_file: Path,
     sequence: List[int],
 ) -> tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, str]]:
     run_name = f"{env.app or 'agilab'}:{lab_dir.name}:pipeline"
@@ -65,7 +65,7 @@ def _mlflow_parent_payload(
         "agilab.component": "pipeline",
         "agilab.app": str(getattr(env, "app", "") or ""),
         "agilab.lab": lab_dir.name,
-        "agilab.steps_file": str(steps_file),
+        "agilab.stages_file": str(stages_file),
         "agilab.tracking_uri": _pipeline_runtime.mlflow_tracking_uri(env),
     }
     params = {
@@ -77,7 +77,7 @@ def _mlflow_parent_payload(
             {
                 "app": str(getattr(env, "app", "") or ""),
                 "lab_dir": str(lab_dir),
-                "steps_file": str(steps_file),
+                "stages_file": str(stages_file),
                 "sequence": [idx + 1 for idx in sequence],
             },
             indent=2,
@@ -86,24 +86,24 @@ def _mlflow_parent_payload(
     return run_name, tags, params, text_artifacts
 
 
-def _mlflow_step_payload(
+def _mlflow_stage_payload(
     env: AgiEnv,
     lab_dir: Path,
-    steps_file: Path,
+    stages_file: Path,
     *,
-    step_index: int,
+    stage_index: int,
     entry: Dict[str, Any],
     engine: str,
     runtime_root: str,
 ) -> tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, str]]:
-    summary = _pipeline_steps.step_summary(entry, width=80)
-    run_name = f"{env.app or 'agilab'}:{lab_dir.name}:stage_{step_index + 1}"
+    summary = _pipeline_stages.stage_summary(entry, width=80)
+    run_name = f"{env.app or 'agilab'}:{lab_dir.name}:stage_{stage_index + 1}"
     tags = {
         "agilab.component": "pipeline-stage",
         "agilab.app": str(getattr(env, "app", "") or ""),
         "agilab.lab": lab_dir.name,
-        "agilab.steps_file": str(steps_file),
-        "agilab.stage_index": step_index + 1,
+        "agilab.stages_file": str(stages_file),
+        "agilab.stage_index": stage_index + 1,
         "agilab.engine": engine,
         "agilab.runtime": runtime_root or "",
         "agilab.summary": summary,
@@ -116,9 +116,9 @@ def _mlflow_step_payload(
         "engine": engine,
     }
     text_artifacts = {
-        f"stage_{step_index + 1}/stage_entry.json": json.dumps(
+        f"stage_{stage_index + 1}/stage_entry.json": json.dumps(
             {
-                "stage_index": step_index + 1,
+                "stage_index": stage_index + 1,
                 "summary": summary,
                 "entry": entry,
             },
@@ -452,41 +452,41 @@ def _release_pipeline_run_lock(
         logger.debug("Failed to release pipeline lock %s: %s", lock_path, exc)
 
 
-def _format_legacy_step_refs(stale_steps: List[Dict[str, Any]]) -> str:
+def _format_legacy_stage_refs(stale_stages: List[Dict[str, Any]]) -> str:
     refs: List[str] = []
-    for item in stale_steps[:5]:
-        step = item.get("step", "?")
+    for item in stale_stages[:5]:
+        stage = item.get("stage", "?")
         line = item.get("line", "?")
         summary = str(item.get("summary") or "").strip()
         project = str(item.get("project") or "").strip()
-        label = f"stage {step}, line {line}"
+        label = f"stage {stage}, line {line}"
         if project:
             label += f", {project}"
         if summary:
             label += f": {summary}"
         refs.append(label)
-    if len(stale_steps) > 5:
-        refs.append(f"{len(stale_steps) - 5} more")
+    if len(stale_stages) > 5:
+        refs.append(f"{len(stale_stages) - 5} more")
     return "; ".join(refs)
 
 
-def _abort_if_legacy_agi_run_steps(
+def _abort_if_legacy_agi_run_stages(
     index_page: str,
-    steps_file: Path,
-    steps: List[Dict[str, Any]],
+    stages_file: Path,
+    stages: List[Dict[str, Any]],
     sequence: List[int],
     placeholder: Optional[Any],
 ) -> bool:
     """Block stale embedded AGI.run snippets before any pipeline work starts."""
-    stale_steps = _pipeline_steps.find_legacy_agi_run_steps(steps, sequence)
-    if not stale_steps:
+    stale_stages = _pipeline_stages.find_legacy_agi_run_stages(stages, sequence)
+    if not stale_stages:
         return False
 
-    detail = _format_legacy_step_refs(stale_steps)
+    detail = _format_legacy_stage_refs(stale_stages)
     message = (
         "Run workflow aborted before execution: the selected stages contain old "
         "AGI.run snippets that call the removed keyword API instead of RunRequest. "
-        f"{stale_snippet_cleanup_message([steps_file])} "
+        f"{stale_snippet_cleanup_message([stages_file])} "
         f"Affected stage(s): {detail}."
     )
     st.error(message)
@@ -494,14 +494,14 @@ def _abort_if_legacy_agi_run_steps(
     return True
 
 
-def run_all_steps(
+def run_all_stages(
     lab_dir: Path,
     index_page_str: str,
-    steps_file: Path,
+    stages_file: Path,
     module_path: Path,
     env: AgiEnv,
     *,
-    load_all_steps_fn: Callable[[Path, Path, str], Optional[List[Dict[str, Any]]]],
+    load_all_stages_fn: Callable[[Path, Path, str], Optional[List[Dict[str, Any]]]],
     stream_run_command_fn: Callable[..., str],
     log_placeholder: Optional[Any] = None,
     force_lock_clear: bool = False,
@@ -510,9 +510,9 @@ def run_all_steps(
     if log_placeholder is None:
         log_placeholder = _get_run_placeholder(index_page_str)
     _push_run_log(index_page_str, "Run pipeline invoked.", log_placeholder)
-    steps = load_all_steps_fn(module_path, steps_file, index_page_str) or []
-    if not steps:
-        st.info(f"No stages available to run from {steps_file}.")
+    stages = load_all_stages_fn(module_path, stages_file, index_page_str) or []
+    if not stages:
+        st.info(f"No stages available to run from {stages_file}.")
         _push_run_log(index_page_str, "Run workflow aborted: no stages available.", log_placeholder)
         return
 
@@ -520,8 +520,8 @@ def run_all_steps(
     engine_map = st.session_state.setdefault(f"{index_page_str}__engine_map", {})
     sequence_state_key = f"{index_page_str}__run_sequence"
     details_store = st.session_state.setdefault(f"{index_page_str}__details", {})
-    original_step = st.session_state[index_page_str][0]
-    original_selected = _pipeline_steps.normalize_runtime_path(
+    original_stage = st.session_state[index_page_str][0]
+    original_selected = _pipeline_stages.normalize_runtime_path(
         st.session_state.get("lab_selected_venv", "")
     )
     original_engine = st.session_state.get("lab_selected_engine", "")
@@ -532,11 +532,11 @@ def run_all_steps(
         return
 
     raw_sequence = st.session_state.get(sequence_state_key, [])
-    sequence = [idx for idx in raw_sequence if 0 <= idx < len(steps)]
+    sequence = [idx for idx in raw_sequence if 0 <= idx < len(stages)]
     if not sequence:
-        sequence = list(range(len(steps)))
+        sequence = list(range(len(stages)))
 
-    if _abort_if_legacy_agi_run_steps(index_page_str, steps_file, steps, sequence, log_placeholder):
+    if _abort_if_legacy_agi_run_stages(index_page_str, stages_file, stages, sequence, log_placeholder):
         return
 
     lock_handle = _acquire_pipeline_run_lock(
@@ -553,7 +553,7 @@ def run_all_steps(
         parent_run_name, parent_tags, parent_params, parent_text_artifacts = _mlflow_parent_payload(
             env,
             lab_dir,
-            steps_file,
+            stages_file,
             sequence,
         )
         pipeline_log_artifact = st.session_state.get(f"{index_page_str}__run_log_file")
@@ -566,18 +566,18 @@ def run_all_steps(
             if pipeline_tracker:
                 pipeline_tracker.log_artifacts(
                     text_artifacts=parent_text_artifacts,
-                    file_artifacts=[steps_file],
+                    file_artifacts=[stages_file],
                 )
             with st.spinner("Running all stages…"):
                 for idx in sequence:
                     _refresh_pipeline_run_lock(lock_handle)
-                    entry = steps[idx]
+                    entry = stages[idx]
                     code = entry.get("C", "")
-                    if not _pipeline_steps.is_runnable_step(entry):
+                    if not _pipeline_stages.is_runnable_stage(entry):
                         continue
                     _push_run_log(index_page_str, f"Running stage {idx + 1}…", log_placeholder)
 
-                    raw_runtime = _pipeline_steps.normalize_runtime_path(entry.get("E", ""))
+                    raw_runtime = _pipeline_stages.normalize_runtime_path(entry.get("E", ""))
                     venv_path = (
                         raw_runtime if _pipeline_runtime.is_valid_runtime_root(raw_runtime) else ""
                     )
@@ -610,23 +610,23 @@ def run_all_steps(
                     if venv_root and engine == "runpy":
                         engine = "agi.run"
                     if engine.startswith("agi.") and not venv_root:
-                        fallback_runtime = _pipeline_steps.normalize_runtime_path(
+                        fallback_runtime = _pipeline_stages.normalize_runtime_path(
                             getattr(env, "active_app", "") or ""
                         )
                         if _pipeline_runtime.is_valid_runtime_root(fallback_runtime):
                             venv_root = fallback_runtime
                             st.session_state["lab_selected_venv"] = venv_root
 
-                    step_run_name, step_tags, step_params, step_text_artifacts = _mlflow_step_payload(
+                    stage_run_name, stage_tags, stage_params, stage_text_artifacts = _mlflow_stage_payload(
                         env,
                         lab_dir,
-                        steps_file,
-                        step_index=idx,
+                        stages_file,
+                        stage_index=idx,
                         entry=entry,
                         engine=engine,
                         runtime_root=venv_root,
                     )
-                    target_base = Path(steps_file).parent.resolve()
+                    target_base = Path(stages_file).parent.resolve()
                     if target_base.name == target_base.parent.name:
                         target_base = target_base.parent
                     target_base.mkdir(parents=True, exist_ok=True)
@@ -634,32 +634,32 @@ def run_all_steps(
                     export_target = st.session_state.get("df_file_out", "")
                     with _pipeline_runtime.start_tracker_run(
                         env,
-                        run_name=step_run_name,
-                        tags=step_tags,
-                        params=step_params,
+                        run_name=stage_run_name,
+                        tags=stage_tags,
+                        params=stage_params,
                         nested=bool(pipeline_tracker),
-                    ) as step_tracker:
-                        step_env = _pipeline_runtime.build_mlflow_process_env(
+                    ) as stage_tracker:
+                        stage_env = _pipeline_runtime.build_mlflow_process_env(
                             env,
-                            run_id=step_tracker.run_id if step_tracker else None,
+                            run_id=stage_tracker.run_id if stage_tracker else None,
                         )
-                        if step_tracker:
-                            step_tracker.log_artifacts(
-                                text_artifacts=step_text_artifacts,
+                        if stage_tracker:
+                            stage_tracker.log_artifacts(
+                                text_artifacts=stage_text_artifacts,
                             )
                         if engine == "runpy":
                             output = run_lab(
                                 [entry.get("D", ""), entry.get("Q", ""), code],
                                 snippet_file,
                                 env.copilot_file,
-                                env_overrides=step_env,
+                                env_overrides=stage_env,
                             )
                             script_artifact = Path(snippet_file)
                         else:
                             script_path = (target_base / "AGI_run.py").resolve()
                             script_path.write_text(_pipeline_runtime.wrap_code_with_mlflow_resume(code))
                             script_artifact = script_path
-                            python_cmd = _pipeline_runtime.python_for_step(
+                            python_cmd = _pipeline_runtime.python_for_stage(
                                 venv_root,
                                 engine=engine,
                                 code=code,
@@ -670,7 +670,7 @@ def run_all_steps(
                                 [str(python_cmd), str(script_path)],
                                 cwd=target_base,
                                 placeholder=log_placeholder,
-                                extra_env=step_env,
+                                extra_env=stage_env,
                             )
                         _refresh_pipeline_run_lock(lock_handle)
 
@@ -699,9 +699,9 @@ def run_all_steps(
                         if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
                             if save_csv(st.session_state["data"], export_target):
                                 st.session_state["df_file_in"] = export_target
-                                st.session_state["step_checked"] = True
-                        summary = _pipeline_steps.step_summary({"Q": entry.get("Q", ""), "C": code})
-                        env_label = _pipeline_runtime.label_for_step_runtime(
+                                st.session_state["stage_checked"] = True
+                        summary = _pipeline_stages.stage_summary({"Q": entry.get("Q", ""), "C": code})
+                        env_label = _pipeline_runtime.label_for_stage_runtime(
                             venv_root,
                             engine=engine,
                             code=code,
@@ -711,13 +711,13 @@ def run_all_steps(
                             f"Stage {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
                             log_placeholder,
                         )
-                        if step_tracker:
-                            step_files = [script_artifact]
+                        if stage_tracker:
+                            stage_files = [script_artifact]
                             if export_target:
-                                step_files.append(export_target)
-                            step_tracker.log_artifacts(
+                                stage_files.append(export_target)
+                            stage_tracker.log_artifacts(
                                 text_artifacts={f"stage_{idx + 1}/stdout.txt": preview or ""},
-                                file_artifacts=step_files,
+                                file_artifacts=stage_files,
                                 tags={
                                     "agilab.status": "completed",
                                     "agilab.output_present": bool(preview),
@@ -738,8 +738,8 @@ def run_all_steps(
             st.info("No runnable code found in the stages.")
             _push_run_log(index_page_str, "Run workflow completed: no runnable code found.", log_placeholder)
     finally:
-        st.session_state[index_page_str][0] = original_step
-        st.session_state["lab_selected_venv"] = _pipeline_steps.normalize_runtime_path(
+        st.session_state[index_page_str][0] = original_stage
+        st.session_state["lab_selected_venv"] = _pipeline_stages.normalize_runtime_path(
             original_selected
         )
         st.session_state["lab_selected_engine"] = original_engine

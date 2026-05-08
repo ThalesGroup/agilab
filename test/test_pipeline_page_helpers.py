@@ -144,12 +144,12 @@ def test_ensure_notebook_export_creates_missing_notebook(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "logger", SimpleNamespace(warning=lambda message: warnings.append(str(message))))
     monkeypatch.setattr(module, "toml_to_notebook", lambda payload, path: generated.append((payload, path)))
 
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text('[[demo]]\nQ = "q"\n', encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text('[[demo]]\nQ = "q"\n', encoding="utf-8")
 
-    module._ensure_notebook_export(steps_file)
+    module._ensure_notebook_export(stages_file)
 
-    assert generated == [({"demo": [{"Q": "q"}]}, steps_file)]
+    assert generated == [({"demo": [{"Q": "q"}]}, stages_file)]
     assert warnings == []
 
 
@@ -163,10 +163,10 @@ def test_ensure_notebook_export_logs_invalid_toml(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(module, "toml_to_notebook", lambda *_args, **_kwargs: None)
 
-    steps_file = tmp_path / "lab_steps.toml"
-    steps_file.write_text("[demo\n", encoding="utf-8")
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("[demo\n", encoding="utf-8")
 
-    module._ensure_notebook_export(steps_file)
+    module._ensure_notebook_export(stages_file)
 
     assert any("Skipping notebook generation:" in message for message in warnings)
 
@@ -182,9 +182,9 @@ def test_render_notebook_download_button_renders_bytes(tmp_path, monkeypatch):
         caption=lambda message: captions.append(str(message)),
     )
 
-    notebook_path = tmp_path / "lab_steps.ipynb"
+    notebook_path = tmp_path / "lab_stages.ipynb"
     notebook_path.write_bytes(b'{"cells": []}')
-    pycharm_path = tmp_path / "exported_notebooks" / "demo" / "lab_steps.ipynb"
+    pycharm_path = tmp_path / "exported_notebooks" / "demo" / "lab_stages.ipynb"
 
     module._render_notebook_download_button(
         notebook_path,
@@ -197,7 +197,7 @@ def test_render_notebook_download_button_renders_bytes(tmp_path, monkeypatch):
         {
             "label": "Download pipeline notebook",
             "data": b'{"cells": []}',
-            "file_name": "lab_steps.ipynb",
+            "file_name": "lab_stages.ipynb",
             "mime": "application/x-ipynb+json",
             "key": "pipeline-export",
         }
@@ -219,7 +219,7 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
         caption=lambda _message: None,
     )
 
-    notebook_path = tmp_path / "lab_steps.ipynb"
+    notebook_path = tmp_path / "lab_stages.ipynb"
     notebook_path.write_bytes(b'{"cells": []}')
 
     module._render_notebook_download_button(notebook_path, "pipeline-export", container=fake_container)
@@ -227,11 +227,11 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     assert errors == ["Failed to prepare notebook export: download failed"]
 
 
-def test_pipeline_on_df_change_uses_page_local_load_last_step(tmp_path, monkeypatch):
+def test_pipeline_on_df_change_uses_page_local_load_last_stage(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     export_root = tmp_path / "export"
     selected_rel = Path("demo/new.csv")
-    steps_file = tmp_path / "steps" / "lab_steps.toml"
+    stages_file = tmp_path / "stages" / "lab_stages.toml"
     session_state = _SessionState(
         {
             "env": SimpleNamespace(AGILAB_EXPORT_ABS=export_root),
@@ -243,18 +243,18 @@ def test_pipeline_on_df_change_uses_page_local_load_last_step(tmp_path, monkeypa
     monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
     monkeypatch.setattr(
         module,
-        "load_last_step",
-        lambda module_dir, steps_path, page_key: loaded.append((module_dir, steps_path, page_key)),
+        "load_last_stage",
+        lambda module_dir, stages_path, page_key: loaded.append((module_dir, stages_path, page_key)),
     )
 
-    module.on_df_change(Path("demo_module"), "demo", None, steps_file)
+    module.on_df_change(Path("demo_module"), "demo", None, stages_file)
 
     assert session_state["df_file"] == export_root / selected_rel
     assert session_state["demodf_file"] == export_root / selected_rel
     assert "demo" not in session_state
     assert session_state["page_broken"] is True
-    assert loaded == [(Path("demo_module"), steps_file, "demo")]
-    assert steps_file.parent.exists()
+    assert loaded == [(Path("demo_module"), stages_file, "demo")]
+    assert stages_file.parent.exists()
 
 
 def test_dataframe_picker_apply_hydrates_initial_picker_selection(tmp_path, monkeypatch):

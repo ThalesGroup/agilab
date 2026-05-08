@@ -296,11 +296,11 @@ def _node_execution_payload(node: Mapping[str, Any] | None) -> dict[str, Any]:
         params = execution.get("run_params")
     if isinstance(params, Mapping):
         normalized["params"] = dict(params)
-    steps = execution.get("steps")
-    if not isinstance(steps, list):
-        steps = execution.get("run_steps")
-    if isinstance(steps, list):
-        normalized["steps"] = list(steps)
+    if "steps" in execution or "run_steps" in execution:
+        raise ValueError("Legacy execution keys 'steps'/'run_steps' are no longer supported; use 'stages'.")
+    stages = execution.get("stages")
+    if isinstance(stages, list):
+        normalized["stages"] = list(stages)
     for key in ("data_in", "data_out", "reset_target"):
         if key in execution:
             normalized[key] = execution.get(key)

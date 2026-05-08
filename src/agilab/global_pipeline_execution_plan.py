@@ -225,11 +225,11 @@ def _execution_contract(row: dict[str, Any], stage_bindings: dict[str, str]) -> 
         params = execution.get("run_params")
     if isinstance(params, dict):
         contract["params"] = dict(params)
-    steps = execution.get("steps")
-    if not isinstance(steps, list):
-        steps = execution.get("run_steps")
-    if isinstance(steps, list):
-        contract["steps"] = list(steps)
+    if "steps" in execution or "run_steps" in execution:
+        raise ValueError("Execution contracts must use 'stages'; legacy 'steps'/'run_steps' keys are not supported.")
+    stages = execution.get("stages")
+    if isinstance(stages, list):
+        contract["stages"] = list(stages)
     for key in ("data_in", "data_out", "reset_target"):
         if key in execution:
             contract[key] = execution.get(key)

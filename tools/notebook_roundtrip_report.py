@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit notebook/lab_steps round-trip evidence for AGILAB."""
+"""Emit notebook/lab_stages round-trip evidence for AGILAB."""
 
 from __future__ import annotations
 
@@ -42,9 +42,9 @@ from agilab.notebook_export_support import (
     build_notebook_document,
 )
 from agilab.notebook_pipeline_import import (
-    build_lab_steps_preview,
+    build_lab_stages_preview,
     persist_notebook_pipeline_import,
-    write_lab_steps_preview,
+    write_lab_stages_preview,
 )
 
 
@@ -67,12 +67,12 @@ def _check_result(
     }
 
 
-def sample_lab_steps() -> dict[str, list[dict[str, Any]]]:
+def sample_lab_stages() -> dict[str, list[dict[str, Any]]]:
     return {
         MODULE_NAME: [
             {
                 "D": "Seed notebook round-trip inputs",
-                "Q": "Create a compact dataframe and persist it for the next step.",
+                "Q": "Create a compact dataframe and persist it for the next stage.",
                 "M": "gpt-5.5",
                 "C": (
                     "from pathlib import Path\n"
@@ -116,7 +116,7 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
     required = [
         "notebook round-trip report",
         "tools/notebook_roundtrip_report.py --compact",
-        "lab_steps.toml -> supervisor notebook -> import -> lab_steps preview",
+        "lab_stages.toml -> supervisor notebook -> import -> lab_stages preview",
         "not_executed_import",
     ]
     doc_path = repo_root / DOC_RELATIVE_PATH
@@ -142,7 +142,7 @@ def _docs_check(repo_root: Path) -> dict[str, Any]:
     )
 
 
-def _step_projection(entry: dict[str, Any]) -> dict[str, Any]:
+def _stage_projection(entry: dict[str, Any]) -> dict[str, Any]:
     return {
         "D": entry.get("D", ""),
         "Q": entry.get("Q", ""),
@@ -152,11 +152,11 @@ def _step_projection(entry: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _project_steps(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    steps = payload.get(MODULE_NAME, [])
-    if not isinstance(steps, list):
+def _project_stages(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    stages = payload.get(MODULE_NAME, [])
+    if not isinstance(stages, list):
         return []
-    return [step for step in steps if isinstance(step, dict)]
+    return [stage for stage in stages if isinstance(stage, dict)]
 
 
 def build_report(
@@ -173,8 +173,8 @@ def build_report(
 
 def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, Any]:
     output_dir = output_dir.expanduser()
-    original_lab_steps = sample_lab_steps()
-    original_path = _write_toml(output_dir / "lab_steps.toml", original_lab_steps)
+    original_lab_stages = sample_lab_stages()
+    original_path = _write_toml(output_dir / "lab_stages.toml", original_lab_stages)
     context = NotebookExportContext(
         project_name=MODULE_NAME,
         module_path=MODULE_NAME,
@@ -183,22 +183,22 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
         export_mode=DEFAULT_NOTEBOOK_EXPORT_MODE,
     )
     notebook = build_notebook_document(
-        original_lab_steps,
+        original_lab_stages,
         original_path,
         export_context=context,
     )
-    notebook_path = _write_notebook(output_dir / "lab_steps.ipynb", notebook)
+    notebook_path = _write_notebook(output_dir / "lab_stages.ipynb", notebook)
     import_path = output_dir / "notebook_roundtrip_import.json"
     proof = persist_notebook_pipeline_import(
         repo_root=repo_root,
         output_path=import_path,
         notebook_path=notebook_path,
     )
-    preview = build_lab_steps_preview(proof.notebook_import, module_name=MODULE_NAME)
-    preview_path = write_lab_steps_preview(output_dir / "lab_steps_preview.toml", preview)
+    preview = build_lab_stages_preview(proof.notebook_import, module_name=MODULE_NAME)
+    preview_path = write_lab_stages_preview(output_dir / "lab_stages_preview.toml", preview)
     preview_reloaded = tomllib.loads(preview_path.read_text(encoding="utf-8"))
-    original_steps = [_step_projection(step) for step in _project_steps(original_lab_steps)]
-    preview_steps = [_step_projection(step) for step in _project_steps(preview_reloaded)]
+    original_stages = [_stage_projection(stage) for stage in _project_stages(original_lab_stages)]
+    preview_stages = [_stage_projection(stage) for stage in _project_stages(preview_reloaded)]
     state = proof.notebook_import
     summary = state.get("summary", {})
     source = state.get("source", {})
@@ -209,9 +209,9 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             "Notebook round-trip supervisor export",
             notebook.get("metadata", {}).get("agilab", {}).get("export_mode")
             == DEFAULT_NOTEBOOK_EXPORT_MODE
-            and len(notebook.get("metadata", {}).get("agilab", {}).get("steps", [])) == 2
+            and len(notebook.get("metadata", {}).get("agilab", {}).get("stages", [])) == 2
             and Path(notebook_path).is_file(),
-            "supervisor notebook export embeds AGILAB step metadata",
+            "supervisor notebook export embeds AGILAB stage metadata",
             evidence=["src/agilab/notebook_export_support.py", str(notebook_path)],
             details={"metadata": notebook.get("metadata", {}).get("agilab", {})},
         ),
@@ -221,9 +221,9 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             proof.ok
             and state.get("execution_mode") == "not_executed_import"
             and source.get("import_mode") == "agilab_supervisor_metadata"
-            and summary.get("supervisor_step_count") == 2
-            and summary.get("pipeline_step_count") == 2,
-            "importer reconstructs pipeline steps from supervisor metadata",
+            and summary.get("supervisor_stage_count") == 2
+            and summary.get("pipeline_stage_count") == 2,
+            "importer reconstructs pipeline stages from supervisor metadata",
             evidence=["src/agilab/notebook_pipeline_import.py", str(import_path)],
             details={
                 "source": source,
@@ -232,16 +232,16 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             },
         ),
         _check_result(
-            "notebook_roundtrip_lab_steps_fields",
-            "Notebook round-trip lab_steps fields",
-            original_steps == preview_steps
+            "notebook_roundtrip_lab_stages_fields",
+            "Notebook round-trip lab_stages fields",
+            original_stages == preview_stages
             and preview_reloaded == preview
             and Path(preview_path).is_file(),
-            "lab_steps preview preserves D/Q/M/C/R fields through export/import",
+            "lab_stages preview preserves D/Q/M/C/R fields through export/import",
             evidence=[str(original_path), str(preview_path)],
             details={
-                "original_steps": original_steps,
-                "preview_steps": preview_steps,
+                "original_stages": original_stages,
+                "preview_stages": preview_stages,
             },
         ),
         _check_result(
@@ -271,8 +271,8 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
         "report": "Notebook round-trip report",
         "status": "pass" if failed == 0 else "fail",
         "scope": (
-            "Validates lab_steps.toml -> supervisor notebook -> import -> "
-            "lab_steps preview without executing notebook cells."
+            "Validates lab_stages.toml -> supervisor notebook -> import -> "
+            "lab_stages preview without executing notebook cells."
         ),
         "summary": {
             "passed": passed,
@@ -280,12 +280,12 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
             "total": len(checks),
             "execution_mode": state.get("execution_mode"),
             "import_mode": source.get("import_mode"),
-            "supervisor_step_count": summary.get("supervisor_step_count"),
-            "pipeline_step_count": summary.get("pipeline_step_count"),
-            "lab_steps_round_trip_ok": original_steps == preview_steps,
+            "supervisor_stage_count": summary.get("supervisor_stage_count"),
+            "pipeline_stage_count": summary.get("pipeline_stage_count"),
+            "lab_stages_round_trip_ok": original_stages == preview_stages,
             "env_hint_count": summary.get("env_hint_count"),
             "artifact_reference_count": summary.get("artifact_reference_count"),
-            "original_lab_steps_path": str(original_path),
+            "original_lab_stages_path": str(original_path),
             "notebook_path": str(notebook_path),
             "preview_path": str(preview_path),
         },
@@ -295,7 +295,7 @@ def _build_report_with_dir(*, repo_root: Path, output_dir: Path) -> dict[str, An
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Emit AGILAB notebook/lab_steps round-trip evidence."
+        description="Emit AGILAB notebook/lab_stages round-trip evidence."
     )
     parser.add_argument(
         "--output-dir",

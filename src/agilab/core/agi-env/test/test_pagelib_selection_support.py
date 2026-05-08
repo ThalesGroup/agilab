@@ -170,7 +170,7 @@ def test_sidebar_views_support_and_on_df_change_manage_selection_state(tmp_path)
     assert session_state["df_file"] == export_root / Path("lab_a/default_df")
     assert session_state["index_page"] == Path("lab_a/default_df")
 
-    steps_file = tmp_path / "steps" / "last.toml"
+    stages_file = tmp_path / "stages" / "last.toml"
     loaded: list[tuple[Path, Path, str]] = []
     session_state["legacydf"] = "lab_a/other.csv"
     session_state["legacy"] = "cached"
@@ -179,11 +179,11 @@ def test_sidebar_views_support_and_on_df_change_manage_selection_state(tmp_path)
         Path("lab_a"),
         Path("ignored.csv"),
         "legacy",
-        steps_file,
+        stages_file,
         session_state=session_state,
         resolve_selected_df_path_fn=resolve_selected_df_path,
-        load_last_step_fn=lambda module_dir, steps_path, page_key: loaded.append(
-            (module_dir, steps_path, page_key)
+        load_last_stage_fn=lambda module_dir, stages_path, page_key: loaded.append(
+            (module_dir, stages_path, page_key)
         ),
         logger=_Logger(),
         path_cls=Path,
@@ -193,8 +193,8 @@ def test_sidebar_views_support_and_on_df_change_manage_selection_state(tmp_path)
     assert session_state["df_file"] == export_root / "lab_a/other.csv"
     assert "legacy" not in session_state
     assert session_state["page_broken"] is True
-    assert loaded == [(Path("lab_a"), steps_file, "legacy")]
-    assert steps_file.parent.is_dir()
+    assert loaded == [(Path("lab_a"), stages_file, "legacy")]
+    assert stages_file.parent.is_dir()
 
 
 def test_sidebar_views_support_handles_empty_dataframe_list(tmp_path):
@@ -240,10 +240,10 @@ def test_on_df_change_support_uses_explicit_df_file_when_no_selection(tmp_path):
         Path("lab_a"),
         "legacy",
         df_file=explicit_df,
-        steps_file=None,
+        stages_file=None,
         session_state=session_state,
         resolve_selected_df_path_fn=resolve_selected_df_path,
-        load_last_step_fn=lambda *_args, **_kwargs: None,
+        load_last_stage_fn=lambda *_args, **_kwargs: None,
         logger=_Logger(),
         path_cls=Path,
     )

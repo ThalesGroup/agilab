@@ -27,7 +27,7 @@ def test_notebook_union_environment_report_passes(tmp_path: Path) -> None:
     assert report["status"] == "pass"
     assert report["summary"]["compatible_union_mode"] == "single_kernel_union_candidate"
     assert report["summary"]["incompatible_union_mode"] == "supervisor_notebook_required"
-    assert report["summary"]["compatible_step_count"] == 2
+    assert report["summary"]["compatible_stage_count"] == 2
     assert report["summary"]["incompatible_issue_count"] >= 2
     assert report["summary"]["code_cell_count"] == 2
     assert Path(report["summary"]["notebook_path"]).is_file()
@@ -47,7 +47,7 @@ def test_notebook_union_environment_blocks_mixed_runtime_and_env() -> None:
     )
     core_module = _load_module(CORE_PATH, "notebook_union_environment_core_test_module")
 
-    plan = core_module.build_union_environment_plan(report_module.incompatible_lab_steps())
+    plan = core_module.build_union_environment_plan(report_module.incompatible_lab_stages())
 
     assert plan["run_status"] == "supervisor_required"
     assert plan["union_mode"] == "supervisor_notebook_required"

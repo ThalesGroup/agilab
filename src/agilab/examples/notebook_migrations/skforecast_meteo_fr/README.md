@@ -21,7 +21,7 @@ Notebook-only workflow:
 
 AGILAB workflow:
 
-- explicit pipeline stages in `migrated_project/lab_steps.toml`
+- explicit pipeline stages in `migrated_project/lab_stages.toml`
 - conceptual pipeline view in `migrated_project/pipeline_view.dot`
 - stable exported artifacts under `analysis_artifacts/`
 - reusable `ANALYSIS` page through `view_forecast_analysis`

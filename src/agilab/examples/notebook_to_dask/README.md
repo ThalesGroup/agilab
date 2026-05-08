@@ -8,7 +8,7 @@ cells.
 
 ## What You Learn
 
-- How markdown and code cells become traceable `lab_steps.toml` entries.
+- How markdown and code cells become traceable `lab_stages.toml` entries.
 - How Dask-oriented cells are separated from setup and analysis cells.
 - How input and output files become an artifact contract.
 - How a conceptual pipeline view explains the migration before any notebook is
@@ -36,7 +36,7 @@ uv --preview-features extra-build-dependencies run python src/agilab/examples/no
 The command reads:
 
 - `notebook_to_dask_sample.ipynb`
-- `lab_steps.toml`
+- `lab_stages.toml`
 - `pipeline_view.json`
 
 It writes a JSON migration preview and does not execute the notebook.
@@ -77,8 +77,8 @@ view can evolve independently from the raw notebook source.
 
 - If the script cannot import `agilab.notebook_pipeline_import`, run it from the
   AGILAB source checkout with `uv --preview-features extra-build-dependencies`.
-- If the sample `lab_steps.toml` no longer matches the generated preview, rerun
-  the script and compare the reported `lab_steps_preview` section.
+- If the sample `lab_stages.toml` no longer matches the generated preview, rerun
+  the script and compare the reported `lab_stages_preview` section.
 - If you want real execution, first turn the preview into a project with an
   explicit dataset path, Dask dependency policy, and an `ANALYSIS` page that
   reads the declared artifacts.

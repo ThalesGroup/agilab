@@ -27,18 +27,18 @@ def test_notebook_roundtrip_report_passes(tmp_path: Path) -> None:
     assert report["status"] == "pass"
     assert report["summary"]["execution_mode"] == "not_executed_import"
     assert report["summary"]["import_mode"] == "agilab_supervisor_metadata"
-    assert report["summary"]["supervisor_step_count"] == 2
-    assert report["summary"]["pipeline_step_count"] == 2
-    assert report["summary"]["lab_steps_round_trip_ok"] is True
+    assert report["summary"]["supervisor_stage_count"] == 2
+    assert report["summary"]["pipeline_stage_count"] == 2
+    assert report["summary"]["lab_stages_round_trip_ok"] is True
     assert report["summary"]["env_hint_count"] == 3
     assert report["summary"]["artifact_reference_count"] == 3
-    assert Path(report["summary"]["original_lab_steps_path"]).is_file()
+    assert Path(report["summary"]["original_lab_stages_path"]).is_file()
     assert Path(report["summary"]["notebook_path"]).is_file()
     assert Path(report["summary"]["preview_path"]).is_file()
     assert {check["id"] for check in report["checks"]} == {
         "notebook_roundtrip_supervisor_export",
         "notebook_roundtrip_import_mode",
-        "notebook_roundtrip_lab_steps_fields",
+        "notebook_roundtrip_lab_stages_fields",
         "notebook_roundtrip_artifacts_env_hints",
         "notebook_roundtrip_docs_reference",
     }
@@ -60,16 +60,16 @@ def test_notebook_pipeline_import_reads_supervisor_metadata(tmp_path: Path) -> N
 
     assert proof.ok is True
     assert proof.notebook_import["source"]["import_mode"] == "agilab_supervisor_metadata"
-    assert proof.notebook_import["summary"]["supervisor_step_count"] == 2
-    preview = core_module.build_lab_steps_preview(
+    assert proof.notebook_import["summary"]["supervisor_stage_count"] == 2
+    preview = core_module.build_lab_stages_preview(
         proof.notebook_import,
         module_name="notebook_roundtrip_project",
     )
-    assert [step["D"] for step in preview["notebook_roundtrip_project"]] == [
+    assert [stage["D"] for stage in preview["notebook_roundtrip_project"]] == [
         "Seed notebook round-trip inputs",
         "Summarize notebook round-trip output",
     ]
-    assert [step["R"] for step in preview["notebook_roundtrip_project"]] == [
+    assert [stage["R"] for stage in preview["notebook_roundtrip_project"]] == [
         "runpy",
         "runpy",
     ]

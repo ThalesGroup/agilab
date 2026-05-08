@@ -269,7 +269,7 @@ def test_agi_env_small_helpers_cover_remaining_branches(tmp_path: Path, monkeypa
         None,
         session_state=session_state,
         resolve_selected_df_path_fn=lambda *_args, **_kwargs: None,
-        load_last_step_fn=lambda *_args, **_kwargs: None,
+        load_last_stage_fn=lambda *_args, **_kwargs: None,
         logger=mock.Mock(),
     )
     assert "legacydf_file" not in session_state

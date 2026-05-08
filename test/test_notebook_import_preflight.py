@@ -92,7 +92,7 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     assert preflight["status"] == "review"
     assert preflight["safe_to_import"] is True
     assert preflight["cleanup_required"] is True
-    assert preflight["summary"]["pipeline_step_count"] == 1
+    assert preflight["summary"]["pipeline_stage_count"] == 1
     assert preflight["artifact_contract"]["inputs"] == ["data/orders.csv"]
     assert "/tmp/local-only.csv" in preflight["artifact_contract"]["outputs"]
     assert "artifacts/orders.parquet" in preflight["artifact_contract"]["outputs"]
@@ -112,7 +112,7 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     assert contract["preflight"]["status"] == "review"
     assert contract["artifact_contract"] == preflight["artifact_contract"]
     assert contract["warnings"]
-    assert contract["steps"][0]["id"] == "cell-2"
+    assert contract["stages"][0]["id"] == "cell-2"
     assert view["schema"] == "agilab.notebook_import_pipeline_view.v1"
     assert view["module_name"] == "demo_project"
     assert {node["kind"] for node in view["nodes"]} >= {
@@ -177,7 +177,7 @@ optional_artifacts = ["data/*.csv"]
         "notebook_import_preflight_importable",
         "notebook_import_preflight_risks",
         "notebook_import_preflight_artifacts",
-        "notebook_import_preflight_lab_steps_preview",
+        "notebook_import_preflight_lab_stages_preview",
         "notebook_import_preflight_pipeline_view",
         "notebook_import_preflight_view_plan",
         "notebook_import_preflight_contract_write",

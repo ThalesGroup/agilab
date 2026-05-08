@@ -165,11 +165,11 @@ def on_df_change(
     module_dir,
     index_page,
     df_file=None,
-    steps_file=None,
+    stages_file=None,
     *,
     session_state,
     resolve_selected_df_path_fn,
-    load_last_step_fn,
+    load_last_stage_fn,
     logger,
     path_cls=Path,
 ) -> None:
@@ -202,9 +202,9 @@ def on_df_change(
     else:
         session_state.pop(index_page_str + "df_file", None)
 
-    if steps_file:
-        logger.info(f"mkdir {steps_file.parent}")
-        steps_file.parent.mkdir(parents=True, exist_ok=True)
-        load_last_step_fn(module_dir, steps_file, index_page_str)
+    if stages_file:
+        logger.info(f"mkdir {stages_file.parent}")
+        stages_file.parent.mkdir(parents=True, exist_ok=True)
+        load_last_stage_fn(module_dir, stages_file, index_page_str)
     session_state.pop(index_page_str, None)
     session_state.page_broken = True

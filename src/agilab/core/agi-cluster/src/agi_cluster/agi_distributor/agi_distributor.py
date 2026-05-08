@@ -250,7 +250,7 @@ class AGI:
 
         Args:
             env: AGILAB environment to execute.
-            request: Typed execution request. App params and workflow steps are kept separate.
+            request: Typed execution request. App params and workflow stages are kept separate.
 
         Returns:
             Any: Result of the execution.

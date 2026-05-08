@@ -120,33 +120,33 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
-    "agilab.pipeline_steps",
+    "agilab.pipeline_stages",
     {
         "ORCHESTRATE_LOCKED_SOURCE_KEY": "ORCHESTRATE_LOCKED_SOURCE_KEY",
-        "ORCHESTRATE_LOCKED_STEP_KEY": "ORCHESTRATE_LOCKED_STEP_KEY",
+        "ORCHESTRATE_LOCKED_STAGE_KEY": "ORCHESTRATE_LOCKED_STAGE_KEY",
         "bump_history_revision": "_bump_history_revision",
         "ensure_primary_module_key": "_ensure_primary_module_key",
         "get_available_virtualenvs": "get_available_virtualenvs",
-        "is_displayable_step": "_is_displayable_step",
-        "is_orchestrate_locked_step": "_is_orchestrate_locked_step",
-        "is_runnable_step": "_is_runnable_step",
+        "is_displayable_stage": "_is_displayable_stage",
+        "is_orchestrate_locked_stage": "_is_orchestrate_locked_stage",
+        "is_runnable_stage": "_is_runnable_stage",
         "load_sequence_preferences": "_load_sequence_preferences",
-        "looks_like_step": "_looks_like_step",
+        "looks_like_stage": "_looks_like_stage",
         "module_keys": "_module_keys",
         "normalize_runtime_path": "normalize_runtime_path",
         "orchestrate_snippet_source": "_orchestrate_snippet_source",
         "persist_sequence_preferences": "_persist_sequence_preferences",
         "pipeline_export_root": "_pipeline_export_root",
         "prune_invalid_entries": "_prune_invalid_entries",
-        "restore_missing_export_steps": "_restore_missing_export_steps",
+        "restore_missing_export_stages": "_restore_missing_export_stages",
         "snippet_source_guidance": "_snippet_source_guidance",
-        "step_button_label": "_step_button_label",
-        "step_label_for_multiselect": "_step_label_for_multiselect",
-        "step_summary": "_step_summary",
+        "stage_button_label": "_stage_button_label",
+        "stage_label_for_multiselect": "_stage_label_for_multiselect",
+        "stage_summary": "_stage_summary",
     },
     current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_steps.py",
-    fallback_name="agilab_pipeline_steps_fallback",
+    fallback_path=Path(__file__).resolve().parents[1] / "pipeline_stages.py",
+    fallback_name="agilab_pipeline_stages_fallback",
 )
 _pipeline_ai_module = import_agilab_symbols(
     globals(),
@@ -182,16 +182,16 @@ import_agilab_symbols(
     "agilab.pipeline_editor",
     {
         "_capture_pipeline_snapshot": "_capture_pipeline_snapshot",
-        "_force_persist_step": "_force_persist_step",
+        "_force_persist_stage": "_force_persist_stage",
         "_restore_pipeline_snapshot": "_restore_pipeline_snapshot",
         "build_notebook_export_context": "build_notebook_export_context",
-        "get_steps_list": "get_steps_list",
+        "get_stages_list": "get_stages_list",
         "on_preview_notebook_import": "on_preview_notebook_import",
         "refresh_notebook_export": "refresh_notebook_export",
         "render_notebook_import_preview": "render_notebook_import_preview",
         "resolve_pycharm_notebook_path": "resolve_pycharm_notebook_path",
-        "remove_step": "remove_step",
-        "save_step": "save_step",
+        "remove_stage": "remove_stage",
+        "save_stage": "save_stage",
         "toml_to_notebook": "toml_to_notebook",
     },
     current_file=__file__,
@@ -213,12 +213,12 @@ import_agilab_symbols(
     globals(),
     "agilab.pipeline_runtime",
     {
-        "label_for_step_runtime": "_label_for_step_runtime",
+        "label_for_stage_runtime": "_label_for_stage_runtime",
         "ensure_safe_service_template": "_ensure_safe_service_template",
         "is_valid_runtime_root": "_is_valid_runtime_root",
-        "python_for_step": "_python_for_step",
+        "python_for_stage": "_python_for_stage",
         "python_for_venv": "_python_for_venv",
-        "run_locked_step": "_run_locked_step",
+        "run_locked_stage": "_run_locked_stage",
         "stream_run_command": "_stream_run_command",
         "to_bool_flag": "_to_bool_flag",
     },
@@ -239,7 +239,7 @@ import_agilab_symbols(
         "_get_run_placeholder": "_get_run_placeholder",
         "_inspect_pipeline_run_lock": "_inspect_pipeline_run_lock",
         "_mlflow_parent_payload": "_mlflow_parent_payload",
-        "_mlflow_step_payload": "_mlflow_step_payload",
+        "_mlflow_stage_payload": "_mlflow_stage_payload",
         "_pipeline_lock_owner_alive": "_pipeline_lock_owner_alive",
         "_pipeline_lock_owner_text": "_pipeline_lock_owner_text",
         "_pipeline_lock_path": "_pipeline_lock_path",
@@ -250,7 +250,7 @@ import_agilab_symbols(
         "_refresh_pipeline_run_lock": "_refresh_pipeline_run_lock",
         "_release_pipeline_run_lock": "_release_pipeline_run_lock",
         "_rerun_fragment_or_app": "_rerun_fragment_or_app",
-        "run_all_steps": "_run_all_steps_impl",
+        "run_all_stages": "_run_all_stages_impl",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "pipeline_run_controls.py",
@@ -285,7 +285,7 @@ import_agilab_symbols(
 )
 
 # Constants
-STEPS_FILE_NAME = "lab_steps.toml"
+STAGES_FILE_NAME = "lab_stages.toml"
 DEFAULT_DF = "lab_out.csv"
 SAFE_SERVICE_START_TEMPLATE_FILENAME = "AGI_serve_safe_start_template.py"
 SAFE_SERVICE_START_TEMPLATE_MARKER = "# AGILAB_AUTO_GENERATED_PIPELINE_SNIPPET: SAFE_SERVICE_START"
@@ -301,23 +301,23 @@ class JumpToMain(Exception):
 _pipeline_ai_module.JumpToMain = JumpToMain
 
 
-def run_all_steps(
+def run_all_stages(
     lab_dir: Path,
     index_page_str: str,
-    steps_file: Path,
+    stages_file: Path,
     module_path: Path,
     env: AgiEnv,
     log_placeholder: Optional[Any] = None,
     force_lock_clear: bool = False,
 ) -> None:
     """Execute all stages sequentially, honouring per-stage virtual environments."""
-    _run_all_steps_impl(
+    _run_all_stages_impl(
         lab_dir,
         index_page_str,
-        steps_file,
+        stages_file,
         module_path,
         env,
-        load_all_steps_fn=load_all_steps,
+        load_all_stages_fn=load_all_stages,
         stream_run_command_fn=lambda *args, **kwargs: _stream_run_command(
             *args,
             push_run_log=_push_run_log,
@@ -334,61 +334,61 @@ def on_page_change() -> None:
     st.session_state.page_broken = True
 
 
-def on_step_change(
+def on_stage_change(
     module_dir: Path,
-    steps_file: Path,
-    index_step: int,
+    stages_file: Path,
+    index_stage: int,
     index_page: str,
 ) -> None:
     """Update session state when a stage is selected."""
-    st.session_state[index_page][0] = index_step
-    st.session_state.step_checked = False
+    st.session_state[index_page][0] = index_stage
+    st.session_state.stage_checked = False
     # Schedule prompt clear and blank on next render; bump input revision to remount widget
     st.session_state[f"{index_page}__clear_q"] = True
     st.session_state[f"{index_page}__q_rev"] = st.session_state.get(f"{index_page}__q_rev", 0) + 1
     # Drop any existing editor instance state for this stage (best-effort)
-    st.session_state.pop(f"{index_page}_a_{index_step}", None)
+    st.session_state.pop(f"{index_page}_a_{index_stage}", None)
     venv_map = st.session_state.get(f"{index_page}__venv_map", {})
-    st.session_state["lab_selected_venv"] = normalize_runtime_path(venv_map.get(index_step, ""))
+    st.session_state["lab_selected_venv"] = normalize_runtime_path(venv_map.get(index_stage, ""))
     # Do not call st.rerun() here: callbacks automatically trigger a rerun
     # after returning. Rely on the updated session_state to refresh the UI.
     return
 
 
-def load_last_step(
+def load_last_stage(
     module_dir: Path,
-    steps_file: Path,
+    stages_file: Path,
     index_page: str,
 ) -> None:
     """Load the last stage for a module into session state."""
     details_store = st.session_state.setdefault(f"{index_page}__details", {})
-    all_steps = load_all_steps(module_dir, steps_file, index_page)
-    if all_steps:
-        last_step = len(all_steps) - 1
-        current_step = st.session_state[index_page][0]
-        if current_step <= last_step:
-            entry = all_steps[current_step] or {}
+    all_stages = load_all_stages(module_dir, stages_file, index_page)
+    if all_stages:
+        last_stage = len(all_stages) - 1
+        current_stage = st.session_state[index_page][0]
+        if current_stage <= last_stage:
+            entry = all_stages[current_stage] or {}
             d = entry.get("D", "")
             q = entry.get("Q", "")
             m = entry.get("M", "")
             c = entry.get("C", "")
-            detail = details_store.get(current_step, "")
+            detail = details_store.get(current_stage, "")
             st.session_state[index_page][1:6] = [d, q, m, c, detail]
             raw_e = normalize_runtime_path(entry.get("E", ""))
             e = raw_e if _is_valid_runtime_root(raw_e) else ""
             venv_map = st.session_state.setdefault(f"{index_page}__venv_map", {})
             if e:
-                venv_map[current_step] = e
+                venv_map[current_stage] = e
                 st.session_state["lab_selected_venv"] = e
             else:
-                venv_map.pop(current_step, None)
+                venv_map.pop(current_stage, None)
                 st.session_state["lab_selected_venv"] = ""
             engine_map = st.session_state.setdefault(f"{index_page}__engine_map", {})
             selected_engine = entry.get("R", "") or ("agi.run" if e else "runpy")
             if selected_engine:
-                engine_map[current_step] = selected_engine
+                engine_map[current_stage] = selected_engine
             else:
-                engine_map.pop(current_step, None)
+                engine_map.pop(current_stage, None)
             st.session_state["lab_selected_engine"] = selected_engine
             # Drive the text area via session state, using a revisioned key to control remounts
             q_rev = st.session_state.get(f"{index_page}__q_rev", 0)
@@ -402,16 +402,16 @@ def load_last_step(
             clean_query(index_page)
 
 
-def on_df_change(module_dir: Path, index_page, df_file=None, steps_file=None) -> None:
+def on_df_change(module_dir: Path, index_page, df_file=None, stages_file=None) -> None:
     """Update dataframe selection using the WORKFLOW page-local stage loader."""
     return _on_df_change_impl(
         module_dir,
         index_page,
         df_file,
-        steps_file,
+        stages_file,
         session_state=st.session_state,
         resolve_selected_df_path_fn=resolve_selected_df_path,
-        load_last_step_fn=load_last_step,
+        load_last_stage_fn=load_last_stage,
         logger=logger,
         path_cls=Path,
     )
@@ -422,11 +422,11 @@ def clean_query(index_page: str) -> None:
     df_value = st.session_state.get("df_file", "") or ""
     st.session_state[index_page][1:-1] = [df_value, "", "", "", ""]
     details_store = st.session_state.setdefault(f"{index_page}__details", {})
-    current_step = st.session_state[index_page][0] if index_page in st.session_state else None
-    if current_step is not None:
-        details_store.pop(current_step, None)
+    current_stage = st.session_state[index_page][0] if index_page in st.session_state else None
+    if current_stage is not None:
+        details_store.pop(current_stage, None)
         venv_store = st.session_state.setdefault(f"{index_page}__venv_map", {})
-        venv_store.pop(current_step, None)
+        venv_store.pop(current_stage, None)
         st.session_state["lab_selected_venv"] = ""
 
 
@@ -488,25 +488,25 @@ def _apply_dataframe_picker_selection(
 
 
 @st.cache_data(show_spinner=False)
-def _read_steps(steps_file: Path, module_key: str, mtime_ns: int) -> List[Dict[str, Any]]:
-    """Read steps for a specific module key from a TOML file.
+def _read_stages(stages_file: Path, module_key: str, mtime_ns: int) -> List[Dict[str, Any]]:
+    """Read stages for a specific module key from a TOML file.
 
     Caches on (path, module_key, mtime_ns) so saves invalidate automatically.
     """
-    with open(steps_file, "rb") as f:
+    with open(stages_file, "rb") as f:
         data = tomllib.load(f)
     return list(data.get(module_key, []))
 
 
-def _ensure_notebook_export(steps_file: Path) -> None:
-    """Materialize the notebook export for a steps file when missing."""
-    notebook_path = steps_file.with_suffix(".ipynb")
+def _ensure_notebook_export(stages_file: Path) -> None:
+    """Materialize the notebook export for a stages file when missing."""
+    notebook_path = stages_file.with_suffix(".ipynb")
     if notebook_path.exists():
         return
     try:
-        with open(steps_file, "rb") as stream:
-            steps_full = tomllib.load(stream)
-        toml_to_notebook(steps_full, steps_file)
+        with open(stages_file, "rb") as stream:
+            stages_full = tomllib.load(stream)
+        toml_to_notebook(stages_full, stages_file)
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError, TypeError, ValueError) as exc:
         logger.warning(
             "Skipping notebook generation: %s",
@@ -541,7 +541,7 @@ def _render_notebook_download_button(
 def _render_notebook_actions(
     env: AgiEnv,
     module_path: Path,
-    steps_file: Path,
+    stages_file: Path,
     index_page_str: str,
     *,
     project_name: str,
@@ -549,7 +549,7 @@ def _render_notebook_actions(
     """Render notebook import/export actions in the main pipeline workspace."""
     with st.expander("Notebook", expanded=False):
         st.caption(
-            f"Active stages file: `{steps_file.name}`. "
+            f"Active stages file: `{stages_file.name}`. "
             "Import a notebook into this pipeline or download the current pipeline as `.ipynb`."
         )
 
@@ -562,29 +562,29 @@ def _render_notebook_actions(
             on_change=on_preview_notebook_import,
             args=(key, module_path, index_page_str),
         )
-        render_notebook_import_preview(module_path, steps_file, index_page_str)
+        render_notebook_import_preview(module_path, stages_file, index_page_str)
 
         export_context = build_notebook_export_context(
             env,
             module_path,
-            steps_file,
+            stages_file,
             project_name=project_name,
         )
-        notebook_path = refresh_notebook_export(steps_file, export_context=export_context)
+        notebook_path = refresh_notebook_export(stages_file, export_context=export_context)
         st.markdown("##### Export")
         if notebook_path and notebook_path.exists():
             _render_notebook_download_button(
                 notebook_path,
                 index_page_str + "export_notebook",
-                pycharm_path=resolve_pycharm_notebook_path(steps_file, export_context=export_context),
+                pycharm_path=resolve_pycharm_notebook_path(stages_file, export_context=export_context),
             )
         else:
             st.caption("No notebook export is available for this pipeline yet.")
 
 
-def load_all_steps(
+def load_all_stages(
     module_path: Path,
-    steps_file: Path,
+    stages_file: Path,
     index_page: str,
 ) -> Optional[List[Dict[str, Any]]]:
     """Load all stages for a module from a TOML file using str(module_path) as key.
@@ -593,13 +593,13 @@ def load_all_steps(
     """
     try:
         module_key = _module_keys(module_path)[0]
-        mtime_ns = steps_file.stat().st_mtime_ns
-        raw_entries = _read_steps(steps_file, module_key, mtime_ns)
+        mtime_ns = stages_file.stat().st_mtime_ns
+        raw_entries = _read_stages(stages_file, module_key, mtime_ns)
         filtered_entries = _prune_invalid_entries(raw_entries)
         if filtered_entries and not st.session_state[index_page][-1]:
             st.session_state[index_page][-1] = len(filtered_entries)
-        if filtered_entries and not steps_file.with_suffix(".ipynb").exists():
-            _ensure_notebook_export(steps_file)
+        if filtered_entries and not stages_file.with_suffix(".ipynb").exists():
+            _ensure_notebook_export(stages_file)
         return filtered_entries
     except FileNotFoundError:
         return []
@@ -611,8 +611,8 @@ def load_all_steps(
 def on_query_change(
     request_key: str,
     module: Path,
-    step: int,
-    steps_file: Path,
+    stage: int,
+    stages_file: Path,
     df_file: Path,
     index_page: str,
     env: AgiEnv,
@@ -643,12 +643,12 @@ def on_query_change(
             model_label = answer[2] if len(answer) > 2 else ""
             venv_map = st.session_state.get(f"{index_page}__venv_map", {})
             engine_map = st.session_state.get(f"{index_page}__engine_map", {})
-            nstep, entry = save_step(
+            nstage, entry = save_stage(
                 module,
                 answer,
-                step,
+                stage,
                 0,
-                steps_file,
+                stages_file,
                 venv_map=venv_map,
                 engine_map=engine_map,
             )
@@ -656,13 +656,13 @@ def on_query_change(
             details_key = f"{index_page}__details"
             details_store = st.session_state.setdefault(details_key, {})
             if skipped or not detail:
-                details_store.pop(step, None)
+                details_store.pop(stage, None)
             else:
-                details_store[step] = detail
+                details_store[stage] = detail
             if skipped:
                 st.info("Assistant response did not include runnable code. Stage was not saved.")
             _bump_history_revision()
-            st.session_state[index_page][0] = step
+            st.session_state[index_page][0] = stage
             # Deterministic mapping to D/Q/M/C slots
             d = entry.get("D", "")
             q = entry.get("Q", "")
@@ -671,11 +671,11 @@ def on_query_change(
             st.session_state[index_page][1:6] = [d, q, m, c, detail or ""]
             e = entry.get("E", "")
             if e:
-                venv_map[step] = e
+                venv_map[stage] = e
                 st.session_state["lab_selected_venv"] = e
             st.session_state[f"{index_page}_q"] = q
-            st.session_state[index_page][-1] = nstep
-        st.session_state.pop(f"{index_page}_a_{step}", None)
+            st.session_state[index_page][-1] = nstage
+        st.session_state.pop(f"{index_page}_a_{stage}", None)
         st.session_state.page_broken = True
     except JumpToMain:
         pass
@@ -684,7 +684,7 @@ def on_query_change(
 def on_nb_change(
     module: Path,
     query: List[Any],
-    file_step_path: Path,
+    file_stage_path: Path,
     project: str,
     notebook_file: Path,
     env: AgiEnv,
@@ -694,12 +694,12 @@ def on_nb_change(
     index_page = str(st.session_state.get("index_page", module_path))
     venv_map = st.session_state.get(f"{index_page}__venv_map", {})
     engine_map = st.session_state.get(f"{index_page}__engine_map", {})
-    save_step(
+    save_stage(
         module_path,
         query[1:5],
         query[0],
         query[-1],
-        file_step_path,
+        file_stage_path,
         venv_map=venv_map,
         engine_map=engine_map,
     )
@@ -793,11 +793,11 @@ def sidebar_controls() -> None:
             "lab_dir_selectbox",
             "lab_dir",
             "index_page",
-            "steps_file",
+            "stages_file",
             "df_file",
             "df_file_in",
             "df_file_out",
-            "steps_files",
+            "stages_files",
             "df_files",
             "df_dir",
             "lab_prompt",
@@ -883,36 +883,36 @@ def sidebar_controls() -> None:
     )
     st.session_state["cluster_verbose"] = selected_diagnostics_verbose
 
-    steps_file_name = st.session_state["steps_file_name"]
+    stages_file_name = st.session_state["stages_file_name"]
     export_root = _pipeline_export_root(env)
     lab_choice = Path(st.session_state["lab_dir_selectbox"]).name
     lab_dir = _resolve_lab_export_dir(export_root, lab_choice)
     lab_dir.mkdir(parents=True, exist_ok=True)
     st.session_state.df_dir = lab_dir
-    steps_file = (lab_dir / steps_file_name).resolve()
-    st.session_state["steps_file"] = steps_file
+    stages_file = (lab_dir / stages_file_name).resolve()
+    st.session_state["stages_file"] = stages_file
     module_path = lab_dir.relative_to(Agi_export_abs)
     st.session_state["module_path"] = module_path
-    restored_source = _restore_missing_export_steps(module_path, steps_file, env=env)
+    restored_source = _restore_missing_export_stages(module_path, stages_file, env=env)
     if restored_source:
-        st.session_state["_pipeline_steps_restored_from"] = str(restored_source)
+        st.session_state["_pipeline_stages_restored_from"] = str(restored_source)
 
-    steps_files = find_files(lab_dir, ".toml")
-    st.session_state.steps_files = steps_files
+    stages_files = find_files(lab_dir, ".toml")
+    st.session_state.stages_files = stages_files
     lab_root = lab_dir.name
-    steps_files_path = [
+    stages_files_path = [
         Path(file)
-        for file in steps_files
+        for file in stages_files
         if Path(file).is_file()
         and Path(file).suffix.lower() == ".toml"
-        and "lab_steps" in Path(file).name
+        and "lab_stages" in Path(file).name
     ]
-    steps_file_rel = sorted(
+    stages_file_rel = sorted(
         [
             rel_path
             for rel_path in (
                 file.relative_to(Agi_export_abs)
-                for file in steps_files_path
+                for file in stages_files_path
                 if file.is_relative_to(Agi_export_abs)
             )
             if rel_path.parts and rel_path.parts[0] == lab_root
@@ -921,23 +921,23 @@ def sidebar_controls() -> None:
     )
 
     if "index_page" not in st.session_state:
-        index_page = steps_file_rel[0] if steps_file_rel else env.target
+        index_page = stages_file_rel[0] if stages_file_rel else env.target
         st.session_state["index_page"] = index_page
     else:
         index_page = st.session_state["index_page"]
 
     index_page_str = str(index_page)
 
-    if steps_file_rel and index_page not in steps_file_rel:
-        index_page = steps_file_rel[0]
+    if stages_file_rel and index_page not in stages_file_rel:
+        index_page = stages_file_rel[0]
         st.session_state["index_page"] = index_page
         index_page_str = str(index_page)
 
     df_files = find_files(lab_dir)
     st.session_state.df_files = df_files
 
-    if not steps_file.parent.exists():
-        steps_file.parent.mkdir(parents=True, exist_ok=True)
+    if not stages_file.parent.exists():
+        stages_file.parent.mkdir(parents=True, exist_ok=True)
 
     df_files_rel = sorted((Path(file).relative_to(Agi_export_abs) for file in df_files), key=str)
     key_df = index_page_str + "df"
@@ -1097,7 +1097,7 @@ _PIPELINE_DATAFRAME_SUFFIXES = {
     ".xlsx",
 }
 _PIPELINE_OUTPUT_EXCLUDED_NAMES = {
-    STEPS_FILE_NAME,
+    STAGES_FILE_NAME,
     "notebook_import_pipeline_view.json",
     "pipeline_view.dot",
     "pipeline_view.json",
@@ -1182,8 +1182,8 @@ def _scan_pipeline_output_files(root: Path, *, limit: int = 500) -> dict[str, An
     return {"count": count, "dataframes": dataframes, "latest": latest, "truncated": truncated}
 
 
-def _latest_pipeline_workspace_mtime(root: Path, steps_file: Path) -> float | None:
-    candidates: list[Path] = [steps_file]
+def _latest_pipeline_workspace_mtime(root: Path, stages_file: Path) -> float | None:
+    candidates: list[Path] = [stages_file]
     if root.exists():
         try:
             for current_root, dirs, files in os.walk(root):
@@ -1264,12 +1264,12 @@ def _pipeline_graph_shape_summary(
     )
 
 
-def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, steps_file: Path) -> None:
-    steps = get_steps_list(lab_dir, steps_file)
-    total_steps = len(steps)
-    dict_steps = [entry for entry in steps if isinstance(entry, dict)]
-    displayable_steps = sum(1 for entry in dict_steps if _is_displayable_step(entry))
-    runnable_steps = sum(1 for entry in dict_steps if _is_runnable_step(entry))
+def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, stages_file: Path) -> None:
+    stages = get_stages_list(lab_dir, stages_file)
+    total_stages = len(stages)
+    dict_stages = [entry for entry in stages if isinstance(entry, dict)]
+    displayable_stages = sum(1 for entry in dict_stages if _is_displayable_stage(entry))
+    runnable_stages = sum(1 for entry in dict_stages if _is_runnable_stage(entry))
     output_summary = _scan_pipeline_output_files(lab_dir)
     output_count = int(output_summary["count"])
     dataframe_count = int(output_summary["dataframes"])
@@ -1278,25 +1278,25 @@ def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, steps_file: 
     graph_value, graph_caption, graph_state = _pipeline_graph_shape_summary(
         conceptual_source=conceptual_source,
         conceptual_dot=conceptual_dot,
-        execution_nodes=displayable_steps,
+        execution_nodes=displayable_stages,
     )
-    workspace_updated = _latest_pipeline_workspace_mtime(lab_dir, steps_file)
+    workspace_updated = _latest_pipeline_workspace_mtime(lab_dir, stages_file)
 
     with st.container(border=True):
         top_cols = st.columns(3)
         with top_cols[0]:
             _render_pipeline_header_card(
                 "Workflow stages",
-                f"{displayable_steps}/{total_steps}",
+                f"{displayable_stages}/{total_stages}",
                 "visible / stored",
-                state="ready" if total_steps else "incomplete",
+                state="ready" if total_stages else "incomplete",
             )
         with top_cols[1]:
             _render_pipeline_header_card(
                 "Runnable",
-                str(runnable_steps),
+                str(runnable_stages),
                 "stages with executable code",
-                state="ready" if runnable_steps else "incomplete",
+                state="ready" if runnable_stages else "incomplete",
             )
         with top_cols[2]:
             _render_pipeline_header_card(
@@ -1357,19 +1357,19 @@ def page() -> None:
 
     sidebar_controls()
 
-    # Use the steps file parent as the concrete lab directory path
-    lab_dir = Path(st.session_state["steps_file"]).parent
+    # Use the stages file parent as the concrete lab directory path
+    lab_dir = Path(st.session_state["stages_file"]).parent
     index_page = st.session_state.get("index_page", lab_dir)
     index_page_str = str(index_page)
-    steps_file = st.session_state["steps_file"]
-    steps_file.parent.mkdir(parents=True, exist_ok=True)
-    restored_source = st.session_state.pop("_pipeline_steps_restored_from", "")
+    stages_file = st.session_state["stages_file"]
+    stages_file.parent.mkdir(parents=True, exist_ok=True)
+    restored_source = st.session_state.pop("_pipeline_stages_restored_from", "")
     if restored_source:
         st.info(f"Restored missing Workflow stages from `{restored_source}`.")
 
-    nsteps = len(get_steps_list(lab_dir, steps_file))
-    _render_pipeline_workspace_overview(env, lab_dir, steps_file)
-    st.session_state.setdefault(index_page_str, [nsteps, "", "", "", "", "", nsteps])
+    nstages = len(get_stages_list(lab_dir, stages_file))
+    _render_pipeline_workspace_overview(env, lab_dir, stages_file)
+    st.session_state.setdefault(index_page_str, [nstages, "", "", "", "", "", nstages])
     st.session_state.setdefault(f"{index_page_str}__details", {})
     st.session_state.setdefault(f"{index_page_str}__venv_map", {})
     st.session_state.setdefault(f"{index_page_str}__engine_map", {})
@@ -1378,15 +1378,15 @@ def page() -> None:
     _render_notebook_actions(
         env,
         module_path,
-        steps_file,
+        stages_file,
         index_page_str,
         project_name=Path(st.session_state.get("lab_dir_selectbox", env.target)).name,
     )
-    # If a prompt clear was requested, clear the current revisioned key before loading the step
+    # If a prompt clear was requested, clear the current revisioned key before loading the stage
     if st.session_state.pop(f"{index_page_str}__clear_q", False):
         q_rev = st.session_state.get(f"{index_page_str}__q_rev", 0)
         st.session_state.pop(f"{index_page_str}_q__{q_rev}", None)
-    load_last_step(module_path, steps_file, index_page_str)
+    load_last_stage(module_path, stages_file, index_page_str)
 
     df_file = st.session_state.get("df_file")
     if not df_file or not Path(df_file).exists():
@@ -1403,13 +1403,13 @@ def page() -> None:
     universal_offline_controls(env)
 
     lab_deps = PipelineLabDeps(
-        load_all_steps=load_all_steps,
-        save_step=save_step,
-        remove_step=remove_step,
-        force_persist_step=_force_persist_step,
+        load_all_stages=load_all_stages,
+        save_stage=save_stage,
+        remove_stage=remove_stage,
+        force_persist_stage=_force_persist_stage,
         capture_pipeline_snapshot=_capture_pipeline_snapshot,
         restore_pipeline_snapshot=_restore_pipeline_snapshot,
-        run_all_steps=run_all_steps,
+        run_all_stages=run_all_stages,
         prepare_run_log_file=_prepare_run_log_file,
         get_run_placeholder=_get_run_placeholder,
         push_run_log=_push_run_log,
@@ -1424,8 +1424,8 @@ def page() -> None:
         refresh_pipeline_run_lock=_refresh_pipeline_run_lock,
         acquire_pipeline_run_lock=_acquire_pipeline_run_lock,
         release_pipeline_run_lock=_release_pipeline_run_lock,
-        label_for_step_runtime=_label_for_step_runtime,
-        python_for_step=_python_for_step,
+        label_for_stage_runtime=_label_for_stage_runtime,
+        python_for_stage=_python_for_stage,
         python_for_venv=_python_for_venv,
         stream_run_command=lambda *args, **kwargs: _stream_run_command(
             *args,
@@ -1434,7 +1434,7 @@ def page() -> None:
             jump_exception_cls=JumpToMain,
             **kwargs,
         ),
-        run_locked_step=_run_locked_step,
+        run_locked_stage=_run_locked_stage,
         load_pipeline_conceptual_dot=load_pipeline_conceptual_dot,
         render_pipeline_view=render_pipeline_view,
         default_df=DEFAULT_DF,
@@ -1442,9 +1442,9 @@ def page() -> None:
         safe_service_template_marker=SAFE_SERVICE_START_TEMPLATE_MARKER,
     )
 
-    display_lab_tab(lab_dir, index_page_str, steps_file, module_path, env, lab_deps)
-    # Disabled per request to hide the lab_steps.toml expander from the main UI.
-    # display_history_tab(steps_file, module_path)
+    display_lab_tab(lab_dir, index_page_str, stages_file, module_path, env, lab_deps)
+    # Disabled per request to hide the lab_stages.toml expander from the main UI.
+    # display_history_tab(stages_file, module_path)
 
 
 @st.cache_data
@@ -1472,7 +1472,7 @@ def main() -> None:
         )
         inject_theme(env.st_resources)
 
-        st.session_state.setdefault("steps_file_name", STEPS_FILE_NAME)
+        st.session_state.setdefault("stages_file_name", STAGES_FILE_NAME)
         st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")
         st.session_state.setdefault("projects", env.apps_path)
         st.session_state.setdefault("snippet_file", Path(env.AGILAB_LOG_ABS) / "lab_snippet.py")
@@ -1481,7 +1481,7 @@ def main() -> None:
         st.session_state.setdefault("lab_selected_venv", "")
 
         df_dir_def = _pipeline_export_root(env) / env.target
-        st.session_state.setdefault("steps_file", Path(env.active_app) / STEPS_FILE_NAME)
+        st.session_state.setdefault("stages_file", Path(env.active_app) / STAGES_FILE_NAME)
         st.session_state.setdefault("df_file_out", str(df_dir_def / DEFAULT_DF))
         st.session_state.setdefault("df_file", str(df_dir_def / DEFAULT_DF))
 
@@ -1501,7 +1501,7 @@ def main() -> None:
             "response_dict": {"type": "", "text": ""},
             "apps_abs": env.apps_path,
             "page_broken": False,
-            "step_checked": False,
+            "stage_checked": False,
             "virgin_page": True,
         }
         for key, value in defaults.items():

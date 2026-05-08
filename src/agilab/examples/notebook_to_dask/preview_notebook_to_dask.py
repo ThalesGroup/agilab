@@ -19,12 +19,12 @@ if _agilab_pkg is not None:
     if package_path not in package_paths:
         _agilab_pkg.__path__ = [*package_paths, package_path]
 
-from agilab.notebook_pipeline_import import build_lab_steps_preview, build_notebook_pipeline_import
+from agilab.notebook_pipeline_import import build_lab_stages_preview, build_notebook_pipeline_import
 
 
 EXAMPLE_DIR = Path(__file__).resolve().parent
 NOTEBOOK_PATH = EXAMPLE_DIR / "notebook_to_dask_sample.ipynb"
-LAB_STEPS_PATH = EXAMPLE_DIR / "lab_steps.toml"
+LAB_STAGES_PATH = EXAMPLE_DIR / "lab_stages.toml"
 PIPELINE_VIEW_PATH = EXAMPLE_DIR / "pipeline_view.json"
 DEFAULT_OUTPUT_PATH = Path.home() / "log" / "execute" / "notebook_to_dask" / "migration_preview.json"
 PROJECT_NAME = "notebook_to_dask_project"
@@ -37,7 +37,7 @@ def load_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def load_lab_steps(path: Path) -> dict[str, Any]:
+def load_lab_stages(path: Path) -> dict[str, Any]:
     with path.expanduser().open("rb") as stream:
         payload = tomllib.load(stream)
     if not isinstance(payload, dict):
@@ -88,47 +88,47 @@ def artifact_contract_from_import(
 
 
 def dask_solution_from_import(notebook_import: Mapping[str, Any]) -> dict[str, Any]:
-    steps = notebook_import.get("pipeline_steps", [])
-    dask_steps: list[dict[str, Any]] = []
-    if isinstance(steps, list):
-        for step in steps:
-            if not isinstance(step, Mapping):
+    stages = notebook_import.get("pipeline_stages", [])
+    dask_stages: list[dict[str, Any]] = []
+    if isinstance(stages, list):
+        for stage in stages:
+            if not isinstance(stage, Mapping):
                 continue
-            hints = [str(item) for item in step.get("env_hints", []) if str(item)]
+            hints = [str(item) for item in stage.get("env_hints", []) if str(item)]
             if "dask" in hints:
-                dask_steps.append(
+                dask_stages.append(
                     {
-                        "id": str(step.get("id", "")),
-                        "order": int(step.get("order", 0) or 0),
+                        "id": str(stage.get("id", "")),
+                        "order": int(stage.get("order", 0) or 0),
                         "env_hints": hints,
                         "artifacts": [
                             str(reference.get("path", ""))
-                            for reference in step.get("artifact_references", [])
+                            for reference in stage.get("artifact_references", [])
                             if isinstance(reference, Mapping) and str(reference.get("path", ""))
                         ],
                     }
                 )
     return {
         "engine": "dask.dataframe",
-        "step_ids": [step["id"] for step in dask_steps],
-        "step_count": len(dask_steps),
+        "stage_ids": [stage["id"] for stage in dask_stages],
+        "stage_count": len(dask_stages),
         "real_execution": False,
         "migration_note": "The preview identifies Dask cells and artifact boundaries without running the notebook.",
     }
 
 
 def _sample_matches_generated(sample: Mapping[str, Any], generated: Mapping[str, Any]) -> bool:
-    sample_steps = sample.get(PROJECT_NAME, [])
-    generated_steps = generated.get(PROJECT_NAME, [])
-    if not isinstance(sample_steps, list) or not isinstance(generated_steps, list):
+    sample_stages = sample.get(PROJECT_NAME, [])
+    generated_stages = generated.get(PROJECT_NAME, [])
+    if not isinstance(sample_stages, list) or not isinstance(generated_stages, list):
         return False
-    if len(sample_steps) != len(generated_steps):
+    if len(sample_stages) != len(generated_stages):
         return False
-    for sample_step, generated_step in zip(sample_steps, generated_steps):
-        if not isinstance(sample_step, Mapping) or not isinstance(generated_step, Mapping):
+    for sample_stage, generated_stage in zip(sample_stages, generated_stages):
+        if not isinstance(sample_stage, Mapping) or not isinstance(generated_stage, Mapping):
             return False
         for key in ("D", "Q", "C", "NB_CELL_ID", "NB_CONTEXT_IDS", "NB_ENV_HINTS", "NB_ARTIFACT_REFERENCES"):
-            if sample_step.get(key) != generated_step.get(key):
+            if sample_stage.get(key) != generated_stage.get(key):
                 return False
     return True
 
@@ -136,7 +136,7 @@ def _sample_matches_generated(sample: Mapping[str, Any], generated: Mapping[str,
 def build_preview(
     *,
     notebook_path: Path = NOTEBOOK_PATH,
-    lab_steps_path: Path = LAB_STEPS_PATH,
+    lab_stages_path: Path = LAB_STAGES_PATH,
     pipeline_view_path: Path = PIPELINE_VIEW_PATH,
     output_path: Path | None = DEFAULT_OUTPUT_PATH,
 ) -> dict[str, Any]:
@@ -146,8 +146,8 @@ def build_preview(
         notebook=notebook,
         source_notebook=notebook_path.name,
     )
-    generated_lab_steps = build_lab_steps_preview(notebook_import, module_name=PROJECT_NAME)
-    sample_lab_steps = load_lab_steps(lab_steps_path)
+    generated_lab_stages = build_lab_stages_preview(notebook_import, module_name=PROJECT_NAME)
+    sample_lab_stages = load_lab_stages(lab_stages_path)
     contract = artifact_contract_from_import(notebook_import, pipeline_view)
     dask_solution = dask_solution_from_import(notebook_import)
 
@@ -169,10 +169,10 @@ def build_preview(
         },
         "artifact_contract": contract,
         "dask_solution": dask_solution,
-        "lab_steps_preview": {
-            "path": str(lab_steps_path),
-            "generated_step_count": len(generated_lab_steps.get(PROJECT_NAME, [])),
-            "matches_generated": _sample_matches_generated(sample_lab_steps, generated_lab_steps),
+        "lab_stages_preview": {
+            "path": str(lab_stages_path),
+            "generated_stage_count": len(generated_lab_stages.get(PROJECT_NAME, [])),
+            "matches_generated": _sample_matches_generated(sample_lab_stages, generated_lab_stages),
         },
         "real_notebook_execution": False,
     }
@@ -188,7 +188,7 @@ def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description="Preview a notebook-to-Dask AGILAB migration without executing the notebook."
     )
     parser.add_argument("--notebook", type=Path, default=NOTEBOOK_PATH)
-    parser.add_argument("--lab-steps", type=Path, default=LAB_STEPS_PATH)
+    parser.add_argument("--lab-stages", type=Path, default=LAB_STAGES_PATH)
     parser.add_argument("--pipeline-view", type=Path, default=PIPELINE_VIEW_PATH)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--no-output", action="store_true", help="Print only; do not write a preview JSON file.")
@@ -199,7 +199,7 @@ def main(argv: Sequence[str] | None = None) -> dict[str, Any]:
     args = _parse_args(argv)
     preview = build_preview(
         notebook_path=args.notebook.expanduser(),
-        lab_steps_path=args.lab_steps.expanduser(),
+        lab_stages_path=args.lab_stages.expanduser(),
         pipeline_view_path=args.pipeline_view.expanduser(),
         output_path=None if args.no_output else args.output,
     )

@@ -210,7 +210,7 @@ def test_data_io_2026_public_analysis_config_and_wording() -> None:
 
     public_files = [
         APP_ROOT / "README.md",
-        APP_ROOT / "lab_steps.toml",
+        APP_ROOT / "lab_stages.toml",
         APP_ROOT / "pipeline_view.dot",
         SRC_ROOT / "pre_prompt.json",
         Path("src/agilab/apps-pages/view_data_io_decision/README.md"),

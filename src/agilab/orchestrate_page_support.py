@@ -199,15 +199,17 @@ def _json_load_expr(value: Any) -> str:
 
 def _split_run_request_payload(run_args: Mapping[str, Any] | None) -> tuple[dict[str, Any], list[Any], Any, Any, bool | None]:
     payload = dict(run_args or {})
-    steps = payload.pop("args", [])
-    if steps is None:
-        steps = []
-    if not isinstance(steps, list):
-        raise TypeError("RunRequest steps must be stored as an 'args' list in app settings")
+    if "args" in payload:
+        raise ValueError("Legacy run settings key 'args' is no longer supported; use 'stages'.")
+    stages = payload.pop("stages", [])
+    if stages is None:
+        stages = []
+    if not isinstance(stages, list):
+        raise TypeError("RunRequest stages must be stored as a 'stages' list in app settings")
     data_in = payload.pop("data_in", None)
     data_out = payload.pop("data_out", None)
     reset_target = payload.pop("reset_target", None)
-    return payload, steps, data_in, data_out, reset_target
+    return payload, stages, data_in, data_out, reset_target
 
 
 def resolve_project_change_args_override(
@@ -359,33 +361,33 @@ def build_run_snippet(
     rapids_enabled: bool = False,
     benchmark_best_single_node: bool = False,
 ) -> str:
-    params, steps, data_in, data_out, reset_target = _split_run_request_payload(run_args)
+    params, stages, data_in, data_out, reset_target = _split_run_request_payload(run_args)
     workers_data_path_expr = workers_data_path if workers_data_path not in ("", None) else "None"
     snippet_lines = [
         "import asyncio",
         "import json",
         "",
-        "from agi_cluster.agi_distributor import AGI, RunRequest, StepRequest",
+        "from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest",
         "from agi_env import AgiEnv",
         snippet_contract_block(app=str(env.app), generator="agilab.orchestrate"),
         "",
         f"APPS_PATH = {_python_string(snippet_apps_path(env))}",
         f"APP = {_python_string(env.app)}",
         f"RUN_PARAMS = {_json_load_expr(params)}",
-        f"RUN_STEPS_PAYLOAD = {_json_load_expr(steps)}",
+        f"RUN_STAGES_PAYLOAD = {_json_load_expr(stages)}",
         f"RUN_DATA_IN = {_json_load_expr(data_in)}",
         f"RUN_DATA_OUT = {_json_load_expr(data_out)}",
         f"RUN_RESET_TARGET = {_json_load_expr(reset_target)}",
         "",
         "async def main():",
         f"    app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={int(verbose)})",
-        "    run_steps = [",
-        "        StepRequest(name=step['name'], args=step.get('args') or {})",
-        "        for step in RUN_STEPS_PAYLOAD",
+        "    run_stages = [",
+        "        StageRequest(name=stage['name'], args=stage.get('args') or {})",
+        "        for stage in RUN_STAGES_PAYLOAD",
         "    ]",
         "    request = RunRequest(",
         "        params=RUN_PARAMS,",
-        "        steps=run_steps,",
+        "        stages=run_stages,",
         "        data_in=RUN_DATA_IN,",
         "        data_out=RUN_DATA_OUT,",
         "        reset_target=RUN_RESET_TARGET,",
