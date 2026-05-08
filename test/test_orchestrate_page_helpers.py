@@ -1129,7 +1129,7 @@ async def test_check_distribution_action_reports_success_and_uses_controller_run
 
 
 @pytest.mark.asyncio
-async def test_check_distribution_action_reports_stderr_failure(tmp_path: Path):
+async def test_check_distribution_action_accepts_stderr_when_process_succeeds(tmp_path: Path):
     module = _load_orchestrate_module()
     project_path = tmp_path / "project"
     captured: dict[str, object] = {}
@@ -1153,12 +1153,12 @@ async def test_check_distribution_action_reports_stderr_failure(tmp_path: Path):
         project_path=project_path,
     )
 
-    assert result.status == "error"
-    assert result.title == "Distribution build failed."
-    assert result.detail == "worker failed"
-    assert "retry CHECK distribute" in str(result.next_action)
+    assert result.status == "success"
+    assert result.title == "Distribution built successfully."
+    assert result.detail is None
     assert captured == {"cmd": "pass", "venv": project_path}
     assert result.data["runtime_root"] == project_path
+    assert result.data["stderr"] == "worker failed"
     assert result.data["dist_log"] == (
         "building distribution",
         "worker failed",
@@ -1176,7 +1176,17 @@ async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Pat
             "WARNING: Cache entry deserialization failed, entry ignored",
             "flight_project.execution_support.run @python3.13: export PATH=\"~/.local/bin:$PATH\";uv --quiet run --no-sync python '/Users/agi/wenv/cli.py' kill 92836",
             "flight_project.runtime_distribution_support.run_local debug=False",
-            "flight_project.execution_support.run_async Executing in /Users/agi/wenv/flight_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_worker --python 3.13.13 python -c \"...\"",
+            "flight_project.execution_support.run_async Executing in /Users/agi/wenv/flight_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_worker --python 3.13.13 python -c \"from pathlib import Path",
+            "from agi_env import AgiEnv",
+            "from agi_node.agi_dispatcher import  BaseWorker",
+            "import asyncio",
+            "async def main():",
+            "  env = AgiEnv(apps_path=Path('/Users/agi/PycharmProjects/agilab/src/agilab/apps/builtin'), app='flight_project', verbose=1)",
+            "  BaseWorker._new(env=env, mode=48, verbose=1, args={'data_source': 'file', 'data_in': 'flight/dataset', 'data_out': 'flight/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
+            "  res = await BaseWorker._run(env=env, mode=48, workers={'127.0.0.1': 2}, args={'data_source': 'file', 'data_in': 'flight/dataset', 'data_out': 'flight/dataframe', 'files': '*', 'nfile': 1, 'nskip': 0, 'nread': 0, 'sampling_rate': 1.0, 'datemin': '2020-01-01', 'datemax': '2021-01-01', 'output_format': 'parquet', 'reset_target': False})",
+            "  print(res)",
+            "if __name__ == '__main__':",
+            "  asyncio.run(main())\"",
         ]
     )
 
