@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 from typing import Callable, Mapping
 
@@ -89,15 +90,22 @@ def _abs_path(path_str: str, *, home_path: Path) -> str:
 def _is_usable_dir(path: str) -> bool:
     if not os.path.isdir(path):
         return False
+    testfile: str | None = None
     try:
         os.listdir(path)
-        testfile = os.path.join(path, ".agi_mount_test")
-        with open(testfile, "w") as handle:
+        fd, testfile = tempfile.mkstemp(prefix=".agi_mount_test.", dir=path)
+        with os.fdopen(fd, "w") as handle:
             handle.write("ok")
         os.remove(testfile)
         return True
     except DIR_USABILITY_EXCEPTIONS:
         return False
+    finally:
+        if testfile and os.path.exists(testfile):
+            try:
+                os.remove(testfile)
+            except DIR_USABILITY_EXCEPTIONS:
+                pass
 
 
 def _same_storage(left: str, right: str) -> bool:

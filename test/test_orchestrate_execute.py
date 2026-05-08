@@ -286,6 +286,16 @@ def test_pending_execute_action_round_trip():
     assert orchestrate_execute.consume_pending_execute_action(session_state) is None
 
 
+def test_execute_notice_round_trip_renders_and_clears():
+    fake_st = _FakeStreamlit()
+    orchestrate_execute.queue_execute_notice(fake_st.session_state, kind="success", message="Loaded output.")
+
+    orchestrate_execute.render_execute_notice(fake_st, fake_st.session_state)
+
+    assert ("success", "Loaded output.") in fake_st.messages
+    assert orchestrate_execute.EXECUTE_NOTICE_KEY not in fake_st.session_state
+
+
 def test_render_graph_preview_draws_and_labels_source(monkeypatch):
     calls: list[tuple[str, object]] = []
 
@@ -542,6 +552,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     assert "__source__" in fake_st.session_state["loaded_df"].columns
     assert any(kind == "success" and "Loaded dataframe preview from 2 files" in msg for kind, msg in fake_st.messages)
     assert any(kind == "success" and "Dataframe exported successfully" in msg for kind, msg in fake_st.messages)
+    assert fake_st.session_state[orchestrate_execute.EXECUTE_NOTICE_KEY]["kind"] == "success"
     assert ("rerun_fragment_or_app", "called") in fake_st.messages
     assert ("markdown", "#### 5. Execute and inspect outputs") in fake_st.messages
     assert any(kind == "preview" for kind, _ in fake_st.messages)

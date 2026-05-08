@@ -1167,6 +1167,38 @@ async def test_check_distribution_action_accepts_stderr_when_process_succeeds(tm
 
 
 @pytest.mark.asyncio
+async def test_check_distribution_action_prefers_controller_runtime_when_available(tmp_path: Path):
+    module = _load_orchestrate_module()
+    controller_root = tmp_path / "controller"
+    project_path = tmp_path / "project"
+    captured: dict[str, object] = {}
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        captured["cmd"] = cmd
+        captured["venv"] = venv
+        log_callback("building distribution")
+        return "distribution ready", ""
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=False,
+        is_worker_env=False,
+        agi_cluster=controller_root,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=project_path,
+    )
+
+    assert result.status == "success"
+    assert captured == {"cmd": "pass", "venv": controller_root}
+    assert result.data["runtime_root"] == controller_root
+
+
+@pytest.mark.asyncio
 async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Path):
     module = _load_orchestrate_module()
     project_path = tmp_path / "project"
