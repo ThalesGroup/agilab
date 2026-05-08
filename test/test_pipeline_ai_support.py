@@ -96,6 +96,56 @@ def test_ollama_available_models_parses_models_and_removes_duplicates(monkeypatc
     assert models == ["qwen2.5-coder:latest", "llama"]
 
 
+def test_ollama_readiness_classifies_ready_missing_and_unreachable_models():
+    ready = pipeline_ai_support.ollama_readiness(
+        "http://127.0.0.1:11434/api/generate",
+        "gpt-oss:20b",
+        model_fetcher=lambda _endpoint: ["gpt-oss:20b", "qwen2.5-coder:latest"],
+    )
+    assert ready.status == "ready"
+    assert ready.endpoint == "http://127.0.0.1:11434"
+    assert ready.is_ready is True
+
+    missing = pipeline_ai_support.ollama_readiness(
+        "http://127.0.0.1:11434",
+        "qwen3-coder:30b-a3b-q4_K_M",
+        model_fetcher=lambda _endpoint: ["qwen2.5-coder:latest"],
+    )
+    assert missing.status == "model_missing"
+    assert "ollama pull qwen3-coder:30b-a3b-q4_K_M" in missing.action
+
+    def _raise(_endpoint: str):
+        raise RuntimeError("Ollama is not reachable at http://127.0.0.1:11434.")
+
+    unreachable = pipeline_ai_support.ollama_readiness(
+        "http://127.0.0.1:11434",
+        "gpt-oss:20b",
+        model_fetcher=_raise,
+    )
+    assert unreachable.status == "service_unreachable"
+    assert "Start Ollama" in unreachable.action
+
+
+def test_gpt_oss_readiness_treats_method_not_allowed_as_reachable():
+    class _HTTP405:
+        def __call__(self, *_args, **_kwargs):
+            raise pipeline_ai_support.urllib.error.HTTPError(
+                url="http://127.0.0.1:8000/v1/responses",
+                code=405,
+                msg="Method Not Allowed",
+                hdrs=None,
+                fp=None,
+            )
+
+    readiness = pipeline_ai_support.gpt_oss_readiness(
+        "http://127.0.0.1:8000",
+        urlopen_fn=_HTTP405(),
+    )
+
+    assert readiness.status == "ready"
+    assert readiness.endpoint == "http://127.0.0.1:8000/v1/responses"
+
+
 def test_default_ollama_model_prefers_code_model_when_requested():
     def _fake_available(_endpoint: str):
         return ["qwen2.5-coder:latest", "codestral:latest", "llama"]
@@ -116,6 +166,7 @@ def test_default_ollama_family_model_and_matchers_cover_qwen_and_deepseek():
     def _fake_available(_endpoint: str):
         return [
             "qwen2.5-coder:7b",
+            "gpt-oss:20b",
             "qwen2.5:14b",
             "deepseek-r1:8b",
             "deepseek-coder:latest",
@@ -139,6 +190,7 @@ def test_default_ollama_family_model_and_matchers_cover_qwen_and_deepseek():
             prefer_code=True,
         ) == "deepseek-r1:8b"
         assert pipeline_ai_support.ollama_model_matches_family("qwen2.5-coder:7b", "qwen") is True
+        assert pipeline_ai_support.ollama_model_matches_family("gpt-oss:20b", "gpt-oss") is True
         assert pipeline_ai_support.ollama_model_matches_family("deepseek-coder:latest", "deepseek") is True
         assert pipeline_ai_support.ollama_model_matches_family("qwen3:30b-a3b-instruct-2507-q4_K_M", "qwen3") is True
         assert pipeline_ai_support.ollama_model_matches_family("qwen3-coder:30b-a3b-q4_K_M", "qwen3-coder") is True
@@ -154,6 +206,10 @@ def test_default_ollama_family_model_returns_efficient_profile_defaults_when_mis
     original = pipeline_ai_support._ollama_available_models
     pipeline_ai_support._ollama_available_models = lambda _endpoint: []
     try:
+        assert (
+            pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="gpt-oss")
+            == "gpt-oss:20b"
+        )
         assert (
             pipeline_ai_support.default_ollama_family_model("http://127.0.0.1:11434", family="qwen3")
             == "qwen3:30b-a3b-instruct-2507-q4_K_M"

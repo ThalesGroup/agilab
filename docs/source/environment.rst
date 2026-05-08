@@ -82,6 +82,23 @@ summarises the supported keys.
    * - ``AGILAB_LLM_TIMEOUT``
      - ``120``
      - Request timeout in seconds for the OpenAI-compatible assistant provider.
+   * - ``LAB_LLM_PROVIDER``
+     - ``openai``
+     - WORKFLOW assistant provider. Local Ollama families use values such as
+       ``ollama-gpt-oss``, ``ollama-qwen3-coder``, or ``ollama-phi4-mini``.
+       ``--install-local-models`` sets this to the first requested family.
+   * - ``UOAIC_OLLAMA_ENDPOINT``
+     - ``http://127.0.0.1:11434``
+     - Ollama endpoint used by the WORKFLOW local assistant controls.
+   * - ``UOAIC_MODEL``
+     - unset
+     - Ollama model selected in WORKFLOW. The shell installers persist this
+       when ``--install-local-models`` is used, for example ``gpt-oss:20b`` or
+       ``qwen3-coder:30b-a3b-q4_K_M``.
+   * - ``UOAIC_MODE``
+     - ``ollama``
+     - Local assistant mode. ``ollama`` uses direct local generation; ``rag``
+       enables the Universal Offline AI Chatbot document RAG path.
    * - ``AGI_CLUSTER_SHARE``
      - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
      - User-facing knob for the shared datasets/outputs root. Prefer the relative

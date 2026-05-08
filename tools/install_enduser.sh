@@ -170,6 +170,23 @@ ollama_tag_for_family() {
   esac
 }
 
+provider_for_local_model_family() {
+  local family="${1:-}"
+  case "$family" in
+    gpt-oss) echo "ollama-gpt-oss" ;;
+    qwen) echo "ollama-qwen" ;;
+    deepseek) echo "ollama-deepseek" ;;
+    qwen3) echo "ollama-qwen3" ;;
+    qwen3-coder) echo "ollama-qwen3-coder" ;;
+    ministral) echo "ollama-ministral" ;;
+    phi4-mini) echo "ollama-phi4-mini" ;;
+    *)
+      warn "No WORKFLOW provider mapping defined for local model family '${family}'."
+      return 1
+      ;;
+  esac
+}
+
 ensure_ollama_runtime() {
   if [[ "$OSTYPE" == "darwin"* ]]; then
     if ! command -v ollama >/dev/null 2>&1; then
@@ -235,6 +252,7 @@ install_requested_local_models() {
     tag="$(ollama_tag_for_family "$family")" || continue
     start_ollama_pull "$tag" "$family"
   done
+  persist_local_llm_selection "$requested"
 }
 
 persist_env_var() {
@@ -274,6 +292,36 @@ if not updated:
 
 env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 PY
+}
+
+persist_local_llm_env_for_family() {
+  local family="$1"
+  local env_file="$2"
+  local tag provider
+  tag="$(ollama_tag_for_family "$family")" || return 1
+  provider="$(provider_for_local_model_family "$family")" || return 1
+
+  persist_env_var "LAB_LLM_PROVIDER" "$provider" "$env_file"
+  persist_env_var "UOAIC_MODE" "ollama" "$env_file"
+  persist_env_var "UOAIC_OLLAMA_ENDPOINT" "http://127.0.0.1:11434" "$env_file"
+  persist_env_var "UOAIC_MODEL" "$tag" "$env_file"
+  persist_env_var "AGILAB_LLM_BASE_URL" "http://127.0.0.1:11434/v1" "$env_file"
+  persist_env_var "AGILAB_LLM_MODEL" "$tag" "$env_file"
+  persist_env_var "AGILAB_LLM_API_KEY" "EMPTY" "$env_file"
+}
+
+persist_local_llm_selection() {
+  local requested="${1:-}"
+  local first_family=""
+  local family
+  for family in $requested; do
+    first_family="$family"
+    break
+  done
+  [[ -n "$first_family" ]] || return 0
+
+  persist_local_llm_env_for_family "$first_family" "${ENV_FILE}"
+  echo -e "${GREEN}WORKFLOW local LLM defaults set to $(ollama_tag_for_family "$first_family") via Ollama.${NC}"
 }
 
 # -----------------------------

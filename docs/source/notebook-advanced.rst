@@ -75,7 +75,9 @@ checkout, rerun the installer with the families you want::
    ./install.sh --install-apps --install-local-models gpt-oss,qwen3-coder,ministral,phi4-mini
 
 Supported values are ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``,
-``qwen3-coder``, ``ministral``, and ``phi4-mini``.
+``qwen3-coder``, ``ministral``, and ``phi4-mini``. The first requested family
+becomes the default WORKFLOW local assistant and is persisted in the AGILAB
+environment file.
 
 The notebook file lives in the repository at
 ``src/agilab/examples/notebook_quickstart/agi_core_first_run.ipynb``.
