@@ -22,15 +22,15 @@ Current public release
    * - GitHub release
      - `v2026.05.08 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.08>`__
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``4f6ff8391fc8ec8fb0e0f92c413aa747bace000b``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``0e760e0a6cb72e88f256588391966adf93d55da7``
    * - Public guardrails
-     - `repo-guardrails run 25457746079 <https://github.com/ThalesGroup/agilab/actions/runs/25457746079>`__ passed repository guardrails and clean package first-proof jobs
+     - `repo-guardrails run 25582096270 <https://github.com/ThalesGroup/agilab/actions/runs/25582096270>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
-     - `docs-source-guard run 25457746132 <https://github.com/ThalesGroup/agilab/actions/runs/25457746132>`__ passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 25581456410 <https://github.com/ThalesGroup/agilab/actions/runs/25581456410>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 25457746136 <https://github.com/ThalesGroup/agilab/actions/runs/25457746136>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 25582096237 <https://github.com/ThalesGroup/agilab/actions/runs/25582096237>`__ built the public documentation from the managed docs mirror
    * - Coverage
-     - `coverage run 25457746123 <https://github.com/ThalesGroup/agilab/actions/runs/25457746123>`__ passed component coverage and badge freshness checks
+     - `coverage run 25582096277 <https://github.com/ThalesGroup/agilab/actions/runs/25582096277>`__ passed component coverage and badge freshness checks
 
 What was proved
 ---------------
