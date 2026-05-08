@@ -93,7 +93,7 @@ def _resolve_share_dir_path(raw_value: str, *, home_path: Path) -> Path:
     try:
         share_dir = Path(str(raw_value)).expanduser()
     except (TypeError, ValueError) as exc:
-        raise ValueError("AGI_SHARE_DIR is not a valid filesystem path.") from exc
+        raise ValueError("AGI_CLUSTER_SHARE is not a valid filesystem path.") from exc
 
     if not share_dir.is_absolute():
         share_dir = home_path.expanduser() / share_dir
@@ -101,7 +101,7 @@ def _resolve_share_dir_path(raw_value: str, *, home_path: Path) -> Path:
     try:
         return share_dir.resolve(strict=False)
     except (OSError, ValueError) as exc:
-        raise ValueError(f"AGI_SHARE_DIR cannot be resolved: {exc}") from exc
+        raise ValueError(f"AGI_CLUSTER_SHARE cannot be resolved: {exc}") from exc
 
 
 def _refresh_share_dir(env: Any, new_value: str) -> None:
@@ -126,20 +126,20 @@ def _refresh_share_dir(env: Any, new_value: str) -> None:
     try:
         env.data_root = env.ensure_data_root()
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        st.warning(f"AGI_SHARE_DIR update saved but data directory is still unreachable: {exc}")
+        st.warning(f"AGI_CLUSTER_SHARE update saved but data directory is still unreachable: {exc}")
 
 
 def _handle_data_root_failure(exc: Exception, *, agi_env_cls: Any) -> bool:
     """Render a recovery UI when the AGI share directory is unavailable."""
     message = str(exc)
-    if "AGI_SHARE_DIR" not in message and "data directory" not in message:
+    if "AGI_CLUSTER_SHARE" not in message and "data directory" not in message:
         return False
 
     agi_env_cls._ensure_defaults()
     current_value = (
         st.session_state.get("agi_share_path_override_input")
-        or agi_env_cls.envars.get("AGI_SHARE_DIR")
-        or os.environ.get("AGI_SHARE_DIR")
+        or agi_env_cls.envars.get("AGI_CLUSTER_SHARE")
+        or os.environ.get("AGI_CLUSTER_SHARE")
         or agi_env_cls.envars.get("AGI_LOCAL_SHARE")
         or ""
     )
@@ -147,7 +147,7 @@ def _handle_data_root_failure(exc: Exception, *, agi_env_cls: Any) -> bool:
 
     st.error(
         "AGILAB cannot reach the configured AGI share directory. "
-        "Mount the expected path or override `AGI_SHARE_DIR` before continuing."
+        "Mount the expected path or override `AGI_CLUSTER_SHARE` before continuing."
     )
     st.code(message)
     st.info(
@@ -161,21 +161,21 @@ def _handle_data_root_failure(exc: Exception, *, agi_env_cls: Any) -> bool:
         st.session_state[key] = str(current_value)
 
     with st.form("agi_share_path_override_form"):
-        st.text_input("New AGI_SHARE_DIR", key=key, help="Provide an absolute or home-relative path")
+        st.text_input("New AGI_CLUSTER_SHARE", key=key, help="Provide an absolute or home-relative path")
         submitted = st.form_submit_button("Save and retry", width="stretch")
 
     if submitted:
         new_value = (st.session_state.get(key) or "").strip()
         if not new_value:
-            st.warning("AGI_SHARE_DIR cannot be empty.")
+            st.warning("AGI_CLUSTER_SHARE cannot be empty.")
         else:
             try:
                 _resolve_share_dir_path(new_value, home_path=Path(agi_env_cls.home_abs))
             except ValueError as share_exc:
                 st.warning(str(share_exc))
                 return True
-            agi_env_cls.set_env_var("AGI_SHARE_DIR", new_value)
-            st.success(f"Saved AGI_SHARE_DIR = {new_value}. Reloading...")
+            agi_env_cls.set_env_var("AGI_CLUSTER_SHARE", new_value)
+            st.success(f"Saved AGI_CLUSTER_SHARE = {new_value}. Reloading...")
             st.session_state["first_run"] = True
             st.rerun()
     return True
@@ -488,8 +488,8 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
             if CLUSTER_CREDENTIALS_KEY in combined_updates:
                 env.CLUSTER_CREDENTIALS = combined_updates[CLUSTER_CREDENTIALS_KEY]
 
-            new_share = combined_updates.get("AGI_SHARE_DIR")
-            if new_share is not None and new_share.strip() and new_share.strip() != existing_values.get("AGI_SHARE_DIR"):
+            new_share = combined_updates.get("AGI_CLUSTER_SHARE")
+            if new_share is not None and new_share.strip() and new_share.strip() != existing_values.get("AGI_CLUSTER_SHARE"):
                 _refresh_share_dir(env, new_share.strip())
 
             st.session_state["env_editor_feedback"] = "Environment variables updated."

@@ -323,7 +323,7 @@ def test_view_inference_analysis_loads_page_defaults_from_app_settings(tmp_path:
     settings_path.write_text(
         f"""
 [pages.{module.PAGE_KEY}]
-base_choice = "AGI_SHARE_DIR"
+base_choice = "AGI_CLUSTER_SHARE"
 selected_files = ["allocations/run_a.csv"]
 """,
         encoding="utf-8",
@@ -333,9 +333,9 @@ selected_files = ["allocations/run_a.csv"]
     payload = module._load_app_settings(env)
     defaults = module._get_page_defaults(env)
 
-    assert payload["pages"][module.PAGE_KEY]["base_choice"] == "AGI_SHARE_DIR"
+    assert payload["pages"][module.PAGE_KEY]["base_choice"] == "AGI_CLUSTER_SHARE"
     assert defaults == {
-        "base_choice": "AGI_SHARE_DIR",
+        "base_choice": "AGI_CLUSTER_SHARE",
         "selected_files": ["allocations/run_a.csv"],
     }
 
@@ -410,7 +410,7 @@ def test_view_inference_analysis_coerces_string_lists_and_resolves_dataset_paths
 
     env.target = ""
     assert module._default_dataset_subpath(env, tmp_path / "demo_project") == "demo/pipeline"
-    assert module._resolve_base_path(env, "AGI_SHARE_DIR", "") == share_root
+    assert module._resolve_base_path(env, "AGI_CLUSTER_SHARE", "") == share_root
     assert module._resolve_base_path(env, "AGILAB_EXPORT", "") == export_root
     assert export_root.exists()
     assert module._resolve_base_path(env, "custom", str(custom_root)) == custom_root

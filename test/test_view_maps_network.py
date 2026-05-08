@@ -101,7 +101,7 @@ def test_view_maps_network_reads_builtin_flight_page_defaults(monkeypatch, tmp_p
     module.st = SimpleNamespace(session_state={"app_settings": app_settings})
     settings = module._get_view_maps_page_settings()
 
-    assert settings["dataset_base_choice"] == "AGI_SHARE_DIR"
+    assert settings["dataset_base_choice"] == "AGI_CLUSTER_SHARE"
     assert settings["dataset_subpath"] == "flight/dataframe"
     assert settings["default_traj_globs"] == [
         "flight/dataframe/*.parquet",
@@ -157,7 +157,7 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
         session_state={
             "app_settings": {
                 "view_maps_network": {
-                    "dataset_base_choice": "AGI_SHARE_DIR",
+                    "dataset_base_choice": "AGI_CLUSTER_SHARE",
                     "df_file": None,
                     "df_files": ["export.csv", None],
                 }
@@ -169,7 +169,7 @@ def test_view_maps_network_persists_app_settings(tmp_path: Path, monkeypatch) ->
 
     written = settings_path.read_text(encoding="utf-8")
     assert "view_maps_network" in written
-    assert 'dataset_base_choice = "AGI_SHARE_DIR"' in written
+    assert 'dataset_base_choice = "AGI_CLUSTER_SHARE"' in written
     parsed = tomllib.loads(written)
     assert parsed["__meta__"] == {"schema": "agilab.app_settings.v1", "version": 1}
     assert parsed["view_maps_network"]["df_file"] == ""
@@ -1122,7 +1122,7 @@ def test_view_maps_network_unexpected_helper_errors_propagate(monkeypatch, tmp_p
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text(
         "[view_maps_network]\n"
-        'dataset_base_choice = "AGI_SHARE_DIR"\n',
+        'dataset_base_choice = "AGI_CLUSTER_SHARE"\n',
         encoding="utf-8",
     )
 

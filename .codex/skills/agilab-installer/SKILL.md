@@ -34,7 +34,7 @@ Use this skill when working on:
 - Full clean source validation from a new public clone:
   - `cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/agilab/source_validate"; root="$cache_root/agilab_source_validate_clean_$(date +%Y%m%d_%H%M%S)"; mkdir -p "$root/home"; HOME="$root/home" git clone https://github.com/ThalesGroup/agilab.git "$root/home/agilab"`
   - `cd "$root/home/agilab" && git lfs install --local && git lfs pull`
-  - `HOME="$root/home" AGI_LOCAL_DIR="$PWD/localshare" ./install.sh --non-interactive --agi-share-dir "$PWD/clustershare" --install-apps builtin --test-root --test-core --test-apps --skip-offline`
+  - `HOME="$root/home" AGI_LOCAL_SHARE="$PWD/localshare" ./install.sh --non-interactive --agi-cluster-share "$PWD/clustershare" --install-apps builtin --test-root --test-core --test-apps --skip-offline`
 - Add core suites only when needed:
   - macOS/Linux: `./install.sh --install-apps --test-apps --test-core`
   - Windows: `.\install.ps1 -InstallApps -TestApps -TestCore`
@@ -53,7 +53,7 @@ Use this skill when working on:
   - Use an isolated `HOME` under the new validation root. Do not rely on the
     developer machine's `~/.agilab/.env`, `~/wenv`, `~/localshare`, or previous
     install logs when proving a release candidate.
-  - Pass both `--agi-share-dir "$PWD/clustershare"` and `AGI_LOCAL_DIR="$PWD/localshare"`
+  - Pass both `--agi-cluster-share "$PWD/clustershare"` and `AGI_LOCAL_SHARE="$PWD/localshare"`
     in the clean clone so cluster/local share values are written before root,
     core, app, and demo validation.
   - Run `git lfs pull` before install validation whenever built-in apps depend
@@ -64,7 +64,7 @@ Use this skill when working on:
 
 - **Installer env propagation order**
   - If app tests fail because paths point to stale `~/.agilab/.env` values even
-    though the current install command passed `--agi-share-dir` or `AGI_LOCAL_DIR`,
+    though the current install command passed `--agi-cluster-share` or `AGI_LOCAL_SHARE`,
     inspect whether the installer writes env values before validation phases run.
   - The env file must be updated before `--test-root`, `--test-core`, app
     installs, and app tests. A late write can make validation exercise an old

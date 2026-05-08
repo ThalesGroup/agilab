@@ -119,7 +119,7 @@ E - macOS NFS server checklist:
 
 Use this quick list when you need a shared dataset folder between Macs (for example, a cluster
 controller exporting ``/Users/<user>/data`` to another workstation). Replace ``<nfs_server_ip>`` with
-your server IP and adjust mount paths as needed. The default ``AGI_SHARE_DIR`` is
+your server IP and adjust mount paths as needed. The default ``AGI_CLUSTER_SHARE`` is
 ``clustershare/<user>`` under ``$HOME``. For cluster-enabled apps, that path must be mounted
 and writable on every node: ``AgiEnv`` now fails fast instead of silently falling back
 to ``AGI_LOCAL_SHARE`` or ``$HOME/localshare``. Ensure the chosen path exists and is writable.

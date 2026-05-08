@@ -60,7 +60,7 @@ HEATMAP_MAX_COLUMNS = 2
 BEARER_MAX_COLUMNS = 3
 HEATMAP_GRID_COLOR = "rgba(217, 222, 231, 0.35)"
 
-BASE_CHOICES = ("AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom")
+BASE_CHOICES = ("AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom")
 AGGREGATIONS = ("mean", "sum", "median", "min", "max", "std", "count")
 STEP_AXIS_CANDIDATES = ("time_index", "decision", "step", "time_idx")
 TIME_AXIS_CANDIDATES = ("t_now_s", "time_s", "time", "t")
@@ -213,7 +213,7 @@ def _default_dataset_subpath(env: AgiEnv, active_app_path: Path) -> str:
 
 
 def _resolve_base_path(env: AgiEnv, base_choice: str, custom_base: str) -> Path | None:
-    if base_choice == "AGI_SHARE_DIR":
+    if base_choice == "AGI_CLUSTER_SHARE":
         return Path(env.share_root_path())
     if base_choice == "AGILAB_EXPORT":
         path = Path(env.AGILAB_EXPORT_ABS)
@@ -1348,9 +1348,9 @@ def main() -> None:
         st.session_state[ENV_KEY] = env
 
     page_defaults = _get_page_defaults(env)
-    default_base_choice = str(page_defaults.get("dataset_base_choice") or "AGI_SHARE_DIR")
+    default_base_choice = str(page_defaults.get("dataset_base_choice") or "AGI_CLUSTER_SHARE")
     if default_base_choice not in BASE_CHOICES:
-        default_base_choice = "AGI_SHARE_DIR"
+        default_base_choice = "AGI_CLUSTER_SHARE"
     default_custom_base = str(page_defaults.get("dataset_custom_base") or "")
     default_subpath = str(
         page_defaults.get("dataset_subpath") or _default_dataset_subpath(env, active_app_path)
@@ -1400,7 +1400,7 @@ def main() -> None:
     glob_patterns = _coerce_str_list(st.session_state[GLOBS_KEY]) or ["**/allocations_steps.json"]
 
     if dataset_root is None:
-        st.warning("Provide a custom base directory or switch back to AGI_SHARE_DIR / AGILAB_EXPORT.")
+        st.warning("Provide a custom base directory or switch back to AGI_CLUSTER_SHARE / AGILAB_EXPORT.")
         st.stop()
 
     st.info(f"Resolved dataset root: `{dataset_root}`")

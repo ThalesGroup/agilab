@@ -291,7 +291,7 @@ directly.
 
 Default output path:
 
-- ``${AGI_SHARE_DIR}/service/<app_target>/health.json``.
+- ``${AGI_CLUSTER_SHARE}/service/<app_target>/health.json``.
 
 Custom output path:
 

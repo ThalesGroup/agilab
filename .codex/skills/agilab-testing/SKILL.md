@@ -158,7 +158,7 @@ validation, release, and Hugging Face sync in one flow.
   - clone `https://github.com/ThalesGroup/agilab.git` into a new directory under `$HOME`
   - run `git lfs install --local && git lfs pull`
   - run the installer with `--install-apps builtin --test-root --test-core --test-apps --skip-offline`
-  - set `AGI_LOCAL_DIR="$PWD/localshare"` and `--agi-share-dir "$PWD/clustershare"`
+  - set `AGI_LOCAL_SHARE="$PWD/localshare"` and `--agi-cluster-share "$PWD/clustershare"`
 - If the release includes a first-proof or demo claim, run the demo command from
   that same clean clone and record the produced artifact path plus key metrics.
 - Treat benign `uv self update` failures from package-manager-installed `uv` as

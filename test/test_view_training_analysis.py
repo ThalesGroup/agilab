@@ -227,7 +227,7 @@ def test_view_training_analysis_normalizes_page_settings_and_paths(tmp_path: Pat
     share_dir = tmp_path / "share"
     export_dir = tmp_path / "export"
     env = SimpleNamespace(share_root_path=lambda: str(share_dir), AGILAB_EXPORT_ABS=str(export_dir))
-    assert module._resolve_base_path(env, "AGI_SHARE_DIR", "").resolve() == share_dir.resolve()
+    assert module._resolve_base_path(env, "AGI_CLUSTER_SHARE", "").resolve() == share_dir.resolve()
     assert module._resolve_base_path(env, "AGILAB_EXPORT", "").resolve() == export_dir.resolve()
     assert module._resolve_base_path(env, "CUSTOM", "~/custom-root") == Path("~/custom-root").expanduser()
 
@@ -514,7 +514,7 @@ def test_view_training_analysis_main_bootstraps_env_when_missing(monkeypatch, tm
         module.main()
 
     assert module.st.session_state["env"].app == "trainer_project"
-    assert module.st.session_state["base_dir_choice"] == "AGI_SHARE_DIR"
+    assert module.st.session_state["base_dir_choice"] == "AGI_CLUSTER_SHARE"
     assert module.st.session_state["input_datadir"] == ""
     assert module.st.session_state["datadir_rel"] == ""
     assert module.st.session_state[module.X_AXIS_KEY] == "step"

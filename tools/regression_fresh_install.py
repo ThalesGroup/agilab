@@ -119,7 +119,7 @@ def main() -> int:
     env.update(
         {
             "HOME": str(home_dir),
-            "AGI_SHARE_DIR": str(share_dir),
+            "AGI_CLUSTER_SHARE": str(share_dir),
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
             "OPENAI_API_KEY": "sk-test-fresh-install-000000000000",
             "CLUSTER_CREDENTIALS": "user:password",

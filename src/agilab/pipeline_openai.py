@@ -133,7 +133,6 @@ def make_openai_client_and_model(envars: Dict[str, str], api_key: str):
     base_url = (
         envars.get("OPENAI_BASE_URL")
         or os.getenv("OPENAI_BASE_URL")
-        or os.getenv("OPENAI_API_BASE")
         or ""
     )
     azure_endpoint = (
