@@ -119,9 +119,24 @@ def _read_pyproject_version(pyproject_path: Path) -> str | None:
     return None
 
 
-def _read_git_version(repo_path: Path) -> str | None:
+def _read_release_tag_from_proof(docs_source: Path) -> str | None:
+    proof_path = docs_source / "data" / "release_proof.toml"
+    if not proof_path.is_file():
+        return None
+
     try:
-        version_value = subprocess.check_output(
+        proof_data = tomllib.loads(proof_path.read_text(encoding="utf-8"))
+        tag_value = proof_data.get("release", {}).get("github_release_tag")
+        if isinstance(tag_value, str) and tag_value.strip():
+            return tag_value.strip()
+    except Exception as e:
+        print(f"Warning: unable to read public release tag from {proof_path}: {e}")
+    return None
+
+
+def _read_git_revision(repo_path: Path) -> str | None:
+    try:
+        revision_value = subprocess.check_output(
             [
                 "git",
                 "-C",
@@ -136,25 +151,35 @@ def _read_git_version(repo_path: Path) -> str | None:
             text=True,
             stderr=subprocess.DEVNULL,
         ).strip()
-        if version_value.startswith("v"):
-            version_value = version_value[1:]
-        return version_value or None
+        return revision_value or None
     except Exception:
         return None
 
 
-def _resolve_docs_version() -> str:
+def _candidate_roots() -> list[Path]:
     candidate_roots = []
-    for root in (_resolve_agilab_repo_root(), repo_root):
+    for root in (repo_root, _resolve_agilab_repo_root()):
         if root is not None and root not in candidate_roots:
             candidate_roots.append(root)
+    return candidate_roots
 
-    for root in candidate_roots:
-        version_value = _read_git_version(root)
-        if version_value is not None:
-            return version_value
 
-    for root in candidate_roots:
+def _resolve_public_release_tag() -> str:
+    docs_sources = []
+    for root in _candidate_roots():
+        docs_source = root / "docs" / "source"
+        if docs_source.is_dir() and docs_source not in docs_sources:
+            docs_sources.append(docs_source)
+    current_docs_source = Path(__file__).resolve().parent
+    if current_docs_source not in docs_sources:
+        docs_sources.append(current_docs_source)
+
+    for docs_source in docs_sources:
+        release_tag = _read_release_tag_from_proof(docs_source)
+        if release_tag is not None:
+            return release_tag
+
+    for root in _candidate_roots():
         pyproject_path = root / "pyproject.toml"
         if pyproject_path.exists():
             version_value = _read_pyproject_version(pyproject_path)
@@ -169,11 +194,20 @@ def _resolve_docs_version() -> str:
     return "dev"
 
 
+def _resolve_docs_build_revision() -> str | None:
+    for root in _candidate_roots():
+        revision_value = _read_git_revision(root)
+        if revision_value is not None:
+            return revision_value
+    return None
+
+
 project = "AGILab"
 author = "Jean-Pierre MORARD"
 copyright = "2026, THALES SIX GTS France SAS"
-release = _resolve_docs_version()
+release = _resolve_public_release_tag()
 version = release
+docs_build_revision = _resolve_docs_build_revision()
 
 # -- General Configuration ---------------------------------------------------
 
@@ -315,6 +349,7 @@ html_logo = "logo/agi_logo.svg"
 display_version = True
 html_context = {
     "docs_version": release,
+    "docs_build_revision": None if docs_build_revision == release else docs_build_revision,
 }
 
 # Theme options
