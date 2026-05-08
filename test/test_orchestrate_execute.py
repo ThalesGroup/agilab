@@ -165,6 +165,31 @@ def test_find_preview_target_ignores_empty_and_metadata_files(tmp_path):
     assert files == [valid_csv]
 
 
+def test_find_preview_target_prefers_flight_dataframe_over_newer_reduce_summary(tmp_path):
+    output_dir = tmp_path / "flight" / "dataframe"
+    output_dir.mkdir(parents=True)
+
+    plane_60 = output_dir / "60.parquet"
+    plane_60.write_text("parquet placeholder for plane 60", encoding="utf-8")
+    plane_61 = output_dir / "61.parquet"
+    plane_61.write_text("parquet placeholder for plane 61", encoding="utf-8")
+    reduce_summary = output_dir / "reduce_summary_worker_0.json"
+    reduce_summary.write_text('{"name": "flight_reduce_summary"}', encoding="utf-8")
+    run_manifest = output_dir / "run_manifest.json"
+    run_manifest.write_text('{"kind": "agilab.run_manifest"}', encoding="utf-8")
+
+    base_mtime = plane_60.stat().st_mtime
+    os.utime(plane_60, (base_mtime, base_mtime))
+    os.utime(plane_61, (base_mtime + 1, base_mtime + 1))
+    os.utime(reduce_summary, (base_mtime + 10, base_mtime + 10))
+    os.utime(run_manifest, (base_mtime + 11, base_mtime + 11))
+
+    target, files = orchestrate_execute.find_preview_target([output_dir])
+
+    assert target == plane_61
+    assert files == [plane_60, plane_61]
+
+
 def test_find_preview_target_returns_none_when_latest_file_disappears(tmp_path, monkeypatch):
     older_csv = tmp_path / "older.csv"
     older_csv.write_text("a,b\n1,2\n", encoding="utf-8")
