@@ -196,6 +196,17 @@ def test_agi_env_remaining_wrappers_delegate_support_helpers(monkeypatch, tmp_pa
 
 
 def _prepare_fake_home(tmp_path: Path, monkeypatch, *, env_text: str) -> Path:
+    for key in (
+        "AGI_CLUSTER_ENABLED",
+        "AGI_CLUSTER_SHARE",
+        "AGI_LOCAL_SHARE",
+        "AGILAB_SHARE_USER",
+        "APPS_PATH",
+        "APPS_REPOSITORY",
+        "IS_SOURCE_ENV",
+        "IS_WORKER_ENV",
+    ):
+        monkeypatch.delenv(key, raising=False)
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     share_root = fake_home / ".local" / "share" / "agilab"
