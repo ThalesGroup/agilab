@@ -496,11 +496,11 @@ def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
     assert "streamlit.sidebar.columns([0.76, 0.24], vertical_alignment=\"bottom\")" in selector_source
     assert 'streamlit.switch_page(Path("pages/1_PROJECT.py"))' in selector_source
     assert 'st.switch_page(Path("pages/1_PROJECT.py"))' in pipeline_source
-    assert 'st.sidebar.columns([0.64, 0.36], vertical_alignment="center")' in pipeline_source
-    assert "#4A90E2" in pipeline_source
-    assert "min-height:2.35rem" in pipeline_source
+    assert 'st.sidebar.markdown(f"### [MLflow]({mlflow_url})")' in pipeline_source
+    assert 'st.sidebar.columns([0.64, 0.36], vertical_alignment="center")' not in pipeline_source
+    assert "stLinkButton" not in pipeline_source
     assert '"Open UI"' not in pipeline_source
-    assert '"Open"' in pipeline_source
+    assert '"Open"' not in pipeline_source
 
 
 def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
