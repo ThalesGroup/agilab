@@ -1630,6 +1630,71 @@ def test_text_inputs_are_filled_and_restored(tmp_path) -> None:
     assert fills == ["original robot", "original"]
 
 
+def test_file_uploader_uses_ipynb_fixture_for_notebook_upload(tmp_path) -> None:
+    module = _load_module()
+    uploads: list[dict[str, object]] = []
+
+    class _FileInput:
+        @property
+        def first(self):
+            return self
+
+        def set_input_files(self, value, timeout):
+            uploads.append({"value": value, "timeout": timeout})
+
+    class _Locator:
+        @property
+        def first(self):
+            return self
+
+        def count(self):
+            return 1
+
+        def scroll_into_view_if_needed(self, timeout):
+            pass
+
+        def is_visible(self, timeout):
+            return True
+
+        def is_enabled(self, timeout):
+            return True
+
+        def bounding_box(self, timeout):
+            return {"width": 10, "height": 10}
+
+        def locator(self, selector):
+            assert selector == "input[type='file']"
+            return _FileInput()
+
+    class _Page:
+        def locator(self, selector):
+            return _Locator()
+
+        def wait_for_timeout(self, ms):
+            pass
+
+    status, detail = module._probe_widget(
+        _Page(),
+        {
+            "id": "w1",
+            "kind": "file_uploader",
+            "label": "Import notebook upload Upload 200MB per file • IPYNB",
+        },
+        timeout_ms=100,
+        interaction_mode="full",
+        action_button_policy="trial",
+        upload_file=tmp_path / "fixture.txt",
+        restore_view=None,
+    )
+
+    assert status == "interacted"
+    assert "(.ipynb)" in detail
+    assert len(uploads) == 1
+    uploaded = Path(str(uploads[0]["value"]))
+    assert uploaded.suffix == ".ipynb"
+    assert json.loads(uploaded.read_text(encoding="utf-8"))["nbformat"] == 4
+
+
 def test_parse_csv_splits_and_strips_values() -> None:
     module = _load_module()
 

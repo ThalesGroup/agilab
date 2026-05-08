@@ -1681,6 +1681,37 @@ def _click_with_force_fallback(locator: Any, *, timeout_ms: float) -> None:
         locator.click(timeout=timeout_ms, force=True)
 
 
+def _robot_upload_fixture_for_widget(upload_file: Path, widget: dict[str, Any]) -> Path:
+    label = str(widget.get("label") or "").lower()
+    if "ipynb" in label or "notebook" in label:
+        notebook_path = upload_file.with_suffix(".ipynb")
+        if not notebook_path.exists():
+            notebook_path.write_text(
+                json.dumps(
+                    {
+                        "cells": [],
+                        "metadata": {},
+                        "nbformat": 4,
+                        "nbformat_minor": 5,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+        return notebook_path
+    if "json" in label:
+        json_path = upload_file.with_suffix(".json")
+        if not json_path.exists():
+            json_path.write_text("{}\n", encoding="utf-8")
+        return json_path
+    if "csv" in label:
+        csv_path = upload_file.with_suffix(".csv")
+        if not csv_path.exists():
+            csv_path.write_text("value\nagilab-widget-robot\n", encoding="utf-8")
+        return csv_path
+    return upload_file
+
+
 def _close_expanders_except_widget(page: Any, widget: dict[str, Any]) -> None:
     try:
         page.evaluate(CLOSE_EXPANDERS_EXCEPT_WIDGET_JS, str(widget.get("id") or ""))
@@ -1902,9 +1933,10 @@ def _probe_widget(
             page.keyboard.press("Escape")
             return "interacted", f"opened and closed {kind}"
         if kind == "file_uploader":
-            locator.locator("input[type='file']").first.set_input_files(str(upload_file), timeout=timeout_ms)
+            fixture = _robot_upload_fixture_for_widget(upload_file, widget)
+            locator.locator("input[type='file']").first.set_input_files(str(fixture), timeout=timeout_ms)
             _wait_for_timeout(page, 250)
-            return "interacted", "uploaded temporary robot fixture"
+            return "interacted", f"uploaded temporary robot fixture ({fixture.suffix})"
         if kind == "data_editor":
             _click_with_force_fallback(locator, timeout_ms=timeout_ms)
             return "interacted", "focused data editor/dataframe region"
