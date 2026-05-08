@@ -2576,8 +2576,10 @@ def _wait_for_action_outcome(
     settle_action_labels: Sequence[str] = (),
     allow_idle_settle: bool = False,
 ) -> tuple[str | None, bool]:
-    deadline = time.perf_counter() + timeout_ms / 1000.0
-    min_observation_deadline = time.perf_counter() + min(5.0, timeout_ms / 1000.0)
+    start = time.perf_counter()
+    timeout_seconds = timeout_ms / 1000.0
+    deadline = start + timeout_seconds
+    min_observation_deadline = start + min(5.0, timeout_seconds)
     busy_seen = False
     soft_feedback_seen = False
     idle_seen = 0

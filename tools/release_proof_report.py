@@ -6,11 +6,13 @@ from __future__ import annotations
 import argparse
 import copy
 from datetime import UTC, datetime
+import importlib.util
 import json
 from pathlib import Path
 import re
 from string import Formatter
 import subprocess
+import sys
 import textwrap
 from typing import Any, Mapping, Sequence
 import tomllib
@@ -19,6 +21,7 @@ import tomllib
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DOCS_SOURCE = REPO_ROOT / "docs" / "source"
 MANIFEST_RELATIVE_PATH = Path("data/release_proof.toml")
+UI_ROBOT_EVIDENCE_RELATIVE_PATH = Path("data/ui_robot_evidence.json")
 OUTPUT_RELATIVE_PATH = Path("release-proof.rst")
 SCHEMA = "agilab.release_proof.v1"
 GITHUB_RUN_FIELDS = (
@@ -719,6 +722,106 @@ def _github_ci_runs_check(
     )
 
 
+def _load_ui_robot_evidence_module() -> Any:
+    module_path = REPO_ROOT / "tools" / "ui_robot_evidence.py"
+    spec = importlib.util.spec_from_file_location("ui_robot_evidence_for_release_proof", module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError(f"unable to load UI robot evidence tool: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _ui_robot_evidence_check(
+    evidence_path: Path,
+    *,
+    repo_root: Path,
+    github_repo: str | None,
+    check_github_runs: bool,
+) -> dict[str, Any]:
+    try:
+        ui_robot_evidence = _load_ui_robot_evidence_module()
+        evidence = ui_robot_evidence.load_evidence(evidence_path)
+        validation_checks = ui_robot_evidence.validate_evidence(evidence)
+    except Exception as exc:
+        return _check_result(
+            "ui_robot_evidence",
+            False,
+            "UI robot release evidence is missing or malformed",
+            evidence=[str(evidence_path)],
+            details={"error": str(exc)},
+        )
+
+    source = evidence.get("source") if isinstance(evidence.get("source"), Mapping) else {}
+    result = evidence.get("result") if isinstance(evidence.get("result"), Mapping) else {}
+    failures = [
+        f"{check['id']}: {check['summary']}"
+        for check in validation_checks
+        if check.get("status") != "pass"
+    ]
+    github_run: dict[str, Any] | None = None
+    if check_github_runs:
+        try:
+            repo = _resolve_github_repo(repo_root, github_repo)
+            run_id = str(source.get("run_id", "") or "")
+            raw = _run_gh_json(
+                [
+                    "run",
+                    "view",
+                    run_id,
+                    "--repo",
+                    repo,
+                    "--json",
+                    _github_json_fields(),
+                ]
+            )
+            if not isinstance(raw, Mapping):
+                raise RuntimeError("gh run view did not return an object")
+            github_run = _normalize_github_run(raw)
+            if github_run["workflowName"] != ui_robot_evidence.WORKFLOW_NAME:
+                failures.append(
+                    "github: workflow mismatch: "
+                    f"expected {ui_robot_evidence.WORKFLOW_NAME}, got {github_run['workflowName']}"
+                )
+            if not _github_run_is_success(raw):
+                failures.append(
+                    "github: run is not successful: "
+                    f"status={github_run['status']} conclusion={github_run['conclusion']}"
+                )
+            if source.get("run_url") and github_run["url"] and source.get("run_url") != github_run["url"]:
+                failures.append("github: evidence run URL differs from GitHub run URL")
+            if source.get("head_sha") and github_run["headSha"] and source.get("head_sha") != github_run["headSha"]:
+                failures.append("github: evidence head SHA differs from GitHub run head SHA")
+        except Exception as exc:
+            failures.append(f"github: {exc}")
+
+    return _check_result(
+        "ui_robot_evidence",
+        not failures,
+        (
+            "UI robot matrix evidence is present, successful, and references a valid run"
+            if not failures
+            else "UI robot matrix evidence is missing, failed, or inconsistent"
+        ),
+        evidence=[str(evidence_path.relative_to(repo_root)) if evidence_path.is_relative_to(repo_root) else str(evidence_path)],
+        details={
+            "run_id": source.get("run_id", ""),
+            "run_url": source.get("run_url", ""),
+            "head_sha": source.get("head_sha", ""),
+            "app_count": result.get("app_count", 0),
+            "page_count": result.get("page_count", 0),
+            "widget_count": result.get("widget_count", 0),
+            "interacted_count": result.get("interacted_count", 0),
+            "probed_count": result.get("probed_count", 0),
+            "failed_count": result.get("failed_count", 0),
+            "validation_checks": validation_checks,
+            "github_run": github_run,
+            "failures": failures,
+        },
+    )
+
+
 def build_report(
     *,
     manifest_path: Path,
@@ -805,6 +908,14 @@ def build_report(
             _ci_run_urls_are_consistent(ci_runs),
             "CI run URLs match their run IDs",
             evidence=[str(manifest_path)],
+        )
+    )
+    checks.append(
+        _ui_robot_evidence_check(
+            manifest_path.parent / UI_ROBOT_EVIDENCE_RELATIVE_PATH.name,
+            repo_root=repo_root,
+            github_repo=github_repo,
+            check_github_runs=check_github_runs,
         )
     )
     if check_github_runs:

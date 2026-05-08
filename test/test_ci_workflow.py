@@ -16,6 +16,7 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "Validate release proof GitHub run evidence" in text
     assert "GH_TOKEN: ${{ github.token }}" in text
     assert "python tools/release_proof_report.py --check --check-github-runs --compact" in text
+    assert "tools/ui_robot_evidence.py" in text
     assert "Validate first-proof command contract" in text
     assert "python src/agilab/first_proof_cli.py --print-only --json" in text
     assert "Validate public proof scenarios" in text

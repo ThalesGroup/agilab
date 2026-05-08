@@ -37,6 +37,7 @@ def test_release_proof_manifest_renders_checked_in_page() -> None:
         "pypi_badge_version",
         "changelog_release",
         "readme_release_proof_link",
+        "ui_robot_evidence",
         "rendered_page",
     }
 
@@ -62,6 +63,7 @@ def test_release_proof_refresh_from_local_updates_manifest_and_page(
     data_dir = docs_source / "data"
     data_dir.mkdir(parents=True)
     shutil.copyfile(Path("docs/source/data/release_proof.toml"), data_dir / "release_proof.toml")
+    shutil.copyfile(Path("docs/source/data/ui_robot_evidence.json"), data_dir / "ui_robot_evidence.json")
 
     exit_code = module.main(
         [
@@ -205,6 +207,80 @@ def test_release_proof_github_run_check_detects_failed_or_stale_runs(monkeypatch
     assert check["status"] == "fail"
     assert "not successful" in " ".join(check["details"]["failures"])
     assert "stale" in " ".join(check["details"]["failures"])
+
+
+def test_release_proof_ui_robot_evidence_check_validates_github_run(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    ui_robot_evidence = module._load_ui_robot_evidence_module()
+    run = {
+        "attempt": 1,
+        "conclusion": "success",
+        "createdAt": "2026-05-08T20:18:44Z",
+        "databaseId": 25577485125,
+        "event": "workflow_dispatch",
+        "headBranch": "main",
+        "headSha": "abc123",
+        "name": "ui-robot-matrix",
+        "status": "completed",
+        "updatedAt": "2026-05-08T20:26:55Z",
+        "url": "https://github.com/ThalesGroup/agilab/actions/runs/25577485125",
+        "workflowName": "ui-robot-matrix",
+    }
+    evidence = ui_robot_evidence.build_evidence(
+        run=run,
+        artifact={
+            "name": "ui-robot-matrix-1",
+            "expired": False,
+            "size_bytes": 4902,
+            "archive_download_url": "https://api.github.com/repos/ThalesGroup/agilab/actions/artifacts/1/zip",
+        },
+        matrix_summary={
+            "success": True,
+            "failed_count": 0,
+            "failed_scenarios": [],
+            "failure_samples": [],
+        },
+        scenario_summary={
+            "success": True,
+            "app_count": 10,
+            "page_count": 30,
+            "widget_count": 532,
+            "interacted_count": 348,
+            "probed_count": 184,
+            "skipped_count": 0,
+            "failed_count": 0,
+            "total_duration_seconds": 411.6,
+            "within_target": True,
+        },
+        artifact_checks={
+            "required_files_present": True,
+            "exit_code": "0",
+            "progress_log_bytes": 3,
+        },
+        generated_at="2026-05-08T20:30:00Z",
+    )
+    evidence_path = tmp_path / "ui_robot_evidence.json"
+    ui_robot_evidence.write_evidence(evidence_path, evidence)
+
+    def fake_gh_json(args):
+        assert args[:2] == ["run", "view"]
+        return run
+
+    monkeypatch.setattr(module, "_run_gh_json", fake_gh_json)
+
+    check = module._ui_robot_evidence_check(
+        evidence_path,
+        repo_root=Path.cwd(),
+        github_repo="ThalesGroup/agilab",
+        check_github_runs=True,
+    )
+
+    assert check["status"] == "pass"
+    assert check["details"]["run_id"] == "25577485125"
+    assert check["details"]["failed_count"] == 0
 
 
 def test_release_proof_renderer_fails_unknown_template_key(tmp_path: Path) -> None:
