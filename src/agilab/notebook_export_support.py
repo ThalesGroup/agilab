@@ -1112,9 +1112,9 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return code_text or ""
 
 
-        def run_agilab_step(step_index, *, check=True, capture_output=True, code_override=None):
+        def run_agilab_stage(stage_index, *, check=True, capture_output=True, code_override=None):
             steps = AGILAB_NOTEBOOK_EXPORT.get("steps", [])
-            step = steps[step_index]
+            step = steps[stage_index]
             workdir = Path(AGILAB_NOTEBOOK_EXPORT.get("artifact_dir") or ".").expanduser()
             workdir.mkdir(parents=True, exist_ok=True)
             code_text = code_override if code_override is not None else (step.get("code") or "")
@@ -1122,8 +1122,8 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             step_for_python = dict(step)
             step_for_python["code"] = code_text
             python_exe = _resolve_step_python(step_for_python)
-            with tempfile.TemporaryDirectory(prefix="agilab_notebook_step_") as tmpdir:
-                script_path = Path(tmpdir) / f"step_{{step_index:03d}}.py"
+            with tempfile.TemporaryDirectory(prefix="agilab_notebook_stage_") as tmpdir:
+                script_path = Path(tmpdir) / f"stage_{{stage_index:03d}}.py"
                 script_path.write_text(script_text, encoding="utf-8")
                 result = subprocess.run(
                     [python_exe, str(script_path)],
@@ -1141,12 +1141,21 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return result
 
 
-        def run_agilab_pipeline(step_indices=None, *, check=True):
-            indices = list(step_indices) if step_indices is not None else list(range(len(AGILAB_NOTEBOOK_EXPORT.get("steps", []))))
+        def run_agilab_step(step_index, *, check=True, capture_output=True, code_override=None):
+            return run_agilab_stage(
+                step_index,
+                check=check,
+                capture_output=capture_output,
+                code_override=code_override,
+            )
+
+
+        def run_agilab_pipeline(stage_indices=None, *, check=True):
+            indices = list(stage_indices) if stage_indices is not None else list(range(len(AGILAB_NOTEBOOK_EXPORT.get("steps", []))))
             results = []
-            for step_index in indices:
-                print(f"== Running AGILAB step {{step_index}} ==")
-                results.append(run_agilab_step(step_index, check=check))
+            for stage_index in indices:
+                print(f"== Running AGILAB stage {{stage_index}} ==")
+                results.append(run_agilab_stage(stage_index, check=check))
             return results
 
 
@@ -1244,7 +1253,7 @@ def _step_runner_cell(step: dict[str, Any]) -> str:
     variable_name = _step_code_variable_name(step)
     return textwrap.dedent(
         f"""
-        run_agilab_step({int(step['index'])}, code_override={variable_name})
+        run_agilab_stage({int(step['index'])}, code_override={variable_name})
         """
     ).strip() + "\n"
 
@@ -1326,8 +1335,8 @@ def build_notebook_document(
                     f"- Module: `{export_context.module_path}`",
                     f"- Artifact directory: `{export_context.artifact_dir}`",
                     f"- Export mode: `{export_context.export_mode}`",
-                    "- Use `run_agilab_step(i)` or `run_agilab_pipeline()` to execute steps in their recorded runtime.",
-                    "- The code cells below stay readable/editable, but they do not replace the recorded per-step environment.",
+                    "- Use `run_agilab_stage(i)` or `run_agilab_pipeline()` to execute stages in their recorded runtime.",
+                    "- The code cells below stay readable/editable, but they do not replace the recorded per-stage environment.",
                 ]
             )
         ),
@@ -1339,15 +1348,15 @@ def build_notebook_document(
             _markdown_cell(
                 "\n".join(
                     [
-                        f"## Step {step['index']}: {step.get('description') or '(no description)'}",
+                        f"## Stage {step['index']}: {step.get('description') or '(no description)'}",
                         "",
                         f"- Module key: `{step.get('module')}`",
                         f"- Question: `{step.get('question') or ''}`",
                         f"- Runtime: `{step.get('runtime') or 'runpy'}`",
                         f"- Environment root: `{step.get('env') or '(current kernel / controller default)'}`",
                         "",
-                        f"- Edit the next cell if you want to override the saved step source.",
-                        f"- The runner cell below it replays the step with its recorded runtime. Running the whole notebook executes those runner cells too.",
+                        f"- Edit the next cell if you want to override the saved stage source.",
+                        f"- The runner cell below it replays the stage with its recorded runtime. Running the whole notebook executes those runner cells too.",
                     ]
                 )
             )

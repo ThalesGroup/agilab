@@ -31,3 +31,9 @@ read-only and safe to inspect without running the downstream apps.
 
 Use this project to learn cross-app orchestration. Use `flight_project` or
 `uav_queue_project` when you want a domain app that executes real worker code.
+
+## Reducer Contract Status
+
+`global_dag_project` is template-preview only. It intentionally does not ship a
+reducer contract because it demonstrates cross-app DAG contracts and runner
+state, not a concrete worker merge output.

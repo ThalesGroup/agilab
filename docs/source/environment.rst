@@ -110,7 +110,7 @@ summarises the supported keys.
    * - ``MLFLOW_TRACKING_DIR``
      - ``~/.mlflow``
      - Where MLflow tracking data is stored. The WORKFLOW page serves the local
-       MLflow UI from this directory and records parent/step run metadata and
+       MLflow UI from this directory and records parent/stage run metadata and
        artefacts there.
    * - ``AGI_PAGES_DIR``
      - ``agilab/apps-pages``

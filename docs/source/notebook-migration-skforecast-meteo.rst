@@ -26,7 +26,7 @@ The migrated AGILAB shape is illustrated by:
 
 The same migration material is mirrored under
 ``src/agilab/examples/notebook_migrations/skforecast_meteo_fr`` so packaged
-installs include the notebooks, sample data, exported artifacts, lab steps, and
+installs include the notebooks, sample data, exported artifacts, lab stages, and
 pipeline view instead of only the runnable app scripts.
 
 The repo now also ships the same idea as a real built-in project:

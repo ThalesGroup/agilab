@@ -183,7 +183,7 @@ def test_non_mapping_steps_and_invalid_versions_are_classified_or_rejected() -> 
     result = classify_pipeline_step_template("print('raw')")
 
     assert result.status is PipelineStepTemplateStatus.RAW_PYTHON
-    assert result.reason == "step is not a mapping"
+    assert result.reason == "stage is not a mapping"
 
     with pytest.raises(ValueError, match="version must be a positive integer"):
         PipelineStepTemplate(
@@ -286,7 +286,7 @@ def test_pipeline_step_template_registry_reports_invalid_unknown_and_duplicate_n
         _template("")
     with pytest.raises(ValueError, match="version must be a positive integer"):
         _template("generic.bad", version=0)
-    with pytest.raises(ValueError, match="Duplicate Pipeline step template"):
+    with pytest.raises(ValueError, match="Duplicate Pipeline stage template"):
         PipelineStepTemplateRegistry((first, duplicate))
-    with pytest.raises(KeyError, match="Unknown Pipeline step template 'missing'"):
+    with pytest.raises(KeyError, match="Unknown Pipeline stage template 'missing'"):
         PipelineStepTemplateRegistry((first,)).require("missing")

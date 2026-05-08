@@ -77,7 +77,7 @@ breach.
 
 Read the output as an operator checklist:
 
-| Step | What it means | Real call when you are ready |
+| Stage | What it means | Real call when you are ready |
 |---|---|---|
 | `start` | Start persistent worker loops. | `AGI.serve(env, action="start", mode=AGI.DASK_MODE)` |
 | `status` | Inspect the runtime state. | `AGI.serve(env, action="status")` |

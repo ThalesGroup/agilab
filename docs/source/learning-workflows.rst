@@ -52,7 +52,7 @@ the building blocks to implement it explicitly:
 - reproducible run orchestration (`AGI.run`, `AGI.install`, `AGI.get_distrib`)
 - stable artifact paths (datasets, logs, checkpoints) via `AgiEnv` and share
   directory conventions
-- per-step experiment capture via `lab_steps.toml`
+- per-stage experiment capture via `lab_steps.toml`
 
 One common pattern is “solver-as-teacher”:
 
@@ -95,9 +95,9 @@ where :math:`\theta_{t+1}^{(k)}` is the model trained on site :math:`k` and
 In AGILab terms, this can be implemented by orchestrating:
 
 - per-site training runs that export checkpoints to a shared location, and
-- an aggregation step that combines checkpoints into a new global model, then
+- an aggregation stage that combines checkpoints into a new global model, then
   redeploys it for inference.
 
 AGILab’s environment resolution and worker distribution make it straightforward
-to run these steps locally or on SSH clusters, as long as sites agree on a
+to run these stages locally or on SSH clusters, as long as sites agree on a
 checkpoint format and aggregation protocol.

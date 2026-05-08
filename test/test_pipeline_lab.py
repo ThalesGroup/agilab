@@ -872,18 +872,19 @@ def test_pipeline_steps_runner_state_builds_single_app_preview_dag(tmp_path):
 
     assert state["source"]["source_type"] == "lab_steps"
     assert state["source"]["step_count"] == 2
-    assert state["source"]["execution_order"] == ["step_001", "step_002"]
-    assert state["summary"]["runnable_unit_ids"] == ["step_001"]
-    assert state["summary"]["blocked_unit_ids"] == ["step_002"]
+    assert state["source"]["stage_count"] == 2
+    assert state["source"]["execution_order"] == ["stage_001", "stage_002"]
+    assert state["summary"]["runnable_unit_ids"] == ["stage_001"]
+    assert state["summary"]["blocked_unit_ids"] == ["stage_002"]
     first, second = state["units"]
     assert first["app"] == "demo_project"
     assert first["executor"] == "runpy"
     assert first["produces"] == [
-        {"artifact": "step_001_complete", "kind": "pipeline_step_completion", "path": "pipeline/step_001.json"}
+        {"artifact": "stage_001_complete", "kind": "pipeline_stage_completion", "path": "pipeline/stage_001.json"}
     ]
     assert second["executor"] == "agi.run"
-    assert second["depends_on"] == ["step_001"]
-    assert second["artifact_dependencies"][0]["artifact"] == "step_001_complete"
+    assert second["depends_on"] == ["stage_001"]
+    assert second["artifact_dependencies"][0]["artifact"] == "stage_001_complete"
 
 
 def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, tmp_path):
@@ -907,9 +908,9 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
     assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_PROJECT
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_PROJECT_STEPS
     assert state["source"]["source_type"] == "lab_steps"
-    assert state["summary"]["runnable_unit_ids"] == ["step_001"]
-    assert state["summary"]["blocked_unit_ids"] == ["step_002"]
-    assert ("metric", "Contract=Project steps") in fake_st.messages
+    assert state["summary"]["runnable_unit_ids"] == ["stage_001"]
+    assert state["summary"]["blocked_unit_ids"] == ["stage_002"]
+    assert ("metric", "Contract=Project stages") in fake_st.messages
     assert ("metric", "Execution mode=Preview-only") in fake_st.messages
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any(call[0] == "demo_global_runner_dispatch_next" for call in fake_st.button_calls)
@@ -922,7 +923,7 @@ def test_global_runner_panel_renders_project_steps_as_preview_dag(monkeypatch, t
         for table in fake_st.dataframes
         if isinstance(table, list) and table and isinstance(table[0], dict) and "stage" in table[0]
     ]
-    assert any(row["stage"] == "step_001" and row["runs"] == "runpy" for table in workplan_tables for row in table)
+    assert any(row["stage"] == "stage_001" and row["runs"] == "runpy" for table in workplan_tables for row in table)
 
 
 def test_global_runner_panel_shows_selected_project_step_snippet_code(monkeypatch, tmp_path):
@@ -932,7 +933,7 @@ def test_global_runner_panel_shows_selected_project_step_snippet_code(monkeypatc
     ]
     fake_st = _FakeStreamlit(
         checkboxes={"demo_global_runner_show_snippets": True},
-        selectboxes={"demo_global_runner_snippet_step": "step_002"},
+        selectboxes={"demo_global_runner_snippet_step": "stage_002"},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     env = SimpleNamespace(app="demo_project", target="demo_project")
@@ -946,7 +947,7 @@ def test_global_runner_panel_shows_selected_project_step_snippet_code(monkeypatc
     )
 
     assert ("Show snippet code", "demo_global_runner_show_snippets") in fake_st.checkbox_calls
-    assert fake_st.session_state["demo_global_runner_snippet_step"] == "step_002"
+    assert fake_st.session_state["demo_global_runner_snippet_step"] == "stage_002"
     assert any(kind == "caption" and message == "Prompt: Train model" for kind, message in fake_st.messages)
     assert any(kind == "code" and "print('train')" in message for kind, message in fake_st.messages)
     assert not any(kind == "code" and "print('load')" in message for kind, message in fake_st.messages)
@@ -998,11 +999,11 @@ def test_global_runner_panel_project_steps_dispatch_is_preview_only(monkeypatch,
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
     assert state["run_status"] == "running"
-    assert state["summary"]["running_unit_ids"] == ["step_001"]
-    assert state["summary"]["blocked_unit_ids"] == ["step_002"]
+    assert state["summary"]["running_unit_ids"] == ["stage_001"]
+    assert state["summary"]["blocked_unit_ids"] == ["stage_002"]
     assert state["provenance"]["real_app_execution"] is False
     assert state["provenance"]["dispatch_mode"] == "pipeline_steps_preview"
-    assert any(kind == "success" and "step_001" in message for kind, message in fake_st.messages)
+    assert any(kind == "success" and "stage_001" in message for kind, message in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
 
 
@@ -1014,11 +1015,11 @@ def test_pipeline_steps_runner_state_syncs_completed_steps_from_run_logs(tmp_pat
     session_state = {
         "demo__last_run_status": "complete",
         "demo__run_logs": [
-            "Running step 1...",
-            'Step 1: engine=runpy, env=default, summary="load"',
-            "Running step 2...",
-            'Step 2: engine=runpy, env=default, summary="train"',
-            "Run pipeline completed: 2 step(s) executed.",
+            "Running stage 1...",
+            'Stage 1: engine=runpy, env=default, summary="load"',
+            "Running stage 2...",
+            'Stage 2: engine=runpy, env=default, summary="train"',
+            "Run workflow completed: 2 stage(s) executed.",
         ],
     }
     env = SimpleNamespace(app="demo_project", target="demo_project")
@@ -1033,8 +1034,8 @@ def test_pipeline_steps_runner_state_syncs_completed_steps_from_run_logs(tmp_pat
     )
 
     assert state["run_status"] == "completed"
-    assert state["summary"]["completed_unit_ids"] == ["step_001", "step_002"]
-    assert state["summary"]["available_artifact_ids"] == ["step_001_complete", "step_002_complete"]
+    assert state["summary"]["completed_unit_ids"] == ["stage_001", "stage_002"]
+    assert state["summary"]["available_artifact_ids"] == ["stage_001_complete", "stage_002_complete"]
     assert state["source"]["execution_sync"]["status"] == "complete"
     assert state["provenance"]["dispatch_mode"] == "pipeline_steps_log_sync"
 
@@ -1048,9 +1049,9 @@ def test_pipeline_steps_runner_state_syncs_failed_step_from_run_logs(tmp_path):
     session_state = {
         "demo__last_run_status": "failed",
         "demo__run_logs": [
-            "Running step 1...",
-            'Step 1: engine=runpy, env=default, summary="load"',
-            "Running step 2...",
+            "Running stage 1...",
+            'Stage 1: engine=runpy, env=default, summary="load"',
+            "Running stage 2...",
             "Traceback: demo failure",
         ],
     }
@@ -1066,9 +1067,9 @@ def test_pipeline_steps_runner_state_syncs_failed_step_from_run_logs(tmp_path):
     )
 
     assert state["run_status"] == "failed"
-    assert state["summary"]["completed_unit_ids"] == ["step_001"]
-    assert state["summary"]["failed_unit_ids"] == ["step_002"]
-    assert state["summary"]["blocked_unit_ids"] == ["step_003"]
+    assert state["summary"]["completed_unit_ids"] == ["stage_001"]
+    assert state["summary"]["failed_unit_ids"] == ["stage_002"]
+    assert state["summary"]["blocked_unit_ids"] == ["stage_003"]
     assert state["artifacts"][0]["status"] == "available"
     assert state["artifacts"][1]["status"] == "planned"
 
@@ -1078,9 +1079,9 @@ def test_pipeline_steps_runner_state_marks_stale_when_steps_newer_than_run_log(t
     steps_file.write_text("[[steps]]\nQ = 'new'\nC = 'print(1)'\n", encoding="utf-8")
     log_file = tmp_path / "pipeline.log"
     log_file.write_text(
-        "Running step 1...\n"
-        'Step 1: engine=runpy, env=default, summary="old"\n'
-        "Run pipeline completed: 1 step(s) executed.\n",
+        "Running stage 1...\n"
+        'Stage 1: engine=runpy, env=default, summary="old"\n'
+        "Run workflow completed: 1 stage(s) executed.\n",
         encoding="utf-8",
     )
     os.utime(log_file, (1000, 1000))
@@ -1102,10 +1103,10 @@ def test_pipeline_steps_runner_state_marks_stale_when_steps_newer_than_run_log(t
     )
 
     assert state["run_status"] == "stale"
-    assert state["summary"]["stale_unit_ids"] == ["step_001"]
+    assert state["summary"]["stale_unit_ids"] == ["stage_001"]
     assert state["source"]["execution_sync"]["reason"] == "lab_steps.toml is newer than the latest workflow run log."
     assert pipeline_lab._global_dag_readiness_summary(state)["next_action"] == (
-        "Run the pipeline again or reset the preview after editing project steps."
+        "Run the workflow again or reset the preview after editing project stages."
     )
 
 
@@ -1118,10 +1119,10 @@ def test_global_runner_panel_renders_project_steps_synced_from_pipeline_logs(mon
         {
             "demo__last_run_status": "complete",
             "demo__run_logs": [
-                "Running step 1...",
-                'Step 1: engine=runpy, env=default, summary="load"',
-                "Running step 2...",
-                'Step 2: engine=runpy, env=default, summary="train"',
+                "Running stage 1...",
+                'Stage 1: engine=runpy, env=default, summary="load"',
+                "Running stage 2...",
+                'Stage 2: engine=runpy, env=default, summary="train"',
             ],
         },
         checkboxes={"demo_global_runner_show_graph": True},
@@ -1139,9 +1140,9 @@ def test_global_runner_panel_renders_project_steps_synced_from_pipeline_logs(mon
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
     assert state["run_status"] == "completed"
-    assert state["summary"]["completed_unit_ids"] == ["step_001", "step_002"]
+    assert state["summary"]["completed_unit_ids"] == ["stage_001", "stage_002"]
     assert ("metric", "Completed=2") in fake_st.messages
-    assert any("step_001" in source and "completed" in source for source in fake_st.graphviz_sources)
+    assert any("stage_001" in source and "completed" in source for source in fake_st.graphviz_sources)
 
 
 def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch, tmp_path):
@@ -1933,7 +1934,7 @@ def test_global_runner_error_diagnostic_renders_as_code(monkeypatch, tmp_path):
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("error", "Multi-app DAG preview is unavailable.") in fake_st.messages
+    assert ("error", "Multi-app DAG orchestration preview is unavailable.") in fake_st.messages
     assert ("caption", "Full diagnostic") in fake_st.messages
     assert ("code", "bad dag\nline 2") in fake_st.messages
 
@@ -1949,7 +1950,7 @@ def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
 
-    assert ("info", "No steps recorded yet. Generate your first step below.") in fake_st.messages
+    assert ("info", "No stages recorded yet. Generate your first stage below.") in fake_st.messages
     assert fake_st.session_state["demo"][0] == 0
     assert fake_st.session_state["demo"][-1] == 0
     assert fake_st.session_state["demo_new_q"] == ""
@@ -2565,7 +2566,7 @@ def test_display_lab_tab_locked_step_run_and_remove_confirm(monkeypatch, tmp_pat
     assert run_calls
     assert remove_calls
     snapshot = fake_st.session_state["demo__undo_delete_snapshot"]
-    assert snapshot["label"] == "remove step 1"
+    assert snapshot["label"] == "remove stage 1"
     assert "timestamp" in snapshot
 
 
@@ -2959,8 +2960,8 @@ def test_display_lab_tab_overlay_run_streams_step_and_logs_artifacts(monkeypatch
 
     assert stream_calls
     assert artifact_calls
-    assert any("Run step 1 started" in str(message) for message in pushed_logs)
-    assert any("Hint: for AGI app steps" in str(message) for message in pushed_logs)
+    assert any("Run stage 1 started" in str(message) for message in pushed_logs)
+    assert any("Hint: for AGI app stages" in str(message) for message in pushed_logs)
 
 
 def test_display_lab_tab_existing_step_run_button_generates_and_autofixes(monkeypatch, tmp_path):
@@ -3009,7 +3010,7 @@ def test_display_lab_tab_existing_step_run_button_generates_and_autofixes(monkey
     assert fake_st.session_state["demo_pending_c_0"] == "print('fixed')"
     assert fake_st.session_state["demo__details"][0] == "fixed-detail"
     assert reruns == ["fragment"]
-    assert any("Step 1:" in str(message) for message in pushed_logs)
+    assert any("Stage 1:" in str(message) for message in pushed_logs)
 
 
 def test_display_lab_tab_existing_steps_imports_additional_snippet(monkeypatch, tmp_path):
@@ -3221,7 +3222,7 @@ def test_display_lab_tab_step_delete_and_undo_success_paths(monkeypatch, tmp_pat
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
 
     assert fake_st.session_state["demo_confirm_delete_0"] is True
-    assert any(kind == "success" and "Deleted steps restored." in message for kind, message in fake_st.messages)
+    assert any(kind == "success" and "Deleted stages restored." in message for kind, message in fake_st.messages)
     assert any(kind == "rerun" and message == "called" for kind, message in fake_st.messages)
 
 
@@ -3703,8 +3704,8 @@ def test_display_lab_tab_overlay_run_logs_missing_file_hint(monkeypatch, tmp_pat
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
 
-    assert any("Output (step 1):" in message for message in pushed_logs)
-    assert any("Check whether the upstream step created the expected file" in message for message in pushed_logs)
+    assert any("Output (stage 1):" in message for message in pushed_logs)
+    assert any("Check whether the upstream stage created the expected file" in message for message in pushed_logs)
 
 
 def test_display_lab_tab_import_snippet_without_runtime_resets_sequence(monkeypatch, tmp_path):
@@ -4144,7 +4145,7 @@ def test_display_lab_tab_ignores_invalid_steps_file_toml(monkeypatch, tmp_path):
     pipeline_lab.display_lab_tab(tmp_path, "demo", steps_file, tmp_path / "flight_project", env, deps)
 
     assert fake_st.session_state["demo"][-1] == 0
-    assert any(kind == "info" and "No steps recorded yet" in message for kind, message in fake_st.messages)
+    assert any(kind == "info" and "No stages recorded yet" in message for kind, message in fake_st.messages)
 
 
 def test_display_lab_tab_reseeds_missing_or_blank_editor_state(monkeypatch, tmp_path):
@@ -4372,7 +4373,7 @@ def test_display_lab_tab_sequence_defaults_and_formats_labels(monkeypatch, tmp_p
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_steps.toml", tmp_path / "flight_project", env, deps)
 
     assert fake_st.session_state["demo__run_sequence"] == [0]
-    assert any(kind == "formatted" and message.startswith("Step 1") for kind, message in fake_st.messages)
+    assert any(kind == "formatted" and message.startswith("Stage 1") for kind, message in fake_st.messages)
 
 
 def test_display_lab_tab_appends_custom_initial_runtime_label(monkeypatch, tmp_path):

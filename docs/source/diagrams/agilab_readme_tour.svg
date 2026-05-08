@@ -182,11 +182,11 @@
     <circle class="step" cx="36" cy="36" r="18"/>
     <text class="step-text" x="36" y="42" text-anchor="middle">3</text>
     <text class="card-title" x="64" y="42">WORKFLOW</text>
-    <text class="card-kicker" x="28" y="78">Replay the steps</text>
+    <text class="card-kicker" x="28" y="78">Replay the stages</text>
     <text class="body" x="28" y="116">
       <tspan x="28" dy="0">WORKFLOW keeps the</tspan>
       <tspan x="28" dy="24">queue experiment explicit</tspan>
-      <tspan x="28" dy="24">with replayable steps</tspan>
+      <tspan x="28" dy="24">with replayable stages</tspan>
       <tspan x="28" dy="24">and topology artifacts.</tspan>
     </text>
     <text class="mini" x="28" y="230">

@@ -36,7 +36,7 @@ def _pipeline_step_kind(entry: Dict[str, Any]) -> str:
         return "run"
     if raw == "runpy":
         return "python"
-    return raw or "step"
+    return raw or "stage"
 
 
 def _pipeline_expr_to_text(node: ast.AST) -> str:
@@ -63,7 +63,7 @@ def _pipeline_expr_to_text(node: ast.AST) -> str:
 
 
 def _pipeline_extract_app_name(code: str) -> str:
-    """Extract APP = '...' from a step snippet."""
+    """Extract APP = '...' from a stage snippet."""
     if not isinstance(code, str) or not code.strip():
         return ""
     try:
@@ -250,7 +250,7 @@ def load_pipeline_conceptual_dot(env: Optional[AgiEnv], lab_dir: Optional[Path])
 
 
 def _pipeline_infer_entry(step_index: int, entry: Dict[str, Any]) -> Dict[str, Any]:
-    """Infer pipeline metadata from a lab step entry."""
+    """Infer pipeline metadata from a lab stage entry."""
     code = str(entry.get("C", "") or "")
     role = _pipeline_role_from_question(entry.get("Q", ""))
     project = _pipeline_extract_app_name(code)
@@ -258,13 +258,13 @@ def _pipeline_infer_entry(step_index: int, entry: Dict[str, Any]) -> Dict[str, A
     consumes = {key: value for key, value in kwargs.items() if key.endswith("_in")}
     produces = {key: value for key, value in kwargs.items() if key.endswith("_out")}
     kind = _pipeline_step_kind(entry)
-    if kind == "step" and agi_call_kind:
+    if kind == "stage" and agi_call_kind:
         kind = agi_call_kind
     group = _pipeline_group_from_project(project)
     return {
         "index": step_index,
         "label": f"{step_index + 1}",
-        "role": role or f"Step {step_index + 1}",
+        "role": role or f"Stage {step_index + 1}",
         "kind": kind,
         "project": project,
         "group": group,
@@ -294,9 +294,9 @@ def _pipeline_format_io_items(items: Dict[str, str], redundant_keys: set[str]) -
 
 
 def _pipeline_graphviz_label(step_meta: Dict[str, Any]) -> str:
-    """Build a compact Graphviz label for a step node."""
+    """Build a compact Graphviz label for a stage node."""
     role = _pipeline_wrap_text(
-        str(step_meta.get("role", "") or f"Step {step_meta.get('index', 0) + 1}"),
+        str(step_meta.get("role", "") or f"Stage {step_meta.get('index', 0) + 1}"),
         width=38,
     )
     group = str(step_meta.get("group", "") or "")
@@ -386,7 +386,7 @@ def render_pipeline_view(step_entries: List[Dict[str, Any]], *, title: str = "Pi
         for node in nodes:
             rows.append(
                 {
-                    "step": node["label"],
+                    "stage": node["label"],
                     "role": node["role"],
                     "group": node["group"],
                     "in": _pipeline_format_io_items(node["consumes"], {"data_in"}),
@@ -398,7 +398,7 @@ def render_pipeline_view(step_entries: List[Dict[str, Any]], *, title: str = "Pi
             width="stretch",
             hide_index=True,
             column_config={
-                "step": st.column_config.TextColumn("step", width="small"),
+                "stage": st.column_config.TextColumn("stage", width="small"),
                 "role": st.column_config.TextColumn("role", width="medium"),
                 "group": st.column_config.TextColumn("group", width="small"),
                 "in": st.column_config.TextColumn("in", width="large"),

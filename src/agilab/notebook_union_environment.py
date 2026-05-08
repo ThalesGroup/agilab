@@ -80,7 +80,7 @@ def build_union_environment_plan(
     envs = sorted({step["env"] for step in steps})
     issues: list[NotebookUnionIssue] = []
     if not steps:
-        issues.append(_issue("steps", "no executable pipeline steps found"))
+        issues.append(_issue("steps", "no executable pipeline stages found"))
     if len(runtimes) > 1:
         issues.append(_issue("runtime", f"mixed runtimes require supervisor export: {runtimes}"))
     if any(runtime != "runpy" for runtime in runtimes):
@@ -89,7 +89,7 @@ def build_union_environment_plan(
         )
     if len(envs) > 1:
         issues.append(
-            _issue("environment", f"mixed step environments require supervisor export: {envs}")
+            _issue("environment", f"mixed stage environments require supervisor export: {envs}")
         )
 
     compatible = not issues
@@ -146,7 +146,7 @@ def build_union_notebook(plan: Mapping[str, Any]) -> dict[str, Any]:
                 "cell_type": "markdown",
                 "metadata": {},
                 "source": [
-                    f"## Step {index}: {step.get('description', '')}\n",
+                    f"## Stage {index}: {step.get('description', '')}\n",
                     f"- Runtime: `{step.get('runtime', '')}`\n",
                     f"- Environment: `{step.get('env', '') or 'current kernel'}`\n",
                 ],

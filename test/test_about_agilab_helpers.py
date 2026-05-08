@@ -2356,7 +2356,7 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
 
     select_action = about_agilab._first_proof_next_action_model(select_state)
 
-    assert select_action["phase"] == "Step 1"
+    assert select_action["phase"] == "Stage 1"
     assert select_action["tone"] == "next"
     assert select_action["title"] == "Select `flight_project`"
     assert select_action["cta_label"] == "Use `flight_project`"
@@ -2371,7 +2371,7 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
     )
     run_action = about_agilab._first_proof_next_action_model(run_state)
 
-    assert run_action["phase"] == "Step 2"
+    assert run_action["phase"] == "Stage 2"
     assert run_action["title"] == "Install, then execute"
     assert "ORCHESTRATE" in run_action["detail"]
     assert "run_manifest.json" in run_action["proof_hint"]

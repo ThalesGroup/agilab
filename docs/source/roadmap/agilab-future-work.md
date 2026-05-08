@@ -24,7 +24,7 @@ use this order:
    - build on the shipped supervisor-notebook export and analysis-page launcher
      metadata
    - add notebook-to-pipeline import maturity and optional single-kernel
-     union-environment notebooks when step environments are compatible
+     union-environment notebooks when stage environments are compatible
 3. **Data connector facility**
    - make SQL, ELK, object storage, and other external data sources first-class
      connector targets
@@ -63,8 +63,8 @@ use this order:
      queue-family reduce artefacts as evidence
    - a repository guardrail now requires every non-template built-in app to
      expose a reducer contract
-   - `mycode_project` is the only explicit template-only exemption because it
-     has no concrete merge output yet
+   - `mycode_project` and `global_dag_project` are the explicit template-only
+     exemptions because they have no concrete merge output yet
    - future apps/templates must opt in when they produce durable worker
      summaries
 5. **Intent-first operator mode**
@@ -313,7 +313,7 @@ Current shipped baseline:
 - the graph expands `uav_queue_project` and `uav_relay_queue_project` through
   their checked-in `pipeline_view.dot` files
 - the graph preserves the cross-app `queue_metrics` artifact edge and reports
-  app nodes, app-local step nodes, app-local edges, and execution order
+  app nodes, app-local stage nodes, app-local edges, and execution order
 - `tools/global_pipeline_execution_plan_report.py --compact` converts the graph
   into ordered runnable units in `pending/not_executed` state, marks
   `queue_baseline` ready, marks `relay_followup` blocked on `queue_metrics`,
@@ -390,26 +390,26 @@ Why it matters:
 Purpose:
 
 - complete the bridge between notebooks and AGILab pipelines without hiding
-  per-step runtime constraints
+  per-stage runtime constraints
 
 Current shipped baseline:
 
-- `WORKFLOW` can already export a supervisor notebook that preserves step
-  provenance, runtime metadata, and per-step execution context
+- `WORKFLOW` can already export a supervisor notebook that preserves stage
+  provenance, runtime metadata, and per-stage execution context
 - exported notebooks can include related analysis-page launcher helpers when an
   app declares them
 - `tools/notebook_pipeline_import_report.py --compact` now validates the first
   notebook-to-pipeline import contract from a checked-in `.ipynb`; it preserves
   markdown context, code cells, import hints, execution-count metadata, and
-  artifact references as `not_executed_import` pipeline-step evidence, writes a
+  artifact references as `not_executed_import` pipeline-stage evidence, writes a
   richer `lab_steps.toml` preview, and feeds the existing `WORKFLOW` upload path
 - `tools/notebook_roundtrip_report.py --compact` validates
   `lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`
-  preservation for saved step description, prompt, model, code, runtime,
+  preservation for saved stage description, prompt, model, code, runtime,
   import hints, and artifact references
 - `tools/notebook_union_environment_report.py --compact` validates a
   `single-kernel union notebook` candidate only for compatible `runpy` /
-  current-kernel steps and records `supervisor_notebook_required` for mixed
+  current-kernel stages and records `supervisor_notebook_required` for mixed
   runtime or mixed-environment pipelines
 - this is intentionally not the same thing as flattening a multi-venv pipeline
   into one notebook kernel
@@ -474,7 +474,7 @@ Good for:
 
 - run health
 - worker load
-- step latency
+- stage latency
 - failures and alerts
 - SLA-style monitoring
 
@@ -541,7 +541,7 @@ Why it matters:
 
 - reduces friction across apps
 - makes automation more reusable
-- lowers the gap between conceptual workflows and executable steps
+- lowers the gap between conceptual workflows and executable stages
 
 #### Connector integration change request
 
@@ -664,6 +664,9 @@ Current guardrail:
 - all non-template built-in apps now expose a reducer contract
 - `mycode_project` is template-only and intentionally exempt because its worker
   hooks are placeholders with no concrete merge output
+- `global_dag_project` is template-preview only and intentionally exempt because
+  it demonstrates cross-app DAG contracts rather than a concrete worker merge
+  output
 - future apps/templates must add `reduction.py`, emit
   `reduce_summary_worker_<id>.json`, and export a `*_REDUCE_CONTRACT` once they
   produce durable worker summaries
@@ -711,8 +714,8 @@ Completed slices:
   `ReduceArtifact.from_dict`, displays reducer evidence, and flags invalid JSON
 - a repository guardrail now fails if a non-template built-in app lacks a
   reducer contract or worker-scoped artifact writer
-- `mycode_project` is documented as template-only rather than counted as a
-  reducer migration gap
+- `mycode_project` and `global_dag_project` are documented as template-only
+  rather than counted as reducer migration gaps
 
 Next concrete change request:
 

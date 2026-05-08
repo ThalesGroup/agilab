@@ -1073,7 +1073,7 @@ def _cleanup_rename(self, root: Path, rename_map: dict):
     # Sort longest first
     sorted_simple = sorted(simple_map.items(), key=lambda kv: len(kv[0]), reverse=True)
 
-    # -- step 1: rename basenames bottom‑up --
+    # -- phase 1: rename basenames bottom-up --
     for path in sorted(root.rglob("*"), key=lambda p: len(p.parts), reverse=True):
         old_name = path.name
         # exact matches
@@ -1090,7 +1090,7 @@ def _cleanup_rename(self, root: Path, rename_map: dict):
                 path.rename(path.with_name(new_name))
                 break
 
-    # -- step 2: rewrite any lingering references in text files --
+    # -- phase 2: rewrite any lingering references in text files --
     exts = {".py", ".toml", ".md", ".json", ".yaml", ".yml", ".txt"}
     for file in root.rglob("*"):
         if not file.is_file() or file.suffix.lower() not in exts:

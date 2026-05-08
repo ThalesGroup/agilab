@@ -21,7 +21,7 @@ import tomllib        # For reading TOML files
 
 PIPELINE_PROJECT_LABEL = "Project"
 PIPELINE_PROJECT_HELP = (
-    "Project workspace whose workflow steps and exported artifacts are shown below. "
+    "Project workspace whose workflow stages and exported artifacts are shown below. "
     "Type in the dropdown to search."
 )
 
@@ -310,7 +310,7 @@ def run_all_steps(
     log_placeholder: Optional[Any] = None,
     force_lock_clear: bool = False,
 ) -> None:
-    """Execute all steps sequentially, honouring per-step virtual environments."""
+    """Execute all stages sequentially, honouring per-stage virtual environments."""
     _run_all_steps_impl(
         lab_dir,
         index_page_str,
@@ -340,13 +340,13 @@ def on_step_change(
     index_step: int,
     index_page: str,
 ) -> None:
-    """Update session state when a step is selected."""
+    """Update session state when a stage is selected."""
     st.session_state[index_page][0] = index_step
     st.session_state.step_checked = False
     # Schedule prompt clear and blank on next render; bump input revision to remount widget
     st.session_state[f"{index_page}__clear_q"] = True
     st.session_state[f"{index_page}__q_rev"] = st.session_state.get(f"{index_page}__q_rev", 0) + 1
-    # Drop any existing editor instance state for this step (best-effort)
+    # Drop any existing editor instance state for this stage (best-effort)
     st.session_state.pop(f"{index_page}_a_{index_step}", None)
     venv_map = st.session_state.get(f"{index_page}__venv_map", {})
     st.session_state["lab_selected_venv"] = normalize_runtime_path(venv_map.get(index_step, ""))
@@ -360,7 +360,7 @@ def load_last_step(
     steps_file: Path,
     index_page: str,
 ) -> None:
-    """Load the last step for a module into session state."""
+    """Load the last stage for a module into session state."""
     details_store = st.session_state.setdefault(f"{index_page}__details", {})
     all_steps = load_all_steps(module_dir, steps_file, index_page)
     if all_steps:
@@ -403,7 +403,7 @@ def load_last_step(
 
 
 def on_df_change(module_dir: Path, index_page, df_file=None, steps_file=None) -> None:
-    """Update dataframe selection using the WORKFLOW page-local step loader."""
+    """Update dataframe selection using the WORKFLOW page-local stage loader."""
     return _on_df_change_impl(
         module_dir,
         index_page,
@@ -549,7 +549,7 @@ def _render_notebook_actions(
     """Render notebook import/export actions in the main pipeline workspace."""
     with st.expander("Notebook", expanded=False):
         st.caption(
-            f"Active steps file: `{steps_file.name}`. "
+            f"Active stages file: `{steps_file.name}`. "
             "Import a notebook into this pipeline or download the current pipeline as `.ipynb`."
         )
 
@@ -587,7 +587,7 @@ def load_all_steps(
     steps_file: Path,
     index_page: str,
 ) -> Optional[List[Dict[str, Any]]]:
-    """Load all steps for a module from a TOML file using str(module_path) as key.
+    """Load all stages for a module from a TOML file using str(module_path) as key.
 
     Uses a small cache keyed by file mtime to avoid re-parsing on every rerun.
     """
@@ -660,7 +660,7 @@ def on_query_change(
             else:
                 details_store[step] = detail
             if skipped:
-                st.info("Assistant response did not include runnable code. Step was not saved.")
+                st.info("Assistant response did not include runnable code. Stage was not saved.")
             _bump_history_revision()
             st.session_state[index_page][0] = step
             # Deterministic mapping to D/Q/M/C slots
@@ -1286,7 +1286,7 @@ def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, steps_file: 
         top_cols = st.columns(3)
         with top_cols[0]:
             _render_pipeline_header_card(
-                "Workflow steps",
+                "Workflow stages",
                 f"{displayable_steps}/{total_steps}",
                 "visible / stored",
                 state="ready" if total_steps else "incomplete",
@@ -1295,7 +1295,7 @@ def _render_pipeline_workspace_overview(env: AgiEnv, lab_dir: Path, steps_file: 
             _render_pipeline_header_card(
                 "Runnable",
                 str(runnable_steps),
-                "steps with executable code",
+                "stages with executable code",
                 state="ready" if runnable_steps else "incomplete",
             )
         with top_cols[2]:
@@ -1365,7 +1365,7 @@ def page() -> None:
     steps_file.parent.mkdir(parents=True, exist_ok=True)
     restored_source = st.session_state.pop("_pipeline_steps_restored_from", "")
     if restored_source:
-        st.info(f"Restored missing Workflow steps from `{restored_source}`.")
+        st.info(f"Restored missing Workflow stages from `{restored_source}`.")
 
     nsteps = len(get_steps_list(lab_dir, steps_file))
     _render_pipeline_workspace_overview(env, lab_dir, steps_file)
@@ -1394,7 +1394,7 @@ def page() -> None:
         _caption_once(
             f"missing_df::{lab_dir}",
             f"No dataframe exported for {lab_dir.name} yet. "
-            f"Data-dependent steps may need `{default_df_path}`.",
+            f"Data-dependent stages may need `{default_df_path}`.",
         )
         st.session_state["df_file"] = None
 

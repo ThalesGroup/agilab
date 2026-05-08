@@ -43,7 +43,7 @@
 
   <rect class="box3" x="590" y="172" rx="16" ry="16" width="170" height="220"/>
   <text class="h" x="675" y="208" text-anchor="middle">Coordinator</text>
-  <text class="t" x="675" y="238" text-anchor="middle">Schedules steps</text>
+  <text class="t" x="675" y="238" text-anchor="middle">Schedules stages</text>
   <text class="t" x="675" y="260" text-anchor="middle">Manages artifacts</text>
   <text class="t" x="675" y="282" text-anchor="middle">Selects execution</text>
   <text class="t" x="675" y="304" text-anchor="middle">modes/resources</text>

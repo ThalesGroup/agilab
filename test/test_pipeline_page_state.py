@@ -24,7 +24,7 @@ def _deps(**overrides: Any):
         is_displayable_step=lambda entry: bool(entry.get("Q") or entry.get("C")),
         is_runnable_step=lambda entry: bool(str(entry.get("C") or "").strip()),
         step_summary=lambda entry: str(entry.get("Q") or entry.get("C") or ""),
-        step_label=lambda idx, entry: f"Step {idx + 1}: {entry.get('Q') or 'code'}",
+        step_label=lambda idx, entry: f"Stage {idx + 1}: {entry.get('Q') or 'code'}",
         find_legacy_agi_run_steps=lambda _steps, _sequence: [],
         inspect_pipeline_run_lock=None,
     )
@@ -59,7 +59,7 @@ def test_pipeline_page_state_keeps_visible_steps_when_logs_are_missing_or_cleare
 
     assert result.status is pipeline_page_state.PipelineCommandStatus.SUCCESS
     assert state_without_logs.selected_lab == "mission_lab"
-    assert state_without_logs.visible_steps[0].label == "Step 1: generate trajectories"
+    assert state_without_logs.visible_steps[0].label == "Stage 1: generate trajectories"
     assert state_after_clear.visible_steps == state_without_logs.visible_steps
     assert state_after_clear.run_logs == ()
     assert state_after_clear.can_run is True
@@ -85,8 +85,8 @@ def test_pipeline_page_state_derives_blocked_actions_for_empty_and_stale_labs(tm
     assert pipeline_page_state.PipelineAction.RUN_PIPELINE not in empty_state.available_actions
     assert pipeline_page_state.PipelineAction.DELETE_STEP not in empty_state.available_actions
     assert pipeline_page_state.PipelineAction.DELETE_ALL not in empty_state.available_actions
-    assert "No visible workflow steps" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
-    assert "No workflow step" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.DELETE_STEP]
+    assert "No visible workflow stages" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.RUN_PIPELINE]
+    assert "No workflow stage" in empty_state.blocked_actions[pipeline_page_state.PipelineAction.DELETE_STEP]
 
     stale_state = pipeline_page_state.build_pipeline_page_state(
         index_page="demo",
@@ -145,7 +145,7 @@ def test_start_pipeline_run_command_refuses_blocked_actions_without_side_effects
     )
 
     assert result.status is pipeline_page_state.PipelineCommandStatus.REFUSED
-    assert "No visible workflow steps" in result.message
+    assert "No visible workflow stages" in result.message
     assert session_state == {}
     assert calls == []
 
@@ -315,7 +315,7 @@ def test_pipeline_page_state_refuses_stale_legacy_snippets_before_runtime(tmp_pa
     assert state.can_force_run is False
     assert state.stale_step_refs == (stale_ref,)
     assert "stale AGI.run snippets" in state.run_disabled_reason
-    assert "step 1, line 4" in state.run_disabled_reason
+    assert "stage 1, line 4" in state.run_disabled_reason
 
 
 def test_pipeline_page_state_active_lock_disables_normal_run_but_allows_force_recovery(tmp_path):
@@ -411,7 +411,7 @@ def test_delete_pipeline_step_command_preserves_snapshot_and_logs(tmp_path):
     assert removed == [(tmp_path / "lab", "0", tmp_path / "lab_steps.toml", "demo")]
     assert session_state["demo__run_logs"] == ["keep me"]
     undo_snapshot = session_state["demo__undo_delete_snapshot"]
-    assert undo_snapshot["label"] == "remove step 1"
+    assert undo_snapshot["label"] == "remove stage 1"
     assert undo_snapshot["timestamp"] == "2026-04-29T08:00:00"
     assert undo_snapshot["steps"] == steps
 

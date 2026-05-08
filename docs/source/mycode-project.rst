@@ -41,7 +41,7 @@ Worker (`mycode_worker.mycode_worker`)
 - Skeleton worker that demonstrates the lifecycle hooks (``start``,
   ``work_init``, ``run``) required by the distributor.
 - Includes placeholder logic for dataset loading and result persistence—replace
-  with your domain-specific processing steps.
+  with your domain-specific processing stages.
 
 Reducer contract status
 -----------------------

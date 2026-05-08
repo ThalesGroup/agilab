@@ -128,7 +128,7 @@ The five words you need
 
 - **PROJECT**: where you choose the app you want to run.
 - **ORCHESTRATE**: where you install and execute it.
-- **WORKFLOW**: where you inspect, generate, or replay run steps.
+- **WORKFLOW**: where you inspect, generate, or replay run stages.
 - **ANALYSIS**: where you look at the result.
 - **Worker**: the isolated runtime that actually executes the app.
 

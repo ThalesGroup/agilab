@@ -8,7 +8,7 @@ usual workflow is UI-driven rather than handwritten.
 
    You usually do not write ``AGI.install(...)`` or ``AGI.run(...)`` by hand.
    Configure the cluster in **ORCHESTRATE**, let AGILAB generate the snippet,
-   then import or regenerate that generated step in **WORKFLOW**.
+   then import or regenerate that generated stage in **WORKFLOW**.
 
 For most users, the recommended sequence is:
 
@@ -16,7 +16,7 @@ For most users, the recommended sequence is:
 2. Let **ORCHESTRATE** generate the ``AGI.install(...)``,
    ``AGI.get_distrib(...)``, or ``AGI.run(...)`` snippet for the current setup.
 3. Reuse that generated snippet in :doc:`experiment-help` when you want the
-   distributed run to become a reproducible pipeline step.
+   distributed run to become a reproducible pipeline stage.
 
 You normally do not start by writing cluster orchestration code from scratch.
 
@@ -25,7 +25,7 @@ You normally do not start by writing cluster orchestration code from scratch.
    :align: center
    :class: diagram-panel diagram-wide
 
-   The supported workflow is configure in ORCHESTRATE, generate the snippet there, then reuse that generated step in WORKFLOW.
+   The supported workflow is configure in ORCHESTRATE, generate the snippet there, then reuse that generated stage in WORKFLOW.
 
 Prerequisites
 -------------
@@ -63,8 +63,8 @@ Before configuring distributed workers, make sure the environment is ready:
 Use :doc:`key-generation`, :doc:`environment`, and :doc:`troubleshooting` if
 any of those assumptions are not already true.
 
-Step 1: Configure Distributed Execution in ORCHESTRATE
-------------------------------------------------------
+Stage 1: Configure Distributed Execution in ORCHESTRATE
+-------------------------------------------------------
 
 Open :doc:`execute-help` and use **System settings** as the source of truth for
 cluster execution.
@@ -100,8 +100,8 @@ workspace.
 
    ORCHESTRATE is where you define worker settings and generate the snippets used for install, distribution, and run.
 
-Step 2: Let ORCHESTRATE Generate the Snippet
---------------------------------------------
+Stage 2: Let ORCHESTRATE Generate the Snippet
+---------------------------------------------
 
 Once the distributed settings are configured, ORCHESTRATE generates the
 deployment and execution code for you.
@@ -182,8 +182,8 @@ Use this short checklist the first time:
 3. Use **CHECK DISTRIBUTE** to inspect the generated ``AGI.get_distrib(...)``
    plan and confirm the partitions land on the intended workers.
 4. Use **RUN** to generate the current ``AGI.run(...)`` snippet for that setup.
-5. In **WORKFLOW**, open **Add step** or **New step**, then import or regenerate
-   that generated run step instead of rewriting it manually.
+5. In **WORKFLOW**, open **Add stage** or **New stage**, then import or regenerate
+   that generated run stage instead of rewriting it manually.
 
 Equivalent Generated Snippets
 -----------------------------
@@ -246,8 +246,8 @@ distributed ``AGI.run(...)`` snippet typically looks like this:
 In normal usage, you get this from ORCHESTRATE after setting the scheduler and
 worker hosts in the UI.
 
-Step 3: Validate the Distribution Before Running
-------------------------------------------------
+Stage 3: Validate the Distribution Before Running
+-------------------------------------------------
 
 Before launching a large distributed run, use **CHECK DISTRIBUTE** in
 ORCHESTRATE.
@@ -258,14 +258,14 @@ This gives you:
 - a **Distribution tree** view of the current work plan
 - the **Workplan** editor so you can reassign partitions to different workers
 
-This step is the fastest way to catch obvious mismatches such as:
+This stage is the fastest way to catch obvious mismatches such as:
 
 - too many partitions for the selected workers
 - all partitions being assigned to one host
 - cluster settings changed in the UI but an old run snippet still being reused
 
-Step 4: Reuse the Generated Snippet in WORKFLOW
------------------------------------------------
+Stage 4: Reuse the Generated Snippet in WORKFLOW
+------------------------------------------------
 
 When the distributed run should become part of a repeatable workflow, move to
 :doc:`experiment-help`.
@@ -273,10 +273,10 @@ When the distributed run should become part of a repeatable workflow, move to
 The normal reuse path is:
 
 1. Generate the install / distribute / run snippet in ORCHESTRATE.
-2. On **WORKFLOW**, open **Add step** (or **New step** on a fresh lab).
-3. Import the generated snippet as the step source, or regenerate it from the
+2. On **WORKFLOW**, open **Add stage** (or **New stage** on a fresh lab).
+3. Import the generated snippet as the stage source, or regenerate it from the
    latest current settings.
-4. Run the imported step from WORKFLOW so the distributed orchestration becomes
+4. Run the imported stage from WORKFLOW so the distributed orchestration becomes
    part of ``lab_steps.toml`` and the tracked experiment history.
 
 Important: imported snippets are snapshots. If you change worker hosts,
@@ -284,11 +284,11 @@ execution flags, or app arguments in ORCHESTRATE, regenerate or re-import the
 snippet before running it again in WORKFLOW.
 
 .. figure:: _static/page-shots/workflow-page.png
-   :alt: Screenshot of the WORKFLOW page showing the lab-step workspace where generated snippets are imported and rerun.
+   :alt: Screenshot of the WORKFLOW page showing the lab-stage workspace where generated snippets are imported and rerun.
    :align: center
    :class: diagram-panel diagram-wide
 
-   WORKFLOW is where the generated distributed snippet becomes a tracked, reusable step in ``lab_steps.toml``.
+   WORKFLOW is where the generated distributed snippet becomes a tracked, reusable stage in ``lab_steps.toml``.
 
 Best Practices
 --------------

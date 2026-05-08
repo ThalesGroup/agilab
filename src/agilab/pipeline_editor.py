@@ -160,7 +160,7 @@ def _emit_notebook_preflight_result(
     error_count = int(risk_counts.get("error", 0) or 0)
     message = (
         f"Notebook import preflight: {status}; "
-        f"{int(summary.get('pipeline_step_count', 0) or 0)} step(s), "
+        f"{int(summary.get('pipeline_step_count', 0) or 0)} stage(s), "
         f"{int(summary.get('input_count', 0) or 0)} input(s), "
         f"{int(summary.get('output_count', 0) or 0)} output(s). "
         f"Contract: {contract_path.name}"
@@ -290,7 +290,7 @@ def is_query_valid(query: Any) -> bool:
 
 
 def get_steps_list(module: Path, steps_file: Path) -> List[Any]:
-    """Get the list of steps for a module from a TOML file."""
+    """Get the list of stages for a module from a TOML file."""
     module_path = Path(module)
     try:
         with open(steps_file, "rb") as f:
@@ -306,7 +306,7 @@ def get_steps_list(module: Path, steps_file: Path) -> List[Any]:
 
 
 def get_steps_dict(module: Path, steps_file: Path) -> Dict[str, Any]:
-    """Get the steps dictionary from a TOML file."""
+    """Get the stages dictionary from a TOML file."""
     module_path = Path(module)
     try:
         with open(steps_file, "rb") as f:
@@ -328,7 +328,7 @@ def remove_step(
     steps_file: Path,
     index_page: str,
 ) -> int:
-    """Remove a step from the steps file."""
+    """Remove a stage from the lab_steps compatibility file."""
     module_path = Path(module)
     steps = get_steps_dict(module_path, steps_file)
     module_keys = _module_keys(module_path)
@@ -397,7 +397,7 @@ def remove_step(
         with open(steps_file, "wb") as f:
             tomli_w.dump(serializable_steps, f)
     except (OSError, TypeError, ValueError) as e:
-        st.error(f"Failed to save steps file: {e}")
+        st.error(f"Failed to save stage contract: {e}")
         logger.error(
             "Error writing TOML in remove_step: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
@@ -408,7 +408,7 @@ def remove_step(
 
 
 def _normalize_pipeline_step_entry(raw_entry: Any) -> Dict[str, Any] | None:
-    """Normalize core editor fields while preserving versioned step metadata."""
+    """Normalize core editor fields while preserving versioned stage metadata."""
     if not isinstance(raw_entry, dict):
         return None
 
@@ -431,7 +431,7 @@ def _write_steps_for_module(
     steps_file: Path,
     module_steps: List[Dict[str, Any]],
 ) -> int:
-    """Overwrite the module step list in ``steps_file`` and refresh notebook export."""
+    """Overwrite the module stage list in ``steps_file`` and refresh notebook export."""
     module_path = Path(module)
     steps = get_steps_dict(module_path, steps_file)
     module_key = _module_keys(module_path)[0]
@@ -523,7 +523,7 @@ def _capture_pipeline_snapshot(index_page: str, steps: List[Dict[str, Any]]) -> 
 
 
 def _reset_pipeline_editor_state(index_page: str) -> None:
-    """Drop per-step widget keys so restored snapshots reseed editor state from disk."""
+    """Drop per-stage widget keys so restored snapshots reseed editor state from disk."""
     safe_prefix = index_page.replace("/", "_")
     key_prefixes = (
         f"{safe_prefix}_q_step_",
@@ -550,7 +550,7 @@ def _restore_pipeline_snapshot(
     sequence_widget_key: str,
     snapshot: Dict[str, Any],
 ) -> Optional[str]:
-    """Restore steps and UI state from a previously captured snapshot."""
+    """Restore stages and UI state from a previously captured snapshot."""
     try:
         steps_snapshot = snapshot.get("steps", [])
         if not isinstance(steps_snapshot, list):
@@ -698,7 +698,7 @@ def toml_to_notebook(
     toml_path: Path,
     export_context: Any | None = None,
 ) -> None:
-    """Convert TOML steps data to a Jupyter notebook file."""
+    """Convert TOML stage data to a Jupyter notebook file."""
     notebook_data = build_notebook_document(toml_data, toml_path, export_context=export_context)
     notebook_path = toml_path.with_suffix(".ipynb")
     try:
@@ -732,7 +732,7 @@ def save_query(
     steps_file: Path,
     index_page: str,
 ) -> None:
-    """Save the query to the steps file if valid."""
+    """Save the query to the stage contract if valid."""
     module_path = Path(module)
     if is_query_valid(query):
         venv_map = st.session_state.get(f"{index_page}__venv_map", {})
@@ -761,7 +761,7 @@ def save_step(
     engine_map: Optional[Dict[int, str]] = None,
     extra_fields: Optional[Dict[str, Any]] = None,
 ) -> Tuple[int, Dict[str, Any]]:
-    """Save a step in the steps file."""
+    """Save a stage in the lab_steps compatibility file."""
     st.session_state["_experiment_last_save_skipped"] = False
     module_path = Path(module)
     # Normalize types
@@ -863,7 +863,7 @@ def save_step(
         with open(steps_file, "wb") as f:
             tomli_w.dump(serializable_steps, f)
     except (OSError, TypeError, ValueError) as e:
-        st.error(f"Failed to save steps file: {e}")
+        st.error(f"Failed to save stage contract: {e}")
         logger.error(
             "Error writing TOML in save_step: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
@@ -900,7 +900,7 @@ def _force_persist_step(
             tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(steps)), f)
     except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
         logger.error(
-            "Force persist failed for step %s -> %s: %s",
+            "Force persist failed for stage %s -> %s: %s",
             step_idx,
             bound_log_value(steps_file, LOG_PATH_LIMIT),
             bound_log_value(exc, LOG_DETAIL_LIMIT),
@@ -954,7 +954,7 @@ def on_preview_notebook_import(
         "info",
         (
             "Notebook import preview ready: "
-            f"{int(summary.get('pipeline_step_count', 0) or 0)} step(s), "
+            f"{int(summary.get('pipeline_step_count', 0) or 0)} stage(s), "
             f"{int(summary.get('input_count', 0) or 0)} input(s), "
             f"{int(summary.get('output_count', 0) or 0)} output(s)."
         ),
@@ -1016,7 +1016,7 @@ def render_notebook_import_preview(
     if callable(caption):
         caption(
             "Notebook preview: "
-            f"{int(summary.get('pipeline_step_count', 0) or 0)} step(s), "
+            f"{int(summary.get('pipeline_step_count', 0) or 0)} stage(s), "
             f"{int(summary.get('input_count', 0) or 0)} input(s), "
             f"{int(summary.get('output_count', 0) or 0)} output(s), "
             f"{int(risk_counts.get('warning', 0) or 0)} warning(s)."
@@ -1034,7 +1034,7 @@ def refresh_notebook_export(
     steps_file: Path,
     export_context: Any | None = None,
 ) -> Path | None:
-    """Rebuild the notebook export for a given steps file and return its path."""
+    """Rebuild the notebook export for a given stage contract and return its path."""
     if not steps_file.exists():
         return None
     try:
@@ -1045,7 +1045,7 @@ def refresh_notebook_export(
             "error",
             f"Unable to export notebook: failed to load {steps_file}: {exc}",
         )
-        logger.error("Unable to load steps file %s for notebook export: %s", steps_file, exc)
+        logger.error("Unable to load stage contract %s for notebook export: %s", steps_file, exc)
         return None
     toml_to_notebook(steps, steps_file, export_context=export_context)
     return steps_file.with_suffix(".ipynb")
@@ -1080,7 +1080,7 @@ def on_import_notebook(
     st.session_state.page_broken = True
 
 def display_history_tab(steps_file: Path, module_path: Path) -> None:
-    """Display the HISTORY tab with code editor for steps file."""
+    """Display the HISTORY tab with code editor for the stage contract."""
     if steps_file.exists():
         with open(steps_file, "rb") as f:
             raw_data = tomllib.load(f)
@@ -1117,8 +1117,8 @@ def display_history_tab(steps_file: Path, module_path: Path) -> None:
                 tomli_w.dump(convert_paths_to_strings(_prepare_lab_steps_for_write(cleaned)), f)
             _bump_history_revision()
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
-            st.error(f"Failed to save steps file from editor: {e}")
+            st.error(f"Failed to save stage contract from editor: {e}")
             logger.error(
-                "Error saving steps file from editor: %s",
+                "Error saving stage contract from editor: %s",
                 bound_log_value(e, LOG_DETAIL_LIMIT),
             )

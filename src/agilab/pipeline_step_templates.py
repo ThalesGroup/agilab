@@ -1,4 +1,4 @@
-"""Typed registry for generic Pipeline step templates."""
+"""Typed registry for generic Pipeline stage templates."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ PIPELINE_STEP_TEMPLATE_VERSION_KEY = "template_version"
 
 
 class PipelineStepTemplateStatus(StrEnum):
-    """Template classification for a saved Pipeline step."""
+    """Template classification for a saved Pipeline stage."""
 
     CURRENT = "current"
     STALE = "stale"
@@ -23,7 +23,7 @@ class PipelineStepTemplateStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class PipelineStepTemplate:
-    """Resolved metadata and default code for one generic Pipeline step."""
+    """Resolved metadata and default code for one generic Pipeline stage."""
 
     template_id: str
     title: str
@@ -39,10 +39,10 @@ class PipelineStepTemplate:
     def __post_init__(self) -> None:
         normalized_id = _normalize_template_id(self.template_id)
         if not normalized_id:
-            raise ValueError("Pipeline step template id cannot be empty.")
+            raise ValueError("Pipeline stage template id cannot be empty.")
         normalized_version = _coerce_version(self.version)
         if normalized_version is None or normalized_version < 1:
-            raise ValueError("Pipeline step template version must be a positive integer.")
+            raise ValueError("Pipeline stage template version must be a positive integer.")
         object.__setattr__(self, "template_id", normalized_id)
         object.__setattr__(self, "title", str(self.title).strip())
         object.__setattr__(self, "question", str(self.question).strip())
@@ -54,7 +54,7 @@ class PipelineStepTemplate:
         object.__setattr__(self, "tags", tuple(str(tag).strip() for tag in self.tags if str(tag).strip()))
 
     def saved_step(self, **overrides: Any) -> dict[str, Any]:
-        """Return a lab_steps-compatible dictionary for this template."""
+        """Return a lab_steps-compatible stage dictionary for this template."""
 
         step: dict[str, Any] = {
             "D": self.description or self.title,
@@ -85,7 +85,7 @@ class PipelineStepTemplate:
 
 @dataclass(frozen=True, slots=True)
 class PipelineStepTemplateClassification:
-    """Version check result for one saved Pipeline step."""
+    """Version check result for one saved Pipeline stage."""
 
     status: PipelineStepTemplateStatus
     template_id: str = ""
@@ -106,7 +106,7 @@ class PipelineStepTemplateClassification:
 
 
 class PipelineStepTemplateRegistry:
-    """Immutable registry for resolving generic Pipeline step templates."""
+    """Immutable registry for resolving generic Pipeline stage templates."""
 
     def __init__(self, templates: Iterable[PipelineStepTemplate] = ()) -> None:
         self._templates = tuple(
@@ -127,7 +127,7 @@ class PipelineStepTemplateRegistry:
             existing = lookup.get(key)
             if existing is not None:
                 raise ValueError(
-                    f"Duplicate Pipeline step template {template.template_id!r}: "
+                    f"Duplicate Pipeline stage template {template.template_id!r}: "
                     f"versions {existing.version} and {template.version}"
                 )
             lookup[key] = template
@@ -165,7 +165,7 @@ class PipelineStepTemplateRegistry:
         if template is not None:
             return template
         available = ", ".join(self.ids()) or "<empty>"
-        raise KeyError(f"Unknown Pipeline step template {template_id!r}. Available templates: {available}")
+        raise KeyError(f"Unknown Pipeline stage template {template_id!r}. Available templates: {available}")
 
     def select(self, template_ids: Sequence[str]) -> tuple[PipelineStepTemplate, ...]:
         """Return templates by id, preserving input order and removing duplicates."""
@@ -184,12 +184,12 @@ class PipelineStepTemplateRegistry:
         return tuple(selected)
 
     def saved_step(self, template_id: str, **overrides: Any) -> dict[str, Any]:
-        """Return a lab_steps-compatible dictionary for a registered template."""
+        """Return a lab_steps-compatible stage dictionary for a registered template."""
 
         return self.require(template_id).saved_step(**overrides)
 
     def classify_step(self, entry: Mapping[str, Any] | Any) -> PipelineStepTemplateClassification:
-        """Classify a saved step as raw Python, current template, or stale template."""
+        """Classify a saved stage as raw Python, current template, or stale template."""
 
         return classify_pipeline_step_template(entry, registry=self)
 
@@ -200,13 +200,13 @@ class PipelineStepTemplateRegistry:
 
 
 def default_pipeline_step_templates() -> tuple[PipelineStepTemplate, ...]:
-    """Return built-in generic step templates."""
+    """Return built-in generic stage templates."""
 
     return (
         PipelineStepTemplate(
             template_id="generic.configure",
             title="Configure Pipeline Inputs",
-            description="Define app, input, output, and runtime parameters for a Pipeline step.",
+            description="Define app, input, output, and runtime parameters for a Pipeline stage.",
             question="Configure the app inputs and runtime values for this Pipeline stage.",
             code=(
                 "APP = 'your_project'\n"
@@ -248,14 +248,14 @@ def classify_pipeline_step_template(
     *,
     registry: PipelineStepTemplateRegistry | None = None,
 ) -> PipelineStepTemplateClassification:
-    """Classify a saved Pipeline step against the current template registry."""
+    """Classify a saved Pipeline stage against the current template registry."""
 
     registry = registry or DEFAULT_PIPELINE_STEP_TEMPLATE_REGISTRY
 
     if not isinstance(entry, Mapping):
         return PipelineStepTemplateClassification(
             status=PipelineStepTemplateStatus.RAW_PYTHON,
-            reason="step is not a mapping",
+            reason="stage is not a mapping",
         )
 
     template_id = _normalize_template_id(entry.get(PIPELINE_STEP_TEMPLATE_ID_KEY, ""))
@@ -310,7 +310,7 @@ def is_current_template_step(
     *,
     registry: PipelineStepTemplateRegistry | None = None,
 ) -> bool:
-    """Return True when a saved step references the current template version."""
+    """Return True when a saved stage references the current template version."""
 
     return classify_pipeline_step_template(entry, registry=registry).status is PipelineStepTemplateStatus.CURRENT
 
@@ -320,7 +320,7 @@ def is_stale_template_step(
     *,
     registry: PipelineStepTemplateRegistry | None = None,
 ) -> bool:
-    """Return True when a saved step has template metadata that needs review."""
+    """Return True when a saved stage has template metadata that needs review."""
 
     return classify_pipeline_step_template(entry, registry=registry).status is PipelineStepTemplateStatus.STALE
 
@@ -330,7 +330,7 @@ def is_raw_python_step(
     *,
     registry: PipelineStepTemplateRegistry | None = None,
 ) -> bool:
-    """Return True when a saved step has no template metadata."""
+    """Return True when a saved stage has no template metadata."""
 
     return classify_pipeline_step_template(entry, registry=registry).status is PipelineStepTemplateStatus.RAW_PYTHON
 
@@ -338,7 +338,7 @@ def is_raw_python_step(
 def pipeline_step_template_rows(
     registry: PipelineStepTemplateRegistry | None = None,
 ) -> list[dict[str, str]]:
-    """Return deterministic rows for the available Pipeline step templates."""
+    """Return deterministic rows for the available Pipeline stage templates."""
 
     return (registry or DEFAULT_PIPELINE_STEP_TEMPLATE_REGISTRY).as_rows()
 
@@ -348,7 +348,7 @@ def pipeline_step_classification_rows(
     *,
     registry: PipelineStepTemplateRegistry | None = None,
 ) -> list[dict[str, str]]:
-    """Return deterministic classification rows for saved steps in input order."""
+    """Return deterministic classification rows for saved stages in input order."""
 
     rows: list[dict[str, str]] = []
     for index, entry in enumerate(entries):

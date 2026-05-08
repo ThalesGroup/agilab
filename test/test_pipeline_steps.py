@@ -234,7 +234,7 @@ def test_step_label_for_multiselect_includes_project_name_from_runtime(monkeypat
 
     label = pipeline_steps.step_label_for_multiselect(2, entry, env=env)
 
-    assert label == "Step 3: [network_sim_project] Build topology and demands"
+    assert label == "Stage 3: [network_sim_project] Build topology and demands"
 
 
 def test_prune_invalid_entries_keeps_requested_index():
@@ -437,7 +437,7 @@ def test_step_helpers_and_runtime_reference_edge_cases(monkeypatch):
     fake_st = SimpleNamespace(session_state={})
     monkeypatch.setattr(pipeline_steps, "st", fake_st)
 
-    assert pipeline_steps.step_label_for_multiselect(0, None) == "Step 1"
+    assert pipeline_steps.step_label_for_multiselect(0, None) == "Stage 1"
 
     monkeypatch.setattr(pipeline_steps, "normalize_runtime_path", lambda *_args, **_kwargs: "/")
     assert pipeline_steps.step_project_name({"E": "ignored"}) == ""
@@ -477,7 +477,7 @@ def test_pipeline_steps_cover_runtime_name_and_hidden_entry_edges(monkeypatch, t
 
     monkeypatch.setattr(pipeline_steps, "normalize_runtime_path", lambda *_args, **_kwargs: BrokenRuntime())
     assert pipeline_steps.step_project_name({"E": "ignored"}) == "demo_project"
-    assert pipeline_steps.step_label_for_multiselect(0, {"E": "ignored"}) == "Step 1: [demo_project]"
+    assert pipeline_steps.step_label_for_multiselect(0, {"E": "ignored"}) == "Stage 1: [demo_project]"
     assert pipeline_steps.is_displayable_step({}) is False
 
 
@@ -654,7 +654,7 @@ def test_persist_sequence_preferences_and_venv_helpers_cover_failures(monkeypatc
     bad_steps = tmp_path / "bad-sequence-write.toml"
     bad_steps.write_text("[", encoding="utf-8")
     pipeline_steps.persist_sequence_preferences(tmp_path / "flight_project", bad_steps, [1, 2, 3])
-    assert any("Failed to load steps while saving sequence metadata" in message for message in errors)
+    assert any("Failed to load stages while saving sequence metadata" in message for message in errors)
 
     errors.clear()
     monkeypatch.setattr(pipeline_steps.tomli_w, "dump", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("persist boom")))
@@ -690,7 +690,7 @@ def test_pipeline_steps_helper_utilities_cover_runtime_and_summary_branches(monk
     }
     assert pipeline_steps.step_summary({"Q": "   long   question text   "}, width=20) == "long question text"
     assert pipeline_steps.step_summary({"C": "print('hello world')\nprint('again')"}, width=18) == "print('hello…"
-    assert pipeline_steps.step_button_label(1, 7, {"Q": ""}) == "2. Step 8"
+    assert pipeline_steps.step_button_label(1, 7, {"Q": ""}) == "2. Stage 8"
     assert pipeline_steps.looks_like_runtime_reference("/tmp/demo") is True
     assert pipeline_steps.looks_like_runtime_reference("demo_project") is True
     assert pipeline_steps.looks_like_runtime_reference("not a runtime") is False
@@ -785,7 +785,7 @@ def test_step_helper_labels_and_runtime_reference_flags():
 
     assert pipeline_steps.step_summary(entry, width=18) == "Build topology…"
     assert pipeline_steps.step_button_label(2, 4, entry) == "3. Build topology and demands"
-    assert pipeline_steps.step_button_label(0, 2, {}) == "1. Step 3"
+    assert pipeline_steps.step_button_label(0, 2, {}) == "1. Stage 3"
     assert pipeline_steps.looks_like_runtime_reference("demo_project") is True
     assert pipeline_steps.looks_like_runtime_reference("just words here") is False
     assert pipeline_steps.is_displayable_step({"Q": "go"}) is True

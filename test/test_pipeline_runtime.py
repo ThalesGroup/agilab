@@ -1534,9 +1534,9 @@ def test_run_locked_step_runpy_executes_and_logs(tmp_path, monkeypatch):
     )
 
     assert fake_streamlit.session_state["page__run_logs"] == []
-    assert any("Run step 1 started" in line for line in logs)
-    assert any('Step 1: engine=runpy, env=default env, summary="summary"' in line for line in logs)
-    assert any("Output (step 1):\nrunpy output" in line for line in logs)
+    assert any("Run stage 1 started" in line for line in logs)
+    assert any('Stage 1: engine=runpy, env=default env, summary="summary"' in line for line in logs)
+    assert any("Output (stage 1):\nrunpy output" in line for line in logs)
     assert "ARTIFACTS" in logs
     assert released == ["lock"]
 
@@ -1713,7 +1713,7 @@ def test_run_locked_step_covers_runtime_fallbacks_empty_output_and_export_target
     )
 
     assert any("unable to prepare log file: log unavailable" in line for line in logs)
-    assert any('Step 1: engine=agi.run, env=runtime env, summary="summary"' in line for line in logs)
+    assert any('Stage 1: engine=agi.run, env=runtime env, summary="summary"' in line for line in logs)
     assert artifact_calls and str(export_file) in artifact_calls[0]["file_artifacts"]
     assert released == ["lock"]
 
@@ -1887,7 +1887,7 @@ def test_run_locked_step_runpy_empty_output_logs_message_and_export_target(tmp_p
         step_summary=lambda *_args, **_kwargs: "summary",
     )
 
-    assert any("Output (step 1): runpy executed (no captured stdout)" in line for line in logs)
+    assert any("Output (stage 1): runpy executed (no captured stdout)" in line for line in logs)
     assert artifact_calls and str(export_file) in artifact_calls[0]["file_artifacts"]
 
 
@@ -1961,6 +1961,6 @@ def test_run_locked_step_agi_run_executes_script_and_logs(tmp_path, monkeypatch)
     assert stream_calls[0]["cwd"] == steps_file.parent.resolve()
     assert stream_calls[0]["extra_env"] == {"MLFLOW_RUN_ID": "run-456", "EXTRA": "1"}
     assert any("engine=agi.run, env=runtime env" in line for line in logs)
-    assert any("Output (step 1):\nscript output" in line for line in logs)
+    assert any("Output (stage 1):\nscript output" in line for line in logs)
     assert "ARTIFACTS" in logs
     assert releases == ["lock"]

@@ -70,7 +70,7 @@ def _mlflow_parent_payload(
     }
     params = {
         "sequence": ",".join(str(idx + 1) for idx in sequence),
-        "step_count": len(sequence),
+        "stage_count": len(sequence),
     }
     text_artifacts = {
         "pipeline_metadata/sequence.json": json.dumps(
@@ -97,13 +97,13 @@ def _mlflow_step_payload(
     runtime_root: str,
 ) -> tuple[str, Dict[str, Any], Dict[str, Any], Dict[str, str]]:
     summary = _pipeline_steps.step_summary(entry, width=80)
-    run_name = f"{env.app or 'agilab'}:{lab_dir.name}:step_{step_index + 1}"
+    run_name = f"{env.app or 'agilab'}:{lab_dir.name}:stage_{step_index + 1}"
     tags = {
-        "agilab.component": "pipeline-step",
+        "agilab.component": "pipeline-stage",
         "agilab.app": str(getattr(env, "app", "") or ""),
         "agilab.lab": lab_dir.name,
         "agilab.steps_file": str(steps_file),
-        "agilab.step_index": step_index + 1,
+        "agilab.stage_index": step_index + 1,
         "agilab.engine": engine,
         "agilab.runtime": runtime_root or "",
         "agilab.summary": summary,
@@ -116,9 +116,9 @@ def _mlflow_step_payload(
         "engine": engine,
     }
     text_artifacts = {
-        f"step_{step_index + 1}/step_entry.json": json.dumps(
+        f"stage_{step_index + 1}/stage_entry.json": json.dumps(
             {
-                "step_index": step_index + 1,
+                "stage_index": step_index + 1,
                 "summary": summary,
                 "entry": entry,
             },
@@ -459,7 +459,7 @@ def _format_legacy_step_refs(stale_steps: List[Dict[str, Any]]) -> str:
         line = item.get("line", "?")
         summary = str(item.get("summary") or "").strip()
         project = str(item.get("project") or "").strip()
-        label = f"step {step}, line {line}"
+        label = f"stage {step}, line {line}"
         if project:
             label += f", {project}"
         if summary:
@@ -484,10 +484,10 @@ def _abort_if_legacy_agi_run_steps(
 
     detail = _format_legacy_step_refs(stale_steps)
     message = (
-        "Run pipeline aborted before execution: the selected lab steps contain old "
+        "Run workflow aborted before execution: the selected stages contain old "
         "AGI.run snippets that call the removed keyword API instead of RunRequest. "
         f"{stale_snippet_cleanup_message([steps_file])} "
-        f"Affected step(s): {detail}."
+        f"Affected stage(s): {detail}."
     )
     st.error(message)
     _push_run_log(index_page, message, placeholder)
@@ -506,14 +506,14 @@ def run_all_steps(
     log_placeholder: Optional[Any] = None,
     force_lock_clear: bool = False,
 ) -> None:
-    """Execute all steps sequentially, honouring per-step virtual environments."""
+    """Execute all stages sequentially, honouring per-stage virtual environments."""
     if log_placeholder is None:
         log_placeholder = _get_run_placeholder(index_page_str)
     _push_run_log(index_page_str, "Run pipeline invoked.", log_placeholder)
     steps = load_all_steps_fn(module_path, steps_file, index_page_str) or []
     if not steps:
-        st.info(f"No steps available to run from {steps_file}.")
-        _push_run_log(index_page_str, "Run pipeline aborted: no steps available.", log_placeholder)
+        st.info(f"No stages available to run from {steps_file}.")
+        _push_run_log(index_page_str, "Run workflow aborted: no stages available.", log_placeholder)
         return
 
     selected_map = st.session_state.setdefault(f"{index_page_str}__venv_map", {})
@@ -568,14 +568,14 @@ def run_all_steps(
                     text_artifacts=parent_text_artifacts,
                     file_artifacts=[steps_file],
                 )
-            with st.spinner("Running all steps…"):
+            with st.spinner("Running all stages…"):
                 for idx in sequence:
                     _refresh_pipeline_run_lock(lock_handle)
                     entry = steps[idx]
                     code = entry.get("C", "")
                     if not _pipeline_steps.is_runnable_step(entry):
                         continue
-                    _push_run_log(index_page_str, f"Running step {idx + 1}…", log_placeholder)
+                    _push_run_log(index_page_str, f"Running stage {idx + 1}…", log_placeholder)
 
                     raw_runtime = _pipeline_steps.normalize_runtime_path(entry.get("E", ""))
                     venv_path = (
@@ -678,21 +678,21 @@ def run_all_steps(
                         if preview:
                             _push_run_log(
                                 index_page_str,
-                                f"Output (step {idx + 1}):\n{preview}",
+                                f"Output (stage {idx + 1}):\n{preview}",
                                 log_placeholder,
                             )
                             if "No such file or directory" in preview:
                                 _push_run_log(
                                     index_page_str,
-                                    "Hint: for AGI app steps, input/output data is normally resolved under "
-                                    "agi_env.AGI_CLUSTER_SHARE. Check whether the upstream step created the "
-                                    "expected file there before this step ran.",
+                                    "Hint: for AGI app stages, input/output data is normally resolved under "
+                                    "agi_env.AGI_CLUSTER_SHARE. Check whether the upstream stage created the "
+                                    "expected file there before this stage ran.",
                                     log_placeholder,
                                 )
                         else:
                             _push_run_log(
                                 index_page_str,
-                                f"Output (step {idx + 1}): {engine} executed (no captured stdout)",
+                                f"Output (stage {idx + 1}): {engine} executed (no captured stdout)",
                                 log_placeholder,
                             )
 
@@ -708,7 +708,7 @@ def run_all_steps(
                         )
                         _push_run_log(
                             index_page_str,
-                            f"Step {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
+                            f"Stage {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
                             log_placeholder,
                         )
                         if step_tracker:
@@ -716,7 +716,7 @@ def run_all_steps(
                             if export_target:
                                 step_files.append(export_target)
                             step_tracker.log_artifacts(
-                                text_artifacts={f"step_{idx + 1}/stdout.txt": preview or ""},
+                                text_artifacts={f"stage_{idx + 1}/stdout.txt": preview or ""},
                                 file_artifacts=step_files,
                                 tags={
                                     "agilab.status": "completed",
@@ -728,15 +728,15 @@ def run_all_steps(
                 pipeline_tracker.log_artifacts(
                     file_artifacts=[pipeline_log_artifact] if pipeline_log_artifact else [],
                     tags={"agilab.status": "completed"},
-                    metrics={"executed_steps": executed},
+                    metrics={"executed_stages": executed},
                 )
 
         if executed:
-            st.success(f"Executed {executed} step{'s' if executed != 1 else ''}.")
-            _push_run_log(index_page_str, f"Run pipeline completed: {executed} step(s) executed.", log_placeholder)
+            st.success(f"Executed {executed} stage{'s' if executed != 1 else ''}.")
+            _push_run_log(index_page_str, f"Run workflow completed: {executed} stage(s) executed.", log_placeholder)
         else:
-            st.info("No runnable code found in the steps.")
-            _push_run_log(index_page_str, "Run pipeline completed: no runnable code found.", log_placeholder)
+            st.info("No runnable code found in the stages.")
+            _push_run_log(index_page_str, "Run workflow completed: no runnable code found.", log_placeholder)
     finally:
         st.session_state[index_page_str][0] = original_step
         st.session_state["lab_selected_venv"] = _pipeline_steps.normalize_runtime_path(
