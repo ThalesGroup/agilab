@@ -356,6 +356,37 @@ def _log_indicates_install_failure(lines: list[str]) -> bool:
     return _orchestrate_log_indicates_install_failure(lines)
 
 
+_DISTRIBUTION_LOG_FATAL_PATTERNS: tuple[tuple[str, ...], ...] = (
+    ("traceback",),
+    ("unhandled exception",),
+    ("command failed with exit code",),
+    ("process exited with non-zero exit status",),
+    ("non-zero exit status",),
+    ("no virtual environment found",),
+    ("no module named",),
+    ("modulenotfounderror",),
+    ("runtimeerror:",),
+    ("valueerror:",),
+    ("typeerror:",),
+    ("error:",),
+    ("failed to load module",),
+    ("worker failed",),
+    ("build failed",),
+    ("distribution build failed",),
+)
+
+
+def _log_indicates_distribution_failure(lines: list[str]) -> bool:
+    """Return True when CHECK distribute logs contain a fatal execution marker."""
+    if not lines:
+        return False
+    for raw_line in lines[-200:]:
+        line = str(raw_line).lower()
+        if any(all(token in line for token in pattern) for pattern in _DISTRIBUTION_LOG_FATAL_PATTERNS):
+            return True
+    return False
+
+
 def _looks_like_shared_path(path: Path) -> bool:
     project_root = Path(__file__).resolve().parents[2]
     return _orchestrate_looks_like_shared_path(path, project_root)
@@ -842,10 +873,10 @@ async def _check_distribution_action(
         "stdout": stdout,
         "stderr": stderr,
     }
-    if str(stderr or "").strip():
+    if _log_indicates_distribution_failure(dist_log):
         return ActionResult.error(
             "Distribution build failed.",
-            detail=str(stderr).strip(),
+            detail=str(stderr or "\n".join(dist_log[-20:])).strip(),
             next_action="Check orchestration settings and logs, then retry CHECK distribute.",
             data=data,
         )

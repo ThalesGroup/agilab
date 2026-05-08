@@ -1167,6 +1167,43 @@ async def test_check_distribution_action_reports_stderr_failure(tmp_path: Path):
 
 
 @pytest.mark.asyncio
+async def test_check_distribution_action_accepts_noisy_stderr_logs(tmp_path: Path):
+    module = _load_orchestrate_module()
+    project_path = tmp_path / "project"
+    stderr_log = "\n".join(
+        [
+            "flight_project.runtime_misc_support.initialize_runtime_state AGI instance created for target flight with verbosity 1",
+            "WARNING: Cache entry deserialization failed, entry ignored",
+            "flight_project.execution_support.run @python3.13: export PATH=\"~/.local/bin:$PATH\";uv --quiet run --no-sync python '/Users/agi/wenv/cli.py' kill 92836",
+            "flight_project.runtime_distribution_support.run_local debug=False",
+            "flight_project.execution_support.run_async Executing in /Users/agi/wenv/flight_worker: uv --quiet run --preview-features python-upgrade --no-sync --project /Users/agi/wenv/flight_worker --python 3.13.13 python -c \"...\"",
+        ]
+    )
+
+    async def _run_agi(cmd, log_callback=None, venv=None):
+        log_callback("building distribution")
+        return "None", stderr_log
+
+    env = SimpleNamespace(
+        run_agi=_run_agi,
+        snippet_tail="pass",
+        is_source_env=False,
+        is_worker_env=False,
+    )
+
+    result = await module._check_distribution_action(
+        env,
+        cmd="asyncio.run(main())",
+        project_path=project_path,
+    )
+
+    assert result.status == "success"
+    assert result.title == "Distribution built successfully."
+    assert result.data["stderr"] == stderr_log
+    assert result.data["dist_log"] == ("building distribution", *stderr_log.splitlines(), "None")
+
+
+@pytest.mark.asyncio
 async def test_check_distribution_action_reports_run_exception(tmp_path: Path):
     module = _load_orchestrate_module()
 
