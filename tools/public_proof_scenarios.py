@@ -25,7 +25,7 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
         "target_seconds": FIRST_PROOF_TARGET_SECONDS,
         "commands": [
             "python -m pip install agilab",
-            "agilab first-proof --json --max-seconds 60",
+            "python -m agilab.lab_run first-proof --json --max-seconds 60",
         ],
         "evidence_files": [
             "src/agilab/apps/builtin/flight_project/pyproject.toml",

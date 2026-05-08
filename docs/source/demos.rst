@@ -79,7 +79,7 @@ The static scenario contract is available as JSON:
   .. code-block:: bash
 
      python -m pip install agilab
-     agilab first-proof --json --max-seconds 60
+     python -m agilab.lab_run first-proof --json --max-seconds 60
 
   Stop when the command exits successfully and writes ``run_manifest.json``.
   The same route is available in the UI by following ``PROJECT`` ->

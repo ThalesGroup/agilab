@@ -74,7 +74,8 @@ Current public matrix
      - Not the recommended first proof path
    * - Published package route
      - validated
-     - ``python -m pip install agilab`` then ``agilab first-proof --json --max-seconds 60``
+     - ``python -m pip install agilab`` then
+       ``python -m agilab.lab_run first-proof --json --max-seconds 60``
      - Clean public package install outside the source checkout, followed by
        the packaged first-proof smoke
      - Validates the released package, not unmerged branch contents; less
@@ -99,12 +100,12 @@ Platform coverage snapshot
    * - Linux package
      - validated
      - GitHub Actions clean install: ``python -m pip install agilab`` then
-       ``agilab first-proof --json --max-seconds 60``
+       ``python -m agilab.lab_run first-proof --json --max-seconds 60``
      - validates the latest released package
    * - macOS package
      - validated
      - GitHub Actions clean install: ``python -m pip install agilab`` then
-       ``agilab first-proof --json --max-seconds 60``
+       ``python -m agilab.lab_run first-proof --json --max-seconds 60``
      - validates the latest released package on the macOS runner, not every
        local Homebrew/PyCharm setup
    * - Windows / WSL2

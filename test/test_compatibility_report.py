@@ -131,7 +131,7 @@ def test_workflow_evidence_commands_resolve_public_proof_tools() -> None:
     )
     assert check["details"]["required_evidence"]["published-package-route"] == (
         "pip install agilab",
-        "agilab first-proof --json",
+        "python -m agilab.lab_run first-proof --json",
     )
 
 

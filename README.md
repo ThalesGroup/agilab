@@ -76,9 +76,11 @@ Start with the public browser preview or the demo chooser:
 ### Try this first
 
 ```bash
-python -m pip install --upgrade agilab
-agilab first-proof --json
-agilab
+python3 -m venv ~/.agilab-first-proof
+source ~/.agilab-first-proof/bin/activate
+python -m pip install --upgrade pip
+python -m pip install --upgrade agilab && python -m agilab.lab_run first-proof --json
+python -m agilab.lab_run
 ```
 
 The public AGILAB Space is the fastest browser preview. It opens the
@@ -148,13 +150,14 @@ mkdir ~/agi-workspace && cd ~/agi-workspace
 uv venv
 source .venv/bin/activate
 uv pip install --upgrade agilab
-agilab first-proof --json --max-seconds 60
-uv run agilab
+python -m agilab.lab_run first-proof --json --max-seconds 60
+python -m agilab.lab_run
 ```
 
-Use `agilab first-proof --json --max-seconds 60` for a quick package-level
-check. The clean-install CI matrix enforces that runtime budget on Linux and
-macOS. For the most representative full product run, prefer the source-checkout
+Use `python -m agilab.lab_run first-proof --json --max-seconds 60` for a quick
+package-level check from the same interpreter that installed AGILAB. The
+clean-install CI matrix enforces that runtime budget on Linux, macOS, and
+Windows. For the most representative full product run, prefer the source-checkout
 `flight_project` path above because it exercises the same app installation,
 execution, and analysis flow documented in the web UI.
 
@@ -163,7 +166,7 @@ actual executable with `command -v agilab`. A `uv tool` shim such as
 `~/.local/bin/agilab` is upgraded separately:
 
 ```bash
-uv --preview-features extra-build-dependencies tool upgrade agilab
+uv --preview-features extra-build-dependencies tool install --upgrade agilab
 ```
 
 Optional feature stacks stay out of the base package install. Add

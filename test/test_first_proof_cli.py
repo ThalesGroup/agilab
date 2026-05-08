@@ -83,6 +83,9 @@ def test_main_print_only_json_emits_first_proof_contract(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["with_install"] is True
     assert payload["kpi_target_seconds"] == module.DEFAULT_MAX_SECONDS
+    assert "agilab_version" in payload
+    assert payload["runtime_identity"]["python_executable"] == sys.executable
+    assert "agilab" in payload["runtime_identity"]["distributions"]
     assert payload["run_manifest_filename"] == "run_manifest.json"
     assert payload["run_manifest_path"].endswith("/log/execute/flight/run_manifest.json")
     assert payload["commands"][0]["label"] == "package preinit smoke"
@@ -97,9 +100,28 @@ def test_main_print_only_human_emits_commands(capsys) -> None:
     assert exit_code == 0
     output = capsys.readouterr().out
     assert "AGILAB first proof" in output
+    assert "agilab version:" in output
+    assert f"python: {sys.executable}" in output
     assert "mode: print-only" in output
     assert "kpi target: <= 42.00s" in output
     assert "$" in output
+
+
+def test_runtime_identity_records_launcher_and_distribution_versions(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module.shutil, "which", lambda name: "/tmp/bin/agilab" if name == "agilab" else None)
+    monkeypatch.setattr(
+        module.importlib_metadata,
+        "version",
+        lambda name: {"agilab": "2026.5.8", "agi-node": "2026.5.8"}.get(name, "missing"),
+    )
+
+    identity = module.runtime_identity()
+
+    assert identity["python_executable"] == sys.executable
+    assert identity["launcher_path"] == "/tmp/bin/agilab"
+    assert identity["distributions"]["agilab"] == "2026.5.8"
+    assert identity["distributions"]["agi-node"] == "2026.5.8"
 
 
 def test_main_rejects_non_positive_kpi_target() -> None:
@@ -138,6 +160,8 @@ def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, caps
     payload = json.loads(capsys.readouterr().out)
     assert payload["success"] is True
     assert payload["within_target"] is True
+    assert "runtime_identity" in payload
+    assert "agilab_version" in payload
     assert "run_manifest" not in payload
     assert payload["results"][0]["stdout"] == "ok"
     marker = tmp_path / "home" / ".local" / "share" / "agilab" / ".agilab-path"
@@ -243,6 +267,9 @@ def test_build_run_manifest_records_cli_command(tmp_path: Path) -> None:
     assert encoded["command"]["argv"][:3] == ["agilab", "first-proof", "--json"]
     assert encoded["command"]["label"] == "agilab first-proof"
     assert encoded["environment"]["app_name"] == "flight_project"
+    proof_details = encoded["validations"][0]["details"]
+    assert "runtime_identity" in proof_details
+    assert proof_details["runtime_identity"]["python_executable"] == sys.executable
     assert {item["label"]: item["status"] for item in encoded["validations"]} == {
         "proof_steps": "pass",
         "target_seconds": "pass",
