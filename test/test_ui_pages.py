@@ -994,7 +994,7 @@ def test_experiment_page_load(mock_ui_env):
     assert not at.exception
     _assert_docs_actions_absent(at)
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
-    assert "Workflow steps" in markdown_text
+    assert "Workflow stages" in markdown_text
     assert "Runnable" in markdown_text
     assert "Output files" in markdown_text
     assert "Dataframes" in markdown_text
@@ -1406,14 +1406,14 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
         sidebar_caption = "\n".join(str(item.value) for item in at.sidebar.caption)
         assert "### Active project" not in sidebar_markdown
-        assert "Choose the project workspace whose workflow steps and artifacts are shown below." not in sidebar_caption
+        assert "Choose the project workspace whose workflow stages and artifacts are shown below." not in sidebar_caption
         assert "Inspect experiment runs separately from workflow execution." not in sidebar_caption
         assert "Start it from Edit." not in sidebar_caption
         assert "MLflow" not in sidebar_markdown
         assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
         assert at.session_state["lab_dir_selectbox"] == project_select.value
         markdown_text = "\n".join(str(item.value) for item in at.markdown)
-        assert "Workflow steps" in markdown_text
+        assert "Workflow stages" in markdown_text
         assert "agilab-header-value agilab-header-value--ready'>1/1</div>" in markdown_text
         assert "Workflow graph" in markdown_text
         assert "stages / dependencies" in markdown_text

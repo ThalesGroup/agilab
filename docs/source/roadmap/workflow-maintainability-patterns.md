@@ -30,7 +30,7 @@ Use these patterns as the default direction for future workflow-page changes.
   helpers. If a low-level `agi_env` or worker dependency is unavoidable,
   isolate it behind a page-local port.
 - **Registry Pattern**: page bundles, widgets, app templates, reusable snippet
-  candidates, and future structured step templates should move toward typed
+  candidates, and future structured stage templates should move toward typed
   registries instead of repeated discovery rules.
 
 ## Roadmap Item: Pattern-Gated Workflow Changes
@@ -58,7 +58,7 @@ The Pipeline-first slice is now the reference implementation:
 ## Current Status
 
 - Page State / ViewModel: partially done. Pipeline has a typed
-  `PipelinePageState` / ViewModel for visible steps, selected lab, stale
+  `PipelinePageState` / ViewModel for visible stages, selected lab, stale
   snippets, lock/run status, logs, and available actions. Orchestrate service
   mode now has typed service state for visible action/status/health/export
   flows. Broader Orchestrate has started the same consolidation with typed
@@ -92,8 +92,8 @@ The Pipeline-first slice is now the reference implementation:
   internals and session state in places.
 - Registry Pattern: partially done. Connector registries, page bundles,
   `agi_gui` widgets, app templates, and Pipeline reusable snippet candidates
-  have typed registries. A future structured pipeline-step template registry
-  remains part of the versioned pipeline-step proposal.
+  have typed registries. A future structured pipeline-stage template registry
+  remains part of the versioned pipeline-stage proposal.
 
 ## Recommended Sequence
 
@@ -101,15 +101,15 @@ The Pipeline-first slice is now the reference implementation:
    to broader Orchestrate install/distribute/run views, starting with
    INSTALL/DISTRIBUTE readiness and command results.
 2. Extend versioned contracts to remaining persisted UI artifacts.
-3. Introduce a versioned pipeline-step template registry when raw generated
-   snippets are replaced with structured `template` steps.
+3. Introduce a versioned pipeline-stage template registry when raw generated
+   snippets are replaced with structured `template` stages.
 
 ## First Slice Acceptance Criteria
 
 - WORKFLOW page rendering can be driven from one plain state object.
-- Log cleanup cannot make pipeline steps disappear from the visible state.
+- Log cleanup cannot make pipeline stages disappear from the visible state.
 - Stale generated snippets are represented as state, not only as an execution
   error.
 - At least one targeted test covers old snippets, missing logs, and a runnable
-  lab with visible steps.
+  lab with visible stages.
 - The change does not reintroduce direct UI dependencies into `agi-env`.

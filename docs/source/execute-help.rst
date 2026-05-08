@@ -91,7 +91,7 @@ The generated snippets use two closely related parameters that come from
      - Meaning
    * - ``modes_enabled``
      - ``AGI.install(...)``
-     - Bitmask of the execution capabilities that the install step should
+     - Bitmask of the execution capabilities that the install stage should
        prepare on the target machines.
    * - ``mode``
      - ``AGI.run(...)``
@@ -208,7 +208,7 @@ is:
 2. Let ORCHESTRATE generate the current ``AGI.install(...)``,
    ``AGI.get_distrib(...)``, and ``AGI.run(...)`` snippets.
 3. Reuse the generated run snippet in :doc:`experiment-help` when the
-   distributed execution should become a reproducible Pipeline step.
+   distributed execution should become a reproducible Pipeline stage.
 
 You usually do not write these orchestration snippets manually first. They are
 generated from the current UI configuration. See :doc:`distributed-workers` for
@@ -224,15 +224,15 @@ For a first pass through the UI, follow this sequence exactly:
 5. Optionally open ``Notebook`` to download the current orchestration recipe as
    a runnable notebook for review or handoff.
 6. In :doc:`experiment-help`, import or regenerate that snippet as a Pipeline
-   step instead of retyping it.
+   stage instead of retyping it.
 
 Snippet Handoff to Pipeline
 ---------------------------
 For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
 
 1. Generate the snippet in **Orchestrate** (typically ``AGI.run``).
-2. On **WORKFLOW**, open **Add step** (or **New step** when starting fresh),
-   pick ``Step source = gen step`` for a fresh generation, or ``Step source =``
+2. On **WORKFLOW**, open **Add stage** (or **New stage** when starting fresh),
+   pick ``Stage source = Generate stage`` for a fresh generation, or ``Stage source =``
    an existing snippet (for example ``AGI_run.py`` or ``lab_snippet.py``) to
    import it directly.
 3. For app updates, update ``<module> args`` in the per-user workspace

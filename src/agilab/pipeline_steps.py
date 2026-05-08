@@ -136,7 +136,7 @@ def normalize_runtime_path(raw: Optional[Union[str, Path]], env: Optional[AgiEnv
 
 
 def step_summary(entry: Optional[Dict[str, Any]], width: int = 60) -> str:
-    """Return a concise summary for a step entry."""
+    """Return a concise summary for a workflow stage entry."""
     if not isinstance(entry, dict):
         return ""
 
@@ -155,7 +155,7 @@ def step_summary(entry: Optional[Dict[str, Any]], width: int = 60) -> str:
 
 
 def step_project_name(entry: Optional[Dict[str, Any]], env: Optional[AgiEnv] = None) -> str:
-    """Return the best available project/app name for a saved step."""
+    """Return the best available project/app name for a saved workflow stage."""
     if not isinstance(entry, dict):
         return ""
 
@@ -188,24 +188,24 @@ def step_label_for_multiselect(
     *,
     env: Optional[AgiEnv] = None,
 ) -> str:
-    """Label for the step-order multiselect widget."""
+    """Label for the stage-order multiselect widget."""
     summary = step_summary(entry)
     project = step_project_name(entry, env=env)
     if summary and project:
-        return f"Step {idx + 1}: [{project}] {summary}"
+        return f"Stage {idx + 1}: [{project}] {summary}"
     if summary:
-        return f"Step {idx + 1}: {summary}"
+        return f"Stage {idx + 1}: {summary}"
     if project:
-        return f"Step {idx + 1}: [{project}]"
-    return f"Step {idx + 1}"
+        return f"Stage {idx + 1}: [{project}]"
+    return f"Stage {idx + 1}"
 
 
 def step_button_label(display_idx: int, step_idx: int, entry: Optional[Dict[str, Any]]) -> str:
-    """Label for a rendered step button respecting the selected order."""
+    """Label for a rendered stage button respecting the selected order."""
     summary = step_summary(entry)
     if summary:
         return f"{display_idx + 1}. {summary}"
-    return f"{display_idx + 1}. Step {step_idx + 1}"
+    return f"{display_idx + 1}. Stage {step_idx + 1}"
 
 
 def upgrade_legacy_step_code(code: Any) -> Any:
@@ -247,12 +247,12 @@ def upgrade_legacy_step_runtime(raw_runtime: Any, *, engine: Any, app_name: str)
 
 
 def upgrade_legacy_step_entry(entry: Any) -> bool:
-    """Legacy step migration has been removed; do not mutate entries implicitly."""
+    """Legacy stage migration has been removed; do not mutate entries implicitly."""
     return False
 
 
 def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int]:
-    """Legacy lab-step migration has been removed; report scan counts only."""
+    """Legacy lab-stage migration has been removed; report scan counts only."""
     if not steps_file.exists():
         return {"files": 0, "changed_steps": 0, "scanned_steps": 0}
 
@@ -274,7 +274,7 @@ def upgrade_steps_file(steps_file: Path, *, write: bool = True) -> Dict[str, int
 
 
 def upgrade_exported_steps(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> bool:
-    """Legacy exported-step migration has been removed; this is now a no-op."""
+    """Legacy exported-stage migration has been removed; this is now a no-op."""
     return False
 
 
@@ -553,15 +553,15 @@ def restore_missing_export_steps(
                         meta.pop(old_meta_key, None)
             with target.open("wb") as handle:
                 tomli_w.dump(_convert_paths_to_strings(prepare_lab_steps_for_write(normalized)), handle)
-            logger.info("Restored missing Workflow steps file %s from %s", target, source)
+            logger.info("Restored missing Workflow stage contract %s from %s", target, source)
             return source
         except (OSError, TypeError, ValueError) as exc:
-            logger.warning("Failed to restore Workflow steps file %s from %s: %s", target, source, exc)
+            logger.warning("Failed to restore Workflow stage contract %s from %s: %s", target, source, exc)
     return None
 
 
 def ensure_primary_module_key(module: Union[str, Path], steps_file: Path, env: Optional[AgiEnv] = None) -> None:
-    """Ensure steps are stored under the primary module key."""
+    """Ensure stages are stored under the primary module key."""
     if not steps_file.exists():
         return
     try:
@@ -648,7 +648,7 @@ def persist_sequence_preferences(
     sequence: List[int],
     env: Optional[AgiEnv] = None,
 ) -> None:
-    """Persist the execution sequence ordering alongside the steps file."""
+    """Persist the execution sequence ordering alongside the stage contract."""
     module_key = module_keys(module, env=env)[0]
     normalized = [int(idx) for idx in sequence if isinstance(idx, int) and idx >= 0]
     try:
@@ -658,7 +658,7 @@ def persist_sequence_preferences(
         else:
             data = {}
     except tomllib.TOMLDecodeError as exc:
-        logger.error("Failed to load steps while saving sequence metadata: %s", exc)
+        logger.error("Failed to load stages while saving sequence metadata: %s", exc)
         return
     try:
         prepare_lab_steps_for_write(data)
@@ -679,7 +679,7 @@ def persist_sequence_preferences(
 
 
 def is_displayable_step(entry: Dict[str, Any]) -> bool:
-    """Return True if a step should be shown in the UI."""
+    """Return True if a stage should be shown in the UI."""
     if not entry:
         return False
     question = entry.get("Q", "")
@@ -692,7 +692,7 @@ def is_displayable_step(entry: Dict[str, Any]) -> bool:
 
 
 def is_runnable_step(entry: Dict[str, Any]) -> bool:
-    """Return True if a step has executable code content."""
+    """Return True if a stage has executable code content."""
     if not entry:
         return False
     code = entry.get("C", "")
@@ -733,7 +733,7 @@ def find_legacy_agi_run_steps(
     steps: List[Dict[str, Any]],
     sequence: Optional[List[int]] = None,
 ) -> List[Dict[str, Any]]:
-    """Return selected pipeline steps that still use the pre-RunRequest AGI.run API."""
+    """Return selected pipeline stages that still use the pre-RunRequest AGI.run API."""
     selected = sequence if sequence is not None else list(range(len(steps)))
     stale_steps: List[Dict[str, Any]] = []
     for idx in selected:
@@ -759,7 +759,7 @@ def find_legacy_agi_run_steps(
 
 
 def looks_like_step(value: Any) -> bool:
-    """Heuristic: True when value represents a non-negative integer step index."""
+    """Heuristic: True when value represents a non-negative integer stage index."""
     try:
         return int(value) >= 0
     except (TypeError, ValueError):
@@ -767,7 +767,7 @@ def looks_like_step(value: Any) -> bool:
 
 
 def prune_invalid_entries(entries: List[Dict[str, Any]], keep_index: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Remove invalid steps, optionally preserving the entry at keep_index."""
+    """Remove invalid stages, optionally preserving the entry at keep_index."""
     pruned: List[Dict[str, Any]] = []
     for idx, entry in enumerate(entries):
         if is_displayable_step(entry) or (keep_index is not None and idx == keep_index):
@@ -855,7 +855,7 @@ def get_available_virtualenvs(env: AgiEnv) -> List[Path]:
 
 
 def snippet_source_guidance(has_snippets: bool, app_name: str) -> str:
-    """Return the explanatory message displayed near the step source selector."""
+    """Return the explanatory message displayed near the stage source selector."""
     if has_snippets:
         return (
             f"Snippets are refreshed from the latest ORCHESTRATE run for `{app_name}`. "
@@ -869,7 +869,7 @@ def snippet_source_guidance(has_snippets: bool, app_name: str) -> str:
 
 
 def is_orchestrate_locked_step(entry: Dict[str, Any]) -> bool:
-    """Return True for steps that originated from an ORCHESTRATE snippet."""
+    """Return True for stages that originated from an ORCHESTRATE snippet."""
     if not isinstance(entry, dict):
         return False
     value = entry.get(ORCHESTRATE_LOCKED_STEP_KEY)
@@ -882,7 +882,7 @@ def is_orchestrate_locked_step(entry: Dict[str, Any]) -> bool:
 
 
 def orchestrate_snippet_source(entry: Dict[str, Any]) -> str:
-    """Return the source filename for a locked ORCHESTRATE-derived step."""
+    """Return the source filename for a locked ORCHESTRATE-derived stage."""
     if not isinstance(entry, dict):
         return ""
     source = entry.get(ORCHESTRATE_LOCKED_SOURCE_KEY)

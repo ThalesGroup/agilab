@@ -68,14 +68,14 @@
     <text class="box-title" x="462" y="260" text-anchor="middle">Domain nodes</text>
     <text class="body" x="386" y="288">
       <tspan x="386" dy="0">Apps and named</tspan>
-      <tspan x="386" dy="21">workflow steps.</tspan>
+      <tspan x="386" dy="21">workflow stages.</tspan>
     </text>
     <text class="small" x="386" y="326">Example: queue baseline</text>
 
     <rect class="concept-node" x="615" y="228" width="200" height="116" rx="16" ry="16"/>
     <text class="box-title" x="715" y="260" text-anchor="middle">Local pipeline</text>
     <text class="body" x="639" y="288">
-      <tspan x="639" dy="0">App-level steps from</tspan>
+      <tspan x="639" dy="0">App-level stages from</tspan>
       <tspan x="639" dy="21">pipeline_view files.</tspan>
     </text>
     <text class="small" x="639" y="326">Readable expansion</text>

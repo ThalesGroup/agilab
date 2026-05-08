@@ -65,4 +65,4 @@ route-scoring policy remains fully deterministic and mission-scenario driven.
 This demo uses a public synthetic scenario and deterministic scoring. It proves
 AGILAB’s setup -> execution -> analysis path for an autonomous decision workflow.
 It does not claim live production telemetry, production MLOps governance, or
-first-class runtime expansion of arbitrary pipeline steps.
+first-class runtime expansion of arbitrary pipeline stages.

@@ -21,7 +21,7 @@
   <rect class="bg" x="0" y="0" width="1180" height="420" rx="28"/>
 
   <text class="title" x="64" y="54">Distributed workflow is UI-driven</text>
-  <text class="subtitle" x="64" y="84">Configure workers in ORCHESTRATE, generate the snippet there, then reuse that generated step in WORKFLOW.</text>
+  <text class="subtitle" x="64" y="84">Configure workers in ORCHESTRATE, generate the snippet there, then reuse that generated stage in WORKFLOW.</text>
 
   <rect x="64" y="118" width="438" height="212" rx="24" fill="#e8f1fb" stroke="#2f6fa3" stroke-width="3"/>
   <text class="card-title" x="283" y="162" text-anchor="middle">ORCHESTRATE</text>
@@ -34,8 +34,8 @@
   <rect x="678" y="118" width="438" height="212" rx="24" fill="#efe8d9" stroke="#9b6c1f" stroke-width="3"/>
   <text class="card-title" x="897" y="162" text-anchor="middle">WORKFLOW</text>
   <rect x="776" y="180" width="242" height="34" rx="17" fill="#f7edd9" stroke="#9b6c1f" stroke-width="2"/>
-  <text class="chip-text" x="897" y="202" text-anchor="middle">Import generated step</text>
-  <text class="card-text" x="726" y="244">1. Open Add step or New step</text>
+  <text class="chip-text" x="897" y="202" text-anchor="middle">Import generated stage</text>
+  <text class="card-text" x="726" y="244">1. Open Add stage or New stage</text>
   <text class="card-text" x="726" y="276">2. Import the generated run snippet</text>
   <text class="card-text" x="726" y="308">3. Track and rerun it from lab_steps.toml</text>
 

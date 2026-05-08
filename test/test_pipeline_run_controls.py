@@ -82,7 +82,7 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
 
     assert run_name == "demo:lab:pipeline"
     assert tags["agilab.tracking_uri"] == "sqlite:///mlflow.db"
-    assert params == {"sequence": "1,3", "step_count": 2}
+    assert params == {"sequence": "1,3", "stage_count": 2}
     assert json.loads(text_artifacts["pipeline_metadata/sequence.json"])["sequence"] == [1, 3]
 
     step_name, step_tags, step_params, step_artifacts = module._mlflow_step_payload(
@@ -95,10 +95,10 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
         runtime_root="/runtime",
     )
 
-    assert step_name == "demo:lab:step_2"
+    assert step_name == "demo:lab:stage_2"
     assert step_tags["agilab.summary"] == "summary:80"
     assert step_params["engine"] == "agi.run"
-    assert json.loads(step_artifacts["step_2/step_entry.json"])["step_index"] == 2
+    assert json.loads(step_artifacts["stage_2/stage_entry.json"])["stage_index"] == 2
 
     for idx in range(205):
         module._append_run_log("trim", f"log-{idx}")
@@ -377,7 +377,7 @@ def test_pipeline_run_controls_legacy_step_formatting_and_clean_abort(tmp_path, 
 
     formatted = module._format_legacy_step_refs(stale_steps)
 
-    assert "step 1, line 11, app-1: summary-1" in formatted
+    assert "stage 1, line 11, app-1: summary-1" in formatted
     assert "1 more" in formatted
 
     assert module._abort_if_legacy_agi_run_steps(
@@ -487,8 +487,8 @@ def test_pipeline_run_controls_run_all_steps_executes_runpy_and_agi_run(tmp_path
         stream_run_command_fn=fake_stream_run_command,
     )
 
-    assert any(kind == "success" and "Executed 2 steps." in message for kind, message in fake_st.messages)
-    assert any("Run pipeline completed: 2 step(s) executed." in line for line in fake_st.session_state["page__run_logs"])
+    assert any(kind == "success" and "Executed 2 stages." in message for kind, message in fake_st.messages)
+    assert any("Run workflow completed: 2 stage(s) executed." in line for line in fake_st.session_state["page__run_logs"])
     assert any("No such file or directory" in line for line in fake_st.session_state["page__run_logs"])
     assert any("AGI_CLUSTER_SHARE" in line for line in fake_st.session_state["page__run_logs"])
     assert stream_calls[0]["cmd"][0] == "pythonX"
@@ -525,7 +525,7 @@ def test_pipeline_run_controls_run_all_steps_handles_early_exits(tmp_path, monke
         load_all_steps_fn=lambda *_args: [],
         stream_run_command_fn=lambda *_args, **_kwargs: "",
     )
-    assert any(kind == "info" and "No steps available" in message for kind, message in fake_st.messages)
+    assert any(kind == "info" and "No stages available" in message for kind, message in fake_st.messages)
 
     module.run_all_steps(
         tmp_path / "lab",
@@ -636,8 +636,8 @@ def test_pipeline_run_controls_blocks_legacy_agi_run_before_lock(tmp_path, monke
     )
 
     assert any(kind == "error" and "aborted before execution" in message for kind, message in fake_st.messages)
-    assert any("RunRequest" in line and "step 1" in line for line in fake_st.session_state["page__run_logs"])
-    assert not any("Running step 1" in line for line in fake_st.session_state["page__run_logs"])
+    assert any("RunRequest" in line and "stage 1" in line for line in fake_st.session_state["page__run_logs"])
+    assert not any("Running stage 1" in line for line in fake_st.session_state["page__run_logs"])
 
 
 def test_pipeline_run_controls_run_all_steps_without_mlflow_tracks_runpy_no_output(tmp_path, monkeypatch):
@@ -703,7 +703,7 @@ def test_pipeline_run_controls_run_all_steps_without_mlflow_tracks_runpy_no_outp
             "kwargs": {"env_overrides": {}},
         }
     ]
-    assert any(kind == "success" and "Executed 1 step." in message for kind, message in fake_st.messages)
+    assert any(kind == "success" and "Executed 1 stage." in message for kind, message in fake_st.messages)
     assert any("runpy executed (no captured stdout)" in line for line in fake_st.session_state["page__run_logs"])
     assert fake_st.session_state["page"][0] == 7
     assert fake_st.session_state["lab_selected_engine"] == "old-engine"

@@ -29,7 +29,7 @@ specialized workflow.
 ## Main outputs
 
 Each run produces a structured flight dataframe dataset that can then be reused by
-analysis pages and downstream pipeline steps.
+analysis pages and downstream pipeline stages.
 
 Workers also emit a `reduce_summary_worker_<id>.json` `ReduceArtifact` beside
 the dataframe outputs. That summary records the reducer name, row count,

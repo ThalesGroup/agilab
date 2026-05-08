@@ -41,7 +41,7 @@ Working with the API
   active project structure and configuration.
 - Use ``agi_gui`` imports for Streamlit page helpers so UI dependencies stay
   outside worker-only runtimes.
-- Derive from ``agi_node`` base classes to implement new DAG steps or worker
+- Derive from ``agi_node`` base classes to implement new DAG stages or worker
   behaviours that can be shipped with your app bundles.
 - Call into ``agi_cluster.agi_distributor.agi_distributor.AGI`` for programmatic
   install / get_distrib / run flows; this is the same surface area surfaced in

@@ -284,7 +284,7 @@ def test_render_pipeline_view_emits_graph_and_table(monkeypatch):
     assert graph_kwargs["width"] == "content"
 
     frame, frame_kwargs = captured["frames"][0]
-    assert list(frame["step"]) == ["1", "2"]
+    assert list(frame["stage"]) == ["1", "2"]
     assert frame_kwargs["width"] == "stretch"
     assert frame_kwargs["hide_index"] is True
     assert "column_config" in frame_kwargs

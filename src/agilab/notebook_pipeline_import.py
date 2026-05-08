@@ -1658,7 +1658,7 @@ def persist_notebook_pipeline_import(
     if notebook_import.get("execution_mode") != "not_executed_import":
         issues.append(_issue("execution_mode", "notebook import must not execute cells"))
     if not notebook_import.get("pipeline_steps"):
-        issues.append(_issue("pipeline_steps", "notebook import produced no pipeline steps"))
+        issues.append(_issue("pipeline_steps", "notebook import produced no pipeline stages"))
 
     return NotebookPipelineImportProof(
         ok=not issues,

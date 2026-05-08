@@ -99,7 +99,7 @@ def _default_step_summary(entry: Mapping[str, Any]) -> str:
 
 def _default_step_label(idx: int, entry: Mapping[str, Any]) -> str:
     summary = _default_step_summary(entry)
-    return f"Step {idx + 1}: {summary}" if summary else f"Step {idx + 1}"
+    return f"Stage {idx + 1}: {summary}" if summary else f"Stage {idx + 1}"
 
 
 def _default_find_legacy_steps(
@@ -122,7 +122,7 @@ class PipelinePageStateDeps:
 
 
 def normalize_execution_sequence(total_steps: int, sequence: Optional[Sequence[Any]]) -> Tuple[int, ...]:
-    """Return a valid execution order, defaulting to all steps when selection is empty."""
+    """Return a valid execution order, defaulting to all stages when selection is empty."""
     selected: list[int] = []
     seen: set[int] = set()
     for raw in sequence or ():
@@ -153,7 +153,7 @@ def _format_stale_step_refs(stale_steps: Sequence[Mapping[str, Any]]) -> str:
         line = item.get("line", "?")
         summary = str(item.get("summary") or "").strip()
         project = str(item.get("project") or "").strip()
-        label = f"step {step}, line {line}"
+        label = f"stage {step}, line {line}"
         if project:
             label += f", {project}"
         if summary:
@@ -209,8 +209,8 @@ def _derive_actions(
     if total_steps > 0:
         available.extend([PipelineAction.DELETE_STEP, PipelineAction.DELETE_ALL])
     else:
-        blocked[PipelineAction.DELETE_STEP] = "No workflow step is available to delete."
-        blocked[PipelineAction.DELETE_ALL] = "No workflow steps are available to delete."
+        blocked[PipelineAction.DELETE_STEP] = "No workflow stage is available to delete."
+        blocked[PipelineAction.DELETE_ALL] = "No workflow stages are available to delete."
 
     if has_undo_snapshot:
         available.append(PipelineAction.UNDO_DELETE)
@@ -230,7 +230,7 @@ def _derive_actions(
         if stale_step_refs:
             reason = run_disabled_reason or "Stale snippets must be regenerated before force-run."
         elif runnable_step_count == 0:
-            reason = run_disabled_reason or "No selected workflow step contains runnable code."
+            reason = run_disabled_reason or "No selected workflow stage contains runnable code."
         elif not lock_state:
             reason = "No pipeline lock is present."
         else:
@@ -293,7 +293,7 @@ def build_pipeline_page_state(
     if stale_step_refs:
         detail = _format_stale_step_refs(stale_step_refs)
         run_disabled_reason = (
-            "Selected steps contain stale AGI.run snippets that must be regenerated "
+            "Selected stages contain stale AGI.run snippets that must be regenerated "
             f"before execution: {detail}."
         )
         status = PipelineWorkflowStatus.STALE
@@ -304,10 +304,10 @@ def build_pipeline_page_state(
     elif stale_lock:
         status = PipelineWorkflowStatus.STALE
     elif not visible_steps:
-        run_disabled_reason = f"No visible workflow steps were loaded from {steps_file}."
+        run_disabled_reason = f"No visible workflow stages were loaded from {steps_file}."
         status = PipelineWorkflowStatus.EMPTY
     elif runnable_step_count == 0:
-        run_disabled_reason = "No selected workflow step contains runnable code."
+        run_disabled_reason = "No selected workflow stage contains runnable code."
         status = PipelineWorkflowStatus.GENERATED
     elif last_status in {"failed", "error"}:
         status = PipelineWorkflowStatus.FAILED
@@ -354,7 +354,7 @@ def clear_pipeline_run_logs(
     session_state: MutableMapping[str, Any],
     index_page: str,
 ) -> PipelineCommandResult:
-    """Clear displayed WORKFLOW logs without touching steps or saved log files."""
+    """Clear displayed WORKFLOW logs without touching stages or saved log files."""
     key = f"{index_page}__run_logs"
     try:
         logs = session_state.get(key, [])
@@ -501,11 +501,11 @@ def delete_pipeline_step_command(
     remove_step: Callable[..., Any],
     timestamp: str | None = None,
 ) -> PipelineCommandResult:
-    """Delete one WORKFLOW step through a typed command boundary."""
+    """Delete one WORKFLOW stage through a typed command boundary."""
     if step_index < 0 or step_index >= len(persisted_steps):
         return PipelineCommandResult(
             status=PipelineCommandStatus.REFUSED,
-            message=f"Step {step_index + 1} cannot be deleted because it is not available.",
+            message=f"Stage {step_index + 1} cannot be deleted because it is not available.",
             details={"index_page": index_page, "step_index": step_index},
         )
 
@@ -513,7 +513,7 @@ def delete_pipeline_step_command(
     try:
         snapshot = _snapshot_with_delete_metadata(
             capture_pipeline_snapshot(index_page, list(persisted_steps)),
-            label=f"remove step {step_index + 1}",
+            label=f"remove stage {step_index + 1}",
             timestamp=timestamp,
         )
         session_state[undo_key] = snapshot
@@ -522,13 +522,13 @@ def delete_pipeline_step_command(
     except Exception as exc:
         return PipelineCommandResult(
             status=PipelineCommandStatus.FAILED,
-            message=f"Could not delete step {step_index + 1}: {exc}",
+            message=f"Could not delete stage {step_index + 1}: {exc}",
             details={"index_page": index_page, "step_index": step_index, "error": str(exc)},
         )
 
     return PipelineCommandResult(
         status=PipelineCommandStatus.SUCCESS,
-        message=f"Step {step_index + 1} deleted.",
+        message=f"Stage {step_index + 1} deleted.",
         details={"index_page": index_page, "step_index": step_index, "undo_key": undo_key},
     )
 
@@ -561,14 +561,14 @@ def delete_all_pipeline_steps_command(
     confirm_key: str | None = None,
     timestamp: str | None = None,
 ) -> PipelineCommandResult:
-    """Delete every WORKFLOW step while preserving an undo snapshot."""
+    """Delete every WORKFLOW stage while preserving an undo snapshot."""
     total_steps = _coerce_total_steps(session_state, index_page, len(persisted_steps))
     if total_steps <= 0:
         if confirm_key:
             session_state.pop(confirm_key, None)
         return PipelineCommandResult(
             status=PipelineCommandStatus.NO_OP,
-            message="No workflow steps to delete.",
+            message="No workflow stages to delete.",
             details={"index_page": index_page, "count": 0},
         )
 
@@ -598,13 +598,13 @@ def delete_all_pipeline_steps_command(
     except Exception as exc:
         return PipelineCommandResult(
             status=PipelineCommandStatus.FAILED,
-            message=f"Could not delete workflow steps: {exc}",
+            message=f"Could not delete workflow stages: {exc}",
             details={"index_page": index_page, "count": total_steps, "error": str(exc)},
         )
 
     return PipelineCommandResult(
         status=PipelineCommandStatus.SUCCESS,
-        message=f"Deleted {total_steps} workflow step(s).",
+        message=f"Deleted {total_steps} workflow stage(s).",
         details={"index_page": index_page, "count": total_steps, "undo_key": undo_key},
     )
 
@@ -652,6 +652,6 @@ def undo_pipeline_delete_command(
     session_state.pop(undo_key, None)
     return PipelineCommandResult(
         status=PipelineCommandStatus.SUCCESS,
-        message="Deleted steps restored.",
+        message="Deleted stages restored.",
         details={"index_page": index_page, "undo_key": undo_key},
     )

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1380" height="840" viewBox="0 0 1380 840" role="img" aria-labelledby="title desc">
   <title id="title">WORKFLOW execution tracked in MLflow</title>
-  <desc id="desc">Shows how Run pipeline creates one parent MLflow run, one nested run per executed step, and sends both in-process and subprocess execution traces to the same MLflow tracking store and UI.</desc>
+  <desc id="desc">Shows how Run workflow creates one parent MLflow run, one nested run per executed stage, and sends both in-process and subprocess execution traces to the same MLflow tracking store and UI.</desc>
   <defs>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #0f172a; }
@@ -37,7 +37,7 @@
   <g transform="translate(48,292)">
     <rect class="box" width="268" height="132" fill="#ddd6fe" />
     <text class="caption" x="134" y="36" text-anchor="middle">lab_steps.toml</text>
-    <text class="body" x="134" y="70" text-anchor="middle">step definitions</text>
+    <text class="body" x="134" y="70" text-anchor="middle">stage definitions</text>
     <text class="body" x="134" y="92" text-anchor="middle">prompt, model, engine, runtime</text>
   </g>
 
@@ -58,16 +58,16 @@
 
   <g transform="translate(360,282)">
     <rect class="panel" width="640" height="282" fill="#fff7ed" />
-    <text class="caption" x="320" y="40" text-anchor="middle">Nested step runs</text>
-  <text class="small muted" x="320" y="62" text-anchor="middle">one nested MLflow run is created for each executed step</text>
+    <text class="caption" x="320" y="40" text-anchor="middle">Nested stage runs</text>
+  <text class="small muted" x="320" y="62" text-anchor="middle">one nested MLflow run is created for each executed stage</text>
   </g>
 
   <rect class="pill" x="392" y="362" width="336" height="34" />
-  <text class="small muted" x="560" y="383" text-anchor="middle">step metadata comes from lab_steps.toml</text>
+  <text class="small muted" x="560" y="383" text-anchor="middle">stage metadata comes from lab_steps.toml</text>
 
   <g transform="translate(392,424)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
-    <text class="caption" x="92" y="36" text-anchor="middle">Step 1 run</text>
+    <text class="caption" x="92" y="36" text-anchor="middle">Stage 1 run</text>
     <text class="body" x="92" y="70" text-anchor="middle">nested MLflow run</text>
     <text class="body" x="92" y="92" text-anchor="middle">params + stdout</text>
     <text class="body" x="92" y="114" text-anchor="middle">snippet + dataframe</text>
@@ -75,16 +75,16 @@
 
   <g transform="translate(588,424)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
-    <text class="caption" x="92" y="36" text-anchor="middle">Step 2 run</text>
+    <text class="caption" x="92" y="36" text-anchor="middle">Stage 2 run</text>
     <text class="body" x="92" y="70" text-anchor="middle">same tracking URI</text>
     <text class="body" x="92" y="92" text-anchor="middle">same artifact contract</text>
-    <text class="body" x="92" y="114" text-anchor="middle">different step metadata</text>
+    <text class="body" x="92" y="114" text-anchor="middle">different stage metadata</text>
   </g>
 
   <g transform="translate(784,424)">
     <rect class="box" width="184" height="128" fill="#fee2e2" />
-    <text class="caption" x="92" y="36" text-anchor="middle">Step N run</text>
-    <text class="body" x="92" y="70" text-anchor="middle">keeps the full step trace</text>
+    <text class="caption" x="92" y="36" text-anchor="middle">Stage N run</text>
+    <text class="body" x="92" y="70" text-anchor="middle">keeps the full stage trace</text>
     <text class="body" x="92" y="92" text-anchor="middle">visible after the run</text>
     <text class="body" x="92" y="114" text-anchor="middle">in the same MLflow UI</text>
   </g>
@@ -93,7 +93,7 @@
     <rect class="box" width="560" height="114" fill="#e0f2fe" />
     <text class="caption" x="280" y="38" text-anchor="middle">Shared runtime contract</text>
     <text class="body" x="280" y="72" text-anchor="middle">
-      <tspan x="280" dy="0">runpy and subprocess steps both receive</tspan>
+      <tspan x="280" dy="0">runpy and subprocess stages both receive</tspan>
       <tspan x="280" dy="18">the same MLFLOW_TRACKING_URI</tspan>
     </text>
   </g>
@@ -103,7 +103,7 @@
     <rect class="box" width="272" height="112" fill="#c7f9cc" />
     <text class="caption" x="136" y="36" text-anchor="middle">MLFLOW_TRACKING_DIR</text>
     <text class="body" x="136" y="68" text-anchor="middle">shared tracking store</text>
-    <text class="body" x="136" y="90" text-anchor="middle">parent run and step runs write here</text>
+    <text class="body" x="136" y="90" text-anchor="middle">parent run and stage runs write here</text>
   </g>
 
   <rect class="pill" x="1036" y="466" width="250" height="34" />

@@ -71,7 +71,7 @@
     },
     {
       "case_id": "pipeline_dag_stale_preview",
-      "symptom": "The WORKFLOW DAG preview shows completed project steps after lab_steps.toml has been edited.",
+      "symptom": "The WORKFLOW DAG preview shows completed project stages after lab_steps.toml has been edited.",
       "proposed_diagnosis": "The DAG renderer is caching Graphviz output.",
       "root_cause": "The runner-state preview did not compare the project-step digest or latest run-log timestamp before reusing previous execution evidence.",
       "plain_repro": "Run a workflow, edit lab_steps.toml, reopen WORKFLOW and inspect runner_state.json.",

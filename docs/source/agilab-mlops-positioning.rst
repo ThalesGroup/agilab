@@ -87,18 +87,18 @@ Research experimentation evidence
 AGILab's research experimentation value is strongest when teams need to turn
 interactive exploration into a replayable, inspectable workflow:
 
-- ``lab_steps.toml`` records experiment steps, prompts, selected model, runtime,
+- ``lab_steps.toml`` records experiment stages, prompts, selected model, runtime,
   and execution metadata
 - supervisor notebook export keeps the saved pipeline runnable outside the UI
 - the notebook-to-pipeline import report reads a checked-in ``.ipynb`` and
   preserves markdown context, code cells, import hints, execution-count
   metadata, artifact references, and richer ``lab_steps.toml`` preview output
-  as ``not_executed_import`` pipeline-step evidence
+  as ``not_executed_import`` pipeline-stage evidence
 - the notebook round-trip report validates ``lab_steps.toml -> supervisor
-  notebook -> import -> lab_steps preview`` so saved step fields survive the
+  notebook -> import -> lab_steps preview`` so saved stage fields survive the
   non-executing bridge in both directions
 - the notebook union-environment report allows a ``single-kernel union
-  notebook`` only for compatible steps and keeps mixed-runtime pipelines on the
+  notebook`` only for compatible stages and keeps mixed-runtime pipelines on the
   supervisor notebook path
 - the data connector facility report validates first-class SQL, OpenSearch,
   and object-storage connector definitions without opening live network
@@ -120,7 +120,7 @@ interactive exploration into a replayable, inspectable workflow:
   running connector probes
 - the data connector app catalogs report validates app-local connector catalogs
   for every non-template built-in app while preserving legacy path fallbacks
-- MLflow tracking records one parent run and nested runs for executed steps
+- MLflow tracking records one parent run and nested runs for executed stages
 - the notebook-migration example shows how exploratory notebooks become reusable
   AGILab projects with stable artifacts and analysis views
 - the initial first-class reduce contract in ``agi_node`` defines partial
@@ -136,8 +136,9 @@ interactive exploration into a replayable, inspectable workflow:
   fields, and UAV queue-family packet/PDR fields, and flags invalid reduce JSON
   without hiding the rest of the evidence page
 - a repository guardrail requires every non-template built-in app to expose a
-  reducer contract, while ``mycode_project`` is explicitly template-only until
-  a clone adds concrete merge outputs
+  reducer contract, while ``mycode_project`` and ``global_dag_project`` are
+  explicitly template-only until a clone or concrete worker flow adds merge
+  outputs
 - the public reducer benchmark validates 8 partials / 80,000 synthetic items in
   ``0.003s`` against a ``5.0s`` target
 
@@ -160,12 +161,12 @@ history:
 - ``lab_steps.toml`` and supervisor notebook export preserve the working
   sequence
 - the notebook-to-pipeline import contract proves the reverse direction by
-  turning code cells into pipeline-step metadata and markdown cells into linked
+  turning code cells into pipeline-stage metadata and markdown cells into linked
   context blocks, then feeds the existing ``WORKFLOW`` upload path without
   running the notebook
 - the notebook round-trip report checks that supervisor export metadata can be
   re-imported into ``lab_steps.toml`` preview fields without losing D/Q/M/C/R
-  step values
+  stage values
 - the notebook union-environment report makes the single-kernel shortcut
   explicit and prevents mixed environments from being flattened accidentally
 - the data connector facility report gives prototypes a plain-text connector
@@ -474,8 +475,8 @@ renders cleanly on narrower viewports.
 - **Positioning note**: modern Airflow already supports dynamic task mapping
   and dynamic DAG generation, so it remains stronger when the core need is
   task-level orchestration semantics inside a scheduler-first platform.
-  AGILab can express dynamic behavior inside generated or custom Python steps,
-  but it does not yet expose the same kind of first-class runtime pipeline-step
+  AGILab can express dynamic behavior inside generated or custom Python stages,
+  but it does not yet expose the same kind of first-class runtime pipeline-stage
   expansion in **WORKFLOW**. Its strength is elsewhere: experiment packaging,
   managed execution environments, distributed research workloads, and
   app-centric user workflows.

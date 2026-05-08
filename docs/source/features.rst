@@ -76,8 +76,8 @@ agi-core
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
   - A repository guardrail requires every non-template built-in app to expose a
-    reducer contract. ``mycode_project`` is the explicit template-only
-    exemption because it has placeholder worker hooks and no concrete merge
+    reducer contract. ``mycode_project`` and ``global_dag_project`` are explicit
+    template-only exemptions because they do not produce concrete worker merge
     output; future apps/templates must opt in when they produce durable worker
     summaries.
 
@@ -92,7 +92,7 @@ agilab
 - **Notebook-like multi-venv execution:**
 
   - Coordinate runs through one interface while keeping isolated runtimes for
-    project steps, workers, or page bundles.
+    project stages, workers, or page bundles.
 
 - **agi-core API Generation:**
 
@@ -171,12 +171,12 @@ single notebook but less ceremony than a production MLOps platform:
 - the notebook round-trip report validates
   ``tools/notebook_roundtrip_report.py --compact`` across
   ``lab_steps.toml -> supervisor notebook -> import -> lab_steps preview`` so
-  saved step description, prompt, model, code, runtime, import hints, and
+  saved stage description, prompt, model, code, runtime, import hints, and
   artifact references survive the non-executing round trip
 - the notebook union-environment report validates
   ``tools/notebook_union_environment_report.py --compact``; it renders a
   ``single-kernel union notebook`` only for compatible ``runpy``/current-kernel
-  steps and marks mixed runtimes or environments as
+  stages and marks mixed runtimes or environments as
   ``supervisor_notebook_required``
 - the data connector facility report validates
   ``tools/data_connector_facility_report.py --compact`` against
@@ -344,7 +344,7 @@ to the same contract, artifact names, stable node IDs, and provenance.
 - the global pipeline DAG report now assembles that cross-app contract with the
   app-local ``pipeline_view.dot`` files using
   ``tools/global_pipeline_dag_report.py --compact``; it emits a read-only graph
-  with app nodes, app-local pipeline steps, and the ``queue_metrics`` edge
+  with app nodes, app-local pipeline stages, and the ``queue_metrics`` edge
   without claiming runner execution or operator UI state
 - the global DAG execution plan report converts that graph into ordered
   runnable units with ``tools/global_pipeline_execution_plan_report.py --compact``;

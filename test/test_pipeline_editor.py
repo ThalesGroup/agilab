@@ -254,7 +254,7 @@ def test_remove_step_out_of_range_preserves_state_and_reports_save_error(monkeyp
     assert fake_st.session_state["idx__venv_map"] == {0: "/tmp/a"}
     assert fake_st.session_state["idx__engine_map"] == {0: "runpy"}
     assert fake_st.session_state["idx__run_sequence"] == [0]
-    assert errors == ["Failed to save steps file: boom"]
+    assert errors == ["Failed to save stage contract: boom"]
 
 
 def test_remove_step_middle_keeps_lower_indexes_and_rebuilds_default_sequence(monkeypatch, tmp_path):
@@ -813,7 +813,7 @@ C = "print('short')"
     assert nsteps == 2
     assert entry["Q"] == "question"
     assert fake_st.session_state["_experiment_last_save_skipped"] is True
-    assert errors == ["Failed to save steps file: save boom"]
+    assert errors == ["Failed to save stage contract: save boom"]
 
 
 def test_save_step_refuses_future_lab_steps_schema(monkeypatch, tmp_path):
@@ -844,7 +844,7 @@ def test_save_step_refuses_future_lab_steps_schema(monkeypatch, tmp_path):
     assert entry["Q"] == "updated question"
     assert fake_st.session_state["_experiment_last_save_skipped"] is True
     assert errors == [
-        "Failed to save steps file: Unsupported lab_steps.toml schema version 999; "
+        "Failed to save stage contract: Unsupported lab_steps.toml schema version 999; "
         "upgrade AGILAB before editing this pipeline."
     ]
 
@@ -996,7 +996,7 @@ def test_on_preview_notebook_import_stores_preview_without_writing(monkeypatch, 
     assert preview["module"] == "demo_project"
     assert (tmp_path / "demo_project" / "lab_steps.toml").exists() is False
     assert messages == [
-        ("info", "Notebook import preview ready: 1 step(s), 0 input(s), 0 output(s).")
+        ("info", "Notebook import preview ready: 1 stage(s), 0 input(s), 0 output(s).")
     ]
 
 
@@ -1202,7 +1202,7 @@ def test_force_persist_step_swallows_dump_failures(monkeypatch, tmp_path):
     pipeline_editor._force_persist_step(tmp_path / "flight_project", steps_file, 2, {"Q": "late"})
 
     expected_path = pipeline_editor.bound_log_value(steps_file, pipeline_editor.LOG_PATH_LIMIT)
-    assert failures == [f"Force persist failed for step 2 -> {expected_path}: dump boom"]
+    assert failures == [f"Force persist failed for stage 2 -> {expected_path}: dump boom"]
 
 
 def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_path):
@@ -1299,7 +1299,7 @@ def test_display_history_tab_covers_missing_file_and_save_error(monkeypatch, tmp
     pipeline_editor.display_history_tab(tmp_path / "missing.toml", tmp_path / "demo_project")
 
     assert editor_payloads == ["{}"]
-    assert errors == ["Failed to save steps file from editor: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"]
+    assert errors == ["Failed to save stage contract from editor: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"]
 
 
 def test_pipeline_editor_additional_branch_coverage(monkeypatch, tmp_path):
@@ -1834,7 +1834,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert metadata["related_pages"][0]["artifacts"] == ["demo.json", "demo.csv"]
     assert notebook["metadata"]["kernelspec"]["name"] == "python3"
     assert notebook["metadata"]["language_info"]["name"] == "python"
-    assert "run_agilab_step" in helper_source
+    assert "run_agilab_stage" in helper_source
     assert "run_agilab_pipeline" in helper_source
     assert "analysis_launch_command" in helper_source
     assert "analysis_launch_argv" in helper_source
@@ -1846,7 +1846,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert step_source_cell.startswith('STEP_000_CODE = """print(\'step-0\')\n"""')
     assert "\nprint(STEP_000_CODE)\n" in step_source_cell
     exec(step_source_cell, {})
-    assert "run_agilab_step(0, code_override=STEP_000_CODE)" in step_runner_cell
+    assert "run_agilab_stage(0, code_override=STEP_000_CODE)" in step_runner_cell
     assert "Demo Analysis" in page_markdown
     assert "`demo.json`" in page_markdown
     assert "Open this after the run." in page_markdown
@@ -1916,7 +1916,7 @@ def test_notebook_helper_replays_app_shorthand_steps_as_agi_run_scripts(tmp_path
     original_run = namespace["subprocess"].run
     try:
         namespace["subprocess"].run = _fake_run
-        namespace["run_agilab_step"](0, capture_output=False)
+        namespace["run_agilab_stage"](0, capture_output=False)
     finally:
         namespace["subprocess"].run = original_run
 
@@ -1999,7 +1999,7 @@ def test_notebook_helper_replays_app_shorthand_steps_from_apps_repository_when_a
     monkeypatch.setenv(env_key, str(repo_apps))
     try:
         namespace["subprocess"].run = _fake_run
-        namespace["run_agilab_step"](0, capture_output=False)
+        namespace["run_agilab_stage"](0, capture_output=False)
     finally:
         namespace["subprocess"].run = original_run
 
@@ -2084,7 +2084,7 @@ def test_notebook_helper_replays_app_shorthand_steps_when_active_app_is_other_pr
     monkeypatch.setenv("APPS_REPOSITORY", str(repo_apps))
     try:
         namespace["subprocess"].run = _fake_run
-        namespace["run_agilab_step"](0, capture_output=False)
+        namespace["run_agilab_stage"](0, capture_output=False)
     finally:
         namespace["subprocess"].run = original_run
 
@@ -2172,10 +2172,10 @@ def test_notebook_helper_replays_app_shorthand_steps_from_sibling_workspace_when
         namespace["subprocess"].run = _fake_run
         if not expect_private_resolution:
             with pytest.raises(ValueError, match="Unable to resolve a valid AGILAB app root"):
-                namespace["run_agilab_step"](0, capture_output=False)
+                namespace["run_agilab_stage"](0, capture_output=False)
             assert captured == {}
             return
-        namespace["run_agilab_step"](0, capture_output=False)
+        namespace["run_agilab_stage"](0, capture_output=False)
     finally:
         namespace["subprocess"].run = original_run
 
@@ -2268,7 +2268,7 @@ beam_width = 3
     original_run = namespace["subprocess"].run
     try:
         namespace["subprocess"].run = _fake_run
-        namespace["run_agilab_step"](0, capture_output=False)
+        namespace["run_agilab_stage"](0, capture_output=False)
     finally:
         namespace["subprocess"].run = original_run
 
@@ -2343,7 +2343,7 @@ def test_notebook_helper_respects_explicit_mode_in_shorthand(tmp_path):
     original_run = namespace["subprocess"].run
     try:
         namespace["subprocess"].run = _fake_run
-        namespace["run_agilab_step"](0, capture_output=False)
+        namespace["run_agilab_stage"](0, capture_output=False)
     finally:
         namespace["subprocess"].run = original_run
 
@@ -2562,7 +2562,7 @@ def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeyp
     assert messages == [
         (
             "warning",
-            "Notebook import preflight: review; 1 step(s), 1 input(s), 1 output(s). "
+            "Notebook import preflight: review; 1 stage(s), 1 input(s), 1 output(s). "
             "Contract: notebook_import_contract.json; View plan: notebook_import_view_plan.json",
         )
     ]

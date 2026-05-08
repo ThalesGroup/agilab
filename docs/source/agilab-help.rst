@@ -56,7 +56,7 @@ Use this as a page map, not as the newcomer proof path:
    distributions, configure distributed workers when needed, and generate a
    run snippet.
 3. Move to :doc:`experiment-help` (Pipeline) to import or iterate that
-   generated step in ``lab_steps.toml`` and export a runnable supervisor
+   generated stage in ``lab_steps.toml`` and export a runnable supervisor
    notebook when you want the pipeline outside the AGILAB UI.
 4. Open :doc:`explore-help` (Analysis) to configure and launch page bundles for
    deeper views.

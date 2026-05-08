@@ -162,7 +162,7 @@ def _first_proof_progress_markdown(rows: List[Dict[str, str]]) -> str:
     def _cell(value: str) -> str:
         return value.replace("|", "\\|").replace("\n", " ")
 
-    table = ["| Step | Status | Detail |", "| --- | --- | --- |"]
+    table = ["| Stage | Status | Detail |", "| --- | --- | --- |"]
     table.extend(
         (
             f"| {_cell(row['step'])} | {_cell(row['status'])} | "
@@ -201,7 +201,7 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
     if not state["current_app_matches"]:
         return {
             "tone": "next",
-            "phase": "Step 1",
+            "phase": "Stage 1",
             "title": "Select `flight_project`",
             "detail": f"You are on `{active_app}`. Switch to the guided demo before running anything.",
             "cta_label": "Use `flight_project`",
@@ -219,7 +219,7 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
     if state["run_manifest_loaded"] or state["run_output_detected"]:
         return {
             "tone": "attention",
-            "phase": "Step 3",
+            "phase": "Stage 3",
             "title": "Finish the evidence",
             "detail": next_step or "Generate or repair `run_manifest.json` before moving on.",
             "cta_label": "Show proof details",
@@ -227,7 +227,7 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
         }
     return {
         "tone": "next",
-        "phase": "Step 2",
+        "phase": "Stage 2",
         "title": "Install, then execute",
         "detail": "Open `ORCHESTRATE`; click `INSTALL`, then `EXECUTE` with cluster and service mode off.",
         "cta_label": "Go to `ORCHESTRATE`",

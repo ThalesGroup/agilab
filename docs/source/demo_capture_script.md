@@ -221,7 +221,7 @@ Important scope note:
 - the default sequence uses public built-ins from `agilab`
 - the first-class Data IO demo is `data_io_2026_project`; the three-project
   wrapper is only a composite media workflow
-- keep dynamic-pipeline claims grounded in visible AGILAB steps, generated
+- keep dynamic-pipeline claims grounded in visible AGILAB stages, generated
   snippets, worker activity, and replayable evidence
 - do not publish competitor-specific claims in the public guide
 
@@ -343,7 +343,7 @@ Use this when the audience expects an actual ML workflow, not only a product tou
 4. Move to `ORCHESTRATE`.
 5. Show one runnable forecast / backtest execution path.
 6. Move to `WORKFLOW`.
-7. Show the replayable steps:
+7. Show the replayable stages:
    - load series
    - backtest forecaster
    - forecast next days
@@ -445,7 +445,7 @@ Suggested flow:
 4. Move to `ORCHESTRATE`.
 5. Trigger the run.
 6. Move to `WORKFLOW`.
-7. Show that the run is now replayable as a tracked step.
+7. Show that the run is now replayable as a tracked stage.
 8. Move to `ANALYSIS`.
 9. Open `view_uav_relay_queue_analysis`.
 10. End on queue buildup, drops, or route usage.
@@ -477,7 +477,7 @@ Suggested timeline:
    lightweight simulator-backed app and packages it into a controlled execution
    path.
 4. `1:35 -> 2:00`
-   Move to `WORKFLOW`, show the generated or replayable step, and explain that
+   Move to `WORKFLOW`, show the generated or replayable stage, and explain that
    the experiment is now explicit instead of being buried in one-off scripts.
 5. `2:00 -> 2:40`
    Move to `ANALYSIS`, open `view_uav_relay_queue_analysis`, and show queue
@@ -503,7 +503,7 @@ Suggested click path:
 5. `ORCHESTRATE`
 6. short pause on run controls
 7. `WORKFLOW`
-8. short pause on the explicit step
+8. short pause on the explicit stage
 9. `ANALYSIS`
 10. `view_uav_relay_queue_analysis`
 11. optional final pause on `view_maps_network`
