@@ -1587,6 +1587,14 @@ def _probe_selected_actions_first(
     action_timeout_ms: float,
     upload_file: Path,
 ) -> list[WidgetProbe]:
+    def refresh_widgets() -> list[dict[str, Any]]:
+        wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
+        wait_for_widgets_ready(page, page_name=display, timeout_ms=widget_timeout_ms)
+        _wait_for_timeout(page, 1000)
+        wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
+        _close_all_expanders(page)
+        return page.evaluate(WIDGET_COLLECTOR_JS)
+
     probes: list[WidgetProbe] = []
     _close_all_expanders(page)
     widgets = page.evaluate(WIDGET_COLLECTOR_JS)
@@ -1607,14 +1615,9 @@ def _probe_selected_actions_first(
         )
     )
     if probes:
-        wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
-        wait_for_widgets_ready(page, page_name=display, timeout_ms=widget_timeout_ms)
-        _wait_for_timeout(page, 1000)
-        wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
-        _close_all_expanders(page)
-        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+        widgets = refresh_widgets()
 
-    for selected_label in click_action_labels:
+    for index, selected_label in enumerate(click_action_labels):
         if not _normalized_label(selected_label):
             continue
         matches = _selected_action_matches(widgets, selected_label)
@@ -1638,6 +1641,11 @@ def _probe_selected_actions_first(
                 )
             continue
         widget = matches[0]
+        next_settle_labels = [
+            candidate
+            for candidate in click_action_labels[index + 1 :]
+            if _normalized_label(candidate) and not _selected_action_matches(widgets, candidate)
+        ]
         status, detail = _probe_widget(
             page,
             widget,
@@ -1649,8 +1657,9 @@ def _probe_selected_actions_first(
             action_timeout_ms=action_timeout_ms,
             upload_file=upload_file,
             restore_view=None,
+            settle_action_labels=next_settle_labels[:1],
         )
-        if status == "skipped":
+        if status == "skipped" or (status == "probed" and "disabled state" in detail):
             status = "failed"
             detail = f"selected action button was found but not fired ({detail})"
         probes.append(
@@ -1665,6 +1674,8 @@ def _probe_selected_actions_first(
                 widget_scope(widget),
             )
         )
+        if status != "failed":
+            widgets = refresh_widgets()
     return probes
 
 
@@ -1741,10 +1752,12 @@ def _wait_for_action_outcome(
     timeout_ms: float,
     require_feedback: bool = False,
     baseline_feedback: set[tuple[str, str]] | None = None,
+    settle_action_labels: Sequence[str] = (),
 ) -> tuple[str | None, bool]:
     deadline = time.perf_counter() + timeout_ms / 1000.0
     min_observation_deadline = time.perf_counter() + min(5.0, timeout_ms / 1000.0)
     busy_seen = False
+    soft_feedback_seen = False
     idle_seen = 0
     baseline_feedback = set(baseline_feedback or ())
     while True:
@@ -1762,6 +1775,15 @@ def _wait_for_action_outcome(
                 detail = feedback["detail"]
                 if kind in {"error", "exception"}:
                     return _short_detail(f"{kind}: {detail}"), True
+                if kind == "success":
+                    return None, True
+                soft_feedback_seen = True
+        if settle_action_labels:
+            try:
+                widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+            except Exception:
+                widgets = []
+            if any(_selected_action_matches(widgets, label) for label in settle_action_labels):
                 return None, True
         if _visible_spinner_count(page) > 0:
             busy_seen = True
@@ -1769,6 +1791,10 @@ def _wait_for_action_outcome(
         elif busy_seen and not require_feedback:
             idle_seen += 1
             if idle_seen >= 3:
+                return None, True
+        elif require_feedback and soft_feedback_seen:
+            idle_seen += 1
+            if idle_seen >= 3 and time.perf_counter() >= min_observation_deadline:
                 return None, True
         elif not require_feedback and time.perf_counter() >= min_observation_deadline:
             return None, True
@@ -1789,6 +1815,7 @@ def _probe_widget(
     action_timeout_ms: float = DEFAULT_ACTION_TIMEOUT_SECONDS * 1000.0,
     upload_file: Path,
     restore_view: Any | None,
+    settle_action_labels: Sequence[str] = (),
 ) -> tuple[str, str]:
     if widget.get("disabled"):
         return "probed", "disabled state verified"
@@ -1877,6 +1904,7 @@ def _probe_widget(
                     timeout_ms=action_timeout_ms,
                     require_feedback=require_feedback,
                     baseline_feedback=baseline_feedback,
+                    settle_action_labels=settle_action_labels,
                 )
                 if error:
                     return "failed", f"button click rendered Streamlit error: {error}"

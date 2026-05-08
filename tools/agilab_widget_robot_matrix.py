@@ -89,6 +89,27 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         missing_selected_action_policy="ignore-absent",
         action_timeout_seconds=180.0,
     ),
+    "current-home-orchestrate-journey": RobotScenario(
+        name="current-home-orchestrate-journey",
+        description=(
+            "Exercise the stateful ORCHESTRATE journey that human users follow: "
+            "check distribution, run/load/export, reload output, export dataframe, "
+            "and delete the generated output."
+        ),
+        pages="ORCHESTRATE",
+        apps_pages="none",
+        runtime_isolation="current-home",
+        action_button_policy="click-selected",
+        click_action_labels=(
+            "CHECK distribute,Run -> Load -> Export,Load output,"
+            "EXPORT dataframe,Delete output,Confirm delete"
+        ),
+        preselect_labels="Run now",
+        missing_selected_action_policy="ignore-absent",
+        action_timeout_seconds=60.0,
+        page_timeout_seconds=240.0,
+        target_seconds=2400.0,
+    ),
 }
 
 
@@ -305,6 +326,7 @@ def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
             for result in results
             if result.returncode != 0 or result.summary.get("success") is not True
         ],
+        "failure_samples": _failure_samples(results),
         "scenarios": [
             {
                 "name": result.scenario.name,
@@ -324,6 +346,30 @@ def summarize_matrix(results: Sequence[ScenarioResult]) -> dict:
             for result in results
         ],
     }
+
+
+def _failure_samples(results: Sequence[ScenarioResult], *, limit: int = 20) -> list[dict[str, str]]:
+    samples: list[dict[str, str]] = []
+    for result in results:
+        for page in result.summary.get("pages") or []:
+            if not isinstance(page, dict):
+                continue
+            for failure in page.get("failures") or []:
+                if not isinstance(failure, dict):
+                    continue
+                samples.append(
+                    {
+                        "scenario": result.scenario.name,
+                        "app": str(page.get("app") or failure.get("app") or ""),
+                        "page": str(page.get("page") or failure.get("page") or ""),
+                        "kind": str(failure.get("kind") or ""),
+                        "label": str(failure.get("label") or ""),
+                        "detail": str(failure.get("detail") or ""),
+                    }
+                )
+                if len(samples) >= limit:
+                    return samples
+    return samples
 
 
 def render_human(summary: dict) -> str:
