@@ -34,6 +34,7 @@ class RobotScenario:
     page_timeout_seconds: float = 420.0
     target_seconds: float = 1800.0
     assert_orchestrate_artifacts: bool = False
+    assert_workflow_artifacts: bool = False
 
 
 @dataclass(frozen=True)
@@ -74,6 +75,7 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="trial",
+        assert_workflow_artifacts=True,
     ),
     "current-home-actions": RobotScenario(
         name="current-home-actions",
@@ -229,6 +231,8 @@ def build_robot_command(
         argv.extend(["--preselect-labels", scenario.preselect_labels])
     if scenario.assert_orchestrate_artifacts:
         argv.append("--assert-orchestrate-artifacts")
+    if scenario.assert_workflow_artifacts:
+        argv.append("--assert-workflow-artifacts")
     if options.url:
         argv.extend(["--url", options.url])
     if options.active_app:

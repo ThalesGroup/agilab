@@ -33,6 +33,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
+    assert isolated.assert_workflow_artifacts is True
     assert current_home.pages == "ORCHESTRATE"
     assert current_home.runtime_isolation == "current-home"
     assert current_home.action_button_policy == "click-selected"
@@ -77,6 +78,7 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     assert "--quiet-progress" in argv
     assert "--no-seed-demo-artifacts" in argv
     assert "--assert-orchestrate-artifacts" not in argv
+    assert "--assert-workflow-artifacts" not in argv
     assert summary_path == tmp_path / "current-home-actions.json"
     assert progress_path == tmp_path / "current-home-actions.ndjson"
 
@@ -96,6 +98,23 @@ def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tm
     argv, _, _ = module.build_robot_command(scenario, options=options)
 
     assert "--assert-orchestrate-artifacts" in argv
+
+
+def test_build_robot_command_enables_workflow_artifact_assertions_for_core_sweep(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
+    options = module.MatrixOptions(
+        apps="flight_project",
+        output_dir=tmp_path,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert "--assert-workflow-artifacts" in argv
 
 
 def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
