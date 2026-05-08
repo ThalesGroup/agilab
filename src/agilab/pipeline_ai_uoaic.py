@@ -32,6 +32,7 @@ _format_uoaic_question = _pipeline_ai_support_module.format_uoaic_question
 _load_uoaic_modules_impl = _pipeline_ai_support_module._load_uoaic_modules
 _normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
 _normalize_user_path = _pipeline_ai_support_module.normalize_user_path
+ollama_readiness = _pipeline_ai_support_module.ollama_readiness
 _resolve_uoaic_path_impl = _pipeline_ai_support_module._resolve_uoaic_path
 
 
@@ -81,6 +82,13 @@ class UoaicControlDeps:
     ensure_runtime_fn: Callable[[Dict[str, str]], Dict[str, Any]]
     spinner_factory: Callable[[str], Any]
     normalize_user_path_fn: Callable[[str], str] = _normalize_user_path
+    ollama_readiness_fn: Callable[[str, str], Any] = ollama_readiness
+
+
+def _emit_sidebar_status(sidebar: Any, method: str, message: str) -> None:
+    sink = getattr(sidebar, method, None)
+    if callable(sink):
+        sink(message)
 
 
 def resolve_uoaic_path(
@@ -296,6 +304,12 @@ def render_universal_offline_controls(
             env.envars[UOAIC_MODEL_ENV] = model_input
         else:
             env.envars.pop(UOAIC_MODEL_ENV, None)
+
+        readiness = deps.ollama_readiness_fn(normalized_endpoint, model_input)
+        if getattr(readiness, "is_ready", False):
+            _emit_sidebar_status(deps.sidebar, "success", readiness.detail)
+        else:
+            _emit_sidebar_status(deps.sidebar, "warning", f"{readiness.detail} {readiness.action}")
 
         def _float_default(name: str, fallback: float) -> float:
             raw = deps.session_state.get(name) or env.envars.get(name) or os.getenv(name)

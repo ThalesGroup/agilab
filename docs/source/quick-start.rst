@@ -95,7 +95,11 @@ machine-readable proof record.
       ./install.sh --install-apps --install-local-models gpt-oss,qwen3-coder,ministral,phi4-mini
 
    Supported values are ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``,
-   ``qwen3-coder``, ``ministral``, and ``phi4-mini``.
+   ``qwen3-coder``, ``ministral``, and ``phi4-mini``. The first family in the
+   list becomes the default WORKFLOW local assistant. For example, ``gpt-oss``
+   selects the Ollama-backed ``gpt-oss:20b`` model and writes the matching
+   ``LAB_LLM_PROVIDER``, ``UOAIC_MODEL``, and ``AGILAB_LLM_*`` values into the
+   AGILAB environment file.
 
 2. **Run the first-proof CLI**::
 

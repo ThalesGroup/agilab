@@ -12,6 +12,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Callable
 
 import pandas as pd
@@ -22,6 +23,7 @@ DEFAULT_GPT_OSS_ENDPOINT = "http://127.0.0.1:8000/v1/responses"
 
 OLLAMA_QWEN_PROVIDER = "ollama-qwen"
 OLLAMA_DEEPSEEK_PROVIDER = "ollama-deepseek"
+OLLAMA_GPT_OSS_PROVIDER = "ollama-gpt-oss"
 OLLAMA_QWEN3_PROVIDER = "ollama-qwen3"
 OLLAMA_QWEN3_CODER_PROVIDER = "ollama-qwen3-coder"
 OLLAMA_MINISTRAL_PROVIDER = "ollama-ministral"
@@ -37,11 +39,13 @@ CODE_STRICT_INSTRUCTIONS = (
 _OLLAMA_CODE_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:code|coder|codestral|deepseek)(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_QWEN_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:qwen|qwq)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_DEEPSEEK_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:deepseek)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
+_OLLAMA_GPT_OSS_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:gpt-?oss)[A-Za-z0-9._:-]*(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_QWEN3_MODEL_RE = re.compile(r"(?:^|/|:|_)qwen3(?!-coder)[A-Za-z0-9._:-]*(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_QWEN3_CODER_MODEL_RE = re.compile(r"(?:^|/|:|_)qwen3-coder(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_MINISTRAL_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:ministral-?3|ministral)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_PHI4_MINI_MODEL_RE = re.compile(r"(?:^|/|:|_)(?:phi4-mini|phi-4-mini)[A-Za-z0-9._-]*(?:$|/|:|_)", re.IGNORECASE)
 _OLLAMA_FAMILY_DEFAULTS = {
+    "gpt-oss": "gpt-oss:20b",
     "qwen": "qwen2.5-coder:latest",
     "deepseek": "deepseek-coder:latest",
     "qwen3": "qwen3:30b-a3b-instruct-2507-q4_K_M",
@@ -50,6 +54,7 @@ _OLLAMA_FAMILY_DEFAULTS = {
     "phi4-mini": "phi4-mini:3.8b-q4_K_M",
 }
 _OLLAMA_FAMILY_PATTERNS = {
+    "gpt-oss": _OLLAMA_GPT_OSS_MODEL_RE,
     "qwen": _OLLAMA_QWEN_MODEL_RE,
     "deepseek": _OLLAMA_DEEPSEEK_MODEL_RE,
     "qwen3": _OLLAMA_QWEN3_MODEL_RE,
@@ -58,6 +63,7 @@ _OLLAMA_FAMILY_PATTERNS = {
     "phi4-mini": _OLLAMA_PHI4_MINI_MODEL_RE,
 }
 OLLAMA_LOCAL_PROVIDER_FAMILIES = {
+    OLLAMA_GPT_OSS_PROVIDER: "gpt-oss",
     OLLAMA_QWEN_PROVIDER: "qwen",
     OLLAMA_DEEPSEEK_PROVIDER: "deepseek",
     OLLAMA_QWEN3_PROVIDER: "qwen3",
@@ -69,6 +75,23 @@ _API_KEY_PATTERNS = [
     re.compile(r"(sk-[A-Za-z0-9]{6})([A-Za-z0-9\\-_]{8,})"),
     re.compile(r"(sk-proj)-[A-Za-z0-9\\-_]{4,}"),
 ]
+
+
+@dataclass(frozen=True)
+class LocalLlmReadiness:
+    """User-facing readiness status for a configured local LLM backend."""
+
+    backend: str
+    status: str
+    endpoint: str
+    model: str
+    detail: str
+    action: str
+    available_models: Tuple[str, ...] = ()
+
+    @property
+    def is_ready(self) -> bool:
+        return self.status == "ready"
 
 
 def extract_code(gpt_message: str) -> Tuple[str, str]:
@@ -123,22 +146,29 @@ def normalize_ollama_endpoint(raw_endpoint: Optional[str]) -> str:
     return endpoint
 
 
-def _ollama_available_models(endpoint: str) -> List[str]:
-    """Return the list of models available on the Ollama server."""
+def fetch_ollama_models(
+    endpoint: str,
+    *,
+    timeout_s: float = 2.0,
+    urlopen_fn: Callable[..., Any] | None = None,
+) -> List[str]:
+    """Return models from Ollama, raising RuntimeError when the service cannot be probed."""
 
     base = normalize_ollama_endpoint(endpoint)
     url = f"{base}/api/tags"
     req = urllib.request.Request(url, method="GET")
+    if urlopen_fn is None:
+        urlopen_fn = urllib.request.urlopen
     try:
-        with urllib.request.urlopen(req, timeout=10.0) as resp:
+        with urlopen_fn(req, timeout=timeout_s) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
-    except (OSError, TimeoutError, urllib.error.URLError, ValueError, RuntimeError):
-        return []
+    except (OSError, TimeoutError, urllib.error.URLError, ValueError, RuntimeError) as exc:
+        raise RuntimeError(f"Ollama is not reachable at {base}.") from exc
 
     try:
         parsed = json.loads(raw)
-    except (TypeError, json.JSONDecodeError):
-        return []
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"Ollama returned invalid JSON from {url}.") from exc
 
     models: List[str] = []
     if isinstance(parsed, dict):
@@ -156,6 +186,78 @@ def _ollama_available_models(endpoint: str) -> List[str]:
         seen.add(name)
         deduped.append(name)
     return deduped
+
+
+def _ollama_available_models(endpoint: str) -> List[str]:
+    """Return the list of models available on the Ollama server."""
+
+    try:
+        return fetch_ollama_models(endpoint, timeout_s=10.0)
+    except RuntimeError:
+        return []
+
+
+def ollama_readiness(
+    endpoint: str,
+    model: str,
+    *,
+    model_fetcher: Callable[[str], List[str]] | None = None,
+) -> LocalLlmReadiness:
+    """Classify whether a configured Ollama model is ready for WORKFLOW."""
+
+    normalized_endpoint = normalize_ollama_endpoint(endpoint)
+    requested_model = str(model or "").strip()
+    if not requested_model:
+        return LocalLlmReadiness(
+            backend="ollama",
+            status="not_configured",
+            endpoint=normalized_endpoint,
+            model="",
+            detail="No Ollama model is selected.",
+            action="Select a model or run the installer with `--install-local-models <family>`.",
+        )
+
+    if model_fetcher is None:
+        model_fetcher = lambda base: fetch_ollama_models(base, timeout_s=0.5)
+
+    try:
+        available = tuple(model_fetcher(normalized_endpoint))
+    except RuntimeError as exc:
+        return LocalLlmReadiness(
+            backend="ollama",
+            status="service_unreachable",
+            endpoint=normalized_endpoint,
+            model=requested_model,
+            detail=str(exc),
+            action="Start Ollama, then rerun `ollama list` or open WORKFLOW again.",
+        )
+
+    if requested_model in available:
+        return LocalLlmReadiness(
+            backend="ollama",
+            status="ready",
+            endpoint=normalized_endpoint,
+            model=requested_model,
+            detail=f"Ollama model `{requested_model}` is installed.",
+            action="WORKFLOW can use this local model.",
+            available_models=available,
+        )
+
+    available_summary = ", ".join(available[:5])
+    if len(available) > 5:
+        available_summary += ", ..."
+    detail = f"Ollama model `{requested_model}` is not installed."
+    if available_summary:
+        detail = f"{detail} Installed models: {available_summary}."
+    return LocalLlmReadiness(
+        backend="ollama",
+        status="model_missing",
+        endpoint=normalized_endpoint,
+        model=requested_model,
+        detail=detail,
+        action=f"Run `ollama pull {requested_model}` or choose one of the installed models.",
+        available_models=available,
+    )
 
 
 def _default_ollama_model(
@@ -443,6 +545,70 @@ def normalize_gpt_oss_endpoint(raw_endpoint: Optional[str]) -> str:
     if endpoint.endswith("/"):
         return endpoint + "v1/responses"
     return endpoint + "/v1/responses"
+
+
+def gpt_oss_readiness(
+    endpoint: str,
+    *,
+    timeout_s: float = 0.5,
+    urlopen_fn: Callable[..., Any] | None = None,
+) -> LocalLlmReadiness:
+    """Probe a GPT-OSS Responses endpoint without sending a completion request."""
+
+    normalized_endpoint = normalize_gpt_oss_endpoint(endpoint)
+    if not normalized_endpoint:
+        return LocalLlmReadiness(
+            backend="gpt-oss",
+            status="not_configured",
+            endpoint="",
+            model="",
+            detail="No GPT-OSS endpoint is configured.",
+            action="Start the GPT-OSS Responses API or configure `GPT_OSS_ENDPOINT`.",
+        )
+
+    if urlopen_fn is None:
+        urlopen_fn = urllib.request.urlopen
+
+    request = urllib.request.Request(normalized_endpoint, method="GET")
+    try:
+        with urlopen_fn(request, timeout=timeout_s):
+            pass
+    except urllib.error.HTTPError as exc:
+        if exc.code in {400, 405}:
+            return LocalLlmReadiness(
+                backend="gpt-oss",
+                status="ready",
+                endpoint=normalized_endpoint,
+                model="",
+                detail=f"GPT-OSS endpoint is reachable at {normalized_endpoint}.",
+                action="WORKFLOW can send Responses API requests to this endpoint.",
+            )
+        return LocalLlmReadiness(
+            backend="gpt-oss",
+            status="service_unreachable",
+            endpoint=normalized_endpoint,
+            model="",
+            detail=f"GPT-OSS endpoint returned HTTP {exc.code}.",
+            action="Check the GPT-OSS server route and `GPT_OSS_ENDPOINT`.",
+        )
+    except (OSError, TimeoutError, urllib.error.URLError, ValueError, RuntimeError) as exc:
+        return LocalLlmReadiness(
+            backend="gpt-oss",
+            status="service_unreachable",
+            endpoint=normalized_endpoint,
+            model="",
+            detail=f"GPT-OSS is not reachable at {normalized_endpoint}.",
+            action="Start it with `python -m gpt_oss.responses_api.serve --port 8000` or update `GPT_OSS_ENDPOINT`.",
+        )
+
+    return LocalLlmReadiness(
+        backend="gpt-oss",
+        status="ready",
+        endpoint=normalized_endpoint,
+        model="",
+        detail=f"GPT-OSS endpoint is reachable at {normalized_endpoint}.",
+        action="WORKFLOW can send Responses API requests to this endpoint.",
+    )
 
 
 def prompt_to_gpt_oss_messages(prompt: List[Dict[str, str]], question: str) -> Tuple[Optional[str], List[Dict[str, Any]]]:

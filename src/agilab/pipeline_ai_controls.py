@@ -70,6 +70,7 @@ _pipeline_ai_support_module = import_agilab_module(
     fallback_name="agilab_pipeline_ai_support_fallback",
 )
 OLLAMA_DEEPSEEK_PROVIDER = _pipeline_ai_support_module.OLLAMA_DEEPSEEK_PROVIDER
+OLLAMA_GPT_OSS_PROVIDER = _pipeline_ai_support_module.OLLAMA_GPT_OSS_PROVIDER
 OLLAMA_LOCAL_PROVIDER_FAMILIES = _pipeline_ai_support_module.OLLAMA_LOCAL_PROVIDER_FAMILIES
 OLLAMA_MINISTRAL_PROVIDER = _pipeline_ai_support_module.OLLAMA_MINISTRAL_PROVIDER
 OLLAMA_PHI4_MINI_PROVIDER = _pipeline_ai_support_module.OLLAMA_PHI4_MINI_PROVIDER
@@ -77,6 +78,7 @@ OLLAMA_QWEN3_CODER_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN3_CODER_PRO
 OLLAMA_QWEN3_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN3_PROVIDER
 OLLAMA_QWEN_PROVIDER = _pipeline_ai_support_module.OLLAMA_QWEN_PROVIDER
 default_ollama_family_model = _pipeline_ai_support_module.default_ollama_family_model
+gpt_oss_readiness = _pipeline_ai_support_module.gpt_oss_readiness
 normalize_ollama_endpoint = _pipeline_ai_support_module.normalize_ollama_endpoint
 ollama_model_matches_family = _pipeline_ai_support_module.ollama_model_matches_family
 
@@ -88,12 +90,20 @@ class PipelineAiControlDeps:
         session_state: Any,
         sidebar: Any,
         activate_gpt_oss_fn: Callable[[AgiEnv], bool] = activate_gpt_oss,
+        gpt_oss_readiness_fn: Callable[[str], Any] = gpt_oss_readiness,
         get_default_openai_model_fn: Callable[[], str] = get_default_openai_model,
     ) -> None:
         self.session_state = session_state
         self.sidebar = sidebar
         self.activate_gpt_oss_fn = activate_gpt_oss_fn
+        self.gpt_oss_readiness_fn = gpt_oss_readiness_fn
         self.get_default_openai_model_fn = get_default_openai_model_fn
+
+
+def _emit_sidebar_status(sidebar: Any, method: str, message: str) -> None:
+    sink = getattr(sidebar, method, None)
+    if callable(sink):
+        sink(message)
 
 
 def configure_assistant_engine(
@@ -105,6 +115,7 @@ def configure_assistant_engine(
 ) -> str:
     """Render assistant-provider controls and persist provider-specific settings."""
     local_family_providers = {
+        "GPT-OSS 20B (Ollama)": OLLAMA_GPT_OSS_PROVIDER,
         "Qwen (local)": OLLAMA_QWEN_PROVIDER,
         "DeepSeek (local)": OLLAMA_DEEPSEEK_PROVIDER,
         "Qwen3 30B-A3B (local)": OLLAMA_QWEN3_PROVIDER,
@@ -116,7 +127,7 @@ def configure_assistant_engine(
         "OpenAI (online)": "openai",
         "vLLM / OpenAI-compatible (self-hosted)": OPENAI_COMPAT_PROVIDER,
         "Mistral Medium 3.5 (online)": MISTRAL_PROVIDER,
-        "GPT-OSS (local)": "gpt-oss",
+        "GPT-OSS Responses API (local)": "gpt-oss",
         **local_family_providers,
         "Ollama (local)": uoaic_provider,
     }
@@ -449,7 +460,12 @@ def gpt_oss_controls(
             return
 
     if endpoint:
-        deps.sidebar.info(f"Using GPT-OSS endpoint: {endpoint}")
+        _emit_sidebar_status(deps.sidebar, "info", f"Using GPT-OSS endpoint: {endpoint}")
+        readiness = deps.gpt_oss_readiness_fn(endpoint)
+        if getattr(readiness, "is_ready", False):
+            _emit_sidebar_status(deps.sidebar, "success", readiness.detail)
+        else:
+            _emit_sidebar_status(deps.sidebar, "warning", f"{readiness.detail} {readiness.action}")
     else:
         deps.sidebar.warning(
             "Configure a GPT-OSS endpoint or install the package with `pip install gpt-oss` "

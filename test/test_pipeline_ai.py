@@ -1625,7 +1625,7 @@ def test_configure_assistant_engine_and_gpt_oss_controls(monkeypatch):
     class FakeSidebar:
         def selectbox(self, label, options, index=0, help=None):
             if label == "Assistant engine":
-                return "GPT-OSS (local)"
+                return "GPT-OSS Responses API (local)"
             if label == "GPT-OSS backend":
                 return "stub"
             raise AssertionError(label)
@@ -1729,6 +1729,7 @@ def test_configure_assistant_engine_selects_qwen_and_seeds_local_family_model(mo
 
 def test_configure_assistant_engine_selects_power_efficient_local_profiles(monkeypatch):
     selected_labels = [
+        ("GPT-OSS 20B (Ollama)", pipeline_ai.OLLAMA_GPT_OSS_PROVIDER, "gpt-oss", "gpt-oss:20b"),
         ("Qwen3 30B-A3B (local)", pipeline_ai.OLLAMA_QWEN3_PROVIDER, "qwen3", "qwen3:30b-a3b-instruct-2507-q4_K_M"),
         (
             "Qwen3-Coder 30B-A3B (local)",
@@ -2068,6 +2069,63 @@ def test_universal_offline_controls_rag_mode_updates_env_and_rebuilds(monkeypatc
     assert env.envars[pipeline_ai.UOAIC_DB_ENV].endswith("/vectorstore")
     assert fake_st.session_state[pipeline_ai.UOAIC_REBUILD_FLAG_KEY] is True
     assert any(kind == "success" and "knowledge base updated" in message for kind, message in messages)
+
+
+def test_universal_offline_controls_reports_ollama_model_readiness(tmp_path):
+    messages: list[tuple[str, str]] = []
+
+    class FakeSidebar:
+        def selectbox(self, label, options, index=0, help=None):
+            return "Code (Ollama)"
+
+        def expander(self, label, expanded=True):
+            return nullcontext()
+
+        def text_input(self, label, value="", help=None):
+            mapping = {
+                "Ollama endpoint": "http://127.0.0.1:11434",
+                "Ollama model": "gpt-oss:20b",
+            }
+            return mapping.get(label, value)
+
+        def slider(self, label, min_value=None, max_value=None, value=None, step=None, help=None):
+            return value
+
+        def number_input(self, label, min_value=None, max_value=None, value=None, step=None, help=None):
+            return value
+
+        def checkbox(self, label, value=False, help=None):
+            return value
+
+        def success(self, message):
+            messages.append(("success", str(message)))
+
+        def warning(self, message):
+            messages.append(("warning", str(message)))
+
+        def caption(self, message):
+            messages.append(("caption", str(message)))
+
+    env = SimpleNamespace(envars={})
+    deps = pipeline_ai_uoaic_direct.UoaicControlDeps(
+        session_state={"lab_llm_provider": pipeline_ai_uoaic_direct.UOAIC_PROVIDER},
+        sidebar=FakeSidebar(),
+        normalize_path_fn=str,
+        default_ollama_model_fn=lambda *_args, **_kwargs: "gpt-oss:20b",
+        ensure_runtime_fn=lambda _envars: {"runtime": True},
+        spinner_factory=nullcontext,
+        normalize_user_path_fn=lambda raw: str(raw),
+        ollama_readiness_fn=lambda endpoint, model: SimpleNamespace(
+            is_ready=True,
+            detail=f"{model} ready at {endpoint}",
+            action="",
+        ),
+    )
+
+    pipeline_ai_uoaic_direct.render_universal_offline_controls(env, deps=deps)
+
+    assert any(kind == "success" and "gpt-oss:20b ready" in message for kind, message in messages)
+    assert env.envars[pipeline_ai_uoaic_direct.UOAIC_MODEL_ENV] == "gpt-oss:20b"
 
 
 def test_chat_universal_offline_formats_sources_and_raises(monkeypatch):

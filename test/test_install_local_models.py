@@ -223,6 +223,27 @@ def test_installers_map_supported_local_model_families_to_expected_ollama_tags()
         assert 'phi4-mini) echo "phi4-mini:3.8b-q4_K_M" ;;' in script_text
 
 
+def test_installers_map_local_model_families_to_workflow_providers() -> None:
+    cases = [
+        ("gpt-oss", "ollama-gpt-oss"),
+        ("qwen3-coder", "ollama-qwen3-coder"),
+        ("phi4-mini", "ollama-phi4-mini"),
+    ]
+    for script_path, next_function_name in (
+        (INSTALL_SH, "persist_local_llm_env_for_family"),
+        (INSTALL_ENDUSER_SH, "ensure_ollama_runtime"),
+    ):
+        for family, expected in cases:
+            provider = _run_shell_function(
+                script_path,
+                "provider_for_local_model_family",
+                next_function_name,
+                "provider_for_local_model_family",
+                family,
+            )
+            assert provider == expected
+
+
 def test_installers_expose_and_wire_install_local_models_flag() -> None:
     root_text = INSTALL_SH.read_text(encoding="utf-8")
     enduser_text = INSTALL_ENDUSER_SH.read_text(encoding="utf-8")
@@ -231,6 +252,11 @@ def test_installers_expose_and_wire_install_local_models_flag() -> None:
     assert "--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini" in enduser_text
     assert 'setup_requested_local_models "$requested_local_models" "requested local models"' in root_text
     assert 'install_requested_local_models "${INSTALL_LOCAL_MODELS}"' in enduser_text
+    for script_text in (root_text, enduser_text):
+        assert 'persist_env_var "LAB_LLM_PROVIDER" "$provider"' in script_text
+        assert 'persist_env_var "UOAIC_OLLAMA_ENDPOINT" "http://127.0.0.1:11434"' in script_text
+        assert 'persist_env_var "UOAIC_MODEL" "$tag"' in script_text
+        assert 'persist_env_var "AGILAB_LLM_BASE_URL" "http://127.0.0.1:11434/v1"' in script_text
 
 
 def test_installers_expose_dry_run_plans_before_dependency_installation() -> None:
