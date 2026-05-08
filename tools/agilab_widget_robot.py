@@ -53,6 +53,32 @@ CHOICE_BUTTON_KINDS = {"segmented_control", "pills"}
 RUNTIME_ISOLATION_MODES = ("isolated", "current-home")
 MISSING_SELECTED_ACTION_POLICIES = ("fail", "ignore-absent")
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
+BROWSER_ISSUE_FATAL_NEEDLES = (
+    "agi execution failed",
+    "build failed",
+    "command failed",
+    "distribution build failed",
+    "exception",
+    "export failed",
+    "failed with exit code",
+    "load failed",
+    "modulenotfounderror",
+    "no module named",
+    "non-zero exit status",
+    "runtimeerror",
+    "streamlitapiexception",
+    "traceback",
+    "typeerror",
+    "uncaught",
+    "valueerror",
+    "worker failed",
+)
+BROWSER_ISSUE_IGNORE_NEEDLES = (
+    "favicon",
+    "failed to load resource",
+    "net::err_aborted",
+    "websocket",
+)
 PAGE_EXPECTED_TEXT = {
     "": ("AGILAB", "Start here"),
     "PROJECT": ("PROJECT", "Active app", "Project"),
@@ -256,16 +282,34 @@ VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
   }
   const errorNeedles = [
     "agi execution failed",
+    "build failed",
+    "command failed",
+    "distribution build failed",
     "error",
     "exception",
+    "export failed",
+    "failed with exit code",
     "traceback",
     "failed",
     "failure",
+    "load failed",
     "modulenotfounderror",
     "no module named",
+    "non-zero exit status",
     "streamlitapi",
+    "worker failed",
   ];
-  for (const el of document.querySelectorAll("[data-testid='stAlert'], [data-testid='stAlertContainer']")) {
+  const selectors = [
+    "[data-testid='stAlert']",
+    "[data-testid='stAlertContainer']",
+    "[data-testid='stStatus']",
+    "[data-testid='stStatusWidget']",
+    "[data-testid='stToast']",
+    "[data-testid='stNotification']",
+    "[role='alert']",
+    "[aria-live='assertive']",
+  ].join(", ");
+  for (const el of document.querySelectorAll(selectors)) {
     if (!visible(el)) continue;
     const text = clean(el.innerText || el.textContent || "");
     const metadata = clean([
@@ -294,14 +338,41 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
   const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
   const errorNeedles = [
     "agi execution failed",
+    "build failed",
+    "command failed",
+    "distribution build failed",
     "error",
     "exception",
+    "export failed",
+    "failed with exit code",
     "traceback",
     "failed",
     "failure",
+    "load failed",
     "modulenotfounderror",
     "no module named",
+    "non-zero exit status",
     "streamlitapi",
+    "worker failed",
+  ];
+  const fatalTextNeedles = [
+    "agi execution failed",
+    "build failed",
+    "command failed",
+    "distribution build failed",
+    "export failed",
+    "failed with exit code",
+    "load failed",
+    "modulenotfounderror",
+    "no module named",
+    "non-zero exit status",
+    "runtimeerror",
+    "streamlitapiexception",
+    "traceback",
+    "typeerror",
+    "uncaught exception",
+    "valueerror",
+    "worker failed",
   ];
   const feedback = [];
   const push = (kind, el, fallback) => {
@@ -313,7 +384,17 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
       push("exception", el, "Streamlit exception rendered");
     }
   }
-  for (const el of document.querySelectorAll("[data-testid='stAlert'], [data-testid='stAlertContainer']")) {
+  const semanticSelectors = [
+    "[data-testid='stAlert']",
+    "[data-testid='stAlertContainer']",
+    "[data-testid='stStatus']",
+    "[data-testid='stStatusWidget']",
+    "[data-testid='stToast']",
+    "[data-testid='stNotification']",
+    "[role='alert']",
+    "[aria-live='assertive']",
+  ].join(", ");
+  for (const el of document.querySelectorAll(semanticSelectors)) {
     if (!visible(el)) continue;
     const text = clean(el.innerText || el.textContent || "");
     const metadata = clean([
@@ -333,6 +414,20 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
       push("info", el, "Streamlit alert rendered");
     }
   }
+  const renderedTextSelectors = [
+    "[data-testid='stCodeBlock']",
+    "[data-testid='stMarkdownContainer']",
+    "pre",
+    "code",
+  ].join(", ");
+  for (const el of document.querySelectorAll(renderedTextSelectors)) {
+    if (!visible(el)) continue;
+    const text = clean(el.innerText || el.textContent || "");
+    const lower = text.toLowerCase();
+    if (fatalTextNeedles.some((needle) => lower.includes(needle))) {
+      push("error", el, "fatal diagnostic text rendered");
+    }
+  }
   return feedback;
 }
 """
@@ -342,20 +437,31 @@ ACTION_LOG_FEEDBACK_COLLECTOR_JS = r"""
   const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
   const errorNeedles = [
     "agi execution failed",
+    "build failed",
+    "command failed",
     "distribution build failed",
     "error",
     "exception",
+    "export failed",
+    "failed with exit code",
     "traceback",
     "failed",
     "failure",
+    "load failed",
     "modulenotfounderror",
     "no module named",
+    "non-zero exit status",
     "streamlitapi",
+    "worker failed",
   ];
   const logTitleNeedles = [
+    "details",
+    "diagnostic",
     "orchestration log",
     "execution log",
     "install log",
+    "output",
+    "result",
     "run log",
     "service log",
   ];
@@ -372,7 +478,7 @@ ACTION_LOG_FEEDBACK_COLLECTOR_JS = r"""
     const summary = details.querySelector(":scope > summary") || details.querySelector("summary");
     const title = clean(summary ? (summary.innerText || summary.textContent || "") : "").toLowerCase();
     if (!logTitleNeedles.some((needle) => title.includes(needle))) continue;
-    for (const el of details.querySelectorAll("[data-testid='stException'], [data-testid='stAlert'], [data-testid='stAlertContainer'], [data-testid='stCodeBlock'], pre, code")) {
+    for (const el of details.querySelectorAll("[data-testid='stException'], [data-testid='stAlert'], [data-testid='stAlertContainer'], [data-testid='stStatus'], [data-testid='stStatusWidget'], [data-testid='stCodeBlock'], [data-testid='stMarkdownContainer'], [role='alert'], pre, code")) {
       if (hasFailure(el.innerText || el.textContent || "")) {
         push("error", el, "action log failure rendered");
       }
@@ -1101,6 +1207,94 @@ def _short_detail(detail: str, *, limit: int = 500) -> str:
     return detail if len(detail) <= limit else detail[: limit - 3] + "..."
 
 
+def _callable_or_value(obj: Any, name: str, default: str = "") -> str:
+    value = getattr(obj, name, default)
+    try:
+        if callable(value):
+            value = value()
+    except Exception:
+        return default
+    return str(value or default)
+
+
+def _browser_issue_is_relevant(kind: str, detail: str) -> bool:
+    lower = f"{kind} {detail}".lower()
+    if any(needle in lower for needle in BROWSER_ISSUE_IGNORE_NEEDLES):
+        return False
+    if kind == "pageerror":
+        return True
+    return any(needle in lower for needle in BROWSER_ISSUE_FATAL_NEEDLES)
+
+
+def _record_browser_issue(issues: list[dict[str, str]], *, kind: str, detail: str) -> None:
+    cleaned = _short_detail(" ".join(str(detail or "").split()))
+    if not cleaned or not _browser_issue_is_relevant(kind, cleaned):
+        return
+    signature = (kind, cleaned)
+    if any((item.get("kind"), item.get("detail")) == signature for item in issues):
+        return
+    issues.append({"kind": kind, "detail": cleaned})
+
+
+def _attach_browser_issue_capture(page: Any) -> list[dict[str, str]]:
+    issues: list[dict[str, str]] = []
+
+    def _on_console(message: Any) -> None:
+        msg_type = _callable_or_value(message, "type", "log").lower()
+        if msg_type not in {"error", "warning"}:
+            return
+        _record_browser_issue(
+            issues,
+            kind=f"console.{msg_type}",
+            detail=_callable_or_value(message, "text", ""),
+        )
+
+    def _on_page_error(error: Any) -> None:
+        _record_browser_issue(issues, kind="pageerror", detail=str(error))
+
+    try:
+        page.on("console", _on_console)
+    except Exception:
+        pass
+    try:
+        page.on("pageerror", _on_page_error)
+    except Exception:
+        pass
+    return issues
+
+
+def _append_browser_issue_probes(
+    probes: list[WidgetProbe],
+    *,
+    app_name: str,
+    display: str,
+    url: str,
+    browser_issues: Sequence[dict[str, str]] | None,
+    start_index: int,
+) -> bool:
+    if not browser_issues:
+        return False
+    appended = False
+    for issue in list(browser_issues)[start_index:]:
+        kind = str(issue.get("kind") or "browser")
+        detail = str(issue.get("detail") or "browser issue")
+        if not _browser_issue_is_relevant(kind, detail):
+            continue
+        probes.append(
+            WidgetProbe(
+                app_name,
+                display,
+                "browser_error",
+                kind,
+                "failed",
+                _short_detail(detail),
+                url,
+            )
+        )
+        appended = True
+    return appended
+
+
 def _widget_locator(page: Any, widget: dict[str, Any], *, force_refresh: bool = False) -> Any:
     locator = page.locator(f"[data-agilab-widget-id='{widget['id']}']").first
     if not force_refresh:
@@ -1821,6 +2015,7 @@ def sweep_page(
     upload_file: Path,
     screenshot_dir: Path | None = None,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
+    browser_issues: list[dict[str, str]] | None = None,
 ) -> PageSweep:
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
@@ -1831,6 +2026,7 @@ def sweep_page(
     display = display_page or page_label(page_name)
     expect_any = tuple(expected_text) if expected_text is not None else (("View:",) if current_page else PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)))
     probes: list[WidgetProbe] = []
+    browser_issue_start_index = len(browser_issues or [])
     page_status = "passed"
 
     def restore_view() -> None:
@@ -1945,6 +2141,16 @@ def sweep_page(
     except Exception as exc:
         page_status = "failed"
         probes.append(WidgetProbe(app_name, display, "page", "", "failed", str(exc), target_url))
+
+    if _append_browser_issue_probes(
+        probes,
+        app_name=app_name,
+        display=display,
+        url=getattr(page, "url", target_url),
+        browser_issues=browser_issues,
+        start_index=browser_issue_start_index,
+    ):
+        page_status = "failed"
 
     failed = [probe for probe in probes if probe.status == "failed"]
     skipped = [probe for probe in probes if probe.status == "skipped"]
@@ -2070,6 +2276,7 @@ def sweep_direct_apps_page(
             context = browser.new_context(viewport={"width": 1440, "height": 1000})
             try:
                 page = context.new_page()
+                browser_issues = _attach_browser_issue_capture(page)
                 with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
                     upload_file = Path(tmp_dir) / "upload-fixture.txt"
                     upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
@@ -2094,6 +2301,7 @@ def sweep_direct_apps_page(
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         page_timeout=page_timeout,
+                        browser_issues=browser_issues,
                     )
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
                     return result
@@ -2166,6 +2374,7 @@ def sweep_app(
                 context = browser.new_context(viewport={"width": 1440, "height": 1000})
                 try:
                     page = context.new_page()
+                    browser_issues = _attach_browser_issue_capture(page)
                     with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
                         upload_file = Path(tmp_dir) / "upload-fixture.txt"
                         upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
@@ -2201,6 +2410,7 @@ def sweep_app(
                                 upload_file=upload_file,
                                 screenshot_dir=screenshot_dir,
                                 page_timeout=page_timeout,
+                                browser_issues=browser_issues,
                             )
                             results.append(result)
                             _emit_page_result(result, progress=progress, on_page_result=on_page_result)
@@ -2289,6 +2499,7 @@ def sweep_remote_app(
         context = browser.new_context(viewport={"width": 1440, "height": 1000})
         try:
             page = context.new_page()
+            browser_issues = _attach_browser_issue_capture(page)
             with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-") as tmp_dir:
                 upload_file = Path(tmp_dir) / "upload-fixture.txt"
                 upload_file.write_text("agilab widget robot fixture\n", encoding="utf-8")
@@ -2324,6 +2535,7 @@ def sweep_remote_app(
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         page_timeout=page_timeout,
+                        browser_issues=browser_issues,
                     )
                     results.append(result)
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
@@ -2363,6 +2575,7 @@ def sweep_remote_app(
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
                         page_timeout=page_timeout,
+                        browser_issues=browser_issues,
                     )
                     results.append(result)
                     _emit_page_result(result, progress=progress, on_page_result=on_page_result)
