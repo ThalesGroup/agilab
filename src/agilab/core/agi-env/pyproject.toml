@@ -60,6 +60,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 
 
+
 [[tool.mypy.overrides]]
 module = "agi_core.*"
 disallow_untyped_defs = true
