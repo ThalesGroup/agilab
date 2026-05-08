@@ -7,6 +7,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 INSTALL_SH = REPO_ROOT / "install.sh"
+INSTALL_PS1 = REPO_ROOT / "install.ps1"
 INSTALL_ENDUSER_SH = REPO_ROOT / "tools" / "install_enduser.sh"
 INSTALL_ENDUSER_PS1 = REPO_ROOT / "tools" / "install_enduser.ps1"
 APPS_INSTALL_PY = REPO_ROOT / "src" / "agilab" / "apps" / "install.py"
@@ -242,6 +243,30 @@ def test_installers_map_local_model_families_to_workflow_providers() -> None:
                 family,
             )
             assert provider == expected
+
+
+def test_windows_installers_map_local_models_to_workflow_provider_defaults() -> None:
+    root_ps1 = INSTALL_PS1.read_text(encoding="utf-8")
+    enduser_ps1 = INSTALL_ENDUSER_PS1.read_text(encoding="utf-8")
+
+    for ps1_text in (root_ps1, enduser_ps1):
+        assert "[string]$InstallLocalModels" in ps1_text
+        assert 'Set-PersistEnvVar -Key "LAB_LLM_PROVIDER" -Value $provider' in ps1_text
+        assert 'Set-PersistEnvVar -Key "UOAIC_OLLAMA_ENDPOINT" -Value "http://127.0.0.1:11434"' in ps1_text
+        assert 'Set-PersistEnvVar -Key "UOAIC_MODEL" -Value $tag' in ps1_text
+        assert 'Set-PersistEnvVar -Key "AGILAB_LLM_BASE_URL" -Value "http://127.0.0.1:11434/v1"' in ps1_text
+        assert '"gpt-oss" { return "ollama-gpt-oss" }' in ps1_text
+        assert '"qwen3-coder" { return "ollama-qwen3-coder" }' in ps1_text
+        assert '"phi4-mini" { return "ollama-phi4-mini" }' in ps1_text
+        assert '"gpt-oss" { return "gpt-oss:20b" }' in ps1_text
+        assert '"qwen3-coder" { return "qwen3-coder:30b-a3b-q4_K_M" }' in ps1_text
+
+    assert '$enduserArgs += "-InstallLocalModels"' in root_ps1
+    assert 'Set-LocalLlmSelection -RequestedModels $script:RequestedLocalModels' in root_ps1
+    assert 'Set-LocalLlmSelection -RequestedModels $RequestedLocalModels -EnvFile $EnvFile' in enduser_ps1
+    assert root_ps1.index("function Normalize-LocalModelsCsv") < root_ps1.index(
+        "$script:RequestedLocalModels = Normalize-LocalModelsCsv -Raw $InstallLocalModels"
+    )
 
 
 def test_installers_expose_and_wire_install_local_models_flag() -> None:

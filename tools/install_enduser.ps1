@@ -3,7 +3,8 @@ param(
     [ValidateSet('local', 'pypi', 'testpypi')]
     [string]$Source = 'local',
     [string]$Version,
-    [switch]$ForceRebuild
+    [switch]$ForceRebuild,
+    [string]$InstallLocalModels = ""
 )
 
 Set-StrictMode -Version Latest
@@ -53,6 +54,100 @@ function Set-PersistEnvVar {
     }
 
     Set-Content -LiteralPath $EnvFile -Value $lines -Encoding UTF8
+}
+
+function Normalize-LocalModelName {
+    param([string]$Raw)
+    $rawValue = if ($null -eq $Raw) { "" } else { $Raw }
+    $normalized = ($rawValue.ToLowerInvariant() -replace '\s+', '')
+    switch -Regex ($normalized) {
+        '^$' { return "" }
+        '^(gpt-oss|gpt_oss|gptoss|gpt-oss:20b)$' { return "gpt-oss" }
+        '^(qwen|qwen2\.5|qwen2\.5-coder|qwen2\.5-coder:latest)$' { return "qwen" }
+        '^(deepseek|deepseek-coder|deepseek-coder:latest)$' { return "deepseek" }
+        '^(qwen3|qwen3-30b|qwen3-30b-a3b|qwen3:30b-a3b|qwen3:30b-a3b-instruct|qwen3:30b-a3b-instruct-2507-q4_k_m)$' { return "qwen3" }
+        '^(qwen3-coder|qwen3-coder-30b|qwen3-coder-30b-a3b|qwen3-coder:30b|qwen3-coder:30b-a3b|qwen3-coder:30b-a3b-q4_k_m)$' { return "qwen3-coder" }
+        '^(ministral|ministral3|ministral-3|ministral-3-14b|ministral-3:14b|ministral-3:14b-instruct|ministral-3:14b-instruct-2512-q4_k_m)$' { return "ministral" }
+        '^(phi4-mini|phi-4-mini|phi4mini|phi4-mini:3\.8b|phi4-mini:3\.8b-q4_k_m)$' { return "phi4-mini" }
+        default {
+            Write-Warning "Ignoring unsupported local model '$Raw'. Supported values: gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini."
+            return ""
+        }
+    }
+}
+
+function Normalize-LocalModelsCsv {
+    param([string]$Raw)
+    $ordered = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+    $rawValue = if ($null -eq $Raw) { "" } else { $Raw }
+    foreach ($item in ($rawValue -replace ';', ',').Split(',', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+        $normalized = Normalize-LocalModelName -Raw $item
+        if ($normalized -and $seen.Add($normalized)) {
+            $ordered.Add($normalized)
+        }
+    }
+    return @($ordered.ToArray())
+}
+
+function Get-OllamaTagForFamily {
+    param([string]$Family)
+    switch ($Family) {
+        "gpt-oss" { return "gpt-oss:20b" }
+        "qwen" { return "qwen2.5-coder:latest" }
+        "deepseek" { return "deepseek-coder:latest" }
+        "qwen3" { return "qwen3:30b-a3b-instruct-2507-q4_K_M" }
+        "qwen3-coder" { return "qwen3-coder:30b-a3b-q4_K_M" }
+        "ministral" { return "ministral-3:14b-instruct-2512-q4_K_M" }
+        "phi4-mini" { return "phi4-mini:3.8b-q4_K_M" }
+        default { throw "No Ollama tag mapping defined for local model family '$Family'." }
+    }
+}
+
+function Get-WorkflowProviderForLocalModelFamily {
+    param([string]$Family)
+    switch ($Family) {
+        "gpt-oss" { return "ollama-gpt-oss" }
+        "qwen" { return "ollama-qwen" }
+        "deepseek" { return "ollama-deepseek" }
+        "qwen3" { return "ollama-qwen3" }
+        "qwen3-coder" { return "ollama-qwen3-coder" }
+        "ministral" { return "ollama-ministral" }
+        "phi4-mini" { return "ollama-phi4-mini" }
+        default { throw "No WORKFLOW provider mapping defined for local model family '$Family'." }
+    }
+}
+
+function Set-LocalLlmEnvForFamily {
+    param(
+        [Parameter(Mandatory)][string]$Family,
+        [Parameter(Mandatory)][string]$EnvFile
+    )
+    $tag = Get-OllamaTagForFamily -Family $Family
+    $provider = Get-WorkflowProviderForLocalModelFamily -Family $Family
+
+    Set-PersistEnvVar -Key "LAB_LLM_PROVIDER" -Value $provider -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "UOAIC_MODE" -Value "ollama" -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "UOAIC_OLLAMA_ENDPOINT" -Value "http://127.0.0.1:11434" -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "UOAIC_MODEL" -Value $tag -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "AGILAB_LLM_BASE_URL" -Value "http://127.0.0.1:11434/v1" -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "AGILAB_LLM_MODEL" -Value $tag -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "AGILAB_LLM_API_KEY" -Value "EMPTY" -EnvFile $EnvFile
+}
+
+function Set-LocalLlmSelection {
+    param(
+        [string[]]$RequestedModels,
+        [Parameter(Mandatory)][string]$EnvFile
+    )
+    if (-not $RequestedModels -or $RequestedModels.Count -eq 0) {
+        return
+    }
+    $family = $RequestedModels[0]
+    Set-LocalLlmEnvForFamily -Family $family -EnvFile $EnvFile
+    $tag = Get-OllamaTagForFamily -Family $family
+    Write-Host "[info] WORKFLOW local LLM defaults set to $tag via Ollama."
+    Write-Warning "Automatic Ollama setup is not available on Windows. Install Ollama manually and run 'ollama pull $tag'."
 }
 
 function Invoke-Uv {
@@ -293,6 +388,7 @@ $LocalShareDir = Join-Path (Join-Path (Join-Path $Home ".local") "share") "agila
 $AgiPathFile = Join-Path $LocalShareDir ".agilab-path"
 $EnvDir = Join-Path $Home ".agilab"
 $EnvFile = Join-Path $EnvDir ".env"
+$RequestedLocalModels = Normalize-LocalModelsCsv -Raw $InstallLocalModels
 
 $AgiInstallPath = ""
 if (Test-Path -LiteralPath $AgiPathFile) {
@@ -341,6 +437,7 @@ if ($Source -eq 'local') {
 }
 
 Set-PersistEnvVar -Key "APPS_PATH" -Value $AppsRoot -EnvFile $EnvFile
+Set-LocalLlmSelection -RequestedModels $RequestedLocalModels -EnvFile $EnvFile
 
 Write-Host "===================================="
 Write-Host " MODE:     $Source"
