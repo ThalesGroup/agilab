@@ -156,10 +156,12 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert cloud_emulators[1].argv[-1] == "test/test_data_connector_cloud_emulator_report.py"
     assert ui_robot_matrix.label == "ui robot matrix"
     assert ui_robot_matrix.timeout_seconds == 60 * 60
-    assert ui_robot_matrix.remove_paths == ["test-results/ui-robot-matrix"]
+    assert ui_robot_matrix.remove_paths == ["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"]
     assert "tools/agilab_widget_robot_matrix.py" in ui_robot_matrix.argv
     assert "--quiet-progress" in ui_robot_matrix.argv
     assert "--json" in ui_robot_matrix.argv
+    assert "--screenshot-dir" in ui_robot_matrix.argv
+    assert "screenshots/ui-robot-matrix" in ui_robot_matrix.argv
     assert _has_with_dependency(ui_robot_matrix.argv, "playwright")
 
 

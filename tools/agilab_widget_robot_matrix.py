@@ -41,6 +41,7 @@ class RobotScenario:
 class MatrixOptions:
     apps: str
     output_dir: Path
+    screenshot_dir: Path | None
     timeout_seconds: float
     widget_timeout_seconds: float
     quiet_progress: bool
@@ -132,6 +133,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--apps", default="all", help="Built-in apps or app paths to pass to the widget robot.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--screenshot-dir", type=Path, help="Directory for failure screenshots and manifest files.")
     parser.add_argument("--timeout", type=float, default=90.0)
     parser.add_argument("--widget-timeout", type=float, default=3.0)
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
@@ -165,6 +167,7 @@ def options_from_args(args: argparse.Namespace) -> MatrixOptions:
     return MatrixOptions(
         apps=args.apps,
         output_dir=args.output_dir,
+        screenshot_dir=args.screenshot_dir,
         timeout_seconds=args.timeout,
         widget_timeout_seconds=args.widget_timeout,
         quiet_progress=args.quiet_progress,
@@ -245,6 +248,8 @@ def build_robot_command(
         argv.append("--headful")
     if options.quiet_progress:
         argv.append("--quiet-progress")
+    if options.screenshot_dir is not None:
+        argv.extend(["--screenshot-dir", str(options.screenshot_dir / scenario.name)])
     return argv, summary_path, progress_path
 
 

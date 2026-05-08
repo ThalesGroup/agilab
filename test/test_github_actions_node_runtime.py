@@ -31,6 +31,7 @@ def _workflow_files() -> list[Path]:
 def test_github_actions_use_node24_compatible_major_versions() -> None:
     failures: list[str] = []
     uses_pattern = re.compile(r"uses:\s+([\w.-]+/[\w.-]+)@([^\s#]+)")
+    pinned_sha_pattern = re.compile(r"^[0-9a-f]{40}$")
 
     for workflow in _workflow_files():
         for line_no, line in enumerate(workflow.read_text(encoding="utf-8").splitlines(), start=1):
@@ -41,9 +42,16 @@ def test_github_actions_use_node24_compatible_major_versions() -> None:
             allowed_refs = NODE24_COMPATIBLE_ACTIONS.get(action)
             if allowed_refs is None:
                 continue
-            if ref not in allowed_refs:
+            effective_ref = ref
+            if pinned_sha_pattern.fullmatch(ref):
+                comment_match = re.search(r"#\s*(v\d+)\b", line)
+                if not comment_match:
+                    failures.append(f"{workflow}:{line_no}: {action}@{ref} should include a '# vN' major comment")
+                    continue
+                effective_ref = comment_match.group(1)
+            if effective_ref not in allowed_refs:
                 failures.append(
-                    f"{workflow}:{line_no}: {action}@{ref} should use one of {sorted(allowed_refs)}"
+                    f"{workflow}:{line_no}: {action}@{effective_ref} should use one of {sorted(allowed_refs)}"
                 )
 
     assert failures == []
