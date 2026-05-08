@@ -26,38 +26,38 @@ github_release_tag = "v2026.05.08"
 github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.08"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "4f6ff8391fc8ec8fb0e0f92c413aa747bace000b"
+hf_space_commit = "0e760e0a6cb72e88f256588391966adf93d55da7"
 
 [[ci_runs]]
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "25457746079"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25457746079"
+run_id = "25582096270"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25582096270"
 summary = "passed repository guardrails and clean package first-proof jobs"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "25457746132"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25457746132"
+run_id = "25581456410"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25581456410"
 summary = "passed docs mirror and release-proof consistency checks"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "25457746136"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25457746136"
+run_id = "25582096237"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25582096237"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
 id = "coverage"
 label = "Coverage"
 workflow = "coverage"
-run_id = "25457746123"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25457746123"
+run_id = "25582096277"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25582096277"
 summary = "passed component coverage and badge freshness checks"
 
 [proof_command]
