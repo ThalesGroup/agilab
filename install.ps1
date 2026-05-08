@@ -12,6 +12,7 @@ param(
     [string]$AgiClusterShare,
     [string]$AgiLocalShare,
     [string]$InstallAppsList,
+    [string]$InstallLocalModels = "",
     [switch]$NonInteractive
 )
 
@@ -119,6 +120,140 @@ function Get-EnvValueFromFile {
     if ($null -eq $line) { return "" }
     $value = $line.Line.Split("=",2)[1].Trim('"')
     return $value
+}
+
+function Set-PersistEnvVar {
+    param(
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Value,
+        [Parameter(Mandatory)][string]$EnvFile
+    )
+
+    $dir = Split-Path -LiteralPath $EnvFile -Parent
+    if ($dir) {
+        Ensure-Directory $dir
+    }
+
+    $lines = @()
+    if (Test-Path -LiteralPath $EnvFile) {
+        $lines = Get-Content -LiteralPath $EnvFile -ErrorAction Stop
+    }
+
+    $updated = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        $line = $lines[$i]
+        $trimmed = $line.Trim()
+        if ($trimmed.Length -eq 0 -or $trimmed.StartsWith("#")) {
+            continue
+        }
+        $parts = $line.Split("=", 2)
+        if ($parts.Count -ge 2 -and $parts[0].Trim() -eq $Key) {
+            $lines[$i] = "$Key=$Value"
+            $updated = $true
+            break
+        }
+    }
+
+    if (-not $updated) {
+        $lines += "$Key=$Value"
+    }
+
+    $lines | Set-Content -LiteralPath $EnvFile -Encoding UTF8
+}
+
+function Normalize-LocalModelName {
+    param([string]$Raw)
+    $rawValue = if ($null -eq $Raw) { "" } else { $Raw }
+    $normalized = ($rawValue.ToLowerInvariant() -replace '\s+', '')
+    switch -Regex ($normalized) {
+        '^$' { return "" }
+        '^(gpt-oss|gpt_oss|gptoss|gpt-oss:20b)$' { return "gpt-oss" }
+        '^(qwen|qwen2\.5|qwen2\.5-coder|qwen2\.5-coder:latest)$' { return "qwen" }
+        '^(deepseek|deepseek-coder|deepseek-coder:latest)$' { return "deepseek" }
+        '^(qwen3|qwen3-30b|qwen3-30b-a3b|qwen3:30b-a3b|qwen3:30b-a3b-instruct|qwen3:30b-a3b-instruct-2507-q4_k_m)$' { return "qwen3" }
+        '^(qwen3-coder|qwen3-coder-30b|qwen3-coder-30b-a3b|qwen3-coder:30b|qwen3-coder:30b-a3b|qwen3-coder:30b-a3b-q4_k_m)$' { return "qwen3-coder" }
+        '^(ministral|ministral3|ministral-3|ministral-3-14b|ministral-3:14b|ministral-3:14b-instruct|ministral-3:14b-instruct-2512-q4_k_m)$' { return "ministral" }
+        '^(phi4-mini|phi-4-mini|phi4mini|phi4-mini:3\.8b|phi4-mini:3\.8b-q4_k_m)$' { return "phi4-mini" }
+        default {
+            Write-Warn "Ignoring unsupported local model '$Raw'. Supported values: gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini."
+            return ""
+        }
+    }
+}
+
+function Normalize-LocalModelsCsv {
+    param([string]$Raw)
+    $ordered = New-Object System.Collections.Generic.List[string]
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+    $rawValue = if ($null -eq $Raw) { "" } else { $Raw }
+    foreach ($item in ($rawValue -replace ';', ',').Split(',', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+        $normalized = Normalize-LocalModelName -Raw $item
+        if ($normalized -and $seen.Add($normalized)) {
+            $ordered.Add($normalized)
+        }
+    }
+    return @($ordered.ToArray())
+}
+
+function Get-OllamaTagForFamily {
+    param([string]$Family)
+    switch ($Family) {
+        "gpt-oss" { return "gpt-oss:20b" }
+        "qwen" { return "qwen2.5-coder:latest" }
+        "deepseek" { return "deepseek-coder:latest" }
+        "qwen3" { return "qwen3:30b-a3b-instruct-2507-q4_K_M" }
+        "qwen3-coder" { return "qwen3-coder:30b-a3b-q4_K_M" }
+        "ministral" { return "ministral-3:14b-instruct-2512-q4_K_M" }
+        "phi4-mini" { return "phi4-mini:3.8b-q4_K_M" }
+        default { throw "No Ollama tag mapping defined for local model family '$Family'." }
+    }
+}
+
+function Get-WorkflowProviderForLocalModelFamily {
+    param([string]$Family)
+    switch ($Family) {
+        "gpt-oss" { return "ollama-gpt-oss" }
+        "qwen" { return "ollama-qwen" }
+        "deepseek" { return "ollama-deepseek" }
+        "qwen3" { return "ollama-qwen3" }
+        "qwen3-coder" { return "ollama-qwen3-coder" }
+        "ministral" { return "ollama-ministral" }
+        "phi4-mini" { return "ollama-phi4-mini" }
+        default { throw "No WORKFLOW provider mapping defined for local model family '$Family'." }
+    }
+}
+
+function Set-LocalLlmEnvForFamily {
+    param(
+        [Parameter(Mandatory)][string]$Family,
+        [Parameter(Mandatory)][string]$EnvFile
+    )
+    $tag = Get-OllamaTagForFamily -Family $Family
+    $provider = Get-WorkflowProviderForLocalModelFamily -Family $Family
+
+    Set-PersistEnvVar -Key "LAB_LLM_PROVIDER" -Value $provider -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "UOAIC_MODE" -Value "ollama" -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "UOAIC_OLLAMA_ENDPOINT" -Value "http://127.0.0.1:11434" -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "UOAIC_MODEL" -Value $tag -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "AGILAB_LLM_BASE_URL" -Value "http://127.0.0.1:11434/v1" -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "AGILAB_LLM_MODEL" -Value $tag -EnvFile $EnvFile
+    Set-PersistEnvVar -Key "AGILAB_LLM_API_KEY" -Value "EMPTY" -EnvFile $EnvFile
+}
+
+function Set-LocalLlmSelection {
+    param(
+        [string[]]$RequestedModels,
+        [Parameter(Mandatory)][string[]]$EnvFiles
+    )
+    if (-not $RequestedModels -or $RequestedModels.Count -eq 0) {
+        return
+    }
+    $family = $RequestedModels[0]
+    foreach ($envFile in $EnvFiles) {
+        Set-LocalLlmEnvForFamily -Family $family -EnvFile $envFile
+    }
+    $tag = Get-OllamaTagForFamily -Family $family
+    Write-Success "WORKFLOW local LLM defaults set to $tag via Ollama."
 }
 if (-not $DefaultShareDir) {
     $DefaultShareDir = Get-EnvValueFromFile (Join-Path $env:USERPROFILE ".agilab\.env") "AGI_CLUSTER_SHARE"
@@ -831,7 +966,12 @@ function Install-Enduser {
     Write-Info "Installing agilab (endusers)..."
     Push-Location (Join-Path $InstallPathFull "tools")
     try {
-        & $scriptPath
+        $enduserArgs = @()
+        if ($script:RequestedLocalModels -and $script:RequestedLocalModels.Count -gt 0) {
+            $enduserArgs += "-InstallLocalModels"
+            $enduserArgs += ($script:RequestedLocalModels -join ",")
+        }
+        & $scriptPath @enduserArgs
         if ($LASTEXITCODE -eq 0) {
             Write-Success "agilab (enduser) installation complete."
         } else {
@@ -920,7 +1060,16 @@ function Seed-UoaicPdfs {
 }
 
 function Setup-OfflineModels {
-    Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull models such as 'gpt-oss:20b', 'qwen3-coder:30b-a3b-q4_K_M', 'qwen3:30b-a3b-instruct-2507-q4_K_M', 'ministral-3:14b-instruct-2512-q4_K_M', or 'phi4-mini:3.8b-q4_K_M' if needed."
+    param([string[]]$RequestedModels)
+    if ($RequestedModels -and $RequestedModels.Count -gt 0) {
+        $tags = @()
+        foreach ($family in $RequestedModels) {
+            $tags += (Get-OllamaTagForFamily -Family $family)
+        }
+        Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull the configured model(s): $($tags -join ', ')."
+    } else {
+        Write-Warn "Automatic Ollama setup is not available on Windows. Install Ollama manually and pull models such as 'gpt-oss:20b', 'qwen3-coder:30b-a3b-q4_K_M', 'qwen3:30b-a3b-instruct-2507-q4_K_M', 'ministral-3:14b-instruct-2512-q4_K_M', or 'phi4-mini:3.8b-q4_K_M' if needed."
+    }
 }
 
 function Invoke-RepositoryCoverage {
@@ -1016,6 +1165,7 @@ function Invoke-RepositoryCoverage {
     }
 }
 
+$script:RequestedLocalModels = Normalize-LocalModelsCsv -Raw $InstallLocalModels
 Ensure-NotAdmin
 
 try {
@@ -1037,6 +1187,10 @@ try {
     if (-not (Write-EnvValues)) {
         exit 1
     }
+    Set-LocalLlmSelection -RequestedModels $script:RequestedLocalModels -EnvFiles @(
+        (Join-Path $LocalDir ".env"),
+        (Join-Path (Join-Path $env:USERPROFILE ".agilab") ".env")
+    )
 
     Install-Core
     if (-not (Maybe-InvokeCoreTests -RepoRoot $InstallPathFull)) {
@@ -1062,7 +1216,7 @@ try {
             Install-Enduser
             Install-OfflineExtra
             Seed-UoaicPdfs
-            Setup-OfflineModels
+            Setup-OfflineModels -RequestedModels $script:RequestedLocalModels
             Write-Success "Installation complete!"
         }
     } else {
@@ -1072,7 +1226,7 @@ try {
         Install-Enduser
         Install-OfflineExtra
         Seed-UoaicPdfs
-        Setup-OfflineModels
+        Setup-OfflineModels -RequestedModels $script:RequestedLocalModels
         Write-Success "Installation complete (apps skipped)."
     }
 
