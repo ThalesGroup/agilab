@@ -7,6 +7,7 @@ import argparse
 import csv
 import importlib.util
 import json
+import os
 import re
 import sys
 import tempfile
@@ -53,6 +54,13 @@ CHOICE_BUTTON_KINDS = {"segmented_control", "pills"}
 RUNTIME_ISOLATION_MODES = ("isolated", "current-home")
 MISSING_SELECTED_ACTION_POLICIES = ("fail", "ignore-absent")
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
+CURRENT_HOME_PREFLIGHT_ACTION_LABELS = (
+    "CHECK distribute",
+    "DISTRIBUTE",
+    "INSTALL",
+    "Run -> Load -> Export",
+    "Run now",
+)
 BROWSER_ISSUE_FATAL_NEEDLES = (
     "agi execution failed",
     "build failed",
@@ -1207,6 +1215,182 @@ def _short_detail(detail: str, *, limit: int = 500) -> str:
     return detail if len(detail) <= limit else detail[: limit - 3] + "..."
 
 
+def _parse_config_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off", ""}:
+            return False
+    return None
+
+
+def _strip_config_value(value: Any) -> str:
+    text = str(value or "").strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in {"'", '"'}:
+        return text[1:-1]
+    return text
+
+
+def _load_dotenv_map(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    try:
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            stripped = raw.strip()
+            if not stripped or "=" not in stripped:
+                continue
+            key, value = stripped.lstrip("#").strip().split("=", 1)
+            key = key.strip()
+            if key:
+                values[key] = _strip_config_value(value)
+    except OSError:
+        pass
+    return values
+
+
+def _read_cluster_enabled_setting(path: Path) -> bool | None:
+    try:
+        if not path.is_file() or path.stat().st_size <= 0:
+            return None
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    cluster = data.get("cluster")
+    if isinstance(cluster, dict) and "cluster_enabled" in cluster:
+        return _parse_config_bool(cluster.get("cluster_enabled"))
+    return None
+
+
+def _source_app_settings_path(active_app_query: Path | str) -> Path | None:
+    try:
+        app_path = Path(str(active_app_query)).expanduser()
+    except (TypeError, ValueError):
+        return None
+    if not app_path.exists():
+        return None
+    candidates = [app_path / "src" / "app_settings.toml", app_path / "app_settings.toml"]
+    if app_path.name == "src":
+        candidates.insert(0, app_path / "app_settings.toml")
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _current_home_cluster_enabled(
+    *,
+    app_name: str,
+    active_app_query: Path | str,
+    home_root: Path,
+    server_env: dict[str, str],
+    env_values: dict[str, str],
+) -> bool:
+    settings_candidates = [
+        home_root / ".agilab" / "apps" / app_name / "app_settings.toml",
+        _source_app_settings_path(active_app_query),
+    ]
+    for settings_path in settings_candidates:
+        if settings_path is None:
+            continue
+        parsed = _read_cluster_enabled_setting(settings_path)
+        if parsed is not None:
+            return parsed
+    parsed = _parse_config_bool(env_values.get("AGI_CLUSTER_ENABLED"))
+    if parsed is None:
+        parsed = _parse_config_bool(server_env.get("AGI_CLUSTER_ENABLED"))
+    return bool(parsed) if parsed is not None else False
+
+
+def _home_relative_path(value: str, *, home_root: Path) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = home_root / path
+    return path
+
+
+def _is_writable_directory(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    probe = path / ".agilab_widget_robot_mount_test"
+    try:
+        os.listdir(path)
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def _same_configured_path(left: Path, right: Path) -> bool:
+    return os.path.normcase(os.path.normpath(str(left))) == os.path.normcase(os.path.normpath(str(right)))
+
+
+def _current_home_preflight_action_requested(click_action_labels: Sequence[str]) -> bool:
+    selected = [_normalized_label(label) for label in click_action_labels if _normalized_label(label)]
+    required = [_normalized_label(label) for label in CURRENT_HOME_PREFLIGHT_ACTION_LABELS]
+    return any(
+        expected == label or expected in label or label in expected
+        for label in selected
+        for expected in required
+    )
+
+
+def current_home_action_preflight_blocker(
+    *,
+    app_name: str,
+    active_app_query: Path | str,
+    page_name: str,
+    action_button_policy: str,
+    click_action_labels: Sequence[str],
+    runtime_isolation: str,
+    server_env: dict[str, str] | None,
+    home_root: Path | None,
+) -> str | None:
+    if runtime_isolation != "current-home":
+        return None
+    if page_label(page_name) != "ORCHESTRATE":
+        return None
+    if action_button_policy != "click-selected" or not _current_home_preflight_action_requested(click_action_labels):
+        return None
+    home = home_root or Path.home()
+    env = dict(server_env or {})
+    env_file = home / ".agilab" / ".env"
+    env_values = _load_dotenv_map(env_file)
+    if not _current_home_cluster_enabled(
+        app_name=app_name,
+        active_app_query=active_app_query,
+        home_root=home,
+        server_env=env,
+        env_values=env_values,
+    ):
+        return None
+
+    cluster_share = _strip_config_value(env_values.get("AGI_CLUSTER_SHARE") or env.get("AGI_CLUSTER_SHARE") or str(home / "clustershare"))
+    local_share = _strip_config_value(env_values.get("AGI_LOCAL_SHARE") or env.get("AGI_LOCAL_SHARE") or str(home / "localshare"))
+    cluster_path = _home_relative_path(cluster_share, home_root=home)
+    local_path = _home_relative_path(local_share, home_root=home)
+    if _same_configured_path(cluster_path, local_path):
+        return (
+            "environment_blocked: current-home ORCHESTRATE selected actions were not clicked because "
+            f"cluster mode is enabled for {app_name} but AGI_CLUSTER_SHARE and AGI_LOCAL_SHARE both resolve "
+            f"to {cluster_path}. Set AGI_CLUSTER_SHARE to a distinct mounted shared path, or disable "
+            f"cluster mode in {home / '.agilab' / 'apps' / app_name / 'app_settings.toml'}."
+        )
+    if not _is_writable_directory(cluster_path):
+        return (
+            "environment_blocked: current-home ORCHESTRATE selected actions were not clicked because "
+            f"cluster mode is enabled for {app_name} but AGI_CLUSTER_SHARE={str(cluster_path)!r} is not a "
+            f"writable directory. Mount/create that path or disable cluster mode in "
+            f"{home / '.agilab' / 'apps' / app_name / 'app_settings.toml'} before rerunning the UI robot. "
+            f"env={env_file}"
+        )
+    return None
+
+
 def _callable_or_value(obj: Any, name: str, default: str = "") -> str:
     value = getattr(obj, name, default)
     try:
@@ -2080,6 +2264,9 @@ def sweep_page(
     screenshot_dir: Path | None = None,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     browser_issues: list[dict[str, str]] | None = None,
+    runtime_isolation: str = "isolated",
+    server_env: dict[str, str] | None = None,
+    home_root: Path | None = None,
 ) -> PageSweep:
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
@@ -2118,7 +2305,20 @@ def sweep_page(
             probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
         else:
             selected_actions_first = action_button_policy == "click-selected" and bool(click_action_labels)
-            if selected_actions_first:
+            preflight_detail = current_home_action_preflight_blocker(
+                app_name=app_name,
+                active_app_query=active_app_query,
+                page_name=page_name,
+                action_button_policy=action_button_policy,
+                click_action_labels=click_action_labels,
+                runtime_isolation=runtime_isolation,
+                server_env=server_env,
+                home_root=home_root,
+            )
+            if preflight_detail:
+                page_status = "environment_blocked"
+                probes.append(WidgetProbe(app_name, display, "environment_preflight", "", "failed", preflight_detail, page.url))
+            if selected_actions_first and not preflight_detail:
                 probes.extend(
                     _probe_selected_actions_first(
                         page,
@@ -2475,6 +2675,9 @@ def sweep_app(
                                 screenshot_dir=screenshot_dir,
                                 page_timeout=page_timeout,
                                 browser_issues=browser_issues,
+                                runtime_isolation=runtime_isolation,
+                                server_env=seeded_runtime.env,
+                                home_root=seeded_runtime.home_root,
                             )
                             results.append(result)
                             _emit_page_result(result, progress=progress, on_page_result=on_page_result)
