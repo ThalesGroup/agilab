@@ -181,10 +181,10 @@ def test_builtin_app_manifests_depend_on_core_packages_not_core_internals() -> N
         deps = _dependency_names(pyproject)
 
         assert deps.isdisjoint(copied_core_internals), app_root.name
-        assert {"agi-env", "agi-node"} <= deps, app_root.name
+        assert {"agi-env", "agi-node", "agi-cluster"} <= deps, app_root.name
 
         sources = data.get("tool", {}).get("uv", {}).get("sources", {})
-        for package in ("agi-env", "agi-node"):
+        for package in ("agi-env", "agi-node", "agi-cluster"):
             raw_path = sources.get(package, {}).get("path")
             assert raw_path, f"{app_root.name}: missing local source for {package}"
             assert (app_root / raw_path).resolve(strict=False).exists()

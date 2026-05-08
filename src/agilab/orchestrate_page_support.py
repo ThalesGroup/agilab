@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import os
+import subprocess
 from collections.abc import Callable, Mapping, MutableMapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -76,6 +77,9 @@ _INSTALL_LOG_NON_FATAL_LINE_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
     for tokens in _INSTALL_LOG_NON_FATAL_LINE_PATTERNS
     if tokens
 )
+
+_MANAGER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node", "agi_cluster")
+_WORKER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node")
 
 
 def _python_string(value: Any) -> str:
@@ -965,22 +969,118 @@ def benchmark_display_date(benchmark_path: Path, date_value: str) -> str:
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _venv_python_path(venv: Path) -> Path:
+    if os.name == "nt":
+        return venv / "Scripts" / "python.exe"
+    python = venv / "bin" / "python"
+    return python if python.exists() else venv / "bin" / "python3"
+
+
+def _venv_import_status(
+    venv: Path,
+    modules: Sequence[str],
+    *,
+    timeout_seconds: float = 5.0,
+    run_fn: Callable[..., Any] | None = None,
+) -> dict[str, Any]:
+    exists = venv.exists() or venv.is_symlink()
+    python = _venv_python_path(venv)
+    if not exists:
+        return {
+            "exists": False,
+            "imports_ready": False,
+            "missing_modules": tuple(modules),
+            "problem": f"environment path does not exist: {venv}",
+            "python": python,
+        }
+    if not python.exists():
+        return {
+            "exists": True,
+            "imports_ready": False,
+            "missing_modules": ("python",),
+            "problem": f"python executable is missing: {python}",
+            "python": python,
+        }
+
+    code = (
+        "import importlib.util, json, sys\n"
+        "modules = sys.argv[1:]\n"
+        "missing = [name for name in modules if importlib.util.find_spec(name) is None]\n"
+        "print(json.dumps(missing))\n"
+        "raise SystemExit(1 if missing else 0)\n"
+    )
+    try:
+        if run_fn is None:
+            run_fn = subprocess.run
+        result = run_fn(
+            [str(python), "-c", code, *modules],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return {
+            "exists": True,
+            "imports_ready": False,
+            "missing_modules": tuple(modules),
+            "problem": f"import probe failed: {exc}",
+            "python": python,
+        }
+
+    stdout = str(getattr(result, "stdout", "") or "").strip()
+    stderr = str(getattr(result, "stderr", "") or "").strip()
+    try:
+        missing = tuple(json.loads(stdout.splitlines()[-1])) if stdout else tuple(modules)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        missing = tuple(modules)
+    imports_ready = int(getattr(result, "returncode", 1)) == 0 and not missing
+    problem = ""
+    if not imports_ready:
+        if missing:
+            problem = "missing modules: " + ", ".join(str(module) for module in missing)
+        elif stderr:
+            problem = stderr.splitlines()[-1]
+        else:
+            problem = f"import probe failed with exit code {getattr(result, 'returncode', 'unknown')}"
+    return {
+        "exists": True,
+        "imports_ready": imports_ready,
+        "missing_modules": missing,
+        "problem": problem,
+        "python": python,
+    }
+
+
 def is_app_installed(env: Any) -> bool:
-    """Return whether both manager and worker virtual environments are present."""
-    manager_venv = env.active_app / ".venv"
-    worker_venv = env.wenv_abs / ".venv"
-    return manager_venv.exists() and worker_venv.exists()
+    """Return whether manager and worker environments are runnable."""
+    status = app_install_status(env)
+    return bool(status["manager_ready"] and status["worker_ready"])
 
 
 def app_install_status(env: Any) -> dict[str, Any]:
-    """Return a cached status map for manager/worker installation readiness."""
+    """Return manager/worker installation readiness, including runtime imports."""
     manager_venv = env.active_app / ".venv"
     worker_venv = env.wenv_abs / ".venv"
+    manager_imports = _venv_import_status(manager_venv, _MANAGER_REQUIRED_MODULES)
+    worker_imports = _venv_import_status(worker_venv, _WORKER_REQUIRED_MODULES)
+    manager_ready = bool(manager_imports["exists"] and manager_imports["imports_ready"])
+    worker_ready = bool(worker_imports["exists"] and worker_imports["imports_ready"])
     return {
-        "manager_ready": manager_venv.exists(),
-        "worker_ready": worker_venv.exists(),
+        "manager_ready": manager_ready,
+        "worker_ready": worker_ready,
+        "manager_exists": bool(manager_imports["exists"]),
+        "worker_exists": bool(worker_imports["exists"]),
+        "manager_imports_ready": bool(manager_imports["imports_ready"]),
+        "worker_imports_ready": bool(worker_imports["imports_ready"]),
+        "manager_missing_modules": manager_imports["missing_modules"],
+        "worker_missing_modules": worker_imports["missing_modules"],
+        "manager_problem": manager_imports["problem"],
+        "worker_problem": worker_imports["problem"],
         "manager_venv": manager_venv,
         "worker_venv": worker_venv,
+        "manager_python": manager_imports["python"],
+        "worker_python": worker_imports["python"],
     }
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import importlib
 import os
+import shutil
 import sys
 import tomllib
 import types
@@ -247,6 +248,17 @@ def _seed_env_editor_state(at: AppTest, env: AgiEnv) -> None:
             at.session_state[editor_key] = env_values.get(key, "")
 
 
+def _seed_probeable_venv(venv: Path) -> None:
+    python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    python.parent.mkdir(parents=True, exist_ok=True)
+    if python.exists() or python.is_symlink():
+        python.unlink()
+    try:
+        python.symlink_to(Path(sys.executable), target_is_directory=False)
+    except OSError:
+        shutil.copy2(sys.executable, python)
+
+
 def _current_app_state_name(at: AppTest) -> str:
     try:
         env = at.session_state["env"]
@@ -453,6 +465,9 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
 
     assert not at.exception
     assert not any(str(caption.value).startswith("AGILAB version: v") for caption in at.sidebar.caption)
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "Documentation" in sidebar_markdown
+    assert "agilab-help.html" in sidebar_markdown
 
 
 def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
@@ -463,6 +478,8 @@ def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
     assert "st.navigation(_navigation_pages()).run()" in source
     assert 'title="Main Page"' in source
     assert 'visibility="hidden"' in source
+    assert 'page_label="ABOUT"' not in source
+    assert 'page_label="MAIN_PAGE"' in source
     assert 'title="PROJECT", url_path="PROJECT", visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="WORKFLOW"' in source
@@ -524,6 +541,11 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "Manager env" in markdown_text
     assert "Worker env" in markdown_text
     assert "Runs" in markdown_text
+    assert "Execution environment" in markdown_text
+    assert "ORCHESTRATE context" in markdown_text
+    assert "Active project" in markdown_text
+    assert "flight_project" in markdown_text
+    assert "Scheduler" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
     assert "Settings</div>" not in markdown_text
     assert "Next action" not in markdown_text
@@ -582,8 +604,8 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
         calls.append({"code": code, "venv": venv, "type": type})
         if "AGI.install" in code:
             assert venv is None
-            (self.active_app / ".venv").mkdir(parents=True, exist_ok=True)
-            (self.wenv_abs / ".venv").mkdir(parents=True, exist_ok=True)
+            _seed_probeable_venv(self.active_app / ".venv")
+            _seed_probeable_venv(self.wenv_abs / ".venv")
             if log_callback is not None:
                 log_callback("Remote command stderr: error: Permission denied (os error 13)")
                 log_callback(
