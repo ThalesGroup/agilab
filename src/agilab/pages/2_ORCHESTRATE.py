@@ -68,6 +68,7 @@ import_agilab_symbols(
         "filter_noise_lines": "filter_noise_lines",
         "filter_warning_messages": "filter_warning_messages",
         "format_log_block": "format_log_block",
+        "has_nonlocal_workers": "has_nonlocal_workers",
         "reassign_distribution_plan": "reassign_distribution_plan",
         "is_dask_shutdown_noise": "is_dask_shutdown_noise",
         "serialize_args_payload": "serialize_args_payload",
@@ -121,6 +122,16 @@ import_agilab_symbols(
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "workflow_ui.py",
     fallback_name="agilab_workflow_ui_fallback",
+)
+import_agilab_symbols(
+    globals(),
+    "agilab.about_page.layout",
+    {
+        "render_execution_context_panel": "render_execution_context_panel",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "about_page" / "layout.py",
+    fallback_name="agilab_about_page_layout_fallback",
 )
 import_agilab_symbols(
     globals(),
@@ -554,6 +565,8 @@ def _with_app_args_env(args_env: Any):
 def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str | None:
     if not bool(cluster_params.get("cluster_enabled", False)):
         return None
+    if not has_nonlocal_workers(cluster_params.get("workers")):
+        return None
     active_share_root = _cluster_args_share_root(env, cluster_params)
     share_source = active_share_root if active_share_root is not None else getattr(env, "agi_share_path", None)
     if share_source is None:
@@ -578,7 +591,11 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
         pass
     # SSHFS cluster-share contract: the scheduler-side AGI_CLUSTER_SHARE can be a
     # normal local filesystem; remote workers mount it at Workers Data Path.
-    if is_symlink or looks_shared or (has_worker_share_path and _has_configured_cluster_share(env)):
+    if is_symlink or looks_shared or (
+        has_worker_share_path
+        and _has_configured_cluster_share(env)
+        and has_nonlocal_workers(cluster_params.get("workers"))
+    ):
         return None
 
     fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
@@ -786,12 +803,9 @@ async def _check_distribution_action(
     project_path: Path,
 ) -> ActionResult:
     dist_log: list[str] = []
-    runtime_root = (
-        Path(getattr(env, "agi_cluster"))
-        if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
-        and getattr(env, "agi_cluster", None)
-        else project_path
-    )
+    # Distribution snippets import agi_cluster and orchestrate worker-side probes.
+    # Prefer the controller runtime when it is known, even if source-env inference is absent.
+    runtime_root = Path(getattr(env, "agi_cluster", None) or project_path)
     command = cmd.replace("asyncio.run(main())", env.snippet_tail)
 
     try:
@@ -825,14 +839,6 @@ async def _check_distribution_action(
         "stdout": stdout,
         "stderr": stderr,
     }
-    if str(stderr or "").strip():
-        return ActionResult.error(
-            "Distribution build failed.",
-            detail=str(stderr).strip(),
-            next_action="Check orchestration settings and logs, then retry CHECK distribute.",
-            data=data,
-        )
-
     return ActionResult.success(
         "Distribution built successfully.",
         data=data,
@@ -1107,11 +1113,11 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
     manager_ready = bool(install_status.get("manager_ready"))
     worker_ready = bool(install_status.get("worker_ready"))
     if manager_ready and worker_ready:
-        return "Ready", "Manager and worker environments are installed."
+        return "Ready", "Manager and worker environments can import AGILAB runtime packages."
     if manager_ready:
-        return "Needs INSTALL", "Worker environment is missing or stale."
+        return "Needs INSTALL", install_status.get("worker_problem") or "Worker environment is missing or stale."
     if worker_ready:
-        return "Needs INSTALL", "Manager environment is missing or stale."
+        return "Needs INSTALL", install_status.get("manager_problem") or "Manager environment is missing or stale."
     return "Needs INSTALL", "Manager and worker environments are not installed yet."
 
 
@@ -1349,6 +1355,12 @@ def _render_orchestrate_readiness_panel(
     active_app = Path(getattr(env, "active_app", "")) if getattr(env, "active_app", None) else None
     manager_status, manager_path = _path_status(install_status.get("manager_venv"), venv=True)
     worker_status, worker_path = _path_status(install_status.get("worker_venv"), venv=True)
+    if not install_status.get("manager_ready"):
+        manager_status = "stale" if install_status.get("manager_exists") else "missing"
+        manager_path = install_status.get("manager_problem") or manager_path
+    if not install_status.get("worker_ready"):
+        worker_status = "stale" if install_status.get("worker_exists") else "missing"
+        worker_path = install_status.get("worker_problem") or worker_path
     run_count, run_caption = _run_history_summary(env)
 
     with st.container(border=True):
@@ -1388,7 +1400,17 @@ async def _render_deployment_panel(
         st.caption(
             "Choose local, local Dask, or LAN cluster resources, then install the manager and worker environments."
         )
-        if install_status["manager_ready"] and not install_status["worker_ready"]:
+        stale_problems = []
+        if install_status.get("manager_exists") and not install_status.get("manager_ready"):
+            stale_problems.append(str(install_status.get("manager_problem") or "manager environment is stale"))
+        if install_status.get("worker_exists") and not install_status.get("worker_ready"):
+            stale_problems.append(str(install_status.get("worker_problem") or "worker environment is stale"))
+        if stale_problems:
+            st.warning(
+                "Environment install is incomplete or stale. Run INSTALL before RUN / LOAD / EXPORT. "
+                + " | ".join(stale_problems)
+            )
+        elif install_status["manager_ready"] and not install_status["worker_ready"]:
             st.warning(
                 "Manager environment detected, but the worker environment is missing. "
                 f"Run INSTALL to rebuild the worker venv at `{install_status['worker_venv']}` "
@@ -1410,6 +1432,7 @@ async def _render_deployment_panel(
             agi_env_envars=getattr(AgiEnv, "envars", None),
         )
         render_cluster_settings_ui(env, cluster_deps)
+        render_execution_context_panel(env)
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
 
@@ -1555,6 +1578,7 @@ async def _render_distribution_panel(
             # Refresh mount table cache each rerun (mounts can appear/disappear while Streamlit stays alive).
             _clear_mount_table_cache()
         warning_message = _cluster_args_share_warning(env, cluster_params)
+        st.session_state["_orchestrate_cluster_share_warning"] = warning_message or ""
         if warning_message:
             st.warning(warning_message, icon="⚠️")
 
@@ -1595,7 +1619,7 @@ async def _render_distribution_panel(
             type="primary",
             disabled=not distribution_state.action.enabled,
         ):
-            with st.expander("Orchestration log", expanded=False):
+            with st.expander("Orchestration log", expanded=True):
                 live_log_placeholder = st.empty()
                 _reset_traceback_skip()
                 with st.spinner("Building distribution..."):
@@ -1796,6 +1820,7 @@ async def _render_run_panels(
                 selected_benchmark_modes=selected_benchmark_modes,
                 benchmark_best_single_node=benchmark_best_single_node,
                 local_share_path=local_share_path,
+                cluster_share_issue=str(st.session_state.get("_orchestrate_cluster_share_warning") or ""),
                 deps=run_state_deps,
             )
 
@@ -2017,21 +2042,23 @@ async def page() -> None:
             st.session_state["app_settings"] = app_settings
 
 
+    install_status = _app_install_status(env)
+    installed = bool(install_status.get("manager_ready") and install_status.get("worker_ready"))
+
     # Sidebar toggles for each page section
     if "show_install" not in st.session_state:
         st.session_state["show_install"] = True
     if "show_distribute" not in st.session_state:
         st.session_state["show_distribute"] = True
     if "show_run" not in st.session_state:
-        st.session_state["show_run"] = _is_app_installed(env)
+        st.session_state["show_run"] = installed
     if st.session_state.get("_show_run_app") != env.app:
         st.session_state["_show_run_app"] = env.app
-        st.session_state["show_run"] = _is_app_installed(env)
+        st.session_state["show_run"] = installed
 
     show_install = st.session_state["show_install"]
     show_distribute = st.session_state["show_distribute"]
-    show_run = st.session_state["show_run"] if _is_app_installed(env) else False
-    install_status = _app_install_status(env)
+    show_run = st.session_state["show_run"] if installed else False
 
     selected_verbose_int = global_diagnostics_verbose(
         session_state=st.session_state,

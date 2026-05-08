@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 
@@ -92,6 +93,17 @@ def test_is_usable_dir_handles_oserror_and_propagates_runtime_bug(monkeypatch, t
     )
     with pytest.raises(RuntimeError, match="listdir bug"):
         share_mount_support._is_usable_dir(str(share_dir))
+
+
+def test_is_usable_dir_parallel_probes_do_not_collide(tmp_path: Path):
+    share_dir = tmp_path / "share"
+    share_dir.mkdir()
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(share_mount_support._is_usable_dir, [str(share_dir)] * 64))
+
+    assert all(results)
+    assert not list(share_dir.glob(".agi_mount_test.*"))
 
 
 def test_fstab_bind_source_for_target_handles_oserror_and_parses_bind(monkeypatch):

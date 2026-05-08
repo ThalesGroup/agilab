@@ -4469,4 +4469,5 @@ def display_lab_tab(
             source=source,
             empty_message="No runs recorded yet.",
             info_name="Run logs",
+            theme="dark",
         )

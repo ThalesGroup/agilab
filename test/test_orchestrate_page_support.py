@@ -45,6 +45,31 @@ orchestrate_page_support = _import_agilab_module("agilab.orchestrate_page_suppor
 from agi_env.snippet_contract import CURRENT_SNIPPET_API
 
 
+def _touch_fake_venv_python(venv: Path) -> Path:
+    python = orchestrate_page_support._venv_python_path(venv)
+    python.parent.mkdir(parents=True, exist_ok=True)
+    python.write_text("# fake python for probe tests\n", encoding="utf-8")
+    return python
+
+
+def _seed_fake_venv_modules(venv: Path, *modules: str) -> Path:
+    _touch_fake_venv_python(venv)
+    if sys.platform.startswith("win"):
+        site_packages = venv / "Lib" / "site-packages"
+    else:
+        site_packages = venv / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
+    site_packages.mkdir(parents=True, exist_ok=True)
+    for module in modules:
+        package_dir = site_packages / module
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "__init__.py").write_text("", encoding="utf-8")
+        if module == "agi_cluster":
+            distributor_dir = package_dir / "agi_distributor"
+            distributor_dir.mkdir(parents=True, exist_ok=True)
+            (distributor_dir / "__init__.py").write_text("class StageRequest: ...\n", encoding="utf-8")
+    return site_packages
+
+
 def test_build_install_and_run_snippets_embed_expected_values():
     env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
 
@@ -577,6 +602,81 @@ def test_log_indicates_install_failure():
         ["worker deploy failed: Process exited with non-zero exit status 2"]
     )
     assert not orchestrate_page_support.log_indicates_install_failure([])
+
+
+def test_app_install_status_rejects_stale_worker_venv_missing_core_import(tmp_path: Path) -> None:
+    active_app = tmp_path / "data_io_2026_project"
+    worker_root = tmp_path / "wenv" / "data_io_2026_worker"
+    manager_venv = active_app / ".venv"
+    worker_venv = worker_root / ".venv"
+    _seed_fake_venv_modules(manager_venv, "agi_env", "agi_node", "agi_cluster")
+    _seed_fake_venv_modules(worker_venv, "agi_node")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert status["manager_ready"] is True
+    assert status["worker_ready"] is False
+    assert status["worker_exists"] is True
+    assert status["worker_missing_modules"] == ("agi_env",)
+    assert status["worker_problem"] == "missing modules: agi_env"
+    assert orchestrate_page_support.is_app_installed(env) is False
+
+
+def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) -> None:
+    active_app = tmp_path / "data_io_2026_project"
+    worker_root = tmp_path / "wenv" / "data_io_2026_worker"
+    manager_venv = active_app / ".venv"
+    worker_venv = worker_root / ".venv"
+    _seed_fake_venv_modules(manager_venv, "agi_env", "agi_node")
+    _seed_fake_venv_modules(worker_venv, "agi_env", "agi_node")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert status["manager_ready"] is False
+    assert status["worker_ready"] is True
+    assert status["manager_missing_modules"] == ("agi_cluster",)
+    assert status["manager_problem"] == "missing modules: agi_cluster"
+
+
+def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path: Path) -> None:
+    active_app = tmp_path / "meteo_forecast_project"
+    worker_root = tmp_path / "wenv" / "meteo_forecast_worker"
+    manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_env", "agi_node", "agi_cluster")
+    worker_site = _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node")
+    stale_distributor = manager_site / "agi_cluster" / "agi_distributor"
+    stale_distributor.mkdir(parents=True, exist_ok=True)
+    (stale_distributor / "__init__.py").write_text("class StepRequest: ...\n", encoding="utf-8")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert worker_site.exists()
+    assert status["manager_ready"] is False
+    assert status["worker_ready"] is True
+    assert status["manager_missing_symbols"] == ("agi_cluster.agi_distributor.StageRequest",)
+    assert status["manager_problem"] == "missing symbols: agi_cluster.agi_distributor.StageRequest"
+
+
+def test_app_install_status_detects_editable_pth_import_roots(tmp_path: Path) -> None:
+    active_app = tmp_path / "data_io_2026_project"
+    worker_root = tmp_path / "wenv" / "data_io_2026_worker"
+    manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_cluster")
+    worker_site = _seed_fake_venv_modules(worker_root / ".venv")
+    editable_core = tmp_path / "editable-core"
+    for module in ("agi_env", "agi_node"):
+        package_dir = editable_core / module
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "__init__.py").write_text("", encoding="utf-8")
+    (manager_site / "__editable__.agi_env-2026.5.7.pth").write_text(str(editable_core), encoding="utf-8")
+    (worker_site / "__editable__.agi_env-2026.5.7.pth").write_text(str(editable_core), encoding="utf-8")
+    env = SimpleNamespace(active_app=active_app, wenv_abs=worker_root)
+
+    status = orchestrate_page_support.app_install_status(env)
+
+    assert status["manager_ready"] is True
+    assert status["worker_ready"] is True
 
 
 def test_append_log_lines_filters_tracebacks_and_dask_noise():

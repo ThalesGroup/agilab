@@ -883,8 +883,7 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
             placeholder="/path/to/data",
             help="Path to data directory on workers.",
         )
-        if workers_data_path_input:
-            cluster_params["workers_data_path"] = workers_data_path_input
+        cluster_params["workers_data_path"] = str(workers_data_path_input or "").strip()
 
         workers_widget_key = widget_keys["workers"]
         workers_dict = cluster_params.get("workers", {})

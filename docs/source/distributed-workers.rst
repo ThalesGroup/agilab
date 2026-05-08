@@ -41,6 +41,11 @@ Before configuring distributed workers, make sure the environment is ready:
   root is ``AGI_CLUSTER_SHARE``; remote workers can see the same backing storage
   through an SSHFS mount at **Workers Data Path**. In cluster mode, do not rely
   on ``AGI_LOCAL_SHARE`` as a fallback.
+- The shared-path rule above applies to remote workers. For a local-only Dask
+  cluster, where workers are ``127.0.0.1`` or ``localhost``, the scheduler and
+  workers share the same local filesystem. ``AGI_CLUSTER_SHARE`` may therefore
+  be a normal local path, including APFS on macOS, and **Workers Data Path** does
+  not need to point to an SSHFS mount.
 - In multi-user environments, each operator uses a separate cluster-share root.
   Do not let several users write into the same ``AGI_CLUSTER_SHARE`` tree.
 - ``uv`` and the required Python runtime are available on the manager and the
@@ -302,6 +307,9 @@ Use these habits to keep distributed runs predictable:
   differ on mixed operating systems, for example a macOS scheduler path mounted
   under a Linux worker home directory, but they must expose the same backing
   storage after SSHFS is mounted.
+- Keep local-only and remote-worker clusters distinct. Local-only clusters can
+  use a local ``AGI_CLUSTER_SHARE`` path directly; remote-worker clusters need a
+  worker-visible shared mount target in **Workers Data Path**.
 - Keep worker SSHFS prerequisites explicit: ``sshfs`` must be installed, the
   worker must be able to SSH back to the scheduler, and the scheduler host key
   should already be present in the worker ``known_hosts`` file. AGILAB uses

@@ -73,10 +73,11 @@ class _FakeSidebar:
 
 
 class _FakeStreamlit:
-    def __init__(self, *, sidebar_button_values=None):
+    def __init__(self, *, button_values=None, sidebar_button_values=None):
         self.events: list[tuple[str, str]] = []
         self.session_state: dict[str, object] = {}
         self.query_params: dict[str, object] = {}
+        self.button_values = button_values or {}
         self.sidebar_button_values = sidebar_button_values or {}
         self.stopped = False
         self.sidebar = _FakeSidebar(self)
@@ -114,7 +115,7 @@ class _FakeStreamlit:
 
     def button(self, label: str, **_kwargs):
         self.events.append(("button", label))
-        return False
+        return bool(self.button_values.get(label, False))
 
     def rerun(self):  # pragma: no cover - button is false in these tests
         raise AssertionError("rerun should not be called")
@@ -1578,7 +1579,7 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
             "workers_data_path": "/mnt/agilab",
         }
     }
-    about_agilab._about_layout.render_sidebar_system_information(SimpleNamespace(app="flight_project"))
+    about_agilab._about_layout.render_execution_context_panel(SimpleNamespace(app="flight_project"))
     about_agilab._about_layout.render_footer()
 
     assert about_agilab._clean_openai_key("sk-" + "a" * 16) == "sk-" + "a" * 16
@@ -1588,19 +1589,27 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert any("agi-gui:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
     assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
-    assert "grid-template-columns:max-content .45rem minmax(0,1fr);" in sidebar_markup
-    assert "color:#72d6b4;" in sidebar_markup
-    assert "color:#ffbe5e;" in sidebar_markup
-    assert "agilab-sidebar-system-value--ready" in sidebar_markup
-    assert "Active project: flight_project" in sidebar_markup
-    assert "Scheduler: 10.0.0.1:8786" in sidebar_markup
-    assert "Mode: enabled (dask)" in sidebar_markup
-    assert "CPU: 32 cores" in sidebar_markup
-    assert "RAM: 128 GB" in sidebar_markup
-    assert "GPU: 2 x Test GPU" in sidebar_markup
-    assert "NPU: 2 x Test NPU" in sidebar_markup
-    assert "Worker 10.0.0.2" not in sidebar_markup
+    execution_markup = _event_body(fake_st.events, "markdown", "agilab-execution-context")
+    assert "Execution environment" in execution_markup
+    assert "ORCHESTRATE context" in execution_markup
+    assert "color:#72d6b4;" in execution_markup
+    assert "color:#ffbe5e;" in execution_markup
+    assert "agilab-execution-context-value--ready" in execution_markup
+    assert "Active project" in execution_markup
+    assert "flight_project" in execution_markup
+    assert "Scheduler" in execution_markup
+    assert "10.0.0.1:8786" in execution_markup
+    assert "Mode" in execution_markup
+    assert "enabled (dask)" in execution_markup
+    assert "CPU" in execution_markup
+    assert "32 cores" in execution_markup
+    assert "RAM" in execution_markup
+    assert "128 GB" in execution_markup
+    assert "GPU" in execution_markup
+    assert "2 x Test GPU" in execution_markup
+    assert "NPU" in execution_markup
+    assert "2 x Test NPU" in execution_markup
+    assert "Worker 10.0.0.2" not in execution_markup
     assert not any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
 
 
@@ -1629,7 +1638,7 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
     assert about_menu["Get help"] == "https://thalesgroup.github.io/agilab/agilab-help.html"
 
 
-def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch):
+def test_main_page_sidebar_keeps_docs_link_without_execution_context(monkeypatch):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(
@@ -1674,19 +1683,13 @@ def test_about_page_moves_active_app_cluster_information_to_sidebar(monkeypatch)
     assert "Installed package versions:False" not in expanders
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
-    sidebar_grid = _event_index(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
     assert env_expander < diagnostics_expander
-    sidebar_markup = _event_body(fake_st.events, "sidebar.markdown", "agilab-sidebar-system")
-    assert "Active project: flight_project" in sidebar_markup
-    assert "Scheduler: 192.168.20.111:8786" in sidebar_markup
-    assert "Mode: enabled (dask, pool)" in sidebar_markup
-    assert "Share: /home/agi/clustershare" in sidebar_markup
-    assert "CPU: 64 cores" in sidebar_markup
-    assert "RAM: 256 GB" in sidebar_markup
-    assert "GPU: 2 x NVIDIA A100 (108 SMs)" in sidebar_markup
-    assert "NPU: Not detected" in sidebar_markup
+    sidebar_markup = "\n".join(body for kind, body in fake_st.events if kind == "sidebar.markdown")
+    assert "[Documentation](https://thalesgroup.github.io/agilab/agilab-help.html)" in sidebar_markup
+    assert "agilab-sidebar-system" not in sidebar_markup
+    assert "Active project" not in sidebar_markup
+    assert "Scheduler" not in sidebar_markup
     assert "Worker 192.168.20.130" not in sidebar_markup
-    assert sidebar_grid < env_expander
     assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
     assert env_expander >= 0
 
@@ -2202,9 +2205,9 @@ def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypa
     assert second_lines["GPU"] == "Apple M4 Max; NVIDIA B200 (132 SMs)"
 
 
-def test_render_sidebar_system_information_refresh_button_clears_probe_caches(monkeypatch):
+def test_render_execution_context_panel_refresh_button_clears_probe_caches(monkeypatch):
     layout = about_agilab._about_layout
-    fake_st = _FakeStreamlit(sidebar_button_values={"Refresh cluster info": True})
+    fake_st = _FakeStreamlit(button_values={"Refresh cluster info": True})
     cleared: list[bool] = []
     monkeypatch.setattr(layout, "st", fake_st)
     monkeypatch.setattr(layout, "_clear_cluster_probe_caches", lambda: cleared.append(True))
@@ -2214,14 +2217,14 @@ def test_render_sidebar_system_information_refresh_button_clears_probe_caches(mo
         lambda _env: [("Active project", "flight_project")],
     )
 
-    layout.render_sidebar_system_information(SimpleNamespace(app="flight_project"))
+    layout.render_execution_context_panel(SimpleNamespace(app="flight_project"))
 
     assert cleared == [True]
-    assert ("sidebar.button", "Refresh cluster info") in fake_st.events
+    assert ("button", "Refresh cluster info") in fake_st.events
     assert "Active project: flight_project" in _event_body(
         fake_st.events,
-        "sidebar.markdown",
-        "agilab-sidebar-system",
+        "markdown",
+        "agilab-execution-context",
     )
 
 

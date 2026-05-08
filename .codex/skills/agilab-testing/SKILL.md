@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-07
+  updated: 2026-05-08
 ---
 
 # Testing Skill (AGILAB)
@@ -81,6 +81,19 @@ Use this skill when validating changes.
   - When a page reuses one Streamlit session across multiple projects/apps, keep at least one regression for project-switch rehydration.
   - Assert that per-project widget keys are namespaced by project/app instead of using global keys like `"cluster_pool"` or `"cluster_cython"`.
   - If a bug involves preserving UI state across project changes, test the preservation decision separately from the AppTest when possible, so ordering bugs around `pop(...)` or reruns stay easy to diagnose.
+- Workflow action feedback:
+  - When a bug is visible only after clicking a workflow button, cover both the
+    helper/action function and the UI surface that renders the result.
+  - If the message appears inside an expander such as `Orchestration log`, ensure
+    the robot opens or inspects that container; widget-presence checks alone are
+    not enough.
+  - For subprocess-backed actions, test noisy stderr separately from fatal stderr.
+    A realistic progress log should not fail unless it contains a concrete fatal
+    marker such as traceback, non-zero exit status, missing module, or worker/build
+    failure phrase.
+  - For robot validation of selected actions, use `--action-button-policy
+    click-selected` with explicit `--click-action-labels` and check rendered
+    action feedback, not only whether the click completed.
 - Installer regressions:
   - For install failures, reproduce both:
     - plain shell: `uv sync --project <app>`
@@ -134,6 +147,9 @@ Use this skill when validating changes.
     whole suite timeout.
   - Example:
     `uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
+- Focused ORCHESTRATE robot action regression:
+  - Use this shape when validating a user-visible ORCHESTRATE action failure:
+    `AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION=current-home uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot.py --apps flight_project --pages ORCHESTRATE --apps-pages none --json --json-output /tmp/flight-orchestrate-widget-robot.json --progress-log /tmp/flight-orchestrate-widget-robot.ndjson --interaction-mode full --action-button-policy click-selected --click-action-labels "CHECK distribute" --preselect-labels "Run now" --missing-selected-action-policy fail --runtime-isolation current-home`
 - Service health smoke tests (CI parity on Python 3.13):
   - `COVERAGE_FILE=.coverage.service-health uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest --with pytest-asyncio --with pytest-cov python -m pytest -q -o addopts='' --cov=agi_cluster --cov=agi_env --cov-report=xml:coverage-service-health.xml src/agilab/core/test/test_agi_distributor.py::test_agi_serve_health_action_writes_json test/test_service_health_check.py`
 - Account-free cloud connector validation:
