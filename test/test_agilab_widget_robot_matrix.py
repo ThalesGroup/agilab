@@ -45,6 +45,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert "Load output" in journey.click_action_labels
     assert "EXPORT dataframe" in journey.click_action_labels
     assert "Confirm delete" in journey.click_action_labels
+    assert journey.assert_orchestrate_artifacts is True
 
 
 def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
@@ -75,8 +76,26 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     assert "--headful" in argv
     assert "--quiet-progress" in argv
     assert "--no-seed-demo-artifacts" in argv
+    assert "--assert-orchestrate-artifacts" not in argv
     assert summary_path == tmp_path / "current-home-actions.json"
     assert progress_path == tmp_path / "current-home-actions.ndjson"
+
+
+def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["current-home-orchestrate-journey"]
+    options = module.MatrixOptions(
+        apps="flight_project",
+        output_dir=tmp_path,
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, _, _ = module.build_robot_command(scenario, options=options)
+
+    assert "--assert-orchestrate-artifacts" in argv
 
 
 def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:

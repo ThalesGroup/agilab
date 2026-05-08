@@ -65,6 +65,7 @@ def test_widget_robot_parser_exposes_resumable_run_controls() -> None:
     assert args.quiet_progress is False
     assert args.runtime_isolation == "isolated"
     assert args.missing_selected_action_policy == "fail"
+    assert args.assert_orchestrate_artifacts is False
 
 
 def test_widget_robot_main_rejects_invalid_action_button_mode() -> None:
@@ -87,6 +88,17 @@ def test_widget_robot_main_requires_labels_for_selected_action_buttons() -> None
         assert exc.code == 2
     else:
         raise AssertionError("expected parser rejection for selected action buttons without labels")
+
+
+def test_widget_robot_main_rejects_remote_artifact_assertions() -> None:
+    module = _load_module()
+
+    try:
+        module.main(["--url", "http://localhost:8501", "--assert-orchestrate-artifacts"])
+    except SystemExit as exc:
+        assert exc.code == 2
+    else:
+        raise AssertionError("expected parser rejection for remote artifact assertions")
 
 
 def test_widget_robot_main_rejects_non_positive_timeout() -> None:
@@ -253,6 +265,153 @@ def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypa
     assert "AGI_LOCAL_SHARE" not in seeded.env
     assert seeded.share_root == fake_home / "localshare"
     assert seeded.env["AGI_CLUSTER_ENABLED"] == "0"
+
+
+def test_build_orchestrate_artifact_context_uses_agilab_env_file(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    fake_home.mkdir()
+    env_file = fake_home / ".agilab" / ".env"
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text(
+        "AGI_EXPORT_DIR=exports\nAGI_LOCAL_SHARE=local\nAGI_CLUSTER_SHARE=cluster\n",
+        encoding="utf-8",
+    )
+
+    context = module.build_orchestrate_artifact_context(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=fake_home,
+        server_env={},
+    )
+
+    assert context.export_root == fake_home / "exports"
+    assert context.share_root == fake_home / "local"
+    assert context.cluster_share_root == fake_home / "cluster"
+
+
+def test_orchestrate_artifact_validation_fails_when_load_output_has_no_file(tmp_path) -> None:
+    module = _load_module()
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+
+    probes = module.validate_orchestrate_action_artifacts(
+        context=context,
+        display="ORCHESTRATE",
+        selected_label="Load output",
+        before_output=module.ArtifactFileSnapshot(files={}),
+        before_export=module.ArtifactFileSnapshot(files={}),
+        before_trash=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "failed"
+    assert "no loadable output artifact" in probes[0].detail
+
+
+def test_orchestrate_artifact_validation_verifies_export_change(tmp_path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=tmp_path,
+        export_root=export_root,
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+    before_export = module._snapshot_artifact_files(module._orchestrate_export_roots(context))
+    export_file = export_root / "flight" / "export.csv"
+    export_file.parent.mkdir(parents=True)
+    export_file.write_text("value\n1\n", encoding="utf-8")
+
+    probes = module.validate_orchestrate_action_artifacts(
+        context=context,
+        display="ORCHESTRATE",
+        selected_label="EXPORT dataframe",
+        before_output=module.ArtifactFileSnapshot(files={}),
+        before_export=before_export,
+        before_trash=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+    assert "export artifact side effect verified" in probes[0].detail
+
+
+def test_orchestrate_artifact_validation_accepts_existing_manual_export(tmp_path) -> None:
+    module = _load_module()
+    export_root = tmp_path / "export"
+    export_file = export_root / "flight" / "export.csv"
+    export_file.parent.mkdir(parents=True)
+    export_file.write_text("value\n1\n", encoding="utf-8")
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=tmp_path,
+        export_root=export_root,
+        share_root=tmp_path / "localshare",
+        cluster_share_root=tmp_path / "clustershare",
+    )
+    before_export = module._snapshot_artifact_files(module._orchestrate_export_roots(context))
+
+    probes = module.validate_orchestrate_action_artifacts(
+        context=context,
+        display="ORCHESTRATE",
+        selected_label="EXPORT dataframe",
+        before_output=module.ArtifactFileSnapshot(files={}),
+        before_export=before_export,
+        before_trash=module.ArtifactFileSnapshot(files={}),
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+    assert "export artifact availability verified" in probes[0].detail
+
+
+def test_orchestrate_artifact_validation_verifies_delete_backup(tmp_path) -> None:
+    module = _load_module()
+    share_root = tmp_path / "localshare"
+    context = module.OrchestrateArtifactContext(
+        app_name="flight_project",
+        active_app_query="flight_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+        share_root=share_root,
+        cluster_share_root=tmp_path / "clustershare",
+    )
+    output_file = share_root / "flight" / "dataframe" / "part-0.csv"
+    output_file.parent.mkdir(parents=True)
+    output_file.write_text("value\n1\n", encoding="utf-8")
+    output_roots = module._orchestrate_output_roots(context)
+    before_output = module._snapshot_artifact_files(output_roots)
+    before_trash = module._snapshot_artifact_files(output_roots, include_trash=True)
+    trash_file = output_file.parent / ".agilab-trash" / "part-0.csv.bak"
+    trash_file.parent.mkdir()
+    output_file.replace(trash_file)
+
+    probes = module.validate_orchestrate_action_artifacts(
+        context=context,
+        display="ORCHESTRATE",
+        selected_label="Confirm delete",
+        before_output=before_output,
+        before_export=module.ArtifactFileSnapshot(files={}),
+        before_trash=before_trash,
+        url="http://demo",
+    )
+
+    assert len(probes) == 1
+    assert probes[0].status == "interacted"
+    assert "delete side effect verified" in probes[0].detail
 
 
 def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share(tmp_path) -> None:

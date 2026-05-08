@@ -63,6 +63,13 @@ ORCHESTRATE_OUTPUT_ACTION_LABELS = {
     "confirm delete",
 }
 TERMINAL_IDLE_SETTLE_ACTION_LABELS = {"confirm delete"}
+ORCHESTRATE_OUTPUT_SIDE_EFFECT_LABELS = {"run -> load -> export", "load output"}
+ORCHESTRATE_EXPORT_SIDE_EFFECT_LABELS = {"run -> load -> export", "export dataframe"}
+ORCHESTRATE_DELETE_SIDE_EFFECT_LABELS = {"confirm delete"}
+ORCHESTRATE_PREVIEW_FILE_SUFFIXES = (".parquet", ".csv", ".json", ".gml")
+ORCHESTRATE_PREVIEW_METADATA_FILENAMES = {"run_manifest.json", "notebook_import_view_plan.json"}
+ORCHESTRATE_PREVIEW_METADATA_PREFIXES = ("._", "reduce_summary_worker_")
+ORCHESTRATE_FALLBACK_OUTPUT_DIRS = ("dataframe", "results", "reports", "pipeline")
 CURRENT_HOME_PREFLIGHT_ACTION_LABELS = (
     "CHECK distribute",
     "DISTRIBUTE",
@@ -574,6 +581,21 @@ class WidgetSweepSummary:
 @dataclass(frozen=True)
 class SeededRuntime:
     env: dict[str, str]
+    home_root: Path
+    export_root: Path
+    share_root: Path
+    cluster_share_root: Path
+
+
+@dataclass(frozen=True)
+class ArtifactFileSnapshot:
+    files: dict[Path, tuple[int, int]]
+
+
+@dataclass(frozen=True)
+class OrchestrateArtifactContext:
+    app_name: str
+    active_app_query: str
     home_root: Path
     export_root: Path
     share_root: Path
@@ -1407,6 +1429,294 @@ def current_home_action_preflight_blocker(
     return None
 
 
+def _artifact_env_path(
+    key: str,
+    *,
+    home_root: Path,
+    server_env: dict[str, str] | None,
+    env_values: dict[str, str],
+    default: Path,
+) -> Path:
+    raw = _strip_config_value(env_values.get(key) or (server_env or {}).get(key) or str(default))
+    return _home_relative_path(raw, home_root=home_root)
+
+
+def build_orchestrate_artifact_context(
+    *,
+    app_name: str,
+    active_app_query: Path | str,
+    home_root: Path | None,
+    server_env: dict[str, str] | None,
+) -> OrchestrateArtifactContext:
+    home = home_root or Path.home()
+    env_values = _load_dotenv_map(home / ".agilab" / ".env")
+    return OrchestrateArtifactContext(
+        app_name=app_name,
+        active_app_query=str(active_app_query),
+        home_root=home,
+        export_root=_artifact_env_path("AGI_EXPORT_DIR", home_root=home, server_env=server_env, env_values=env_values, default=home / "export"),
+        share_root=_artifact_env_path("AGI_LOCAL_SHARE", home_root=home, server_env=server_env, env_values=env_values, default=home / "localshare"),
+        cluster_share_root=_artifact_env_path("AGI_CLUSTER_SHARE", home_root=home, server_env=server_env, env_values=env_values, default=home / "clustershare"),
+    )
+
+
+def _load_app_settings_args_for_artifact_context(context: OrchestrateArtifactContext) -> dict[str, Any]:
+    candidates = [
+        context.home_root / ".agilab" / "apps" / context.app_name / "app_settings.toml",
+        _source_app_settings_path(context.active_app_query),
+    ]
+    for settings_path in candidates:
+        if settings_path is None or not settings_path.is_file():
+            continue
+        try:
+            payload = tomllib.loads(settings_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        args = payload.get("args")
+        return dict(args) if isinstance(args, dict) else {}
+    return {}
+
+
+def _artifact_path_from_configured_value(raw_path: Any, *, roots: Sequence[Path]) -> list[Path]:
+    if not raw_path:
+        return []
+    path = Path(str(raw_path)).expanduser()
+    if path.is_absolute():
+        return [path]
+    return [root / path for root in roots]
+
+
+def _unique_paths(paths: Sequence[Path]) -> list[Path]:
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        key = os.path.normcase(os.path.normpath(str(path)))
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(path)
+    return unique
+
+
+def _orchestrate_output_roots(context: OrchestrateArtifactContext) -> list[Path]:
+    target = app_target_name(context.app_name)
+    share_roots = [context.share_root, context.cluster_share_root]
+    args = _load_app_settings_args_for_artifact_context(context)
+    candidates: list[Path] = []
+    candidates.extend(_artifact_path_from_configured_value(args.get("data_out"), roots=share_roots))
+    for root in [*share_roots, context.export_root]:
+        for dirname in ORCHESTRATE_FALLBACK_OUTPUT_DIRS:
+            candidates.append(root / target / dirname)
+    return _unique_paths(candidates)
+
+
+def _orchestrate_export_roots(context: OrchestrateArtifactContext) -> list[Path]:
+    target = app_target_name(context.app_name)
+    return _unique_paths([context.export_root / target])
+
+
+def _is_orchestrate_preview_file(path: Path) -> bool:
+    name = path.name
+    if name in ORCHESTRATE_PREVIEW_METADATA_FILENAMES:
+        return False
+    if any(name.startswith(prefix) for prefix in ORCHESTRATE_PREVIEW_METADATA_PREFIXES):
+        return False
+    return path.suffix.lower() in ORCHESTRATE_PREVIEW_FILE_SUFFIXES
+
+
+def _snapshot_artifact_files(roots: Sequence[Path], *, include_trash: bool = False) -> ArtifactFileSnapshot:
+    files: dict[Path, tuple[int, int]] = {}
+    for root in roots:
+        if root.is_file():
+            candidates = [root]
+        elif root.is_dir():
+            candidates = []
+            for suffix in ORCHESTRATE_PREVIEW_FILE_SUFFIXES:
+                candidates.extend(root.rglob(f"*{suffix}"))
+        else:
+            continue
+        for candidate in sorted(candidates, key=lambda path: str(path)):
+            if not include_trash and ".agilab-trash" in candidate.parts:
+                continue
+            if not _is_orchestrate_preview_file(candidate):
+                continue
+            try:
+                stat = candidate.stat()
+            except (FileNotFoundError, OSError):
+                continue
+            if stat.st_size <= 0:
+                continue
+            files[candidate] = (stat.st_mtime_ns, stat.st_size)
+    return ArtifactFileSnapshot(files=files)
+
+
+def _changed_artifact_files(before: ArtifactFileSnapshot, after: ArtifactFileSnapshot) -> set[Path]:
+    return {
+        path
+        for path, metadata in after.files.items()
+        if before.files.get(path) != metadata
+    }
+
+
+def _deleted_artifact_files(before: ArtifactFileSnapshot, after: ArtifactFileSnapshot) -> set[Path]:
+    return {path for path in before.files if path not in after.files}
+
+
+def _artifact_probe(
+    context: OrchestrateArtifactContext,
+    *,
+    display: str,
+    label: str,
+    status: str,
+    detail: str,
+    url: str,
+) -> WidgetProbe:
+    return WidgetProbe(
+        context.app_name,
+        display,
+        "artifact_side_effect",
+        label,
+        status,
+        _short_detail(detail),
+        url,
+    )
+
+
+def validate_orchestrate_action_artifacts(
+    *,
+    context: OrchestrateArtifactContext,
+    display: str,
+    selected_label: str,
+    before_output: ArtifactFileSnapshot,
+    before_export: ArtifactFileSnapshot,
+    before_trash: ArtifactFileSnapshot,
+    url: str,
+) -> list[WidgetProbe]:
+    selected = _normalized_label(selected_label)
+    if (
+        context.app_name in NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS
+        and selected in ORCHESTRATE_OUTPUT_ACTION_LABELS
+    ):
+        return []
+
+    probes: list[WidgetProbe] = []
+    output_roots = _orchestrate_output_roots(context)
+    export_roots = _orchestrate_export_roots(context)
+
+    if selected in ORCHESTRATE_OUTPUT_SIDE_EFFECT_LABELS:
+        after_output = _snapshot_artifact_files(output_roots)
+        if not after_output.files:
+            roots = ", ".join(str(path) for path in output_roots[:4])
+            probes.append(
+                _artifact_probe(
+                    context,
+                    display=display,
+                    label=selected_label,
+                    status="failed",
+                    detail=f"no loadable output artifact found after action; checked {roots}",
+                    url=url,
+                )
+            )
+        elif selected == "run -> load -> export" and not _changed_artifact_files(before_output, after_output):
+            probes.append(
+                _artifact_probe(
+                    context,
+                    display=display,
+                    label=selected_label,
+                    status="failed",
+                    detail="output artifacts existed, but none were created or modified by Run -> Load -> Export",
+                    url=url,
+                )
+            )
+        else:
+            probes.append(
+                _artifact_probe(
+                    context,
+                    display=display,
+                    label=selected_label,
+                    status="interacted",
+                    detail=f"output artifact side effect verified ({len(after_output.files)} file(s))",
+                    url=url,
+                )
+            )
+
+    if selected in ORCHESTRATE_EXPORT_SIDE_EFFECT_LABELS:
+        after_export = _snapshot_artifact_files(export_roots)
+        changed = _changed_artifact_files(before_export, after_export)
+        if not after_export.files:
+            roots = ", ".join(str(path) for path in export_roots[:4])
+            probes.append(
+                _artifact_probe(
+                    context,
+                    display=display,
+                    label=selected_label,
+                    status="failed",
+                    detail=f"export artifact was not found after action; checked {roots}",
+                    url=url,
+                )
+            )
+        elif selected == "run -> load -> export" and not changed:
+            probes.append(
+                _artifact_probe(
+                    context,
+                    display=display,
+                    label=selected_label,
+                    status="failed",
+                    detail="export artifact existed, but was not created or modified by Run -> Load -> Export",
+                    url=url,
+                )
+            )
+        else:
+            detail = (
+                f"export artifact side effect verified ({len(changed)} changed file(s))"
+                if changed
+                else f"export artifact availability verified ({len(after_export.files)} file(s))"
+            )
+            probes.append(
+                _artifact_probe(
+                    context,
+                    display=display,
+                    label=selected_label,
+                    status="interacted",
+                    detail=detail,
+                    url=url,
+                )
+            )
+
+    if selected in ORCHESTRATE_DELETE_SIDE_EFFECT_LABELS:
+        after_output = _snapshot_artifact_files(output_roots)
+        after_trash = _snapshot_artifact_files(output_roots, include_trash=True)
+        deleted = _deleted_artifact_files(before_output, after_output)
+        trashed = _changed_artifact_files(before_trash, after_trash)
+        if not deleted and not trashed:
+            probes.append(
+                _artifact_probe(
+                    context,
+                    display=display,
+                    label=selected_label,
+                    status="failed",
+                    detail="confirm delete completed, but no output file disappeared and no .agilab-trash backup changed",
+                    url=url,
+                )
+            )
+        else:
+            detail = (
+                f"delete side effect verified ({len(deleted)} removed file(s), "
+                f"{len(trashed)} trash file(s) changed)"
+            )
+            probes.append(
+                _artifact_probe(
+                    context,
+                    display=display,
+                    label=selected_label,
+                    status="interacted",
+                    detail=detail,
+                    url=url,
+                )
+            )
+    return probes
+
+
 def _callable_or_value(obj: Any, name: str, default: str = "") -> str:
     value = getattr(obj, name, default)
     try:
@@ -1799,6 +2109,7 @@ def _probe_selected_actions_first(
     missing_selected_action_policy: str,
     action_timeout_ms: float,
     upload_file: Path,
+    artifact_context: OrchestrateArtifactContext | None = None,
 ) -> list[WidgetProbe]:
     def refresh_widgets() -> list[dict[str, Any]]:
         wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
@@ -1869,6 +2180,16 @@ def _probe_selected_actions_first(
         allow_idle_settle = selected_normalized in TERMINAL_IDLE_SETTLE_ACTION_LABELS or (
             future_already_ready and selected_normalized in {"export dataframe", "load output"}
         )
+        if artifact_context is not None:
+            output_roots = _orchestrate_output_roots(artifact_context)
+            export_roots = _orchestrate_export_roots(artifact_context)
+            before_output = _snapshot_artifact_files(output_roots)
+            before_export = _snapshot_artifact_files(export_roots)
+            before_trash = _snapshot_artifact_files(output_roots, include_trash=True)
+        else:
+            before_output = ArtifactFileSnapshot(files={})
+            before_export = ArtifactFileSnapshot(files={})
+            before_trash = ArtifactFileSnapshot(files={})
         status, detail = _probe_widget(
             page,
             widget,
@@ -1905,6 +2226,19 @@ def _probe_selected_actions_first(
                 widget_scope(widget),
             )
         )
+        if status != "failed" and artifact_context is not None:
+            artifact_probes = validate_orchestrate_action_artifacts(
+                context=artifact_context,
+                display=display,
+                selected_label=selected_label,
+                before_output=before_output,
+                before_export=before_export,
+                before_trash=before_trash,
+                url=page.url,
+            )
+            probes.extend(artifact_probes)
+            if any(probe.status == "failed" for probe in artifact_probes):
+                break
         if status == "failed":
             break
         if (
@@ -2030,7 +2364,12 @@ def _wait_for_action_outcome(
                 _selected_action_matches(widgets, label, require_enabled=True)
                 for label in settle_action_labels
             )
-            if settle_ready and (busy_seen or soft_feedback_seen or time.perf_counter() >= min_observation_deadline):
+            if settle_ready and (
+                busy_seen
+                or soft_feedback_seen
+                or allow_idle_settle
+                or time.perf_counter() >= min_observation_deadline
+            ):
                 return None, True
             if require_feedback and soft_feedback_seen and allow_idle_settle:
                 idle_seen += 1
@@ -2337,6 +2676,7 @@ def sweep_page(
     runtime_isolation: str = "isolated",
     server_env: dict[str, str] | None = None,
     home_root: Path | None = None,
+    assert_orchestrate_artifacts: bool = False,
 ) -> PageSweep:
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
@@ -2389,6 +2729,14 @@ def sweep_page(
                 page_status = "environment_blocked"
                 probes.append(WidgetProbe(app_name, display, "environment_preflight", "", "failed", preflight_detail, page.url))
             if selected_actions_first and not preflight_detail:
+                artifact_context = None
+                if assert_orchestrate_artifacts and page_label(page_name) == "ORCHESTRATE":
+                    artifact_context = build_orchestrate_artifact_context(
+                        app_name=app_name,
+                        active_app_query=active_app_query,
+                        home_root=home_root,
+                        server_env=server_env,
+                    )
                 probes.extend(
                     _probe_selected_actions_first(
                         page,
@@ -2400,6 +2748,7 @@ def sweep_page(
                         missing_selected_action_policy=missing_selected_action_policy,
                         action_timeout_ms=action_timeout_ms,
                         upload_file=upload_file,
+                        artifact_context=artifact_context,
                     )
                 )
                 if not any(probe.status == "failed" for probe in probes):
@@ -2662,6 +3011,7 @@ def sweep_app(
     screenshot_dir: Path | None,
     seed_demo_artifacts: bool,
     runtime_isolation: str,
+    assert_orchestrate_artifacts: bool = False,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -2748,6 +3098,7 @@ def sweep_app(
                                 runtime_isolation=runtime_isolation,
                                 server_env=seeded_runtime.env,
                                 home_root=seeded_runtime.home_root,
+                                assert_orchestrate_artifacts=assert_orchestrate_artifacts,
                             )
                             results.append(result)
                             _emit_page_result(result, progress=progress, on_page_result=on_page_result)
@@ -2975,6 +3326,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="isolated",
         help="Use isolated temporary HOME/share roots, or current-home for opt-in runs against an already installed local worker environment.",
     )
+    parser.add_argument(
+        "--assert-orchestrate-artifacts",
+        action="store_true",
+        help=(
+            "For local ORCHESTRATE selected-action journeys, assert filesystem side effects "
+            "for run/load/export/delete actions instead of only checking visible UI feedback."
+        ),
+    )
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -3019,6 +3378,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     preselect_labels = parse_csv(args.preselect_labels)
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
+    if args.url and args.assert_orchestrate_artifacts:
+        parser.error("--assert-orchestrate-artifacts requires a local robot-launched Streamlit server")
     apps = resolve_apps(args.apps)
     pages = resolve_pages(args.pages)
     global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
@@ -3082,6 +3443,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 screenshot_dir=screenshot_dir,
                 seed_demo_artifacts=not args.no_seed_demo_artifacts,
                 runtime_isolation=args.runtime_isolation,
+                assert_orchestrate_artifacts=args.assert_orchestrate_artifacts,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,
