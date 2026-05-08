@@ -157,6 +157,53 @@ OPEN_EXPANDERS_JS = r"""
 }
 """
 
+VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
+() => {
+  const visible = (el) => {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+  };
+  const clean = (value) => String(value || "").trim().replace(/\s+/g, " ");
+  const issues = [];
+  const push = (kind, el, fallback) => {
+    const detail = clean(el.innerText || el.textContent || fallback).slice(0, 500);
+    issues.push({kind, detail: detail || fallback});
+  };
+  for (const el of document.querySelectorAll("[data-testid='stException']")) {
+    if (visible(el)) {
+      push("exception", el, "Streamlit exception rendered");
+    }
+  }
+  const errorNeedles = [
+    "agi execution failed",
+    "error",
+    "exception",
+    "traceback",
+    "failed",
+    "failure",
+    "modulenotfounderror",
+    "no module named",
+    "streamlitapi",
+  ];
+  for (const el of document.querySelectorAll("[data-testid='stAlert'], [data-testid='stAlertContainer']")) {
+    if (!visible(el)) continue;
+    const text = clean(el.innerText || el.textContent || "");
+    const metadata = clean([
+      el.getAttribute("aria-label"),
+      el.getAttribute("role"),
+      el.getAttribute("class"),
+      el.getAttribute("data-testid"),
+    ].join(" ")).toLowerCase();
+    const combined = `${metadata} ${text.toLowerCase()}`;
+    if (errorNeedles.some((needle) => combined.includes(needle))) {
+      push("error", el, "Streamlit error alert rendered");
+    }
+  }
+  return issues;
+}
+"""
+
 
 @dataclass(frozen=True)
 class AppsPageRoute:
@@ -848,14 +895,53 @@ def _widget_locator(page: Any, widget: dict[str, Any]) -> Any:
     return locator
 
 
+def _visible_streamlit_issue_detail(page: Any) -> str | None:
+    try:
+        issues = page.evaluate(VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS)
+    except Exception:
+        return None
+    if not isinstance(issues, list) or not issues:
+        return None
+    first = issues[0] if isinstance(issues[0], dict) else {}
+    kind = str(first.get("kind") or "issue")
+    detail = str(first.get("detail") or "visible Streamlit issue rendered")
+    suffix = f" (+{len(issues) - 1} more)" if len(issues) > 1 else ""
+    return _short_detail(f"{kind}: {detail}{suffix}")
+
+
 def _visible_exception_detail(page: Any) -> str | None:
+    """Backward-compatible alias for older tests and call sites."""
     try:
         exceptions = page.locator("[data-testid='stException']")
         if exceptions.count() > 0 and exceptions.first.is_visible(timeout=500):
             return _short_detail(exceptions.first.inner_text(timeout=500) or "Streamlit exception rendered")
     except Exception:
-        return None
-    return None
+        pass
+    return _visible_streamlit_issue_detail(page)
+
+
+def _append_visible_streamlit_issue_probe(
+    probes: list[WidgetProbe],
+    *,
+    page: Any,
+    app_name: str,
+    display: str,
+) -> bool:
+    issue = _visible_streamlit_issue_detail(page)
+    if not issue:
+        return False
+    probes.append(
+        WidgetProbe(
+            app_name,
+            display,
+            "visible_error",
+            "",
+            "failed",
+            f"visible Streamlit error message: {issue}",
+            getattr(page, "url", ""),
+        )
+    )
+    return True
 
 
 def _fill_and_restore(locator: Any, value: str, *, timeout_ms: float) -> None:
@@ -888,6 +974,8 @@ def _probe_widget(
     try:
         locator.scroll_into_view_if_needed(timeout=timeout_ms)
         if not locator.is_visible(timeout=timeout_ms):
+            if kind == "expander":
+                return "probed", "expander header became hidden after collection; expanded content was still swept"
             return "skipped", "not visible after collection"
         if not locator.is_enabled(timeout=timeout_ms):
             return "skipped", "not enabled"
@@ -903,9 +991,9 @@ def _probe_widget(
             if action_button_policy == "click":
                 _click_with_force_fallback(locator, timeout_ms=timeout_ms)
                 _wait_for_timeout(page, 250)
-                error = _visible_exception_detail(page)
+                error = _visible_streamlit_issue_detail(page)
                 if error:
-                    return "failed", f"button click rendered exception: {error}"
+                    return "failed", f"button click rendered Streamlit error: {error}"
                 return "interacted", "clicked action button"
             try:
                 locator.click(timeout=timeout_ms, trial=True)
@@ -1012,9 +1100,9 @@ def _collect_and_probe_current_view(
                 )
             except Exception as exc:
                 status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
-        error = _visible_exception_detail(page)
+        error = _visible_streamlit_issue_detail(page)
         if error and status != "failed":
-            status, detail = "failed", f"interaction rendered Streamlit exception: {error}"
+            status, detail = "failed", f"interaction rendered Streamlit error: {error}"
         probes.append(
             WidgetProbe(
                 app_name,
@@ -1078,7 +1166,9 @@ def sweep_page(
     try:
         restore_view()
         _enforce_page_deadline(page_deadline, "page watchdog expired before active-app check")
-        if check_active_app_route and not active_app_route_matches(page.url, active_app_query):
+        if _append_visible_streamlit_issue_probe(probes, page=page, app_name=app_name, display=display):
+            page_status = "failed"
+        elif check_active_app_route and not active_app_route_matches(page.url, active_app_query):
             detail = f"active_app routed to {routed_active_app_slug(page.url)!r}, expected {sorted(active_app_aliases(active_app_query))!r}"
             probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
         else:
