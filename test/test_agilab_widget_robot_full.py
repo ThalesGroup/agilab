@@ -150,7 +150,7 @@ def test_full_public_orchestrate_widget_robot_sweep() -> None:
     widget_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_WIDGET_TIMEOUT", "3")
     action_timeout = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_TIMEOUT", "180")
     action_button_policy = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_BUTTON_POLICY", "click-selected")
-    click_action_labels = os.environ.get("AGILAB_WIDGET_ROBOT_CLICK_ACTION_LABELS", "Run -> Load -> Export")
+    click_action_labels = os.environ.get("AGILAB_WIDGET_ROBOT_CLICK_ACTION_LABELS", "CHECK distribute,Run -> Load -> Export")
     preselect_labels = os.environ.get("AGILAB_WIDGET_ROBOT_PRESELECT_LABELS", "Run now")
     missing_selected_action_policy = os.environ.get("AGILAB_WIDGET_ROBOT_MISSING_SELECTED_ACTION_POLICY", "ignore-absent")
     runtime_isolation = os.environ.get("AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION", "current-home")
