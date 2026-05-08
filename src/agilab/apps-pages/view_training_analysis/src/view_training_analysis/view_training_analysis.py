@@ -163,7 +163,7 @@ def _resolve_base_path(
     base_choice: str,
     custom_base: str,
 ) -> Path:
-    if base_choice == "AGI_SHARE_DIR":
+    if base_choice == "AGI_CLUSTER_SHARE":
         return Path(env.share_root_path())
     if base_choice == "AGILAB_EXPORT":
         path = Path(env.AGILAB_EXPORT_ABS)
@@ -435,10 +435,10 @@ def main() -> None:
     page_defaults = _get_page_defaults()
     setting_sources = [page_state, page_defaults]
 
-    base_options = ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"]
+    base_options = ["AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom"]
     base_seed = _get_first_nonempty_setting(setting_sources, "base_dir_choice", "dataset_base_choice")
     if base_seed not in base_options:
-        base_seed = "AGI_SHARE_DIR"
+        base_seed = "AGI_CLUSTER_SHARE"
     custom_seed = _get_first_nonempty_setting(setting_sources, "input_datadir", "dataset_custom_base")
     rel_seed = _get_first_nonempty_setting(setting_sources, "datadir_rel", "dataset_subpath")
 

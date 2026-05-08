@@ -265,7 +265,6 @@ Keep the cluster-share setting portable when workers are not Windows:
 
 .. code-block:: powershell
 
-   $env:AGI_SHARE_DIR = "clustershare/agilab-two-node"
    $env:AGI_CLUSTER_SHARE = "clustershare/agilab-two-node"
 
 Seed SSH host trust from PowerShell when the Windows scheduler must SSH to a

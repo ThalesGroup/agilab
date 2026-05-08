@@ -3248,7 +3248,7 @@ def page():
     # Data directory + presets (base paths without app suffix)
     export_base = env.AGILAB_EXPORT_ABS
     share_base = env.share_root_path()
-    base_options = ["AGI_SHARE_DIR", "AGILAB_EXPORT", "Custom"]
+    base_options = ["AGI_CLUSTER_SHARE", "AGILAB_EXPORT", "Custom"]
     base_default = qp_base or st.session_state.get("base_dir_choice") or base_seed or "AGILAB_EXPORT"
     if base_default not in base_options:
         base_default = "AGILAB_EXPORT"
@@ -3261,7 +3261,7 @@ def page():
     )
 
     base_path: Path
-    if base_choice == "AGI_SHARE_DIR":  # pragma: no cover - simple UI radio passthrough
+    if base_choice == "AGI_CLUSTER_SHARE":  # pragma: no cover - simple UI radio passthrough
         base_path = share_base
     elif base_choice == "AGILAB_EXPORT":
         base_path = export_base

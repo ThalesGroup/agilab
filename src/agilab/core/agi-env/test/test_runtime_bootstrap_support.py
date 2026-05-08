@@ -282,7 +282,7 @@ def test_sync_repository_apps_skips_probe_errors_and_logs_created_symlink(tmp_pa
 
 
 def test_resolve_share_runtime_config_applies_share_dir_override(tmp_path):
-    envars = {"AGI_SHARE_DIR": "cluster_mount"}
+    envars = {"AGI_CLUSTER_SHARE": "cluster_mount"}
 
     result = resolve_share_runtime_config(
         envars=envars,
@@ -309,7 +309,7 @@ def test_resolve_share_runtime_config_ignores_unsettable_override(tmp_path):
             raise TypeError("immutable")
 
     result = resolve_share_runtime_config(
-        envars=_BrokenEnvars({"AGI_SHARE_DIR": "cluster_mount"}),
+        envars=_BrokenEnvars({"AGI_CLUSTER_SHARE": "cluster_mount"}),
         environ={"AGI_LOCAL_SHARE": "local", "AGI_CLUSTER_SHARE": "cluster"},
         is_worker_env=False,
         resolve_workspace_settings_fn=lambda: None,

@@ -74,13 +74,13 @@ default_agi_share_user() {
     printf '%s\n' "${safe_user:-user}"
 }
 
-default_agi_share_dir() {
+default_agi_cluster_share() {
     printf 'clustershare/%s\n' "$(default_agi_share_user)"
 }
 
 AGI_INSTALL_PATH="$(realpath '.')"
-# Default share dir (can be overridden via --agi-share-dir or env)
-AGI_SHARE_DIR="${AGI_SHARE_DIR:-}"
+# Default share dir (can be overridden via --agi-cluster-share or env)
+AGI_CLUSTER_SHARE="${AGI_CLUSTER_SHARE:-}"
 CURRENT_PATH="$(realpath '.')"
 CLUSTER_CREDENTIALS="${CLUSTER_CREDENTIALS:-}"
 OPENAI_API_KEY="${OPENAI_API_KEY:-}"
@@ -135,7 +135,7 @@ guard_ephemeral_validation_env() {
 
     local suspect=""
     local candidate
-    for candidate in "${AGI_INSTALL_PATH:-}" "${AGI_SHARE_DIR:-}" "${AGI_LOCAL_DIR:-}"; do
+    for candidate in "${AGI_INSTALL_PATH:-}" "${AGI_CLUSTER_SHARE:-}" "${AGI_LOCAL_SHARE:-}"; do
         if looks_ephemeral_validation_path "$candidate"; then
             suspect="$candidate"
             break
@@ -157,15 +157,15 @@ guard_ephemeral_validation_env() {
 
 USER_ENV_FILE="$HOME/.agilab/.env"
 REPO_ENV_FILE="$AGI_INSTALL_PATH/.agilab/.env"
-ENV_SHARE_USER="$(read_env_var "$USER_ENV_FILE" AGI_SHARE_DIR)"
-ENV_SHARE_REPO="$(read_env_var "$REPO_ENV_FILE" AGI_SHARE_DIR)"
-DEFAULT_SHARE_DIR="${AGI_SHARE_DIR:-${ENV_SHARE_USER:-$ENV_SHARE_REPO}}"
+ENV_SHARE_USER="$(read_env_var "$USER_ENV_FILE" AGI_CLUSTER_SHARE)"
+ENV_SHARE_REPO="$(read_env_var "$REPO_ENV_FILE" AGI_CLUSTER_SHARE)"
+DEFAULT_SHARE_DIR="${AGI_CLUSTER_SHARE:-${ENV_SHARE_USER:-$ENV_SHARE_REPO}}"
 if [[ -z "$DEFAULT_SHARE_DIR" ]]; then
-    DEFAULT_SHARE_DIR="$(default_agi_share_dir)"
+    DEFAULT_SHARE_DIR="$(default_agi_cluster_share)"
 fi
-AGI_SHARE_DIR="${AGI_SHARE_DIR:-$DEFAULT_SHARE_DIR}"
-AGI_LOCAL_DIR="${AGI_LOCAL_DIR:-${AGI_LOCAL_SHARE:-$HOME/localshare}}"
-DEFAULT_LOCAL_SHARE="$AGI_LOCAL_DIR"
+AGI_CLUSTER_SHARE="${AGI_CLUSTER_SHARE:-$DEFAULT_SHARE_DIR}"
+AGI_LOCAL_SHARE="${AGI_LOCAL_SHARE:-$HOME/localshare}"
+DEFAULT_LOCAL_SHARE="$AGI_LOCAL_SHARE"
 
 is_exported_nfs() {
     local path="$1"
@@ -223,7 +223,7 @@ ensure_share_dir() {
         local shadow_share="$requested_share"
 
         if [[ -z "$shadow_share" || "$shadow_share" == "$local_fallback" ]]; then
-            shadow_share="$HOME/$(default_agi_share_dir)"
+            shadow_share="$HOME/$(default_agi_cluster_share)"
         fi
 
         if mkdir -p "$shadow_share" 2>/dev/null; then
@@ -231,7 +231,7 @@ ensure_share_dir() {
             return 0
         fi
 
-        shadow_share="$HOME/$(default_agi_share_dir)"
+        shadow_share="$HOME/$(default_agi_cluster_share)"
         mkdir -p "$shadow_share" || {
             echo -e "${RED}Failed to create fallback cluster share ${shadow_share}.${NC}"
             exit 1
@@ -243,13 +243,13 @@ ensure_share_dir() {
         if (( NON_INTERACTIVE )); then
             share_dir="$fallback_dir"
         elif [[ -t 0 ]]; then
-            read -rp "Enter AGI_SHARE_DIR path (or press Enter to abort): " share_dir
+            read -rp "Enter AGI_CLUSTER_SHARE path (or press Enter to abort): " share_dir
             if [[ -z "$share_dir" ]]; then
-                echo -e "${RED}AGI_SHARE_DIR not provided. Aborting.${NC}"
+                echo -e "${RED}AGI_CLUSTER_SHARE not provided. Aborting.${NC}"
                 exit 1
             fi
         else
-            echo -e "${YELLOW}AGI_SHARE_DIR not set and no TTY available. Using fallback ${fallback_dir}.${NC}"
+            echo -e "${YELLOW}AGI_CLUSTER_SHARE not set and no TTY available. Using fallback ${fallback_dir}.${NC}"
             share_dir="$fallback_dir"
         fi
     fi
@@ -264,13 +264,13 @@ ensure_share_dir() {
         [[ "$fallback_dir" != /* ]] && fallback_dir="$HOME/$fallback_dir"
     fi
     if [[ -n "$share_dir" ]]; then
-        echo -e "${BLUE}AGI_SHARE_DIR resolved to: ${share_dir}${NC}"
+        echo -e "${BLUE}AGI_CLUSTER_SHARE resolved to: ${share_dir}${NC}"
     fi
 
     # If the share is already mounted, accept it and return.
     if is_exported_nfs "$share_dir" || share_is_mounted "$share_dir"; then
-        export AGI_SHARE_DIR="$share_dir"
-        export AGI_LOCAL_DIR="${AGI_LOCAL_DIR:-$fallback_dir}"
+        export AGI_CLUSTER_SHARE="$share_dir"
+        export AGI_LOCAL_SHARE="${AGI_LOCAL_SHARE:-$fallback_dir}"
         return 0
     fi
 
@@ -281,10 +281,10 @@ ensure_share_dir() {
         fi
         local cluster_shadow
         cluster_shadow="$(ensure_distinct_cluster_fallback "$share_dir" "$fallback_dir")"
-        echo -e "${YELLOW}AGI_SHARE_DIR ${share_dir} unavailable; non-interactive mode: using local fallback ${fallback_dir} and local cluster shadow ${cluster_shadow}.${NC}"
+        echo -e "${YELLOW}AGI_CLUSTER_SHARE ${share_dir} unavailable; non-interactive mode: using local fallback ${fallback_dir} and local cluster shadow ${cluster_shadow}.${NC}"
         mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
-        export AGI_LOCAL_DIR="$fallback_dir"
-        export AGI_SHARE_DIR="$cluster_shadow"
+        export AGI_LOCAL_SHARE="$fallback_dir"
+        export AGI_CLUSTER_SHARE="$cluster_shadow"
         return 0
     fi
 
@@ -300,7 +300,7 @@ ensure_share_dir() {
         fi
     }
 
-    echo -e "${YELLOW}AGI_SHARE_DIR is unavailable at ${share_dir}.${NC}"
+    echo -e "${YELLOW}AGI_CLUSTER_SHARE is unavailable at ${share_dir}.${NC}"
     echo -e "Choose an option:"
     echo -e "  1) Use local fallback at ${fallback_dir} and keep a distinct local cluster shadow"
     echo -e "  2) Wait for ${share_dir} to be mounted (mandatory for cluster installs; will timeout)"
@@ -311,16 +311,16 @@ ensure_share_dir() {
             local cluster_shadow
             cluster_shadow="$(ensure_distinct_cluster_fallback "$share_dir" "$fallback_dir")"
             mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
-            export AGI_LOCAL_DIR="$fallback_dir"
-            export AGI_SHARE_DIR="$cluster_shadow"
-            echo -e "${GREEN}Using local fallback AGI_LOCAL_DIR=${AGI_LOCAL_DIR} with AGI_SHARE_DIR=${AGI_SHARE_DIR}.${NC}"
+            export AGI_LOCAL_SHARE="$fallback_dir"
+            export AGI_CLUSTER_SHARE="$cluster_shadow"
+            echo -e "${GREEN}Using local fallback AGI_LOCAL_SHARE=${AGI_LOCAL_SHARE} with AGI_CLUSTER_SHARE=${AGI_CLUSTER_SHARE}.${NC}"
             ;;
         2)
             echo -e "${BLUE}Waiting for ${share_dir} to become available (timeout 120s)...${NC}"
             local waited=0
             while [[ $waited -lt 120 ]]; do
                 if [[ -d "$share_dir" ]]; then
-                    export AGI_SHARE_DIR="$share_dir"
+                    export AGI_CLUSTER_SHARE="$share_dir"
                     echo -e "${GREEN}${share_dir} is available. Continuing.${NC}"
                     return 0
                 fi
@@ -335,8 +335,8 @@ ensure_share_dir() {
             local cluster_shadow
             cluster_shadow="$(ensure_distinct_cluster_fallback "$share_dir" "$fallback_dir")"
             mkdir -p "$fallback_dir" || { echo -e "${RED}Failed to create fallback ${fallback_dir}.${NC}"; exit 1; }
-            export AGI_LOCAL_DIR="$fallback_dir"
-            export AGI_SHARE_DIR="$cluster_shadow"
+            export AGI_LOCAL_SHARE="$fallback_dir"
+            export AGI_CLUSTER_SHARE="$cluster_shadow"
             ;;
     esac
 }
@@ -636,8 +636,8 @@ set_locale() {
 
 
 verify_share_dir() {
-    local share_dir="${AGI_SHARE_DIR:-$HOME/$(default_agi_share_dir)}"
-    local local_dir="${AGI_LOCAL_DIR:-}"
+    local share_dir="${AGI_CLUSTER_SHARE:-$HOME/$(default_agi_cluster_share)}"
+    local local_dir="${AGI_LOCAL_SHARE:-}"
     local home_prefix="$HOME/"
     [[ "$share_dir" == "~"* ]] && share_dir="${share_dir/#\~/$HOME}"
 
@@ -646,7 +646,7 @@ verify_share_dir() {
         if [[ -d "$share_dir" ]]; then
             return 0
         fi
-        echo -e "${RED}Local AGI_SHARE_DIR missing:${NC} expected data dir at '$share_dir'."
+        echo -e "${RED}Local AGI_CLUSTER_SHARE missing:${NC} expected data dir at '$share_dir'."
         exit 1
     fi
 
@@ -664,8 +664,8 @@ verify_share_dir() {
         return 0
     fi
 
-    echo -e "${RED}AGI_SHARE_DIR missing:${NC} expected mounted data share at '$share_dir'."
-    echo -e "${YELLOW}Mount your cluster share or export AGI_SHARE_DIR to the correct path, then rerun install.sh.${NC}"
+    echo -e "${RED}AGI_CLUSTER_SHARE missing:${NC} expected mounted data share at '$share_dir'."
+    echo -e "${YELLOW}Mount your cluster share or export AGI_CLUSTER_SHARE to the correct path, then rerun install.sh.${NC}"
     exit 1
 }
 
@@ -845,8 +845,8 @@ update_environment() {
         echo "AGI_PYTHON_VERSION=\"$AGI_PYTHON_VERSION\""
         echo "AGI_PYTHON_FREE_THREADED=\"$AGI_PYTHON_FREE_THREADED\""
         echo "APPS_REPOSITORY=\"$APPS_REPOSITORY\""
-        echo "AGI_CLUSTER_SHARE=\"$AGI_SHARE_DIR\""
-        echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_DIR\""
+        echo "AGI_CLUSTER_SHARE=\"$AGI_CLUSTER_SHARE\""
+        echo "AGI_LOCAL_SHARE=\"$AGI_LOCAL_SHARE\""
         echo "AGI_INTERNET_ON=\"$AGI_INTERNET_ON\""
         echo "IS_SOURCE_ENV=\"1\""
     } > "$ENV_FILE"
@@ -1170,8 +1170,8 @@ print_dry_run_plan() {
     echo "AGILAB installer dry-run plan"
     echo "install_path: ${AGI_INSTALL_PATH}"
     echo "source: ${SOURCE}"
-    echo "agi_share_dir: ${AGI_SHARE_DIR:-<default clustershare>}"
-    echo "agi_local_dir: ${AGI_LOCAL_DIR:-${DEFAULT_LOCAL_SHARE:-<default localshare>}}"
+    echo "agi_cluster_share: ${AGI_CLUSTER_SHARE:-<default clustershare>}"
+    echo "agi_local_share: ${AGI_LOCAL_SHARE:-${DEFAULT_LOCAL_SHARE:-<default localshare>}}"
     echo "apps_repository: ${APPS_REPOSITORY:-<not set>}"
     echo "install_apps: ${apps_plan}"
     echo "test_root: ${TEST_ROOT_FLAG}"
@@ -1196,7 +1196,7 @@ print_dry_run_plan() {
 }
 
 usage() {
-  echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-share-dir <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
+  echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-cluster-share <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
   echo "       [--dry-run]       Print the install plan without changing environments or installing dependencies"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
   echo "       [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
@@ -1217,7 +1217,7 @@ done
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --agi-share-dir)       AGI_SHARE_DIR="$2"; shift 2;;
+        --agi-cluster-share)       AGI_CLUSTER_SHARE="$2"; shift 2;;
         --install-path)
             if (( DRY_RUN )); then
                 AGI_INSTALL_PATH="$(resolve_cli_path_arg "$2")"
@@ -1303,22 +1303,22 @@ if (( DRY_RUN )); then
     exit 0
 fi
 
-# Confirm or override AGI_SHARE_DIR when interactive (relative paths are resolved under \$HOME)
+# Confirm or override AGI_CLUSTER_SHARE when interactive (relative paths are resolved under \$HOME)
 if [[ -t 0 ]] && (( ! NON_INTERACTIVE )); then
-    read -rp "AGI_SHARE_DIR is '$AGI_SHARE_DIR' (relative paths resolve under \$HOME). Press Enter to accept or type a new path: " share_input
+    read -rp "AGI_CLUSTER_SHARE is '$AGI_CLUSTER_SHARE' (relative paths resolve under \$HOME). Press Enter to accept or type a new path: " share_input
     if [[ -n "$share_input" ]]; then
-        AGI_SHARE_DIR="$share_input"
+        AGI_CLUSTER_SHARE="$share_input"
     fi
 fi
 
 if [[ -t 0 ]] && (( ! NON_INTERACTIVE )); then
-    local_default="${AGI_LOCAL_DIR:-$DEFAULT_LOCAL_SHARE}"
-    read -rp "AGI_LOCAL_DIR fallback is '${local_default}'. Press Enter to accept or type a new path: " local_input
+    local_default="${AGI_LOCAL_SHARE:-$DEFAULT_LOCAL_SHARE}"
+    read -rp "AGI_LOCAL_SHARE fallback is '${local_default}'. Press Enter to accept or type a new path: " local_input
     if [[ -n "$local_input" ]]; then
-        AGI_LOCAL_DIR="$local_input"
+        AGI_LOCAL_SHARE="$local_input"
         DEFAULT_LOCAL_SHARE="$local_input"
     else
-        AGI_LOCAL_DIR="$local_default"
+        AGI_LOCAL_SHARE="$local_default"
         DEFAULT_LOCAL_SHARE="$local_default"
     fi
 fi
@@ -1342,7 +1342,7 @@ find . \( -name "uv.lock" -o -name "dist" -o -name "build" -o -name "*egg-info" 
 
 check_internet
 guard_ephemeral_validation_env
-ensure_share_dir "$AGI_SHARE_DIR" "$AGI_LOCAL_DIR"
+ensure_share_dir "$AGI_CLUSTER_SHARE" "$AGI_LOCAL_SHARE"
 set_locale
 verify_share_dir
 install_dependencies

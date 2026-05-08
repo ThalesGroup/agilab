@@ -190,9 +190,9 @@ _seed_app_settings(module)
 
 
 def resolve_share_mount() -> Path:
-    """Return the absolute path that AGI_SHARE_DIR should resolve to."""
+    """Return the absolute path that AGI_CLUSTER_SHARE should resolve to."""
 
-    share_dir_raw = os.environ.get("AGI_SHARE_DIR")
+    share_dir_raw = os.environ.get("AGI_CLUSTER_SHARE")
     share_dir = (
         Path(share_dir_raw)
         if share_dir_raw
@@ -226,7 +226,7 @@ def ensure_data_storage(env: AgiEnv) -> None:
     except FileNotFoundError as exc:
         raise RuntimeError(
             f"Required data directory {data_root} is unavailable. "
-            f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted before running install."
+            f"Verify AGI_CLUSTER_SHARE ({share_hint_str}) is mounted before running install."
         ) from exc
     except OSError as exc:
         if exc.errno in {
@@ -238,7 +238,7 @@ def ensure_data_storage(env: AgiEnv) -> None:
         }:
             raise RuntimeError(
                 f"Unable to reach data directory {data_root} ({exc.strerror or exc}). "
-                f"Verify AGI_SHARE_DIR ({share_hint_str}) is mounted before running install."
+                f"Verify AGI_CLUSTER_SHARE ({share_hint_str}) is mounted before running install."
             ) from exc
         raise
 
@@ -316,11 +316,11 @@ async def main():
             if any(token in str(err) for token in share_error_tokens):
                 resolved_share = resolve_share_mount()
                 share_label = os.environ.get(
-                    "AGI_SHARE_DIR",
+                    "AGI_CLUSTER_SHARE",
                     default_cluster_share(environ=os.environ),
                 )
                 print(
-                    "[ERROR] AGI_SHARE_DIR '%s' is not mounted (expected path: %s). "
+                    "[ERROR] AGI_CLUSTER_SHARE '%s' is not mounted (expected path: %s). "
                     "Mount the share before running install."
                     % (share_label, resolved_share),
                     file=sys.stderr,

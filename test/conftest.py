@@ -69,7 +69,6 @@ def isolate_home_for_root_tests(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(fake_home))
     monkeypatch.delenv("AGI_CLUSTER_ENABLED", raising=False)
     monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
-    monkeypatch.delenv("AGI_SHARE_DIR", raising=False)
     monkeypatch.delenv("APPS_REPOSITORY", raising=False)
     monkeypatch.delenv("APP_DEFAULT", raising=False)
     # Root tests must not inherit developer-shell secrets. Individual tests that
