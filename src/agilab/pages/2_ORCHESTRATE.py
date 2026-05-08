@@ -68,6 +68,7 @@ import_agilab_symbols(
         "filter_noise_lines": "filter_noise_lines",
         "filter_warning_messages": "filter_warning_messages",
         "format_log_block": "format_log_block",
+        "has_nonlocal_workers": "has_nonlocal_workers",
         "reassign_distribution_plan": "reassign_distribution_plan",
         "is_dask_shutdown_noise": "is_dask_shutdown_noise",
         "serialize_args_payload": "serialize_args_payload",
@@ -564,6 +565,8 @@ def _with_app_args_env(args_env: Any):
 def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str | None:
     if not bool(cluster_params.get("cluster_enabled", False)):
         return None
+    if not has_nonlocal_workers(cluster_params.get("workers")):
+        return None
     active_share_root = _cluster_args_share_root(env, cluster_params)
     share_source = active_share_root if active_share_root is not None else getattr(env, "agi_share_path", None)
     if share_source is None:
@@ -588,7 +591,11 @@ def _cluster_args_share_warning(env: Any, cluster_params: dict[str, Any]) -> str
         pass
     # SSHFS cluster-share contract: the scheduler-side AGI_CLUSTER_SHARE can be a
     # normal local filesystem; remote workers mount it at Workers Data Path.
-    if is_symlink or looks_shared or (has_worker_share_path and _has_configured_cluster_share(env)):
+    if is_symlink or looks_shared or (
+        has_worker_share_path
+        and _has_configured_cluster_share(env)
+        and has_nonlocal_workers(cluster_params.get("workers"))
+    ):
         return None
 
     fstype = _fstype_for_path(share_resolved) or _fstype_for_path(share_candidate) or "unknown"
@@ -1582,6 +1589,7 @@ async def _render_distribution_panel(
             # Refresh mount table cache each rerun (mounts can appear/disappear while Streamlit stays alive).
             _clear_mount_table_cache()
         warning_message = _cluster_args_share_warning(env, cluster_params)
+        st.session_state["_orchestrate_cluster_share_warning"] = warning_message or ""
         if warning_message:
             st.warning(warning_message, icon="⚠️")
 
@@ -1823,6 +1831,7 @@ async def _render_run_panels(
                 selected_benchmark_modes=selected_benchmark_modes,
                 benchmark_best_single_node=benchmark_best_single_node,
                 local_share_path=local_share_path,
+                cluster_share_issue=str(st.session_state.get("_orchestrate_cluster_share_warning") or ""),
                 deps=run_state_deps,
             )
 

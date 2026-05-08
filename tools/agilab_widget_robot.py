@@ -50,6 +50,7 @@ DEFAULT_TARGET_SECONDS = 1800.0
 ACTION_BUTTON_KINDS = {"button", "form_submit_button", "download_button"}
 CHOICE_BUTTON_KINDS = {"segmented_control", "pills"}
 RUNTIME_ISOLATION_MODES = ("isolated", "current-home")
+MISSING_SELECTED_ACTION_POLICIES = ("fail", "ignore-absent")
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
 PAGE_EXPECTED_TEXT = {
     "": ("AGILAB", "Start here"),
@@ -1034,6 +1035,7 @@ def _append_missing_selected_action_probes(
     display: str,
     url: str,
     click_action_labels: Sequence[str],
+    missing_selected_action_policy: str = "fail",
 ) -> None:
     for selected_label in click_action_labels:
         selected = _normalized_label(selected_label)
@@ -1045,6 +1047,8 @@ def _append_missing_selected_action_probes(
             if probe.kind in ACTION_BUTTON_KINDS and selected in _normalized_label(probe.label)
         ]
         if any(probe.status in {"interacted", "failed"} for probe in matching_probes):
+            continue
+        if not matching_probes and missing_selected_action_policy == "ignore-absent":
             continue
         detail = "selected action button was not found in the swept page"
         if matching_probes:
@@ -1061,6 +1065,142 @@ def _append_missing_selected_action_probes(
                 url,
             )
         )
+
+
+def _preselect_matching_widgets(
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    widgets: Sequence[dict[str, Any]],
+    timeout_ms: float,
+    preselect_labels: Sequence[str],
+) -> list[WidgetProbe]:
+    if not preselect_labels:
+        return []
+    probes: list[WidgetProbe] = []
+    for widget in widgets:
+        kind = str(widget.get("kind", ""))
+        if kind not in CHOICE_BUTTON_KINDS and kind != "radio":
+            continue
+        if not _label_matches(widget, preselect_labels):
+            continue
+        try:
+            locator = _widget_locator(page, widget)
+            locator.scroll_into_view_if_needed(timeout=timeout_ms)
+            if locator.is_visible(timeout=timeout_ms) and locator.is_enabled(timeout=timeout_ms):
+                _click_with_force_fallback(locator, timeout_ms=timeout_ms)
+                _wait_for_timeout(page, 500)
+                probes.append(
+                    WidgetProbe(
+                        app_name,
+                        display,
+                        kind,
+                        str(widget.get("label", "")),
+                        "interacted",
+                        "preselected before selected action",
+                        page.url,
+                        widget_scope(widget),
+                    )
+                )
+        except Exception as exc:
+            probes.append(
+                WidgetProbe(
+                    app_name,
+                    display,
+                    kind,
+                    str(widget.get("label", "")),
+                    "skipped",
+                    _short_detail(f"preselection skipped: {exc}"),
+                    page.url,
+                    widget_scope(widget),
+                )
+            )
+    return probes
+
+
+def _probe_selected_actions_first(
+    page: Any,
+    *,
+    app_name: str,
+    display: str,
+    widget_timeout_ms: float,
+    click_action_labels: Sequence[str],
+    preselect_labels: Sequence[str],
+    missing_selected_action_policy: str,
+    action_timeout_ms: float,
+    upload_file: Path,
+) -> list[WidgetProbe]:
+    probes: list[WidgetProbe] = []
+    page.evaluate(OPEN_EXPANDERS_JS)
+    widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+    probes.extend(
+        _preselect_matching_widgets(
+            page,
+            app_name=app_name,
+            display=display,
+            widgets=widgets,
+            timeout_ms=widget_timeout_ms,
+            preselect_labels=preselect_labels,
+        )
+    )
+    if probes:
+        page.evaluate(OPEN_EXPANDERS_JS)
+        widgets = page.evaluate(WIDGET_COLLECTOR_JS)
+
+    for selected_label in click_action_labels:
+        selected = _normalized_label(selected_label)
+        if not selected:
+            continue
+        matches = [
+            widget
+            for widget in widgets
+            if str(widget.get("kind", "")) in ACTION_BUTTON_KINDS
+            and selected in _normalized_label(str(widget.get("label", "")))
+        ]
+        if not matches:
+            if missing_selected_action_policy == "fail":
+                probes.append(
+                    WidgetProbe(
+                        app_name,
+                        display,
+                        "selected_action",
+                        selected_label,
+                        "failed",
+                        "selected action button was not found in the swept page",
+                        page.url,
+                    )
+                )
+            continue
+        widget = matches[0]
+        status, detail = _probe_widget(
+            page,
+            widget,
+            timeout_ms=widget_timeout_ms,
+            interaction_mode="full",
+            action_button_policy="click-selected",
+            click_action_labels=[selected_label],
+            preselect_labels=(),
+            action_timeout_ms=action_timeout_ms,
+            upload_file=upload_file,
+            restore_view=None,
+        )
+        if status == "skipped":
+            status = "failed"
+            detail = f"selected action button was found but not fired ({detail})"
+        probes.append(
+            WidgetProbe(
+                app_name,
+                display,
+                str(widget.get("kind", "")),
+                str(widget.get("label", "")),
+                status,
+                detail,
+                page.url,
+                widget_scope(widget),
+            )
+        )
+    return probes
 
 
 def _fill_and_restore(locator: Any, value: str, *, timeout_ms: float) -> None:
@@ -1315,6 +1455,7 @@ def sweep_page(
     action_button_policy: str,
     click_action_labels: Sequence[str] = (),
     preselect_labels: Sequence[str] = (),
+    missing_selected_action_policy: str = "fail",
     action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     upload_file: Path,
     screenshot_dir: Path | None = None,
@@ -1355,68 +1496,88 @@ def sweep_page(
             detail = f"active_app routed to {routed_active_app_slug(page.url)!r}, expected {sorted(active_app_aliases(active_app_query))!r}"
             probes.append(WidgetProbe(app_name, display, "active_app", "", "failed", detail, page.url))
         else:
-            known: set[tuple[str, str, str, str, str]] = set()
-            for scroll_y in _page_scroll_positions(page):
-                _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping scroll positions")
-                _scroll_to(page, scroll_y)
-                _wait_for_timeout(page, 100)
+            selected_actions_first = action_button_policy == "click-selected" and bool(click_action_labels)
+            if selected_actions_first:
                 probes.extend(
-                    _collect_and_probe_current_view(
+                    _probe_selected_actions_first(
                         page,
                         app_name=app_name,
-                        page_name=display,
+                        display=display,
                         widget_timeout_ms=widget_timeout_ms,
-                        interaction_mode=interaction_mode,
-                        action_button_policy=action_button_policy,
                         click_action_labels=click_action_labels,
                         preselect_labels=preselect_labels,
+                        missing_selected_action_policy=missing_selected_action_policy,
                         action_timeout_ms=action_timeout_ms,
                         upload_file=upload_file,
-                        restore_view=restore_view,
-                        known=known,
-                        page_deadline=page_deadline,
                     )
                 )
-            _enforce_page_deadline(page_deadline, "page watchdog expired before tab sweep")
-            tab_count = page.locator("[role='tab']").count()
-            for index in range(tab_count):
-                _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping tabs")
-                tab = page.locator("[role='tab']").nth(index)
-                try:
-                    if tab.is_visible(timeout=widget_timeout_ms) and tab.is_enabled(timeout=widget_timeout_ms):
-                        _click_with_force_fallback(tab, timeout_ms=widget_timeout_ms)
-                        page.wait_for_timeout(250)
-                        for scroll_y in _page_scroll_positions(page):
-                            _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping tab scroll positions")
-                            _scroll_to(page, scroll_y)
-                            _wait_for_timeout(page, 100)
-                            probes.extend(
-                                _collect_and_probe_current_view(
-                                    page,
-                                    app_name=app_name,
-                                    page_name=display,
-                                    widget_timeout_ms=widget_timeout_ms,
-                                    interaction_mode=interaction_mode,
-                                    action_button_policy=action_button_policy,
-                                    click_action_labels=click_action_labels,
-                                    preselect_labels=preselect_labels,
-                                    action_timeout_ms=action_timeout_ms,
-                                    upload_file=upload_file,
-                                    restore_view=restore_view,
-                                    known=known,
-                                    page_deadline=page_deadline,
+                if not any(probe.status == "failed" for probe in probes):
+                    restore_view()
+            if not any(probe.status == "failed" for probe in probes):
+                sweep_action_button_policy = "trial" if selected_actions_first else action_button_policy
+                known: set[tuple[str, str, str, str, str]] = set()
+                for scroll_y in _page_scroll_positions(page):
+                    _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping scroll positions")
+                    _scroll_to(page, scroll_y)
+                    _wait_for_timeout(page, 100)
+                    probes.extend(
+                        _collect_and_probe_current_view(
+                            page,
+                            app_name=app_name,
+                            page_name=display,
+                            widget_timeout_ms=widget_timeout_ms,
+                            interaction_mode=interaction_mode,
+                            action_button_policy=sweep_action_button_policy,
+                            click_action_labels=click_action_labels,
+                            preselect_labels=preselect_labels,
+                            action_timeout_ms=action_timeout_ms,
+                            upload_file=upload_file,
+                            restore_view=restore_view,
+                            known=known,
+                            page_deadline=page_deadline,
+                        )
+                    )
+                _enforce_page_deadline(page_deadline, "page watchdog expired before tab sweep")
+                tab_count = page.locator("[role='tab']").count()
+                for index in range(tab_count):
+                    _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping tabs")
+                    tab = page.locator("[role='tab']").nth(index)
+                    try:
+                        if tab.is_visible(timeout=widget_timeout_ms) and tab.is_enabled(timeout=widget_timeout_ms):
+                            _click_with_force_fallback(tab, timeout_ms=widget_timeout_ms)
+                            page.wait_for_timeout(250)
+                            for scroll_y in _page_scroll_positions(page):
+                                _enforce_page_deadline(page_deadline, "page watchdog expired while sweeping tab scroll positions")
+                                _scroll_to(page, scroll_y)
+                                _wait_for_timeout(page, 100)
+                                probes.extend(
+                                    _collect_and_probe_current_view(
+                                        page,
+                                        app_name=app_name,
+                                        page_name=display,
+                                        widget_timeout_ms=widget_timeout_ms,
+                                        interaction_mode=interaction_mode,
+                                        action_button_policy=sweep_action_button_policy,
+                                        click_action_labels=click_action_labels,
+                                        preselect_labels=preselect_labels,
+                                        action_timeout_ms=action_timeout_ms,
+                                        upload_file=upload_file,
+                                        restore_view=restore_view,
+                                        known=known,
+                                        page_deadline=page_deadline,
+                                    )
                                 )
-                            )
-                except Exception as exc:
-                    probes.append(WidgetProbe(app_name, display, "tab", f"tab #{index + 1}", "failed", _short_detail(str(exc)), page.url))
-            if action_button_policy == "click-selected":
-                _append_missing_selected_action_probes(
-                    probes,
-                    app_name=app_name,
-                    display=display,
-                    url=getattr(page, "url", target_url),
-                    click_action_labels=click_action_labels,
-                )
+                    except Exception as exc:
+                        probes.append(WidgetProbe(app_name, display, "tab", f"tab #{index + 1}", "failed", _short_detail(str(exc)), page.url))
+                if action_button_policy == "click-selected" and not selected_actions_first:
+                    _append_missing_selected_action_probes(
+                        probes,
+                        app_name=app_name,
+                        display=display,
+                        url=getattr(page, "url", target_url),
+                        click_action_labels=click_action_labels,
+                        missing_selected_action_policy=missing_selected_action_policy,
+                    )
     except PageWatchdogTimeout as exc:
         page_status = "timed_out"
         probes.append(WidgetProbe(app_name, display, "page_watchdog", "", "failed", _short_detail(str(exc)), getattr(page, "url", target_url)))
@@ -1473,6 +1634,7 @@ def sweep_direct_apps_page(
     action_button_policy: str,
     click_action_labels: Sequence[str] = (),
     preselect_labels: Sequence[str] = (),
+    missing_selected_action_policy: str = "fail",
     action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     browser_name: str,
     headless: bool,
@@ -1566,6 +1728,7 @@ def sweep_direct_apps_page(
                         action_button_policy=action_button_policy,
                         click_action_labels=click_action_labels,
                         preselect_labels=preselect_labels,
+                        missing_selected_action_policy=missing_selected_action_policy,
                         action_timeout=action_timeout,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
@@ -1589,6 +1752,7 @@ def sweep_app(
     action_button_policy: str,
     click_action_labels: Sequence[str] = (),
     preselect_labels: Sequence[str] = (),
+    missing_selected_action_policy: str = "fail",
     action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     browser_name: str,
     headless: bool,
@@ -1671,6 +1835,7 @@ def sweep_app(
                                 action_button_policy=action_button_policy,
                                 click_action_labels=click_action_labels,
                                 preselect_labels=preselect_labels,
+                                missing_selected_action_policy=missing_selected_action_policy,
                                 action_timeout=action_timeout,
                                 upload_file=upload_file,
                                 screenshot_dir=screenshot_dir,
@@ -1694,6 +1859,7 @@ def sweep_app(
                     action_button_policy=action_button_policy,
                     click_action_labels=click_action_labels,
                     preselect_labels=preselect_labels,
+                    missing_selected_action_policy=missing_selected_action_policy,
                     action_timeout=action_timeout,
                     browser_name=browser_name,
                     headless=headless,
@@ -1722,6 +1888,7 @@ def sweep_remote_app(
     action_button_policy: str,
     click_action_labels: Sequence[str] = (),
     preselect_labels: Sequence[str] = (),
+    missing_selected_action_policy: str = "fail",
     action_timeout: float = DEFAULT_ACTION_TIMEOUT_SECONDS,
     browser_name: str,
     headless: bool,
@@ -1791,6 +1958,7 @@ def sweep_remote_app(
                         action_button_policy=action_button_policy,
                         click_action_labels=click_action_labels,
                         preselect_labels=preselect_labels,
+                        missing_selected_action_policy=missing_selected_action_policy,
                         action_timeout=action_timeout,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
@@ -1829,6 +1997,7 @@ def sweep_remote_app(
                         action_button_policy=action_button_policy,
                         click_action_labels=click_action_labels,
                         preselect_labels=preselect_labels,
+                        missing_selected_action_policy=missing_selected_action_policy,
                         action_timeout=action_timeout,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
@@ -1882,6 +2051,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--action-button-policy", choices=("trial", "click", "click-selected"), default="trial")
     parser.add_argument("--click-action-labels", default="", help="Comma-separated action button labels to fire when --action-button-policy=click-selected.")
     parser.add_argument("--preselect-labels", default="", help="Comma-separated compact choice/radio labels to select before action probing, for example 'Run now'.")
+    parser.add_argument(
+        "--missing-selected-action-policy",
+        choices=MISSING_SELECTED_ACTION_POLICIES,
+        default="fail",
+        help="How to treat selected action labels that are absent on an otherwise healthy page.",
+    )
     parser.add_argument("--action-timeout", type=float, default=DEFAULT_ACTION_TIMEOUT_SECONDS, help="Seconds to wait for a clicked action button to settle or render an error.")
     parser.add_argument(
         "--runtime-isolation",
@@ -1968,6 +2143,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 action_button_policy=args.action_button_policy,
                 click_action_labels=click_action_labels,
                 preselect_labels=preselect_labels,
+                missing_selected_action_policy=args.missing_selected_action_policy,
                 action_timeout=args.action_timeout,
                 browser_name=args.browser,
                 headless=not args.headful,
@@ -1988,6 +2164,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 action_button_policy=args.action_button_policy,
                 click_action_labels=click_action_labels,
                 preselect_labels=preselect_labels,
+                missing_selected_action_policy=args.missing_selected_action_policy,
                 action_timeout=args.action_timeout,
                 browser_name=args.browser,
                 headless=not args.headful,

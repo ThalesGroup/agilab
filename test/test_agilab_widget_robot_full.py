@@ -85,6 +85,7 @@ def test_full_public_widget_robot_sweep() -> None:
     action_button_policy = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_BUTTON_POLICY", "trial")
     click_action_labels = os.environ.get("AGILAB_WIDGET_ROBOT_CLICK_ACTION_LABELS", "")
     preselect_labels = os.environ.get("AGILAB_WIDGET_ROBOT_PRESELECT_LABELS", "")
+    missing_selected_action_policy = os.environ.get("AGILAB_WIDGET_ROBOT_MISSING_SELECTED_ACTION_POLICY", "fail")
     runtime_isolation = os.environ.get("AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION", "isolated")
     url = os.environ.get("AGILAB_WIDGET_ROBOT_URL")
     active_app = os.environ.get("AGILAB_WIDGET_ROBOT_ACTIVE_APP")
@@ -108,6 +109,8 @@ def test_full_public_widget_robot_sweep() -> None:
         target_seconds,
         "--action-button-policy",
         action_button_policy,
+        "--missing-selected-action-policy",
+        missing_selected_action_policy,
         "--action-timeout",
         action_timeout,
         "--runtime-isolation",
@@ -149,6 +152,7 @@ def test_full_public_orchestrate_widget_robot_sweep() -> None:
     action_button_policy = os.environ.get("AGILAB_WIDGET_ROBOT_ACTION_BUTTON_POLICY", "click-selected")
     click_action_labels = os.environ.get("AGILAB_WIDGET_ROBOT_CLICK_ACTION_LABELS", "Run -> Load -> Export")
     preselect_labels = os.environ.get("AGILAB_WIDGET_ROBOT_PRESELECT_LABELS", "Run now")
+    missing_selected_action_policy = os.environ.get("AGILAB_WIDGET_ROBOT_MISSING_SELECTED_ACTION_POLICY", "ignore-absent")
     runtime_isolation = os.environ.get("AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION", "current-home")
     url = os.environ.get("AGILAB_WIDGET_ROBOT_URL")
     active_app = os.environ.get("AGILAB_WIDGET_ROBOT_ACTIVE_APP")
@@ -172,6 +176,8 @@ def test_full_public_orchestrate_widget_robot_sweep() -> None:
         target_seconds,
         "--action-button-policy",
         action_button_policy,
+        "--missing-selected-action-policy",
+        missing_selected_action_policy,
         "--action-timeout",
         action_timeout,
         "--runtime-isolation",

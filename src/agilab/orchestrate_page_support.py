@@ -79,6 +79,9 @@ _INSTALL_LOG_NON_FATAL_LINE_PATTERNS_LOWER: tuple[tuple[str, ...], ...] = tuple(
 
 _MANAGER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node", "agi_cluster")
 _WORKER_REQUIRED_MODULES: tuple[str, ...] = ("agi_env", "agi_node")
+_MANAGER_REQUIRED_SYMBOLS: tuple[tuple[str, str], ...] = (
+    ("agi_cluster.agi_distributor", "StageRequest"),
+)
 
 
 def _python_string(value: Any) -> str:
@@ -1020,6 +1023,24 @@ def _module_available_on_root(root: Path, module: str) -> bool:
     return False
 
 
+def _module_source_candidates(root: Path, dotted_module: str) -> tuple[Path, ...]:
+    module_path = root.joinpath(*dotted_module.split("."))
+    return (
+        module_path / "__init__.py",
+        module_path.with_suffix(".py"),
+    )
+
+
+def _symbol_available_on_root(root: Path, dotted_module: str, symbol: str) -> bool:
+    for source in _module_source_candidates(root, dotted_module):
+        try:
+            if source.is_file() and symbol in source.read_text(encoding="utf-8", errors="replace"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _missing_modules_on_import_roots(venv: Path, modules: Sequence[str]) -> tuple[tuple[str, ...], tuple[Path, ...]]:
     site_packages = _venv_site_package_dirs(venv)
     editable_roots = tuple(root for site in site_packages for root in _pth_import_roots(site))
@@ -1032,9 +1053,21 @@ def _missing_modules_on_import_roots(venv: Path, modules: Sequence[str]) -> tupl
     return missing, roots
 
 
+def _missing_symbols_on_import_roots(
+    roots: Sequence[Path],
+    symbols: Sequence[tuple[str, str]],
+) -> tuple[str, ...]:
+    return tuple(
+        f"{module}.{symbol}"
+        for module, symbol in symbols
+        if not any(_symbol_available_on_root(root, module, symbol) for root in roots)
+    )
+
+
 def _venv_import_status(
     venv: Path,
     modules: Sequence[str],
+    required_symbols: Sequence[tuple[str, str]] = (),
 ) -> dict[str, Any]:
     exists = venv.exists() or venv.is_symlink()
     python = _venv_python_path(venv)
@@ -1056,14 +1089,18 @@ def _venv_import_status(
         }
 
     missing, roots = _missing_modules_on_import_roots(venv, modules)
-    imports_ready = not missing
+    missing_symbols = () if missing else _missing_symbols_on_import_roots(roots, required_symbols)
+    imports_ready = not missing and not missing_symbols
     problem = ""
-    if not imports_ready:
+    if missing:
         problem = "missing modules: " + ", ".join(str(module) for module in missing)
+    elif missing_symbols:
+        problem = "missing symbols: " + ", ".join(str(symbol) for symbol in missing_symbols)
     return {
         "exists": True,
         "imports_ready": imports_ready,
         "missing_modules": missing,
+        "missing_symbols": missing_symbols,
         "problem": problem,
         "python": python,
         "import_roots": roots,
@@ -1080,7 +1117,7 @@ def app_install_status(env: Any) -> dict[str, Any]:
     """Return manager/worker installation readiness, including runtime imports."""
     manager_venv = env.active_app / ".venv"
     worker_venv = env.wenv_abs / ".venv"
-    manager_imports = _venv_import_status(manager_venv, _MANAGER_REQUIRED_MODULES)
+    manager_imports = _venv_import_status(manager_venv, _MANAGER_REQUIRED_MODULES, _MANAGER_REQUIRED_SYMBOLS)
     worker_imports = _venv_import_status(worker_venv, _WORKER_REQUIRED_MODULES)
     manager_ready = bool(manager_imports["exists"] and manager_imports["imports_ready"])
     worker_ready = bool(worker_imports["exists"] and worker_imports["imports_ready"])
@@ -1093,6 +1130,8 @@ def app_install_status(env: Any) -> dict[str, Any]:
         "worker_imports_ready": bool(worker_imports["imports_ready"]),
         "manager_missing_modules": manager_imports["missing_modules"],
         "worker_missing_modules": worker_imports["missing_modules"],
+        "manager_missing_symbols": manager_imports.get("missing_symbols", ()),
+        "worker_missing_symbols": worker_imports.get("missing_symbols", ()),
         "manager_problem": manager_imports["problem"],
         "worker_problem": worker_imports["problem"],
         "manager_venv": manager_venv,

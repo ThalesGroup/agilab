@@ -1040,6 +1040,10 @@ def test_is_app_installed_requires_manager_and_worker_venvs():
             package_dir = site_packages / module_name
             package_dir.mkdir(parents=True, exist_ok=True)
             (package_dir / "__init__.py").write_text("", encoding="utf-8")
+            if module_name == "agi_cluster":
+                distributor_dir = package_dir / "agi_distributor"
+                distributor_dir.mkdir(parents=True, exist_ok=True)
+                (distributor_dir / "__init__.py").write_text("class StageRequest: ...\n", encoding="utf-8")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
@@ -1487,6 +1491,35 @@ def test_cluster_args_share_warning_accepts_sshfs_contract_with_local_scheduler_
         {
             "cluster_enabled": True,
             "workers_data_path": "/home/agi/clustershare/agi",
+            "workers": {"192.168.20.130": 1},
+        },
+    )
+
+    assert warning is None
+
+
+def test_cluster_args_share_warning_accepts_local_cluster_on_local_filesystem(monkeypatch, tmp_path):
+    module = _load_orchestrate_module()
+    monkeypatch.setattr(module, "_looks_like_shared_path", lambda _path: False)
+    monkeypatch.setattr(module, "_fstype_for_path", lambda _path: "apfs")
+    local_share = tmp_path / "localshare" / "agi"
+    scheduler_share = tmp_path / "clustershare" / "agi"
+    local_share.mkdir(parents=True)
+    scheduler_share.mkdir(parents=True)
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        agi_share_path=Path("localshare/agi"),
+        AGI_LOCAL_SHARE=str(local_share),
+        AGI_CLUSTER_SHARE=str(scheduler_share),
+        envars={},
+    )
+
+    warning = module._cluster_args_share_warning(
+        env,
+        {
+            "cluster_enabled": True,
+            "workers_data_path": "/home/agi/clustershare/agi",
+            "workers": {"127.0.0.1": 2},
         },
     )
 
@@ -1518,6 +1551,7 @@ def test_cluster_args_share_warning_accepts_cluster_share_as_active_share_path(m
         {
             "cluster_enabled": True,
             "workers_data_path": str(scheduler_share),
+            "workers": {"192.168.20.130": 1},
         },
     )
 
@@ -1543,6 +1577,7 @@ def test_cluster_args_share_warning_rejects_cluster_share_that_points_to_local_s
         {
             "cluster_enabled": True,
             "workers_data_path": "/home/agi/clustershare/agi",
+            "workers": {"192.168.20.130": 1},
         },
     )
 
@@ -1568,6 +1603,7 @@ def test_cluster_args_share_warning_reports_stale_local_workers_path(monkeypatch
         {
             "cluster_enabled": True,
             "workers_data_path": str(local_share),
+            "workers": {"192.168.20.130": 1},
         },
     )
 
