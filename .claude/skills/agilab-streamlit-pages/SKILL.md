@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-07
+  updated: 2026-05-08
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -146,6 +146,26 @@ Use this skill when editing:
 - Add a focused helper test for display formatting and keep the repository scan
   guard in `test/test_streamlit_diagnostic_rendering.py` green when touching
   diagnostic rendering paths.
+
+## Action Results and Runtime Logs
+
+- Do not classify a page action as failed only because stderr is non-empty.
+  AGILAB runtime helpers, package managers, and subprocess wrappers may write
+  normal progress or warnings to stderr.
+- Treat action success/failure as a typed result contract first:
+  - subprocess return code or raised exception
+  - `ActionResult.status`
+  - explicit fatal markers in logs such as tracebacks, non-zero exit status,
+    missing imports, or worker/build failure phrases
+- Keep log classifiers narrow. Avoid broad predicates such as `"failed" in line`
+  unless the surrounding phrase is part of a known fatal contract; benign warnings
+  can contain words like `failed`.
+- Apply the same action-result semantics to sibling workflow actions. If INSTALL
+  and RUN already use typed results or fatal-log heuristics, do not leave CHECK,
+  DISTRIBUTE, LOAD, EXPORT, or service actions on older `stderr == failure` rules.
+- Add a regression with a realistic noisy stderr log for any action whose runtime
+  can emit progress on stderr. The regression should prove benign stderr stays
+  successful and a concrete fatal marker still fails.
 
 ## Long-Running Action Timers
 
