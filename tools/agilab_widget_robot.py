@@ -70,6 +70,13 @@ ORCHESTRATE_PREVIEW_FILE_SUFFIXES = (".parquet", ".csv", ".json", ".gml")
 ORCHESTRATE_PREVIEW_METADATA_FILENAMES = {"run_manifest.json", "notebook_import_view_plan.json"}
 ORCHESTRATE_PREVIEW_METADATA_PREFIXES = ("._", "reduce_summary_worker_")
 ORCHESTRATE_FALLBACK_OUTPUT_DIRS = ("dataframe", "results", "reports", "pipeline")
+WORKFLOW_STAGE_CONTRACT_FILENAME = "lab_stages.toml"
+WORKFLOW_STAGE_CONTRACT_SCHEMA = "agilab.lab_stages.v1"
+WORKFLOW_RUN_ACTION_LABELS = {
+    "run workflow",
+    "clear stale lock and run",
+    "confirm force unlock",
+}
 CURRENT_HOME_PREFLIGHT_ACTION_LABELS = (
     "CHECK distribute",
     "DISTRIBUTE",
@@ -600,6 +607,14 @@ class OrchestrateArtifactContext:
     export_root: Path
     share_root: Path
     cluster_share_root: Path
+
+
+@dataclass(frozen=True)
+class WorkflowArtifactContext:
+    app_name: str
+    active_app_query: str
+    home_root: Path
+    export_root: Path
 
 
 class PageWatchdogTimeout(TimeoutError):
@@ -1460,6 +1475,28 @@ def build_orchestrate_artifact_context(
     )
 
 
+def build_workflow_artifact_context(
+    *,
+    app_name: str,
+    active_app_query: Path | str,
+    home_root: Path | None,
+    server_env: dict[str, str] | None,
+) -> WorkflowArtifactContext:
+    home = home_root or Path.home()
+    env_values = _load_dotenv_map(home / ".agilab" / ".env")
+    raw_export_root = _strip_config_value(
+        (server_env or {}).get("AGI_EXPORT_DIR")
+        or env_values.get("AGI_EXPORT_DIR")
+        or str(home / "export")
+    )
+    return WorkflowArtifactContext(
+        app_name=app_name,
+        active_app_query=str(active_app_query),
+        home_root=home,
+        export_root=_home_relative_path(raw_export_root, home_root=home),
+    )
+
+
 def _load_app_settings_args_for_artifact_context(context: OrchestrateArtifactContext) -> dict[str, Any]:
     candidates = [
         context.home_root / ".agilab" / "apps" / context.app_name / "app_settings.toml",
@@ -1563,7 +1600,7 @@ def _deleted_artifact_files(before: ArtifactFileSnapshot, after: ArtifactFileSna
 
 
 def _artifact_probe(
-    context: OrchestrateArtifactContext,
+    context: Any,
     *,
     display: str,
     label: str,
@@ -1580,6 +1617,186 @@ def _artifact_probe(
         _short_detail(detail),
         url,
     )
+
+
+def _snapshot_specific_files(paths: Sequence[Path], *, require_non_empty: bool = False) -> ArtifactFileSnapshot:
+    files: dict[Path, tuple[int, int]] = {}
+    for path in paths:
+        try:
+            raw_candidate = path.expanduser()
+        except (TypeError, ValueError):
+            continue
+        candidates = [raw_candidate]
+        try:
+            resolved_candidate = raw_candidate.resolve(strict=False)
+        except (OSError, RuntimeError):
+            resolved_candidate = raw_candidate
+        if resolved_candidate != raw_candidate:
+            candidates.append(resolved_candidate)
+        for candidate in candidates:
+            try:
+                stat = candidate.stat()
+            except (FileNotFoundError, OSError):
+                continue
+            if not candidate.is_file():
+                continue
+            if require_non_empty and stat.st_size <= 0:
+                continue
+            files[candidate] = (stat.st_mtime_ns, stat.st_size)
+    return ArtifactFileSnapshot(files=files)
+
+
+def _workflow_source_stage_contract_path(context: WorkflowArtifactContext) -> Path | None:
+    active_app_path = Path(context.active_app_query).expanduser()
+    candidates = [
+        active_app_path / WORKFLOW_STAGE_CONTRACT_FILENAME,
+        DEFAULT_APPS_ROOT / context.app_name / WORKFLOW_STAGE_CONTRACT_FILENAME,
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _workflow_export_stage_contract_paths(context: WorkflowArtifactContext, *, url: str = "") -> list[Path]:
+    candidates = [
+        context.export_root / app_target_name(context.app_name) / WORKFLOW_STAGE_CONTRACT_FILENAME,
+        context.export_root / active_app_slug(context.app_name) / WORKFLOW_STAGE_CONTRACT_FILENAME,
+    ]
+    try:
+        query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(url).query, keep_blank_values=True))
+    except (AttributeError, TypeError, ValueError):
+        query = {}
+    index_page = str(query.get("index_page") or "").strip()
+    if index_page and Path(index_page).name == WORKFLOW_STAGE_CONTRACT_FILENAME:
+        candidate = Path(index_page)
+        if not candidate.is_absolute():
+            candidate = context.export_root / candidate
+        candidates.insert(0, candidate)
+    return _unique_paths(candidates)
+
+
+def _workflow_run_log_roots(context: WorkflowArtifactContext) -> list[Path]:
+    target = app_target_name(context.app_name)
+    return _unique_paths(
+        [
+            context.home_root / "log" / "execute" / target,
+            context.home_root / "log" / "execute" / context.app_name,
+        ]
+    )
+
+
+def _snapshot_workflow_run_logs(context: WorkflowArtifactContext) -> ArtifactFileSnapshot:
+    paths: list[Path] = []
+    for root in _workflow_run_log_roots(context):
+        if root.is_file():
+            paths.append(root)
+        elif root.is_dir():
+            paths.extend(sorted(root.rglob("*.log"), key=lambda path: str(path)))
+    return _snapshot_specific_files(paths)
+
+
+def _workflow_stage_contract_is_versioned(path: Path) -> tuple[bool, str]:
+    try:
+        payload = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        return False, f"stage contract is not readable TOML: {exc}"
+    meta = payload.get("__meta__")
+    if not isinstance(meta, dict):
+        return False, "stage contract is missing __meta__ table"
+    if meta.get("schema") != WORKFLOW_STAGE_CONTRACT_SCHEMA:
+        return False, f"stage contract schema is {meta.get('schema')!r}, expected {WORKFLOW_STAGE_CONTRACT_SCHEMA!r}"
+    return True, "stage contract is versioned"
+
+
+def validate_workflow_page_artifacts(
+    *,
+    context: WorkflowArtifactContext,
+    display: str,
+    url: str,
+) -> list[WidgetProbe]:
+    source = _workflow_source_stage_contract_path(context)
+    if source is None:
+        return []
+
+    target_candidates = _workflow_export_stage_contract_paths(context, url=url)
+    snapshot = _snapshot_specific_files(target_candidates, require_non_empty=True)
+    candidate_realpaths = {os.path.realpath(str(candidate)) for candidate in target_candidates}
+    target = next((path for path in snapshot.files if os.path.realpath(str(path)) in candidate_realpaths), None)
+    if target is None:
+        checked = ", ".join(str(path) for path in target_candidates)
+        return [
+            _artifact_probe(
+                context,
+                display=display,
+                label=WORKFLOW_STAGE_CONTRACT_FILENAME,
+                status="failed",
+                detail=f"source workflow stages exist at {source}, but exported stage contract was not restored; checked {checked}",
+                url=url,
+            )
+        ]
+
+    ok, detail = _workflow_stage_contract_is_versioned(target)
+    if not ok:
+        return [
+            _artifact_probe(
+                context,
+                display=display,
+                label=WORKFLOW_STAGE_CONTRACT_FILENAME,
+                status="failed",
+                detail=f"{detail}: {target}",
+                url=url,
+            )
+        ]
+
+    return [
+        _artifact_probe(
+            context,
+            display=display,
+            label=WORKFLOW_STAGE_CONTRACT_FILENAME,
+            status="interacted",
+            detail=f"workflow stage contract restored and versioned at {target}",
+            url=url,
+        )
+    ]
+
+
+def validate_workflow_action_artifacts(
+    *,
+    context: WorkflowArtifactContext,
+    display: str,
+    selected_label: str,
+    before_logs: ArtifactFileSnapshot,
+    url: str,
+) -> list[WidgetProbe]:
+    selected = _normalized_label(selected_label)
+    if selected not in WORKFLOW_RUN_ACTION_LABELS:
+        return []
+
+    after_logs = _snapshot_workflow_run_logs(context)
+    changed = _changed_artifact_files(before_logs, after_logs)
+    if not changed:
+        roots = ", ".join(str(path) for path in _workflow_run_log_roots(context))
+        return [
+            _artifact_probe(
+                context,
+                display=display,
+                label=selected_label,
+                status="failed",
+                detail=f"workflow run completed without creating or modifying a run log; checked {roots}",
+                url=url,
+            )
+        ]
+    return [
+        _artifact_probe(
+            context,
+            display=display,
+            label=selected_label,
+            status="interacted",
+            detail=f"workflow run log side effect verified ({len(changed)} changed file(s))",
+            url=url,
+        )
+    ]
 
 
 def validate_orchestrate_action_artifacts(
@@ -2109,7 +2326,8 @@ def _probe_selected_actions_first(
     missing_selected_action_policy: str,
     action_timeout_ms: float,
     upload_file: Path,
-    artifact_context: OrchestrateArtifactContext | None = None,
+    orchestrate_artifact_context: OrchestrateArtifactContext | None = None,
+    workflow_artifact_context: WorkflowArtifactContext | None = None,
 ) -> list[WidgetProbe]:
     def refresh_widgets() -> list[dict[str, Any]]:
         wait_for_page_ready(page, timeout_ms=widget_timeout_ms)
@@ -2180,9 +2398,9 @@ def _probe_selected_actions_first(
         allow_idle_settle = selected_normalized in TERMINAL_IDLE_SETTLE_ACTION_LABELS or (
             future_already_ready and selected_normalized in {"export dataframe", "load output"}
         )
-        if artifact_context is not None:
-            output_roots = _orchestrate_output_roots(artifact_context)
-            export_roots = _orchestrate_export_roots(artifact_context)
+        if orchestrate_artifact_context is not None:
+            output_roots = _orchestrate_output_roots(orchestrate_artifact_context)
+            export_roots = _orchestrate_export_roots(orchestrate_artifact_context)
             before_output = _snapshot_artifact_files(output_roots)
             before_export = _snapshot_artifact_files(export_roots)
             before_trash = _snapshot_artifact_files(output_roots, include_trash=True)
@@ -2190,6 +2408,11 @@ def _probe_selected_actions_first(
             before_output = ArtifactFileSnapshot(files={})
             before_export = ArtifactFileSnapshot(files={})
             before_trash = ArtifactFileSnapshot(files={})
+        before_workflow_logs = (
+            _snapshot_workflow_run_logs(workflow_artifact_context)
+            if workflow_artifact_context is not None
+            else ArtifactFileSnapshot(files={})
+        )
         status, detail = _probe_widget(
             page,
             widget,
@@ -2211,6 +2434,14 @@ def _probe_selected_actions_first(
         ):
             status = "probed"
             detail = "output action not required for this placeholder app; no concrete output is expected"
+        elif (
+            workflow_artifact_context is not None
+            and selected_normalized in WORKFLOW_RUN_ACTION_LABELS
+            and _workflow_source_stage_contract_path(workflow_artifact_context) is None
+            and (status == "skipped" or (status == "probed" and "disabled state" in detail))
+        ):
+            status = "probed"
+            detail = "workflow run action not required; this app does not declare lab_stages.toml"
         elif status == "skipped" or (status == "probed" and "disabled state" in detail):
             status = "failed"
             detail = f"selected action button was found but not fired ({detail})"
@@ -2226,14 +2457,25 @@ def _probe_selected_actions_first(
                 widget_scope(widget),
             )
         )
-        if status != "failed" and artifact_context is not None:
+        if status != "failed" and orchestrate_artifact_context is not None:
             artifact_probes = validate_orchestrate_action_artifacts(
-                context=artifact_context,
+                context=orchestrate_artifact_context,
                 display=display,
                 selected_label=selected_label,
                 before_output=before_output,
                 before_export=before_export,
                 before_trash=before_trash,
+                url=page.url,
+            )
+            probes.extend(artifact_probes)
+            if any(probe.status == "failed" for probe in artifact_probes):
+                break
+        if status != "failed" and workflow_artifact_context is not None:
+            artifact_probes = validate_workflow_action_artifacts(
+                context=workflow_artifact_context,
+                display=display,
+                selected_label=selected_label,
+                before_logs=before_workflow_logs,
                 url=page.url,
             )
             probes.extend(artifact_probes)
@@ -2245,6 +2487,12 @@ def _probe_selected_actions_first(
             app_name in NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS
             and selected_normalized in ORCHESTRATE_OUTPUT_ACTION_LABELS
             and "output action not required" in detail
+        ):
+            break
+        if (
+            workflow_artifact_context is not None
+            and selected_normalized in WORKFLOW_RUN_ACTION_LABELS
+            and "workflow run action not required" in detail
         ):
             break
         else:
@@ -2677,6 +2925,7 @@ def sweep_page(
     server_env: dict[str, str] | None = None,
     home_root: Path | None = None,
     assert_orchestrate_artifacts: bool = False,
+    assert_workflow_artifacts: bool = False,
 ) -> PageSweep:
     started = time.perf_counter()
     timeout_ms = timeout * 1000.0
@@ -2728,10 +2977,25 @@ def sweep_page(
             if preflight_detail:
                 page_status = "environment_blocked"
                 probes.append(WidgetProbe(app_name, display, "environment_preflight", "", "failed", preflight_detail, page.url))
+            workflow_artifact_context = None
+            if assert_workflow_artifacts and page_label(page_name) == "WORKFLOW" and not preflight_detail:
+                workflow_artifact_context = build_workflow_artifact_context(
+                    app_name=app_name,
+                    active_app_query=active_app_query,
+                    home_root=home_root,
+                    server_env=server_env,
+                )
+                probes.extend(
+                    validate_workflow_page_artifacts(
+                        context=workflow_artifact_context,
+                        display=display,
+                        url=page.url,
+                    )
+                )
             if selected_actions_first and not preflight_detail:
-                artifact_context = None
+                orchestrate_artifact_context = None
                 if assert_orchestrate_artifacts and page_label(page_name) == "ORCHESTRATE":
-                    artifact_context = build_orchestrate_artifact_context(
+                    orchestrate_artifact_context = build_orchestrate_artifact_context(
                         app_name=app_name,
                         active_app_query=active_app_query,
                         home_root=home_root,
@@ -2748,7 +3012,8 @@ def sweep_page(
                         missing_selected_action_policy=missing_selected_action_policy,
                         action_timeout_ms=action_timeout_ms,
                         upload_file=upload_file,
-                        artifact_context=artifact_context,
+                        orchestrate_artifact_context=orchestrate_artifact_context,
+                        workflow_artifact_context=workflow_artifact_context,
                     )
                 )
                 if not any(probe.status == "failed" for probe in probes):
@@ -3012,6 +3277,7 @@ def sweep_app(
     seed_demo_artifacts: bool,
     runtime_isolation: str,
     assert_orchestrate_artifacts: bool = False,
+    assert_workflow_artifacts: bool = False,
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -3099,6 +3365,7 @@ def sweep_app(
                                 server_env=seeded_runtime.env,
                                 home_root=seeded_runtime.home_root,
                                 assert_orchestrate_artifacts=assert_orchestrate_artifacts,
+                                assert_workflow_artifacts=assert_workflow_artifacts,
                             )
                             results.append(result)
                             _emit_page_result(result, progress=progress, on_page_result=on_page_result)
@@ -3334,6 +3601,14 @@ def build_parser() -> argparse.ArgumentParser:
             "for run/load/export/delete actions instead of only checking visible UI feedback."
         ),
     )
+    parser.add_argument(
+        "--assert-workflow-artifacts",
+        action="store_true",
+        help=(
+            "For local WORKFLOW sweeps, assert the restored lab_stages.toml contract and, "
+            "when a selected run action is fired, that a workflow run log changed."
+        ),
+    )
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -3378,8 +3653,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     preselect_labels = parse_csv(args.preselect_labels)
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
-    if args.url and args.assert_orchestrate_artifacts:
-        parser.error("--assert-orchestrate-artifacts requires a local robot-launched Streamlit server")
+    if args.url and (args.assert_orchestrate_artifacts or args.assert_workflow_artifacts):
+        parser.error("--assert-*artifacts options require a local robot-launched Streamlit server")
     apps = resolve_apps(args.apps)
     pages = resolve_pages(args.pages)
     global_apps_pages = None if args.apps_pages == "configured" else resolve_apps_pages(args.apps_pages)
@@ -3444,6 +3719,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 seed_demo_artifacts=not args.no_seed_demo_artifacts,
                 runtime_isolation=args.runtime_isolation,
                 assert_orchestrate_artifacts=args.assert_orchestrate_artifacts,
+                assert_workflow_artifacts=args.assert_workflow_artifacts,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,
