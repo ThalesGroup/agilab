@@ -38,7 +38,7 @@ delivery.
 
 3. Map the sequence into AGILAB.
    - `PROJECT`: args and dataset location
-   - `WORKFLOW`: explicit ordered steps in `lab_stages.toml`
+   - `WORKFLOW`: explicit ordered stages in `lab_stages.toml`
    - `ANALYSIS`: one page that reads the exported artifacts
 
 4. Make the migration value explicit.

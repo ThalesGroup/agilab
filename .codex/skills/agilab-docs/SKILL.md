@@ -110,8 +110,8 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Do not claim reduced repository footprint unless the statement is backed by a
   concrete repository comparison; this is not an inherent AGILAB property.
 - When AGILAB lacks a first-class product primitive, state the current limit
-  plainly. Example: AGILAB can express dynamic behavior inside Python steps, but
-  it does not yet provide first-class runtime workflow-step expansion in
+  plainly. Example: AGILAB can express dynamic behavior inside Python stages, but
+  it does not yet provide first-class runtime workflow-stage expansion in
   `WORKFLOW`.
 
 ## Build / Validate

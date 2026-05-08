@@ -83,12 +83,12 @@ Use this skill when editing:
   For example, count ORCHESTRATE runs from `run_*.log` files under the app run
   environment instead of adding another persisted setting.
 - When a generic page has no app-specific semantic data, show an honest fallback such
-  as execution steps, output files, or discovered dataframes rather than inventing a
+  as execution stages, output files, or discovered dataframes rather than inventing a
   domain-specific metric.
 - Keep one navigation surface per action. If a page already exposes compact sidebar
   launch links, do not duplicate the same action as in-page sidecar cards, repeated
   `Open` buttons, or another selector unless the second surface adds a distinct
-  workflow step.
+  workflow stage.
 - For lightweight page routing, prefer compact Markdown/HTML links with encoded
   query parameters such as `current_page` over a selectbox plus `Open` button when
   the user only needs to jump to a target. Add a tiny helper to construct and test
