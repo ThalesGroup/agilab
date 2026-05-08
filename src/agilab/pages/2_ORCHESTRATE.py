@@ -803,12 +803,9 @@ async def _check_distribution_action(
     project_path: Path,
 ) -> ActionResult:
     dist_log: list[str] = []
-    runtime_root = (
-        Path(getattr(env, "agi_cluster"))
-        if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
-        and getattr(env, "agi_cluster", None)
-        else project_path
-    )
+    # Distribution snippets import agi_cluster and orchestrate worker-side probes.
+    # Prefer the controller runtime when it is known, even if source-env inference is absent.
+    runtime_root = Path(getattr(env, "agi_cluster", None) or project_path)
     command = cmd.replace("asyncio.run(main())", env.snippet_tail)
 
     try:
@@ -1622,7 +1619,7 @@ async def _render_distribution_panel(
             type="primary",
             disabled=not distribution_state.action.enabled,
         ):
-            with st.expander("Orchestration log", expanded=False):
+            with st.expander("Orchestration log", expanded=True):
                 live_log_placeholder = st.empty()
                 _reset_traceback_skip()
                 with st.spinner("Building distribution..."):

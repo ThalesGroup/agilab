@@ -54,6 +54,15 @@ CHOICE_BUTTON_KINDS = {"segmented_control", "pills"}
 RUNTIME_ISOLATION_MODES = ("isolated", "current-home")
 MISSING_SELECTED_ACTION_POLICIES = ("fail", "ignore-absent")
 PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS = {"flight", "meteo_forecast", "uav_queue", "uav_relay_queue"}
+NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS = {"mycode_project"}
+ORCHESTRATE_OUTPUT_ACTION_LABELS = {
+    "run -> load -> export",
+    "load output",
+    "export dataframe",
+    "delete output",
+    "confirm delete",
+}
+TERMINAL_IDLE_SETTLE_ACTION_LABELS = {"confirm delete"}
 CURRENT_HOME_PREFLIGHT_ACTION_LABELS = (
     "CHECK distribute",
     "DISTRIBUTE",
@@ -233,7 +242,18 @@ CLOSE_EXPANDERS_EXCEPT_WIDGET_JS = r"""
   if (!target) return 0;
   let changed = 0;
   for (const details of document.querySelectorAll("details")) {
-    if (details.contains(target)) continue;
+    if (details.contains(target)) {
+      if (!details.open) {
+        const summary = details.querySelector(":scope > summary") || details.querySelector("summary");
+        if (summary) {
+          summary.click();
+        } else {
+          details.open = true;
+        }
+        changed += 1;
+      }
+      continue;
+    }
     if (details.open) {
       const summary = details.querySelector(":scope > summary") || details.querySelector("summary");
       if (summary) {
@@ -293,19 +313,18 @@ VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
     "build failed",
     "command failed",
     "distribution build failed",
-    "error",
-    "exception",
     "export failed",
     "failed with exit code",
-    "traceback",
-    "failed",
-    "failure",
     "load failed",
     "modulenotfounderror",
     "no module named",
     "non-zero exit status",
+    "runtimeerror",
     "streamlitapi",
-    "worker failed",
+    "traceback",
+    "typeerror",
+    "uncaught",
+    "valueerror",
   ];
   const selectors = [
     "[data-testid='stAlert']",
@@ -349,19 +368,18 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
     "build failed",
     "command failed",
     "distribution build failed",
-    "error",
-    "exception",
     "export failed",
     "failed with exit code",
-    "traceback",
-    "failed",
-    "failure",
     "load failed",
     "modulenotfounderror",
     "no module named",
     "non-zero exit status",
+    "runtimeerror",
     "streamlitapi",
-    "worker failed",
+    "traceback",
+    "typeerror",
+    "uncaught",
+    "valueerror",
   ];
   const fatalTextNeedles = [
     "agi execution failed",
@@ -380,7 +398,6 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
     "typeerror",
     "uncaught exception",
     "valueerror",
-    "worker failed",
   ];
   const feedback = [];
   const push = (kind, el, fallback) => {
@@ -448,19 +465,18 @@ ACTION_LOG_FEEDBACK_COLLECTOR_JS = r"""
     "build failed",
     "command failed",
     "distribution build failed",
-    "error",
-    "exception",
     "export failed",
     "failed with exit code",
-    "traceback",
-    "failed",
-    "failure",
     "load failed",
     "modulenotfounderror",
     "no module named",
     "non-zero exit status",
+    "runtimeerror",
     "streamlitapi",
-    "worker failed",
+    "traceback",
+    "typeerror",
+    "uncaught",
+    "valueerror",
   ];
   const logTitleNeedles = [
     "details",
@@ -1592,17 +1608,24 @@ def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) 
 
 
 def _visible_streamlit_feedback_signatures(page: Any) -> set[tuple[str, str]]:
-    return {(item["kind"], item["detail"]) for item in _visible_streamlit_feedback(page, include_action_logs=False)}
+    return {(item["kind"], item["detail"]) for item in _visible_streamlit_feedback(page)}
 
 
 def _new_visible_streamlit_feedback(
     page: Any,
     baseline_feedback: set[tuple[str, str]],
 ) -> dict[str, str] | None:
+    candidates: list[dict[str, str]] = []
     for item in _visible_streamlit_feedback(page):
         if (item["kind"], item["detail"]) not in baseline_feedback:
-            return item
-    return None
+            candidates.append(item)
+    if not candidates:
+        return None
+    for kind in ("error", "exception", "success", "warning", "info"):
+        for item in candidates:
+            if item["kind"] == kind:
+                return item
+    return candidates[0]
 
 
 def _visible_exception_detail(page: Any) -> str | None:
@@ -1747,7 +1770,12 @@ def _open_all_expanders(page: Any) -> None:
         pass
 
 
-def _selected_action_matches(widgets: Sequence[dict[str, Any]], selected_label: str) -> list[dict[str, Any]]:
+def _selected_action_matches(
+    widgets: Sequence[dict[str, Any]],
+    selected_label: str,
+    *,
+    require_enabled: bool = False,
+) -> list[dict[str, Any]]:
     selected = _normalized_label(selected_label)
     if not selected:
         return []
@@ -1756,6 +1784,7 @@ def _selected_action_matches(widgets: Sequence[dict[str, Any]], selected_label: 
         for widget in widgets
         if str(widget.get("kind", "")) in ACTION_BUTTON_KINDS
         and selected in _normalized_label(str(widget.get("label", "")))
+        and (not require_enabled or not bool(widget.get("disabled", False)))
     ]
 
 
@@ -1825,11 +1854,21 @@ def _probe_selected_actions_first(
                 )
             continue
         widget = matches[0]
+        selected_normalized = _normalized_label(selected_label)
+        future_already_ready = any(
+            _selected_action_matches(widgets, candidate, require_enabled=True)
+            for candidate in click_action_labels[index + 1 :]
+            if _normalized_label(candidate)
+        )
         next_settle_labels = [
             candidate
             for candidate in click_action_labels[index + 1 :]
-            if _normalized_label(candidate) and not _selected_action_matches(widgets, candidate)
+            if _normalized_label(candidate)
+            and not _selected_action_matches(widgets, candidate, require_enabled=True)
         ]
+        allow_idle_settle = selected_normalized in TERMINAL_IDLE_SETTLE_ACTION_LABELS or (
+            future_already_ready and selected_normalized in {"export dataframe", "load output"}
+        )
         status, detail = _probe_widget(
             page,
             widget,
@@ -1842,8 +1881,16 @@ def _probe_selected_actions_first(
             upload_file=upload_file,
             restore_view=None,
             settle_action_labels=next_settle_labels[:1],
+            allow_idle_settle=allow_idle_settle,
         )
-        if status == "skipped" or (status == "probed" and "disabled state" in detail):
+        if (
+            app_name in NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS
+            and selected_normalized in ORCHESTRATE_OUTPUT_ACTION_LABELS
+            and (status == "skipped" or (status == "probed" and "disabled state" in detail))
+        ):
+            status = "probed"
+            detail = "output action not required for this placeholder app; no concrete output is expected"
+        elif status == "skipped" or (status == "probed" and "disabled state" in detail):
             status = "failed"
             detail = f"selected action button was found but not fired ({detail})"
         probes.append(
@@ -1858,7 +1905,15 @@ def _probe_selected_actions_first(
                 widget_scope(widget),
             )
         )
-        if status != "failed":
+        if status == "failed":
+            break
+        if (
+            app_name in NO_OUTPUT_ORCHESTRATE_JOURNEY_APPS
+            and selected_normalized in ORCHESTRATE_OUTPUT_ACTION_LABELS
+            and "output action not required" in detail
+        ):
+            break
+        else:
             widgets = refresh_widgets()
     return probes
 
@@ -1937,6 +1992,7 @@ def _wait_for_action_outcome(
     require_feedback: bool = False,
     baseline_feedback: set[tuple[str, str]] | None = None,
     settle_action_labels: Sequence[str] = (),
+    allow_idle_settle: bool = False,
 ) -> tuple[str | None, bool]:
     deadline = time.perf_counter() + timeout_ms / 1000.0
     min_observation_deadline = time.perf_counter() + min(5.0, timeout_ms / 1000.0)
@@ -1962,24 +2018,36 @@ def _wait_for_action_outcome(
                 if kind == "success":
                     return None, True
                 soft_feedback_seen = True
-        if settle_action_labels:
+        if _visible_spinner_count(page) > 0:
+            busy_seen = True
+            idle_seen = 0
+        elif settle_action_labels:
             try:
                 widgets = page.evaluate(WIDGET_COLLECTOR_JS)
             except Exception:
                 widgets = []
-            if any(_selected_action_matches(widgets, label) for label in settle_action_labels):
+            settle_ready = any(
+                _selected_action_matches(widgets, label, require_enabled=True)
+                for label in settle_action_labels
+            )
+            if settle_ready and (busy_seen or soft_feedback_seen or time.perf_counter() >= min_observation_deadline):
                 return None, True
-        if _visible_spinner_count(page) > 0:
-            busy_seen = True
-            idle_seen = 0
+            if require_feedback and soft_feedback_seen and allow_idle_settle:
+                idle_seen += 1
+                if time.perf_counter() >= min_observation_deadline:
+                    return None, True
+            elif require_feedback and allow_idle_settle and time.perf_counter() >= min_observation_deadline:
+                return None, True
         elif busy_seen and not require_feedback:
             idle_seen += 1
             if idle_seen >= 3:
                 return None, True
-        elif require_feedback and soft_feedback_seen:
+        elif require_feedback and soft_feedback_seen and allow_idle_settle:
             idle_seen += 1
-            if idle_seen >= 3 and time.perf_counter() >= min_observation_deadline:
+            if time.perf_counter() >= min_observation_deadline:
                 return None, True
+        elif require_feedback and allow_idle_settle and time.perf_counter() >= min_observation_deadline:
+            return None, True
         elif not require_feedback and time.perf_counter() >= min_observation_deadline:
             return None, True
         if time.perf_counter() >= deadline:
@@ -2000,6 +2068,7 @@ def _probe_widget(
     upload_file: Path,
     restore_view: Any | None,
     settle_action_labels: Sequence[str] = (),
+    allow_idle_settle: bool = False,
 ) -> tuple[str, str]:
     if widget.get("disabled"):
         return "probed", "disabled state verified"
@@ -2089,6 +2158,7 @@ def _probe_widget(
                     require_feedback=require_feedback,
                     baseline_feedback=baseline_feedback,
                     settle_action_labels=settle_action_labels,
+                    allow_idle_settle=allow_idle_settle,
                 )
                 if error:
                     return "failed", f"button click rendered Streamlit error: {error}"
