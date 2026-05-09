@@ -3,6 +3,9 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 LAB_RUN_PATH = ROOT / "src" / "agilab" / "lab_run.py"
@@ -17,8 +20,8 @@ def test_main_prints_version_without_launching_streamlit(monkeypatch, capsys):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     monkeypatch.setattr(lab_run, "_detect_cli_version", lambda: "2026.4.9")
     monkeypatch.setattr(
-        lab_run.stcli,
-        "main",
+        lab_run,
+        "_load_streamlit_cli",
         lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
     )
 
@@ -38,7 +41,7 @@ def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
         captured.append(list(lab_run.sys.argv))
         return 17
 
-    monkeypatch.setattr(lab_run.stcli, "main", fake_main)
+    monkeypatch.setattr(lab_run, "_load_streamlit_cli", lambda: SimpleNamespace(main=fake_main))
 
     rc = lab_run.main(["--server.headless", "true"])
 
@@ -65,8 +68,8 @@ def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
 
     monkeypatch.setattr(lab_run, "_run_doctor", fake_doctor)
     monkeypatch.setattr(
-        lab_run.stcli,
-        "main",
+        lab_run,
+        "_load_streamlit_cli",
         lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
     )
 
@@ -86,8 +89,8 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
 
     monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
     monkeypatch.setattr(
-        lab_run.stcli,
-        "main",
+        lab_run,
+        "_load_streamlit_cli",
         lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
     )
 
@@ -95,3 +98,12 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
 
     assert rc == 31
     assert captured == [["--json", "--with-install"]]
+
+
+def test_main_reports_missing_ui_dependencies(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: None)
+    monkeypatch.setattr(lab_run, "_missing_ui_dependencies", lambda: ["streamlit", "agi-gui"])
+
+    with pytest.raises(SystemExit, match=r"streamlit, agi-gui.*agilab\[ui\]"):
+        lab_run.main([])

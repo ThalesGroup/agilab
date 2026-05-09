@@ -79,7 +79,8 @@ Start with the public browser preview or the demo chooser:
 python3 -m venv ~/.agilab-first-proof
 source ~/.agilab-first-proof/bin/activate
 python -m pip install --upgrade pip
-python -m pip install --upgrade agilab && python -m agilab.lab_run first-proof --json
+python -m pip install --upgrade "agilab[ui]"
+python -m agilab.lab_run first-proof --json --with-ui
 python -m agilab.lab_run
 ```
 
@@ -151,15 +152,18 @@ uv venv
 source .venv/bin/activate
 uv pip install --upgrade agilab
 python -m agilab.lab_run first-proof --json --max-seconds 60
+uv pip install --upgrade "agilab[ui]"
+python -m agilab.lab_run first-proof --json --with-ui --max-seconds 60
 python -m agilab.lab_run
 ```
 
 Use `python -m agilab.lab_run first-proof --json --max-seconds 60` for a quick
-package-level check from the same interpreter that installed AGILAB. The
-clean-install CI matrix enforces that runtime budget on Linux, macOS, and
-Windows. For the most representative full product run, prefer the source-checkout
-`flight_project` path above because it exercises the same app installation,
-execution, and analysis flow documented in the web UI.
+package-level CLI/core check from the same interpreter that installed AGILAB.
+The clean-install CI matrix enforces that runtime budget on Linux, macOS, and
+Windows. Install `agilab[ui]` before launching the local Streamlit app. For the
+most representative full product run, prefer the source-checkout `flight_project`
+path above because it exercises the same app installation, execution, and
+analysis flow documented in the web UI.
 
 If `agilab` still reports an older version after a package install, check the
 actual executable with `command -v agilab`. A `uv tool` shim such as

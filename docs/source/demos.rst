@@ -73,8 +73,8 @@ The static scenario contract is available as JSON:
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json --output public-proof-scenarios.json
 
 **Local app proof**
-  Install the released package or use the source checkout, then run the public
-  first proof:
+  Install the released base package or use the source checkout, then run the
+  public first proof:
 
   .. code-block:: bash
 
@@ -82,6 +82,8 @@ The static scenario contract is available as JSON:
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
   Stop when the command exits successfully and writes ``run_manifest.json``.
+  This package route is the CLI/core smoke. Install ``agilab[ui]`` and rerun
+  with ``--with-ui`` when you also want to boot the packaged local pages.
   The same route is available in the UI by following ``PROJECT`` ->
   ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_project``.
 

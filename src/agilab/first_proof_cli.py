@@ -165,6 +165,7 @@ def _preinit_smoke_code(active_app: Path) -> str:
         import agi_env
         import agi_node
         import agi_cluster
+        from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest
 
         active_app = Path({str(active_app)!r})
         if not (active_app / "pyproject.toml").is_file():
@@ -172,6 +173,7 @@ def _preinit_smoke_code(active_app: Path) -> str:
 
         print("agilab", md.version("agilab"))
         print("agi-node", md.version("agi-node"))
+        print("agi-cluster-api", AGI.__name__, RunRequest.__name__, StageRequest.__name__)
         print("active-app", active_app)
         """
     ).strip()
@@ -286,8 +288,10 @@ def _seeded_script_command(active_app: Path) -> ProofCommand:
     )
 
 
-def build_proof_commands(active_app: Path, *, with_install: bool) -> list[ProofCommand]:
-    commands = [_preinit_smoke_command(active_app), _ui_smoke_command(active_app)]
+def build_proof_commands(active_app: Path, *, with_install: bool, with_ui: bool = False) -> list[ProofCommand]:
+    commands = [_preinit_smoke_command(active_app)]
+    if with_ui:
+        commands.append(_ui_smoke_command(active_app))
     if with_install:
         commands.extend([_install_command(active_app), _seeded_script_command(active_app)])
     return commands
@@ -395,6 +399,7 @@ def _executed_argv(
     *,
     active_app: Path,
     with_install: bool,
+    with_ui: bool,
     max_seconds: float,
     manifest_path: Path,
 ) -> tuple[str, ...]:
@@ -403,6 +408,8 @@ def _executed_argv(
         argv = (*argv, "--active-app", str(active_app))
     if with_install:
         argv = (*argv, "--with-install")
+    if with_ui:
+        argv = (*argv, "--with-ui")
     if max_seconds != float(DEFAULT_MAX_SECONDS):
         argv = (*argv, "--max-seconds", str(max_seconds))
     if manifest_path.expanduser() != default_manifest_path(active_app).expanduser():
@@ -414,6 +421,7 @@ def build_run_manifest(
     *,
     active_app: Path,
     with_install: bool,
+    with_ui: bool,
     commands: Sequence[ProofCommand],
     results: Sequence[ProofStepResult],
     summary: dict[str, object],
@@ -470,6 +478,7 @@ def build_run_manifest(
             argv=_executed_argv(
                 active_app=active_app,
                 with_install=with_install,
+                with_ui=with_ui,
                 max_seconds=max_seconds,
                 manifest_path=manifest_path,
             ),
@@ -498,6 +507,7 @@ def render_human(
     *,
     active_app: Path,
     with_install: bool,
+    with_ui: bool,
     commands: Sequence[ProofCommand],
     results: Sequence[ProofStepResult] | None = None,
     print_only: bool = False,
@@ -533,7 +543,8 @@ def render_human(
         f"within_target={'yes' if summary['within_target'] else 'no'}"
     )
     lines.append(
-        "scope: package import smoke + About/ORCHESTRATE page boot"
+        "scope: package/core API smoke"
+        + (" + main/ORCHESTRATE page boot" if with_ui else "")
         + (" + install/seeding" if with_install else "")
     )
     for result in results:
@@ -564,6 +575,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also run the packaged app installer and verify seeded AGI_*.py helper scripts.",
     )
+    parser.add_argument(
+        "--with-ui",
+        action="store_true",
+        help="Also boot the packaged main page and ORCHESTRATE page. Requires the `agilab[ui]` install profile.",
+    )
     parser.add_argument("--print-only", action="store_true", help="Print commands without executing them.")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     parser.add_argument(
@@ -588,7 +604,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--max-seconds must be greater than 0")
 
     active_app = resolve_active_app(args.active_app)
-    commands = build_proof_commands(active_app, with_install=args.with_install)
+    commands = build_proof_commands(active_app, with_install=args.with_install, with_ui=args.with_ui)
     manifest_path = resolve_manifest_path(active_app, args.manifest_out)
 
     if args.print_only:
@@ -599,6 +615,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     {
                         "active_app": str(active_app),
                         "with_install": args.with_install,
+                        "with_ui": args.with_ui,
                         "kpi_target_seconds": args.max_seconds,
                         "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
                         "runtime_identity": identity,
@@ -623,6 +640,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 render_human(
                     active_app=active_app,
                     with_install=args.with_install,
+                    with_ui=args.with_ui,
                     commands=commands,
                     print_only=True,
                     max_seconds=args.max_seconds,
@@ -639,6 +657,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest = build_run_manifest(
             active_app=active_app,
             with_install=args.with_install,
+            with_ui=args.with_ui,
             commands=commands,
             results=results,
             summary=summary,
@@ -652,6 +671,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = {
             "active_app": str(active_app),
             "with_install": args.with_install,
+            "with_ui": args.with_ui,
             "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
             "runtime_identity": identity,
             **summary,
@@ -668,6 +688,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             render_human(
                 active_app=active_app,
                 with_install=args.with_install,
+                with_ui=args.with_ui,
                 commands=commands,
                 results=results,
                 max_seconds=args.max_seconds,

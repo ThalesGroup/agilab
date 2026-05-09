@@ -2,7 +2,7 @@ name: repo-guardrails
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main"]
   pull_request:
     branches: ["**"]
   workflow_dispatch:
@@ -11,6 +11,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   local-only-policy:
@@ -97,7 +101,7 @@ jobs:
           OPENAI_API_KEY: "sk-test-first-launch-000000000000"
         run: |
           set -euo pipefail
-          uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json --output first-launch-robot.json
+          uv --preview-features extra-build-dependencies run --extra ui python tools/first_launch_robot.py --json --output first-launch-robot.json
 
       - name: Validate security hygiene report
         run: |

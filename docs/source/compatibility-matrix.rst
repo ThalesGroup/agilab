@@ -76,8 +76,8 @@ Current public matrix
      - validated
      - ``python -m pip install agilab`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - Clean public package install outside the source checkout, followed by
-       the packaged first-proof smoke
+     - Clean public base package install outside the source checkout, followed
+       by the packaged CLI/core first-proof smoke
      - Validates the released package, not unmerged branch contents; less
        representative than the source-checkout first proof
 
@@ -101,13 +101,13 @@ Platform coverage snapshot
      - validated
      - GitHub Actions clean install: ``python -m pip install agilab`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - validates the latest released package
+     - validates the latest released base package, not the local web UI extra
    * - macOS package
      - validated
      - GitHub Actions clean install: ``python -m pip install agilab`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - validates the latest released package on the macOS runner, not every
-       local Homebrew/PyCharm setup
+     - validates the latest released base package on the macOS runner, not
+       every local Homebrew/PyCharm setup or UI extra combination
    * - Windows / WSL2
      - validated for the clean package smoke; documented for WSL2/source flows
      - GitHub Actions clean install on ``windows-latest`` plus installer and

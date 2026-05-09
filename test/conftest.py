@@ -4,6 +4,7 @@ from pathlib import Path
 import importlib.util
 import shutil
 import sys
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 import warnings
 
@@ -20,9 +21,10 @@ warnings.filterwarnings(
     category=DeprecationWarning,
 )
 
-from streamlit.testing.v1 import AppTest
-
 from agi_env import AgiEnv
+
+if TYPE_CHECKING:
+    from streamlit.testing.v1 import AppTest
 
 
 REAL_HOME = Path.home().resolve()
@@ -179,6 +181,8 @@ def run_page_app_test(monkeypatch, tmp_path):
     """Run a Streamlit page AppTest with a temporary active app and isolated shares."""
 
     def _run(page_path: str, project_dir: Path, export_root: Path | None = None, timeout: int = 20) -> AppTest:
+        from streamlit.testing.v1 import AppTest
+
         resolved_export_root = export_root or (tmp_path / "export")
         argv = [Path(page_path).name, "--active-app", str(project_dir)]
         with patch.object(sys, "argv", argv):

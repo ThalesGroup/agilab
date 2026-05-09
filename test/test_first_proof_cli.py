@@ -43,19 +43,31 @@ def _load_module():
     return module
 
 
-def test_build_proof_commands_use_packaged_python_runner() -> None:
+def test_build_proof_commands_default_to_core_smoke() -> None:
     module = _load_module()
     active_app = module.default_active_app()
 
     commands = module.build_proof_commands(active_app, with_install=False)
 
+    assert [command.label for command in commands] == ["package preinit smoke"]
+    assert commands[0].argv[:2] == (sys.executable, "-c")
+    assert "tools/newcomer_first_proof.py" not in " ".join(commands[0].argv)
+    assert "RunRequest" in commands[0].argv[-1]
+    assert "StageRequest" in commands[0].argv[-1]
+    assert str(active_app) in commands[0].argv[-1]
+
+
+def test_build_proof_commands_with_ui_adds_packaged_page_smoke() -> None:
+    module = _load_module()
+    active_app = module.default_active_app()
+
+    commands = module.build_proof_commands(active_app, with_install=False, with_ui=True)
+
     assert [command.label for command in commands] == [
         "package preinit smoke",
         "package ui smoke",
     ]
-    assert commands[0].argv[:2] == (sys.executable, "-c")
     assert commands[1].argv[:2] == (sys.executable, "-c")
-    assert "tools/newcomer_first_proof.py" not in " ".join(commands[0].argv + commands[1].argv)
     assert str(active_app) in commands[1].argv[-1]
 
 
@@ -66,22 +78,22 @@ def test_build_proof_commands_with_install_adds_seed_checks() -> None:
 
     assert [command.label for command in commands] == [
         "package preinit smoke",
-        "package ui smoke",
         "flight install smoke",
         "seeded script check",
     ]
-    assert "apps/install.py" in commands[2].argv[1]
-    assert "AGI_install_flight.py" in commands[3].argv[-1]
+    assert "apps/install.py" in commands[1].argv[1]
+    assert "AGI_install_flight.py" in commands[2].argv[-1]
 
 
 def test_main_print_only_json_emits_first_proof_contract(capsys) -> None:
     module = _load_module()
 
-    exit_code = module.main(["--print-only", "--json", "--with-install"])
+    exit_code = module.main(["--print-only", "--json", "--with-install", "--with-ui"])
 
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["with_install"] is True
+    assert payload["with_ui"] is True
     assert payload["kpi_target_seconds"] == module.DEFAULT_MAX_SECONDS
     assert "agilab_version" in payload
     assert payload["runtime_identity"]["python_executable"] == sys.executable
@@ -203,7 +215,7 @@ def test_main_human_no_manifest_reports_failure(monkeypatch, tmp_path: Path, cap
 
 def test_run_proof_stops_on_first_failure() -> None:
     module = _load_module()
-    commands = module.build_proof_commands(module.default_active_app(), with_install=True)
+    commands = module.build_proof_commands(module.default_active_app(), with_install=True, with_ui=True)
     returncodes = iter([0, 7, 0, 0])
 
     def fake_runner(cmd, **kwargs):
@@ -249,11 +261,12 @@ def test_build_run_manifest_records_cli_command(tmp_path: Path) -> None:
         )
         for command in commands
     ]
-    summary = module.summarize_kpi(command_count=2, results=results, max_seconds=600.0)
+    summary = module.summarize_kpi(command_count=len(commands), results=results, max_seconds=600.0)
 
     manifest = module.build_run_manifest(
         active_app=active_app,
         with_install=False,
+        with_ui=False,
         commands=commands,
         results=results,
         summary=summary,
@@ -304,6 +317,7 @@ def test_executed_argv_records_non_default_options(tmp_path: Path) -> None:
     argv = module._executed_argv(
         active_app=active_app,
         with_install=True,
+        with_ui=True,
         max_seconds=42,
         manifest_path=manifest_path,
     )
@@ -311,6 +325,7 @@ def test_executed_argv_records_non_default_options(tmp_path: Path) -> None:
     assert argv[:3] == ("agilab", "first-proof", "--json")
     assert "--active-app" in argv
     assert "--with-install" in argv
+    assert "--with-ui" in argv
     assert ("--max-seconds", "42") == argv[argv.index("--max-seconds") : argv.index("--max-seconds") + 2]
     assert ("--manifest-out", str(manifest_path)) == argv[
         argv.index("--manifest-out") : argv.index("--manifest-out") + 2

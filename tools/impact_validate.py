@@ -47,6 +47,14 @@ TEST_PREFIXES = (
     "src/agilab/core/test/",
     "src/agilab/core/agi-env/test/",
 )
+NON_GUI_ROOT_TESTS = {
+    "test/conftest.py",
+    "test/test_coverage_badge_guard.py",
+    "test/test_coverage_workflow.py",
+    "test/test_generate_component_coverage_badges.py",
+    "test/test_impact_validate.py",
+    "test/test_workflow_parity.py",
+}
 
 
 @dataclass
@@ -172,6 +180,14 @@ def _is_gui_file(path: str) -> bool:
     return _matches_prefix(path, GUI_PREFIXES) or any(path.startswith(prefix) for prefix in GUI_TOP_LEVEL_PREFIXES)
 
 
+def _is_workflow_policy_test(path: str) -> bool:
+    return path.startswith("test/test_") and path.endswith("_workflow.py")
+
+
+def _is_non_gui_root_test(path: str) -> bool:
+    return path in NON_GUI_ROOT_TESTS or _is_workflow_policy_test(path)
+
+
 def _risk_zones(paths: list[str]) -> list[RiskZone]:
     zones: list[RiskZone] = []
     builders = (
@@ -192,6 +208,22 @@ def _risk_zones(paths: list[str]) -> list[RiskZone]:
 
 def _guess_tests_for_file(path: str) -> list[str]:
     repo = REPO_ROOT
+    workflow_tests = {
+        ".github/workflows/ci.yml": "test/test_ci_workflow.py",
+        ".github/workflows/coverage.yml": "test/test_coverage_workflow.py",
+        ".github/workflows/docs-source-guard.yaml": "test/test_ci_workflow.py",
+        ".github/workflows/docs-publish.yaml": "test/test_ci_workflow.py",
+        ".github/workflows/ensure-roadmap-label.yaml": "test/test_ci_workflow.py",
+        ".github/workflows/ui-robot-matrix.yml": "test/test_ci_workflow.py",
+    }
+    if path in workflow_tests:
+        return [workflow_tests[path]]
+    if path == "test/conftest.py":
+        return [
+            "test/test_ci_workflow.py",
+            "test/test_view_maps_3d.py::test_view_maps_3d_warns_when_no_dataset_exists",
+        ]
+
     candidate_tests: list[Path] = []
     rel = Path(path)
     stem = rel.stem
@@ -271,12 +303,12 @@ def _component_hints(paths: list[str]) -> list[str]:
         if (
             _is_gui_file(path)
             or path.startswith("src/agilab/test/")
-            or path.startswith("test/")
+            or (path.startswith("test/") and not _is_non_gui_root_test(path))
             or "coverage-agi-gui" in path
             or path == "tools/generate_component_coverage_badges.py"
         ):
             hints.append("agi-gui")
-        if path == "tools/generate_component_coverage_badges.py" or path == ".github/workflows/coverage.yml":
+        if path == "tools/generate_component_coverage_badges.py":
             hints.extend(["agi-env", "agi-node", "agi-cluster"])
         for hint in hints:
             if hint not in seen:
