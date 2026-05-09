@@ -124,10 +124,12 @@ installer to perform validation during setup. For a first proof, run the narrow
 ----------------------------------------------------------------
 ``uv`` emits this when you launch a command from an activated shell whose
 ``$VIRTUAL_ENV`` differs from the target project’s ``.venv`` directory. The message is
-informational—the command will still run using the project lock. AGILAB manages multiple
-virtualenvs per app and per install (shared/local), so seeing this warning is normal when
-you hop between them. If you truly want to reuse the activated environment, pass
-``--active`` to ``uv``; otherwise you can safely ignore the warning.
+informational—the command will still run using the project lock. AGILAB-managed PyCharm
+configs and launch wrappers clear ``VIRTUAL_ENV`` before invoking ``uv`` so a stale
+activated shell does not surface this warning. If you still see it, you are likely running
+``uv`` directly; run the matching ``tools/run_configs`` wrapper or unset ``VIRTUAL_ENV``
+first. Avoid ``--active`` for normal AGILAB launches because it intentionally reuses the
+currently activated environment instead of the target project environment.
 
 Why does a run create ``distribution.json``?
 --------------------------------------------

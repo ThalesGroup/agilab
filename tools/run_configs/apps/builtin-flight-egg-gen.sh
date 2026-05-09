@@ -8,4 +8,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$REPO_ROOT/src/agilab/apps/builtin/flight_project"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
+# Let uv select the run-config project .venv instead of a stale activated shell.
+unset VIRTUAL_ENV
 uv run python $REPO_ROOT/src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py --app-path $REPO_ROOT/src/agilab/apps/builtin/flight_project bdist_egg --packages "agent_worker, pandas_worker, polars_worker, dag_worker" -d $HOME/wenv/flight_worker

@@ -7,4 +7,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 # Generated from PyCharm run configuration: run ssh cmd
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
+# Let uv select the run-config project .venv instead of a stale activated shell.
+unset VIRTUAL_ENV
 uv run python $REPO_ROOT/src/agilab/core/agi-env/test/_test_ssh_cmd.py
