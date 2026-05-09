@@ -98,6 +98,7 @@ import_agilab_symbols(
     "agilab.page_bootstrap",
     {
         "ensure_page_env": "_ensure_page_env",
+        "realign_session_env_with_page_root": "_realign_session_env_with_page_root",
     },
     current_file=__file__,
     fallback_path=Path(__file__).resolve().parents[1] / "page_bootstrap.py",
@@ -1932,6 +1933,9 @@ async def page() -> None:
         return
 
     current_app, changed_from_query = resolve_active_app(env)
+    if _realign_session_env_with_page_root(st.session_state, __file__):
+        current_app = env.app
+        changed_from_query = True
     if changed_from_query:
         st.session_state["project_changed"] = True
 
