@@ -49,11 +49,45 @@ We appreciate coordinated disclosure and will keep you updated throughout the pr
 - Other fixes may be bundled into the next scheduled monthly update.
 - Release notes highlight CVE identifiers or internal tracking IDs where applicable.
 
+## Adoption Profile
+
+AGILAB is designed as a trusted-operator experimentation workbench. It can install apps,
+generate and execute Python snippets, launch worker environments, orchestrate local or
+distributed runs, and optionally start UI, tracking, or local-model tooling. Treat every app,
+notebook, generated snippet, and external apps repository as executable code until it has been
+reviewed.
+
+Recommended use without additional platform hardening:
+
+- Local research sandbox, notebook-to-app migration, reproducible experiment replay, and internal
+  demonstrations with non-sensitive data.
+- Single-operator or controlled lab environments where the operator owns the apps, dependencies,
+  datasets, secrets, and worker machines.
+
+Conditional use only after hardening:
+
+- Shared team deployments, internal clusters, local/remote LLM use, or external apps repositories.
+- Minimum controls: per-user isolation, container or VM boundaries, a dedicated OS user, restricted
+  outbound network access, bounded CPU/RAM, reviewed app code, scanned dependencies, controlled
+  logs, and secrets supplied outside repository or command-line arguments.
+
+Not recommended as-is:
+
+- public exposure without authentication, TLS, and sandboxing.
+- Multi-tenant service use, writable shared cluster directories, untrusted apps, sensitive or
+  regulated data, or production ML serving/governance/monitoring workloads.
+- Environments where AGILAB must be the only production MLOps control plane. Use production
+  serving, feature-store, monitoring, policy, and governance systems alongside AGILAB when those
+  controls are required.
+
 ## Hardening Checklist
 
 While AGILAB is open source, production-grade cluster deployments should be designed with your
 organization's security requirements in mind. At minimum:
 
+- Run AGILAB in a confined environment for shared or unknown workloads: container, VM, disposable
+  workspace, dedicated UID, no default access to personal secrets, CPU/RAM quotas, and restricted
+  network egress.
 - Run behind HTTPS and limit inbound network access to trusted operators.
 - Store API keys, model weights, and datasets outside of the repository, using a dedicated secrets
   manager where possible.
@@ -63,10 +97,18 @@ organization's security requirements in mind. At minimum:
 - Treat AGILAB command execution as a trusted-operator boundary. Shared deployments should restrict
   project roots, environment variables, writable paths, and network access according to the team
   threat model.
+- Run ``agilab security-check --json`` before shared adoption reviews. The command is advisory by
+  default and reports local risks such as floating ``APPS_REPOSITORY`` checkouts, plaintext
+  ``~/.agilab/.env`` secrets, exposed UI binds, cluster-share isolation issues, optional local-model
+  profiles, and missing SBOM / ``pip-audit`` evidence. Use ``--strict`` in CI or release gates when
+  warnings should fail the job.
 - Treat shell execution and install profiles as privileged operator surfaces. The installer can
   prepare development, local-model, and cluster dependencies; use an isolated lab machine or
   container for untrusted apps, and review dry-run/log output before enabling optional system-level
   profiles.
+- Treat ``APPS_REPOSITORY`` as an executable-code trust boundary. For shared use, only allow
+  repositories from an explicit allowlist, pin them to a reviewed commit SHA or immutable tag,
+  reject floating branches, and scan the repository before installing or linking apps/pages.
 - Treat the service queue as scheduler-owned state. Workers process ``*.task.json`` payloads with
   the ``agi.service.task.v1`` schema, and legacy ``*.task.pkl`` files are quarantined without
   deserialization. The queue directory must be writable only by the trusted scheduler/operator.
@@ -79,6 +121,16 @@ organization's security requirements in mind. At minimum:
   should use Trusted Publishing/OIDC, SBOM and vulnerability scan artifacts should be archived when
   available, and deployments that handle sensitive data need their own threat model and acceptance
   profile.
+- Generate supply-chain evidence for the actual install profile you deploy, not only for the base
+  package. At minimum, archive a CycloneDX SBOM and ``pip-audit`` report for each enabled profile
+  such as base CLI, ``agilab[ui]``, MLflow/tracking, offline/local-LLM tooling, and
+  worker/cluster extras.
+- Keep remote installer profiles opt-in. Prefer ``--dry-run`` first, disable local-model/Ollama and
+  cluster automation profiles unless they are needed, and review any staged remote shell installer
+  before running it on a developer workstation.
+- Keep public release proof synchronized with the GitHub tag and PyPI version. If release-proof
+  pages lag behind a published release, republish the documentation and re-run the docs-source guard
+  before using the page as audit evidence.
 
 For end-to-end secure deployments or bespoke threat modelling, please engage your Thales security
 contact or submit a request via <https://cpl.thalesgroup.com/fr/contact-us>.

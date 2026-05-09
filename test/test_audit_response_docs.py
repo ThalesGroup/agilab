@@ -99,6 +99,28 @@ def test_environment_docs_scope_local_secret_persistence() -> None:
     assert "not a shared secret manager" in environment
 
 
+def test_security_policy_addresses_public_audit_adoption_boundaries() -> None:
+    security = Path("SECURITY.md").read_text(encoding="utf-8")
+
+    assert "trusted-operator experimentation workbench" in security
+    assert "Recommended use without additional platform hardening" in security
+    assert "Conditional use only after hardening" in security
+    assert "Not recommended as-is" in security
+    assert "public exposure without authentication, TLS, and sandboxing" in security
+    assert "Multi-tenant service use" in security
+    assert "production ML serving" in security
+    assert "APPS_REPOSITORY" in security
+    assert "explicit allowlist" in security
+    assert "commit SHA or immutable tag" in security
+    assert "reject floating branches" in security
+    assert "CycloneDX SBOM" in security
+    assert "pip-audit" in security
+    assert "actual install profile" in security
+    assert "release-proof" in security
+    assert "GitHub tag and PyPI version" in security
+    assert "republish the documentation" in security
+
+
 def test_readme_uses_recommended_workbench_positioning() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
