@@ -139,18 +139,49 @@ def normalize_active_app_input(env: Any, raw_value: Optional[str]) -> Path | Non
     except (TypeError, RuntimeError, ValueError):
         return None
 
+    def add_root_candidate(root: Any, app_name: str) -> None:
+        if not root or not app_name:
+            return
+        try:
+            candidates.append((Path(root) / app_name).resolve())
+        except (TypeError, RuntimeError, ValueError, OSError):
+            return
+
+    def prepend_root_candidate(root: Any, app_name: str) -> None:
+        if not root or not app_name:
+            return
+        try:
+            candidates.insert(0, (Path(root) / app_name).resolve())
+        except (TypeError, RuntimeError, ValueError, OSError):
+            return
+
     if provided.is_absolute():
         candidates.append(provided)
     else:
         candidates.append((Path.cwd() / provided).resolve())
-        candidates.append((env.apps_path / provided).resolve())
-        candidates.append((env.apps_path / provided.name).resolve())
+        add_root_candidate(getattr(env, "apps_path", None), str(provided))
+        add_root_candidate(getattr(env, "apps_path", None), provided.name)
+        add_root_candidate(getattr(env, "builtin_apps_path", None), str(provided))
+        add_root_candidate(getattr(env, "builtin_apps_path", None), provided.name)
+        add_root_candidate(getattr(env, "apps_repository_root", None), str(provided))
+        add_root_candidate(getattr(env, "apps_repository_root", None), provided.name)
 
+    projects = getattr(env, "projects", set()) or set()
     if not provided.is_absolute():
-        if raw_value in env.projects:
-            candidates.insert(0, (env.apps_path / raw_value).resolve())
-        elif provided.name in env.projects:
-            candidates.insert(0, (env.apps_path / provided.name).resolve())
+        if raw_value in projects:
+            for root in (
+                getattr(env, "apps_repository_root", None),
+                getattr(env, "builtin_apps_path", None),
+                getattr(env, "apps_path", None),
+            ):
+                prepend_root_candidate(root, raw_value)
+        elif provided.name in projects:
+            for root in (
+                getattr(env, "apps_repository_root", None),
+                getattr(env, "builtin_apps_path", None),
+                getattr(env, "apps_path", None),
+            ):
+                prepend_root_candidate(root, provided.name)
 
     for candidate in candidates:
         try:
@@ -160,6 +191,39 @@ def normalize_active_app_input(env: Any, raw_value: Optional[str]) -> Path | Non
         if candidate.exists():
             return candidate
     return None
+
+
+def persisted_active_app_request(env: Any, raw_value: Any) -> str | None:
+    """Resolve persisted app state as an app identity, not as authority over the launch root."""
+    text = str(raw_value or "").strip()
+    if not text:
+        return None
+    try:
+        path = Path(text).expanduser()
+        name = path.name
+    except (TypeError, RuntimeError, ValueError):
+        return text
+    if path.is_absolute():
+        try:
+            resolved_path = path.resolve(strict=False)
+        except OSError:
+            resolved_path = path
+        for root in (
+            getattr(env, "apps_path", None),
+            getattr(env, "builtin_apps_path", None),
+            getattr(env, "apps_repository_root", None),
+        ):
+            if not root:
+                continue
+            try:
+                if resolved_path.is_relative_to(Path(root).resolve(strict=False)):
+                    return text
+            except (TypeError, RuntimeError, ValueError, OSError):
+                continue
+    projects = getattr(env, "projects", set()) or set()
+    if name in projects:
+        return name
+    return text
 
 
 def _normalized_existing_or_requested_path(raw_value: Any) -> Path | None:
@@ -479,7 +543,7 @@ def bootstrap_page_environment(
     if not requested_app:
         last_app = ports.load_last_active_app()
         if last_app:
-            requested_app = str(last_app)
+            requested_app = persisted_active_app_request(env, last_app)
     apply_active_app_request(env, requested_app)
 
     env.init_done = True

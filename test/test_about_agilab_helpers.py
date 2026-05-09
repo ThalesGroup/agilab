@@ -611,6 +611,85 @@ def test_bootstrap_active_app_store_path_prefers_real_active_app(tmp_path):
     assert bootstrap.active_app_store_path(env) == active_app
 
 
+def test_bootstrap_normalize_active_app_input_finds_builtin_project_name(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "src" / "agilab" / "apps"
+    builtin_path = apps_path / "builtin"
+    active_app = builtin_path / "flight_project"
+    active_app.mkdir(parents=True)
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        builtin_apps_path=builtin_path,
+        apps_repository_root=None,
+        projects={"flight_project"},
+    )
+
+    assert bootstrap.normalize_active_app_input(env, "flight_project") == active_app.resolve()
+
+
+def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
+    source_builtin = source_apps / "builtin"
+    source_project = source_builtin / "flight_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    source_project.mkdir(parents=True)
+    stale_project.mkdir(parents=True)
+    requested_apps: list[str | None] = []
+
+    class FakeAgiEnv:
+        def __init__(self, *, apps_path: Path, app: str = "flight_project", verbose: int = 1):
+            self.apps_path = apps_path
+            self.builtin_apps_path = apps_path / "builtin"
+            self.apps_repository_root = None
+            self.verbose = verbose
+            self.app = app
+            self.active_app = self.builtin_apps_path / app
+            self.projects = {"flight_project"}
+            self.is_source_env = True
+            self.is_worker_env = False
+            self.OPENAI_API_KEY = ""
+            self.CLUSTER_CREDENTIALS = ""
+            self.envars = {}
+            self.init_done = False
+
+        @staticmethod
+        def set_env_var(_key: str, _value: str) -> None:
+            return None
+
+    def apply_request(env, requested):
+        requested_apps.append(requested)
+        return bootstrap.apply_active_app_request(env, requested, streamlit=fake_st)
+
+    fake_st = _FakeStreamlit()
+    ports, port_calls = _make_bootstrap_ports(
+        FakeAgiEnv,
+        services_enabled=False,
+        last_app=stale_project,
+        environ={},
+    )
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {},
+        logger=object(),
+        apply_active_app_request=apply_request,
+        handle_data_root_failure=lambda *_args, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=["--apps-path", str(source_apps)],
+        ports=ports,
+    )
+
+    assert result.env.active_app == source_project
+    assert result.env.apps_path == source_apps
+    assert requested_apps == ["flight_project"]
+    assert port_calls.stored == [source_project]
+    assert fake_st.query_params["active_app"] == "flight_project"
+
+
 def test_bootstrap_normalize_active_app_input_skips_unresolvable_candidate(
     tmp_path,
     monkeypatch,
