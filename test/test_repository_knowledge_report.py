@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPORT_PATH = Path("tools/repository_knowledge_report.py").resolve()
 
@@ -17,14 +19,21 @@ def _load_module(path: Path, name: str):
     return module
 
 
-def test_repository_knowledge_report_passes(tmp_path: Path) -> None:
+@pytest.fixture(scope="module")
+def repository_knowledge_artifacts(tmp_path_factory):
     module = _load_module(REPORT_PATH, "repository_knowledge_report_test_module")
+    json_path = tmp_path_factory.mktemp("repository-knowledge") / "repository_knowledge_index.json"
 
     report = module.build_report(
         repo_root=Path.cwd(),
-        output_path=tmp_path / "repository_knowledge_index.json",
+        output_path=json_path,
     )
+    payload = module.json.loads(json_path.read_text(encoding="utf-8"))
+    return report, payload
 
+
+def test_repository_knowledge_report_passes(repository_knowledge_artifacts) -> None:
+    report, _payload = repository_knowledge_artifacts
     assert report["report"] == "Repository knowledge index report"
     assert report["status"] == "pass"
     assert report["summary"]["schema"] == "agilab.repository_knowledge_index.v1"
@@ -58,14 +67,9 @@ def test_repository_knowledge_report_passes(tmp_path: Path) -> None:
     }
 
 
-def test_repository_knowledge_index_excludes_generated_paths(tmp_path: Path) -> None:
-    module = _load_module(REPORT_PATH, "repository_knowledge_report_json_test_module")
-    json_path = tmp_path / "repository_knowledge_index.json"
-
-    report = module.build_report(repo_root=Path.cwd(), output_path=json_path)
-
+def test_repository_knowledge_index_excludes_generated_paths(repository_knowledge_artifacts) -> None:
+    report, payload = repository_knowledge_artifacts
     assert report["status"] == "pass"
-    payload = module.json.loads(json_path.read_text(encoding="utf-8"))
     indexed_paths = [record["path"] for record in payload["records"]]
     assert "artifacts" in payload["excluded_roots"]
     assert ".venv" in payload["excluded_roots"]

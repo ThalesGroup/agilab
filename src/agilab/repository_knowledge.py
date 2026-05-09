@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -123,6 +124,17 @@ def _iter_files(root: Path) -> list[Path]:
     return sorted(files)
 
 
+def _iter_named_files(root: Path, filename: str) -> list[Path]:
+    if not root.exists():
+        return []
+    matches: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(dirname for dirname in dirnames if dirname not in EXCLUDED_PARTS)
+        if filename in filenames:
+            matches.append(Path(dirpath) / filename)
+    return sorted(matches)
+
+
 def _records(repo_root: Path) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     scan_roots = [
@@ -141,7 +153,7 @@ def _records(repo_root: Path) -> list[dict[str, Any]]:
                 continue
             records.append(_file_record(repo_root, path, kind))
             seen.add(path)
-    for path in sorted(repo_root.rglob("pyproject.toml")):
+    for path in _iter_named_files(repo_root, "pyproject.toml"):
         if path in seen or _is_excluded(path):
             continue
         records.append(_file_record(repo_root, path, "package_manifest"))
