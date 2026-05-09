@@ -166,6 +166,7 @@ _pipeline_ai_module = import_agilab_symbols(
         "UOAIC_PROVIDER": "UOAIC_PROVIDER",
         "UOAIC_REBUILD_FLAG_KEY": "UOAIC_REBUILD_FLAG_KEY",
         "UOAIC_RUNTIME_KEY": "UOAIC_RUNTIME_KEY",
+        "GENERATION_MODE_SAFE_ACTIONS": "GENERATION_MODE_SAFE_ACTIONS",
         "ask_gpt": "ask_gpt",
         "configure_assistant_engine": "configure_assistant_engine",
         "extract_code": "extract_code",
@@ -637,10 +638,22 @@ def on_query_change(
                 return
 
             answer = ask_gpt(
-                raw_text, df_file, index_page, env.envars
+                raw_text,
+                df_file,
+                index_page,
+                env.envars,
+                generation_mode=GENERATION_MODE_SAFE_ACTIONS,
+                load_df_cached=load_df_cached,
             )
             detail = answer[4] if len(answer) > 4 else ""
             model_label = answer[2] if len(answer) > 2 else ""
+            extra_fields = answer[5] if len(answer) > 5 and isinstance(answer[5], dict) else None
+            if not str(answer[3] if len(answer) > 3 else "").strip():
+                if detail:
+                    st.info(detail)
+                else:
+                    st.info("Assistant response did not include runnable code. Stage was not saved.")
+                return
             venv_map = st.session_state.get(f"{index_page}__venv_map", {})
             engine_map = st.session_state.get(f"{index_page}__engine_map", {})
             nstage, entry = save_stage(
@@ -651,6 +664,7 @@ def on_query_change(
                 stages_file,
                 venv_map=venv_map,
                 engine_map=engine_map,
+                extra_fields=extra_fields,
             )
             skipped = st.session_state.get("_experiment_last_save_skipped", False)
             details_key = f"{index_page}__details"

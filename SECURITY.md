@@ -67,9 +67,11 @@ Recommended use without additional platform hardening:
 Conditional use only after hardening:
 
 - Shared team deployments, internal clusters, local/remote LLM use, or external apps repositories.
-- Minimum controls: per-user isolation, container or VM boundaries, a dedicated OS user, restricted
-  outbound network access, bounded CPU/RAM, reviewed app code, scanned dependencies, controlled
-  logs, and secrets supplied outside repository or command-line arguments.
+- Minimum controls: per-user isolation, a dedicated OS user or equivalent workspace boundary,
+  restricted outbound network access where appropriate, bounded CPU/RAM, reviewed app code,
+  scanned dependencies, controlled logs, and secrets supplied outside repository or command-line
+  arguments. Reserve container/VM boundaries for untrusted apps, shared sensitive deployments, or
+  advanced raw-Python execution paths that need stronger isolation.
 
 Not recommended as-is:
 
@@ -115,10 +117,12 @@ organization's security requirements in mind. At minimum:
 - Treat the service queue as scheduler-owned state. Workers process ``*.task.json`` payloads with
   the ``agi.service.task.v1`` schema, and legacy ``*.task.pkl`` files are quarantined without
   deserialization. The queue directory must be writable only by the trusted scheduler/operator.
-- Treat generated code as untrusted until reviewed. Run external or model-generated app code in a
-  constrained environment with limited filesystem, network, CPU, RAM, and secret access. WORKFLOW
-  auto-fix refuses to execute generated code for validation unless ``AGILAB_GENERATED_CODE_SANDBOX``
-  is set to ``process``, ``container``, or ``vm`` by the operator.
+- Treat generated code as untrusted until reviewed. WORKFLOW defaults dataframe generation to a
+  safe-action contract: the model returns versioned JSON, AGILAB validates it against the dataframe
+  schema, and AGILAB converts the approved contract into deterministic pandas code. Raw Python
+  generation remains an advanced/manual path. WORKFLOW auto-fix refuses to execute model-generated
+  Python for validation unless ``AGILAB_GENERATED_CODE_SANDBOX`` is set to ``process``,
+  ``container``, or ``vm`` by the operator.
 - Treat local ``~/.agilab/.env`` secrets as developer convenience only. Prefer OS keyrings,
   enterprise vaults, or short-lived environment variables for shared, sensitive, or production-like
   deployments. The Streamlit environment editor must redact secret-like keys in previews and never

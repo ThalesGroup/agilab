@@ -2231,12 +2231,17 @@ def test_display_lab_tab_empty_pipeline_generates_first_stage_with_runtime(monke
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: str(raw) == str(runtime_root))
 
     env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={"OPENAI_MODEL": "demo"}, app="flight_project")
-    deps = _make_lab_deps(
-        save_stage=lambda module_path, answer, current_stage, nstages, stages_file, venv_map=None, engine_map=None: saved.update(
+
+    def _save_stage(_module_path, answer, _current_stage, _nstages, _stages_file, **kwargs):
+        saved.update(
             answer=answer,
-            venv_map=venv_map,
-            engine_map=engine_map,
-        ),
+            venv_map=kwargs.get("venv_map"),
+            engine_map=kwargs.get("engine_map"),
+            extra_fields=kwargs.get("extra_fields"),
+        )
+
+    deps = _make_lab_deps(
+        save_stage=_save_stage,
         bump_history_revision=lambda: saved.setdefault("bumped", True),
     )
 
@@ -2244,6 +2249,10 @@ def test_display_lab_tab_empty_pipeline_generates_first_stage_with_runtime(monke
 
     assert saved["venv_map"] == {0: str(runtime_root)}
     assert saved["engine_map"] == {0: "agi.run"}
+    assert saved["extra_fields"] == {
+        pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
+        pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: None,
+    }
     assert saved["bumped"] is True
     assert ("rerun", "called") in fake_st.messages
 
@@ -2836,6 +2845,7 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
     assert args[2] == 1
     assert kwargs["venv_map"][1] == str(runtime_root)
     assert kwargs["engine_map"][1] == "agi.run"
+    assert kwargs["extra_fields"][pipeline_lab.STAGE_GENERATION_MODE_FIELD] == pipeline_lab.GENERATION_MODE_SAFE_ACTIONS
     assert ("rerun", "called") in fake_st.messages
 
 
@@ -2976,6 +2986,7 @@ def test_display_lab_tab_existing_stage_run_button_generates_and_autofixes(monke
             "demo_code_stage_0": "print('old')",
         },
         buttons={"demo_run_0": True},
+        selectboxes={"demo_generation_mode_0": pipeline_lab.GENERATION_MODE_LABELS[pipeline_lab.GENERATION_MODE_PYTHON_SNIPPET]},
         multiselects={"demo_run_sequence_widget": [0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
@@ -3956,6 +3967,7 @@ def test_display_lab_tab_run_button_reuses_existing_code_when_generation_returns
             "demo_code_stage_0": "print('existing')",
         },
         buttons={"demo_run_0": True},
+        selectboxes={"demo_generation_mode_0": pipeline_lab.GENERATION_MODE_LABELS[pipeline_lab.GENERATION_MODE_PYTHON_SNIPPET]},
         multiselects={"demo_run_sequence_widget": [0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
@@ -3984,6 +3996,59 @@ def test_display_lab_tab_run_button_reuses_existing_code_when_generation_returns
 
     saved_answer = save_calls[-1][0][1]
     assert saved_answer[3] == "print('existing')"
+
+
+def test_display_lab_tab_safe_generation_failure_keeps_existing_code(monkeypatch, tmp_path):
+    save_calls: list[tuple[tuple, dict]] = []
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "demo_q_stage_0": "new prompt",
+            "demo_code_stage_0": "print('existing')",
+        },
+        buttons={"demo_run_0": True},
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('existing')", "E": ""}],
+        save_stage=lambda *args, **kwargs: save_calls.append((args, kwargs)),
+        ask_gpt=lambda *_args, **_kwargs: [
+            Path("df.csv"),
+            "generated question",
+            "model",
+            "",
+            "Safe action generation failed: invalid generated action JSON",
+            {
+                pipeline_lab.STAGE_GENERATION_MODE_FIELD: pipeline_lab.GENERATION_MODE_SAFE_ACTIONS,
+                pipeline_lab.STAGE_ACTION_CONTRACT_FIELD: None,
+            },
+        ],
+        maybe_autofix_generated_code=lambda **kwargs: (_ for _ in ()).throw(AssertionError("safe mode must not auto-fix")),
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+        bump_history_revision=lambda *_args, **_kwargs: None,
+    )
+    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+
+    assert save_calls == []
+    assert any(
+        kind == "warning" and "Safe action generation failed" in message
+        for kind, message in fake_st.messages
+    )
 
 
 def test_display_lab_tab_nonlocked_delete_confirm_and_cancel_paths(monkeypatch, tmp_path):

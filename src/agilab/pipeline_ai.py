@@ -95,6 +95,27 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parent / "pipeline_stages.py",
     fallback_name="agilab_pipeline_stages_fallback",
 )
+import_agilab_symbols(
+    globals(),
+    "agilab.generated_actions",
+    {
+        "GENERATED_ACTIONS_SYSTEM_INSTRUCTIONS": "GENERATED_ACTIONS_SYSTEM_INSTRUCTIONS",
+        "GENERATION_MODE_PYTHON_SNIPPET": "GENERATION_MODE_PYTHON_SNIPPET",
+        "GENERATION_MODE_SAFE_ACTIONS": "GENERATION_MODE_SAFE_ACTIONS",
+        "STAGE_ACTION_CONTRACT_FIELD": "STAGE_ACTION_CONTRACT_FIELD",
+        "STAGE_GENERATION_MODE_FIELD": "STAGE_GENERATION_MODE_FIELD",
+        "GeneratedActionError": "GeneratedActionError",
+        "build_generated_actions_prompt": "build_generated_actions_prompt",
+        "generated_action_contract_to_python": "generated_action_contract_to_python",
+        "parse_generated_action_contract": "parse_generated_action_contract",
+        "stage_generation_extra_fields": "stage_generation_extra_fields",
+        "summarize_generated_actions": "summarize_generated_actions",
+        "validate_generated_action_contract": "validate_generated_action_contract",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "generated_actions.py",
+    fallback_name="agilab_generated_actions_fallback",
+)
 
 GENERATED_CODE_SANDBOX_ENV = "AGILAB_GENERATED_CODE_SANDBOX"
 GENERATED_CODE_SANDBOX_MODES = frozenset({"process", "container", "vm"})
@@ -253,6 +274,8 @@ def chat_ollama_local(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
+    *,
+    system_instructions: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Call a local Ollama model for code generation."""
     endpoint = _normalize_ollama_endpoint(
@@ -289,7 +312,8 @@ def chat_ollama_local(
     seed = _int_env(UOAIC_SEED_ENV)
 
     history = _prompt_to_plaintext(prompt, input_request)
-    full_prompt = f"{CODE_STRICT_INSTRUCTIONS}\n\n{history}"
+    instructions = system_instructions or CODE_STRICT_INSTRUCTIONS
+    full_prompt = f"{instructions}\n\n{history}"
 
     try:
         text = _ollama_generate(
@@ -320,6 +344,8 @@ def chat_offline(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
+    *,
+    system_instructions: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Call the GPT-OSS Responses API endpoint configured for offline use."""
 
@@ -336,7 +362,10 @@ def chat_offline(
     )
     envars["GPT_OSS_ENDPOINT"] = endpoint
 
-    instructions, items = _prompt_to_gpt_oss_messages(prompt, input_request)
+    prompt_for_request = list(prompt or [])
+    if system_instructions:
+        prompt_for_request = [{"role": "system", "content": system_instructions}, *prompt_for_request]
+    instructions, items = _prompt_to_gpt_oss_messages(prompt_for_request, input_request)
     payload: Dict[str, Any] = {
         "model": envars.get("GPT_OSS_MODEL", "gpt-oss-120b"),
         "input": items,
@@ -456,6 +485,8 @@ def chat_universal_offline(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
+    *,
+    system_instructions: Optional[str] = None,
 ) -> Tuple[str, str]:
     try:
         return _chat_universal_offline_impl(
@@ -464,6 +495,7 @@ def chat_universal_offline(
             envars,
             ensure_runtime_fn=_ensure_uoaic_runtime,
             error_sink=st.error,
+            system_instructions=system_instructions,
         )
     except RuntimeError as exc:
         raise JumpToMain(exc) from exc
@@ -473,6 +505,8 @@ def chat_online(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
+    *,
+    system_instructions: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Robust Chat Completions call: OpenAI, Azure OpenAI, or proxy base_url."""
     try:
@@ -503,7 +537,7 @@ def chat_online(
     # Build messages
     system_msg = {
         "role": "system",
-        "content": (
+        "content": system_instructions or (
             "Return ONLY Python code wrapped in ```python ... ``` with no explanations. "
             "Assume there is a pandas DataFrame df and pandas is imported as pd."
         ),
@@ -592,6 +626,8 @@ def chat_openai_compatible(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
+    *,
+    system_instructions: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Call a vLLM/OpenAI-compatible Chat Completions endpoint for code generation."""
     try:
@@ -610,7 +646,7 @@ def chat_openai_compatible(
 
     system_msg = {
         "role": "system",
-        "content": (
+        "content": system_instructions or (
             "Return ONLY Python code wrapped in ```python ... ``` with no explanations. "
             "Assume there is a pandas DataFrame df and pandas is imported as pd."
         ),
@@ -649,6 +685,8 @@ def chat_mistral_online(
     input_request: str,
     prompt: List[Dict[str, str]],
     envars: Dict[str, str],
+    *,
+    system_instructions: Optional[str] = None,
 ) -> Tuple[str, str]:
     """Call Mistral's chat completion API for code generation."""
 
@@ -668,7 +706,7 @@ def chat_mistral_online(
 
     system_msg = {
         "role": "system",
-        "content": (
+        "content": system_instructions or (
             "Return ONLY Python code wrapped in ```python ... ``` with no explanations. "
             "Assume there is a pandas DataFrame df and pandas is imported as pd."
         ),
@@ -690,27 +728,26 @@ def chat_mistral_online(
         raise JumpToMain(exc) from exc
 
 
-def ask_gpt(
+def _call_selected_provider(
     question: str,
-    df_file: Path,
-    index_page: str,
+    prompt: List[Dict[str, str]],
     envars: Dict[str, str],
-) -> List[Any]:
-    """Send a question to GPT and get the response."""
-    prompt = st.session_state.get("lab_prompt", [])
+    *,
+    system_instructions: Optional[str] = None,
+) -> Tuple[str, str]:
     provider = st.session_state.get(
         "lab_llm_provider",
         envars.get("LAB_LLM_PROVIDER", "openai"),
     )
-    model_label = ""
+    kwargs = {"system_instructions": system_instructions} if system_instructions else {}
     if provider == "gpt-oss":
-        result, model_label = chat_offline(question, prompt, envars)
+        return chat_offline(question, prompt, envars, **kwargs)
     elif provider == OPENAI_COMPAT_PROVIDER:
-        result, model_label = chat_openai_compatible(question, prompt, envars)
+        return chat_openai_compatible(question, prompt, envars, **kwargs)
     elif provider == MISTRAL_PROVIDER:
-        result, model_label = chat_mistral_online(question, prompt, envars)
+        return chat_mistral_online(question, prompt, envars, **kwargs)
     elif provider in OLLAMA_LOCAL_PROVIDER_FAMILIES:
-        result, model_label = chat_ollama_local(question, prompt, envars)
+        return chat_ollama_local(question, prompt, envars, **kwargs)
     elif provider == UOAIC_PROVIDER:
         mode = (
             st.session_state.get(UOAIC_MODE_STATE_KEY)
@@ -719,11 +756,95 @@ def ask_gpt(
             or UOAIC_MODE_OLLAMA
         )
         if mode == UOAIC_MODE_RAG:
-            result, model_label = chat_universal_offline(question, prompt, envars)
-        else:
-            result, model_label = chat_ollama_local(question, prompt, envars)
-    else:
-        result, model_label = chat_online(question, prompt, envars)
+            return chat_universal_offline(question, prompt, envars, **kwargs)
+        return chat_ollama_local(question, prompt, envars, **kwargs)
+    return chat_online(question, prompt, envars, **kwargs)
+
+
+def _dataframe_for_generated_actions(df_file: Path, load_df_cached: Any = None) -> pd.DataFrame | None:
+    df: Any = st.session_state.get("loaded_df")
+    if isinstance(df, pd.DataFrame):
+        return df
+
+    if not load_df_cached or not df_file:
+        return None
+
+    try:
+        loaded = load_df_cached(Path(df_file), with_index=False)
+    except TypeError:
+        try:
+            loaded = load_df_cached(Path(df_file))
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return None
+    except (OSError, RuntimeError, ValueError):
+        return None
+    return loaded if isinstance(loaded, pd.DataFrame) else None
+
+
+def ask_gpt(
+    question: str,
+    df_file: Path,
+    index_page: str,
+    envars: Dict[str, str],
+    *,
+    generation_mode: str = GENERATION_MODE_PYTHON_SNIPPET,
+    load_df_cached: Any = None,
+) -> List[Any]:
+    """Send a question to the active assistant and return a stage response."""
+    del index_page  # Kept for the public call shape used by WORKFLOW callbacks.
+    prompt = st.session_state.get("lab_prompt", [])
+    mode = (
+        GENERATION_MODE_SAFE_ACTIONS
+        if generation_mode == GENERATION_MODE_SAFE_ACTIONS
+        else GENERATION_MODE_PYTHON_SNIPPET
+    )
+
+    if mode == GENERATION_MODE_SAFE_ACTIONS:
+        df = _dataframe_for_generated_actions(df_file, load_df_cached=load_df_cached)
+        contract_question = build_generated_actions_prompt(question, df)
+        result, model_label = _call_selected_provider(
+            contract_question,
+            prompt,
+            envars,
+            system_instructions=GENERATED_ACTIONS_SYSTEM_INSTRUCTIONS,
+        )
+        model_label = str(model_label or "")
+        if not result:
+            return [
+                df_file,
+                question,
+                model_label,
+                "",
+                "Safe action generation failed: model returned an empty response.",
+                stage_generation_extra_fields(None, mode=mode),
+            ]
+        try:
+            contract = parse_generated_action_contract(result)
+            if df is not None:
+                contract = validate_generated_action_contract(contract.to_payload(), df=df)
+            code = generated_action_contract_to_python(contract)
+            detail = summarize_generated_actions(contract)
+            return [
+                df_file,
+                question,
+                model_label,
+                code,
+                detail,
+                stage_generation_extra_fields(contract, mode=mode),
+            ]
+        except GeneratedActionError as exc:
+            detail = f"Safe action generation failed: {exc}"
+            logger.warning("%s", bound_log_value(detail, LOG_DETAIL_LIMIT))
+            return [
+                df_file,
+                question,
+                model_label,
+                "",
+                detail,
+                stage_generation_extra_fields(None, mode=mode),
+            ]
+
+    result, model_label = _call_selected_provider(question, prompt, envars)
 
     model_label = str(model_label or "")
     if not result:

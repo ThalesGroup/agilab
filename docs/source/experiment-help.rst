@@ -63,6 +63,13 @@ When your lab stage is based on app execution, use the **Pipeline** add flow:
 - In **Add stage** (or **New stage** on an empty project), choose ``Stage source =``
   ``Generate stage`` to regenerate from prompt, or select an existing exported snippet
   to import it directly.
+- The default generation mode is **Safe actions**. The assistant returns a
+  versioned JSON action contract, AGILAB validates it against the loaded
+  dataframe schema, and the page saves deterministic pandas code derived from
+  that contract.
+- Use **Python snippet (advanced)** only when the transformation cannot be
+  represented by the safe action registry and you intend to review the raw
+  generated code yourself.
 - Imported snippets are marked read-only and run with the project manager runtime.
 
 If you change values in Orchestrate arguments, regenerate or re-import the
