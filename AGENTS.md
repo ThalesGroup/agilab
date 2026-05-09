@@ -22,14 +22,16 @@ Use this runbook whenever you:
   `uv --preview-features extra-build-dependencies run streamlit …`) so dependencies resolve inside the managed environments that
   ship with AGILab.
 - **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated local validation loops.
-  The top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`,
+  The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
+  GA-selected regression run, `test` for targeted `pytest -q`,
   `regress` for GA-selected fast regression subsets, `flow` for one or more workflow parity
   profiles, `badge` for the explicit release/pre-release coverage-badge guard, and `docs` for docs
   mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
-  narrow pytest slice, `regress` optimizes a likely regression subset from changed files and optional
-  JUnit timings, `flow` matches local GitHub workflow profiles, `badge` checks badge freshness when
-  intentionally requested, and `docs` keeps the public mirror aligned. Use `--print-only` to audit
-  the expanded commands.
+  narrow pytest slice, `bugfix` is the default low-load pre-push loop for normal code fixes,
+  `regress` optimizes a likely regression subset from changed files and optional JUnit timings,
+  `flow` matches local GitHub workflow profiles, `badge` checks badge freshness when intentionally
+  requested, and `docs` keeps the public mirror aligned. Use `--print-only` to audit the expanded
+  commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
@@ -82,11 +84,11 @@ Use this runbook whenever you:
   artifacts such as skill indexes or run-config wrappers must be refreshed. Coverage badges are normally
   refreshed only for release/pre-release validation or badge tooling changes.
 - **Local pre-push guardrails**: Keep the repo hook enabled with
-  `git config core.hooksPath .githooks`. The pre-push hook verifies the
-  managed `docs/source` mirror stamp, compares the mirror against
-  `../thales_agilab/docs/source` when that canonical checkout is present, and
-  verifies release-proof metadata. Coverage badge freshness is intentionally not
-  part of the default bugfix pre-push path; run `./dev badge` or the `badges`
+  `git config core.hooksPath .githooks`. The pre-push hook first classifies the pushed
+  changed files with `tools/pre_push_changed_files.py`. It runs docs mirror checks only when
+  docs mirror inputs changed, and release-proof checks only when release-proof inputs changed.
+  If classification fails, it fails safe by running all local guards. Coverage badge freshness is
+  intentionally not part of the default bugfix pre-push path; run `./dev badge` or the `badges`
   workflow parity profile before release/pre-release publication. Bypass only with
   `AGILAB_SKIP_LOCAL_GUARDS=1` when the skipped
   guard is intentional and documented.
