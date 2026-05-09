@@ -1087,6 +1087,82 @@ class Project:
         write_xml(tree, iml_path)
         logging.info("Module SDK set to %s in %s", sdk_name, iml_path)
 
+    @staticmethod
+    def _run_config_option(config: ET.Element, name: str) -> ET.Element | None:
+        return config.find(f"./option[@name='{name}']")
+
+    def _set_run_config_option(self, config: ET.Element, name: str, value: str) -> bool:
+        option = self._run_config_option(config, name)
+        if option is None:
+            option = ET.Element("option", {"name": name})
+            sdk_home = self._run_config_option(config, "SDK_HOME")
+            children = list(config)
+            insert_at = children.index(sdk_home) + 1 if sdk_home is not None else len(children)
+            config.insert(insert_at, option)
+
+        if option.get("value") == value:
+            return False
+
+        option.set("value", value)
+        return True
+
+    def _is_root_run_config(self, config: ET.Element) -> bool:
+        options = {
+            opt.get("name"): opt.get("value", "")
+            for opt in config.findall("option")
+        }
+        module = config.find("module")
+        module_name = module.get("name", "") if module is not None else ""
+        sdk_name = options.get("SDK_NAME", "")
+        uses_module_sdk = options.get("IS_MODULE_SDK") == "true" and not sdk_name
+
+        return (
+            sdk_name == "uv (agilab)"
+            or (uses_module_sdk and module_name in {"agilab", self.cfg.PROJECT_NAME})
+        )
+
+    def ensure_root_run_config_sdk_bindings(self) -> int:
+        """
+        Rebind root-level run configs to this checkout's root module and SDK.
+
+        Tracked run configs use the canonical repository name ``agilab``. A
+        fresh clone named ``agilab-src`` creates SDK/module names from that
+        checkout name, so root run configs must be localized during setup.
+        """
+
+        if self.cfg.PROJECT_NAME == "agilab":
+            return 0
+
+        changed_files = 0
+        for xml_path in sorted(self.cfg.RUN_CONFIGS_DIR.glob("*.xml")):
+            if xml_path.name == "folders.xml":
+                continue
+            try:
+                tree = read_xml(xml_path)
+            except ET.ParseError as exc:
+                logging.warning("Unable to parse %s: %s", xml_path, exc)
+                continue
+
+            config = tree.getroot().find("configuration")
+            if config is None or not self._is_root_run_config(config):
+                continue
+
+            changed = False
+            module = config.find("module")
+            if module is not None and module.get("name") != self.cfg.PROJECT_NAME:
+                module.set("name", self.cfg.PROJECT_NAME)
+                changed = True
+
+            changed = self._set_run_config_option(config, "SDK_NAME", self.cfg.PROJECT_SDK) or changed
+            changed = self._set_run_config_option(config, "IS_MODULE_SDK", "false") or changed
+
+            if changed:
+                write_xml(tree, xml_path)
+                changed_files += 1
+                logging.info("Rebound root run config %s to %s", xml_path.name, self.cfg.PROJECT_SDK)
+
+        return changed_files
+
     def ensure_root_module_iml(self) -> Path:
         path = self.cfg.MODULES_DIR / f"{self.cfg.PROJECT_NAME}.iml"
 
@@ -1513,6 +1589,7 @@ def main() -> int:
     root_iml = model.ensure_root_module_iml()
     ensure_project_sdk_binding(cfg, jdk_table, model, root_iml)
     model.add_module_entry(root_iml)
+    model.ensure_root_run_config_sdk_bindings()
     model.ensure_module_excludes(root_iml, cfg.ROOT)
     realized_module_paths: List[Path] = [root_iml]
 
