@@ -25,7 +25,10 @@ VALIDATION_CONCURRENCY_GROUP = (
 
 def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    push_block = text.split("pull_request:", 1)[0]
 
+    assert 'branches: ["main"]' in push_block
+    assert 'branches: ["**"]' not in push_block
     assert "Validate first-launch robot" in text
     assert (
         "uv --preview-features extra-build-dependencies run --extra ui python "
@@ -45,6 +48,11 @@ def test_validation_workflows_cancel_superseded_branch_runs() -> None:
         assert "concurrency:" in text, path
         assert VALIDATION_CONCURRENCY_GROUP in text, path
         assert "cancel-in-progress: true" in text, path
+
+
+def test_maintenance_workflows_do_not_run_twice_for_pr_branch_pushes() -> None:
+    assert 'branches: ["main"]' in WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert 'branches: ["main"]' in ENSURE_ROADMAP_LABEL_WORKFLOW_PATH.read_text(encoding="utf-8")
 
 
 def test_docs_workflows_block_stale_release_proof_github_runs() -> None:
