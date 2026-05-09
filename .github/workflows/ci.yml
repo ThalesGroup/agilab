@@ -97,7 +97,7 @@ jobs:
           OPENAI_API_KEY: "sk-test-first-launch-000000000000"
         run: |
           set -euo pipefail
-          uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json --output first-launch-robot.json
+          uv --preview-features extra-build-dependencies run --extra ui python tools/first_launch_robot.py --json --output first-launch-robot.json
 
       - name: Validate security hygiene report
         run: |

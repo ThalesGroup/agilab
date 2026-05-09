@@ -27,7 +27,7 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     assert "# v7" in text
     assert "Validate first-launch robot" in text
     assert (
-        "uv --preview-features extra-build-dependencies run python "
+        "uv --preview-features extra-build-dependencies run --extra ui python "
         "tools/first_launch_robot.py --json --output first-launch-robot.json"
     ) in text
     assert "Validate security hygiene report" in text
