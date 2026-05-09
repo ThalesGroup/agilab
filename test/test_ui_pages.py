@@ -619,6 +619,33 @@ def test_execute_page_realigns_stale_agi_space_session_env(mock_ui_env, tmp_path
     assert "agi-space" not in markdown_text
 
 
+def test_execute_page_realigns_stale_active_app_only_for_source_root(mock_ui_env, tmp_path):
+    """ORCHESTRATE header must not use an old agi-space active app when apps_path is already source."""
+    at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
+    source_apps = (Path(__file__).resolve().parents[1] / "src/agilab/apps").resolve()
+    source_project = source_apps / "builtin" / "flight_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    stale_project.mkdir(parents=True)
+
+    env = AgiEnv(apps_path=source_apps, app="flight_project", verbose=0)
+    env.active_app = stale_project
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    at.session_state["env"] = env
+    at.session_state["apps_path"] = str(source_apps)
+    at.session_state["app_settings"] = {"args": {}, "cluster": {}}
+    _seed_env_editor_state(at, env)
+
+    at.run()
+
+    assert not at.exception
+    assert Path(at.session_state["env"].apps_path) == source_apps
+    assert Path(at.session_state["env"].active_app) == source_project
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "agi-space" not in markdown_text
+    assert str(source_project / ".venv") in markdown_text
+
+
 def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui_env):
     """Robot-style INSTALL regression for handled remote uv self-update warnings."""
 

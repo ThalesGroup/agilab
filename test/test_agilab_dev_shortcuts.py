@@ -27,6 +27,56 @@ def test_impact_shortcut_defaults_to_staged():
     ]
 
 
+def test_bugfix_shortcut_runs_impact_then_fast_regression_by_default():
+    assert agilab_dev.planned_commands(["bugfix"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/impact_validate.py",
+            "--staged",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/ga_regression_selector.py",
+            "--staged",
+            "--run",
+        ],
+    ]
+
+
+def test_bugfix_shortcut_keeps_changed_file_arguments():
+    assert agilab_dev.planned_commands(["bugfix", "--files", "src/agilab/main_page.py"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/impact_validate.py",
+            "--files",
+            "src/agilab/main_page.py",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/ga_regression_selector.py",
+            "--files",
+            "src/agilab/main_page.py",
+            "--run",
+        ],
+    ]
+
+
 def test_test_shortcut_keeps_pytest_arguments():
     assert agilab_dev.planned_commands(["test", "test/test_cluster_lan_discovery.py", "-k", "windows"]) == [
         [

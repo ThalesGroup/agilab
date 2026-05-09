@@ -22,13 +22,16 @@ Use this runbook whenever you:
   `uv --preview-features extra-build-dependencies run streamlit …`) so dependencies resolve inside the managed environments that
   ship with AGILab.
 - **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated local validation loops.
-  The top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`,
+  The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
+  GA-selected regression run, `test` for targeted `pytest -q`,
   `regress` for GA-selected fast regression subsets, `flow` for one or more workflow parity
-  profiles, `badge` for the fresh coverage-badge guard, and `docs` for docs mirror sync plus
-  stamp verification. `impact` tells you what must be validated, `test` runs the narrow pytest
-  slice, `regress` optimizes a likely regression subset from changed files and optional JUnit
-  timings, `flow` matches local GitHub workflow profiles, `badge` catches stale coverage badges,
-  and `docs` keeps the public mirror aligned. Use `--print-only` to audit the expanded commands.
+  profiles, `badge` for the explicit release/pre-release coverage-badge guard, and `docs` for docs
+  mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
+  narrow pytest slice, `bugfix` is the default low-load pre-push loop for normal code fixes,
+  `regress` optimizes a likely regression subset from changed files and optional JUnit timings,
+  `flow` matches local GitHub workflow profiles, `badge` checks badge freshness when intentionally
+  requested, and `docs` keeps the public mirror aligned. Use `--print-only` to audit the expanded
+  commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
@@ -50,8 +53,9 @@ Use this runbook whenever you:
   then `realign-local` on the checkout you keep working in.
 - **Local-first validation**: Do not trigger GitHub workflows when the same failure can be
   reproduced or validated locally. First run the narrowest local check that can prove the change:
-  targeted `pytest`, isolated coverage commands, `py_compile`, Sphinx builds, badge generation,
-  and release dry-runs. Reserve CI/workflow runs for GitHub-only behavior (runner differences,
+  targeted `pytest`, isolated coverage commands, `py_compile`, Sphinx builds, and release dry-runs.
+  Reserve coverage badge generation for release/pre-release validation or badge tooling changes.
+  Reserve CI/workflow runs for GitHub-only behavior (runner differences,
   OS/Python matrix coverage, permissions/secrets, Pages/PyPI publication, or final integration
   confirmation after local validation). When a change maps cleanly to one of the repo workflow
   profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
@@ -77,14 +81,16 @@ Use this runbook whenever you:
 - **Impact triage first**: For non-trivial diffs, run `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before edits or push. Use its output to decide whether the change is app-local vs shared-core,
   which targeted tests are required, whether install repros are mandatory, and whether generated
-  artifacts such as badges, skill indexes, or run-config wrappers must be refreshed.
+  artifacts such as skill indexes or run-config wrappers must be refreshed. Coverage badges are normally
+  refreshed only for release/pre-release validation or badge tooling changes.
 - **Local pre-push guardrails**: Keep the repo hook enabled with
-  `git config core.hooksPath .githooks`. The pre-push hook verifies the
-  managed `docs/source` mirror stamp, compares the mirror against
-  `../thales_agilab/docs/source` when that canonical checkout is present, and
-  runs `tools/coverage_badge_guard.py --changed-only --require-fresh-xml` so
-  docs-source drift and stale coverage badge SVGs are blocked locally before
-  GitHub Actions. Bypass only with `AGILAB_SKIP_LOCAL_GUARDS=1` when the skipped
+  `git config core.hooksPath .githooks`. The pre-push hook first classifies the pushed
+  changed files with `tools/pre_push_changed_files.py`. It runs docs mirror checks only when
+  docs mirror inputs changed, and release-proof checks only when release-proof inputs changed.
+  If classification fails, it fails safe by running all local guards. Coverage badge freshness is
+  intentionally not part of the default bugfix pre-push path; run `./dev badge` or the `badges`
+  workflow parity profile before release/pre-release publication. Bypass only with
+  `AGILAB_SKIP_LOCAL_GUARDS=1` when the skipped
   guard is intentional and documented.
 - **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
   the CLI wrappers with `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py` and commit
@@ -323,7 +329,7 @@ Use this runbook whenever you:
 4. Refresh any required generated artifacts in the same change:
    - `tools/run_configs/` after run configuration edits
    - `.codex/skills/.generated/skills_index.*` after shared skill edits
-   - `badges/coverage-*.svg` after coverage badge inputs change
+   - `badges/coverage-*.svg` only for release/pre-release coverage validation or badge tooling changes
 
 ### 4. Cluster SSH recovery after node reinstall or host-key rotation
 

@@ -19,13 +19,15 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
 - **Process ownership**: treat existing terminals, Codex CLI sessions, dev servers, and other long-running processes as user-owned unless this turn started them. Do not use broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool sessions created for the active task. Do not use Codex CLI control shortcuts such as `/stop`, Esc interruption, or terminal-close actions to manage background terminals unless the terminal/session was created by this active task and its identity is verified. A status banner that says a background terminal is running is not ownership proof. If a port is busy, choose another port or ask before stopping its owner; do not try to "pause" another Codex CLI session from here.
 - **High-frequency shortcuts**: prefer `./dev <shortcut>` for repeated local validation loops. The
-  top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`, `regress` for
-  GA-selected fast regression subsets, `flow` for one or more workflow parity profiles, `badge` for
-  the fresh coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact`
-  tells you what must be validated, `test` runs the narrow pytest slice, `regress` optimizes a likely
-  regression subset from changed files and optional JUnit timings, `flow` matches local GitHub
-  workflow profiles, `badge` catches stale coverage badges, and `docs` keeps the public mirror
-  aligned. Add `--print-only` to inspect the expanded commands.
+  top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast GA-selected
+  regression run, `test` for targeted `pytest -q`, `regress` for GA-selected fast regression subsets,
+  `flow` for one or more workflow parity profiles, `badge` for the explicit release/pre-release
+  coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact` tells you
+  what must be validated, `test` runs the narrow pytest slice, `bugfix` is the default low-load
+  pre-push loop for normal code fixes, `regress` optimizes a likely regression subset from changed
+  files and optional JUnit timings, `flow` matches local GitHub workflow profiles, `badge` checks
+  badge freshness when intentionally requested, and `docs` keeps the public mirror aligned. Add
+  `--print-only` to inspect the expanded commands.
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 - **PyCharm source-root switching**: the JetBrains SDK named `uv (agilab)` is global and
@@ -49,9 +51,9 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   their `modules.xml` refs.
 - **Local-first validation**: do not jump to GitHub Actions when the same check can be run locally.
   Reproduce with the narrowest local command first: targeted `pytest`, isolated coverage commands,
-  `py_compile`, Sphinx builds, badge generation, or publish dry-runs. Use CI only for GitHub-only
-  behavior such as runner differences, OS/Python matrix coverage, permissions/secrets, or the final
-  publish/deploy step.
+  `py_compile`, Sphinx builds, or publish dry-runs. Reserve coverage badge generation for
+  release/pre-release validation or badge tooling changes. Use CI only for GitHub-only behavior such
+  as runner differences, OS/Python matrix coverage, permissions/secrets, or the final publish/deploy step.
 - **Impact triage first**: for non-trivial diffs, run
   `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before editing further or pushing. Use its output to decide:
@@ -59,6 +61,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - which targeted tests are required
   - whether installer repros are mandatory
   - whether generated artifacts must be refreshed
+- **Diff-aware pre-push guards**: keep `git config core.hooksPath .githooks` enabled. The hook
+  uses `tools/pre_push_changed_files.py` to run docs mirror checks only for docs mirror inputs and
+  release-proof checks only for release-proof inputs. If classification fails, it runs all local
+  guards. Coverage badge freshness remains an explicit `./dev badge` or release/pre-release check.
 - **Install-log startup check**: before launching flows after installer changes or a reported install
   failure, inspect the latest installer log for errors. On macOS/Linux:
   `dir="$HOME/log/install_logs"; f=$(ls -1t "$dir"/*.log 2>/dev/null | head -1); [ -n "$f" ] && echo "Log: $f" && grep -Eai "error|exception|traceback|failed|fatal|denied|missing|not found" "$f" | tail -n 25 || echo "No logs found."`

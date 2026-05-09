@@ -487,16 +487,6 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
         )
 
     components = _component_hints(paths)
-    if components:
-        artifacts.append(
-            Action(
-                key="coverage-badge-guard",
-                summary="Run the local coverage badge guard before push so badge drift is caught before GitHub Actions.",
-                commands=[
-                    "uv --preview-features extra-build-dependencies run python tools/coverage_badge_guard.py --changed-only --require-fresh-xml"
-                ],
-            )
-        )
     if any(
         _matches_prefix(path, BADGE_PATH_PREFIXES)
         or "coverage-" in Path(path).name
@@ -518,7 +508,6 @@ def analyze_paths(paths: list[str]) -> ImpactReport:
         commands.append(
             "uv --preview-features extra-build-dependencies run python tools/coverage_badge_guard.py --components "
             + " ".join(components or ["agi-env", "agi-node", "agi-cluster", "agi-gui"])
-            + " --changed-only --require-fresh-xml"
         )
         artifacts.append(
             Action(

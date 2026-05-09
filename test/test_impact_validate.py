@@ -70,8 +70,8 @@ def test_analyze_paths_adds_badge_refresh_with_component_hint() -> None:
     assert any("test/test_generate_component_coverage_badges.py" in command for command in artifact.commands)
     assert any("--components agi-gui" in command for command in artifact.commands)
     assert any("tools/coverage_badge_guard.py" in command for command in artifact.commands)
-    guard = next(action for action in report.artifact_actions if action.key == "coverage-badge-guard")
-    assert "tools/coverage_badge_guard.py --changed-only --require-fresh-xml" in guard.commands[0]
+    assert all(action.key != "coverage-badge-guard" for action in report.artifact_actions)
+    assert all("--require-fresh-xml" not in command for command in artifact.commands)
     parity = next(action for action in report.artifact_actions if action.key == "workflow-parity-badges")
     assert "tools/workflow_parity.py --profile badges" in parity.commands[0]
 

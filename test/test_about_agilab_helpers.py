@@ -254,6 +254,37 @@ def test_page_bootstrap_realigns_stale_agi_space_recorded_root(tmp_path):
     assert session_state["apps_path"] == str(source_apps)
 
 
+def test_page_bootstrap_realigns_stale_agi_space_active_app_with_current_source_root(tmp_path):
+    source_root = tmp_path / "agilab-src" / "src" / "agilab"
+    source_apps = source_root / "apps"
+    page_file = source_root / "pages" / "2_ORCHESTRATE.py"
+    source_project = source_apps / "builtin" / "flight_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    page_file.parent.mkdir(parents=True)
+    source_project.mkdir(parents=True)
+    stale_project.mkdir(parents=True)
+
+    class FakeEnv:
+        def __init__(self, *, apps_path: Path, app: str = "flight_project", verbose: int | None = 1):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / "builtin" / app
+            self.init_done = True
+
+    env = FakeEnv(apps_path=source_apps)
+    env.active_app = stale_project
+    session_state = {
+        "env": env,
+        "apps_path": str(source_apps),
+    }
+
+    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is True
+    assert env.apps_path == source_apps
+    assert env.active_app == source_project
+    assert session_state["apps_path"] == str(source_apps)
+
+
 def test_page_bootstrap_keeps_session_env_when_recorded_root_differs(tmp_path):
     source_root = tmp_path / "agilab-src" / "src" / "agilab"
     source_apps = source_root / "apps"
@@ -503,6 +534,45 @@ def test_refresh_env_from_file_updates_env_map_and_apps_path(tmp_path, monkeypat
     assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
 
 
+def test_refresh_env_from_file_keeps_session_apps_path_over_stale_env_path(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    stale_apps = tmp_path / "agi-space" / "apps"
+    source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
+    stale_apps.mkdir(parents=True)
+    source_apps.mkdir(parents=True)
+    env_file.write_text(
+        "\n".join(
+            [
+                "OPENAI_MODEL=gpt-5.4",
+                f"APPS_PATH={stale_apps}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", env_file)
+    about_agilab.st.session_state.pop("env_file_mtime_ns", None)
+    previous_apps_path = about_agilab.st.session_state.get("apps_path")
+    about_agilab.st.session_state["apps_path"] = str(source_apps)
+
+    env = SimpleNamespace(
+        envars={},
+        apps_path=stale_apps,
+    )
+
+    try:
+        about_agilab._refresh_env_from_file(env)
+    finally:
+        if previous_apps_path is None:
+            about_agilab.st.session_state.pop("apps_path", None)
+        else:
+            about_agilab.st.session_state["apps_path"] = previous_apps_path
+
+    assert env.envars["OPENAI_MODEL"] == "gpt-5.4"
+    assert env.envars["APPS_PATH"] == str(stale_apps)
+    assert env.apps_path == source_apps.resolve()
+    assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
+
+
 def test_refresh_env_from_file_ignores_commented_template_defaults(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     env_file.write_text(
@@ -570,6 +640,7 @@ def test_bootstrap_resolve_apps_path_prefers_cli_then_env(tmp_path):
         args,
         env_file_path=tmp_path / ".env",
         load_env_file_map=lambda _path: {"APPS_PATH": str(env_apps)},
+        home_path=tmp_path,
     ) == cli_apps
 
     args = bootstrap.parse_startup_args([])
@@ -577,6 +648,7 @@ def test_bootstrap_resolve_apps_path_prefers_cli_then_env(tmp_path):
         args,
         env_file_path=tmp_path / ".env",
         load_env_file_map=lambda _path: {"APPS_PATH": str(env_apps)},
+        home_path=tmp_path,
     ) == env_apps
 
 
@@ -587,6 +659,18 @@ def test_bootstrap_resolve_apps_path_from_agilab_path_file(tmp_path):
     marker.write_text(str(install_root / ".venv" / "bin" / "python"), encoding="utf-8")
 
     assert bootstrap.apps_path_from_agilab_path_file(marker) == (install_root / "apps").resolve(
+        strict=False
+    )
+
+
+def test_bootstrap_resolve_apps_path_from_source_agilab_path_file(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_root = tmp_path / "agilab-src" / "src" / "agilab"
+    source_root.mkdir(parents=True)
+    marker = tmp_path / ".agilab-path"
+    marker.write_text(str(source_root), encoding="utf-8")
+
+    assert bootstrap.apps_path_from_agilab_path_file(marker) == (source_root / "apps").resolve(
         strict=False
     )
 
@@ -767,6 +851,83 @@ def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space
     assert requested_apps == ["flight_project"]
     assert port_calls.stored == [source_project]
     assert fake_st.query_params["active_app"] == "flight_project"
+
+
+def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_init(tmp_path, monkeypatch):
+    bootstrap = about_agilab._about_bootstrap
+    source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
+    source_project = source_apps / "builtin" / "flight_project"
+    stale_apps = tmp_path / "agi-space" / "apps"
+    source_project.mkdir(parents=True)
+    stale_apps.mkdir(parents=True)
+    events: list[tuple[str, str]] = []
+    fake_environ: dict[str, str] = {}
+
+    class FakeAgiEnv:
+        persisted: dict[str, str] = {
+            "APPS_PATH": str(stale_apps),
+            "IS_SOURCE_ENV": "0",
+            "IS_WORKER_ENV": "0",
+        }
+
+        @classmethod
+        def set_env_var(cls, key: str, value: str) -> None:
+            events.append(("set", f"{key}={value}"))
+            cls.persisted[key] = value
+
+        def __init__(self, *, apps_path: Path, verbose: int = 1):
+            events.append(("init", f"IS_SOURCE_ENV={self.persisted.get('IS_SOURCE_ENV')}"))
+            self.apps_path = apps_path
+            self.builtin_apps_path = apps_path / "builtin"
+            self.apps_repository_root = None
+            self.verbose = verbose
+            self.app = "flight_project"
+            self.active_app = self.builtin_apps_path / self.app
+            self.projects = {"flight_project"}
+            self.is_source_env = self.persisted.get("IS_SOURCE_ENV") == "1"
+            self.is_worker_env = self.persisted.get("IS_WORKER_ENV") == "1"
+            self.OPENAI_API_KEY = ""
+            self.CLUSTER_CREDENTIALS = ""
+            self.envars = dict(self.persisted)
+            self.init_done = False
+
+    fake_st = _FakeStreamlit()
+    ports, _port_calls = _make_bootstrap_ports(
+        FakeAgiEnv,
+        services_enabled=False,
+        last_app=stale_apps / "builtin" / "flight_project",
+        environ=fake_environ,
+    )
+    monkeypatch.setattr(bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: source_apps)
+
+    result = bootstrap.bootstrap_page_environment(
+        streamlit=fake_st,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {
+            "APPS_PATH": str(stale_apps),
+            "IS_SOURCE_ENV": "0",
+            "IS_WORKER_ENV": "0",
+        },
+        logger=object(),
+        apply_active_app_request=lambda env, requested: bootstrap.apply_active_app_request(
+            env,
+            requested,
+            streamlit=fake_st,
+        ),
+        handle_data_root_failure=lambda *_args, **_kwargs: False,
+        refresh_env_from_file=lambda _env: None,
+        clean_openai_key=lambda value: value,
+        store_cluster_credentials=lambda *_args, **_kwargs: True,
+        argv=[],
+        ports=ports,
+    )
+
+    assert result.env.is_source_env is True
+    assert result.env.active_app == source_project
+    assert fake_environ["APPS_PATH"] == str(source_apps.resolve(strict=False))
+    assert fake_environ["IS_SOURCE_ENV"] == "1"
+    assert ("init", "IS_SOURCE_ENV=1") in events
+    assert events.index(("set", "IS_SOURCE_ENV=1")) < events.index(("init", "IS_SOURCE_ENV=1"))
 
 
 def test_bootstrap_normalize_active_app_input_skips_unresolvable_candidate(
@@ -1019,10 +1180,6 @@ def test_bootstrap_sync_active_app_from_query_keeps_matching_query(tmp_path):
 
 
 def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
-    import agi_env
-    import agi_gui.pagelib as pagelib
-    import agi_gui.ui_support as ui_support
-
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
     app_path = apps_path / "flight_project"
@@ -1061,12 +1218,25 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
         warning=lambda message: fake_st.warnings.append(message),
         error=lambda _message: None,
     )
-    monkeypatch.setattr(bootstrap.os, "environ", fake_environ)
-    monkeypatch.setattr(agi_env, "AgiEnv", FakeAgiEnv)
-    monkeypatch.setattr(pagelib, "activate_mlflow", lambda _env: None)
-    monkeypatch.setattr(pagelib, "background_services_enabled", lambda: False)
-    monkeypatch.setattr(ui_support, "load_last_active_app", lambda: app_path)
-    monkeypatch.setattr(ui_support, "store_last_active_app", remembered_apps.append)
+    monkeypatch.setattr(
+        bootstrap,
+        "default_agilab_path_file",
+        lambda **_kwargs: tmp_path / "missing-agilab-path",
+    )
+    ports, port_calls = _make_bootstrap_ports(
+        FakeAgiEnv,
+        services_enabled=False,
+        last_app=app_path,
+        environ=fake_environ,
+    )
+    ports = bootstrap.BootstrapPorts(
+        agi_env_cls=ports.agi_env_cls,
+        activate_mlflow=ports.activate_mlflow,
+        background_services_enabled=ports.background_services_enabled,
+        load_last_active_app=ports.load_last_active_app,
+        store_last_active_app=remembered_apps.append,
+        environ=ports.environ,
+    )
 
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
@@ -1078,6 +1248,7 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
         refresh_env_from_file=refreshed_envs.append,
         clean_openai_key=lambda value: value,
         store_cluster_credentials=lambda *_args, **_kwargs: True,
+        ports=ports,
     )
 
     assert result.env is fake_st.session_state["env"]
@@ -1087,6 +1258,7 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
     assert fake_st.session_state["first_run"] is False
     assert fake_st.query_params["active_app"] == "flight_project"
     assert remembered_apps == [apps_path / "flight_project"]
+    assert port_calls.activated == []
     assert refreshed_envs == [result.env]
     assert ("APPS_PATH", str(apps_path)) not in set_env_calls
     assert ("IS_SOURCE_ENV", "1") in set_env_calls
@@ -1119,6 +1291,69 @@ def test_bootstrap_resolve_apps_path_uses_marker_when_env_has_placeholder(tmp_pa
         load_env_file_map=lambda _path: {"APPS_PATH": "/path/to/apps"},
         home_path=tmp_path,
     ) == (install_root / "apps").resolve(strict=False)
+
+
+def test_bootstrap_resolve_apps_path_prefers_source_marker_over_stale_env(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_root = tmp_path / "agilab-src" / "src" / "agilab"
+    source_apps = source_root / "apps"
+    stale_apps = tmp_path / "agi-space" / "apps"
+    source_root.mkdir(parents=True)
+    stale_apps.mkdir(parents=True)
+    marker = tmp_path / ".local/share/agilab/.agilab-path"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(str(source_root), encoding="utf-8")
+
+    args = bootstrap.parse_startup_args([])
+    assert bootstrap.resolve_apps_path(
+        args,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {"APPS_PATH": str(stale_apps)},
+        home_path=tmp_path,
+    ) == source_apps.resolve(strict=False)
+
+
+def test_bootstrap_source_launch_env_updates_normalizes_builtin_source_root(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_builtin = tmp_path / "agilab-src" / "src" / "agilab" / "apps" / "builtin"
+
+    assert bootstrap.source_launch_env_updates(source_builtin) == {
+        "APPS_PATH": str(source_builtin.parent.resolve(strict=False)),
+        "IS_SOURCE_ENV": "1",
+        "IS_WORKER_ENV": "0",
+    }
+
+
+def test_bootstrap_persisted_active_app_ignores_cross_root_absolute_path(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "private_project"
+    stale_project.mkdir(parents=True)
+    env = SimpleNamespace(
+        apps_path=source_apps,
+        builtin_apps_path=source_apps / "builtin",
+        apps_repository_root=None,
+        projects={"flight_project"},
+    )
+
+    assert bootstrap.persisted_active_app_request(env, stale_project) is None
+
+
+def test_bootstrap_persisted_active_app_maps_cross_root_absolute_path_to_local_project(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
+    source_project = source_apps / "builtin" / "flight_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    source_project.mkdir(parents=True)
+    stale_project.mkdir(parents=True)
+    env = SimpleNamespace(
+        apps_path=source_apps,
+        builtin_apps_path=source_apps / "builtin",
+        apps_repository_root=None,
+        projects=set(),
+    )
+
+    assert bootstrap.persisted_active_app_request(env, stale_project) == "flight_project"
 
 
 def test_bootstrap_active_app_helpers_handle_empty_same_and_failed_switch(tmp_path):

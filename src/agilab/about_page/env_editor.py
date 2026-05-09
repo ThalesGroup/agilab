@@ -357,11 +357,28 @@ def _refresh_env_from_file(env: Any) -> None:
         except (AttributeError, TypeError):
             pass
 
+    session_apps_path = None
+    try:
+        session_apps_path_value = st.session_state.get("apps_path")
+    except (AttributeError, TypeError):
+        session_apps_path_value = None
+    if session_apps_path_value:
+        try:
+            session_apps_path = Path(session_apps_path_value).expanduser().resolve()
+        except (OSError, RuntimeError, TypeError, ValueError):
+            session_apps_path = None
+
     new_apps_path = env_map.get("APPS_PATH", "").strip()
-    if new_apps_path and str(getattr(env, "apps_path", "")) != new_apps_path:
+    if new_apps_path:
         try:
             resolved = Path(new_apps_path).expanduser().resolve()
-            env.apps_path = resolved
+            # A running Streamlit session may have been launched from a source checkout
+            # while ~/.agilab/.env still points to a packaged agi-space install.
+            env.apps_path = (
+                session_apps_path
+                if session_apps_path and session_apps_path != resolved
+                else resolved
+            )
         except (OSError, RuntimeError, TypeError, ValueError):
             pass
 
