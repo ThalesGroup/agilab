@@ -639,7 +639,77 @@ def test_current_home_action_preflight_allows_disabled_cluster_with_missing_shar
         active_app_query="flight_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
+        click_action_labels=["INSTALL"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is None
+
+
+def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+    worker_root = fake_home / "wenv" / "meteo_forecast_worker"
+    worker_root.mkdir(parents=True)
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(module.shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
+
+    def fake_run(argv, cwd, capture_output, text, check, timeout):
+        calls.append(
+            {
+                "argv": argv,
+                "cwd": cwd,
+                "capture_output": capture_output,
+                "text": text,
+                "check": check,
+                "timeout": timeout,
+            }
+        )
+        return module.subprocess.CompletedProcess(
+            argv,
+            1,
+            stdout="",
+            stderr="ModuleNotFoundError: No module named 'skforecast'\n",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="meteo_forecast_project",
+        active_app_query="meteo_forecast_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
         click_action_labels=["Run -> Load -> Export"],
+        runtime_isolation="current-home",
+        server_env={"AGI_CLUSTER_ENABLED": "0"},
+        home_root=fake_home,
+    )
+
+    assert detail is not None
+    assert "environment_blocked" in detail
+    assert "meteo_forecast_project" in detail
+    assert "meteo_forecast_worker" in detail
+    assert "skforecast" in detail
+    assert "Run INSTALL" in detail
+    assert calls
+    argv = calls[0]["argv"]
+    assert argv[:6] == ["/usr/bin/uv", "--quiet", "run", "--no-sync", "--project", str(worker_root)]
+    assert argv[-1] == "meteo_forecast_worker"
+    assert calls[0]["cwd"] == worker_root
+
+
+def test_current_home_action_preflight_does_not_block_install_when_worker_missing(tmp_path) -> None:
+    module = _load_module()
+    fake_home = tmp_path / "home"
+
+    detail = module.current_home_action_preflight_blocker(
+        app_name="meteo_forecast_project",
+        active_app_query="meteo_forecast_project",
+        page_name="ORCHESTRATE",
+        action_button_policy="click-selected",
+        click_action_labels=["INSTALL"],
         runtime_isolation="current-home",
         server_env={"AGI_CLUSTER_ENABLED": "0"},
         home_root=fake_home,
