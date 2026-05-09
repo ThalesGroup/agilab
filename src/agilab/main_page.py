@@ -600,7 +600,7 @@ def _ensure_navigation_environment(resources_path: Path, *, rerun_after_bootstra
     _refresh_env_from_file(env)
     _sync_active_app_from_query(env)
     try:
-        store_last_active_app(Path(env.apps_path) / env.app)
+        store_last_active_app(_about_bootstrap.active_app_store_path(env))
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
     return env

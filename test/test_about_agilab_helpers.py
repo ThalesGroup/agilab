@@ -569,6 +569,48 @@ def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
     assert warnings == []
 
 
+def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    old_root = tmp_path / "agi-space" / "apps" / "builtin"
+    new_root = tmp_path / "agilab-src" / "src" / "agilab" / "apps" / "builtin"
+    old_project = old_root / "flight_project"
+    new_project = new_root / "flight_project"
+    old_project.mkdir(parents=True)
+    new_project.mkdir(parents=True)
+    warnings: list[str] = []
+
+    class FakeEnv:
+        def __init__(self, *, apps_path: Path = old_root, app: str = "flight_project", verbose: int | None = 1):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / app
+            self.projects = {"flight_project"}
+            self.init_done = True
+
+        def change_app(self, _path: Path) -> None:
+            raise RuntimeError("same-name path switch must not use name-only change_app")
+
+    fake_st = SimpleNamespace(warning=warnings.append)
+    env = FakeEnv()
+
+    assert bootstrap.apply_active_app_request(env, str(new_project), streamlit=fake_st) is True
+    assert env.app == "flight_project"
+    assert env.apps_path == new_root
+    assert env.active_app == new_project
+    assert env.init_done is True
+    assert warnings == []
+
+
+def test_bootstrap_active_app_store_path_prefers_real_active_app(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    apps_path = tmp_path / "src" / "agilab" / "apps"
+    active_app = apps_path / "builtin" / "flight_project"
+    env = SimpleNamespace(apps_path=apps_path, app="flight_project", active_app=active_app)
+
+    assert bootstrap.active_app_store_path(env) == active_app
+
+
 def test_bootstrap_normalize_active_app_input_skips_unresolvable_candidate(
     tmp_path,
     monkeypatch,
