@@ -74,6 +74,51 @@ def test_regress_shortcut_keeps_selector_arguments():
     ]
 
 
+def test_main_keeps_machine_readable_shortcut_stdout_clean(capsys, monkeypatch):
+    calls = []
+
+    class Completed:
+        returncode = 0
+
+    def fake_run(command, *, cwd):
+        calls.append((command, cwd))
+        return Completed()
+
+    monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
+
+    exit_code = agilab_dev.main(["regress", "--files", "src/agilab/pipeline_ai.py", "--json"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.out == ""
+    assert "tools/ga_regression_selector.py" in captured.err
+    assert calls == [
+        (
+            [
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "python",
+                "tools/ga_regression_selector.py",
+                "--files",
+                "src/agilab/pipeline_ai.py",
+                "--json",
+            ],
+            agilab_dev.ROOT,
+        )
+    ]
+
+
+def test_main_print_only_keeps_command_on_stdout(capsys):
+    exit_code = agilab_dev.main(["--print-only", "regress"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.err == ""
+    assert "tools/ga_regression_selector.py --staged --run" in captured.out
+
+
 def test_workflow_profile_shortcut_repeats_profile_flags_and_keeps_options():
     assert agilab_dev.planned_commands(["flow", "agi-gui", "docs", "--keep-going"]) == [
         [
