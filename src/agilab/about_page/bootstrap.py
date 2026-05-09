@@ -114,11 +114,47 @@ def _looks_like_source_apps_path(path: Path | None) -> bool:
         resolved = Path(path).resolve(strict=False)
     except (OSError, RuntimeError, TypeError, ValueError):
         resolved = Path(path)
+    if resolved.name == "builtin":
+        resolved = resolved.parent
     return (
         resolved.name == "apps"
         and resolved.parent.name == "agilab"
         and resolved.parent.parent.name == "src"
     )
+
+
+def source_launch_env_updates(apps_path: Path | None) -> dict[str, str]:
+    """Return pre-init env overrides required for source-checkout launches."""
+    if not _looks_like_source_apps_path(apps_path):
+        return {}
+    try:
+        apps_path = Path(apps_path).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        apps_path = Path(apps_path)
+    if apps_path.name == "builtin":
+        apps_path = apps_path.parent
+    return {
+        "APPS_PATH": str(apps_path),
+        "IS_SOURCE_ENV": "1",
+        "IS_WORKER_ENV": "0",
+    }
+
+
+def persist_preinit_launch_env(
+    agi_env_cls: Any,
+    updates: Mapping[str, str],
+    *,
+    environ: MutableMapping[str, str] | None = None,
+) -> None:
+    """Persist launch-critical env values before constructing ``AgiEnv``."""
+    if not updates:
+        return
+    environ = environ if environ is not None else os.environ
+    setter = getattr(agi_env_cls, "set_env_var", None)
+    for key, value in updates.items():
+        environ[key] = value
+        if callable(setter):
+            setter(key, value)
 
 
 def resolve_apps_path(
@@ -253,6 +289,9 @@ def persisted_active_app_request(env: Any, raw_value: Any) -> str | None:
                     return text
             except (TypeError, RuntimeError, ValueError, OSError):
                 continue
+        if normalize_active_app_input(env, name) is not None:
+            return name
+        return None
     projects = getattr(env, "projects", set()) or set()
     if name in projects:
         return name
@@ -555,6 +594,12 @@ def bootstrap_page_environment(
         return BootstrapResult(env=None, handled_recovery=True)
 
     streamlit.session_state["apps_path"] = str(apps_path)
+    preinit_updates = source_launch_env_updates(apps_path)
+    persist_preinit_launch_env(
+        ports.agi_env_cls,
+        preinit_updates,
+        environ=ports.environ,
+    )
 
     try:
         env = ports.agi_env_cls(apps_path=apps_path, verbose=1)
@@ -599,7 +644,7 @@ def bootstrap_page_environment(
     openai_missing = persist_bootstrap_env(
         env,
         apps_path=apps_path,
-        explicit_apps_path=bool(args.apps_path),
+        explicit_apps_path=bool(args.apps_path) or bool(preinit_updates),
         saved_env=saved_env,
         agi_env_cls=ports.agi_env_cls,
         clean_openai_key=clean_openai_key,
