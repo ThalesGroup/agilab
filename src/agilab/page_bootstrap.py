@@ -26,6 +26,47 @@ def _page_apps_path(current_file: str | Path) -> Path | None:
     return apps_path if apps_path.exists() else None
 
 
+def _is_agi_space_path(path: Path | None) -> bool:
+    return path is not None and "agi-space" in path.parts
+
+
+def _find_page_app(expected_apps_path: Path, requested_name: str) -> Path | None:
+    name = Path(str(requested_name)).name
+    if not name:
+        return None
+    variants = [name]
+    if name.endswith("_project"):
+        variants.append(name.removesuffix("_project"))
+    else:
+        variants.append(f"{name}_project")
+
+    for variant in variants:
+        for candidate in (
+            expected_apps_path / variant,
+            expected_apps_path / "builtin" / variant,
+        ):
+            if candidate.exists():
+                return candidate
+    return None
+
+
+def _should_realign_session_env(
+    *,
+    env_apps_path: Path | None,
+    env_active_app_path: Path | None,
+    recorded_apps_path: Path | None,
+    expected_apps_path: Path,
+) -> bool:
+    if env_apps_path == expected_apps_path:
+        return False
+    if recorded_apps_path == expected_apps_path:
+        return True
+    return any(
+        _is_agi_space_path(path)
+        for path in (env_apps_path, env_active_app_path, recorded_apps_path)
+    )
+
+
 def session_env_ready(
     session_state: Any,
     *,
@@ -54,16 +95,22 @@ def realign_session_env_with_page_root(
     env = session_state[env_key]
     env_apps_path = _safe_resolved_path(getattr(env, "apps_path", None))
     recorded_apps_path = _safe_resolved_path(session_state.get("apps_path"))
-    if env_apps_path == expected_apps_path:
-        return False
-    if recorded_apps_path != expected_apps_path:
+    env_active_app_path = _safe_resolved_path(getattr(env, "active_app", None))
+    if not _should_realign_session_env(
+        env_apps_path=env_apps_path,
+        env_active_app_path=env_active_app_path,
+        recorded_apps_path=recorded_apps_path,
+        expected_apps_path=expected_apps_path,
+    ):
         return False
 
     app_name = Path(str(getattr(env, "app", "") or "")).name
     if not app_name:
-        active_app = getattr(env, "active_app", None)
-        app_name = Path(str(active_app)).name if active_app else ""
-    if not app_name:
+        app_name = env_active_app_path.name if env_active_app_path else ""
+    page_app = _find_page_app(expected_apps_path, app_name)
+    if page_app is None and env_active_app_path is not None:
+        page_app = _find_page_app(expected_apps_path, env_active_app_path.name)
+    if page_app is None:
         return False
 
     previous_init_done = getattr(env, "init_done", None)
@@ -71,7 +118,7 @@ def realign_session_env_with_page_root(
         type(env).__init__(
             env,
             apps_path=expected_apps_path,
-            app=app_name,
+            app=page_app.name,
             verbose=getattr(env, "verbose", None),
         )
         if previous_init_done is not None:
