@@ -159,7 +159,8 @@ def test_work_done_csv(worker_csv):
     assert df_read["col"].tolist() == [1, 2, 3]
 
 
-def test_work_done_parquet(worker_parquet):
+def test_work_done_parquet(worker_parquet, pandas_parquet_io_stub):
+    _ = pandas_parquet_io_stub
     df = pd.DataFrame({"col": [4, 5, 6]})
     worker_parquet.work_done(df)
     output_file = worker_parquet.data_out / "0_output.parquet"
