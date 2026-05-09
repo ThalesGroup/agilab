@@ -107,6 +107,12 @@ def _run_first_proof(argv: list[str]) -> int:
     return first_proof_cli.main(argv)
 
 
+def _run_security_check(argv: list[str]) -> int:
+    from agilab import security_check
+
+    return security_check.main(argv)
+
+
 def _missing_ui_dependencies() -> list[str]:
     missing: list[str] = []
     for module_name, distribution_name in (
@@ -143,6 +149,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_doctor(raw_argv[1:])
     if raw_argv[:1] in (["first-proof"], ["first_proof"]):
         return _run_first_proof(raw_argv[1:])
+    if raw_argv[:1] in (["security-check"], ["security_check"]):
+        return _run_security_check(raw_argv[1:])
 
     parser = argparse.ArgumentParser(
         description="Run AGILAB application with custom options."

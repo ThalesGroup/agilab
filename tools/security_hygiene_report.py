@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import tomllib
 from typing import Any, Sequence
 
 
@@ -83,6 +84,13 @@ def _read_json_artifact(path: Path | None) -> tuple[bool, dict[str, Any] | list[
         return True, json.loads(path.read_text(encoding="utf-8")), None
     except Exception as exc:
         return True, None, str(exc)
+
+
+def _read_toml_artifact(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8")), None
+    except Exception as exc:
+        return None, str(exc)
 
 
 def _pip_audit_vulnerability_count(payload: dict[str, Any] | list[Any] | None) -> int | None:
@@ -290,6 +298,146 @@ def _release_evidence_scope_check(repo_root: Path, security_text: str) -> dict[s
     )
 
 
+def _adoption_profile_check(security_text: str) -> dict[str, Any]:
+    required_tokens = [
+        "trusted-operator experimentation workbench",
+        "Recommended use without additional platform hardening",
+        "Conditional use only after hardening",
+        "Not recommended as-is",
+        "public exposure without authentication, TLS, and sandboxing",
+        "Multi-tenant service use",
+        "production ML serving",
+    ]
+    missing = [token for token in required_tokens if token not in security_text]
+    return _check_result(
+        "adoption_profile_go_no_go_documented",
+        "Security adoption profile is documented",
+        not missing,
+        "SECURITY.md separates recommended sandbox use, conditional shared use, and no-go production/multi-tenant use",
+        evidence=["SECURITY.md"],
+        details={"missing_tokens": missing},
+    )
+
+
+def _external_apps_repository_policy_check(repo_root: Path, security_text: str) -> dict[str, Any]:
+    service_paths = _read_text(repo_root / "docs" / "source" / "service_mode_and_paths.md")
+    quick_start = _read_text(repo_root / "docs" / "source" / "quick-start.rst")
+    combined = f"{security_text}\n{service_paths}\n{quick_start}"
+    required_tokens = [
+        "APPS_REPOSITORY",
+        "executable-code trust boundary",
+        "explicit allowlist",
+        "commit SHA",
+        "immutable tag",
+        "reject floating branches",
+        "scan the repository",
+    ]
+    missing = [token for token in required_tokens if token not in combined]
+    return _check_result(
+        "external_apps_repository_trust_boundary",
+        "External apps repository trust boundary is documented",
+        not missing,
+        "External apps repositories are documented as executable code that must be allowlisted, pinned, reviewed, and scanned for shared use",
+        evidence=[
+            "SECURITY.md",
+            "docs/source/service_mode_and_paths.md",
+            "docs/source/quick-start.rst",
+        ],
+        details={"missing_tokens": missing},
+    )
+
+
+def _supply_chain_profile_evidence_check(security_text: str) -> dict[str, Any]:
+    required_tokens = [
+        "CycloneDX SBOM",
+        "pip-audit",
+        "actual install profile",
+        "base CLI",
+        "agilab[ui]",
+        "MLflow/tracking",
+        "offline/local-LLM",
+        "worker/cluster extras",
+    ]
+    missing = [token for token in required_tokens if token not in security_text]
+    return _check_result(
+        "supply_chain_profile_evidence_documented",
+        "Per-profile supply-chain evidence is documented",
+        not missing,
+        "SECURITY.md requires SBOM and pip-audit evidence for the actual enabled install profiles",
+        evidence=["SECURITY.md"],
+        details={
+            "missing_tokens": missing,
+            "pip_audit_command": PIP_AUDIT_COMMAND,
+            "sbom_command": SBOM_COMMAND,
+        },
+    )
+
+
+def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[str, Any]:
+    pyproject, pyproject_error = _read_toml_artifact(repo_root / "pyproject.toml")
+    manifest, manifest_error = _read_toml_artifact(
+        repo_root / "docs" / "source" / "data" / "release_proof.toml"
+    )
+    release_proof = _read_text(repo_root / "docs" / "source" / "release-proof.rst")
+    release_manifest = _read_text(
+        repo_root / "docs" / "source" / "data" / "release_proof.toml"
+    )
+    combined = f"{security_text}\n{release_proof}\n{release_manifest}"
+    required_tokens = [
+        "GitHub tag",
+        "PyPI version",
+        "release-proof",
+        "republish the documentation",
+        "docs-source guard",
+        "github_release_tag",
+        "package_version",
+    ]
+    missing = [token for token in required_tokens if token not in combined]
+    project_version = str(((pyproject or {}).get("project") or {}).get("version") or "")
+    release = (manifest or {}).get("release") or {}
+    package_name = str(release.get("package_name") or "")
+    manifest_version = str(release.get("package_version") or "")
+    manifest_tag = str(release.get("github_release_tag") or "")
+    expected_tag = f"v{project_version}" if project_version else ""
+    version_aligned = bool(project_version) and manifest_version == project_version
+    tag_aligned = bool(expected_tag) and manifest_tag == expected_tag
+    rendered_page_aligned = (
+        bool(package_name)
+        and bool(manifest_version)
+        and f"{package_name}=={manifest_version}" in release_proof
+        and bool(manifest_tag)
+        and manifest_tag in release_proof
+    )
+    return _check_result(
+        "release_proof_freshness_policy_documented",
+        "Release-proof freshness policy is documented",
+        not missing
+        and pyproject_error is None
+        and manifest_error is None
+        and version_aligned
+        and tag_aligned
+        and rendered_page_aligned,
+        "SECURITY.md and release-proof data preserve the requirement that public proof stays aligned with GitHub tag and PyPI version",
+        evidence=[
+            "SECURITY.md",
+            "docs/source/release-proof.rst",
+            "docs/source/data/release_proof.toml",
+        ],
+        details={
+            "missing_tokens": missing,
+            "pyproject_error": pyproject_error,
+            "manifest_error": manifest_error,
+            "pyproject_version": project_version,
+            "manifest_package_version": manifest_version,
+            "expected_github_release_tag": expected_tag,
+            "manifest_github_release_tag": manifest_tag,
+            "version_aligned": version_aligned,
+            "tag_aligned": tag_aligned,
+            "rendered_page_aligned": rendered_page_aligned,
+        },
+    )
+
+
 def _remote_installer_staging_check(repo_root: Path) -> dict[str, Any]:
     files = [
         "install.sh",
@@ -476,6 +624,10 @@ def build_report(
         _coverage_upload_gate_check(repo_root),
         _local_secret_storage_policy_check(repo_root, security_text),
         _release_evidence_scope_check(repo_root, security_text),
+        _adoption_profile_check(security_text),
+        _external_apps_repository_policy_check(repo_root, security_text),
+        _supply_chain_profile_evidence_check(security_text),
+        _release_proof_freshness_check(repo_root, security_text),
         _remote_installer_staging_check(repo_root),
         _installer_dry_run_profile_check(repo_root),
         _central_command_runner_shell_gate_check(repo_root),

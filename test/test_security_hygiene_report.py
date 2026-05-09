@@ -61,6 +61,13 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
     assert checks["codecov_uploads_are_blocking_gates"]["status"] == "pass"
     assert checks["local_secret_storage_is_developer_only"]["status"] == "pass"
     assert checks["release_evidence_scope_is_bounded"]["status"] == "pass"
+    assert checks["adoption_profile_go_no_go_documented"]["status"] == "pass"
+    assert checks["external_apps_repository_trust_boundary"]["status"] == "pass"
+    assert checks["supply_chain_profile_evidence_documented"]["status"] == "pass"
+    assert checks["release_proof_freshness_policy_documented"]["status"] == "pass"
+    assert checks["release_proof_freshness_policy_documented"]["details"]["version_aligned"] is True
+    assert checks["release_proof_freshness_policy_documented"]["details"]["tag_aligned"] is True
+    assert checks["release_proof_freshness_policy_documented"]["details"]["rendered_page_aligned"] is True
     assert checks["remote_installers_are_staged_before_execution"]["status"] == "pass"
     assert checks["installers_expose_dry_run_profiles"]["status"] == "pass"
     assert checks["central_command_runner_shell_fallback_is_syntax_gated"]["status"] == "pass"
