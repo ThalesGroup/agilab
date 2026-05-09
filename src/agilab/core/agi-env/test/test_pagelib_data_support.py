@@ -116,7 +116,11 @@ def test_load_df_covers_empty_dir_parquet_first_column_index_and_non_file_path(t
     parquet_dir = tmp_path / "parquet-dataset"
     parquet_dir.mkdir()
     parquet_df = pd.DataFrame({"id": [1, 2], "value": [3, 4]})
-    parquet_df.to_parquet(parquet_dir / "part.parquet")
+    parquet_part = parquet_dir / "part.parquet"
+    parquet_part.write_text("parquet placeholder\n", encoding="utf-8")
+    single_parquet = tmp_path / "single.parquet"
+    single_parquet.write_text("parquet placeholder\n", encoding="utf-8")
+    monkeypatch.setattr(support.pd, "read_parquet", lambda _path: parquet_df.copy())
     loaded_parquet = support.load_df(parquet_dir)
     assert loaded_parquet is not None
     assert list(loaded_parquet["value"]) == [3, 4]
@@ -128,8 +132,6 @@ def test_load_df_covers_empty_dir_parquet_first_column_index_and_non_file_path(t
     assert loaded_latin is not None
     assert loaded_latin.iloc[0]["name"] == "café"
 
-    single_parquet = tmp_path / "single.parquet"
-    parquet_df.to_parquet(single_parquet)
     loaded_single = support.load_df(single_parquet, with_index=False)
     assert loaded_single is not None
     assert list(loaded_single["id"]) == [1, 2]
