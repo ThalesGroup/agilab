@@ -102,6 +102,9 @@ organization's security requirements in mind. At minimum:
   ``~/.agilab/.env`` secrets, exposed UI binds, cluster-share isolation issues, optional local-model
   profiles, and missing SBOM / ``pip-audit`` evidence. Use ``--strict`` in CI or release gates when
   warnings should fail the job.
+- Keep the Streamlit UI on loopback by default. AGILAB refuses ``0.0.0.0`` or ``::`` public binds
+  unless ``AGILAB_PUBLIC_BIND_OK=1`` is paired with an explicit auth/TLS indicator such as
+  ``AGILAB_TLS_TERMINATED=1``.
 - Treat shell execution and install profiles as privileged operator surfaces. The installer can
   prepare development, local-model, and cluster dependencies; use an isolated lab machine or
   container for untrusted apps, and review dry-run/log output before enabling optional system-level
@@ -113,10 +116,14 @@ organization's security requirements in mind. At minimum:
   the ``agi.service.task.v1`` schema, and legacy ``*.task.pkl`` files are quarantined without
   deserialization. The queue directory must be writable only by the trusted scheduler/operator.
 - Treat generated code as untrusted until reviewed. Run external or model-generated app code in a
-  constrained environment with limited filesystem, network, CPU, RAM, and secret access.
+  constrained environment with limited filesystem, network, CPU, RAM, and secret access. WORKFLOW
+  auto-fix refuses to execute generated code for validation unless ``AGILAB_GENERATED_CODE_SANDBOX``
+  is set to ``process``, ``container``, or ``vm`` by the operator.
 - Treat local ``~/.agilab/.env`` secrets as developer convenience only. Prefer OS keyrings,
   enterprise vaults, or short-lived environment variables for shared, sensitive, or production-like
-  deployments.
+  deployments. The Streamlit environment editor must redact secret-like keys in previews and never
+  pre-fill existing ``KEY``, ``TOKEN``, ``SECRET``, ``PASSWORD``, or ``CREDENTIAL`` values into
+  visible fields.
 - Treat public release evidence as bounded evidence, not production certification. PyPI publishing
   should use Trusted Publishing/OIDC, SBOM and vulnerability scan artifacts should be archived when
   available, and deployments that handle sensitive data need their own threat model and acceptance
@@ -125,9 +132,10 @@ organization's security requirements in mind. At minimum:
   package. At minimum, archive a CycloneDX SBOM and ``pip-audit`` report for each enabled profile
   such as base CLI, ``agilab[ui]``, MLflow/tracking, offline/local-LLM tooling, and
   worker/cluster extras.
-- Keep remote installer profiles opt-in. Prefer ``--dry-run`` first, disable local-model/Ollama and
-  cluster automation profiles unless they are needed, and review any staged remote shell installer
-  before running it on a developer workstation.
+- Keep remote installer profiles opt-in. Prefer ``--dry-run`` first, use ``--no-remote-installers``
+  for hardened/local-only installs, disable local-model/Ollama and cluster automation profiles
+  unless they are needed, and review any staged remote shell installer before running it on a
+  developer workstation.
 - Keep public release proof synchronized with the GitHub tag and PyPI version. If release-proof
   pages lag behind a published release, republish the documentation and re-run the docs-source guard
   before using the page as audit evidence.

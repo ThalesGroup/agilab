@@ -374,6 +374,44 @@ def _check_optional_profiles(config: Mapping[str, str]) -> Check:
     )
 
 
+def _check_generated_code_execution(config: Mapping[str, str]) -> Check:
+    enabled = {
+        key: str(config.get(key) or "").strip()
+        for key in (
+            "UOAIC_AUTOFIX",
+            "AGILAB_GENERATED_CODE_AUTORUN",
+        )
+        if _truthy(str(config.get(key) or ""))
+    }
+    if not enabled:
+        return Check(
+            "generated_code_execution_boundary",
+            "Generated-code execution boundary",
+            "pass",
+            "Generated-code auto-run indicators are not enabled.",
+            "Keep model-generated code reviewed, or run it in a constrained process/container before shared use.",
+            {"enabled_keys": []},
+        )
+    sandbox = str(config.get("AGILAB_GENERATED_CODE_SANDBOX") or "").strip().lower()
+    if sandbox in {"process", "container", "vm"}:
+        return Check(
+            "generated_code_execution_boundary",
+            "Generated-code execution boundary",
+            "pass",
+            "Generated-code auto-run is enabled with an explicit sandbox indicator.",
+            "Verify the configured sandbox really limits filesystem, network, CPU, RAM, time, and secrets.",
+            {"enabled_keys": sorted(enabled), "sandbox": sandbox},
+        )
+    return Check(
+        "generated_code_execution_boundary",
+        "Generated-code execution boundary",
+        "warn",
+        "Generated-code auto-run is enabled without an explicit sandbox indicator.",
+        "Run generated code in a constrained process/container/VM and set AGILAB_GENERATED_CODE_SANDBOX=process|container|vm when that boundary is in place.",
+        {"enabled_keys": sorted(enabled), "sandbox": sandbox or None},
+    )
+
+
 def _artifact_state(path: Path, *, now: datetime, max_age_days: int) -> dict[str, Any]:
     if not path.is_file():
         return {"path": str(path), "exists": False}
@@ -414,7 +452,7 @@ def _check_supply_chain_artifacts(
         "Supply-chain scan artifacts",
         "warn",
         "Recent pip-audit and CycloneDX SBOM artifacts were not both found.",
-        "Generate profile-specific artifacts: pip-audit --format json --output pip-audit.json and cyclonedx-py environment --output-format JSON --output-file sbom-cyclonedx.json.",
+        "Generate profile-specific artifacts with tools/profile_supply_chain_scan.py --profile all --run, or archive equivalent pip-audit JSON and CycloneDX SBOM files for each deployed profile.",
         {"pip_audit": pip_state, "sbom": sbom_state, "max_age_days": max_age_days},
     )
 
@@ -441,6 +479,7 @@ def build_report(
         _check_persisted_secrets(env_file, env_file_values),
         _check_cluster_share(config, cwd=cwd),
         _check_ui_exposure(config, home=home),
+        _check_generated_code_execution(config),
         _check_optional_profiles(config),
         _check_supply_chain_artifacts(
             cwd=cwd,

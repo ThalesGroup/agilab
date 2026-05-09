@@ -19,6 +19,10 @@ run_remote_shell_installer() {
   local url="$1"
   local label="$2"
   local interpreter="${3:-sh}"
+  if [[ "${NO_REMOTE_INSTALLERS:-0}" == "1" ]]; then
+    warn "Remote shell installers are disabled (--no-remote-installers); refusing ${label} from ${url}."
+    return 1
+  fi
   local safe_label
   safe_label="$(printf '%s' "$label" | tr -cs 'A-Za-z0-9_.-' '_' | sed 's/^_//;s/_$//')"
   local script_path
@@ -67,6 +71,7 @@ ENV_FILE="$HOME/.agilab/.env"
 FORCE_REBUILD="${FORCE_REBUILD:-0}"  # NEW: Allow forcing rebuild
 SKIP_OFFLINE="${SKIP_OFFLINE:-0}"    # NEW: Skip offline deps for faster installs
 INSTALL_LOCAL_MODELS="${INSTALL_LOCAL_MODELS:-}"
+NO_REMOTE_INSTALLERS="${AGILAB_NO_REMOTE_INSTALLERS:-0}"
 DRY_RUN=0
 
 
@@ -86,6 +91,7 @@ usage() {
   echo "  --force-rebuild  Force rebuild even if venv exists"
   echo "  --dry-run        Print the end-user install plan without installing dependencies"
   echo "  --skip-offline   Skip offline assistant (torch, transformers) for faster install"
+  echo "  --no-remote-installers  Refuse downloaded shell installers such as Ollama bootstrap scripts"
   echo "  --install-local-models  Install requested Ollama models (gpt-oss, qwen, deepseek, qwen3, qwen3-coder, ministral, phi4-mini)"
   exit 1
 }
@@ -99,6 +105,7 @@ print_dry_run_plan() {
   echo "force_rebuild: ${FORCE_REBUILD}"
   echo "skip_offline: ${SKIP_OFFLINE}"
   echo "local_models: ${INSTALL_LOCAL_MODELS:-<none>}"
+  echo "no_remote_installers: ${NO_REMOTE_INSTALLERS}"
   echo "steps_would_run:"
   echo "  - prepare ${AGI_SPACE}/.venv"
   echo "  - install ${PACKAGES}"
@@ -132,6 +139,20 @@ normalize_local_model_name() {
       return 1
       ;;
   esac
+}
+
+confirm_privileged_action() {
+  local label="$1"
+  local answer="n"
+  if [[ -t 0 ]]; then
+    read -rp "Allow privileged action '${label}'? (y/N): " answer
+  elif [[ -e /dev/tty ]]; then
+    read -rp "Allow privileged action '${label}'? (y/N): " answer < /dev/tty
+  else
+    warn "No TTY available; skipping privileged action: ${label}."
+    return 1
+  fi
+  [[ "$answer" =~ ^[Yy]$ ]]
 }
 
 normalize_local_models_csv() {
@@ -213,7 +234,11 @@ ensure_ollama_runtime() {
     fi
 
     if command -v systemctl >/dev/null 2>&1; then
-      sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+      if confirm_privileged_action "sudo systemctl enable --now ollama"; then
+        sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+      else
+        warn "Skipping sudo systemctl setup for Ollama; start the service manually if needed."
+      fi
     fi
     if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
       nohup ollama serve > "$HOME/log/ollama_serve.log" 2>&1 &
@@ -334,6 +359,7 @@ while [[ $# -gt 0 ]]; do
     --force-rebuild) FORCE_REBUILD=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --skip-offline) SKIP_OFFLINE=1; shift ;;
+    --no-remote-installers) NO_REMOTE_INSTALLERS=1; shift ;;
     --install-local-models) INSTALL_LOCAL_MODELS="$2"; shift 2 ;;
     --install-local-models=*) INSTALL_LOCAL_MODELS="${1#*=}"; shift ;;
     *) usage ;;

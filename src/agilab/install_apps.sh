@@ -176,6 +176,96 @@ resolve_physical_dir() {
   (cd "$1" >/dev/null 2>&1 && pwd -P)
 }
 
+is_truthy() {
+  local raw
+  raw="$(printf '%s' "${1:-}" | tr '[:upper:]' '[:lower:]')"
+  case "$raw" in
+    1|true|yes|on|enabled) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+apps_repository_in_allowlist() {
+  local repo="$1"
+  local physical_repo="$2"
+  local raw_allowlist="${AGILAB_APPS_REPOSITORY_ALLOWLIST:-}"
+  local -a entries=()
+  local entry physical_entry
+
+  [[ -n "${raw_allowlist//[[:space:],;]/}" ]] || return 1
+  parse_list_to_array entries "$raw_allowlist"
+  for entry in "${entries[@]}"; do
+    [[ -z "$entry" ]] && continue
+    if [[ "$entry" == "$repo" || "$entry" == "$physical_repo" ]]; then
+      return 0
+    fi
+    if [[ -e "$entry" ]]; then
+      physical_entry="$(resolve_physical_dir "$entry" 2>/dev/null || true)"
+      if [[ -n "$physical_entry" && "$physical_entry" == "$physical_repo" ]]; then
+        return 0
+      fi
+    fi
+  done
+  return 1
+}
+
+validate_apps_repository_policy() {
+  local repo="$1"
+  local physical_repo=""
+  local strict=0
+  local allow_floating=0
+  local head_ref=""
+  local tag_ref=""
+
+  [[ -n "$repo" ]] || return 0
+  physical_repo="$(resolve_physical_dir "$repo" 2>/dev/null || printf '%s' "$repo")"
+  if is_truthy "${AGILAB_STRICT_APPS_REPOSITORY:-}" || is_truthy "${AGILAB_SHARED_MODE:-}"; then
+    strict=1
+  fi
+  if is_truthy "${AGILAB_ALLOW_FLOATING_APPS_REPOSITORY:-}" || is_truthy "${AGILAB_DEV_APPS_REPOSITORY:-}"; then
+    allow_floating=1
+  fi
+
+  if (( strict )); then
+    if [[ -z "${AGILAB_APPS_REPOSITORY_ALLOWLIST:-}" ]]; then
+      echo -e "${RED}Error:${NC} Strict APPS_REPOSITORY mode requires AGILAB_APPS_REPOSITORY_ALLOWLIST." >&2
+      exit 1
+    fi
+    if ! apps_repository_in_allowlist "$repo" "$physical_repo"; then
+      echo -e "${RED}Error:${NC} APPS_REPOSITORY is not in AGILAB_APPS_REPOSITORY_ALLOWLIST: $repo" >&2
+      exit 1
+    fi
+  elif [[ -n "${AGILAB_APPS_REPOSITORY_ALLOWLIST:-}" ]] && ! apps_repository_in_allowlist "$repo" "$physical_repo"; then
+    echo -e "${YELLOW}Warning:${NC} APPS_REPOSITORY is not in AGILAB_APPS_REPOSITORY_ALLOWLIST: $repo" >&2
+  fi
+
+  if ! git -C "$repo" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if (( strict )); then
+      echo -e "${RED}Error:${NC} Strict APPS_REPOSITORY mode requires a Git checkout pinned to a commit SHA or immutable tag." >&2
+      exit 1
+    fi
+    echo -e "${YELLOW}Warning:${NC} APPS_REPOSITORY is not a Git checkout; review it before shared use." >&2
+    return 0
+  fi
+
+  head_ref="$(git -C "$repo" symbolic-ref -q --short HEAD 2>/dev/null || true)"
+  if [[ -n "$head_ref" ]]; then
+    if (( strict && ! allow_floating )); then
+      echo -e "${RED}Error:${NC} APPS_REPOSITORY is on floating branch '$head_ref'. Checkout a reviewed commit SHA or immutable tag, or set AGILAB_DEV_APPS_REPOSITORY=1 for an explicit dev install." >&2
+      exit 1
+    fi
+    echo -e "${YELLOW}Warning:${NC} APPS_REPOSITORY is on floating branch '$head_ref'; pin to a reviewed commit or immutable tag before shared use." >&2
+    return 0
+  fi
+
+  tag_ref="$(git -C "$repo" describe --exact-match --tags HEAD 2>/dev/null || true)"
+  if [[ -n "$tag_ref" ]]; then
+    echo -e "${BLUE}APPS_REPOSITORY pinned to tag:${NC} $tag_ref"
+  else
+    echo -e "${BLUE}APPS_REPOSITORY pinned to detached commit:${NC} $(git -C "$repo" rev-parse --short HEAD 2>/dev/null || true)"
+  fi
+}
+
 # Detect whether an application's data directory is reachable. Returns:
 #   0 - data root accessible
 #   2 - data root unavailable (e.g. NFS share offline)
@@ -306,6 +396,7 @@ in_list() {
 }
 
 if [[ -n "$APPS_REPOSITORY" ]]; then
+  validate_apps_repository_policy "$APPS_REPOSITORY"
   if PAGES_TARGET_BASE=$(discover_repo_dir "$APPS_REPOSITORY" "apps-pages"); then
     SKIP_REPOSITORY_PAGES=0
   else

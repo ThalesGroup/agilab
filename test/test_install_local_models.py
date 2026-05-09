@@ -316,10 +316,14 @@ def test_shell_installers_stage_remote_scripts_before_execution() -> None:
 
     for script_text in (root_text, enduser_text):
         assert "run_remote_shell_installer()" in script_text
+        assert "--no-remote-installers" in script_text
+        assert "NO_REMOTE_INSTALLERS" in script_text
         assert "curl --proto '=https' --tlsv1.2 -fsSL" in script_text
         assert "curl -fsSL https://ollama.com/install.sh | sh" not in script_text
         assert "curl -LsSf https://astral.sh/uv/install.sh | sh" not in script_text
         assert '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"' not in script_text
+        assert "confirm_privileged_action" in script_text
+        assert "sudo systemctl enable --now ollama" in script_text
 
     assert (
         'run_remote_shell_installer "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh" '

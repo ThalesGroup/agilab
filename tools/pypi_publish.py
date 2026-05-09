@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-agilab local publisher for TestPyPI / PyPI using ~/.pypirc.
+agilab local publisher for TestPyPI using ~/.pypirc.
 
 Highlights
 - Builds with uv (wheels and/or sdists). No pep517 shim.
 - Unified version for published AGI libraries + umbrella. Real PyPI never auto-bumps
   to .postN; choose an explicit new version instead. TestPyPI may auto-bump for retries.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
-- Twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
+- TestPyPI twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
 - Optional exact release deletion using pypi-cleanup --version-regex.
 - Optional yank previous versions on PyPI.
@@ -17,11 +17,13 @@ Highlights
 
 Typical:
   uv run tools/pypi_publish.py --repo testpypi
-  uv run tools/pypi_publish.py --repo pypi --purge-after \
-      --username <cleanup-user> --password <cleanup-pass>
+  # Real PyPI publication must use .github/workflows/pypi-publish.yaml
+  # with PyPI Trusted Publishing / OIDC.
 
 Notes
-- PyPI upload requires API token via ~/.pypirc (__token__/pypi-...). We do NOT take token via CLI.
+- Local twine upload to real PyPI is disabled by default so published files show
+  Trusted Publishing / OIDC provenance. Set AGILAB_ALLOW_LOCAL_PYPI_TWINE=1 only
+  for documented break-glass maintenance.
 - Cleanup/purge uses PyPI web login and needs real account USER/PASS (not token).
 """
 
@@ -72,6 +74,7 @@ from packaging.version import Version, InvalidVersion  # type: ignore
 UPLOAD_COLLISION_DETECTED: bool = False
 UPLOAD_SUCCESS_COUNT: int = 0
 UPLOAD_SKIPPED_EXISTING_COUNT: int = 0
+ALLOW_LOCAL_PYPI_TWINE_ENV = "AGILAB_ALLOW_LOCAL_PYPI_TWINE"
 
 
 # ---------- CLI ----------
@@ -513,6 +516,12 @@ def require_safe_pypi_release(cfg: Cfg) -> None:
         )
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only:
         return
+    if str(os.environ.get(ALLOW_LOCAL_PYPI_TWINE_ENV, "")).strip().lower() not in {"1", "true", "yes", "on"}:
+        raise SystemExit(
+            "ERROR: Local twine upload to real PyPI is disabled. "
+            "Run the GitHub pypi-publish workflow so PyPI files are uploaded via Trusted Publishing/OIDC. "
+            f"Break-glass local upload requires {ALLOW_LOCAL_PYPI_TWINE_ENV}=1 and must be documented."
+        )
     missing: list[str] = []
     if not cfg.git_commit_version:
         missing.append("--git-commit-version")
@@ -2177,9 +2186,9 @@ def main():
     print(f"[config] repo={cfg.repo} python={sys.executable} dist={cfg.dist} "
           f"skip_existing={cfg.skip_existing} retries={cfg.retries} clean={not cfg.skip_cleanup}")
 
+    require_safe_pypi_release(cfg)
     if cfg.pypirc_check:
         assert_pypirc_has(cfg.repo)
-    require_safe_pypi_release(cfg)
     run_release_preflight(cfg)
     if cfg.gen_docs or (cfg.repo == "pypi" and cfg.git_tag):
         docs_repo, source = find_docs_repository()

@@ -19,8 +19,18 @@ import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
-
 UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'` or install `agi-gui`."
+_PUBLIC_BIND_GUARD_PATH = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
+_PUBLIC_BIND_GUARD_SPEC = importlib.util.spec_from_file_location(
+    "agilab_ui_public_bind_guard_local",
+    _PUBLIC_BIND_GUARD_PATH,
+)
+if _PUBLIC_BIND_GUARD_SPEC is None or _PUBLIC_BIND_GUARD_SPEC.loader is None:
+    raise ModuleNotFoundError(f"Unable to load ui_public_bind_guard.py from {_PUBLIC_BIND_GUARD_PATH}")
+_PUBLIC_BIND_GUARD_MODULE = importlib.util.module_from_spec(_PUBLIC_BIND_GUARD_SPEC)
+_PUBLIC_BIND_GUARD_SPEC.loader.exec_module(_PUBLIC_BIND_GUARD_MODULE)
+PublicBindPolicyError = _PUBLIC_BIND_GUARD_MODULE.PublicBindPolicyError
+enforce_public_bind_policy = _PUBLIC_BIND_GUARD_MODULE.enforce_public_bind_policy
 
 
 def _detect_repo_root(start: Path) -> Path | None:
@@ -173,11 +183,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"agilab {version}" if version else "agilab version unavailable")
         return 0
 
+    try:
+        streamlit_host = enforce_public_bind_policy()
+    except PublicBindPolicyError as exc:
+        raise SystemExit(f"agilab: {exc}") from exc
+
     # Determine the target script (adjust path if necessary)
     target_script = str(Path(__file__).parent /"main_page.py")
 
     # Build the base argument list for Streamlit.
-    new_argv = ["streamlit", "run", target_script]
+    new_argv = ["streamlit", "run", "--server.address", streamlit_host, target_script]
 
     # Collect custom arguments (only pass what is provided).
     custom_args = []

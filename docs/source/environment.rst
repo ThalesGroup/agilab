@@ -135,6 +135,32 @@ summarises the supported keys.
    * - ``APPS_REPOSITORY``
      - unset
      - Optional pointer to the repository checkout containing apps or overrides.
+       Treat it as an executable-code boundary. For shared/team installs, set
+       ``AGILAB_STRICT_APPS_REPOSITORY=1`` or ``AGILAB_SHARED_MODE=1`` and
+       populate ``AGILAB_APPS_REPOSITORY_ALLOWLIST`` with the reviewed checkout
+       path. Strict mode refuses unallowlisted repositories and floating Git
+       branches unless ``AGILAB_DEV_APPS_REPOSITORY=1`` is set for an explicit
+       development install.
+   * - ``AGILAB_UI_HOST``
+     - ``127.0.0.1``
+     - Host passed by the ``agilab`` CLI to Streamlit. Keep the default for
+       local use. Binding to ``0.0.0.0`` or ``::`` is refused unless
+       ``AGILAB_PUBLIC_BIND_OK=1`` and an auth/TLS indicator such as
+       ``AGILAB_TLS_TERMINATED=1`` are both set.
+   * - ``AGILAB_PUBLIC_BIND_OK``
+     - unset
+     - Explicit acknowledgement that the Streamlit UI may bind publicly. This
+       flag is not sufficient alone; AGILAB also requires one of
+       ``AGILAB_AUTH_REQUIRED``, ``AGILAB_PUBLIC_AUTH``,
+       ``AGILAB_TLS_TERMINATED``, or ``STREAMLIT_AUTH_REQUIRED`` so accidental
+       public exposure fails closed.
+   * - ``AGILAB_GENERATED_CODE_SANDBOX``
+     - unset
+     - Required before WORKFLOW auto-fix may execute model-generated Python for
+       validation. Supported acknowledgement values are ``process``,
+       ``container``, or ``vm``. Leave unset unless generated-code execution is
+       actually isolated from personal files, secrets, network, and unbounded
+       CPU/RAM/time.
    * - ``INSTALL_TYPE``
      - ``1``
      - Controls the installation mode passed to ``AgiEnv``/installers (1 = developer workflow).

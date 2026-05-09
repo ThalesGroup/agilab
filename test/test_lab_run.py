@@ -49,6 +49,8 @@ def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
     assert captured == [[
         "streamlit",
         "run",
+        "--server.address",
+        "127.0.0.1",
         str(Path(lab_run.__file__).resolve().parent / "main_page.py"),
         "--",
         "--apps-path",
@@ -128,3 +130,31 @@ def test_main_reports_missing_ui_dependencies(monkeypatch):
 
     with pytest.raises(SystemExit, match=r"streamlit, agi-gui.*agilab\[ui\]"):
         lab_run.main([])
+
+
+def test_main_refuses_public_bind_without_auth_or_tls(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    monkeypatch.setenv("STREAMLIT_SERVER_ADDRESS", "0.0.0.0")
+    monkeypatch.delenv("AGILAB_PUBLIC_BIND_OK", raising=False)
+    monkeypatch.delenv("AGILAB_TLS_TERMINATED", raising=False)
+
+    with pytest.raises(SystemExit, match="refuses to bind"):
+        lab_run.main([])
+
+
+def test_main_allows_explicit_public_bind_with_tls_indicator(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps"))
+    monkeypatch.setenv("STREAMLIT_SERVER_ADDRESS", "0.0.0.0")
+    monkeypatch.setenv("AGILAB_PUBLIC_BIND_OK", "1")
+    monkeypatch.setenv("AGILAB_TLS_TERMINATED", "1")
+    captured: list[list[str]] = []
+
+    def fake_main():
+        captured.append(list(lab_run.sys.argv))
+        return 0
+
+    monkeypatch.setattr(lab_run, "_load_streamlit_cli", lambda: SimpleNamespace(main=fake_main))
+
+    assert lab_run.main([]) == 0
+    assert captured[0][2:4] == ["--server.address", "0.0.0.0"]

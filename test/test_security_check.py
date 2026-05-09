@@ -125,3 +125,43 @@ def test_cli_default_is_advisory_even_when_warnings_exist(tmp_path: Path, monkey
     assert rc == 0
     assert "AGILAB security-check: WARN" in captured.out
     assert "UI network exposure" in captured.out
+
+
+def test_build_report_warns_when_generated_code_autorun_has_no_sandbox(tmp_path: Path):
+    cwd = tmp_path / "repo"
+    home = tmp_path / "home"
+    cwd.mkdir()
+    home.mkdir()
+    _touch_now(cwd / "pip-audit.json")
+    _touch_now(cwd / "sbom-cyclonedx.json")
+
+    report = security_check.build_report(
+        environ={"UOAIC_AUTOFIX": "1"},
+        cwd=cwd,
+        home=home,
+        now=datetime.now(timezone.utc),
+    )
+
+    check = next(item for item in report["checks"] if item["id"] == "generated_code_execution_boundary")
+    assert check["status"] == "warn"
+    assert "AGILAB_GENERATED_CODE_SANDBOX" in check["remediation"]
+
+
+def test_build_report_accepts_generated_code_sandbox_indicator(tmp_path: Path):
+    cwd = tmp_path / "repo"
+    home = tmp_path / "home"
+    cwd.mkdir()
+    home.mkdir()
+    _touch_now(cwd / "pip-audit.json")
+    _touch_now(cwd / "sbom-cyclonedx.json")
+
+    report = security_check.build_report(
+        environ={"UOAIC_AUTOFIX": "1", "AGILAB_GENERATED_CODE_SANDBOX": "container"},
+        cwd=cwd,
+        home=home,
+        now=datetime.now(timezone.utc),
+    )
+
+    check = next(item for item in report["checks"] if item["id"] == "generated_code_execution_boundary")
+    assert check["status"] == "pass"
+    assert check["details"]["sandbox"] == "container"
