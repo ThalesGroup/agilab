@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-08
+  updated: 2026-05-09
 ---
 
 # Testing Skill (AGILAB)
@@ -81,6 +81,16 @@ Use this skill when validating changes.
   - When a page reuses one Streamlit session across multiple projects/apps, keep at least one regression for project-switch rehydration.
   - Assert that per-project widget keys are namespaced by project/app instead of using global keys like `"cluster_pool"` or `"cluster_cython"`.
   - If a bug involves preserving UI state across project changes, test the preservation decision separately from the AppTest when possible, so ordering bugs around `pop(...)` or reruns stay easy to diagnose.
+- Source/end-user bootstrap regressions:
+  - When a source run accidentally renders packaged or end-user paths such as `$HOME/agi-space`,
+    add both a cold-bootstrap regression and a warm-session regression with a preexisting stale
+    `st.session_state["env"]` or persisted `.agilab` state.
+  - Assert the page header/readiness model derives manager and worker paths from the selected
+    source checkout and active app, not from stale `APPS_PATH`, `.agilab-path`, or an old
+    packaged workspace.
+  - For PyCharm/source-install bugs, include a focused AppTest or helper test that runs with
+    explicit `--apps-path` and a polluted fake home so the old bug cannot be hidden by the
+    developer machine's clean state.
 - Workflow action feedback:
   - When a bug is visible only after clicking a workflow button, cover both the
     helper/action function and the UI surface that renders the result.

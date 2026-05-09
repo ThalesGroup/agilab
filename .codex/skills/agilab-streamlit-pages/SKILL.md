@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-08
+  updated: 2026-05-09
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -52,6 +52,24 @@ Use this skill when editing:
   - then rehydrate the new project's widget state from persisted settings
 - Treat `app_settings["cluster"]`, `app_settings["args"]`, or equivalent persisted payloads as the serializable config contract.
   - Widget keys are UI transport, not a second config layer.
+
+## Page Bootstrap And Path Drift
+
+- At page start, resolve the active app and apps root from the current launch context first:
+  explicit CLI args, current source checkout, and packaged runtime location. Only then consult
+  persisted user settings.
+- Do not let stale persisted state override the current launch root:
+  - `~/.agilab/.env`
+  - `~/.local/share/agilab/.agilab-path`
+  - a previous `st.session_state["env"]`
+  - a previous `active_app` or `APPS_PATH`
+- If the launch context says the page is running from source, UI readiness cards such as
+  ORCHESTRATE `Manager env` must point at the source app path, not `$HOME/agi-space`.
+- When the resolved app root changes, rebuild or realign the session `env` object before
+  rendering headers, buttons, or action state. Rendering first and repairing later leaves
+  stale paths visible to users and can make action buttons operate on the wrong project.
+- Add regressions for both cold sessions and warm sessions with stale `st.session_state`
+  when touching page bootstrap, sidebar project selection, or ORCHESTRATE header state.
 
 ## Derived Preview Metrics
 

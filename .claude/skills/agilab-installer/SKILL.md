@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-05-09
 ---
 
 # AGILAB Installer Skill
@@ -61,6 +61,22 @@ Use this skill when working on:
   - If an early install attempt used the real user `HOME`, discard that result
     as environment-polluted and rerun from a clean isolated `HOME` before
     publishing or deploying.
+
+- **Source checkout still resolves end-user install paths**
+  - Symptom: after running from a source checkout, ORCHESTRATE or the first page reports
+    manager env paths under `$HOME/agi-space/apps/builtin/<app>/.venv` instead of the
+    active checkout's `src/agilab/apps/builtin/<app>/.venv`.
+  - Treat this as path-precedence or persisted-state drift, not as a missing-install problem.
+  - Check, in order:
+    - the launched script path and working directory
+    - PyCharm SDK binding for the active checkout
+    - `~/.local/share/agilab/.agilab-path`
+    - `~/.agilab/.env` keys such as `APPS_PATH`, `IS_SOURCE_ENV`, and share paths
+    - whether Streamlit retained a stale `st.session_state["env"]` from an earlier run
+  - Reproduce with a clean `HOME` and with a deliberately polluted fake `HOME`; a fix that
+    only works on the maintainer machine is not release-ready.
+  - Do not work around this by copying source apps into `$HOME/agi-space`. The source run
+    must realign the active apps root and manager env path before app actions execute.
 
 - **Installer env propagation order**
   - If app tests fail because paths point to stale `~/.agilab/.env` values even
