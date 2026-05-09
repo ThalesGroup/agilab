@@ -503,6 +503,45 @@ def test_refresh_env_from_file_updates_env_map_and_apps_path(tmp_path, monkeypat
     assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
 
 
+def test_refresh_env_from_file_keeps_session_apps_path_over_stale_env_path(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    stale_apps = tmp_path / "agi-space" / "apps"
+    source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
+    stale_apps.mkdir(parents=True)
+    source_apps.mkdir(parents=True)
+    env_file.write_text(
+        "\n".join(
+            [
+                "OPENAI_MODEL=gpt-5.4",
+                f"APPS_PATH={stale_apps}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", env_file)
+    about_agilab.st.session_state.pop("env_file_mtime_ns", None)
+    previous_apps_path = about_agilab.st.session_state.get("apps_path")
+    about_agilab.st.session_state["apps_path"] = str(source_apps)
+
+    env = SimpleNamespace(
+        envars={},
+        apps_path=stale_apps,
+    )
+
+    try:
+        about_agilab._refresh_env_from_file(env)
+    finally:
+        if previous_apps_path is None:
+            about_agilab.st.session_state.pop("apps_path", None)
+        else:
+            about_agilab.st.session_state["apps_path"] = previous_apps_path
+
+    assert env.envars["OPENAI_MODEL"] == "gpt-5.4"
+    assert env.envars["APPS_PATH"] == str(stale_apps)
+    assert env.apps_path == source_apps.resolve()
+    assert about_agilab.st.session_state["env_file_mtime_ns"] == env_file.stat().st_mtime_ns
+
+
 def test_refresh_env_from_file_ignores_commented_template_defaults(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     env_file.write_text(
@@ -570,6 +609,7 @@ def test_bootstrap_resolve_apps_path_prefers_cli_then_env(tmp_path):
         args,
         env_file_path=tmp_path / ".env",
         load_env_file_map=lambda _path: {"APPS_PATH": str(env_apps)},
+        home_path=tmp_path,
     ) == cli_apps
 
     args = bootstrap.parse_startup_args([])
@@ -577,6 +617,7 @@ def test_bootstrap_resolve_apps_path_prefers_cli_then_env(tmp_path):
         args,
         env_file_path=tmp_path / ".env",
         load_env_file_map=lambda _path: {"APPS_PATH": str(env_apps)},
+        home_path=tmp_path,
     ) == env_apps
 
 
@@ -587,6 +628,18 @@ def test_bootstrap_resolve_apps_path_from_agilab_path_file(tmp_path):
     marker.write_text(str(install_root / ".venv" / "bin" / "python"), encoding="utf-8")
 
     assert bootstrap.apps_path_from_agilab_path_file(marker) == (install_root / "apps").resolve(
+        strict=False
+    )
+
+
+def test_bootstrap_resolve_apps_path_from_source_agilab_path_file(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_root = tmp_path / "agilab-src" / "src" / "agilab"
+    source_root.mkdir(parents=True)
+    marker = tmp_path / ".agilab-path"
+    marker.write_text(str(source_root), encoding="utf-8")
+
+    assert bootstrap.apps_path_from_agilab_path_file(marker) == (source_root / "apps").resolve(
         strict=False
     )
 
@@ -1119,6 +1172,26 @@ def test_bootstrap_resolve_apps_path_uses_marker_when_env_has_placeholder(tmp_pa
         load_env_file_map=lambda _path: {"APPS_PATH": "/path/to/apps"},
         home_path=tmp_path,
     ) == (install_root / "apps").resolve(strict=False)
+
+
+def test_bootstrap_resolve_apps_path_prefers_source_marker_over_stale_env(tmp_path):
+    bootstrap = about_agilab._about_bootstrap
+    source_root = tmp_path / "agilab-src" / "src" / "agilab"
+    source_apps = source_root / "apps"
+    stale_apps = tmp_path / "agi-space" / "apps"
+    source_root.mkdir(parents=True)
+    stale_apps.mkdir(parents=True)
+    marker = tmp_path / ".local/share/agilab/.agilab-path"
+    marker.parent.mkdir(parents=True)
+    marker.write_text(str(source_root), encoding="utf-8")
+
+    args = bootstrap.parse_startup_args([])
+    assert bootstrap.resolve_apps_path(
+        args,
+        env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: {"APPS_PATH": str(stale_apps)},
+        home_path=tmp_path,
+    ) == source_apps.resolve(strict=False)
 
 
 def test_bootstrap_active_app_helpers_handle_empty_same_and_failed_switch(tmp_path):

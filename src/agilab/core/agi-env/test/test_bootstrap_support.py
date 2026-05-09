@@ -65,7 +65,23 @@ def test_resolve_install_type_handles_default_worker_and_path_errors(tmp_path):
     assert resolve_install_type(_BrokenAppsPath()) == (0, False)
 
 
-def test_resolve_requested_apps_path_prefers_env_then_override(tmp_path):
+def test_resolve_requested_apps_path_prefers_explicit_apps_path_over_env(tmp_path):
+    env_apps = tmp_path / "agi-space" / "apps"
+    explicit_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
+    env_apps.mkdir(parents=True)
+    explicit_apps.mkdir(parents=True)
+
+    apps_path, builtin_root = resolve_requested_apps_path(
+        env_apps_path=str(env_apps),
+        explicit_apps_path=explicit_apps,
+        active_app_override=None,
+    )
+
+    assert apps_path == explicit_apps.resolve()
+    assert builtin_root is None
+
+
+def test_resolve_requested_apps_path_uses_env_when_no_explicit_root(tmp_path):
     env_apps = tmp_path / "env-apps"
     env_apps.mkdir()
     apps_path, builtin_root = resolve_requested_apps_path(
@@ -76,13 +92,19 @@ def test_resolve_requested_apps_path_prefers_env_then_override(tmp_path):
     assert apps_path == env_apps.resolve()
     assert builtin_root is None
 
+
+def test_resolve_requested_apps_path_prefers_absolute_active_override_over_env(tmp_path):
+    env_apps = tmp_path / "agi-space" / "apps"
+    env_apps.mkdir(parents=True)
     builtin_app = tmp_path / "apps" / "builtin" / "demo_project"
     builtin_app.mkdir(parents=True)
+
     apps_path, builtin_root = resolve_requested_apps_path(
-        env_apps_path="",
+        env_apps_path=str(env_apps),
         explicit_apps_path=None,
         active_app_override=builtin_app,
     )
+
     assert apps_path == builtin_app.parent.parent.resolve()
     assert builtin_root == builtin_app.parent.resolve()
 

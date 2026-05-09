@@ -88,14 +88,6 @@ def resolve_requested_apps_path(
     path_cls=Path,
 ) -> tuple[Path | None, Path | None]:
     """Resolve the effective apps root and any builtin root implied by an override path."""
-    if env_apps_path:
-        apps_path = path_cls(env_apps_path).expanduser()
-        try:
-            apps_path = apps_path.resolve()
-        except OSError:
-            pass
-        return apps_path, None
-
     if explicit_apps_path is not None:
         apps_path = path_cls(explicit_apps_path).expanduser()
         try:
@@ -104,14 +96,37 @@ def resolve_requested_apps_path(
             pass
         return apps_path, None
 
-    if active_app_override is not None:
+    def _is_absolute_path(value: Path) -> bool:
         try:
-            candidate_parent = active_app_override.parent.resolve()
+            return bool(value.is_absolute())
+        except AttributeError:
+            try:
+                return bool(path_cls(value).expanduser().is_absolute())
+            except (TypeError, ValueError):
+                return False
+
+    def _apps_path_from_active_override(value: Path) -> tuple[Path | None, Path | None]:
+        try:
+            candidate_parent = value.parent.resolve()
         except OSError:
-            candidate_parent = active_app_override.parent
+            candidate_parent = value.parent
         if candidate_parent.name == "builtin" and candidate_parent.parent.name == "apps":
             return candidate_parent.parent, candidate_parent
         return candidate_parent, None
+
+    if active_app_override is not None and _is_absolute_path(active_app_override):
+        return _apps_path_from_active_override(active_app_override)
+
+    if env_apps_path:
+        apps_path = path_cls(env_apps_path).expanduser()
+        try:
+            apps_path = apps_path.resolve()
+        except OSError:
+            pass
+        return apps_path, None
+
+    if active_app_override is not None:
+        return _apps_path_from_active_override(active_app_override)
 
     return None, None
 

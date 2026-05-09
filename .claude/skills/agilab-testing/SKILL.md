@@ -37,8 +37,8 @@ Use this skill when validating changes.
   files changed since the previous run; rerun only after edits that alter the
   impact surface.
 - Batch repeated artifact checks at the end of the edit loop:
-  docs mirror sync, coverage badge guard, skill mirror sync, Codex skill index
-  generation, and release dry-runs should not run once per skill.
+  docs mirror sync, release/pre-release coverage badge guard, skill mirror sync,
+  Codex skill index generation, and release dry-runs should not run once per skill.
 - Run cheap read-only inspections in parallel when possible, but keep write or
   generation commands serialized so generated files do not race.
 - If several workflow parity profiles are required, run each required profile

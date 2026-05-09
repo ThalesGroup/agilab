@@ -21,10 +21,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **High-frequency shortcuts**: prefer `./dev <shortcut>` for repeated local validation loops. The
   top shortcuts are `impact` for impact validation, `test` for targeted `pytest -q`, `regress` for
   GA-selected fast regression subsets, `flow` for one or more workflow parity profiles, `badge` for
-  the fresh coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact`
+  the explicit release/pre-release coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact`
   tells you what must be validated, `test` runs the narrow pytest slice, `regress` optimizes a likely
   regression subset from changed files and optional JUnit timings, `flow` matches local GitHub
-  workflow profiles, `badge` catches stale coverage badges, and `docs` keeps the public mirror
+  workflow profiles, `badge` checks badge freshness when intentionally requested, and `docs` keeps the public mirror
   aligned. Add `--print-only` to inspect the expanded commands.
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
@@ -49,9 +49,9 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   their `modules.xml` refs.
 - **Local-first validation**: do not jump to GitHub Actions when the same check can be run locally.
   Reproduce with the narrowest local command first: targeted `pytest`, isolated coverage commands,
-  `py_compile`, Sphinx builds, badge generation, or publish dry-runs. Use CI only for GitHub-only
-  behavior such as runner differences, OS/Python matrix coverage, permissions/secrets, or the final
-  publish/deploy step.
+  `py_compile`, Sphinx builds, or publish dry-runs. Reserve coverage badge generation for
+  release/pre-release validation or badge tooling changes. Use CI only for GitHub-only behavior such
+  as runner differences, OS/Python matrix coverage, permissions/secrets, or the final publish/deploy step.
 - **Impact triage first**: for non-trivial diffs, run
   `uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
   before editing further or pushing. Use its output to decide:

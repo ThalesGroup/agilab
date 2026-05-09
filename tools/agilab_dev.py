@@ -94,7 +94,7 @@ High-frequency mappings:
   test      -> Run targeted pytest with -q while keeping all extra pytest arguments.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
-  badge     -> Check that coverage badge inputs are fresh for the files changed locally.
+  badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   skills    -> Sync repo skills from Claude to Codex, then validate and regenerate indexes.
 """
