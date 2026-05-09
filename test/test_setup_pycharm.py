@@ -349,6 +349,70 @@ def test_disable_pyproject_auto_import_turns_off_pyproject_module_sync(tmp_path:
     assert option.get("value") == "false"
 
 
+def test_rebinds_root_run_configs_to_checkout_sdk(tmp_path: Path) -> None:
+    root = tmp_path / "agilab-src"
+    root.mkdir()
+    cfg = setup_pycharm.Config(root=root)
+    cfg.create_directories()
+    project = setup_pycharm.Project(cfg)
+
+    root_config = cfg.RUN_CONFIGS_DIR / "agilab_run__dev_.xml"
+    root_config.write_text(
+        """<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="agilab run (dev)" type="PythonConfigurationType" factoryName="Python">
+    <module name="agilab" />
+    <option name="SDK_HOME" value="" />
+    <option name="IS_MODULE_SDK" value="true" />
+    <option name="SCRIPT_NAME" value="streamlit" />
+  </configuration>
+</component>
+""",
+        encoding="utf-8",
+    )
+    fixed_root_config = cfg.RUN_CONFIGS_DIR / "publish_dry_run.xml"
+    fixed_root_config.write_text(
+        """<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="publish dry run" type="PythonConfigurationType" factoryName="Python">
+    <module name="agilab" />
+    <option name="SDK_HOME" value="" />
+    <option name="SDK_NAME" value="uv (agilab)" />
+    <option name="IS_MODULE_SDK" value="false" />
+  </configuration>
+</component>
+""",
+        encoding="utf-8",
+    )
+    app_config = cfg.RUN_CONFIGS_DIR / "builtin_flight_run.xml"
+    app_config.write_text(
+        """<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="builtin flight run" type="PythonConfigurationType" factoryName="Python">
+    <module name="flight_project" />
+    <option name="SDK_HOME" value="" />
+    <option name="SDK_NAME" value="uv (flight_project)" />
+    <option name="IS_MODULE_SDK" value="false" />
+  </configuration>
+</component>
+""",
+        encoding="utf-8",
+    )
+
+    assert project.ensure_root_run_config_sdk_bindings() == 2
+
+    dev = _read_generated_config(root, "agilab_run__dev_.xml")
+    assert dev.find("module").get("name") == "agilab-src"
+    assert _option(dev, "SDK_NAME") == "uv (agilab-src)"
+    assert _option(dev, "IS_MODULE_SDK") == "false"
+
+    publish = _read_generated_config(root, "publish_dry_run.xml")
+    assert publish.find("module").get("name") == "agilab-src"
+    assert _option(publish, "SDK_NAME") == "uv (agilab-src)"
+    assert _option(publish, "IS_MODULE_SDK") == "false"
+
+    app = _read_generated_config(root, "builtin_flight_run.xml")
+    assert app.find("module").get("name") == "flight_project"
+    assert _option(app, "SDK_NAME") == "uv (flight_project)"
+
+
 def _read_generated_config(tmp_path: Path, name: str) -> ET.Element:
     tree = ET.parse(tmp_path / ".idea" / "runConfigurations" / name)
     config = tree.getroot().find("configuration")
