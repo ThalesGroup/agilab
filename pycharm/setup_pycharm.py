@@ -282,7 +282,10 @@ def _bootstrap_project_venv(project_dir: Path) -> Optional[Path]:
     return venv_python_for(project_dir)
 
 
-ROOT_UI_IMPORT_MODULES = ("agi_gui", "streamlit", "tomli_w")
+ROOT_DEV_EXTRA_IMPORT_MODULES = {
+    "ui": ("agi_gui", "streamlit", "tomli_w"),
+    "mlflow": ("mlflow",),
+}
 
 
 def _project_declares_extra(project_dir: Path, extra: str) -> bool:
@@ -331,16 +334,28 @@ def _missing_import_modules(python_path: Path, modules: Iterable[str]) -> list[s
     return module_names
 
 
+def _declared_root_dev_extras(cfg: Config) -> tuple[list[str], list[str]]:
+    extras: list[str] = []
+    modules: list[str] = []
+    for extra, extra_modules in ROOT_DEV_EXTRA_IMPORT_MODULES.items():
+        if not _project_declares_extra(cfg.ROOT, extra):
+            continue
+        extras.append(extra)
+        modules.extend(extra_modules)
+    return extras, modules
+
+
 def ensure_project_ui_environment(cfg: Config) -> Optional[Path]:
     """Ensure source-checkout UI run configs can run with UV_NO_SYNC=1."""
 
-    if not _project_declares_extra(cfg.ROOT, "ui"):
+    extras, modules = _declared_root_dev_extras(cfg)
+    if not extras:
         return venv_python_for(cfg.ROOT)
 
     root_python = venv_python_for(cfg.ROOT)
-    missing = list(ROOT_UI_IMPORT_MODULES)
+    missing = modules
     if root_python:
-        missing = _missing_import_modules(root_python, ROOT_UI_IMPORT_MODULES)
+        missing = _missing_import_modules(root_python, modules)
         if not missing:
             return root_python
 
@@ -354,15 +369,19 @@ def ensure_project_ui_environment(cfg: Config) -> Optional[Path]:
         if root_python is None
         else f"missing modules: {', '.join(missing)}"
     )
-    logging.info("Syncing %s with the ui extra (%s).", cfg.ROOT.name, reason)
+    logging.info("Syncing %s with dev UI extra(s) %s (%s).", cfg.ROOT.name, ", ".join(extras), reason)
+    sync_args = [uv_bin, "sync", "--project", "."]
+    for extra in extras:
+        sync_args.extend(["--extra", extra])
+    sync_args.extend(["--preview-features", "python-upgrade"])
     try:
         subprocess.run(
-            [uv_bin, "sync", "--project", ".", "--extra", "ui", "--preview-features", "python-upgrade"],
+            sync_args,
             cwd=cfg.ROOT,
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        logging.warning("uv sync --extra ui failed for %s: %s", cfg.ROOT.name, exc)
+        logging.warning("uv sync with dev UI extra(s) failed for %s: %s", cfg.ROOT.name, exc)
         return root_python
 
     return venv_python_for(cfg.ROOT)
