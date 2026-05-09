@@ -44,6 +44,17 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         forwarded = args or ["--staged"]
         return [_uv_python("tools/impact_validate.py", *forwarded)]
 
+    if command in {"bugfix", "fix"}:
+        forwarded = args or ["--staged"]
+        selector_args = list(forwarded)
+        if "--run" not in selector_args:
+            selector_args.append("--run")
+        impact_args = [item for item in forwarded if item != "--run"]
+        return [
+            _uv_python("tools/impact_validate.py", *impact_args),
+            _uv_python("tools/ga_regression_selector.py", *selector_args),
+        ]
+
     if command == "test":
         return [[*UV_RUN, "pytest", "-q", *args]]
 
@@ -82,6 +93,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
 def _usage() -> str:
     return """Usage:
   ./dev [--print-only] impact [impact_validate args]
+  ./dev [--print-only] bugfix [changed-file args]
   ./dev [--print-only] test [pytest args]
   ./dev [--print-only] regress [ga_regression_selector args]
   ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
@@ -91,10 +103,11 @@ def _usage() -> str:
 
 High-frequency mappings:
   impact    -> Analyze changed files and list the required local validations; defaults to --staged.
+  bugfix    -> Run impact triage, then run the GA-selected fast regression subset; defaults to --staged.
   test      -> Run targeted pytest with -q while keeping all extra pytest arguments.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
-  badge     -> Check that coverage badge inputs are fresh for the files changed locally.
+  badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   skills    -> Sync repo skills from Claude to Codex, then validate and regenerate indexes.
 """

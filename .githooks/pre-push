@@ -9,17 +9,45 @@ if [[ "${AGILAB_SKIP_LOCAL_GUARDS:-}" == "1" ]]; then
 fi
 
 cd "$ROOT_DIR"
-uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
-  --verify-stamp \
-  --quiet
-uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
-  --check \
-  --delete \
-  --quiet \
-  --skip-missing-source
-uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
-  --check \
-  --quiet
-uv --preview-features extra-build-dependencies run python tools/coverage_badge_guard.py \
-  --changed-only \
-  --require-fresh-xml
+guard_state="$(
+  uv --preview-features extra-build-dependencies run python tools/pre_push_changed_files.py
+)"
+DOCS_CHANGED=1
+RELEASE_PROOF_CHANGED=1
+DETECTION_FAILED=1
+CHANGED_COUNT=0
+DETECTION_ERROR="missing guard-state output"
+while IFS='=' read -r key value; do
+  case "$key" in
+    DOCS_CHANGED) DOCS_CHANGED="$value" ;;
+    RELEASE_PROOF_CHANGED) RELEASE_PROOF_CHANGED="$value" ;;
+    DETECTION_FAILED) DETECTION_FAILED="$value" ;;
+    CHANGED_COUNT) CHANGED_COUNT="$value" ;;
+    DETECTION_ERROR) DETECTION_ERROR="$value" ;;
+  esac
+done <<< "$guard_state"
+
+if [[ "${DETECTION_FAILED:-0}" == "1" ]]; then
+  echo "[agilab pre-push] changed-file detection failed; running all local guards. ${DETECTION_ERROR:-}" >&2
+fi
+
+if [[ "${DOCS_CHANGED:-1}" == "1" ]]; then
+  uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+    --verify-stamp \
+    --quiet
+  uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+    --check \
+    --delete \
+    --quiet \
+    --skip-missing-source
+else
+  echo "[agilab pre-push] docs mirror inputs unchanged; skipping docs mirror guard." >&2
+fi
+
+if [[ "${RELEASE_PROOF_CHANGED:-1}" == "1" ]]; then
+  uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
+    --check \
+    --quiet
+else
+  echo "[agilab pre-push] release-proof inputs unchanged; skipping release-proof guard." >&2
+fi

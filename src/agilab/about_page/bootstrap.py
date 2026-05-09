@@ -88,17 +88,73 @@ def default_agilab_path_file(
 
 
 def apps_path_from_agilab_path_file(agi_path_file: Path) -> Path:
-    """Resolve the apps directory from a packaged-install ``.agilab-path`` file."""
+    """Resolve the apps directory from a source or packaged-install ``.agilab-path`` file."""
     agilab_path = agi_path_file.read_text(encoding="utf-8").strip()
     if not agilab_path:
         raise FileNotFoundError(f"Empty .agilab-path at {agi_path_file}")
     before, sep, _after = agilab_path.rpartition(".venv")
     if not sep:
+        source_root = Path(agilab_path).expanduser()
+        if source_root.name == "agilab" and source_root.parent.name == "src":
+            try:
+                return (source_root / "apps").resolve(strict=False)
+            except OSError as path_err:
+                raise ValueError(f"Cannot resolve apps path from .agilab-path: {path_err}") from path_err
         raise ValueError(f"Malformed .agilab-path (missing .venv marker): {agilab_path!r}")
     try:
         return (Path(before).resolve(strict=False) / "apps").resolve(strict=False)
     except OSError as path_err:
         raise ValueError(f"Cannot resolve apps path from .agilab-path: {path_err}") from path_err
+
+
+def _looks_like_source_apps_path(path: Path | None) -> bool:
+    if path is None:
+        return False
+    try:
+        resolved = Path(path).resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        resolved = Path(path)
+    if resolved.name == "builtin":
+        resolved = resolved.parent
+    return (
+        resolved.name == "apps"
+        and resolved.parent.name == "agilab"
+        and resolved.parent.parent.name == "src"
+    )
+
+
+def source_launch_env_updates(apps_path: Path | None) -> dict[str, str]:
+    """Return pre-init env overrides required for source-checkout launches."""
+    if not _looks_like_source_apps_path(apps_path):
+        return {}
+    try:
+        apps_path = Path(apps_path).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        apps_path = Path(apps_path)
+    if apps_path.name == "builtin":
+        apps_path = apps_path.parent
+    return {
+        "APPS_PATH": str(apps_path),
+        "IS_SOURCE_ENV": "1",
+        "IS_WORKER_ENV": "0",
+    }
+
+
+def persist_preinit_launch_env(
+    agi_env_cls: Any,
+    updates: Mapping[str, str],
+    *,
+    environ: MutableMapping[str, str] | None = None,
+) -> None:
+    """Persist launch-critical env values before constructing ``AgiEnv``."""
+    if not updates:
+        return
+    environ = environ if environ is not None else os.environ
+    setter = getattr(agi_env_cls, "set_env_var", None)
+    for key, value in updates.items():
+        environ[key] = value
+        if callable(setter):
+            setter(key, value)
 
 
 def resolve_apps_path(
@@ -112,18 +168,31 @@ def resolve_apps_path(
 ) -> Path | None:
     """Resolve the apps path from CLI, user .env, or packaged install marker."""
     apps_arg = args.apps_path
+    marker_apps_path: Path | None = None
+    marker_error: Exception | None = None
+    agi_path_file = default_agilab_path_file(
+        os_name=os_name,
+        environ=environ,
+        home_path=home_path,
+    )
+    try:
+        marker_apps_path = apps_path_from_agilab_path_file(agi_path_file)
+    except (FileNotFoundError, ValueError) as exc:
+        marker_error = exc
+
+    if apps_arg is None and _looks_like_source_apps_path(marker_apps_path):
+        apps_arg = marker_apps_path
+
     if apps_arg is None:
         env_apps = load_env_file_map(env_file_path).get("APPS_PATH")
         if env_apps and env_apps.strip() and not env_apps.startswith("/path/to"):
             apps_arg = env_apps.strip()
 
     if apps_arg is None:
-        agi_path_file = default_agilab_path_file(
-            os_name=os_name,
-            environ=environ,
-            home_path=home_path,
-        )
-        apps_arg = apps_path_from_agilab_path_file(agi_path_file)
+        if marker_apps_path is not None:
+            apps_arg = marker_apps_path
+        elif marker_error is not None:
+            raise marker_error
 
     return Path(apps_arg).expanduser() if apps_arg else None
 
@@ -220,6 +289,9 @@ def persisted_active_app_request(env: Any, raw_value: Any) -> str | None:
                     return text
             except (TypeError, RuntimeError, ValueError, OSError):
                 continue
+        if normalize_active_app_input(env, name) is not None:
+            return name
+        return None
     projects = getattr(env, "projects", set()) or set()
     if name in projects:
         return name
@@ -522,6 +594,12 @@ def bootstrap_page_environment(
         return BootstrapResult(env=None, handled_recovery=True)
 
     streamlit.session_state["apps_path"] = str(apps_path)
+    preinit_updates = source_launch_env_updates(apps_path)
+    persist_preinit_launch_env(
+        ports.agi_env_cls,
+        preinit_updates,
+        environ=ports.environ,
+    )
 
     try:
         env = ports.agi_env_cls(apps_path=apps_path, verbose=1)
@@ -566,7 +644,7 @@ def bootstrap_page_environment(
     openai_missing = persist_bootstrap_env(
         env,
         apps_path=apps_path,
-        explicit_apps_path=bool(args.apps_path),
+        explicit_apps_path=bool(args.apps_path) or bool(preinit_updates),
         saved_env=saved_env,
         agi_env_cls=ports.agi_env_cls,
         clean_openai_key=clean_openai_key,
