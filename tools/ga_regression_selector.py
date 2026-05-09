@@ -40,6 +40,12 @@ COMMON_TOKENS = {
     "page",
     "pages",
     "project",
+    "agi",
+    "gui",
+    "lib",
+    "core",
+    "env",
+    "state",
 }
 
 
@@ -149,6 +155,40 @@ def _discover_test_files(test_roots: Sequence[str] = DEFAULT_TEST_ROOTS) -> list
                 tests.append(rel)
                 seen.add(rel)
     return tests
+
+
+def _is_shared_core_change(path: str) -> bool:
+    return path.startswith(
+        (
+            "src/agilab/core/",
+            "install.sh",
+            "src/agilab/install_apps.sh",
+            "src/agilab/apps/install.py",
+        )
+    )
+
+
+def _is_gui_only_change(path: str) -> bool:
+    return path.startswith(
+        (
+            "src/agilab/apps-pages/",
+            "src/agilab/lib/",
+            "src/agilab/pages/",
+            "src/agilab/orchestrate_",
+            "src/agilab/pipeline_",
+            "src/agilab/main_page.py",
+        )
+    )
+
+
+def _is_allowed_candidate(path: str, changed_files: Sequence[str], guessed_tests: set[str]) -> bool:
+    if path in guessed_tests:
+        return True
+    shared_core_changed = any(_is_shared_core_change(changed) for changed in changed_files)
+    gui_changed = any(_is_gui_only_change(changed) for changed in changed_files)
+    if gui_changed and not shared_core_changed and path.startswith("src/agilab/core/"):
+        return False
+    return True
 
 
 def _module_to_test_path(classname: str) -> str | None:
@@ -295,6 +335,8 @@ def build_candidates(changed_files: Sequence[str], timings: dict[str, float]) ->
     guessed_tests = set(impact.guessed_tests)
     candidates: list[TestCandidate] = []
     for path in _discover_test_files():
+        if not _is_allowed_candidate(path, changed_files, guessed_tests):
+            continue
         score, reasons = _score_test(path, changed_files, guessed_tests)
         if score <= 1.0 and path not in guessed_tests:
             continue

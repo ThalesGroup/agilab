@@ -51,6 +51,32 @@ def test_build_selection_prioritizes_direct_impact_tests() -> None:
     )
 
 
+def test_orchestrate_gui_change_stays_in_gui_regression_slice() -> None:
+    module = _load_module()
+
+    result = module.build_selection(
+        [
+            "src/agilab/orchestrate_page_state.py",
+            "src/agilab/lib/agi-gui/src/agi_gui/orchestrate_execute.py",
+        ],
+        timings={
+            "test/test_orchestrate_execute.py": 0.4,
+            "test/test_orchestrate_page_state.py": 0.2,
+            "test/test_orchestrate_page_helpers.py": 3.5,
+        },
+        budget_seconds=45,
+        population=16,
+        generations=8,
+        seed=13,
+    )
+
+    assert "test/test_orchestrate_execute.py" in result.required_tests
+    assert "test/test_orchestrate_page_state.py" in result.required_tests
+    assert all(not path.startswith("src/agilab/core/") for path in result.selected_tests)
+    assert all("global_pipeline" not in path for path in result.selected_tests)
+    assert len(result.selected_tests) <= 10
+
+
 def test_selection_is_deterministic_for_same_seed() -> None:
     module = _load_module()
     kwargs = {

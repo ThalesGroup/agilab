@@ -113,7 +113,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     commands = planned_commands(args)
     for command in commands:
-        print(shlex.join(command))
+        output = sys.stdout if print_only else sys.stderr
+        print(shlex.join(command), file=output, flush=True)
         if print_only:
             continue
         completed = subprocess.run(command, cwd=ROOT)
