@@ -158,8 +158,16 @@ def generate_scripts(runconfig_dir: Path, out_dir: Path, project_root: Path) -> 
             script_lines.append(f'cd "{workdir_expanded}"')
         if envs:
             for key, value in envs:
+                if key == "VIRTUAL_ENV":
+                    continue
                 value_expanded = expand_macros(value)
                 script_lines.append(f'export {key}="{value_expanded}"')
+        script_lines.extend(
+            [
+                "# Let uv select the run-config project .venv instead of a stale activated shell.",
+                "unset VIRTUAL_ENV",
+            ]
+        )
         script_lines.append(cmd)
         script_lines.append("")
 

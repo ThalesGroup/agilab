@@ -9,4 +9,6 @@ cd "$REPO_ROOT"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
 export IS_SOURCE_ENV="1"
+# Let uv select the run-config project .venv instead of a stale activated shell.
+unset VIRTUAL_ENV
 uv run streamlit run $REPO_ROOT/src/agilab/main_page.py -- --openai-api-key "your-key" --apps-path $REPO_ROOT/src/agilab/apps

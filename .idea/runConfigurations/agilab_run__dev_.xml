@@ -5,6 +5,7 @@
     <option name="INTERPRETER_OPTIONS" value="" />
     <option name="PARENT_ENVS" value="true" />
     <envs>
+      <env name="VIRTUAL_ENV" value="" />
       <env name="PYTHONUNBUFFERED" value="1" />
       <env name="UV_NO_SYNC" value="1" />
       <env name="IS_SOURCE_ENV" value="1" />

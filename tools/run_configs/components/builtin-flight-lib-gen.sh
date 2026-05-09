@@ -8,4 +8,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$HOME/wenv/flight_worker"
 export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
+# Let uv select the run-config project .venv instead of a stale activated shell.
+unset VIRTUAL_ENV
 uv run python -m agi_node.agi_dispatcher.build --app-path $HOME/wenv/flight_worker build_ext --packages "dag_worker, pandas_worker, polars_worker, agent_worker" -b $HOME/wenv/flight_worker

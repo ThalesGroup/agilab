@@ -294,6 +294,7 @@ def build_task_entry(config: RunConfiguration, inputs: dict[str, dict[str, str]]
         key: expand_for_vscode(value, inputs)
         for key, value in config.env_map.items()
     }
+    env_map["VIRTUAL_ENV"] = ""
     return {
         "label": config.name,
         "type": "shell",

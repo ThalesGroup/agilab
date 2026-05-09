@@ -580,6 +580,7 @@ def test_tracked_run_configs_use_valid_uv_sdk_bindings() -> None:
         if config is None:
             continue
         options = {opt.get("name"): opt.get("value", "") for opt in config.findall("option")}
+        envs = {env.get("name"): env.get("value", "") for env in config.findall("./envs/env")}
         option_values = "\n".join(options.values())
         module_sdk = options.get("IS_MODULE_SDK") == "true"
         fixed_sdk = options.get("IS_MODULE_SDK") == "false"
@@ -593,6 +594,8 @@ def test_tracked_run_configs_use_valid_uv_sdk_bindings() -> None:
                 problems.append(f"{path.name}: fixed SDK config missing SDK_NAME")
         else:
             problems.append(f"{path.name}: IS_MODULE_SDK={options.get('IS_MODULE_SDK')!r}")
+        if config.get("type") == "PythonConfigurationType" and envs.get("VIRTUAL_ENV") != "":
+            problems.append(f"{path.name}: VIRTUAL_ENV must be cleared for uv run")
         if "wenv/builtin" in option_values:
             problems.append(f"{path.name}: stale builtin worker path")
 
