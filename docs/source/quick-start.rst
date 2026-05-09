@@ -101,6 +101,11 @@ machine-readable proof record.
 
       ./install.sh --install-apps --install-local-models gpt-oss,qwen3-coder,ministral,phi4-mini
 
+   For hardened workstations where downloaded shell installers must not run,
+   add ``--no-remote-installers``. The installer will refuse remote bootstrap
+   scripts such as Ollama or Homebrew installers and leave those prerequisites
+   for your managed package baseline.
+
    Supported values are ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``,
    ``qwen3-coder``, ``ministral``, and ``phi4-mini``. The first family in the
    list becomes the default WORKFLOW local assistant. For example, ``gpt-oss``
@@ -123,6 +128,11 @@ machine-readable proof record.
 3. **Launch the web interface**::
 
        uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+
+   The local UI is intended to stay on loopback. If you intentionally expose it
+   through a reverse proxy, set ``AGILAB_PUBLIC_BIND_OK=1`` plus a real
+   protection indicator such as ``AGILAB_TLS_TERMINATED=1`` before using
+   ``--server.address 0.0.0.0``.
 
 4. **Keep the first run local and use the built-in flight demo**
 
@@ -268,6 +278,14 @@ checkouts, likely plaintext secrets in ``~/.agilab/.env``, public UI bind
 addresses, cluster-share isolation, optional local-model profiles, and missing
 SBOM / ``pip-audit`` evidence. It is advisory by default so first proof and
 local experimentation stay fast.
+
+To generate per-profile scan evidence instead of a single generic artifact::
+
+    uv --preview-features extra-build-dependencies run python tools/profile_supply_chain_scan.py --profile all --run
+
+This writes ``requirements.txt``, ``pip-audit.json``, and
+``sbom-cyclonedx.json`` under ``test-results/supply-chain/<profile>/`` for the
+base, UI, AI, MLflow, local-LLM, and offline install profiles.
 
 Maintainers can produce the same artifact from the repo workflow-parity helper::
 

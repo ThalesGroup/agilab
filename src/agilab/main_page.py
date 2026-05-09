@@ -19,6 +19,27 @@ logger = AgiLogger.get_logger(__name__)
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parent / "resources" / "config.toml"))
 
 import streamlit as st
+_public_bind_guard_path = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
+_public_bind_guard_spec = importlib.util.spec_from_file_location(
+    "agilab_ui_public_bind_guard_local",
+    _public_bind_guard_path,
+)
+if _public_bind_guard_spec is None or _public_bind_guard_spec.loader is None:
+    raise ModuleNotFoundError(f"Unable to load ui_public_bind_guard.py from {_public_bind_guard_path}")
+_public_bind_guard_module = importlib.util.module_from_spec(_public_bind_guard_spec)
+_public_bind_guard_spec.loader.exec_module(_public_bind_guard_module)
+
+try:
+    from streamlit import config as _streamlit_config
+
+    _public_bind_guard_module.enforce_public_bind_policy(
+        os.environ,
+        streamlit_config_getter=_streamlit_config.get_option,
+    )
+except _public_bind_guard_module.PublicBindPolicyError as exc:
+    st.error(str(exc))
+    st.stop()
+
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
 if _import_guard_spec is None or _import_guard_spec.loader is None:

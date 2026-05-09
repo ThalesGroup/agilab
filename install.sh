@@ -46,6 +46,10 @@ run_remote_shell_installer() {
     local url="$1"
     local label="$2"
     local interpreter="${3:-sh}"
+    if [[ "${NO_REMOTE_INSTALLERS:-0}" == "1" ]]; then
+        warn "Remote shell installers are disabled (--no-remote-installers); refusing ${label} from ${url}."
+        return 1
+    fi
     local safe_label
     safe_label="$(printf '%s' "$label" | tr -cs 'A-Za-z0-9_.-' '_' | sed 's/^_//;s/_$//')"
     local script_path
@@ -104,6 +108,7 @@ case "$SKIP_OFFLINE_NORMALIZED" in
     *) SKIP_OFFLINE=0 ;;
 esac
 INSTALL_LOCAL_MODELS="${INSTALL_LOCAL_MODELS:-}"
+NO_REMOTE_INSTALLERS="${AGILAB_NO_REMOTE_INSTALLERS:-0}"
 DRY_RUN=0
 export INSTALL_ALL_SENTINEL INSTALL_BUILTIN_SENTINEL INSTALLED_APPS_FILE
 
@@ -378,6 +383,25 @@ warn() {
     echo -e "${YELLOW}Warning:${NC} $*"
 }
 
+confirm_privileged_action() {
+    local label="$1"
+    if (( NON_INTERACTIVE )); then
+        warn "Non-interactive mode; skipping privileged action: ${label}."
+        return 1
+    fi
+
+    local answer="n"
+    if [[ -t 0 ]]; then
+        read -rp "Allow privileged action '${label}'? (y/N): " answer
+    elif [[ -e /dev/tty ]]; then
+        read -rp "Allow privileged action '${label}'? (y/N): " answer < /dev/tty
+    else
+        warn "No TTY available; skipping privileged action: ${label}."
+        return 1
+    fi
+    [[ "$answer" =~ ^[Yy]$ ]]
+}
+
 normalize_local_model_name() {
     local raw="${1:-}"
     local normalized
@@ -523,7 +547,11 @@ ensure_ollama_runtime() {
         fi
 
         if command -v systemctl >/dev/null 2>&1; then
-            sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+            if confirm_privileged_action "sudo systemctl enable --now ollama"; then
+                sudo systemctl enable --now ollama >/dev/null 2>&1 || true
+            else
+                warn "Skipping sudo systemctl setup for Ollama; start the service manually if needed."
+            fi
         fi
         if ! curl -fsS http://127.0.0.1:11434/api/tags >/dev/null 2>&1; then
             nohup ollama serve > "$HOME/log/ollama_serve.log" 2>&1 &
@@ -1261,6 +1289,7 @@ print_dry_run_plan() {
     echo "test_apps: ${TEST_APPS_FLAG}"
     echo "skip_offline: ${SKIP_OFFLINE}"
     echo "local_models: ${INSTALL_LOCAL_MODELS:-<none>}"
+    echo "no_remote_installers: ${NO_REMOTE_INSTALLERS}"
     echo "non_interactive: ${NON_INTERACTIVE}"
     echo "steps_would_run:"
     echo "  - check internet and validation-environment guard"
@@ -1281,6 +1310,7 @@ usage() {
   echo "Usage: CLUSTER_CREDENTIALS=<user[:password]> OPENAI_API_KEY=<api-key> $0 [--agi-cluster-share <path>] [--install-path <path> --apps-repository <path>] [--source local|pypi|testpypi] [--install-apps [app1,app2,...|all|builtin]] [--test-root] [--test-apps|--apps-test] [--test-core]"
   echo "       [--dry-run]       Print the install plan without changing environments or installing dependencies"
   echo "       [--skip-offline]  (or set SKIP_OFFLINE=1)"
+  echo "       [--no-remote-installers]  Refuse downloaded shell installers such as uv/Ollama/Homebrew bootstrap scripts"
   echo "       [--install-local-models gpt-oss,qwen,deepseek,qwen3,qwen3-coder,ministral,phi4-mini]"
     exit 1
 }
@@ -1370,6 +1400,7 @@ while [[ "$#" -gt 0 ]]; do
             shift
             ;;
         --skip-offline)       SKIP_OFFLINE=1; shift;;
+        --no-remote-installers) NO_REMOTE_INSTALLERS=1; shift;;
         --non-interactive|--yes|-y) NON_INTERACTIVE=1; shift;;
         --dry-run)            shift;;
         --help|-h) usage && exit;;
@@ -1379,6 +1410,7 @@ done
 INSTALL_LOCAL_MODELS="$(normalize_local_models_csv "$INSTALL_LOCAL_MODELS")"
 export CLUSTER_CREDENTIALS
 export APPS_REPOSITORY
+export AGILAB_NO_REMOTE_INSTALLERS="$NO_REMOTE_INSTALLERS"
 
 if (( DRY_RUN )); then
     print_dry_run_plan

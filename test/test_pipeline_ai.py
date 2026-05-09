@@ -2269,7 +2269,7 @@ def test_maybe_autofix_generated_code_paths(monkeypatch):
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
     push_run_log = lambda *_args: logs.append(_args[1])
     get_run_placeholder = lambda _page: "placeholder"
-    env = SimpleNamespace(envars={})
+    env = SimpleNamespace(envars={pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process"})
 
     code, model, detail = pipeline_ai._maybe_autofix_generated_code(
         original_request="q",
@@ -2340,7 +2340,7 @@ def test_maybe_autofix_generated_code_short_circuits_for_provider_attempts_and_d
         }
     )
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
-    env = SimpleNamespace(envars={})
+    env = SimpleNamespace(envars={pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process"})
 
     unchanged = pipeline_ai._maybe_autofix_generated_code(
         original_request="q",
@@ -2398,6 +2398,40 @@ def test_maybe_autofix_generated_code_short_circuits_for_provider_attempts_and_d
     assert seen["with_index"] is False
     assert unchanged[0] == "raise ValueError('boom')"
     assert any("no dataframe is loaded" in entry for entry in logs)
+
+
+def test_maybe_autofix_generated_code_requires_sandbox_boundary(monkeypatch):
+    logs: list[str] = []
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_llm_provider": pipeline_ai.UOAIC_PROVIDER,
+            pipeline_ai.UOAIC_AUTOFIX_STATE_KEY: True,
+            pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY: 1,
+            "loaded_df": pd.DataFrame({"x": [1]}),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_ai,
+        "_exec_code_on_df",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("generated code should not run")),
+    )
+
+    code, model, detail = pipeline_ai._maybe_autofix_generated_code(
+        original_request="q",
+        df_path=Path("df.csv"),
+        index_page="page",
+        env=SimpleNamespace(envars={}),
+        merged_code="df['y'] = df['x'] + 1",
+        model_label="m",
+        detail="detail",
+        load_df_cached=lambda path: pd.DataFrame({"x": [1]}),
+        push_run_log=lambda *_args: logs.append(_args[1]),
+        get_run_placeholder=lambda _page: "placeholder",
+    )
+
+    assert (code, model, detail) == ("df['y'] = df['x'] + 1", "m", "detail")
+    assert any("generated-code execution requires" in entry for entry in logs)
 
 
 def test_chat_ollama_local_covers_missing_model_and_generation_failure(monkeypatch):
@@ -2884,6 +2918,7 @@ def test_ask_gpt_and_autofix_cover_empty_and_failed_repair_paths(monkeypatch):
 
     fake_st.session_state[pipeline_ai.UOAIC_AUTOFIX_STATE_KEY] = False
     env.envars[pipeline_ai.UOAIC_AUTOFIX_ENV] = "1"
+    env.envars[pipeline_ai.GENERATED_CODE_SANDBOX_ENV] = "process"
     logs: list[str] = []
     monkeypatch.setattr(
         pipeline_ai,
@@ -2990,7 +3025,7 @@ def test_autofix_and_provider_switch_cover_remaining_error_paths(monkeypatch):
         original_request="q",
         df_path=Path("df.csv"),
         index_page="page",
-        env=SimpleNamespace(envars={}),
+        env=SimpleNamespace(envars={pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process"}),
         merged_code="raise ValueError('boom')",
         model_label="model-a",
         detail="detail-a",

@@ -22,6 +22,12 @@ def _load_pypi_publish():
     return module
 
 
+@pytest.fixture(autouse=True)
+def _allow_break_glass_pypi_for_release_flow_unit_tests(monkeypatch):
+    """Most tests exercise release ordering internals, not the outer OIDC gate."""
+    monkeypatch.setenv("AGILAB_ALLOW_LOCAL_PYPI_TWINE", "1")
+
+
 def _base_cfg(module, **overrides):
     values = {
         "repo": "pypi",
@@ -301,6 +307,40 @@ def test_require_safe_pypi_release_rejects_missing_repo_sync_flags() -> None:
         assert "--git-reset-on-failure" in str(exc)
     else:
         raise AssertionError("require_safe_pypi_release() should reject unsafe real PyPI publish settings")
+
+
+def test_require_safe_pypi_release_rejects_local_twine_without_break_glass(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.delenv(module.ALLOW_LOCAL_PYPI_TWINE_ENV, raising=False)
+
+    cfg = module.Cfg(
+        repo="pypi",
+        dist="both",
+        skip_existing=True,
+        retries=1,
+        dry_run=False,
+        verbose=False,
+        version=None,
+        purge_before=False,
+        purge_after=False,
+        cleanup_only=False,
+        clean_days=None,
+        clean_delete_project=False,
+        cleanup_user=None,
+        cleanup_pass=None,
+        cleanup_timeout=0,
+        skip_cleanup=True,
+        yank_previous=False,
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        pypirc_check=False,
+        packages=["agilab"],
+        gen_docs=False,
+    )
+
+    with pytest.raises(SystemExit, match="Trusted Publishing/OIDC"):
+        module.require_safe_pypi_release(cfg)
 
 
 def test_require_safe_pypi_release_rejects_skipping_release_preflight() -> None:

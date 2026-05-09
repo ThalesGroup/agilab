@@ -469,6 +469,64 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     assert any("Environment variables updated" in msg for msg in success_msgs)
 
 
+def test_agilab_main_page_refuses_unprotected_public_bind(mock_ui_env):
+    home_root = mock_ui_env["apps_dir"].parent
+    at = _app_test("src/agilab/main_page.py")
+
+    with patch.dict(
+        os.environ,
+        {
+            "HOME": str(home_root),
+            "STREAMLIT_SERVER_ADDRESS": "0.0.0.0",
+            "AGILAB_PUBLIC_BIND_OK": "",
+            "AGILAB_TLS_TERMINATED": "",
+        },
+        clear=False,
+    ):
+        at.run()
+
+    assert not list(at.exception)
+    assert any("refuses to bind the Streamlit UI publicly" in item.value for item in at.error)
+
+
+def test_env_editor_redacts_sensitive_values_in_widgets_and_preview(mock_ui_env):
+    module = _import_agilab_module("agilab.about_page.env_editor")
+
+    assert module._is_sensitive_env_key("OPENAI_API_KEY")
+    assert module._is_sensitive_env_key("MISTRAL_TOKEN")
+    assert not module._is_sensitive_env_key("AGI_CLUSTER_SHARE")
+    assert module._env_editor_input_value("OPENAI_API_KEY", "sk-real-secret") == ""
+    assert module._env_preview_value("OPENAI_API_KEY", "sk-real-secret") == module.REDACTED_ENV_VALUE
+    assert module._env_preview_value("CLUSTER_CREDENTIALS", module.KEYRING_SENTINEL) == "<stored in keyring>"
+
+
+def test_agilab_main_page_env_editor_does_not_render_secret_values(mock_ui_env):
+    home_root = mock_ui_env["apps_dir"].parent
+    env_file = home_root / ".agilab" / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "OPENAI_API_KEY=sk-real-secret-should-not-render",
+                "MISTRAL_API_TOKEN=mistral-secret-should-not-render",
+                "AGI_CLUSTER_SHARE=clustershare/user",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    at = _app_test("src/agilab/main_page.py")
+    with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
+        at.run()
+
+    assert not at.exception
+    rendered = "\n".join(str(item.value) for item in list(at.code) + list(at.markdown) + list(at.caption))
+    assert "sk-real-secret-should-not-render" not in rendered
+    assert "mistral-secret-should-not-render" not in rendered
+    assert "OPENAI_API_KEY=<redacted>" in rendered
+    assert at.text_input(key="env_editor_val_OPENAI_API_KEY").value == ""
+
+
 def test_agilab_main_page_shows_agilab_version(mock_ui_env):
     home_root = mock_ui_env["apps_dir"].parent
     at = _app_test("src/agilab/main_page.py")

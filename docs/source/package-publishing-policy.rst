@@ -80,6 +80,13 @@ API tokens are not part of the normal release path. If a package or repository
 is not configured as a PyPI trusted publisher, the publish workflow should stop
 with an explicit configuration error instead of falling back to a stored token.
 
+The local ``tools/pypi_publish.py`` helper may still build packages and publish
+to TestPyPI for rehearsals, but local twine upload to real PyPI is disabled by
+default. Real PyPI files should come from ``.github/workflows/pypi-publish.yaml``
+so PyPI metadata shows Trusted Publishing/OIDC provenance. Any break-glass local
+twine upload requires ``AGILAB_ALLOW_LOCAL_PYPI_TWINE=1`` and a documented
+release exception.
+
 Release evidence should continue to record the bounded nature of the public
 proof: package smoke tests, docs, and hosted demos are useful evidence, but they
 do not certify private clusters, sensitive-data deployments, or production

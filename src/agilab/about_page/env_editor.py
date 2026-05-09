@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import importlib.resources as importlib_resources
 import importlib.util
+import re
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -50,6 +51,8 @@ bound_log_value = _logging_utils_module.bound_log_value
 
 logger = AgiLogger.get_logger(__name__)
 ENV_FILE_PATH = Path.home() / ".agilab/.env"
+SENSITIVE_ENV_KEY_RE = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)", re.IGNORECASE)
+REDACTED_ENV_VALUE = "<redacted>"
 try:
     TEMPLATE_ENV_PATH = importlib_resources.files("agi_env") / "resources/.agilab/.env"
 except (ModuleNotFoundError, FileNotFoundError, AttributeError, OSError):
@@ -187,6 +190,27 @@ def _strip_dotenv_quotes(value: str) -> str:
     if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
         return v[1:-1]
     return v
+
+
+def _is_sensitive_env_key(key: str) -> bool:
+    """Return True when an environment variable name likely carries a secret."""
+    return bool(SENSITIVE_ENV_KEY_RE.search(str(key or "")))
+
+
+def _env_editor_input_value(key: str, value: str) -> str:
+    """Return the value safe to place in an editable widget."""
+    if _is_sensitive_env_key(key):
+        return ""
+    return value
+
+
+def _env_preview_value(key: str, value: str) -> str:
+    """Return the value safe to render in the `.env` preview block."""
+    if key == CLUSTER_CREDENTIALS_KEY and value == KEYRING_SENTINEL:
+        return "<stored in keyring>"
+    if _is_sensitive_env_key(key) and value:
+        return REDACTED_ENV_VALUE
+    return value
 
 
 def _read_env_file(path: Path) -> List[Dict[str, str]]:
@@ -434,6 +458,10 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
         "Workers can override it with `<worker-host>_PYTHON_VERSION`, "
         "for example `127.0.0.1_PYTHON_VERSION=3.13`."
     )
+    st.caption(
+        "Secret-like variables (`KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `CREDENTIAL`) "
+        "are hidden. Leave an existing secret blank to keep the saved value."
+    )
 
     with st.form("env_editor_form"):
         for key in unique_keys:
@@ -441,20 +469,25 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
             if key == CLUSTER_CREDENTIALS_KEY and key not in last_value_map:
                 default_value = ""
             if key == CLUSTER_CREDENTIALS_KEY and default_value == KEYRING_SENTINEL:
-                default_value = (
-                    str(getattr(env, "CLUSTER_CREDENTIALS", "") or "")
-                    or str(getattr(env, "envars", {}).get(CLUSTER_CREDENTIALS_KEY, "") or "")
-                )
+                default_value = ""
+            display_value = _env_editor_input_value(key, default_value)
             st.text_input(
                 _env_editor_field_label(key),
-                value=default_value,
+                value=display_value,
                 key=f"env_editor_val_{key}",
                 help=f"Set value for {key}",
+                type="password" if _is_sensitive_env_key(key) else "default",
             )
 
         st.markdown("#### Add a new variable")
         new_key = st.text_input("Variable name", key="env_editor_new_key", placeholder="MY_SETTING")
-        new_value = st.text_input("Variable value", key="env_editor_new_value", placeholder="value")
+        new_key_draft = str(st.session_state.get("env_editor_new_key", "") or "")
+        new_value = st.text_input(
+            "Variable value",
+            key="env_editor_new_value",
+            placeholder="value",
+            type="password" if _is_sensitive_env_key(new_key_draft) else "default",
+        )
 
         submitted = st.form_submit_button("Save .env", type="primary")
 
@@ -462,6 +495,8 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
         cleaned_updates: Dict[str, str] = {}
         for key in unique_keys:
             submitted_value = st.session_state.get(f"env_editor_val_{key}", "").strip()
+            if _is_sensitive_env_key(key) and key in last_value_map and not submitted_value:
+                continue
             untouched_template_default = commented_default_map.get(key, template_defaults.get(key, ""))
             if key not in last_value_map and submitted_value == untouched_template_default:
                 continue
@@ -545,17 +580,11 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
 
         merged = []
         for key in template_keys:
-            value = current.get(key, "")
-            if key == CLUSTER_CREDENTIALS_KEY and value == KEYRING_SENTINEL:
-                value = "<stored in keyring>"
-            merged.append(f"{key}={value}")
+            merged.append(f"{key}={_env_preview_value(key, current.get(key, ''))}")
         for key in sorted(current.keys()):
             if key in template_keys:
                 continue
-            if key == CLUSTER_CREDENTIALS_KEY and current.get(key) == KEYRING_SENTINEL:
-                merged.append(f"{key}=<stored in keyring>")
-            else:
-                merged.append(f"{key}={current[key]}")
+            merged.append(f"{key}={_env_preview_value(key, current[key])}")
         if merged:
             st.code("\n".join(merged))
         else:

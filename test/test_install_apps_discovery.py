@@ -54,6 +54,41 @@ refresh_repository_link App "$1" "$2"
     return completed.stdout
 
 
+def _run_validate_apps_repository_policy(
+    repo_root: Path,
+    *,
+    strict: bool,
+    allowlist: str = "",
+    allow_floating: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    script_text = INSTALL_APPS_SH.read_text(encoding="utf-8")
+    start = script_text.index("parse_list_to_array() {")
+    end = script_text.index("\n# Detect whether", start)
+    function_body = script_text[start:end]
+    bash_script = f"""#!/usr/bin/env bash
+set -euo pipefail
+RED=''
+YELLOW=''
+BLUE=''
+NC=''
+{function_body}
+validate_apps_repository_policy "$1"
+"""
+    env = {
+        "AGILAB_STRICT_APPS_REPOSITORY": "1" if strict else "0",
+        "AGILAB_APPS_REPOSITORY_ALLOWLIST": allowlist,
+        "AGILAB_ALLOW_FLOATING_APPS_REPOSITORY": "1" if allow_floating else "0",
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin",
+    }
+    return subprocess.run(
+        ["bash", "-c", bash_script, "validate_apps_repository_policy_test", str(repo_root)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
 @pytest.mark.parametrize(
     ("name", "direct_child", "nested_child"),
     [
@@ -116,3 +151,28 @@ def test_refresh_repository_link_recreates_existing_symlink(tmp_path: Path) -> N
 
     assert dest.is_symlink()
     assert dest.resolve() == new_target.resolve()
+
+
+def test_validate_apps_repository_policy_rejects_floating_branch_in_strict_mode(tmp_path: Path) -> None:
+    repo_root = tmp_path / "apps_repo"
+    repo_root.mkdir()
+    subprocess.run(["git", "init", "-b", "main"], cwd=repo_root, check=True, capture_output=True, text=True)
+
+    result = _run_validate_apps_repository_policy(
+        repo_root,
+        strict=True,
+        allowlist=str(repo_root.resolve()),
+    )
+
+    assert result.returncode == 1
+    assert "floating branch" in result.stderr
+
+
+def test_validate_apps_repository_policy_requires_allowlist_in_strict_mode(tmp_path: Path) -> None:
+    repo_root = tmp_path / "apps_repo"
+    repo_root.mkdir()
+
+    result = _run_validate_apps_repository_policy(repo_root, strict=True)
+
+    assert result.returncode == 1
+    assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in result.stderr

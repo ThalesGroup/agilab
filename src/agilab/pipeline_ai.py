@@ -95,6 +95,10 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parent / "pipeline_stages.py",
     fallback_name="agilab_pipeline_stages_fallback",
 )
+
+GENERATED_CODE_SANDBOX_ENV = "AGILAB_GENERATED_CODE_SANDBOX"
+GENERATED_CODE_SANDBOX_MODES = frozenset({"process", "container", "vm"})
+
 import_agilab_symbols(
     globals(),
     "agilab.pipeline_ai_support",
@@ -766,6 +770,20 @@ def _maybe_autofix_generated_code(
     except (TypeError, ValueError):
         max_attempts = 2
     if max_attempts <= 0:
+        return merged_code, model_label, detail
+
+    sandbox = (
+        str(env.envars.get(GENERATED_CODE_SANDBOX_ENV) or os.getenv(GENERATED_CODE_SANDBOX_ENV) or "")
+        .strip()
+        .lower()
+    )
+    if sandbox not in GENERATED_CODE_SANDBOX_MODES:
+        push_run_log(
+            index_page,
+            "Auto-fix skipped: generated-code execution requires "
+            f"{GENERATED_CODE_SANDBOX_ENV}=process|container|vm.",
+            get_run_placeholder(index_page),
+        )
         return merged_code, model_label, detail
 
     df: Any = st.session_state.get("loaded_df")
