@@ -8,6 +8,24 @@ from pathlib import Path
 from typing import Any, Callable
 
 
+def _safe_resolved_path(value: Any) -> Path | None:
+    try:
+        return Path(value).expanduser().resolve(strict=False)
+    except (TypeError, RuntimeError, ValueError, OSError):
+        return None
+
+
+def _page_apps_path(current_file: str | Path) -> Path | None:
+    current_path = _safe_resolved_path(current_file)
+    if current_path is None:
+        return None
+    try:
+        apps_path = current_path.parents[1] / "apps"
+    except IndexError:
+        return None
+    return apps_path if apps_path.exists() else None
+
+
 def session_env_ready(
     session_state: Any,
     *,
@@ -18,6 +36,50 @@ def session_env_ready(
     if env_key not in session_state:
         return False
     return bool(getattr(session_state[env_key], "init_done", init_done_default))
+
+
+def realign_session_env_with_page_root(
+    session_state: Any,
+    current_file: str | Path,
+    *,
+    env_key: str = "env",
+) -> bool:
+    """Repair a stale page session env that belongs to a different AGILAB launch root."""
+    if env_key not in session_state:
+        return False
+    expected_apps_path = _page_apps_path(current_file)
+    if expected_apps_path is None:
+        return False
+
+    env = session_state[env_key]
+    env_apps_path = _safe_resolved_path(getattr(env, "apps_path", None))
+    recorded_apps_path = _safe_resolved_path(session_state.get("apps_path"))
+    if env_apps_path == expected_apps_path:
+        return False
+    if recorded_apps_path != expected_apps_path:
+        return False
+
+    app_name = Path(str(getattr(env, "app", "") or "")).name
+    if not app_name:
+        active_app = getattr(env, "active_app", None)
+        app_name = Path(str(active_app)).name if active_app else ""
+    if not app_name:
+        return False
+
+    previous_init_done = getattr(env, "init_done", None)
+    try:
+        type(env).__init__(
+            env,
+            apps_path=expected_apps_path,
+            app=app_name,
+            verbose=getattr(env, "verbose", None),
+        )
+        if previous_init_done is not None:
+            env.init_done = previous_init_done
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+    session_state["apps_path"] = str(expected_apps_path)
+    return True
 
 
 def load_about_page_module(
@@ -65,6 +127,7 @@ def ensure_page_env(
         streamlit.session_state,
         init_done_default=init_done_default,
     ):
+        realign_session_env_with_page_root(streamlit.session_state, current_file)
         return streamlit.session_state["env"]
 
     about_page = load_about_page_module(current_file, load_module=load_module)

@@ -193,6 +193,55 @@ def test_page_bootstrap_session_env_ready_handles_missing_and_init_flags():
     assert page_bootstrap.session_env_ready({"env": env}) is True
 
 
+def test_page_bootstrap_realigns_stale_session_env_to_page_root(tmp_path):
+    source_root = tmp_path / "agilab-src" / "src" / "agilab"
+    source_apps = source_root / "apps"
+    page_file = source_root / "pages" / "2_ORCHESTRATE.py"
+    source_project = source_apps / "builtin" / "flight_project"
+    stale_apps = tmp_path / "agi-space" / "apps" / "builtin"
+    page_file.parent.mkdir(parents=True)
+    source_project.mkdir(parents=True)
+    stale_apps.mkdir(parents=True)
+
+    class FakeEnv:
+        def __init__(self, *, apps_path: Path, app: str = "flight_project", verbose: int | None = 1):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / "builtin" / app if apps_path.name == "apps" else apps_path / app
+            self.init_done = True
+
+    env = FakeEnv(apps_path=stale_apps)
+    session_state = {
+        "env": env,
+        "apps_path": str(source_apps),
+    }
+
+    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is True
+    assert env.apps_path == source_apps
+    assert env.active_app == source_project
+    assert session_state["apps_path"] == str(source_apps)
+    assert env.init_done is True
+
+
+def test_page_bootstrap_keeps_session_env_when_recorded_root_differs(tmp_path):
+    source_root = tmp_path / "agilab-src" / "src" / "agilab"
+    source_apps = source_root / "apps"
+    other_apps = tmp_path / "other" / "apps"
+    page_file = source_root / "pages" / "2_ORCHESTRATE.py"
+    page_file.parent.mkdir(parents=True)
+    source_apps.mkdir(parents=True)
+    other_apps.mkdir(parents=True)
+    env = SimpleNamespace(apps_path=other_apps, app="flight_project", init_done=True)
+    session_state = {
+        "env": env,
+        "apps_path": str(other_apps),
+    }
+
+    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is False
+    assert env.apps_path == other_apps
+
+
 def test_import_guard_error_is_rendered_as_code(monkeypatch):
     fake_st = _StoppingStreamlit()
     monkeypatch.setattr(about_agilab, "st", fake_st)
