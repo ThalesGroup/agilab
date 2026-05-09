@@ -1,4 +1,4 @@
-import toml
+import tomllib
 import sys
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
@@ -7,7 +7,8 @@ import json
 CANDIDATE_VERSIONS = [f"3.{i}" for i in range(6, 14)]  # 3.6 to 3.13
 
 def extract_requires_python(path):
-    data = toml.load(path)
+    with open(path, "rb") as stream:
+        data = tomllib.load(stream)
     req_python = None
     if 'project' in data and 'requires-python' in data['project']:
         req_python = data['project']['requires-python']
