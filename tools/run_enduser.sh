@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Let uv select agi-space/.venv instead of a stale activated developer shell.
+unset VIRTUAL_ENV
+
 pushd "$HOME" >/dev/null
   mkdir -p agi-space || true
   pushd "agi-space" >/dev/null
