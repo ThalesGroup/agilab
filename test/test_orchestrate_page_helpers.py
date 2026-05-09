@@ -1072,6 +1072,43 @@ def test_is_app_installed_requires_manager_and_worker_venvs():
         assert module._is_app_installed(env) is True
 
 
+def test_install_status_warning_skips_first_launch_missing_manager(tmp_path: Path):
+    module = _load_orchestrate_module()
+    install_status = {
+        "manager_ready": False,
+        "worker_ready": True,
+        "manager_exists": False,
+        "worker_exists": True,
+        "manager_problem": f"environment path does not exist: {tmp_path / 'flight_project' / '.venv'}",
+        "worker_problem": "",
+    }
+
+    assert module._install_status_warning_message(install_status) is None
+    label, caption = module._runtime_status_label(install_status)
+    assert label == "Needs INSTALL"
+    assert caption == "Manager environment has not been created yet. Run INSTALL before RUN."
+
+
+def test_install_status_warning_reports_existing_stale_environment():
+    module = _load_orchestrate_module()
+    install_status = {
+        "manager_ready": False,
+        "worker_ready": True,
+        "manager_exists": True,
+        "worker_exists": True,
+        "manager_problem": "missing modules: agi_cluster",
+        "worker_problem": "",
+    }
+
+    warning = module._install_status_warning_message(install_status)
+    assert warning is not None
+    assert "Environment install is incomplete or stale" in warning
+    assert "missing modules: agi_cluster" in warning
+    label, caption = module._runtime_status_label(install_status)
+    assert label == "Needs INSTALL"
+    assert caption == "missing modules: agi_cluster"
+
+
 def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
     module = _load_orchestrate_module()
 
