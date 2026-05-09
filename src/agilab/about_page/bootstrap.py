@@ -146,10 +146,11 @@ def normalize_active_app_input(env: Any, raw_value: Optional[str]) -> Path | Non
         candidates.append((env.apps_path / provided).resolve())
         candidates.append((env.apps_path / provided.name).resolve())
 
-    if raw_value in env.projects:
-        candidates.insert(0, (env.apps_path / raw_value).resolve())
-    elif provided.name in env.projects:
-        candidates.insert(0, (env.apps_path / provided.name).resolve())
+    if not provided.is_absolute():
+        if raw_value in env.projects:
+            candidates.insert(0, (env.apps_path / raw_value).resolve())
+        elif provided.name in env.projects:
+            candidates.insert(0, (env.apps_path / provided.name).resolve())
 
     for candidate in candidates:
         try:
@@ -161,6 +162,53 @@ def normalize_active_app_input(env: Any, raw_value: Optional[str]) -> Path | Non
     return None
 
 
+def _normalized_existing_or_requested_path(raw_value: Any) -> Path | None:
+    try:
+        return Path(raw_value).expanduser().resolve()
+    except (TypeError, RuntimeError, ValueError, OSError):
+        return None
+
+
+def active_app_store_path(env: Any) -> Path:
+    """Return the real active app path to persist for future launches."""
+    active_app = getattr(env, "active_app", None)
+    if active_app:
+        try:
+            return Path(active_app).expanduser()
+        except (TypeError, RuntimeError, ValueError, OSError):
+            pass
+    return Path(env.apps_path) / env.app
+
+
+def _active_app_path_matches(env: Any, target_path: Path) -> bool:
+    current_path = getattr(env, "active_app", None)
+    if current_path is None:
+        return True
+    normalized_current = _normalized_existing_or_requested_path(current_path)
+    normalized_target = _normalized_existing_or_requested_path(target_path)
+    if normalized_current is None or normalized_target is None:
+        return False
+    return normalized_current == normalized_target
+
+
+def _rebootstrap_same_named_active_app(env: Any, target_path: Path, target_name: str, *, streamlit: Any) -> bool:
+    """Switch to the same project name under another root without using name-only change_app."""
+    previous_init_done = getattr(env, "init_done", None)
+    try:
+        type(env).__init__(
+            env,
+            apps_path=target_path.parent,
+            app=target_name,
+            verbose=getattr(env, "verbose", None),
+        )
+        if previous_init_done is not None:
+            env.init_done = previous_init_done
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        streamlit.warning(f"Unable to switch to project '{target_name}': {exc}")
+        return False
+    return True
+
+
 def apply_active_app_request(env: Any, request_value: Optional[str], *, streamlit: Any) -> bool:
     """Switch AgiEnv to the requested app name/path; returns True if a change occurred."""
     target_path = normalize_active_app_input(env, request_value)
@@ -169,7 +217,9 @@ def apply_active_app_request(env: Any, request_value: Optional[str], *, streamli
 
     target_name = target_path.name
     if target_name == env.app:
-        return False
+        if _active_app_path_matches(env, target_path):
+            return False
+        return _rebootstrap_same_named_active_app(env, target_path, target_name, streamlit=streamlit)
     try:
         env.change_app(target_path)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -208,7 +258,7 @@ def sync_active_app_from_query(
 
     try:
         if changed:
-            store_last_active_app(Path(env.apps_path) / env.app)
+            store_last_active_app(active_app_store_path(env))
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
 
@@ -260,7 +310,7 @@ def persist_bootstrap_env(
 def remember_active_app(env: Any, store_last_active_app: Callable[[Path], Any]) -> None:
     """Persist the latest active app path when possible."""
     try:
-        store_last_active_app(Path(env.apps_path) / env.app)
+        store_last_active_app(active_app_store_path(env))
     except (OSError, RuntimeError, TypeError, ValueError):
         pass
 
