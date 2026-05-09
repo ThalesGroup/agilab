@@ -282,6 +282,92 @@ def _bootstrap_project_venv(project_dir: Path) -> Optional[Path]:
     return venv_python_for(project_dir)
 
 
+ROOT_UI_IMPORT_MODULES = ("agi_gui", "streamlit", "tomli_w")
+
+
+def _project_declares_extra(project_dir: Path, extra: str) -> bool:
+    pyproject = project_dir / "pyproject.toml"
+    if not pyproject.exists():
+        return False
+
+    try:
+        text = pyproject.read_text(encoding="utf-8")
+    except OSError as exc:
+        logging.warning("Unable to read %s: %s", pyproject, exc)
+        return False
+
+    return (
+        "[project.optional-dependencies]" in text
+        and re.search(rf"(?m)^\s*{re.escape(extra)}\s*=", text) is not None
+    )
+
+
+def _missing_import_modules(python_path: Path, modules: Iterable[str]) -> list[str]:
+    module_names = list(modules)
+    probe = (
+        "import importlib.util, sys\n"
+        "missing = [name for name in sys.argv[1:] if importlib.util.find_spec(name) is None]\n"
+        "print('\\n'.join(missing))\n"
+        "raise SystemExit(1 if missing else 0)\n"
+    )
+    result = subprocess.run(
+        [str(python_path), "-c", probe, *module_names],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode == 0:
+        return []
+    if result.returncode == 1:
+        missing = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        return missing or module_names
+
+    logging.warning(
+        "Unable to probe root UI modules with %s: %s",
+        python_path,
+        result.stderr.strip() or f"exit code {result.returncode}",
+    )
+    return module_names
+
+
+def ensure_project_ui_environment(cfg: Config) -> Optional[Path]:
+    """Ensure source-checkout UI run configs can run with UV_NO_SYNC=1."""
+
+    if not _project_declares_extra(cfg.ROOT, "ui"):
+        return venv_python_for(cfg.ROOT)
+
+    root_python = venv_python_for(cfg.ROOT)
+    missing = list(ROOT_UI_IMPORT_MODULES)
+    if root_python:
+        missing = _missing_import_modules(root_python, ROOT_UI_IMPORT_MODULES)
+        if not missing:
+            return root_python
+
+    uv_bin = _find_uv_binary()
+    if not uv_bin:
+        logging.warning("'uv' command not found while syncing the project UI extra.")
+        return root_python
+
+    reason = (
+        "missing root virtual environment"
+        if root_python is None
+        else f"missing modules: {', '.join(missing)}"
+    )
+    logging.info("Syncing %s with the ui extra (%s).", cfg.ROOT.name, reason)
+    try:
+        subprocess.run(
+            [uv_bin, "sync", "--project", ".", "--extra", "ui", "--preview-features", "python-upgrade"],
+            cwd=cfg.ROOT,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        logging.warning("uv sync --extra ui failed for %s: %s", cfg.ROOT.name, exc)
+        return root_python
+
+    return venv_python_for(cfg.ROOT)
+
+
 def seed_example_scripts(cfg: Config, app_slug: str) -> None:
     if not app_slug:
         return
@@ -1578,6 +1664,7 @@ def main() -> int:
 
     remove_stale_agilab_paths(cfg)
     ensure_agilab_path_marker(cfg)
+    ensure_project_ui_environment(cfg)
 
     model = Project(cfg)
     model.disable_pyproject_auto_import()
