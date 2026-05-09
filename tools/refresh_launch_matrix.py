@@ -55,11 +55,10 @@ def parse_run_configs(rc_dir: Path) -> list[tuple[str, str, str, str, str, str, 
             continue
 
         name = cfg.get('name', '')
-        sdk = ''
         opts = {opt.get('name'): opt.get('value', '') for opt in cfg.findall('option')}
-        for opt in cfg.findall('option'):
-            if opt.get('name') == 'SDK_NAME':
-                sdk = opt.get('value', '')
+        sdk = opts.get('SDK_NAME', '')
+        if opts.get('IS_MODULE_SDK') == 'true' and not sdk:
+            sdk = 'Project/module SDK'
 
         envs_el = cfg.find('envs')
         envs: list[str] = []

@@ -403,7 +403,7 @@ def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> N
     assert _option(manager_test, "SCRIPT_NAME").endswith("/test/test_flight_manager.py")
 
 
-def test_tracked_run_configs_use_explicit_uv_sdks() -> None:
+def test_tracked_run_configs_use_valid_uv_sdk_bindings() -> None:
     if Path(".git").exists():
         tracked = subprocess.run(
             ["git", "ls-files", "--", ".idea/runConfigurations/*.xml"],
@@ -428,9 +428,17 @@ def test_tracked_run_configs_use_explicit_uv_sdks() -> None:
             continue
         options = {opt.get("name"): opt.get("value", "") for opt in config.findall("option")}
         option_values = "\n".join(options.values())
-        if not options.get("SDK_NAME"):
-            problems.append(f"{path.name}: missing SDK_NAME")
-        if options.get("IS_MODULE_SDK") != "false":
+        module_sdk = options.get("IS_MODULE_SDK") == "true"
+        fixed_sdk = options.get("IS_MODULE_SDK") == "false"
+        if module_sdk:
+            if options.get("SDK_NAME"):
+                problems.append(f"{path.name}: module SDK config should not hard-code SDK_NAME")
+            if config.find("module") is None:
+                problems.append(f"{path.name}: module SDK config has no module binding")
+        elif fixed_sdk:
+            if not options.get("SDK_NAME"):
+                problems.append(f"{path.name}: fixed SDK config missing SDK_NAME")
+        else:
             problems.append(f"{path.name}: IS_MODULE_SDK={options.get('IS_MODULE_SDK')!r}")
         if "wenv/builtin" in option_values:
             problems.append(f"{path.name}: stale builtin worker path")
