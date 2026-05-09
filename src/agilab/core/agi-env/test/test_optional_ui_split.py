@@ -66,12 +66,16 @@ def test_agi_gui_declares_streamlit_ui_runtime() -> None:
     assert "watchdog" in {_requirement_name(dependency) for dependency in dependencies}
 
 
-def test_agilab_declares_agi_gui_for_full_ui_runtime() -> None:
+def test_agilab_declares_agi_gui_only_for_ui_extra() -> None:
     data = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text())
 
-    dependencies = data["project"]["dependencies"]
-    assert f"agi-gui=={_project_version(AGI_GUI_ROOT / 'pyproject.toml')}" in dependencies
-    assert all("agi-env[ui]" not in dependency for dependency in dependencies)
+    base_dependencies = data["project"]["dependencies"]
+    ui_dependencies = data["project"]["optional-dependencies"]["ui"]
+    agi_gui_requirement = f"agi-gui=={_project_version(AGI_GUI_ROOT / 'pyproject.toml')}"
+
+    assert agi_gui_requirement not in base_dependencies
+    assert agi_gui_requirement in ui_dependencies
+    assert all("agi-env[ui]" not in dependency for dependency in base_dependencies + ui_dependencies)
 
 
 def test_headless_import_does_not_require_streamlit() -> None:
