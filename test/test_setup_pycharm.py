@@ -413,7 +413,7 @@ def test_rebinds_root_run_configs_to_checkout_sdk(tmp_path: Path) -> None:
     assert _option(app, "SDK_NAME") == "uv (flight_project)"
 
 
-def test_ensure_project_ui_environment_syncs_missing_ui_extra(tmp_path: Path, monkeypatch) -> None:
+def test_ensure_project_ui_environment_syncs_missing_dev_ui_extra(tmp_path: Path, monkeypatch) -> None:
     root = tmp_path / "agilab-src"
     root.mkdir()
     (root / "pyproject.toml").write_text(
@@ -422,6 +422,7 @@ def test_ensure_project_ui_environment_syncs_missing_ui_extra(tmp_path: Path, mo
 name = "agilab"
 
 [project.optional-dependencies]
+mlflow = ["mlflow"]
 ui = ["agi-gui", "streamlit", "tomli_w"]
 """,
         encoding="utf-8",
@@ -438,7 +439,7 @@ ui = ["agi-gui", "streamlit", "tomli_w"]
         lambda project_dir: python_path if project_dir == root else None,
     )
     monkeypatch.setattr(setup_pycharm, "_find_uv_binary", lambda: "/usr/bin/uv")
-    monkeypatch.setattr(setup_pycharm, "_missing_import_modules", lambda _python, _modules: ["tomli_w"])
+    monkeypatch.setattr(setup_pycharm, "_missing_import_modules", lambda _python, _modules: ["mlflow"])
 
     def fake_run(argv, cwd, check):
         calls.append((argv, cwd, check))
@@ -449,7 +450,18 @@ ui = ["agi-gui", "streamlit", "tomli_w"]
     assert setup_pycharm.ensure_project_ui_environment(cfg) == python_path
     assert calls == [
         (
-            ["/usr/bin/uv", "sync", "--project", ".", "--extra", "ui", "--preview-features", "python-upgrade"],
+            [
+                "/usr/bin/uv",
+                "sync",
+                "--project",
+                ".",
+                "--extra",
+                "ui",
+                "--extra",
+                "mlflow",
+                "--preview-features",
+                "python-upgrade",
+            ],
             root,
             True,
         )
@@ -465,6 +477,7 @@ def test_ensure_project_ui_environment_skips_when_ui_modules_import(tmp_path: Pa
 name = "agilab"
 
 [project.optional-dependencies]
+mlflow = ["mlflow"]
 ui = ["agi-gui", "streamlit", "tomli_w"]
 """,
         encoding="utf-8",
