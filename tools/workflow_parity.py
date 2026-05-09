@@ -240,7 +240,6 @@ def _agi_gui_profile() -> list[CommandSpec]:
             [
                 "test/test_ci_provider_artifacts.py",
                 "test/test_*_report.py",
-                "test/test_*_workflow.py",
             ],
         ),
         _agi_gui_coverage_combine(),

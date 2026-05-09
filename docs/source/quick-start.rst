@@ -24,7 +24,7 @@ Fast adoption path:
      - ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` works
        locally.
    * - 3. Record evidence
-     - Run ``uv --preview-features extra-build-dependencies run agilab first-proof --json``.
+     - Run ``uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui``.
      - ``~/log/execute/flight/run_manifest.json`` reports ``status: pass``.
    * - 4. Expand
      - Choose notebook, package, private app, or cluster routes only after the
@@ -53,12 +53,19 @@ package, private-app, and cluster variables during the first 10 minutes.
 
    git pull --ff-only
    ./install.sh --install-apps
-   uv --preview-features extra-build-dependencies run agilab first-proof --json
+   uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
 
-**Published package install or upgrade**::
+**Published package install or upgrade, CLI proof only**::
 
    uv --preview-features extra-build-dependencies tool install --upgrade agilab
    agilab first-proof --json
+
+Install the UI profile when you want the local Streamlit pages from the
+published package::
+
+   uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
+   agilab first-proof --json --with-ui
+   agilab
 
 If you installed AGILAB inside an activated project environment instead of as a
 ``uv`` tool, upgrade that environment explicitly::
@@ -103,12 +110,13 @@ machine-readable proof record.
 
 2. **Run the first-proof CLI**::
 
-       uv --preview-features extra-build-dependencies run agilab first-proof --json
+       uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
 
-   This is the public first-proof entry point. It checks that AGILAB imports,
-   boots the main page and ORCHESTRATE page against the built-in ``flight_project``,
-   and writes ``~/log/execute/flight/run_manifest.json`` with command,
-   environment, timing, artifact references, and validation status.
+   This is the public first-proof entry point with the UI profile enabled. It
+   checks that AGILAB imports, validates the core AGI request API, boots the
+   main page and ORCHESTRATE page against the built-in ``flight_project``, and
+   writes ``~/log/execute/flight/run_manifest.json`` with command, environment,
+   timing, artifact references, and validation status.
    The source-checkout developer evidence command is the same contract through
    ``tools/newcomer_first_proof.py --json``.
 
@@ -168,7 +176,7 @@ first-proof and compatibility-report commands to rerun.
 If you want the preflight to also check the built-in installer and seeded helper
 scripts::
 
-    uv --preview-features extra-build-dependencies run agilab first-proof --with-install
+    uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui --with-install
 
 The troubleshooting page covers the common first-run failures:
 
@@ -207,14 +215,21 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
     source .venv/bin/activate
     uv pip install agilab
     python -m agilab.lab_run first-proof --json
+
+The base package install is intentionally CLI/core only. Install the UI profile
+before launching the local Streamlit app::
+
+    uv pip install "agilab[ui]"
+    python -m agilab.lab_run first-proof --json --with-ui
     python -m agilab.lab_run
 
 Optional feature stacks stay out of the base package install. Add
-``agilab[ai]`` for AI assistant features such as OpenAI, Mistral, and
-OpenAI-compatible endpoints like vLLM, and ``agilab[viz]`` for optional
-Plotly/matplotlib visualizations::
+``agilab[ui]`` for the local Streamlit pages, ``agilab[ai]`` for AI assistant
+features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
+``agilab[mlflow]`` for tracking, ``agilab[local-llm]`` for local model helpers,
+and ``agilab[viz]`` for optional Plotly/matplotlib visualizations::
 
-    uv pip install "agilab[ai,viz]"
+    uv pip install "agilab[ui,ai,viz,mlflow,local-llm]"
 
 **agi-core demo**:
 

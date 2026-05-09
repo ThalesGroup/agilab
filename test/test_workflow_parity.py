@@ -135,6 +135,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_view_maps.py" in agi_gui_argv
     assert "test/test_ci_provider_artifacts.py" in agi_gui_argv
     assert "test/test_ci_artifact_harvest_report.py" in agi_gui_argv
+    assert "test/test_*_workflow.py" not in agi_gui_argv
     assert release_proof_docs.label == "release proof manifest check"
     assert release_proof_docs.argv[-2:] == ["--check", "--compact"]
     assert docs.argv[-2:] == ["docs/source", "docs/html"]

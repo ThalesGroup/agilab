@@ -62,7 +62,8 @@ def ensure_dependencies() -> None:
     except ImportError as exc:  # pragma: no cover - defensive
         raise SystemExit(
             "gpt-oss is not installed. Install optional extra with "
-            "'uv add \"agilab[offline]\"' or run "
+            "'uv add \"agilab[local-llm]\"' (or the legacy alias "
+            "'agilab[offline]') or run "
             "'uv pip install gpt-oss universal-offline-ai-chatbot'."
         ) from exc
 

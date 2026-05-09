@@ -2,6 +2,7 @@ name: Ensure roadmap label
 
 on:
   push:
+    branches: ["main"]
     paths:
       - ".github/ISSUE_TEMPLATE/roadmap-vote.yml"
       - ".github/workflows/ensure-roadmap-label.yaml"
@@ -10,6 +11,10 @@ on:
 permissions:
   contents: read
   issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   ensure-label:

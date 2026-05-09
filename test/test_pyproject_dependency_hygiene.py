@@ -42,6 +42,11 @@ def _optional_dependency_names(path: Path, extra: str) -> set[str]:
     return {Requirement(dependency).name.lower() for dependency in dependencies}
 
 
+def _optional_dependencies(path: Path, extra: str) -> list[Requirement]:
+    data = _load_pyproject(path)
+    return [Requirement(dependency) for dependency in data.get("project", {}).get("optional-dependencies", {}).get(extra, [])]
+
+
 def _has_version_floor(requirement: Requirement) -> bool:
     return any(spec.operator in {">=", "~=", "=="} for spec in requirement.specifier)
 
@@ -50,6 +55,7 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     deps = _dependency_names(REPO_ROOT / "pyproject.toml")
 
     app_or_example_owned = {
+        "agi-gui",
         "asyncssh",
         "fastparquet",
         "geojson",
@@ -58,8 +64,12 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
         "jupyter-ai",
         "keras",
         "matplotlib",
+        "mlflow",
+        "mlx",
+        "mlx-lm",
         "noise",
         "numba",
+        "networkx",
         "openai",
         "plotly",
         "polars",
@@ -70,18 +80,19 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
         "sgp4",
         "simpy",
         "skforecast",
+        "streamlit",
         "tomli",
+        "tomli_w",
     }
     assert deps.isdisjoint(app_or_example_owned)
 
-    # These are imported directly by the packaged AGILAB UI/runtime layer.
-    assert {"pandas", "pydantic", "streamlit"} <= deps
-    assert "networkx" in deps
+    # The default package keeps only the core runtime and tiny stdlib shims.
+    assert "agi-core" in deps
 
 
 def test_root_runtime_dependencies_have_explicit_version_policy() -> None:
     pyproject = REPO_ROOT / "pyproject.toml"
-    internal_exact_pins = {"agi-core", "agi-gui"}
+    internal_exact_pins = {"agi-core"}
     violations: list[str] = []
 
     for requirement in _dependencies(pyproject):
@@ -96,8 +107,14 @@ def test_root_runtime_dependencies_have_explicit_version_policy() -> None:
     assert violations == []
 
 
-def test_root_apple_silicon_dependencies_are_platform_marked() -> None:
-    requirements = {requirement.name.lower(): requirement for requirement in _dependencies(REPO_ROOT / "pyproject.toml")}
+def test_root_apple_silicon_dependencies_are_optional_and_platform_marked() -> None:
+    root_requirements = {requirement.name.lower(): requirement for requirement in _dependencies(REPO_ROOT / "pyproject.toml")}
+    assert {"mlx", "mlx-lm"}.isdisjoint(root_requirements)
+
+    requirements = {
+        requirement.name.lower(): requirement
+        for requirement in _optional_dependencies(REPO_ROOT / "pyproject.toml", "local-llm")
+    }
 
     windows_env = default_environment()
     windows_env.update(
@@ -140,6 +157,12 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
 
     assert _optional_dependency_names(pyproject, "ai") == {"openai"}
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
+    assert {"agi-gui", "streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
+    assert _optional_dependency_names(pyproject, "mlflow") == {"mlflow"}
+    assert {"gpt-oss", "mlx", "mlx-lm", "transformers", "torch"} <= _optional_dependency_names(
+        pyproject, "local-llm"
+    )
+    assert _optional_dependency_names(pyproject, "offline") == _optional_dependency_names(pyproject, "local-llm")
 
     optional_dependencies = _load_pyproject(pyproject).get("project", {}).get("optional-dependencies", {})
     violations: list[str] = []

@@ -91,6 +91,14 @@ def _project_metadata(path: Path) -> dict[str, Any]:
     project = payload.get("project", {})
     if not isinstance(project, dict):
         project = {}
+    optional_dependencies = project.get("optional-dependencies", {}) or {}
+    if not isinstance(optional_dependencies, dict):
+        optional_dependencies = {}
+    optional_dependencies_by_extra = {
+        str(extra): [str(row) for row in dependencies or []]
+        for extra, dependencies in sorted(optional_dependencies.items())
+        if isinstance(dependencies, list)
+    }
     return {
         "name": str(project.get("name", "") or ""),
         "version": str(project.get("version", "") or ""),
@@ -99,6 +107,12 @@ def _project_metadata(path: Path) -> dict[str, Any]:
         "license_files": [str(row) for row in project.get("license-files", [])],
         "dependency_count": len(project.get("dependencies", []) or []),
         "dependencies": [str(row) for row in project.get("dependencies", []) or []],
+        "optional_dependencies": [
+            dependency
+            for dependencies in optional_dependencies_by_extra.values()
+            for dependency in dependencies
+        ],
+        "optional_dependencies_by_extra": optional_dependencies_by_extra,
     }
 
 
@@ -194,10 +208,14 @@ def _internal_dependency_constraint_rows(
     expected_versions: Mapping[str, str],
     *,
     expected_operator: str,
+    include_optional: bool = False,
 ) -> list[dict[str, Any]]:
     rows = []
     for package_name, metadata in sorted(package_metadata.items()):
-        for dependency in metadata.get("dependencies", []):
+        dependencies = list(metadata.get("dependencies", []))
+        if include_optional:
+            dependencies.extend(metadata.get("optional_dependencies", []))
+        for dependency in dependencies:
             parts = _dependency_parts(str(dependency))
             if parts is None:
                 continue
@@ -339,6 +357,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
         package_metadata,
         expected_internal_versions,
         expected_operator="==",
+        include_optional=True,
     )
     mismatched_internal_dependency_pins = [
         row for row in internal_dependency_pins if not row["aligned"]
@@ -379,14 +398,18 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
     aligned_builtin_app_internal_dependency_bounds = (
         not mismatched_builtin_app_internal_dependency_bounds
     )
+    root_declared_dependencies = [
+        *root_metadata.get("dependencies", []),
+        *root_metadata.get("optional_dependencies", []),
+    ]
     pinned_core_dependencies = [
         dependency
-        for dependency in root_metadata.get("dependencies", [])
+        for dependency in root_declared_dependencies
         if _dependency_name(dependency) in CORE_PYPROJECTS and "==" in dependency
     ]
     pinned_page_lib_dependencies = [
         dependency
-        for dependency in root_metadata.get("dependencies", [])
+        for dependency in root_declared_dependencies
         if _dependency_name(dependency) in PAGE_LIB_PYPROJECTS and "==" in dependency
     ]
     missing_files = [row["path"] for row in root_files if not row["exists"]]

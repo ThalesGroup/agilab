@@ -30,8 +30,8 @@ Streamlit UI
 Try this first:
 
 ```bash
-pip install agilab
-agilab first-proof --json
+pip install "agilab[ui]"
+agilab first-proof --json --with-ui
 agilab
 ```
 
@@ -81,7 +81,7 @@ Follow the in-app pages from `PROJECT` to `ANALYSIS`. To collect the same check
 as JSON:
 
 ```bash
-uv --preview-features extra-build-dependencies run agilab first-proof --json
+uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
 ```
 
 The JSON proof writes `run_manifest.json` under `~/log/execute/flight/`. For
@@ -92,13 +92,17 @@ installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
 ```bash
 pip install agilab
 agilab first-proof --json
+pip install "agilab[ui]"
+agilab first-proof --json --with-ui
 agilab
 ```
 
-This is the thinnest public entry point. Use `agilab first-proof --json` for a
-quick package-level check. For the most representative full product run, prefer
-the source-checkout `flight_project` path above because it exercises the same
-app installation, execution, and analysis flow documented in the web UI.
+The base install is the thinnest public CLI/core entry point. Use
+`agilab first-proof --json` for a quick package-level check. Install
+`agilab[ui]` before launching the local Streamlit app or running
+`agilab first-proof --with-ui`. For the most representative full product run,
+prefer the source-checkout `flight_project` path above because it exercises the
+same app installation, execution, and analysis flow documented in the web UI.
 
 ## App Repository Updates
 

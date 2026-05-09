@@ -85,3 +85,32 @@ def test_sanitize_packaged_builtin_app_pyprojects_updates_build_tree(tmp_path: P
 
     assert changed == [pyproject]
     assert "[tool.uv.sources]" not in pyproject.read_text(encoding="utf-8")
+
+
+def test_purge_packaged_builtin_app_artifacts_removes_build_noise(tmp_path: Path) -> None:
+    module = _load_module()
+    app_src = tmp_path / "agilab/apps/builtin/flight_project/src/flight"
+    pycache = app_src / "__pycache__"
+    egg_info = app_src / "flight.egg-info"
+    pycache.mkdir(parents=True)
+    egg_info.mkdir()
+    keep_source = app_src / "flight.py"
+    keep_pyx = app_src / "flight_worker.pyx"
+    remove_pyc = pycache / "flight.cpython-313.pyc"
+    remove_c = app_src / "flight_worker.c"
+    keep_source.write_text("print('ok')\n", encoding="utf-8")
+    keep_pyx.write_text("# generated source kept for cython build\n", encoding="utf-8")
+    remove_pyc.write_bytes(b"pyc")
+    remove_c.write_text("/* generated C */\n", encoding="utf-8")
+    (egg_info / "PKG-INFO").write_text("metadata\n", encoding="utf-8")
+
+    removed = module.purge_packaged_builtin_app_artifacts(tmp_path)
+
+    assert pycache in removed
+    assert egg_info in removed
+    assert remove_c in removed
+    assert not pycache.exists()
+    assert not egg_info.exists()
+    assert not remove_c.exists()
+    assert keep_source.is_file()
+    assert keep_pyx.is_file()
