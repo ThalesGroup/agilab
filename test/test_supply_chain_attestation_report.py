@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPORT_PATH = Path("tools/supply_chain_attestation_report.py").resolve()
 CORE_PATH = Path("src/agilab/supply_chain_attestation.py").resolve()
@@ -18,14 +20,21 @@ def _load_module(path: Path, name: str):
     return module
 
 
-def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None:
+@pytest.fixture(scope="module")
+def supply_chain_attestation_artifacts(tmp_path_factory):
     module = _load_module(REPORT_PATH, "supply_chain_attestation_report_test_module")
+    output_path = tmp_path_factory.mktemp("supply-chain-attestation") / "supply_chain_attestation.json"
 
     report = module.build_report(
         repo_root=Path.cwd(),
-        output_path=tmp_path / "supply_chain_attestation.json",
+        output_path=output_path,
     )
+    state = module.json.loads(output_path.read_text(encoding="utf-8"))
+    return report, state
 
+
+def test_supply_chain_attestation_report_passes_contract(supply_chain_attestation_artifacts) -> None:
+    report, _state = supply_chain_attestation_artifacts
     assert report["report"] == "Supply-chain attestation report"
     assert report["status"] == "pass"
     assert report["summary"]["schema"] == "agilab.supply_chain_attestation.v1"
@@ -73,11 +82,8 @@ def test_supply_chain_attestation_report_passes_contract(tmp_path: Path) -> None
     }
 
 
-def test_supply_chain_attestation_records_core_and_app_manifests() -> None:
-    core = _load_module(CORE_PATH, "supply_chain_attestation_core_test_module")
-
-    state = core.build_supply_chain_attestation(Path.cwd())
-
+def test_supply_chain_attestation_records_core_and_app_manifests(supply_chain_attestation_artifacts) -> None:
+    _report, state = supply_chain_attestation_artifacts
     assert state["run_status"] == "validated"
     assert state["summary"]["package_name"] == "agilab"
     assert state["summary"]["core_release_graph_aligned"] is True

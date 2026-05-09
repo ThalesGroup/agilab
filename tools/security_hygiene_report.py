@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import platform
 import re
@@ -147,21 +148,26 @@ def _shell_execution_boundary_check(repo_root: Path, security_text: str) -> dict
     pipe_to_shell_pattern = re.compile(
         r"\|\s*(?:sudo\s+)?(?:/usr/bin/env\s+)?(?:/bin/)?(?:ba)?sh(?:\s|$)"
     )
+    report_path = Path(__file__).resolve()
     for base in ("src/agilab", "tools", "install.sh"):
         path = repo_root / base
         if path.is_file():
             candidates = [path]
         elif path.is_dir():
-            candidates = sorted(
-                candidate
-                for candidate in path.rglob("*")
-                if candidate.is_file()
-                and SCAN_EXCLUDED_PARTS.isdisjoint(candidate.relative_to(repo_root).parts)
-            )
+            candidates = []
+            for dirpath, dirnames, filenames in os.walk(path):
+                dirnames[:] = sorted(
+                    dirname
+                    for dirname in dirnames
+                    if dirname not in SCAN_EXCLUDED_PARTS
+                )
+                root = Path(dirpath)
+                for filename in sorted(filenames):
+                    candidates.append(root / filename)
         else:
             candidates = []
         for candidate in candidates:
-            if candidate == Path(__file__).resolve():
+            if candidate == report_path:
                 continue
             if candidate.suffix not in {".py", ".sh"} and candidate.name != "install.sh":
                 continue
