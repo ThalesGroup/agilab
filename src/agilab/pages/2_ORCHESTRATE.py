@@ -1115,10 +1115,29 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
     if manager_ready and worker_ready:
         return "Ready", "Manager and worker environments can import AGILAB runtime packages."
     if manager_ready:
+        if not install_status.get("worker_exists"):
+            return "Needs INSTALL", "Worker environment has not been created yet. Run INSTALL before RUN."
         return "Needs INSTALL", install_status.get("worker_problem") or "Worker environment is missing or stale."
     if worker_ready:
+        if not install_status.get("manager_exists"):
+            return "Needs INSTALL", "Manager environment has not been created yet. Run INSTALL before RUN."
         return "Needs INSTALL", install_status.get("manager_problem") or "Manager environment is missing or stale."
     return "Needs INSTALL", "Manager and worker environments are not installed yet."
+
+
+def _install_status_warning_message(install_status: dict[str, Any]) -> str | None:
+    """Return a warning only for existing-but-stale install environments."""
+    stale_problems = []
+    if install_status.get("manager_exists") and not install_status.get("manager_ready"):
+        stale_problems.append(str(install_status.get("manager_problem") or "manager environment is stale"))
+    if install_status.get("worker_exists") and not install_status.get("worker_ready"):
+        stale_problems.append(str(install_status.get("worker_problem") or "worker environment is stale"))
+    if not stale_problems:
+        return None
+    return (
+        "Environment install is incomplete or stale. Run INSTALL before RUN / LOAD / EXPORT. "
+        + " | ".join(stale_problems)
+    )
 
 
 _INCOMPLETE_HEADER_VALUE_TOKENS = (
@@ -1357,10 +1376,12 @@ def _render_orchestrate_readiness_panel(
     worker_status, worker_path = _path_status(install_status.get("worker_venv"), venv=True)
     if not install_status.get("manager_ready"):
         manager_status = "stale" if install_status.get("manager_exists") else "missing"
-        manager_path = install_status.get("manager_problem") or manager_path
+        if install_status.get("manager_exists"):
+            manager_path = install_status.get("manager_problem") or manager_path
     if not install_status.get("worker_ready"):
         worker_status = "stale" if install_status.get("worker_exists") else "missing"
-        worker_path = install_status.get("worker_problem") or worker_path
+        if install_status.get("worker_exists"):
+            worker_path = install_status.get("worker_problem") or worker_path
     run_count, run_caption = _run_history_summary(env)
 
     with st.container(border=True):
@@ -1400,28 +1421,9 @@ async def _render_deployment_panel(
         st.caption(
             "Choose local, local Dask, or LAN cluster resources, then install the manager and worker environments."
         )
-        stale_problems = []
-        if install_status.get("manager_exists") and not install_status.get("manager_ready"):
-            stale_problems.append(str(install_status.get("manager_problem") or "manager environment is stale"))
-        if install_status.get("worker_exists") and not install_status.get("worker_ready"):
-            stale_problems.append(str(install_status.get("worker_problem") or "worker environment is stale"))
-        if stale_problems:
-            st.warning(
-                "Environment install is incomplete or stale. Run INSTALL before RUN / LOAD / EXPORT. "
-                + " | ".join(stale_problems)
-            )
-        elif install_status["manager_ready"] and not install_status["worker_ready"]:
-            st.warning(
-                "Manager environment detected, but the worker environment is missing. "
-                f"Run INSTALL to rebuild the worker venv at `{install_status['worker_venv']}` "
-                f"before using RUN for `{env.app}`."
-            )
-        elif install_status["worker_ready"] and not install_status["manager_ready"]:
-            st.warning(
-                "Worker environment detected, but the manager environment is missing. "
-                f"Run INSTALL to rebuild the app venv at `{install_status['manager_venv']}` "
-                f"before using RUN for `{env.app}`."
-            )
+        install_warning = _install_status_warning_message(install_status)
+        if install_warning:
+            st.warning(install_warning)
 
         cluster_deps = OrchestrateClusterDeps(
             parse_and_validate_scheduler=parse_and_validate_scheduler,
