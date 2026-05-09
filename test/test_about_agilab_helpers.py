@@ -254,6 +254,37 @@ def test_page_bootstrap_realigns_stale_agi_space_recorded_root(tmp_path):
     assert session_state["apps_path"] == str(source_apps)
 
 
+def test_page_bootstrap_realigns_stale_agi_space_active_app_with_current_source_root(tmp_path):
+    source_root = tmp_path / "agilab-src" / "src" / "agilab"
+    source_apps = source_root / "apps"
+    page_file = source_root / "pages" / "2_ORCHESTRATE.py"
+    source_project = source_apps / "builtin" / "flight_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    page_file.parent.mkdir(parents=True)
+    source_project.mkdir(parents=True)
+    stale_project.mkdir(parents=True)
+
+    class FakeEnv:
+        def __init__(self, *, apps_path: Path, app: str = "flight_project", verbose: int | None = 1):
+            self.apps_path = apps_path
+            self.app = app
+            self.verbose = verbose
+            self.active_app = apps_path / "builtin" / app
+            self.init_done = True
+
+    env = FakeEnv(apps_path=source_apps)
+    env.active_app = stale_project
+    session_state = {
+        "env": env,
+        "apps_path": str(source_apps),
+    }
+
+    assert page_bootstrap.realign_session_env_with_page_root(session_state, page_file) is True
+    assert env.apps_path == source_apps
+    assert env.active_app == source_project
+    assert session_state["apps_path"] == str(source_apps)
+
+
 def test_page_bootstrap_keeps_session_env_when_recorded_root_differs(tmp_path):
     source_root = tmp_path / "agilab-src" / "src" / "agilab"
     source_apps = source_root / "apps"

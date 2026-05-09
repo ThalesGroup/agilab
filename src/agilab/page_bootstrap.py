@@ -58,7 +58,7 @@ def _should_realign_session_env(
     expected_apps_path: Path,
 ) -> bool:
     if env_apps_path == expected_apps_path:
-        return False
+        return _is_agi_space_path(env_active_app_path)
     if recorded_apps_path == expected_apps_path:
         return True
     return any(
