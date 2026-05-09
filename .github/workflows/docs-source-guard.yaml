@@ -60,4 +60,4 @@ jobs:
       - name: Test docs/source guard tools
         run: |
           set -euo pipefail
-          uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_sync_docs_source.py test/test_release_proof_report.py
+          uv --preview-features extra-build-dependencies run --extra ui pytest -q -o addopts='' test/test_sync_docs_source.py test/test_release_proof_report.py

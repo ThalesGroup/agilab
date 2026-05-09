@@ -223,28 +223,9 @@ def test_agi_gui_report_wildcard_covers_all_report_tests() -> None:
     )
 
 
-def test_agi_gui_workflow_wildcard_covers_all_workflow_tests() -> None:
+def test_agi_gui_coverage_excludes_workflow_policy_tests() -> None:
     run_block = _agi_gui_run_block()
-    assert "test/test_*_workflow.py" in run_block
-
-    listed_tests: set[str] = set()
-    for token in re.findall(r"test/test_[^\s\\]+_workflow\.py", run_block):
-        if "*" in token:
-            listed_tests.update(path.as_posix() for path in Path().glob(token))
-        else:
-            listed_tests.add(token)
-
-    workflow_tests = {path.as_posix() for path in Path("test").glob("test_*_workflow.py")}
-    assert "test/test_coverage_workflow.py" in workflow_tests
-    assert "test/test_pypi_publish_workflow.py" in workflow_tests
-
-    missing = sorted(workflow_tests - listed_tests)
-    extra = sorted(listed_tests - workflow_tests)
-
-    assert not missing and not extra, (
-        f"coverage.yml agi-gui workflow wildcard is out of sync; "
-        f"missing={missing}, extra={extra}"
-    )
+    assert "test/test_*_workflow.py" not in run_block
 
 
 def test_codecov_uploads_are_blocking_coverage_publication_gates() -> None:

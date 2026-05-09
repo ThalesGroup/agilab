@@ -47,7 +47,13 @@ NON_GUI_ROOT_TESTS = {
     "test/test_pypi_distribution_state.py",
     "test/test_pypi_publish.py",
     "test/test_pypi_publish_workflow.py",
+    "test/test_impact_validate.py",
+    "test/test_workflow_parity.py",
 }
+
+
+def _is_workflow_policy_test(path: str) -> bool:
+    return path.startswith("test/test_") and path.endswith("_workflow.py")
 
 
 class GuardError(RuntimeError):
@@ -155,7 +161,7 @@ def changed_files(base: str | None, *, include_untracked: bool = False) -> list[
 
 
 def _is_gui_coverage_path(path: str) -> bool:
-    if path in NON_GUI_ROOT_TESTS:
+    if path in NON_GUI_ROOT_TESTS or _is_workflow_policy_test(path):
         return False
     if path == "pyproject.toml" or path.endswith("/pyproject.toml"):
         return False
@@ -167,7 +173,7 @@ def _is_gui_coverage_path(path: str) -> bool:
         return True
     if path.startswith("test/"):
         return True
-    return path in {".coveragerc.agi-gui", ".github/workflows/coverage.yml"}
+    return path == ".coveragerc.agi-gui"
 
 
 def changed_coverage_components(paths: Sequence[str]) -> dict[str, list[str]]:
@@ -189,7 +195,6 @@ def changed_coverage_components(paths: Sequence[str]) -> dict[str, list[str]]:
         if (
             path == "tools/generate_component_coverage_badges.py"
             or path.startswith("badges/coverage-")
-            or path == ".github/workflows/coverage.yml"
         ):
             for component in COVERAGE_COMPONENTS:
                 by_component[component].append(path)

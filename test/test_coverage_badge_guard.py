@@ -59,6 +59,23 @@ def test_changed_coverage_components_ignores_release_and_public_docs_tests() -> 
     assert changed == {}
 
 
+def test_changed_coverage_components_ignores_workflow_policy_tests() -> None:
+    module = _load_module()
+
+    changed = module.changed_coverage_components(
+        [
+            ".github/workflows/coverage.yml",
+            "test/test_ci_workflow.py",
+            "test/test_coverage_workflow.py",
+            "test/test_impact_validate.py",
+            "test/test_pypi_publish_workflow.py",
+            "test/test_workflow_parity.py",
+        ]
+    )
+
+    assert changed == {}
+
+
 def test_changed_coverage_components_ignores_package_metadata() -> None:
     module = _load_module()
 
