@@ -135,6 +135,12 @@ def test_agi_gui_coverage_uses_chunked_append_profile() -> None:
     assert "test-results/junit-agi-gui-*.xml" in junit_upload
 
 
+def test_agi_gui_coverage_installs_ui_extra_in_clean_ci_env() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert run_block.count("--extra ui") >= 2
+
+
 def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
     run_block = _agi_gui_run_block()
 
