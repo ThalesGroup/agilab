@@ -9,6 +9,8 @@ import importlib.util
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -84,6 +86,13 @@ CURRENT_HOME_PREFLIGHT_ACTION_LABELS = (
     "Run -> Load -> Export",
     "Run now",
 )
+CURRENT_HOME_WORKER_IMPORT_PREFLIGHT_ACTION_LABELS = (
+    "CHECK distribute",
+    "DISTRIBUTE",
+    "Run -> Load -> Export",
+    "Run now",
+)
+CURRENT_HOME_WORKER_IMPORT_TIMEOUT_SECONDS = 20.0
 BROWSER_ISSUE_FATAL_NEEDLES = (
     "agi execution failed",
     "build failed",
@@ -1392,6 +1401,87 @@ def _current_home_preflight_action_requested(click_action_labels: Sequence[str])
     )
 
 
+def _current_home_worker_import_preflight_requested(click_action_labels: Sequence[str]) -> bool:
+    selected = [_normalized_label(label) for label in click_action_labels if _normalized_label(label)]
+    required = [_normalized_label(label) for label in CURRENT_HOME_WORKER_IMPORT_PREFLIGHT_ACTION_LABELS]
+    return any(
+        expected == label or expected in label or label in expected
+        for label in selected
+        for expected in required
+    )
+
+
+def _worker_python_import_command(worker_root: Path, worker_package: str) -> list[str]:
+    uv_bin = shutil.which("uv") or "uv"
+    probe = (
+        "import importlib, sys\n"
+        "module = sys.argv[1]\n"
+        "importlib.import_module(module)\n"
+        "print(f'import-ok:{module}')\n"
+    )
+    return [
+        uv_bin,
+        "--quiet",
+        "run",
+        "--no-sync",
+        "--project",
+        str(worker_root),
+        "python",
+        "-c",
+        probe,
+        worker_package,
+    ]
+
+
+def _current_home_worker_import_issue(
+    *,
+    app_name: str,
+    home_root: Path,
+) -> str | None:
+    target = app_target_name(app_name)
+    worker_package = f"{target}_worker"
+    worker_root = home_root / "wenv" / worker_package
+    if not worker_root.is_dir():
+        return (
+            f"installed worker project is missing: {worker_root}. "
+            f"Run INSTALL for {app_name} before running backend ORCHESTRATE actions."
+        )
+
+    command = _worker_python_import_command(worker_root, worker_package)
+    try:
+        result = subprocess.run(
+            command,
+            cwd=worker_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=CURRENT_HOME_WORKER_IMPORT_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        return f"unable to run worker import probe because `uv` was not found: {exc}"
+    except subprocess.TimeoutExpired as exc:
+        return (
+            f"worker import probe timed out after {CURRENT_HOME_WORKER_IMPORT_TIMEOUT_SECONDS:.1f}s "
+            f"for {worker_package}: {exc}"
+        )
+
+    if result.returncode == 0:
+        return None
+
+    detail = "\n".join(
+        part.strip()
+        for part in (result.stderr, result.stdout)
+        if part and part.strip()
+    )
+    if not detail:
+        detail = f"exit code {result.returncode}"
+    return (
+        f"installed worker project failed import probe: {worker_root}. "
+        f"Module `{worker_package}` could not be imported with the current worker environment. "
+        f"{_short_detail(detail, limit=900)}"
+    )
+
+
 def current_home_action_preflight_blocker(
     *,
     app_name: str,
@@ -1413,34 +1503,42 @@ def current_home_action_preflight_blocker(
     env = dict(server_env or {})
     env_file = home / ".agilab" / ".env"
     env_values = _load_dotenv_map(env_file)
-    if not _current_home_cluster_enabled(
+    cluster_enabled = _current_home_cluster_enabled(
         app_name=app_name,
         active_app_query=active_app_query,
         home_root=home,
         server_env=env,
         env_values=env_values,
-    ):
-        return None
+    )
 
-    cluster_share = _strip_config_value(env_values.get("AGI_CLUSTER_SHARE") or env.get("AGI_CLUSTER_SHARE") or str(home / "clustershare"))
-    local_share = _strip_config_value(env_values.get("AGI_LOCAL_SHARE") or env.get("AGI_LOCAL_SHARE") or str(home / "localshare"))
-    cluster_path = _home_relative_path(cluster_share, home_root=home)
-    local_path = _home_relative_path(local_share, home_root=home)
-    if _same_configured_path(cluster_path, local_path):
-        return (
-            "environment_blocked: current-home ORCHESTRATE selected actions were not clicked because "
-            f"cluster mode is enabled for {app_name} but AGI_CLUSTER_SHARE and AGI_LOCAL_SHARE both resolve "
-            f"to {cluster_path}. Set AGI_CLUSTER_SHARE to a distinct mounted shared path, or disable "
-            f"cluster mode in {home / '.agilab' / 'apps' / app_name / 'app_settings.toml'}."
-        )
-    if not _is_writable_directory(cluster_path):
-        return (
-            "environment_blocked: current-home ORCHESTRATE selected actions were not clicked because "
-            f"cluster mode is enabled for {app_name} but AGI_CLUSTER_SHARE={str(cluster_path)!r} is not a "
-            f"writable directory. Mount/create that path or disable cluster mode in "
-            f"{home / '.agilab' / 'apps' / app_name / 'app_settings.toml'} before rerunning the UI robot. "
-            f"env={env_file}"
-        )
+    if cluster_enabled:
+        cluster_share = _strip_config_value(env_values.get("AGI_CLUSTER_SHARE") or env.get("AGI_CLUSTER_SHARE") or str(home / "clustershare"))
+        local_share = _strip_config_value(env_values.get("AGI_LOCAL_SHARE") or env.get("AGI_LOCAL_SHARE") or str(home / "localshare"))
+        cluster_path = _home_relative_path(cluster_share, home_root=home)
+        local_path = _home_relative_path(local_share, home_root=home)
+        if _same_configured_path(cluster_path, local_path):
+            return (
+                "environment_blocked: current-home ORCHESTRATE selected actions were not clicked because "
+                f"cluster mode is enabled for {app_name} but AGI_CLUSTER_SHARE and AGI_LOCAL_SHARE both resolve "
+                f"to {cluster_path}. Set AGI_CLUSTER_SHARE to a distinct mounted shared path, or disable "
+                f"cluster mode in {home / '.agilab' / 'apps' / app_name / 'app_settings.toml'}."
+            )
+        if not _is_writable_directory(cluster_path):
+            return (
+                "environment_blocked: current-home ORCHESTRATE selected actions were not clicked because "
+                f"cluster mode is enabled for {app_name} but AGI_CLUSTER_SHARE={str(cluster_path)!r} is not a "
+                f"writable directory. Mount/create that path or disable cluster mode in "
+                f"{home / '.agilab' / 'apps' / app_name / 'app_settings.toml'} before rerunning the UI robot. "
+                f"env={env_file}"
+            )
+    if _current_home_worker_import_preflight_requested(click_action_labels):
+        worker_issue = _current_home_worker_import_issue(app_name=app_name, home_root=home)
+        if worker_issue is not None:
+            return (
+                "environment_blocked: current-home ORCHESTRATE selected actions were not clicked because "
+                f"the installed worker environment for {app_name} is not ready. {worker_issue} "
+                "Run INSTALL, then rerun the UI robot before manual RUN / LOAD / EXPORT validation."
+            )
     return None
 
 
