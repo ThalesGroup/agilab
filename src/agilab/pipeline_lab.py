@@ -65,6 +65,23 @@ _snippet_source_guidance = _pipeline_stages_module.snippet_source_guidance
 _stage_label_for_multiselect = _pipeline_stages_module.stage_label_for_multiselect
 _stage_summary = _pipeline_stages_module.stage_summary
 
+_generated_actions_module = import_agilab_module(
+    "agilab.generated_actions",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "generated_actions.py",
+    fallback_name="agilab_generated_actions_fallback",
+)
+GENERATION_MODE_PYTHON_SNIPPET = _generated_actions_module.GENERATION_MODE_PYTHON_SNIPPET
+GENERATION_MODE_SAFE_ACTIONS = _generated_actions_module.GENERATION_MODE_SAFE_ACTIONS
+STAGE_ACTION_CONTRACT_FIELD = _generated_actions_module.STAGE_ACTION_CONTRACT_FIELD
+STAGE_GENERATION_MODE_FIELD = _generated_actions_module.STAGE_GENERATION_MODE_FIELD
+
+GENERATION_MODE_LABELS = {
+    GENERATION_MODE_SAFE_ACTIONS: "Safe actions",
+    GENERATION_MODE_PYTHON_SNIPPET: "Python snippet (advanced)",
+}
+GENERATION_MODE_BY_LABEL = {label: mode for mode, label in GENERATION_MODE_LABELS.items()}
+
 _pipeline_page_state_module = import_agilab_module(
     "agilab.pipeline_page_state",
     current_file=__file__,
@@ -2942,6 +2959,55 @@ def display_lab_tab(
         except TypeError:
             deps.configure_assistant_engine(env)
 
+    def _render_generation_mode_control(key: str, *, existing_mode: str = "") -> str:
+        labels = list(GENERATION_MODE_LABELS.values())
+        mode = existing_mode if existing_mode in GENERATION_MODE_LABELS else GENERATION_MODE_SAFE_ACTIONS
+        default_label = GENERATION_MODE_LABELS[mode]
+        if st.session_state.get(key) not in labels:
+            st.session_state[key] = default_label
+        selected_label = compact_choice(
+            st,
+            "Generation mode",
+            labels,
+            key=key,
+            help=(
+                "Safe actions asks the model for a validated JSON action contract. "
+                "Python snippet is for advanced manual code generation."
+            ),
+            inline_limit=4,
+        )
+        selected_mode = GENERATION_MODE_BY_LABEL.get(str(selected_label), GENERATION_MODE_SAFE_ACTIONS)
+        if selected_mode == GENERATION_MODE_SAFE_ACTIONS:
+            st.caption("Safe actions: model JSON is validated, then AGILAB writes deterministic pandas code.")
+        else:
+            st.caption("Advanced: raw model Python is saved for review; auto-fix requires an explicit sandbox acknowledgement.")
+        return selected_mode
+
+    def _ask_stage_generator(prompt_text: str, df_path: Path, generation_mode: str) -> List[Any]:
+        return ask_gpt(
+            prompt_text,
+            df_path,
+            index_page_str,
+            env.envars,
+            generation_mode=generation_mode,
+            load_df_cached=load_df_cached,
+        )
+
+    def _generation_extra_fields(answer: List[Any], generation_mode: str) -> Dict[str, Any]:
+        if len(answer) > 5 and isinstance(answer[5], dict):
+            return dict(answer[5])
+        return {
+            STAGE_GENERATION_MODE_FIELD: generation_mode,
+            STAGE_ACTION_CONTRACT_FIELD: None,
+        }
+
+    def _warn_generation_without_code(answer: List[Any]) -> None:
+        detail = str(answer[4] if len(answer) > 4 else "").strip()
+        if detail:
+            st.warning(detail)
+        else:
+            st.warning("The assistant did not return runnable stage code.")
+
     # Reset active stage and count to reflect persisted stages
     persisted_stages = load_all_stages(module_path, stages_file, index_page_str) or []
     if not persisted_stages and stages_file.exists():
@@ -3029,6 +3095,7 @@ def display_lab_tab(
         st.info(snippet_guidance)
         new_q_key = f"{index_page_str}_new_q"
         new_venv_key = f"{index_page_str}_new_venv"
+        first_generation_mode_key = f"{safe_prefix}_first_generation_mode"
         if new_q_key not in st.session_state:
             st.session_state[new_q_key] = ""
         with st.expander("New stage", expanded=True):
@@ -3043,6 +3110,7 @@ def display_lab_tab(
 
             if stage_source == GENERATE_STAGE_SOURCE:
                 _render_assistant_engine_near_prompt()
+                generation_mode = _render_generation_mode_control(first_generation_mode_key)
                 st.text_area(
                     "Ask code generator:",
                     key=new_q_key,
@@ -3071,9 +3139,13 @@ def display_lab_tab(
                         st.warning("Enter a prompt before generating code.")
                     else:
                         df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
-                        answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
+                        answer = _ask_stage_generator(prompt_text, df_path, generation_mode)
+                        if not str(answer[3] if len(answer) > 3 else "").strip():
+                            _warn_generation_without_code(answer)
+                            return
                         venv_map = {0: selected_path} if selected_path else {}
                         eng_map = {0: "agi.run" if selected_path else "runpy"}
+                        extra_fields = _generation_extra_fields(answer, generation_mode)
                         expander_state_key = f"{safe_prefix}_expander_open"
                         expander_state = st.session_state.setdefault(expander_state_key, {})
                         expander_state[0] = True
@@ -3086,6 +3158,7 @@ def display_lab_tab(
                             stages_file,
                             venv_map=venv_map,
                             engine_map=eng_map,
+                            extra_fields=extra_fields,
                         )
                         _bump_history_revision()
                         st.rerun()
@@ -3392,6 +3465,11 @@ def display_lab_tab(
             arm_delete_clicked = False
             cancel_delete_clicked = False
             snippet_dict: Optional[Dict[str, Any]] = None
+            generation_mode_key = f"{safe_prefix}_generation_mode_{stage}"
+            generation_mode = _render_generation_mode_control(
+                generation_mode_key,
+                existing_mode=str(entry.get(STAGE_GENERATION_MODE_FIELD) or ""),
+            )
             st.text_area(
                 "Ask code generator:",
                 key=q_key,
@@ -3769,7 +3847,7 @@ def display_lab_tab(
                     if st.session_state.get("df_file")
                     else Path()
                 )
-                answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
+                answer = _ask_stage_generator(prompt_text, df_path, generation_mode)
                 merged_code = None
                 code_txt = answer[3] if len(answer) > 3 else ""
                 detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
@@ -3778,12 +3856,15 @@ def display_lab_tab(
                     merged_code = f"{summary_line}{code_txt}"
                     if len(answer) > 3:
                         answer[3] = merged_code
+                elif generation_mode == GENERATION_MODE_SAFE_ACTIONS:
+                    _warn_generation_without_code(answer)
+                    return
                 else:
                     merged_code = st.session_state.get(code_val_key, "")
                     if len(answer) > 3:
                         answer[3] = merged_code
 
-                if merged_code:
+                if merged_code and generation_mode != GENERATION_MODE_SAFE_ACTIONS:
                     fixed_code, fixed_model, fixed_detail = _maybe_autofix_generated_code(
                         original_request=prompt_text,
                         df_path=df_path,
@@ -3804,6 +3885,7 @@ def display_lab_tab(
                     if len(answer) > 4:
                         answer[4] = fixed_detail
 
+                extra_fields = _generation_extra_fields(answer, generation_mode)
                 save_stage(
                     module_path,
                     answer,
@@ -3812,6 +3894,7 @@ def display_lab_tab(
                     stages_file,
                     venv_map=selected_map,
                     engine_map=engine_map,
+                    extra_fields=extra_fields,
                 )
                 if len(answer) > 1:
                     st.session_state[pending_q_key] = answer[1]
@@ -3883,6 +3966,7 @@ def display_lab_tab(
     # Add-stage expander to append a new stage at the end
     new_q_key = f"{safe_prefix}_new_q"
     new_venv_key = f"{safe_prefix}_new_venv"
+    add_generation_mode_key = f"{safe_prefix}_new_generation_mode"
     if new_q_key not in st.session_state:
         st.session_state[new_q_key] = ""
     with st.expander("Add stage", expanded=False):
@@ -3897,6 +3981,7 @@ def display_lab_tab(
         )
         if stage_source == GENERATE_STAGE_SOURCE:
             _render_assistant_engine_near_prompt()
+            generation_mode = _render_generation_mode_control(add_generation_mode_key)
             st.text_area(
                 "Ask code generator:",
                 key=new_q_key,
@@ -3918,7 +4003,7 @@ def display_lab_tab(
                 prompt_text = st.session_state.get(new_q_key, "").strip()
                 if prompt_text:
                     df_path = Path(st.session_state.df_file) if st.session_state.get("df_file") else Path()
-                    answer = ask_gpt(prompt_text, df_path, index_page_str, env.envars)
+                    answer = _ask_stage_generator(prompt_text, df_path, generation_mode)
                     merged_code = None
                     code_txt = answer[3] if len(answer) > 3 else ""
                     detail_txt = (answer[4] or "").strip() if len(answer) > 4 else ""
@@ -3927,8 +4012,11 @@ def display_lab_tab(
                         merged_code = f"{summary_line}{code_txt}"
                         if len(answer) > 3:
                             answer[3] = merged_code
+                    elif generation_mode == GENERATION_MODE_SAFE_ACTIONS:
+                        _warn_generation_without_code(answer)
+                        return
 
-                    if merged_code:
+                    if merged_code and generation_mode != GENERATION_MODE_SAFE_ACTIONS:
                         fixed_code, fixed_model, fixed_detail = _maybe_autofix_generated_code(
                             original_request=prompt_text,
                             df_path=df_path,
@@ -3956,6 +4044,7 @@ def display_lab_tab(
                         engine_map_local[new_idx] = "agi.run"
                     else:
                         engine_map_local[new_idx] = "runpy"
+                    extra_fields = _generation_extra_fields(answer, generation_mode)
                     save_stage(
                         module_path,
                         answer,
@@ -3964,6 +4053,7 @@ def display_lab_tab(
                         stages_file,
                         venv_map=venv_map,
                         engine_map=engine_map_local,
+                        extra_fields=extra_fields,
                     )
                     detail_store = st.session_state.setdefault(f"{index_page_str}__details", {})
                     detail = answer[4] if len(answer) > 4 else ""

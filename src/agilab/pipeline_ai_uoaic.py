@@ -175,11 +175,12 @@ def chat_universal_offline(
     *,
     ensure_runtime_fn: Callable[[Dict[str, str]], Dict[str, Any]],
     error_sink: Callable[[str], None],
+    system_instructions: str | None = None,
 ) -> Tuple[str, str]:
     runtime = ensure_runtime_fn(envars)
     chain = runtime["chain"]
     model_label = runtime.get("model_label") or str(envars.get(UOAIC_MODEL_ENV) or "universal-offline")
-    query_text = _format_uoaic_question(prompt, input_request) or input_request
+    query_text = _format_uoaic_question(prompt, input_request, system_instructions=system_instructions) or input_request
 
     try:
         response = chain.invoke({"query": query_text})

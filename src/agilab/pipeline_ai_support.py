@@ -649,7 +649,12 @@ def prompt_to_gpt_oss_messages(prompt: List[Dict[str, str]], question: str) -> T
     return instructions_text, history
 
 
-def format_uoaic_question(prompt: List[Dict[str, str]], question: str) -> str:
+def format_uoaic_question(
+    prompt: List[Dict[str, str]],
+    question: str,
+    *,
+    system_instructions: str | None = None,
+) -> str:
     """Flatten the conversation history into a single query string."""
     lines: List[str] = []
     for item in prompt or []:
@@ -671,7 +676,8 @@ def format_uoaic_question(prompt: List[Dict[str, str]], question: str) -> str:
         lines.append(f"{prefix}: {text}")
     lines.append(f"User: {question}")
     body = "\n".join(lines).strip()
-    return f"{CODE_STRICT_INSTRUCTIONS}\n\n{body}" if body else CODE_STRICT_INSTRUCTIONS
+    instructions = system_instructions or CODE_STRICT_INSTRUCTIONS
+    return f"{instructions}\n\n{body}" if body else instructions
 
 
 def normalize_user_path(raw_path: str) -> str:

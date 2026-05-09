@@ -2202,6 +2202,111 @@ def test_ask_gpt_routes_to_selected_provider(monkeypatch):
     assert result[2:] == ["gpt-5", "print(2)", ""]
 
 
+def test_ask_gpt_safe_actions_returns_validated_contract_and_code(monkeypatch):
+    captured: dict[str, object] = {}
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": "openai",
+            "loaded_df": pd.DataFrame({"speed_ms": [10.0], "city": ["Paris"]}),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+
+    def _fake_chat_online(question, prompt, envars, **kwargs):
+        captured["question"] = question
+        captured["system_instructions"] = kwargs.get("system_instructions")
+        return (
+            """
+            {
+              "schema_version": 1,
+              "kind": "agilab.generated_dataframe_actions",
+              "actions": [
+                {
+                  "action": "derive_column",
+                  "input": "speed_ms",
+                  "output": "speed_kmh",
+                  "transform": "multiply",
+                  "value": 3.6
+                }
+              ],
+              "notes": "convert speed"
+            }
+            """,
+            "gpt-safe",
+        )
+
+    monkeypatch.setattr(pipeline_ai, "chat_online", _fake_chat_online)
+
+    result = pipeline_ai.ask_gpt(
+        "convert speed to km/h",
+        Path("df.csv"),
+        "page",
+        {},
+        generation_mode=pipeline_ai.GENERATION_MODE_SAFE_ACTIONS,
+    )
+
+    assert result[2] == "gpt-safe"
+    assert "df = df.copy()" in result[3]
+    assert "speed_kmh" in result[3]
+    assert result[4] == "Safe action contract: derive column."
+    assert result[5][pipeline_ai.STAGE_GENERATION_MODE_FIELD] == pipeline_ai.GENERATION_MODE_SAFE_ACTIONS
+    assert result[5][pipeline_ai.STAGE_ACTION_CONTRACT_FIELD]["actions"][0]["action"] == "derive_column"
+    assert "Return ONLY a JSON object" in str(captured["question"])
+    assert captured["system_instructions"] == pipeline_ai.GENERATED_ACTIONS_SYSTEM_INSTRUCTIONS
+
+
+def test_ask_gpt_safe_actions_fails_closed_for_raw_python_and_unknown_column(monkeypatch):
+    fake_st = SimpleNamespace(
+        session_state={
+            "lab_prompt": [],
+            "lab_llm_provider": "openai",
+            "loaded_df": pd.DataFrame({"x": [1]}),
+        }
+    )
+    monkeypatch.setattr(pipeline_ai, "st", fake_st)
+    responses = iter(
+        [
+            ("```python\nimport os\nos.system('whoami')\n```", "gpt-safe"),
+            (
+                """
+                {
+                  "schema_version": 1,
+                  "kind": "agilab.generated_dataframe_actions",
+                  "actions": [
+                    {"action": "select_columns", "columns": ["missing"]}
+                  ]
+                }
+                """,
+                "gpt-safe",
+            ),
+        ]
+    )
+    monkeypatch.setattr(pipeline_ai, "chat_online", lambda *args, **kwargs: next(responses))
+
+    raw_python = pipeline_ai.ask_gpt(
+        "run shell",
+        Path("df.csv"),
+        "page",
+        {},
+        generation_mode=pipeline_ai.GENERATION_MODE_SAFE_ACTIONS,
+    )
+    unknown_column = pipeline_ai.ask_gpt(
+        "select missing",
+        Path("df.csv"),
+        "page",
+        {},
+        generation_mode=pipeline_ai.GENERATION_MODE_SAFE_ACTIONS,
+    )
+
+    assert raw_python[3] == ""
+    assert "invalid generated action JSON" in raw_python[4]
+    assert raw_python[5][pipeline_ai.STAGE_ACTION_CONTRACT_FIELD] is None
+    assert unknown_column[3] == ""
+    assert "unknown dataframe column" in unknown_column[4]
+    assert unknown_column[5][pipeline_ai.STAGE_GENERATION_MODE_FIELD] == pipeline_ai.GENERATION_MODE_SAFE_ACTIONS
+
+
 def test_chat_openai_compatible_uses_openai_sdk_without_openai_api_key(monkeypatch):
     captured: dict[str, object] = {}
 

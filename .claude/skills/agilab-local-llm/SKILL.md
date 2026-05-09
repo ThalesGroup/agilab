@@ -3,7 +3,7 @@ name: agilab-local-llm
 description: Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-07
+  updated: 2026-05-09
 ---
 
 # Local LLM Skill (AGILAB)
@@ -13,10 +13,25 @@ Use this skill when working on local/offline engines or prompts.
 ## Correctness-First Defaults
 
 - Prefer deterministic settings for code edits (lower temperature, explicit constraints).
+- In WORKFLOW, prefer validated generated-action JSON contracts over raw Python
+  snippets for normal dataframe transformations. This keeps AGILAB lightweight and
+  power-efficient without requiring containers or VMs for the default path.
 - Require the model to return:
   - file list to edit
   - exact patch intent
   - tests/commands to validate
+
+## Generated Workflow Actions
+
+- Treat raw model Python as an advanced/manual mode, not the default UX.
+- For dataframe transformations, ask the model for a versioned action contract,
+  validate it against the loaded dataframe schema, then let AGILAB convert the
+  approved contract into deterministic pandas code.
+- If the request cannot be represented by the safe action registry, fail closed
+  with an actionable message instead of executing or repairing arbitrary code.
+- Keep container/VM/process sandbox guidance for explicitly untrusted apps or
+  advanced raw-Python execution. Do not make it the primary recommendation for
+  AGILAB's normal local, energy-efficient workflow.
 
 ## No Silent Fallbacks
 

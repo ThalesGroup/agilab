@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-09T19:04:53Z",
+  "generated_at_utc": "2026-05-09T20:23:58Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -55,7 +55,7 @@
       "name": "agilab-local-llm",
       "description": "Guidance for using local LLM backends (Ollama/GPT-OSS) inside AGILAB with correctness-first prompts.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-07",
+      "updated": "2026-05-09",
       "path": ".codex/skills/agilab-local-llm/SKILL.md",
       "body_preview": "# Local LLM Skill (AGILAB)\nUse this skill when working on local/offline engines or prompts.\n## Correctness-First Defaults\n- Prefer deterministic settings for code edits (lower temperature, explicit constraints)."
     },

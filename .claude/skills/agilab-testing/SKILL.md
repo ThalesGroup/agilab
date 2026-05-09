@@ -120,6 +120,13 @@ Use this skill when validating changes.
 - Generated AI content:
   - Test the schema boundary and the deterministic downstream artifacts, not just
     the model/client call.
+  - For WORKFLOW dataframe generation, cover the safe-action contract path:
+    valid JSON contract -> dataframe-schema validation -> deterministic pandas
+    code generation -> persisted `generation_mode` / `action_contract` metadata.
+  - Add fail-closed regressions for unsupported actions, unknown dataframe columns,
+    invalid JSON, and raw Python returned while safe-action mode is selected.
+  - Keep raw-Python execution/auto-fix tests explicit about the advanced mode and
+    any required sandbox acknowledgement; do not treat those as the default UX.
   - For examples that expose user-facing scores or diagnostic metrics, assert the
     fields are present in persisted CSV/JSON and any reducer output. Good
     examples are `student_score` and `student_score_mean` for diagnostic apps.

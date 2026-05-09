@@ -156,11 +156,12 @@ summarises the supported keys.
        public exposure fails closed.
    * - ``AGILAB_GENERATED_CODE_SANDBOX``
      - unset
-     - Required before WORKFLOW auto-fix may execute model-generated Python for
-       validation. Supported acknowledgement values are ``process``,
-       ``container``, or ``vm``. Leave unset unless generated-code execution is
-       actually isolated from personal files, secrets, network, and unbounded
-       CPU/RAM/time.
+     - Required only for the advanced raw-Python WORKFLOW auto-fix path.
+       Normal dataframe generation uses safe-action JSON contracts that AGILAB
+       validates before converting them into deterministic pandas code.
+       Supported acknowledgement values are ``process``, ``container``, or
+       ``vm``. Leave unset unless generated-code execution is actually isolated
+       from personal files, secrets, network, and unbounded CPU/RAM/time.
    * - ``INSTALL_TYPE``
      - ``1``
      - Controls the installation mode passed to ``AgiEnv``/installers (1 = developer workflow).

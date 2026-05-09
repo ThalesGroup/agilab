@@ -185,6 +185,19 @@ Use this skill when editing:
   can emit progress on stderr. The regression should prove benign stderr stays
   successful and a concrete fatal marker still fails.
 
+## WORKFLOW Assistant UX
+
+- Default generated dataframe work to a safe-action mode: the model returns a
+  versioned JSON action contract, AGILAB validates it, and the UI displays the
+  deterministic pandas code derived from that contract.
+- Keep raw Python generation as an explicit advanced choice with clear wording.
+  Do not imply a container or VM is required for the normal safe-action path.
+- Persist the generation mode and action contract beside the saved stage so a
+  reopened `lab_stages.toml` explains whether code came from safe actions or
+  raw Python.
+- When generation fails validation, keep the existing stage code intact and show
+  the contract error; do not silently replace it with partial or arbitrary code.
+
 ## Long-Running Action Timers
 
 - For long async actions such as ORCHESTRATE install/run/serve, render a live
