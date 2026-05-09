@@ -96,6 +96,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
 - **Streamlit API**: do not add `st.experimental_rerun()`; use `st.rerun`.
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
+- **Generated WORKFLOW code**: keep safe-action contracts as the default assistant path for
+  dataframe transformations. The model should return versioned JSON, AGILAB validates it against
+  the dataframe schema, and AGILAB converts it into deterministic pandas code. Treat raw Python
+  generation as explicit advanced mode; reserve process/container/VM sandbox guidance for raw
+  Python execution, untrusted apps, or shared sensitive deployments, not the normal lightweight path.
 - **Skill placement guardrail**: repo-managed skills under `.claude/skills/` and `.codex/skills/`
   must stay AGILAB-specific, cross-repo reusable for AGILAB work, or directly support this
   repository’s workflows. Personal skills or skills for non-AGILAB domains belong in
