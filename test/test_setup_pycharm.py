@@ -413,6 +413,82 @@ def test_rebinds_root_run_configs_to_checkout_sdk(tmp_path: Path) -> None:
     assert _option(app, "SDK_NAME") == "uv (flight_project)"
 
 
+def test_ensure_project_ui_environment_syncs_missing_ui_extra(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "agilab-src"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        """
+[project]
+name = "agilab"
+
+[project.optional-dependencies]
+ui = ["agi-gui", "streamlit", "tomli_w"]
+""",
+        encoding="utf-8",
+    )
+    python_path = root / ".venv" / "bin" / "python"
+    python_path.parent.mkdir(parents=True)
+    python_path.write_text("", encoding="utf-8")
+    cfg = setup_pycharm.Config(root=root)
+    calls: list[tuple[list[str], Path, bool]] = []
+
+    monkeypatch.setattr(
+        setup_pycharm,
+        "venv_python_for",
+        lambda project_dir: python_path if project_dir == root else None,
+    )
+    monkeypatch.setattr(setup_pycharm, "_find_uv_binary", lambda: "/usr/bin/uv")
+    monkeypatch.setattr(setup_pycharm, "_missing_import_modules", lambda _python, _modules: ["tomli_w"])
+
+    def fake_run(argv, cwd, check):
+        calls.append((argv, cwd, check))
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr(setup_pycharm.subprocess, "run", fake_run)
+
+    assert setup_pycharm.ensure_project_ui_environment(cfg) == python_path
+    assert calls == [
+        (
+            ["/usr/bin/uv", "sync", "--project", ".", "--extra", "ui", "--preview-features", "python-upgrade"],
+            root,
+            True,
+        )
+    ]
+
+
+def test_ensure_project_ui_environment_skips_when_ui_modules_import(tmp_path: Path, monkeypatch) -> None:
+    root = tmp_path / "agilab-src"
+    root.mkdir()
+    (root / "pyproject.toml").write_text(
+        """
+[project]
+name = "agilab"
+
+[project.optional-dependencies]
+ui = ["agi-gui", "streamlit", "tomli_w"]
+""",
+        encoding="utf-8",
+    )
+    python_path = root / ".venv" / "bin" / "python"
+    python_path.parent.mkdir(parents=True)
+    python_path.write_text("", encoding="utf-8")
+    cfg = setup_pycharm.Config(root=root)
+
+    monkeypatch.setattr(
+        setup_pycharm,
+        "venv_python_for",
+        lambda project_dir: python_path if project_dir == root else None,
+    )
+    monkeypatch.setattr(setup_pycharm, "_missing_import_modules", lambda _python, _modules: [])
+    monkeypatch.setattr(
+        setup_pycharm.subprocess,
+        "run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("unexpected sync")),
+    )
+
+    assert setup_pycharm.ensure_project_ui_environment(cfg) == python_path
+
+
 def _read_generated_config(tmp_path: Path, name: str) -> ET.Element:
     tree = ET.parse(tmp_path / ".idea" / "runConfigurations" / name)
     config = tree.getroot().find("configuration")
