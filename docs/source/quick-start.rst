@@ -255,6 +255,30 @@ For an external apps repository available on your machine::
       --test-apps \
       --test-core
 
+Shared or team adoption check
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Before moving from a single-user proof to a shared team workstation, internal
+cluster, or external apps repository, archive an advisory security-check report::
+
+    uv --preview-features extra-build-dependencies run agilab security-check --json > security-check.json
+
+The report checks local adoption risks such as floating ``APPS_REPOSITORY``
+checkouts, likely plaintext secrets in ``~/.agilab/.env``, public UI bind
+addresses, cluster-share isolation, optional local-model profiles, and missing
+SBOM / ``pip-audit`` evidence. It is advisory by default so first proof and
+local experimentation stay fast.
+
+Maintainers can produce the same artifact from the repo workflow-parity helper::
+
+    uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile security-adoption
+
+Use strict mode only for an explicit release or team gate where warnings should
+fail the job::
+
+    AGILAB_SECURITY_CHECK_STRICT=1 \
+    uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile security-adoption
+
 Clean source-validation runs should keep their disposable checkout and fake
 ``HOME`` outside the normal home directory. Use a cache-backed workspace so
 failed validation can still be inspected without polluting ``$HOME``::

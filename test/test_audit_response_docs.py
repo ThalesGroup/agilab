@@ -121,6 +121,18 @@ def test_security_policy_addresses_public_audit_adoption_boundaries() -> None:
     assert "republish the documentation" in security
 
 
+def test_quick_start_documents_security_adoption_checkpoint() -> None:
+    quick_start = (DOCS_SOURCE / "quick-start.rst").read_text(encoding="utf-8")
+    beta_readiness = (DOCS_SOURCE / "beta-readiness.rst").read_text(encoding="utf-8")
+
+    assert "Shared or team adoption check" in quick_start
+    assert "agilab security-check --json > security-check.json" in quick_start
+    assert "workflow_parity.py --profile security-adoption" in quick_start
+    assert "AGILAB_SECURITY_CHECK_STRICT=1" in quick_start
+    assert "test-results/security-check.json" in beta_readiness
+    assert "AGILAB_SECURITY_CHECK_STRICT=1" in beta_readiness
+
+
 def test_readme_uses_recommended_workbench_positioning() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
