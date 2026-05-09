@@ -82,6 +82,8 @@ def test_analyze_paths_keeps_workflow_policy_tests_out_of_gui_parity() -> None:
     report = module.analyze_paths(
         [
             ".github/workflows/coverage.yml",
+            ".github/workflows/ensure-roadmap-label.yaml",
+            "test/conftest.py",
             "test/test_ci_workflow.py",
             "test/test_impact_validate.py",
             "test/test_workflow_parity.py",
@@ -94,6 +96,7 @@ def test_analyze_paths_keeps_workflow_policy_tests_out_of_gui_parity() -> None:
     assert targeted.commands == [
         "uv --preview-features extra-build-dependencies run pytest -q "
         "test/test_coverage_workflow.py test/test_ci_workflow.py "
+        "test/test_view_maps_3d.py::test_view_maps_3d_warns_when_no_dataset_exists "
         "test/test_impact_validate.py test/test_workflow_parity.py"
     ]
 

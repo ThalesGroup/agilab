@@ -65,6 +65,7 @@ def test_changed_coverage_components_ignores_workflow_policy_tests() -> None:
     changed = module.changed_coverage_components(
         [
             ".github/workflows/coverage.yml",
+            "test/conftest.py",
             "test/test_ci_workflow.py",
             "test/test_coverage_workflow.py",
             "test/test_impact_validate.py",

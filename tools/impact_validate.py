@@ -48,6 +48,7 @@ TEST_PREFIXES = (
     "src/agilab/core/agi-env/test/",
 )
 NON_GUI_ROOT_TESTS = {
+    "test/conftest.py",
     "test/test_coverage_badge_guard.py",
     "test/test_coverage_workflow.py",
     "test/test_generate_component_coverage_badges.py",
@@ -212,10 +213,16 @@ def _guess_tests_for_file(path: str) -> list[str]:
         ".github/workflows/coverage.yml": "test/test_coverage_workflow.py",
         ".github/workflows/docs-source-guard.yaml": "test/test_ci_workflow.py",
         ".github/workflows/docs-publish.yaml": "test/test_ci_workflow.py",
+        ".github/workflows/ensure-roadmap-label.yaml": "test/test_ci_workflow.py",
         ".github/workflows/ui-robot-matrix.yml": "test/test_ci_workflow.py",
     }
     if path in workflow_tests:
         return [workflow_tests[path]]
+    if path == "test/conftest.py":
+        return [
+            "test/test_ci_workflow.py",
+            "test/test_view_maps_3d.py::test_view_maps_3d_warns_when_no_dataset_exists",
+        ]
 
     candidate_tests: list[Path] = []
     rel = Path(path)

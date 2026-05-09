@@ -41,6 +41,7 @@ COVERAGE_TOOLING_TESTS = {
 }
 NON_GUI_ROOT_TESTS = {
     *COVERAGE_TOOLING_TESTS,
+    "test/conftest.py",
     "test/test_connector_registry.py",
     "test/test_beta_readiness.py",
     "test/test_public_demo_links.py",
