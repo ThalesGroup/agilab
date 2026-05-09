@@ -271,7 +271,12 @@ Unfortunatly when NumPy/Numba falls back to compiling from source you won’t se
 
 while running uv into a project from another one:
 warning: `VIRTUAL_ENV=.venv` does not match the project environment path `/path/to/checkout/src/agilab/apps/mycode_project/.venv` and will be ignored; use `--active` to target the active environment instead
-This is not a problem this because we dynamically change the venv. Just ignore it.
+This is an informational ``uv`` warning, but AGILAB-managed PyCharm configs and run
+wrappers clear ``VIRTUAL_ENV`` before invoking ``uv`` so normal launches should not print
+it. If it appears, you are probably running ``uv`` directly from an activated shell. Use
+the matching ``tools/run_configs`` wrapper or run ``unset VIRTUAL_ENV`` before the direct
+command. Do not add ``--active`` unless you intentionally want to reuse the currently
+activated virtual environment instead of the AGILAB project environment.
 
 <Python> Python
 -------------------

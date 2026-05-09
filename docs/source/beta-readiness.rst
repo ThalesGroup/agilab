@@ -59,9 +59,14 @@ publishing a beta-classified package:
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile agi-env --profile agi-core-combined --profile agi-gui --profile docs --profile installer --profile shared-core-typing --profile dependency-policy
+   uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile security-adoption
    uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --with-install
    uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose
    uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+
+The ``security-adoption`` profile writes ``test-results/security-check.json``
+as an advisory artifact. Use ``AGILAB_SECURITY_CHECK_STRICT=1`` only when the
+release manager wants adoption warnings to fail the gate.
 
 If any command fails, keep the public classifier at alpha and fix the underlying
 reproducibility, install, demo, or publication issue first.

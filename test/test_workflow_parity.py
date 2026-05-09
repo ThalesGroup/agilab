@@ -46,6 +46,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
     dependency_policy = profiles["dependency-policy"][0]
+    security_adoption = profiles["security-adoption"][0]
     cloud_emulators = profiles["cloud-emulators"]
     ui_robot_matrix = profiles["ui-robot-matrix"][0]
 
@@ -148,6 +149,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert dependency_policy.label == "dependency policy"
     assert dependency_policy.argv[-1] == "test/test_pyproject_dependency_hygiene.py"
     assert "addopts=" in dependency_policy.argv
+    assert security_adoption.label == "security adoption check"
+    assert security_adoption.argv[-3:] == [
+        "tools/security_adoption_check.py",
+        "--output",
+        "test-results/security-check.json",
+    ]
+    assert security_adoption.ensure_dirs == ["test-results"]
+    assert security_adoption.remove_paths == ["test-results/security-check.json"]
     assert [command.label for command in cloud_emulators] == [
         "cloud emulator connector evidence",
         "cloud emulator connector tests",
@@ -178,6 +187,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "cloud-emulators" in selected
     assert "agi-node" not in selected
     assert "agi-cluster" not in selected
+    assert "security-adoption" not in selected
     assert "ui-robot-matrix" not in selected
 
 
