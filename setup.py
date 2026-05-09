@@ -21,6 +21,9 @@ class build_py(_build_py):
     def run(self):
         super().run()
         sanitizer = _load_sanitizer()
+        removed = sanitizer.purge_packaged_builtin_app_artifacts(self.build_lib)
+        for artifact_path in removed:
+            print(f"[build_py] removed packaged app artifact: {artifact_path}")
         changed = sanitizer.sanitize_packaged_builtin_app_pyprojects(self.build_lib)
         for pyproject_path in changed:
             print(f"[build_py] sanitized packaged app manifest: {pyproject_path}")

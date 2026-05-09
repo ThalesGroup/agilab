@@ -10,7 +10,8 @@ User-facing install surfaces
 
 For public users, the supported entry points are:
 
-- ``agilab``: the top-level UI and CLI package.
+- ``agilab``: the top-level CLI package. Add the ``ui`` extra for the local
+  Streamlit web interface.
 - ``agi-core``: the compact notebook/API runtime used by the public notebook
   examples.
 
@@ -44,11 +45,14 @@ Why keep them published
 
 Publishing these runtime packages keeps the release process reproducible:
 
-- ``pip install agilab`` and ``uvx agilab`` can resolve the exact package graph.
+- ``pip install agilab`` and ``uvx agilab`` can resolve the exact base package
+  graph for CLI and first-proof checks.
+- ``pip install "agilab[ui]"`` installs the matching ``agi-gui`` package and
+  Streamlit page dependencies for the local web interface.
 - ``agi-core`` can pin the matching ``agi-env``, ``agi-node``, and
   ``agi-cluster`` versions for a release.
-- ``agilab`` can pin the matching ``agi-gui`` version for the UI/page surface
-  without making worker-only installs depend on Streamlit.
+- ``agilab[ui]`` can pin the matching ``agi-gui`` version for the UI/page
+  surface without making CLI/core installs depend on Streamlit.
 - App worker environments can install the same runtime components in isolation
   from the manager environment.
 - CI and release evidence can validate the same dependency graph that external
@@ -60,8 +64,8 @@ Release rule
 For each public release, publish the runtime packages and ``agi-gui`` with the
 same version as ``agilab`` and ``agi-core`` unless a deliberate packaging
 migration removes that need. Do not skip ``agi-node``, ``agi-cluster``, or
-``agi-gui`` from the publish matrix while ``agi-core`` and ``agilab`` depend on
-them as external packages.
+``agi-gui`` from the publish matrix while ``agi-core`` and the ``agilab[ui]``
+extra depend on them as external packages.
 
 If AGILAB later embeds the ``agi_node`` and ``agi_cluster`` Python modules
 directly into a single wheel, that migration must update dependency metadata,

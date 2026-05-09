@@ -12,12 +12,15 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import argparse
+import importlib.util
 import os
 import sys
 import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
-import streamlit.web.cli as stcli
+
+
+UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'` or install `agi-gui`."
 
 
 def _detect_repo_root(start: Path) -> Path | None:
@@ -104,6 +107,34 @@ def _run_first_proof(argv: list[str]) -> int:
     return first_proof_cli.main(argv)
 
 
+def _missing_ui_dependencies() -> list[str]:
+    missing: list[str] = []
+    for module_name, distribution_name in (
+        ("streamlit", "streamlit"),
+        ("agi_gui", "agi-gui"),
+    ):
+        if importlib.util.find_spec(module_name) is None:
+            missing.append(distribution_name)
+    return missing
+
+
+def _load_streamlit_cli():
+    missing = _missing_ui_dependencies()
+    if missing:
+        raise SystemExit(
+            "agilab: the Streamlit UI dependencies are not installed. "
+            f"Missing: {', '.join(missing)}. {UI_EXTRA_HINT}"
+        )
+    try:
+        import streamlit.web.cli as stcli
+    except ModuleNotFoundError as exc:
+        raise SystemExit(
+            "agilab: unable to import Streamlit UI runtime. "
+            f"{UI_EXTRA_HINT}\nOriginal error: {exc}"
+        ) from exc
+    return stcli
+
+
 def main(argv: list[str] | None = None) -> int:
     _guard_against_uvx_in_source_tree()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -157,6 +188,7 @@ def main(argv: list[str] | None = None) -> int:
         new_argv.extend(custom_args)
 
     sys.argv = new_argv
+    stcli = _load_streamlit_cli()
     return stcli.main()
 
 if __name__ == "__main__":

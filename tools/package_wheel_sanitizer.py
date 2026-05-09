@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 from pathlib import Path
 
 
@@ -79,3 +80,26 @@ def sanitize_packaged_builtin_app_pyprojects(build_lib: str | Path) -> list[Path
         pyproject_path.write_text(sanitized, encoding="utf-8")
         changed.append(pyproject_path)
     return changed
+
+
+def purge_packaged_builtin_app_artifacts(build_lib: str | Path) -> list[Path]:
+    """Remove local build/test artifacts from packaged built-in apps."""
+
+    builtin_root = Path(build_lib) / "agilab" / "apps" / "builtin"
+    if not builtin_root.exists():
+        return []
+
+    removed: list[Path] = []
+    for pycache_dir in sorted(builtin_root.rglob("__pycache__")):
+        shutil.rmtree(pycache_dir)
+        removed.append(pycache_dir)
+    for artifact in sorted(builtin_root.rglob("*")):
+        if artifact.is_dir():
+            if artifact.name.endswith(".egg-info"):
+                shutil.rmtree(artifact)
+                removed.append(artifact)
+            continue
+        if artifact.suffix in {".pyc", ".pyo", ".c"}:
+            artifact.unlink()
+            removed.append(artifact)
+    return removed
