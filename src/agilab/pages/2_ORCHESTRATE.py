@@ -126,16 +126,6 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
-    "agilab.about_page.layout",
-    {
-        "render_execution_context_panel": "render_execution_context_panel",
-    },
-    current_file=__file__,
-    fallback_path=Path(__file__).resolve().parents[1] / "about_page" / "layout.py",
-    fallback_name="agilab_about_page_layout_fallback",
-)
-import_agilab_symbols(
-    globals(),
     "agilab.page_project_selector",
     {
         "render_project_selector": "render_project_selector",
@@ -1436,7 +1426,6 @@ async def _render_deployment_panel(
             agi_env_envars=getattr(AgiEnv, "envars", None),
         )
         render_cluster_settings_ui(env, cluster_deps, show_run_mode_info=False)
-        render_execution_context_panel(env, hidden_labels=("Active project", "Scheduler", "Mode"))
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
 
