@@ -1436,7 +1436,7 @@ async def _render_deployment_panel(
             agi_env_envars=getattr(AgiEnv, "envars", None),
         )
         render_cluster_settings_ui(env, cluster_deps)
-        render_execution_context_panel(env)
+        render_execution_context_panel(env, hidden_labels=("Active project", "Scheduler", "Mode"))
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
 
