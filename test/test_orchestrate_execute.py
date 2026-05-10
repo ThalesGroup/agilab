@@ -1346,7 +1346,7 @@ async def test_render_execute_section_load_warns_when_no_preview_or_empty_batch(
         deps=_make_execute_deps(no_target_st.messages, no_target_st.session_state),
     )
 
-    assert any(kind == "warning" and "No dataframe export found yet" in msg for kind, msg in no_target_st.messages)
+    assert any(kind == "warning" and "No previewable output found yet" in msg for kind, msg in no_target_st.messages)
 
     empty_csv = tmp_path / "empty.csv"
     empty_csv.write_text("value\n", encoding="utf-8")

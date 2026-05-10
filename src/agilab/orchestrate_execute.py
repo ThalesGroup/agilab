@@ -557,7 +557,7 @@ async def render_execute_section(
                 type="primary",
                 disabled=not execute_state.combo_action.enabled,
                 help=execute_state.combo_action.disabled_reason
-                or "Run EXECUTE, LOAD dataframe, and EXPORT output in one click.",
+                or "Run the workflow, load the latest previewable output, and export tabular output when available.",
                 width="stretch",
             ):
                 _queue_execute_action("combo")
@@ -569,7 +569,7 @@ async def render_execute_section(
 
     if controls_visible:
         st.markdown("#### 5. Execute and inspect outputs")
-        st.caption("Run the configured command, load the latest result, and export the dataframe used by analysis pages.")
+        st.caption("Run the configured command, load the latest previewable output, and export tabular data when available.")
         _render_run_panel_controls()
     else:
         consume_pending_execute_action(st.session_state)
@@ -590,7 +590,10 @@ async def render_execute_section(
             target_file, search_files = find_preview_target(candidate_roots)
 
             if not target_file:
-                st.warning("No dataframe export found yet. Run EXECUTE to generate a fresh output.")
+                st.warning(
+                    "No previewable output found yet. Run the workflow to generate stage artifacts, "
+                    "then return here to inspect them."
+                )
             else:
                 st.session_state["loaded_source_path"] = target_file
                 suffix = target_file.suffix.lower()
