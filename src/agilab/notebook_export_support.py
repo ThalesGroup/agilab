@@ -1322,14 +1322,14 @@ def build_notebook_document(
         _markdown_cell(
             "\n".join(
                 [
-                    f"# AGILAB Pipeline Export: {export_context.project_name}",
+                    f"# AGILAB Workflow Export: {export_context.project_name}",
                     "",
-                    "This notebook preserves the AGILAB pipeline as a **supervisor notebook**.",
+                    "This notebook preserves the AGILAB workflow as a **supervisor notebook**.",
                     "",
                     f"- Module: `{export_context.module_path}`",
                     f"- Artifact directory: `{export_context.artifact_dir}`",
                     f"- Export mode: `{export_context.export_mode}`",
-                    "- Use `run_agilab_stage(i)` or `run_agilab_pipeline()` to execute stages in their recorded runtime.",
+                    "- Use `run_agilab_stage(i)` or `run_agilab_pipeline()` to execute workflow stages in their recorded runtime.",
                     "- The code cells below stay readable/editable, but they do not replace the recorded per-stage environment.",
                 ]
             )

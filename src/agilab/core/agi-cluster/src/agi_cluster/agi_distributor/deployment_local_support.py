@@ -250,6 +250,30 @@ async def _ensure_project_venv(
     await run_fn(cmd, project)
 
 
+def _copy_package_resources(resources_src: Path, resources_dest: Path, *, env_logger: Any | None = None) -> None:
+    if not resources_src.exists():
+        return
+    resources_dest.parent.mkdir(parents=True, exist_ok=True)
+    if resources_dest.exists():
+        _force_remove(resources_dest, env_logger=env_logger)
+    shutil.copytree(resources_src, resources_dest, dirs_exist_ok=True)
+
+
+def _remove_legacy_app_resource_copy(app_path: Path, *, env_logger: Any | None = None) -> None:
+    legacy_resources = app_path / "agilab/core/agi-env/src/agi_env/resources"
+    if not legacy_resources.exists():
+        return
+    _force_remove(legacy_resources, env_logger=env_logger)
+    stop = app_path.resolve(strict=False)
+    current = legacy_resources.parent
+    while current != app_path and current.resolve(strict=False).is_relative_to(stop):
+        try:
+            current.rmdir()
+        except OSError:
+            break
+        current = current.parent
+
+
 async def _install_into_project_venv(
     uv_cmd: str,
     project: Path,
@@ -796,13 +820,18 @@ async def deploy_local_worker(
         resources_src = env_project / "src/agi_env/resources"
         if not resources_src.exists():
             resources_src = env.env_pck / "resources"
-        manager_resources = app_path / "agilab/core/agi-env/src/agi_env/resources"
-        if resources_src.exists():
-            log.info(f"mkdir {manager_resources.parent}")
-            manager_resources.parent.mkdir(parents=True, exist_ok=True)
-            if manager_resources.exists():
-                _force_remove(manager_resources, env_logger=getattr(env, "logger", None))
-            shutil.copytree(resources_src, manager_resources, dirs_exist_ok=True)
+        _remove_legacy_app_resource_copy(app_path, env_logger=getattr(env, "logger", None))
+        manager_resources = (
+            worker_site_packages_dir_fn(app_path, env.python_version, windows=(os.name == "nt"))
+            / "agi_env"
+            / "resources"
+        )
+        log.info(f"mkdir {manager_resources.parent}")
+        _copy_package_resources(
+            resources_src,
+            manager_resources,
+            env_logger=getattr(env, "logger", None),
+        )
 
         site_packages_manager = env.env_pck.parent
         _cleanup_editable(site_packages_manager)
@@ -928,11 +957,11 @@ async def deploy_local_worker(
             worker_resources_src = env.env_pck / "resources"
         resources_dest = wenv_abs / "agilab/core/agi-env/src/agi_env/resources"
         log.info(f"mkdir {resources_dest.parent}")
-        resources_dest.parent.mkdir(parents=True, exist_ok=True)
-        if resources_dest.exists():
-            _force_remove(resources_dest, env_logger=getattr(env, "logger", None))
-        if worker_resources_src.exists():
-            shutil.copytree(worker_resources_src, resources_dest, dirs_exist_ok=True)
+        _copy_package_resources(
+            worker_resources_src,
+            resources_dest,
+            env_logger=getattr(env, "logger", None),
+        )
 
         install_targets = (
             (agilab_project, "agilab"),

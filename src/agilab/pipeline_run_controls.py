@@ -215,7 +215,7 @@ def _pipeline_lock_ttl_seconds() -> float:
 
 
 def _pipeline_lock_path(env: AgiEnv) -> Path:
-    """Return shared lock path for one app pipeline execution."""
+    """Return shared lock path for one app workflow execution."""
     target = str(getattr(env, "target", "") or getattr(env, "app", "") or "agilab").strip()
     relative = Path(".control") / "pipeline" / target / PIPELINE_LOCK_FILENAME
     try:
@@ -305,7 +305,7 @@ def _clear_pipeline_run_lock(
     *,
     reason: str,
 ) -> bool:
-    """Remove the current pipeline lock, if any, and log why."""
+    """Remove the current workflow lock, if any, and log why."""
     lock_state = _inspect_pipeline_run_lock(env)
     if not lock_state:
         return True
@@ -314,14 +314,14 @@ def _clear_pipeline_run_lock(
         lock_path.unlink()
         _push_run_log(
             index_page,
-            f"Removed pipeline lock ({reason}): {lock_path}",
+            f"Removed workflow lock ({reason}): {lock_path}",
             placeholder,
         )
         return True
     except FileNotFoundError:
         return True
     except OSError as exc:
-        msg = f"Unable to remove pipeline lock `{lock_path}`: {exc}"
+        msg = f"Unable to remove workflow lock `{lock_path}`: {exc}"
         st.error(msg)
         _push_run_log(index_page, msg, placeholder)
         return False
@@ -334,7 +334,7 @@ def _acquire_pipeline_run_lock(
     *,
     force: bool = False,
 ) -> Optional[Dict[str, Any]]:
-    """Acquire a cross-process pipeline lock with stale lock cleanup."""
+    """Acquire a cross-process workflow lock with stale lock cleanup."""
     lock_path = _pipeline_lock_path(env)
     token = uuid.uuid4().hex
     now = time.time()
@@ -362,7 +362,7 @@ def _acquire_pipeline_run_lock(
             fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
                 json.dump(payload, stream, indent=2)
-            _push_run_log(index_page, f"Pipeline lock acquired: {lock_path}", placeholder)
+            _push_run_log(index_page, f"Workflow lock acquired: {lock_path}", placeholder)
             return {"path": lock_path, "token": token}
         except FileExistsError:
             lock_state = _inspect_pipeline_run_lock(env) or {
@@ -381,7 +381,7 @@ def _acquire_pipeline_run_lock(
 
             owner_txt = str(lock_state.get("owner_text") or "?")
             msg = (
-                "Another pipeline execution is already running. "
+                "Another workflow execution is already running. "
                 f"Owner: {owner_txt}. Current run cancelled. "
                 "If that run was interrupted, use 'Force unlock and run'."
             )
@@ -389,19 +389,19 @@ def _acquire_pipeline_run_lock(
             _push_run_log(index_page, msg, placeholder)
             return None
         except (OSError, TypeError, ValueError) as exc:
-            msg = f"Unable to acquire pipeline lock `{lock_path}`: {exc}"
+            msg = f"Unable to acquire workflow lock `{lock_path}`: {exc}"
             st.error(msg)
             _push_run_log(index_page, msg, placeholder)
             return None
 
-    msg = f"Unable to acquire pipeline lock after stale cleanup retries: {lock_path}"
+    msg = f"Unable to acquire workflow lock after stale cleanup retries: {lock_path}"
     st.warning(msg)
     _push_run_log(index_page, msg, placeholder)
     return None
 
 
 def _refresh_pipeline_run_lock(lock_handle: Optional[Dict[str, Any]]) -> None:
-    """Refresh heartbeat for an acquired pipeline lock."""
+    """Refresh heartbeat for an acquired workflow lock."""
     if not lock_handle:
         return
     lock_path_raw = lock_handle.get("path")
@@ -422,7 +422,7 @@ def _refresh_pipeline_run_lock(lock_handle: Optional[Dict[str, Any]]) -> None:
             json.dump(payload, stream, indent=2)
         os.replace(tmp_path, lock_path)
     except (OSError, TypeError, ValueError):
-        logger.debug("Failed to refresh pipeline lock heartbeat for %s", lock_path, exc_info=True)
+        logger.debug("Failed to refresh workflow lock heartbeat for %s", lock_path, exc_info=True)
 
 
 def _release_pipeline_run_lock(
@@ -430,7 +430,7 @@ def _release_pipeline_run_lock(
     index_page: str,
     placeholder: Optional[Any] = None,
 ) -> None:
-    """Release pipeline lock if still owned by this process and token."""
+    """Release workflow lock if still owned by this process and token."""
     if not lock_handle:
         return
     lock_path_raw = lock_handle.get("path")
@@ -445,11 +445,11 @@ def _release_pipeline_run_lock(
         if payload and payload.get("token") != token:
             return
         lock_path.unlink()
-        _push_run_log(index_page, f"Pipeline lock released: {lock_path}", placeholder)
+        _push_run_log(index_page, f"Workflow lock released: {lock_path}", placeholder)
     except FileNotFoundError:
         return
     except OSError as exc:
-        logger.debug("Failed to release pipeline lock %s: %s", lock_path, exc)
+        logger.debug("Failed to release workflow lock %s: %s", lock_path, exc)
 
 
 def _format_legacy_stage_refs(stale_stages: List[Dict[str, Any]]) -> str:

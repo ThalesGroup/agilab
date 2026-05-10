@@ -4209,7 +4209,7 @@ def display_lab_tab(
                     "Clear stale lock and run",
                     key=f"{index_page_str}_force_run_stale",
                     kind="run",
-                    help=force_blocked_reason or "Remove the stale pipeline lock and start a new run.",
+                    help=force_blocked_reason or "Remove the stale workflow lock and start a new run.",
                     disabled=PipelineAction.FORCE_RUN not in page_state.available_actions,
                 )
             elif st.session_state.get(force_run_confirm_key, False):

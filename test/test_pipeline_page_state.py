@@ -68,7 +68,7 @@ def test_pipeline_page_state_keeps_visible_stages_when_logs_are_missing_or_clear
     assert pipeline_page_state.PipelineAction.RUN_PIPELINE in state_after_clear.available_actions
     assert pipeline_page_state.PipelineAction.CLEAR_LOGS in state_after_clear.available_actions
     assert state_after_clear.blocked_actions[pipeline_page_state.PipelineAction.FORCE_RUN] == (
-        "No pipeline lock is present."
+        "No workflow lock is present."
     )
 
 

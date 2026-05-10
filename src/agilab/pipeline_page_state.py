@@ -232,7 +232,7 @@ def _derive_actions(
         elif runnable_stage_count == 0:
             reason = run_disabled_reason or "No selected workflow stage contains runnable code."
         elif not lock_state:
-            reason = "No pipeline lock is present."
+            reason = "No workflow lock is present."
         else:
             reason = run_disabled_reason or "Workflow cannot be force-run in the current state."
         blocked[PipelineAction.FORCE_RUN] = reason
