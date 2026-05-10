@@ -618,6 +618,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert all("Run mode " not in str(item.value) for item in at.info)
     assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
     assert "Settings</div>" not in markdown_text
+
     assert "Next action" not in markdown_text
     assert all("Active project" not in str(item.value) for item in at.sidebar.markdown)
     assert all("Flow:" not in str(item.value) for item in at.caption)
@@ -646,6 +647,15 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert cluster_state.get("cluster_enabled", enabled_state) is True
     assert cluster_state.get("pool", pool_state) is True
     assert at.session_state[scheduler_key] == "127.0.0.1:8786"
+
+
+def test_orchestrate_page_does_not_import_dag_helper_from_execute_module():
+    source = Path("src/agilab/pages/2_ORCHESTRATE.py").read_text(encoding="utf-8")
+    workflow_import = source.split('"agilab.workflow_ui"', 1)[1].split(")", 1)[0]
+    execute_import = source.split('"agilab.orchestrate_execute"', 1)[1].split(")", 1)[0]
+
+    assert '"is_dag_worker_base": "is_dag_worker_base"' in workflow_import
+    assert '"is_dag_worker_base": "is_dag_worker_base"' not in execute_import
 
 
 def test_execute_page_realigns_stale_agi_space_session_env(mock_ui_env, tmp_path):

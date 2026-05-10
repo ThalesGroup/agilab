@@ -118,6 +118,7 @@ import_agilab_symbols(
     globals(),
     "agilab.workflow_ui",
     {
+        "is_dag_worker_base": "is_dag_worker_base",
         "render_page_context": "render_page_context",
     },
     current_file=__file__,
@@ -236,7 +237,6 @@ import_agilab_symbols(
     "agilab.orchestrate_execute",
     {
         "OrchestrateExecuteDeps": "OrchestrateExecuteDeps",
-        "is_dag_worker_base": "is_dag_worker_base",
         "render_execute_section": "render_execute_section",
     },
     current_file=__file__,
