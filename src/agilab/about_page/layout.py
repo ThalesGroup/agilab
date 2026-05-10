@@ -1406,14 +1406,11 @@ def _clear_execution_context_probe_state(env: Any) -> None:
         pass
 
 
-def render_execution_context_panel(env: Any, *, hidden_labels: tuple[str, ...] = ()) -> None:
-    """Render active-app scheduler and cluster context in ORCHESTRATE."""
+def render_execution_context_panel(env: Any) -> None:
+    """Render active-app scheduler and cluster context."""
     if _execution_context_refresh_requested(env):
         _clear_execution_context_probe_state(env)
     lines = active_app_cluster_information_lines(env)
-    if hidden_labels:
-        hidden = set(hidden_labels)
-        lines = [(label, value) for label, value in lines if label not in hidden]
     markdown = getattr(st, "markdown", None)
     if callable(markdown):
         markdown(_execution_context_information_html(lines), unsafe_allow_html=True)
