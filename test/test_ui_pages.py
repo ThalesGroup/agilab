@@ -612,9 +612,18 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "Manager env" in markdown_text
     assert "Worker env" in markdown_text
     assert "Runs" in markdown_text
+    assert "Resource summary" in markdown_text
+    assert "Share" in markdown_text
+    assert "CPU" in markdown_text
+    assert "RAM" in markdown_text
+    assert "GPU" in markdown_text
+    assert "NPU" in markdown_text
     assert "Execution environment" not in markdown_text
     assert "ORCHESTRATE context" not in markdown_text
     assert "agilab-execution-context" not in markdown_text
+    assert "Active project" not in markdown_text
+    assert "Scheduler" not in markdown_text
+    assert "Mode" not in markdown_text
     assert all("Run mode " not in str(item.value) for item in at.info)
     assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
     assert "Settings</div>" not in markdown_text
