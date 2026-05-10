@@ -1224,7 +1224,8 @@ def test_render_cluster_settings_ui_uses_ssh_key_auth_and_resolved_share(monkeyp
     assert env.ssh_key_path == "~/.ssh/id_demo"
     assert ("CLUSTER_CREDENTIALS", "agi") in env_calls
     assert ("AGI_SSH_KEY_PATH", "~/.ssh/id_demo") in env_calls
-    assert any("clustershare" in text and "→" in text for text in fake_st.markdowns)
+    assert all("agi_share_path" not in text for text in fake_st.markdowns)
+    assert all(not ("clustershare" in text and "→" in text) for text in fake_st.markdowns)
     assert fake_st.session_state["mode"] == 6
     assert fake_st.infos[-1] == "Run mode 6: dask and cython"
 
