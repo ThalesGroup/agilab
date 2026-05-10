@@ -127,6 +127,16 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.about_page.layout",
+    {
+        "active_app_cluster_information_lines": "active_app_cluster_information_lines",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "about_page" / "layout.py",
+    fallback_name="agilab_about_page_layout_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.page_project_selector",
     {
         "render_project_selector": "render_project_selector",
@@ -1400,6 +1410,83 @@ def _render_orchestrate_readiness_panel(
             _render_header_value_card("Last change", _latest_project_mtime(active_app), _safe_display_path(active_app))
 
 
+_ORCHESTRATE_RESOURCE_SUMMARY_LABELS = ("Share", "CPU", "RAM", "GPU", "NPU")
+
+
+def _orchestrate_resource_summary_html(lines: list[tuple[str, str]]) -> str:
+    rows = []
+    for label, value in lines:
+        escaped_label = html.escape(label)
+        escaped_value = html.escape(str(value))
+        rows.append(
+            "<div class='agilab-resource-summary-item'>"
+            f"<span class='agilab-resource-summary-label'>{escaped_label}</span>"
+            f"<span class='agilab-resource-summary-value'>{escaped_value}</span>"
+            "</div>"
+        )
+    return (
+        "<style>"
+        ".agilab-resource-summary{"
+        "margin:.45rem 0 1rem 0;"
+        "padding:.85rem .95rem;"
+        "border:1px solid rgba(155,191,255,.18);"
+        "border-radius:.9rem;"
+        "background:rgba(19,35,56,.72);"
+        "}"
+        ".agilab-resource-summary-title{"
+        "font-size:.78rem;"
+        "letter-spacing:.06em;"
+        "text-transform:uppercase;"
+        "color:rgba(247,242,232,.68);"
+        "font-weight:720;"
+        "margin-bottom:.55rem;"
+        "}"
+        ".agilab-resource-summary-grid{"
+        "display:grid;"
+        "grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));"
+        "gap:.55rem;"
+        "}"
+        ".agilab-resource-summary-item{"
+        "padding:.55rem .62rem;"
+        "border-radius:.68rem;"
+        "background:rgba(255,255,255,.055);"
+        "border:1px solid rgba(255,255,255,.07);"
+        "min-width:0;"
+        "}"
+        ".agilab-resource-summary-label{"
+        "display:block;"
+        "font-size:.7rem;"
+        "color:rgba(247,242,232,.58);"
+        "margin-bottom:.18rem;"
+        "}"
+        ".agilab-resource-summary-value{"
+        "display:block;"
+        "font-size:.88rem;"
+        "line-height:1.25;"
+        "font-weight:720;"
+        "color:#f7f2e8;"
+        "overflow-wrap:anywhere;"
+        "}"
+        "</style>"
+        "<div class='agilab-resource-summary' role='group' aria-label='Resource summary'>"
+        "<div class='agilab-resource-summary-title'>Resource summary</div>"
+        "<div class='agilab-resource-summary-grid'>"
+        f"{''.join(rows)}"
+        "</div>"
+        "</div>"
+    )
+
+
+def _render_orchestrate_resource_summary(env: Any) -> None:
+    lines = [
+        (label, value)
+        for label, value in active_app_cluster_information_lines(env)
+        if label in _ORCHESTRATE_RESOURCE_SUMMARY_LABELS
+    ]
+    if lines:
+        st.markdown(_orchestrate_resource_summary_html(lines), unsafe_allow_html=True)
+
+
 async def _render_deployment_panel(
     env: Any,
     *,
@@ -1426,6 +1513,7 @@ async def _render_deployment_panel(
             agi_env_envars=getattr(AgiEnv, "envars", None),
         )
         render_cluster_settings_ui(env, cluster_deps, show_run_mode_info=False)
+        _render_orchestrate_resource_summary(env)
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
 
