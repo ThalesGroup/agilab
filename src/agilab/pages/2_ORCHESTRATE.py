@@ -246,6 +246,7 @@ import_agilab_symbols(
     "agilab.orchestrate_execute",
     {
         "OrchestrateExecuteDeps": "OrchestrateExecuteDeps",
+        "is_dag_worker_base": "is_dag_worker_base",
         "render_execute_section": "render_execute_section",
     },
     current_file=__file__,
@@ -1651,7 +1652,7 @@ async def _render_distribution_panel(
                     weights_unit = "Unit"
                     tabs = st.tabs(["Tree", "Workload"])
                     with tabs[0]:
-                        if env.base_worker_cls.endswith('dag-worker'):
+                        if is_dag_worker_base(getattr(env, "base_worker_cls", None)):
                             show_graph(
                                 workers,
                                 work_plan_metadata,

@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-09
+  updated: 2026-05-10
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -144,6 +144,25 @@ Use this skill when editing:
   - `cloudmap_sat_path`
   - `cloudmap_ivdl_path`
 - Keep persisted `view_maps_network` state for user choices, but put repo/app conventions under `pages.view_maps_network`.
+
+## DAG And Worker-Type UI
+
+- For generic ORCHESTRATE/WORKFLOW page behavior that depends on whether an app is
+  DAG-based, use `AgiEnv.base_worker_cls` first. `AgiEnv` already populates this
+  from worker source inspection, so page code should not import app worker classes
+  just to decide which controls to show.
+- Treat `DagWorker`, known DAG-derived workers such as `Sb3TrainerWorker`, and
+  custom `*Dag*Worker` base names as DAG-capable for UI decisions.
+- Keep name-token fallbacks narrow and explicit for planning-only or synthetic apps
+  that intentionally have no DAG worker base yet, such as global DAG draft/demo
+  projects.
+- Reuse one helper for DAG detection across sidebars, execute controls, and
+  distribution/workplan rendering. Do not leave page-local string checks such as
+  `endswith("dag-worker")`; they drift from the `AgiEnv` contract and silently fail
+  for real base names like `DagWorker`.
+- DAG-only planning projects should expose run/workflow actions, not dataframe
+  load/export/delete controls, unless the app has an explicit dataframe artifact
+  contract.
 
 ## Rerun API
 
