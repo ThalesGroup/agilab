@@ -2049,27 +2049,9 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert any("agi-gui:" in body for kind, body in fake_st.events if kind == "write")
     assert any("OS:" in body for kind, body in fake_st.events if kind == "write")
     assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    execution_markup = _event_body(fake_st.events, "markdown", "agilab-execution-context")
-    assert "Execution environment" in execution_markup
-    assert "ORCHESTRATE context" in execution_markup
-    assert "color:#72d6b4;" in execution_markup
-    assert "color:#ffbe5e;" in execution_markup
-    assert "agilab-execution-context-value--ready" in execution_markup
-    assert "Active project" in execution_markup
-    assert "flight_project" in execution_markup
-    assert "Scheduler" in execution_markup
-    assert "10.0.0.1:8786" in execution_markup
-    assert "Mode" in execution_markup
-    assert "enabled (dask)" in execution_markup
-    assert "CPU" in execution_markup
-    assert "32 cores" in execution_markup
-    assert "RAM" in execution_markup
-    assert "128 GB" in execution_markup
-    assert "GPU" in execution_markup
-    assert "2 x Test GPU" in execution_markup
-    assert "NPU" in execution_markup
-    assert "2 x Test NPU" in execution_markup
-    assert "Worker 10.0.0.2" not in execution_markup
+    assert not any("agilab-execution-context" in body for kind, body in fake_st.events if kind == "markdown")
+    assert not any("Execution environment" in body for kind, body in fake_st.events if kind == "markdown")
+    assert not any("ORCHESTRATE context" in body for kind, body in fake_st.events if kind == "markdown")
     assert not any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
 
 
@@ -2665,7 +2647,7 @@ def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypa
     assert second_lines["GPU"] == "Apple M4 Max; NVIDIA B200 (132 SMs)"
 
 
-def test_render_execution_context_panel_refresh_button_clears_probe_caches(monkeypatch):
+def test_render_execution_context_panel_is_legacy_noop(monkeypatch):
     layout = about_agilab._about_layout
     fake_st = _FakeStreamlit(button_values={"Refresh cluster info": True})
     cleared: list[bool] = []
@@ -2679,13 +2661,8 @@ def test_render_execution_context_panel_refresh_button_clears_probe_caches(monke
 
     layout.render_execution_context_panel(SimpleNamespace(app="flight_project"))
 
-    assert cleared == [True]
-    assert ("button", "Refresh cluster info") in fake_st.events
-    assert "Active project: flight_project" in _event_body(
-        fake_st.events,
-        "markdown",
-        "agilab-execution-context",
-    )
+    assert cleared == []
+    assert fake_st.events == []
 
 
 def test_about_quick_logo_renders_polished_hero(tmp_path, monkeypatch):
