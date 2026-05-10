@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import shutil
 import stat
 import importlib.util
@@ -58,6 +57,8 @@ _workflow_ui = import_agilab_module(
     fallback_name="agilab_workflow_ui_fallback",
 )
 render_action_readiness = _workflow_ui.render_action_readiness
+is_dag_based_app = _workflow_ui.is_dag_based_app
+is_dag_worker_base = _workflow_ui.is_dag_worker_base
 record_action_history = _workflow_ui.record_action_history
 render_action_history = _workflow_ui.render_action_history
 render_artifact_drawer = _workflow_ui.render_artifact_drawer
@@ -74,7 +75,6 @@ PREVIEW_MAX_SEARCH_FILES = int(os.environ.get("AGILAB_PREVIEW_MAX_SEARCH_FILES",
 PREVIEW_MAX_FILE_BYTES = int(os.environ.get("AGILAB_PREVIEW_MAX_FILE_BYTES", str(25 * 1024 * 1024)))
 PREVIEW_METADATA_FILENAMES = {"run_manifest.json", "notebook_import_view_plan.json"}
 PREVIEW_METADATA_PREFIXES = ("._", "reduce_summary_worker_")
-DAG_WORKER_BASE_CLASSES = {"DagWorker", "Sb3TrainerWorker"}
 
 
 @dataclass(frozen=True)
@@ -213,32 +213,8 @@ def queue_execute_notice(session_state, *, kind: str, message: str) -> None:
     session_state[EXECUTE_NOTICE_KEY] = {"kind": kind, "message": message}
 
 
-def _app_identity_values(env: Any, app_state_name: str) -> set[str]:
-    values: set[str] = {str(app_state_name)}
-    for attr in ("app", "target"):
-        raw_value = getattr(env, attr, None)
-        if raw_value:
-            values.add(str(raw_value))
-    return {Path(value).name.lower() for value in values if value}
-
-
-def _identity_tokens(value: str) -> set[str]:
-    return {token for token in re.split(r"[^a-z0-9]+", value.lower()) if token}
-
-
-def is_dag_worker_base(value: Any) -> bool:
-    if not value:
-        return False
-    class_name = str(value).split(".")[-1]
-    if class_name in DAG_WORKER_BASE_CLASSES:
-        return True
-    return "dag" in class_name.lower()
-
-
 def _is_dag_based_app(env: Any, app_state_name: str) -> bool:
-    if is_dag_worker_base(getattr(env, "base_worker_cls", None)):
-        return True
-    return any("dag" in _identity_tokens(value) for value in _app_identity_values(env, app_state_name))
+    return is_dag_based_app(env, app_state_name)
 
 
 def render_execute_notice(streamlit_api, session_state) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -10,6 +11,7 @@ from typing import Any, Iterable, Mapping
 MAX_INLINE_DOWNLOAD_BYTES = 5 * 1024 * 1024
 MAX_INLINE_PREVIEW_BYTES = 256 * 1024
 MAX_ACTION_HISTORY_ITEMS = 8
+DAG_WORKER_BASE_CLASSES = {"DagWorker", "Sb3TrainerWorker"}
 
 PROJECT_UI_STATE_KEY = "agilab:workflow_ui_state"
 ACTION_HISTORY_KEY = "agilab:workflow_action_history"
@@ -55,6 +57,39 @@ def workflow_state_scope(page_label: str, env: Any | None = None) -> str:
     if target_name and target_name != app_name:
         parts.append(target_name)
     return "::".join(parts)
+
+
+def _identity_tokens(value: Any) -> set[str]:
+    return {token for token in re.split(r"[^a-z0-9]+", _as_text(value).lower()) if token}
+
+
+def _app_identity_values(env: Any | None, app_state_name: Any = "") -> set[str]:
+    values: set[str] = set()
+    if _as_text(app_state_name):
+        values.add(_as_text(app_state_name))
+    if env is not None:
+        for attr in ("app", "target", "active_app"):
+            raw_value = getattr(env, attr, None)
+            if raw_value:
+                values.add(Path(_as_text(raw_value)).name)
+    return {value.lower() for value in values if value}
+
+
+def is_dag_worker_base(value: Any) -> bool:
+    """Return whether an ``AgiEnv.base_worker_cls`` value describes a DAG worker."""
+    if not value:
+        return False
+    class_name = str(value).split(".")[-1]
+    if class_name in DAG_WORKER_BASE_CLASSES:
+        return True
+    return "dag" in class_name.lower()
+
+
+def is_dag_based_app(env: Any | None, app_state_name: Any = "") -> bool:
+    """Detect DAG-style apps from AgiEnv metadata without importing worker classes."""
+    if is_dag_worker_base(getattr(env, "base_worker_cls", None)):
+        return True
+    return any("dag" in _identity_tokens(value) for value in _app_identity_values(env, app_state_name))
 
 
 def remember_project_ui_state(

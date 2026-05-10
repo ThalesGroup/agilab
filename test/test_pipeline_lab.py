@@ -1998,6 +1998,49 @@ def test_display_lab_tab_loads_selected_dataframe_without_index_inference(monkey
     assert list(fake_st.session_state["loaded_df"]["time_label"]) == ["00:00:01"]
 
 
+def test_display_lab_tab_hides_dataframe_empty_state_for_dag_project(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "demo": [0, "", "", "", "", "", 0],
+            "demo__run_sequence": [0],
+            "loaded_df": pipeline_lab.pd.DataFrame({"stale": [1]}),
+        },
+        multiselects={"demo_run_sequence_widget": [0]},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
+    monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
+    monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('a')", "E": ""}],
+        load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
+        render_pipeline_view=lambda *_args, **_kwargs: None,
+        inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
+    )
+    env = SimpleNamespace(
+        active_app=tmp_path / "global_dag_project",
+        envars={},
+        app="global_dag_project",
+        target="global_dag",
+        base_worker_cls="PolarsWorker",
+    )
+
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "global_dag_project", env, deps)
+
+    rendered_text = "\n".join(message for _kind, message in fake_st.messages)
+    assert fake_st.session_state["loaded_df"] is None
+    assert "No data loaded yet." not in rendered_text
+    assert "Load dataframe" not in rendered_text
+    assert "Dataframe:" not in rendered_text
+    assert "instead of a dataframe export" in rendered_text
+
+
 def test_display_lab_tab_recovers_stages_from_toml_when_loader_returns_empty(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         {
