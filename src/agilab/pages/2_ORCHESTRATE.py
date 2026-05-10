@@ -1413,7 +1413,7 @@ def _render_orchestrate_readiness_panel(
 _ORCHESTRATE_RESOURCE_SUMMARY_LABELS = ("Share", "CPU", "RAM", "GPU", "NPU")
 
 
-def _render_orchestrate_resource_summary(env: Any) -> None:
+def _render_orchestrate_resource_summary(env: Any, *, target: Any = None) -> None:
     lines = [
         (label, value)
         for label, value in active_app_cluster_information_lines(env)
@@ -1421,7 +1421,8 @@ def _render_orchestrate_resource_summary(env: Any) -> None:
     ]
     if not lines:
         return
-    with st.container(border=True):
+    ui = target or st
+    with ui.container(border=True):
         st.markdown("**Resource summary**")
         columns = st.columns(len(lines))
         for column, (label, value) in zip(columns, lines):
@@ -1455,8 +1456,9 @@ async def _render_deployment_panel(
             set_env_var=AgiEnv.set_env_var,
             agi_env_envars=getattr(AgiEnv, "envars", None),
         )
-        _render_orchestrate_resource_summary(env)
+        resource_summary_slot = st.empty()
         render_cluster_settings_ui(env, cluster_deps, show_run_mode_info=False)
+        _render_orchestrate_resource_summary(env, target=resource_summary_slot)
         cluster_params = st.session_state.app_settings["cluster"]
         verbose = cluster_params.get('verbose', 1)
 
