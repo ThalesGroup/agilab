@@ -1386,8 +1386,8 @@ def page() -> None:
         default_df_path = (lab_dir / DEFAULT_DF).resolve()
         _caption_once(
             f"missing_df::{lab_dir}",
-            f"No dataframe exported for {lab_dir.name} yet. "
-            f"Data-dependent stages may need `{default_df_path}`.",
+            f"No workflow dataframe found for {lab_dir.name} yet. "
+            f"Only data-dependent stages need `{default_df_path}`.",
         )
         st.session_state["df_file"] = None
 
