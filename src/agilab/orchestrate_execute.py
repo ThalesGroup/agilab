@@ -74,6 +74,7 @@ PREVIEW_MAX_SEARCH_FILES = int(os.environ.get("AGILAB_PREVIEW_MAX_SEARCH_FILES",
 PREVIEW_MAX_FILE_BYTES = int(os.environ.get("AGILAB_PREVIEW_MAX_FILE_BYTES", str(25 * 1024 * 1024)))
 PREVIEW_METADATA_FILENAMES = {"run_manifest.json", "notebook_import_view_plan.json"}
 PREVIEW_METADATA_PREFIXES = ("._", "reduce_summary_worker_")
+DAG_WORKER_BASE_CLASSES = {"DagWorker", "Sb3TrainerWorker"}
 
 
 @dataclass(frozen=True)
@@ -225,7 +226,18 @@ def _identity_tokens(value: str) -> set[str]:
     return {token for token in re.split(r"[^a-z0-9]+", value.lower()) if token}
 
 
+def is_dag_worker_base(value: Any) -> bool:
+    if not value:
+        return False
+    class_name = str(value).split(".")[-1]
+    if class_name in DAG_WORKER_BASE_CLASSES:
+        return True
+    return "dag" in class_name.lower()
+
+
 def _is_dag_based_app(env: Any, app_state_name: str) -> bool:
+    if is_dag_worker_base(getattr(env, "base_worker_cls", None)):
+        return True
     return any("dag" in _identity_tokens(value) for value in _app_identity_values(env, app_state_name))
 
 

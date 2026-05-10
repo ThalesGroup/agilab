@@ -343,17 +343,20 @@ def test_render_graph_preview_requires_matplotlib(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("app_state_name", "env_app", "target", "expected"),
+    ("app_state_name", "env_app", "target", "base_worker_cls", "expected"),
     [
-        ("global_dag_project", "global_dag_project", "global_dag", True),
-        ("custom_dag_project", "custom_dag_project", "custom_dag", True),
-        ("dag_app_template", "your_dag_project", "dag_app", True),
-        ("flight_project", "flight_project", "flight", False),
-        ("tescia_diagnostic_project", "tescia_diagnostic_project", "tescia_diagnostic", False),
+        ("workflow_project", "workflow_project", "workflow", "DagWorker", True),
+        ("sb3_trainer_project", "sb3_trainer_project", "sb3_trainer", "Sb3TrainerWorker", True),
+        ("custom_project", "custom_project", "custom", "CustomDagWorker", True),
+        ("global_dag_project", "global_dag_project", "global_dag", "PolarsWorker", True),
+        ("custom_dag_project", "custom_dag_project", "custom_dag", None, True),
+        ("dag_app_template", "your_dag_project", "dag_app", None, True),
+        ("flight_project", "flight_project", "flight", "PolarsWorker", False),
+        ("tescia_diagnostic_project", "tescia_diagnostic_project", "tescia_diagnostic", "PandasWorker", False),
     ],
 )
-def test_is_dag_based_app_detects_dag_identity(app_state_name, env_app, target, expected):
-    env = SimpleNamespace(app=env_app, target=target)
+def test_is_dag_based_app_detects_env_worker_base_first(app_state_name, env_app, target, base_worker_cls, expected):
+    env = SimpleNamespace(app=env_app, target=target, base_worker_cls=base_worker_cls)
 
     assert orchestrate_execute._is_dag_based_app(env, app_state_name) is expected
 
@@ -1336,6 +1339,7 @@ async def test_render_execute_section_combo_button_queues_action(monkeypatch, tm
     [
         ("global_dag_project", "global_dag_project", "global_dag"),
         ("custom_dag_project", "custom_dag_project", "custom_dag"),
+        ("workflow_project", "workflow_project", "workflow"),
     ],
 )
 async def test_render_execute_section_dag_based_project_uses_run_only_controls(
@@ -1366,6 +1370,7 @@ async def test_render_execute_section_dag_based_project_uses_run_only_controls(
         runenv=tmp_path / "runenv",
         app=env_app,
         target=target,
+        base_worker_cls="DagWorker" if app_state_name == "workflow_project" else None,
         wenv_abs=tmp_path / "wenv",
     )
 
