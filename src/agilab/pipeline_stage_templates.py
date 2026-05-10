@@ -1,4 +1,4 @@
-"""Typed registry for generic Pipeline stage templates."""
+"""Typed registry for generic Workflow stage templates."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ PIPELINE_STAGE_TEMPLATE_VERSION_KEY = "template_version"
 
 
 class PipelineStageTemplateStatus(StrEnum):
-    """Template classification for a saved Pipeline stage."""
+    """Template classification for a saved Workflow stage."""
 
     CURRENT = "current"
     STALE = "stale"
@@ -23,7 +23,7 @@ class PipelineStageTemplateStatus(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class PipelineStageTemplate:
-    """Resolved metadata and default code for one generic Pipeline stage."""
+    """Resolved metadata and default code for one generic Workflow stage."""
 
     template_id: str
     title: str
@@ -39,10 +39,10 @@ class PipelineStageTemplate:
     def __post_init__(self) -> None:
         normalized_id = _normalize_template_id(self.template_id)
         if not normalized_id:
-            raise ValueError("Pipeline stage template id cannot be empty.")
+            raise ValueError("Workflow stage template id cannot be empty.")
         normalized_version = _coerce_version(self.version)
         if normalized_version is None or normalized_version < 1:
-            raise ValueError("Pipeline stage template version must be a positive integer.")
+            raise ValueError("Workflow stage template version must be a positive integer.")
         object.__setattr__(self, "template_id", normalized_id)
         object.__setattr__(self, "title", str(self.title).strip())
         object.__setattr__(self, "question", str(self.question).strip())
@@ -85,7 +85,7 @@ class PipelineStageTemplate:
 
 @dataclass(frozen=True, slots=True)
 class PipelineStageTemplateClassification:
-    """Version check result for one saved Pipeline stage."""
+    """Version check result for one saved Workflow stage."""
 
     status: PipelineStageTemplateStatus
     template_id: str = ""
@@ -106,7 +106,7 @@ class PipelineStageTemplateClassification:
 
 
 class PipelineStageTemplateRegistry:
-    """Immutable registry for resolving generic Pipeline stage templates."""
+    """Immutable registry for resolving generic Workflow stage templates."""
 
     def __init__(self, templates: Iterable[PipelineStageTemplate] = ()) -> None:
         self._templates = tuple(
@@ -127,7 +127,7 @@ class PipelineStageTemplateRegistry:
             existing = lookup.get(key)
             if existing is not None:
                 raise ValueError(
-                    f"Duplicate Pipeline stage template {template.template_id!r}: "
+                    f"Duplicate Workflow stage template {template.template_id!r}: "
                     f"versions {existing.version} and {template.version}"
                 )
             lookup[key] = template
@@ -165,7 +165,7 @@ class PipelineStageTemplateRegistry:
         if template is not None:
             return template
         available = ", ".join(self.ids()) or "<empty>"
-        raise KeyError(f"Unknown Pipeline stage template {template_id!r}. Available templates: {available}")
+        raise KeyError(f"Unknown Workflow stage template {template_id!r}. Available templates: {available}")
 
     def select(self, template_ids: Sequence[str]) -> tuple[PipelineStageTemplate, ...]:
         """Return templates by id, preserving input order and removing duplicates."""
@@ -205,9 +205,9 @@ def default_pipeline_stage_templates() -> tuple[PipelineStageTemplate, ...]:
     return (
         PipelineStageTemplate(
             template_id="generic.configure",
-            title="Configure Pipeline Inputs",
-            description="Define app, input, output, and runtime parameters for a Pipeline stage.",
-            question="Configure the app inputs and runtime values for this Pipeline stage.",
+            title="Configure Workflow Inputs",
+            description="Define app, input, output, and runtime parameters for a Workflow stage.",
+            question="Configure the app inputs and runtime values for this Workflow stage.",
             code=(
                 "APP = 'your_project'\n"
                 "data_in = 'input/path'\n"
@@ -218,9 +218,9 @@ def default_pipeline_stage_templates() -> tuple[PipelineStageTemplate, ...]:
         ),
         PipelineStageTemplate(
             template_id="generic.execute",
-            title="Execute Pipeline Stage",
-            description="Run a generic Pipeline stage without changing existing raw snippets.",
-            question="Execute the configured Pipeline stage and produce its declared outputs.",
+            title="Execute Workflow Stage",
+            description="Run a generic Workflow stage without changing existing raw snippets.",
+            question="Execute the configured Workflow stage and produce its declared outputs.",
             code=(
                 "APP = 'your_project'\n"
                 "reset_target = False\n"
@@ -230,9 +230,9 @@ def default_pipeline_stage_templates() -> tuple[PipelineStageTemplate, ...]:
         ),
         PipelineStageTemplate(
             template_id="generic.export_evidence",
-            title="Export Pipeline Evidence",
+            title="Export Workflow Evidence",
             description="Write reusable output paths for ANALYSIS and downstream stages.",
-            question="Export summary metrics and artifact paths for later Pipeline stages.",
+            question="Export summary metrics and artifact paths for later Workflow stages.",
             code=(
                 "APP = 'your_project'\n"
                 "artifact_dir = '~/export/your_project/pipeline'\n"
@@ -248,7 +248,7 @@ def classify_pipeline_stage_template(
     *,
     registry: PipelineStageTemplateRegistry | None = None,
 ) -> PipelineStageTemplateClassification:
-    """Classify a saved Pipeline stage against the current template registry."""
+    """Classify a saved Workflow stage against the current template registry."""
 
     registry = registry or DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY
 
@@ -338,7 +338,7 @@ def is_raw_python_stage(
 def pipeline_stage_template_rows(
     registry: PipelineStageTemplateRegistry | None = None,
 ) -> list[dict[str, str]]:
-    """Return deterministic rows for the available Pipeline stage templates."""
+    """Return deterministic rows for the available Workflow stage templates."""
 
     return (registry or DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY).as_rows()
 

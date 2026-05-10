@@ -205,7 +205,7 @@ def test_pipeline_run_controls_acquire_refresh_release_and_busy_lock(tmp_path, m
 
     module._release_pipeline_run_lock(handle, "page")
     assert not lock_path.exists()
-    assert any("Pipeline lock released" in line for line in fake_st.session_state["page__run_logs"])
+    assert any("Workflow lock released" in line for line in fake_st.session_state["page__run_logs"])
 
     lock_path.write_text(json.dumps({"host": "remote", "pid": 123, "app": "demo"}), encoding="utf-8")
     busy = module._acquire_pipeline_run_lock(env, "page")
@@ -283,13 +283,13 @@ def test_pipeline_run_controls_lock_failure_branches(tmp_path, monkeypatch):
     locked_dir.mkdir()
     monkeypatch.setattr(module, "_inspect_pipeline_run_lock", lambda _env: {"path": locked_dir})
     assert module._clear_pipeline_run_lock(env, "page", reason="unit-test") is False
-    assert any(kind == "error" and "Unable to remove pipeline lock" in msg for kind, msg in fake_st.messages)
+    assert any(kind == "error" and "Unable to remove workflow lock" in msg for kind, msg in fake_st.messages)
 
     lock_path = tmp_path / "cannot-open.lock"
     monkeypatch.setattr(module, "_pipeline_lock_path", lambda _env: lock_path)
     monkeypatch.setattr(module.os, "open", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("disk full")))
     assert module._acquire_pipeline_run_lock(env, "page") is None
-    assert any(kind == "error" and "Unable to acquire pipeline lock" in msg for kind, msg in fake_st.messages)
+    assert any(kind == "error" and "Unable to acquire workflow lock" in msg for kind, msg in fake_st.messages)
 
     module._refresh_pipeline_run_lock(None)
     module._refresh_pipeline_run_lock({})
@@ -612,7 +612,7 @@ def test_pipeline_run_controls_blocks_legacy_agi_run_before_lock(tmp_path, monke
     monkeypatch.setattr(module, "st", fake_st)
 
     def fail_if_lock_acquired(*_args, **_kwargs):
-        raise AssertionError("stale snippets must abort before acquiring pipeline lock")
+        raise AssertionError("stale snippets must abort before acquiring workflow lock")
 
     monkeypatch.setattr(module, "_acquire_pipeline_run_lock", fail_if_lock_acquired)
 

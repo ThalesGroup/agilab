@@ -348,8 +348,8 @@ def _build_pipeline_graph_data(step_entries: List[Dict[str, Any]]) -> Tuple[List
     return nodes, sequence_edges, artefact_edges
 
 
-def render_pipeline_view(step_entries: List[Dict[str, Any]], *, title: str = "Pipeline view") -> None:
-    """Render an inferred pipeline graph and metadata table inside an expander."""
+def render_pipeline_view(step_entries: List[Dict[str, Any]], *, title: str = "Workflow view") -> None:
+    """Render an inferred workflow graph and metadata table inside an expander."""
     if not step_entries:
         return
     nodes, sequence_edges, artefact_edges = _build_pipeline_graph_data(step_entries)

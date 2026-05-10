@@ -286,7 +286,7 @@ def test_pipeline_stage_template_registry_reports_invalid_unknown_and_duplicate_
         _template("")
     with pytest.raises(ValueError, match="version must be a positive integer"):
         _template("generic.bad", version=0)
-    with pytest.raises(ValueError, match="Duplicate Pipeline stage template"):
+    with pytest.raises(ValueError, match="Duplicate Workflow stage template"):
         PipelineStageTemplateRegistry((first, duplicate))
-    with pytest.raises(KeyError, match="Unknown Pipeline stage template 'missing'"):
+    with pytest.raises(KeyError, match="Unknown Workflow stage template 'missing'"):
         PipelineStageTemplateRegistry((first,)).require("missing")

@@ -281,12 +281,12 @@ _SHELL_METACHARS = frozenset(";&|<>\n\r`$")
 def _command_argv(command: str | Sequence[str]) -> list[str]:
     if isinstance(command, str):
         if any(char in command for char in _SHELL_METACHARS):
-            raise ValueError(f"Shell metacharacters are not allowed in pipeline runtime command: {command!r}")
+            raise ValueError(f"Shell metacharacters are not allowed in workflow runtime command: {command!r}")
         argv = shlex.split(command, posix=os.name != "nt")
     else:
         argv = [str(part) for part in command]
     if not argv:
-        raise ValueError("Pipeline runtime command must not be empty")
+        raise ValueError("Workflow runtime command must not be empty")
     return argv
 
 

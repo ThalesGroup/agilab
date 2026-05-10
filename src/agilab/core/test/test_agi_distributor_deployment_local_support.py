@@ -2196,7 +2196,10 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     (app_path / "pyproject.toml").write_text("[project]\nname='app'\n", encoding="utf-8")
     (app_path / ".venv").mkdir(parents=True, exist_ok=True)
     (app_path / "uv.lock").write_text("lock", encoding="utf-8")
-    manager_resources = app_path / "agilab/core/agi-env/src/agi_env/resources"
+    legacy_manager_resources = app_path / "agilab/core/agi-env/src/agi_env/resources"
+    legacy_manager_resources.mkdir(parents=True, exist_ok=True)
+    (legacy_manager_resources / "old.txt").write_text("old", encoding="utf-8")
+    manager_resources = app_path / ".venv" / "lib" / "python3.13" / "site-packages" / "agi_env" / "resources"
     manager_resources.mkdir(parents=True, exist_ok=True)
     (manager_resources / "old.txt").write_text("old", encoding="utf-8")
 
@@ -2290,6 +2293,8 @@ async def test_deploy_local_worker_install_type_zero_uses_resource_fallbacks_and
     )
 
     assert (manager_resources / "resource.txt").exists()
+    assert not (legacy_manager_resources / "old.txt").exists()
+    assert not (app_path / "agilab").exists()
     assert (resources_dest / "resource.txt").exists()
     assert (
         wenv_abs / ".venv" / "lib" / "python3.13t" / "site-packages" / "agilab_uv_sources.pth"

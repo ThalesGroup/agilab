@@ -1,4 +1,4 @@
-"""Typed registry for reusable Pipeline snippet candidates."""
+"""Typed registry for reusable Workflow snippet candidates."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ SNIPPET_REGISTRY_SCHEMA = "agilab.snippet_registry.v1"
 
 @dataclass(frozen=True, slots=True)
 class SnippetCandidateSpec:
-    """Resolved metadata for one reusable Pipeline snippet candidate."""
+    """Resolved metadata for one reusable Workflow snippet candidate."""
 
     path: Path
     source: str = "discovered"
@@ -46,7 +46,7 @@ class SnippetCandidateSpec:
 
 
 class SnippetCandidateRegistry:
-    """Immutable registry for Pipeline snippet candidates and stale generated snippets."""
+    """Immutable registry for Workflow snippet candidates and stale generated snippets."""
 
     def __init__(
         self,
