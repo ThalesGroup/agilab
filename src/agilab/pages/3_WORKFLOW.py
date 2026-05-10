@@ -101,6 +101,7 @@ import_agilab_symbols(
     globals(),
     "agilab.workflow_ui",
     {
+        "is_dag_based_app": "is_dag_based_app",
         "render_page_context": "render_page_context",
     },
     current_file=__file__,
@@ -1382,7 +1383,7 @@ def page() -> None:
     load_last_stage(module_path, stages_file, index_page_str)
 
     df_file = st.session_state.get("df_file")
-    if not df_file or not Path(df_file).exists():
+    if not is_dag_based_app(env, index_page_str) and (not df_file or not Path(df_file).exists()):
         default_df_path = (lab_dir / DEFAULT_DF).resolve()
         _caption_once(
             f"missing_df::{lab_dir}",

@@ -106,6 +106,29 @@ def test_render_page_context_is_silent() -> None:
     assert fake_st.events == []
 
 
+def test_is_dag_based_app_uses_env_worker_base_and_identity_fallback() -> None:
+    assert workflow_ui.is_dag_based_app(
+        SimpleNamespace(app="workflow_project", target="workflow", base_worker_cls="DagWorker"),
+        "workflow_project",
+    )
+    assert workflow_ui.is_dag_based_app(
+        SimpleNamespace(app="sb3_trainer_project", target="sb3_trainer", base_worker_cls="Sb3TrainerWorker"),
+        "sb3_trainer_project",
+    )
+    assert workflow_ui.is_dag_based_app(
+        SimpleNamespace(app="custom_project", target="custom", base_worker_cls="CustomDagWorker"),
+        "custom_project",
+    )
+    assert workflow_ui.is_dag_based_app(
+        SimpleNamespace(app="global_dag_project", target="global_dag", base_worker_cls="PolarsWorker"),
+        "global_dag_project",
+    )
+    assert not workflow_ui.is_dag_based_app(
+        SimpleNamespace(app="flight_project", target="flight", base_worker_cls="PolarsWorker"),
+        "flight_project",
+    )
+
+
 def test_render_log_actions_can_download_and_clear() -> None:
     fake_st = _FakeStreamlit(buttons={"clear": True})
 

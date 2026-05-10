@@ -113,6 +113,7 @@ _workflow_ui_module = import_agilab_module(
     fallback_name="agilab_workflow_ui_fallback",
 )
 record_action_history = _workflow_ui_module.record_action_history
+is_dag_based_app = _workflow_ui_module.is_dag_based_app
 render_action_history = _workflow_ui_module.render_action_history
 render_artifact_drawer = _workflow_ui_module.render_artifact_drawer
 render_log_actions = _workflow_ui_module.render_log_actions
@@ -4433,7 +4434,12 @@ def display_lab_tab(
         st.session_state["loaded_df"] = (
             load_df_cached(Path(df_source), with_index=False) if df_source else None
         )
+    dag_based_app = is_dag_based_app(env, index_page_str)
+    if dag_based_app and not st.session_state.get("df_file"):
+        st.session_state["loaded_df"] = None
     loaded_df = st.session_state["loaded_df"]
+    has_loaded_dataframe = isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty
+    dataframe_output_visible = (not dag_based_app) or bool(st.session_state.get("df_file"))
     log_page_state = _build_page_state()
     logs = list(log_page_state.run_logs)
     log_body = "\n".join(logs)
@@ -4441,10 +4447,14 @@ def display_lab_tab(
     last_run_status = st.session_state.get(f"{index_page_str}__last_run_status")
     latest_status = last_run_status or ("done" if last_log_file or log_body else "waiting")
     pipeline_artifacts: list[dict[str, Any]] = [
-        {"label": "Dataframe", "path": st.session_state.get("df_file"), "kind": "dataframe", "preview": False},
         {"label": "Stage contract", "path": stages_file, "kind": "toml", "preview": False},
         {"label": "Run log", "path": last_log_file, "kind": "log"},
     ]
+    if dataframe_output_visible:
+        pipeline_artifacts.insert(
+            0,
+            {"label": "Dataframe", "path": st.session_state.get("df_file"), "kind": "dataframe", "preview": False},
+        )
     for pipeline_view_path in (lab_dir / "pipeline_view.json", lab_dir / "pipeline_view.dot"):
         if pipeline_view_path.is_file():
             pipeline_artifacts.append(
@@ -4455,35 +4465,38 @@ def display_lab_tab(
                 }
             )
 
-    render_workflow_timeline(
-        st,
-        items=(
-            {
-                "label": "Define stages",
-                "state": "done" if total_stages else "waiting",
-                "detail": f"{total_stages} stage(s)",
-            },
-            {
-                "label": "Run workflow",
-                "state": "ready" if page_state.can_run else "blocked",
-                "detail": page_state.run_disabled_reason or "",
-            },
+    timeline_items: list[dict[str, Any]] = [
+        {
+            "label": "Define stages",
+            "state": "done" if total_stages else "waiting",
+            "detail": f"{total_stages} stage(s)",
+        },
+        {
+            "label": "Run workflow",
+            "state": "ready" if page_state.can_run else "blocked",
+            "detail": page_state.run_disabled_reason or "",
+        },
+    ]
+    if dataframe_output_visible:
+        timeline_items.append(
             {
                 "label": "Load dataframe",
-                "state": "done" if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty else "waiting",
+                "state": "done" if has_loaded_dataframe else "waiting",
                 "detail": st.session_state.get("df_file") or "",
-            },
-            {
-                "label": "Inspect artifacts",
-                "state": "done" if last_log_file or st.session_state.get("df_file") else "waiting",
-                "detail": last_log_file or "",
-            },
-        ),
+            }
+        )
+    timeline_items.append(
+        {
+            "label": "Inspect artifacts",
+            "state": "done" if last_log_file or st.session_state.get("df_file") else "waiting",
+            "detail": last_log_file or "",
+        }
     )
+    render_workflow_timeline(st, items=tuple(timeline_items))
     render_latest_run_card(
         st,
         status=latest_status,
-        output_path=st.session_state.get("df_file"),
+        output_path=st.session_state.get("df_file") if dataframe_output_visible else None,
         log_path=last_log_file,
         key_prefix=f"pipeline:{index_page_str}",
     )
@@ -4498,23 +4511,26 @@ def display_lab_tab(
         page_label="WORKFLOW",
         env=env,
     )
-    render_latest_outputs(
-        st,
-        source_path=st.session_state.get("df_file"),
-        dataframe=loaded_df,
-        key_prefix=f"pipeline:{index_page_str}",
-    )
-    if isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+    if dataframe_output_visible:
+        render_latest_outputs(
+            st,
+            source_path=st.session_state.get("df_file"),
+            dataframe=loaded_df,
+            key_prefix=f"pipeline:{index_page_str}",
+        )
+    if has_loaded_dataframe:
         render_dataframe_preview(
             loaded_df,
             truncation_label="WORKFLOW preview limited",
         )
-    else:
+    elif dataframe_output_visible:
         empty_state(
             st,
             "No data loaded yet.",
             body=f"Generate and execute a stage so the latest {DEFAULT_DF} appears under the Dataframe selector.",
         )
+    elif dag_based_app:
+        st.caption("This DAG workflow tracks stage contracts, workplan state, and run logs instead of a dataframe export.")
 
     with st.expander("Run logs", expanded=True):
         clear_logs = render_log_actions(
