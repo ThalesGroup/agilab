@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import stat
 import importlib.util
@@ -211,6 +212,23 @@ def queue_execute_notice(session_state, *, kind: str, message: str) -> None:
     session_state[EXECUTE_NOTICE_KEY] = {"kind": kind, "message": message}
 
 
+def _app_identity_values(env: Any, app_state_name: str) -> set[str]:
+    values: set[str] = {str(app_state_name)}
+    for attr in ("app", "target"):
+        raw_value = getattr(env, attr, None)
+        if raw_value:
+            values.add(str(raw_value))
+    return {Path(value).name.lower() for value in values if value}
+
+
+def _identity_tokens(value: str) -> set[str]:
+    return {token for token in re.split(r"[^a-z0-9]+", value.lower()) if token}
+
+
+def _is_dag_based_app(env: Any, app_state_name: str) -> bool:
+    return any("dag" in _identity_tokens(value) for value in _app_identity_values(env, app_state_name))
+
+
 def render_execute_notice(streamlit_api, session_state) -> None:
     notice = session_state.pop(EXECUTE_NOTICE_KEY, None)
     if not isinstance(notice, dict):
@@ -274,6 +292,7 @@ async def render_execute_section(
         project_path=project_path,
         worker_env_path=getattr(env, "wenv_abs", None),
     )
+    dag_based_app = _is_dag_based_app(env, app_state_name)
 
     existing_run_log = st.session_state.get("run_log_cache", "").strip()
     run_log_expander = None
@@ -436,31 +455,43 @@ async def render_execute_section(
     def _render_run_panel_controls() -> None:
         artifact_state = _current_artifact_state()
         if show_run_panel:
-            render_action_readiness(
-                st,
-                actions=(
-                    (
-                        "Run benchmark" if st.session_state.get("benchmark") else "Run",
-                        execute_state.run_action.enabled,
-                        execute_state.run_action.disabled_reason,
-                    ),
-                    ("Load output", artifact_state.load_action.enabled, artifact_state.load_action.disabled_reason),
-                    ("Export dataframe", artifact_state.export_action.enabled, artifact_state.export_action.disabled_reason),
-                ),
+            run_label = (
+                "Run workflow"
+                if dag_based_app
+                else ("Run benchmark" if st.session_state.get("benchmark") else "Run")
             )
-            run_col, load_col, delete_col = st.columns(3)
-            run_label = "Run benchmark" if st.session_state.get("benchmark") else "Run"
+            readiness_actions = [
+                (
+                    run_label,
+                    execute_state.run_action.enabled,
+                    execute_state.run_action.disabled_reason,
+                )
+            ]
+            if not dag_based_app:
+                readiness_actions.extend(
+                    [
+                        ("Load output", artifact_state.load_action.enabled, artifact_state.load_action.disabled_reason),
+                        ("Export dataframe", artifact_state.export_action.enabled, artifact_state.export_action.disabled_reason),
+                    ]
+                )
+            render_action_readiness(st, actions=tuple(readiness_actions))
+            if dag_based_app:
+                (run_col,) = st.columns(1)
+                load_col = delete_col = None
+            else:
+                run_col, load_col, delete_col = st.columns(3)
             if run_col.button(
                 run_label,
                 key="run_btn",
                 type="primary",
                 disabled=not execute_state.run_action.enabled,
-                help=execute_state.run_action.disabled_reason or "Run the configured AGILAB command.",
+                help=execute_state.run_action.disabled_reason
+                or ("Run the selected DAG workflow." if dag_based_app else "Run the configured AGILAB command."),
                 width="stretch",
             ):
                 _queue_execute_action("run")
 
-            if load_col.button(
+            if not dag_based_app and load_col is not None and load_col.button(
                 "Load output",
                 key="load_data_main",
                 type="primary",
@@ -472,7 +503,9 @@ async def render_execute_section(
 
             delete_armed_clicked = False
             delete_cancel_clicked = False
-            if st.session_state.get(delete_confirm_key, False):
+            if dag_based_app:
+                st.session_state.pop(delete_confirm_key, None)
+            elif st.session_state.get(delete_confirm_key, False):
                 if delete_col.button(
                     "Confirm delete",
                     key="delete_data_main_confirm_btn",
@@ -487,7 +520,7 @@ async def render_execute_section(
                     type="secondary",
                     width="stretch",
                 )
-            else:
+            elif delete_col is not None:
                 delete_armed_clicked = delete_col.button(
                     "Delete output",
                     key="delete_data_main",
@@ -498,7 +531,7 @@ async def render_execute_section(
                     or "Clear the cached dataframe preview so the next load reflects a fresh EXECUTE run.",
                 )
 
-            if _update_delete_confirm_state(
+            if not dag_based_app and _update_delete_confirm_state(
                 delete_confirm_key,
                 delete_armed_clicked=delete_armed_clicked,
                 delete_cancel_clicked=delete_cancel_clicked,
@@ -507,7 +540,7 @@ async def render_execute_section(
 
             undo_delete_clicked = False
             undo_payload = st.session_state.get(delete_undo_key)
-            if isinstance(undo_payload, dict):
+            if not dag_based_app and isinstance(undo_payload, dict):
                 undo_delete_clicked = st.button(
                     "Undo last delete",
                     key="delete_data_main_undo_btn",
@@ -551,7 +584,7 @@ async def render_execute_section(
                     st.success("Dataframe preview restore completed.")
                 _rerun_fragment_or_app()
 
-            if st.button(
+            if not dag_based_app and st.button(
                 "Run -> Load -> Export",
                 key="combo_exec_load_export",
                 type="primary",
@@ -569,16 +602,26 @@ async def render_execute_section(
 
     if controls_visible:
         st.markdown("#### 5. Execute and inspect outputs")
-        st.caption("Run the configured command, load the latest previewable output, and export tabular data when available.")
+        if dag_based_app:
+            st.caption("Run the selected DAG workflow. Inspect stage artifacts and run evidence from WORKFLOW.")
+        else:
+            st.caption("Run the configured command, load the latest previewable output, and export tabular data when available.")
         _render_run_panel_controls()
     else:
         consume_pending_execute_action(st.session_state)
 
     pending_action = consume_pending_execute_action(st.session_state)
     run_clicked = pending_action == "run"
-    load_clicked = pending_action == "load" or st.session_state.pop("_combo_load_trigger", False)
-    delete_clicked = pending_action == "delete"
-    combo_clicked = pending_action == "combo"
+    if dag_based_app:
+        st.session_state.pop("_combo_load_trigger", None)
+        st.session_state.pop("_combo_export_trigger", None)
+        load_clicked = False
+        delete_clicked = False
+        combo_clicked = False
+    else:
+        load_clicked = pending_action == "load" or st.session_state.pop("_combo_load_trigger", False)
+        delete_clicked = pending_action == "delete"
+        combo_clicked = pending_action == "combo"
 
     if show_run_panel and load_clicked:
         load_action = _current_artifact_state().load_action
@@ -827,35 +870,38 @@ async def render_execute_section(
 
     latest_log_path = st.session_state.get("last_run_log_path")
     current_artifact_state = _current_artifact_state()
-    render_workflow_timeline(
-        st,
-        items=(
-            {
-                "label": "Configure",
-                "state": "done" if cmd else "blocked",
-                "detail": str(project_path),
-            },
-            {
-                "label": "Run",
-                "state": "done" if latest_log_path or existing_run_log else (
-                    "ready" if execute_state.run_action.enabled else "blocked"
-                ),
-                "detail": execute_state.run_action.disabled_reason or "",
-            },
-            {
-                "label": "Load output",
-                "state": "done" if source_preview_path else (
-                    "ready" if current_artifact_state.load_action.enabled else "waiting"
-                ),
-                "detail": current_artifact_state.load_action.disabled_reason or "",
-            },
-            {
-                "label": "Export",
-                "state": "ready" if current_artifact_state.export_action.enabled else "waiting",
-                "detail": current_artifact_state.export_action.disabled_reason or "",
-            },
-        ),
-    )
+    timeline_items = [
+        {
+            "label": "Configure",
+            "state": "done" if cmd else "blocked",
+            "detail": str(project_path),
+        },
+        {
+            "label": "Run workflow" if dag_based_app else "Run",
+            "state": "done" if latest_log_path or existing_run_log else (
+                "ready" if execute_state.run_action.enabled else "blocked"
+            ),
+            "detail": execute_state.run_action.disabled_reason or "",
+        },
+    ]
+    if not dag_based_app:
+        timeline_items.extend(
+            [
+                {
+                    "label": "Load output",
+                    "state": "done" if source_preview_path else (
+                        "ready" if current_artifact_state.load_action.enabled else "waiting"
+                    ),
+                    "detail": current_artifact_state.load_action.disabled_reason or "",
+                },
+                {
+                    "label": "Export",
+                    "state": "ready" if current_artifact_state.export_action.enabled else "waiting",
+                    "detail": current_artifact_state.export_action.disabled_reason or "",
+                },
+            ]
+        )
+    render_workflow_timeline(st, items=tuple(timeline_items))
     render_latest_run_card(
         st,
         status="done" if latest_log_path or existing_run_log else "waiting",
@@ -863,21 +909,23 @@ async def render_execute_section(
         log_path=latest_log_path,
         key_prefix=f"orchestrate:{app_state_name}",
     )
-    render_artifact_drawer(
-        st,
-        artifacts=(
-            {"label": "Loaded output", "path": source_preview_path, "kind": "output", "preview": False},
-            {"label": "Run log", "path": latest_log_path, "kind": "log"},
-            {"label": "Export target", "path": st.session_state.get("df_export_file"), "kind": "csv", "preview": False},
-            {
-                "label": "Profile report",
-                "path": st.session_state.get("profile_report_file"),
-                "kind": "html",
-                "preview": False,
-            },
-        ),
-        key_prefix=f"orchestrate:{app_state_name}",
-    )
+    artifacts = [
+        {"label": "Loaded output", "path": source_preview_path, "kind": "output", "preview": False},
+        {"label": "Run log", "path": latest_log_path, "kind": "log"},
+    ]
+    if not dag_based_app:
+        artifacts.extend(
+            [
+                {"label": "Export target", "path": st.session_state.get("df_export_file"), "kind": "csv", "preview": False},
+                {
+                    "label": "Profile report",
+                    "path": st.session_state.get("profile_report_file"),
+                    "kind": "html",
+                    "preview": False,
+                },
+            ]
+        )
+    render_artifact_drawer(st, artifacts=tuple(artifacts), key_prefix=f"orchestrate:{app_state_name}")
     render_action_history(
         st,
         session_state=st.session_state,
@@ -909,7 +957,12 @@ async def render_execute_section(
     loaded_df = st.session_state.get("loaded_df")
     artifact_state = _current_artifact_state()
 
-    if artifact_state.export_action.enabled and isinstance(loaded_df, pd.DataFrame) and not loaded_df.empty:
+    if (
+        not dag_based_app
+        and artifact_state.export_action.enabled
+        and isinstance(loaded_df, pd.DataFrame)
+        and not loaded_df.empty
+    ):
         expander = st.expander("Prepare data for experiment and exploration", expanded=export_expanded)
         with expander:
             loaded_df.columns = [
@@ -1032,5 +1085,5 @@ async def render_execute_section(
         st.session_state.df_cols = []
         st.session_state.selected_cols = []
         st.session_state.check_all = False
-        if controls_visible:
+        if controls_visible and not dag_based_app:
             st.info("No data loaded yet. Click 'LOAD dataframe' in Execute to populate it before export.")
