@@ -642,8 +642,6 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_r
         cluster_params["cluster_enabled"] = bool(cluster_enabled)
 
     if cluster_enabled:
-        st.markdown(f"**agi_share_path:** {_describe_share_path(env)}")
-
         scheduler_widget_key = widget_keys["scheduler"]
         cluster_share_candidate = _env_cluster_share_candidate(env)
         lan_action_cols = st.columns(2)

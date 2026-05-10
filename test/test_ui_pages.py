@@ -649,6 +649,8 @@ def test_execute_page_cluster_settings(mock_ui_env):
     at.run()
     
     assert not at.exception
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "agi_share_path" not in markdown_text
     app_settings = at.session_state["app_settings"] if "app_settings" in at.session_state else {}
     cluster_state = app_settings.get("cluster", {}) if isinstance(app_settings, dict) else {}
     enabled_state = at.session_state[enabled_toggle_key] if enabled_toggle_key in at.session_state else None
