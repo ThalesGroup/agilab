@@ -633,6 +633,45 @@ def test_render_cluster_settings_ui_initializes_state_and_persists_cluster_mode(
     assert writes["write"][0] == env.app_settings_file
 
 
+def test_render_cluster_settings_ui_can_hide_run_mode_info(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        widget_values={
+            "cluster_cython__demo_project": True,
+            "cluster_pool__demo_project": True,
+            "cluster_rapids__demo_project": True,
+            "cluster_enabled__demo_project": False,
+        },
+        session_state={"benchmark": False},
+    )
+    monkeypatch.setattr(orchestrate_cluster, "st", fake_st)
+
+    writes: dict[str, object] = {}
+    deps = orchestrate_cluster.OrchestrateClusterDeps(
+        parse_and_validate_scheduler=lambda raw: raw,
+        parse_and_validate_workers=lambda raw: {"parsed": raw},
+        write_app_settings_toml=lambda path, settings: writes.setdefault("write", (path, settings)) and settings,
+        clear_load_toml_cache=lambda: writes.setdefault("cleared", True),
+        set_env_var=lambda key, value: writes.setdefault("env_calls", []).append((key, value)),
+        agi_env_envars={},
+    )
+    env = SimpleNamespace(
+        app="demo_project",
+        is_managed_pc=False,
+        agi_share_path=None,
+        share_root_path=lambda: tmp_path / "share",
+        user="",
+        password=None,
+        ssh_key_path=None,
+        app_settings_file=tmp_path / "app_settings.toml",
+    )
+
+    orchestrate_cluster.render_cluster_settings_ui(env, deps, show_run_mode_info=False)
+
+    assert fake_st.session_state["mode"] == 11
+    assert not any(message.startswith("Run mode ") for message in fake_st.infos)
+    assert writes["cleared"] is True
+
+
 def test_render_cluster_settings_ui_populates_empty_cluster_from_lan_discovery(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(
         widget_values={

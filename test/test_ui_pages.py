@@ -618,6 +618,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "agilab-execution-context-label'>Scheduler" not in markdown_text
     assert "agilab-execution-context-label'>Mode" not in markdown_text
     assert "agilab-execution-context-label'>Share" in markdown_text
+    assert all("Run mode " not in str(item.value) for item in at.info)
     assert "agilab-header-value agilab-header-value--ready'>2</div>" in markdown_text
     assert "Settings</div>" not in markdown_text
     assert "Next action" not in markdown_text

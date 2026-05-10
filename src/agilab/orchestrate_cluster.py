@@ -584,7 +584,7 @@ def _lan_discovery_clear_key(app_state_name: str) -> str:
     return f"cluster_lan_discovery_clear__{app_state_name}"
 
 
-def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
+def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps, *, show_run_mode_info: bool = True) -> None:
     app_settings = st.session_state.get("app_settings")
     if not isinstance(app_settings, dict):
         app_settings = {"args": {}, "cluster": {}}
@@ -903,7 +903,8 @@ def render_cluster_settings_ui(env: Any, deps: OrchestrateClusterDeps) -> None:
     st.session_state.dask = cluster_enabled
     mode_value = compute_cluster_mode(cluster_params, cluster_enabled)
     st.session_state["mode"] = mode_value
-    st.info(f"Run mode {RUN_MODE_LABELS[mode_value]}")
+    if show_run_mode_info:
+        st.info(f"Run mode {RUN_MODE_LABELS[mode_value]}")
     st.session_state.app_settings["cluster"] = cluster_params
 
     st.session_state.app_settings = deps.write_app_settings_toml(
