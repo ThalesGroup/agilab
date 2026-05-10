@@ -342,6 +342,22 @@ def test_render_graph_preview_requires_matplotlib(monkeypatch):
         orchestrate_execute._render_graph_preview(graph, None)
 
 
+@pytest.mark.parametrize(
+    ("app_state_name", "env_app", "target", "expected"),
+    [
+        ("global_dag_project", "global_dag_project", "global_dag", True),
+        ("custom_dag_project", "custom_dag_project", "custom_dag", True),
+        ("dag_app_template", "your_dag_project", "dag_app", True),
+        ("flight_project", "flight_project", "flight", False),
+        ("tescia_diagnostic_project", "tescia_diagnostic_project", "tescia_diagnostic", False),
+    ],
+)
+def test_is_dag_based_app_detects_dag_identity(app_state_name, env_app, target, expected):
+    env = SimpleNamespace(app=env_app, target=target)
+
+    assert orchestrate_execute._is_dag_based_app(env, app_state_name) is expected
+
+
 class _State(dict):
     def __getattr__(self, name):
         try:
@@ -1312,6 +1328,68 @@ async def test_render_execute_section_combo_button_queues_action(monkeypatch, tm
     assert not any(kind == "rerun" and msg == "called" for kind, msg in fake_st.messages)
     assert "_combo_load_trigger" not in fake_st.session_state
     assert "_combo_export_trigger" not in fake_st.session_state
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("app_state_name", "env_app", "target"),
+    [
+        ("global_dag_project", "global_dag_project", "global_dag"),
+        ("custom_dag_project", "custom_dag_project", "custom_dag"),
+    ],
+)
+async def test_render_execute_section_dag_based_project_uses_run_only_controls(
+    monkeypatch,
+    tmp_path,
+    app_state_name,
+    env_app,
+    target,
+):
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "combo",
+            "_combo_load_trigger": True,
+            "_combo_export_trigger": True,
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+            "loaded_df": pd.DataFrame({"stage": ["done"]}),
+            "loaded_source_path": tmp_path / "stale.csv",
+        },
+        buttons={"combo_exec_load_export": True, "load_data_main": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app=env_app,
+        target=target,
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name=app_state_name,
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
+    )
+
+    button_keys = {key for key, _kwargs in fake_st.button_calls}
+    assert "run_btn" in button_keys
+    assert "combo_exec_load_export" not in button_keys
+    assert "load_data_main" not in button_keys
+    assert "delete_data_main" not in button_keys
+    assert "export_df_main" not in button_keys
+    assert "stats_report_main" not in button_keys
+    assert "_combo_load_trigger" not in fake_st.session_state
+    assert "_combo_export_trigger" not in fake_st.session_state
+    assert not any("LOAD dataframe" in msg for kind, msg in fake_st.messages if kind == "info")
+    assert any("Run the selected DAG workflow" in msg for kind, msg in fake_st.messages if kind == "caption")
 
 
 @pytest.mark.asyncio
