@@ -667,6 +667,17 @@ def test_orchestrate_page_does_not_import_dag_helper_from_execute_module():
     assert '"is_dag_worker_base": "is_dag_worker_base"' not in execute_import
 
 
+def test_orchestrate_resource_summary_uses_updated_cluster_widget_state():
+    source = Path("src/agilab/pages/2_ORCHESTRATE.py").read_text(encoding="utf-8")
+    panel_source = source.split("async def _render_deployment_panel", 1)[1]
+
+    placeholder_index = panel_source.index("resource_summary_slot = st.empty()")
+    cluster_widget_index = panel_source.index("render_cluster_settings_ui(")
+    summary_index = panel_source.index("_render_orchestrate_resource_summary(env, target=resource_summary_slot)")
+
+    assert placeholder_index < cluster_widget_index < summary_index
+
+
 def test_execute_page_realigns_stale_agi_space_session_env(mock_ui_env, tmp_path):
     """Source ORCHESTRATE must not keep an old installed agi-space active app."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
