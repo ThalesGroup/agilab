@@ -31,6 +31,35 @@ def test_prepare_app_settings_for_write_preserves_supported_metadata():
     assert prepared["__meta__"] == {"schema": "custom.schema", "version": "1", "owner": "test"}
 
 
+def test_prepare_app_settings_for_write_normalizes_legacy_run_args_key():
+    payload = {
+        "args": {
+            "data_in": "network_sim/pipeline",
+            "data_out": "sb3_trainer/pipeline",
+            "args": [{"name": "train", "args": {"seed": 42}}],
+        }
+    }
+
+    prepared = app_settings_module.prepare_app_settings_for_write(payload)
+
+    assert "args" not in prepared["args"]
+    assert prepared["args"]["stages"] == [{"name": "train", "args": {"seed": 42}}]
+    assert prepared["args"]["data_in"] == "network_sim/pipeline"
+    assert prepared["args"]["data_out"] == "sb3_trainer/pipeline"
+
+
+def test_prepare_app_settings_for_write_rejects_ambiguous_run_stage_keys():
+    with pytest.raises(ValueError, match="cannot contain both legacy 'args.args' and current 'args.stages'"):
+        app_settings_module.prepare_app_settings_for_write(
+            {
+                "args": {
+                    "args": [{"name": "legacy"}],
+                    "stages": [{"name": "current"}],
+                }
+            }
+        )
+
+
 def test_prepare_app_settings_for_write_rejects_invalid_metadata():
     with pytest.raises(ValueError, match="__meta__ must be a TOML table"):
         app_settings_module.prepare_app_settings_for_write({"__meta__": "bad"})

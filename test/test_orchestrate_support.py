@@ -58,6 +58,24 @@ def test_prepare_app_settings_for_write_preserves_existing_supported_metadata(tm
     assert written == sanitized
 
 
+def test_write_app_settings_toml_normalizes_legacy_run_args_key(tmp_path):
+    settings_file = tmp_path / "app_settings.toml"
+    payload = {
+        "args": {
+            "data_in": "network_sim/pipeline",
+            "data_out": "sb3_trainer/pipeline",
+            "args": [{"name": "fcas_routing_ppo_gnn", "args": {"seed": 42}}],
+        }
+    }
+
+    sanitized = orchestrate_support.write_app_settings_toml(settings_file, payload)
+    written = tomllib.loads(settings_file.read_text(encoding="utf-8"))
+
+    assert "args" not in sanitized["args"]
+    assert sanitized["args"]["stages"] == [{"name": "fcas_routing_ppo_gnn", "args": {"seed": 42}}]
+    assert written == sanitized
+
+
 def test_prepare_app_settings_for_write_rejects_future_metadata_version(tmp_path):
     settings_file = tmp_path / "app_settings.toml"
     payload = {"__meta__": {"schema": "agilab.app_settings.v2", "version": 2}}
