@@ -171,6 +171,66 @@ def test_collect_candidate_roots_falls_back_to_home_when_share_resolution_fails(
     assert str(home_dir / "relative/data") in [str(roots[0]), str(roots[1])]
 
 
+def test_collect_candidate_roots_skips_data_in_when_share_unavailable(monkeypatch, tmp_path):
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    monkeypatch.setattr(
+        orchestrate_execute.Path,
+        "home",
+        classmethod(lambda cls: home_dir),
+    )
+
+    def _resolve_share_path(*_args, **_kwargs):
+        raise TypeError("share not configured")
+
+    env = SimpleNamespace(
+        dataframe_path="dataframe",
+        app_data_rel=None,
+        resolve_share_path=_resolve_share_path,
+    )
+    roots = orchestrate_execute.collect_candidate_roots(
+        env,
+        {
+            "data_out": "flight/output",
+            "data_in": "flight/input",
+        },
+    )
+
+    assert roots == [home_dir / "dataframe", home_dir / "flight/output"]
+    assert all("flight/input" not in str(root) for root in roots)
+
+
+def test_collect_candidate_roots_keeps_absolute_data_in_without_share(monkeypatch, tmp_path):
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    monkeypatch.setattr(
+        orchestrate_execute.Path,
+        "home",
+        classmethod(lambda cls: home_dir),
+    )
+    absolute_data_in = tmp_path / "shared" / "forced" / "input"
+
+    def _resolve_share_path(*_args, **_kwargs):
+        raise ValueError("share path cannot be resolved")
+
+    env = SimpleNamespace(
+        dataframe_path="local/data",
+        app_data_rel=None,
+        resolve_share_path=_resolve_share_path,
+    )
+    roots = orchestrate_execute.collect_candidate_roots(
+        env,
+        {
+            "data_in": str(absolute_data_in),
+            "data_out": "flight/output",
+        },
+    )
+
+    assert absolute_data_in in roots
+    assert absolute_data_in == roots[1] or roots[-1] == absolute_data_in
+    assert home_dir / "local/data" in roots
+
+
 def test_is_preview_metadata_file_detects_metadata_names():
     assert orchestrate_execute._is_preview_metadata_file(orchestrate_execute.Path("run_manifest.json"))
     assert orchestrate_execute._is_preview_metadata_file(orchestrate_execute.Path("reduce_summary_worker_0.json"))
