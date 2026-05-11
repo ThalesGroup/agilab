@@ -22,13 +22,43 @@ supported first routes.
 - Declare any third-party intellectual property used by your change in an `IP.md` file before pushing.
 - Open management/process issues with `[MANAGEMENT]` in the title.
 
+## Contribution Certificate And Review Policy
+
+- DCO: by submitting a pull request, you certify the Developer Certificate of Origin 1.1 for your contribution. Add `Signed-off-by` trailers when requested by maintainers or when repository automation enforces them.
+- CLA: no separate contributor license agreement is required for normal BSD-3-Clause contributions unless maintainers explicitly request one for a specific corporate or large-code contribution.
+- Review policy: every pull request needs maintainer review before merge. Shared core, release tooling, security-sensitive, dependency, and packaging changes require review from an owner of that area.
+- Branch protection: `main`, release tags, and publication workflows are maintainer-owned. Do not bypass required reviews, local guardrails, or release proof checks.
+- Release ownership: only maintainers should create release tags, publish PyPI artifacts, update release proof, or approve Trusted Publishing changes.
+
 ## Pull Request Checklist
 
 - Explain the use case or failure that the pull request addresses.
 - Include the narrowest local validation command that proves the change.
 - Add or update tests when behavior changes and an adjacent test pattern exists.
 - Include a license check report using [checklicense](https://pypi.org/project/licensecheck/) when new dependencies, vendored code, or generated artifacts are introduced.
+- If dependencies, extras, workflows, or optional runtime profiles change, include the relevant SBOM / `pip-audit` evidence or explain why the existing release profile is unchanged.
 - Keep generated and local-only artifacts out of the diff.
+
+## Security Checklist
+
+Apply this checklist to any code, docs, workflow, app, or example that changes runtime behavior:
+
+- Secrets: no credentials, tokens, API keys, private hostnames, or sensitive logs are committed or printed by default.
+- Filesystem: app writes stay inside documented workspace/share paths and do not assume a developer-specific home directory.
+- SSH and cluster execution: remote commands are quoted, host-key expectations are explicit, cluster-share behavior is documented, and public examples do not require private infrastructure.
+- Streamlit exposure: public or shared deployments require an auth/TLS/reverse-proxy plan; local UI examples must not imply public production exposure is safe.
+- Logs and artifacts: generated evidence avoids raw secrets and keeps sensitive datasets out of repository history.
+- Dependencies: new dependencies are justified, scoped to the narrowest package or optional extra, license-reviewed, and included in supply-chain evidence when release-impacting.
+
+## External App Acceptance
+
+External apps and packaged examples are accepted only when they are reproducible and safe to run in the documented scope:
+
+- The app has a clear `pyproject.toml`, deterministic first-run defaults, and no hidden dependency on private data or private network services.
+- Network, LLM, cloud, SSH, GPU, or hardware-specific behavior is opt-in and documented with environment variables or settings.
+- Analysis views and artifacts are understandable from public sample data or generated synthetic data.
+- Secrets are referenced through environment variables or external secret stores, never checked into app files.
+- Tests or smoke commands cover install/run/read-output behavior where a comparable public app already has coverage.
 
 ## Validation Guide
 
