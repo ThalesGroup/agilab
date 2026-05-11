@@ -137,8 +137,8 @@ def test_readme_uses_recommended_workbench_positioning() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
     assert "AGILAB is a reproducible AI/ML workbench for engineering teams." in readme
-    assert "AGILAB complements MLflow." in readme
-    assert "It is not a replacement for MLflow or production\nMLOps platforms." in readme
+    assert "AGILAB complements MLflow and production MLOps platforms." in readme
+    assert "reproducible execution and analysis layer" in readme
 
 
 def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
@@ -153,7 +153,7 @@ def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
     assert "It is not a\nleftover from an incomplete packaging migration." in policy
     assert "Real PyPI publication must use GitHub OIDC Trusted Publishing" in policy
     assert "Long-lived PyPI\nAPI tokens are not part of the normal release path" in policy
-    assert "setup.py is intentionally kept alongside pyproject.toml; it is not a migration\nleftover." in readme
+    assert "package-publishing-policy.html" in readme
 
 
 def test_service_mode_documents_non_executable_queue_contract() -> None:

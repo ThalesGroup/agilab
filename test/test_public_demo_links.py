@@ -156,23 +156,47 @@ def test_readme_uses_agi_core_notebook_badge_for_api_route() -> None:
     ) in readme
 
 
+def test_readme_agent_skill_badges_use_raw_urls_for_public_renderers() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert (
+        '<a href=".codex/skills/README.md"><img '
+        'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills-codex.svg" '
+        'alt="Codex skills" /></a>'
+    ) in readme
+    assert (
+        '<a href=".claude/skills/README.md"><img '
+        'src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/skills-claude.svg" '
+        'alt="Claude skills" /></a>'
+    ) in readme
+    assert 'src="badges/skills-codex.svg"' not in readme
+    assert 'src="badges/skills-claude.svg"' not in readme
+
+
 def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() -> None:
     readme = README.read_text(encoding="utf-8")
-    try_this_first = readme.split("### Try this first", 1)[1].split(
-        "The public AGILAB Space",
+    local_proof = readme.split("### Local PyPI UI Proof", 1)[1].split(
+        "For a zero-install browser preview",
         1,
     )[0]
 
     assert (
         'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
-        in try_this_first
+        in local_proof
     )
-    assert "agilab first-proof --json --with-ui" in try_this_first
-    assert "agilab\n" in try_this_first
-    assert "python3 -m venv" not in try_this_first
-    assert "source ~/.agilab-first-proof/bin/activate" not in try_this_first
-    assert "python -m pip install --upgrade pip" not in try_this_first
+    assert "agilab first-proof --json --with-ui" in local_proof
+    assert "agilab\n" in local_proof
+    assert "python3 -m venv" not in local_proof
+    assert "source ~/.agilab-first-proof/bin/activate" not in local_proof
+    assert "python -m pip install --upgrade pip" not in local_proof
     assert "python -m agilab.lab_run" not in readme
+    assert (
+        readme.count(
+            'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
+        )
+        == 1
+    )
+    assert "The PyPI package is the thinnest public entry point" not in readme
 
 
 def test_quick_start_package_route_uses_tool_console_script_without_activation() -> None:
@@ -433,10 +457,11 @@ def test_readme_uses_quick_start_link_with_badges_not_a_route_table() -> None:
     assert "API/notebook" not in readme
     assert 'alt="AGILAB Space"' in readme
     assert 'alt="agi-core notebook"' in readme
-    assert "## First Run" in readme
+    assert "## Source Checkout" in readme
+    assert "## First Run" not in readme
     assert "Then in the UI:" not in readme
     assert "PROJECT` -> select" not in readme
-    assert "tools/newcomer_first_proof.py --json" in readme
+    assert "tools/newcomer_first_proof.py --json" not in readme
     assert "ease of adoption" in readme
     assert _kpi_score("Ease of adoption") in readme
 
@@ -467,9 +492,9 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
 
     assert "## Evaluation Snapshot" in readme
     assert "## CODEX 5.5 Evaluation Snapshot" not in readme
-    assert "CODEX 5.5 working summary" in readme
-    assert "AI/ML experimentation workbench" in readme
-    assert "not as a replacement for mature orchestration or production MLOps platforms" in readme
+    assert "CODEX 5.5" not in readme
+    assert "reproducible AI/ML workbench" in readme
+    assert "complements MLflow and production MLOps platforms" in readme
     assert "project setup, environment management, execution, and result analysis" in readme
     assert "Overall public evaluation" in readme
     assert f"{_baseline_score()}` ->" not in readme

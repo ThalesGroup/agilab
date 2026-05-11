@@ -186,7 +186,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             and wizard_content["compatibility_report_status"] == "pass"
             and wizard_content["proof_command_labels"] == labels
             and wizard_content["run_manifest_filename"] == "run_manifest.json"
-            and [label for label, _ in wizard_content["stages"]] == [
+            and [label for label, _ in wizard_content["steps"]] == [
                 "PROJECT",
                 "ORCHESTRATE",
                 "ANALYSIS",
@@ -207,7 +207,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
                 "compatibility_status": wizard_content.get("compatibility_status"),
                 "compatibility_report_status": wizard_content.get("compatibility_report_status"),
                 "run_manifest_filename": wizard_content.get("run_manifest_filename"),
-                "stages": [label for label, _ in wizard_content.get("stages", [])],
+                "steps": [label for label, _ in wizard_content.get("steps", [])],
                 "remediation_status": wizard_state.get("remediation_status"),
                 "evidence_commands": wizard_state.get("evidence_commands"),
             },
@@ -2331,46 +2331,7 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
         repo_root / "docs" / "source" / "quick-start.rst",
     ]
     required = {
-        "README.md": [
-            "tools/newcomer_first_proof.py --json",
-            "run_manifest.json",
-            "tools/reduce_contract_benchmark.py --json",
-            "tools/revision_traceability_report.py --compact",
-            "tools/public_certification_profile_report.py --compact",
-            "tools/supply_chain_attestation_report.py --compact",
-            "tools/repository_knowledge_report.py --compact",
-            "tools/run_diff_evidence_report.py --compact",
-            "tools/ci_artifact_harvest_report.py --compact",
-            "tools/github_actions_artifact_index.py --archive",
-            "tools/ci_provider_artifact_index.py --provider gitlab_ci --archive",
-            "tools/ci_provider_artifact_index.py --live-gitlab",
-            "tools/multi_app_dag_report.py --compact",
-            "tools/global_pipeline_dag_report.py --compact",
-            "tools/global_pipeline_execution_plan_report.py --compact",
-            "tools/global_pipeline_runner_state_report.py --compact",
-            "tools/global_pipeline_dispatch_state_report.py --compact",
-            "tools/global_pipeline_app_dispatch_smoke_report.py --compact",
-            "tools/global_pipeline_operator_state_report.py --compact",
-            "tools/global_pipeline_dependency_view_report.py --compact",
-            "tools/global_pipeline_live_state_updates_report.py --compact",
-            "tools/global_pipeline_operator_actions_report.py --compact",
-            "tools/global_pipeline_operator_ui_report.py --compact",
-            "tools/notebook_pipeline_import_report.py --compact",
-            "tools/notebook_roundtrip_report.py --compact",
-            "tools/notebook_union_environment_report.py --compact",
-            "tools/data_connector_facility_report.py --compact",
-            "tools/data_connector_resolution_report.py --compact",
-            "tools/data_connector_health_report.py --compact",
-            "tools/data_connector_health_actions_report.py --compact",
-            "tools/data_connector_runtime_adapters_report.py --compact",
-            "tools/data_connector_live_endpoint_smoke_report.py --compact",
-            "tools/data_connector_ui_preview_report.py --compact",
-            "tools/data_connector_live_ui_report.py --compact",
-            "tools/data_connector_view_surface_report.py --compact",
-            "tools/data_connector_app_catalogs_report.py --compact",
-            "Overall public evaluation",
-            "compatibility matrix",
-        ],
+        "README.md": ["Overall public evaluation", "compatibility matrix"],
         "docs/source/compatibility-matrix.rst": [
             "AGILAB Hugging Face demo",
             "validated",
@@ -2434,9 +2395,9 @@ def _check_public_docs_links(repo_root: Path) -> dict[str, Any]:
         "Public docs evidence links",
         ok,
         (
-            "README and public docs expose the machine-readable evidence reports"
+            "README links to evidence pages and public docs expose the machine-readable evidence reports"
             if ok
-            else "README or public docs are missing evidence report references"
+            else "README evidence links or public docs evidence report references are missing"
         ),
         evidence=[str(path.relative_to(repo_root)) for path in paths],
         details=details,
@@ -2474,7 +2435,7 @@ def render_readme_summary(bundle: dict[str, Any]) -> str:
     production = components["Production readiness"]
     strategic = bundle["summary"]["strategic_potential_score"]
 
-    lines = ["Current CODEX 5.5 working summary, refreshed from the public KPI bundle:", ""]
+    lines = ["Current public evaluation summary, refreshed from the public KPI bundle:", ""]
     if adoption == research == prototyping:
         lines.append(
             f"- `{adoption}` for ease of adoption, research experimentation, "
@@ -2513,7 +2474,7 @@ def _replace_readme_summary_block(readme_text: str, bundle: dict[str, Any]) -> s
         return f"{readme_text[:start]}{generated}{readme_text[end:]}"
 
     pattern = re.compile(
-        r"Current CODEX 5\.5 working summary, refreshed from the public KPI bundle:\n\n"
+        r"Current (?:CODEX 5\.5 working|public evaluation) summary, refreshed from the public KPI bundle:\n\n"
         r"(?:- .+\n)+",
         re.MULTILINE,
     )

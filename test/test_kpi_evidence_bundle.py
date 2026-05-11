@@ -93,7 +93,7 @@ def test_render_readme_summary_uses_kpi_bundle_scores() -> None:
     summary = module.render_readme_summary(snapshot)
     components = snapshot["summary"]["score_components"]
 
-    assert "Current CODEX 5.5 working summary" in summary
+    assert "Current public evaluation summary" in summary
     assert (
         f"`{components['Ease of adoption']}` for ease of adoption, research experimentation, "
         "and engineering prototyping."
@@ -114,7 +114,7 @@ def test_refresh_readme_summary_replaces_static_block(tmp_path: Path) -> None:
                 "",
                 "## Evaluation Snapshot",
                 "",
-                "Current CODEX 5.5 working summary, refreshed from the public KPI bundle:",
+                "Current public evaluation summary, refreshed from the public KPI bundle:",
                 "",
                 "- stale",
                 "",
@@ -172,7 +172,7 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     assert wizard["run_manifest_filename"] == "run_manifest.json"
     assert wizard["remediation_status"] == "missing"
     assert "tools/compatibility_report.py --manifest" in wizard["evidence_commands"][1]
-    assert wizard["stages"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+    assert wizard["steps"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
 
 
 def test_run_manifest_contract_reports_stable_schema() -> None:
