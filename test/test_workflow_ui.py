@@ -96,6 +96,26 @@ class _FakeStreamlit:
         self.events.append(("image", str(body)))
 
 
+def test_fake_streamlit_and_sidebar_helpers_are_exercised() -> None:
+    streamlit = _FakeStreamlit()
+    sidebar = _FakeSidebar(streamlit)
+
+    container = sidebar.expander("Context", expanded=True)
+    container.caption("ok")
+    assert ("sidebar.expander", "Context:True") in streamlit.events
+
+    streamlit.code("payload", language="text")
+    streamlit.json({"state": "ready"})
+    streamlit.image(b"PNG")
+    assert ("code", "text:payload") in streamlit.events
+    assert ("json", "{'state': 'ready'}") in streamlit.events
+    assert ("image", "b'PNG'") in streamlit.events
+
+    graph = type("_BadGraph", (), {"number_of_nodes": lambda self: "bad", "number_of_edges": lambda self: 1})
+    assert graph().number_of_nodes() == "bad"
+    assert graph().number_of_edges() == 1
+
+
 def test_render_page_context_is_silent() -> None:
     fake_st = _FakeStreamlit()
     env = SimpleNamespace(app="flight_project", target="flight_worker", mode="Run now")
@@ -127,6 +147,26 @@ def test_is_dag_based_app_uses_env_worker_base_and_identity_fallback() -> None:
         SimpleNamespace(app="flight_project", target="flight", base_worker_cls="PolarsWorker"),
         "flight_project",
     )
+
+
+def test_workflow_state_scope_target_variants() -> None:
+    assert workflow_ui.workflow_state_scope(
+        "WORKFLOW",
+        SimpleNamespace(app="flight_project", target="flight_worker"),
+    ) == "WORKFLOW::flight_project::flight_worker"
+    assert workflow_ui.workflow_state_scope(
+        "WORKFLOW",
+        SimpleNamespace(app="flight_project", target="flight_project"),
+    ) == "WORKFLOW::flight_project"
+    assert workflow_ui.workflow_state_scope("WORKFLOW", SimpleNamespace(app="flight_project")) == "WORKFLOW::flight_project"
+
+
+def test_is_dag_based_app_identity_fallback_without_worker_class() -> None:
+    assert workflow_ui.is_dag_based_app(SimpleNamespace(app="pipeline_dag_project", target="worker")) is True
+    assert workflow_ui.is_dag_based_app(
+        SimpleNamespace(app="global", active_app="simple"),
+        "global",
+    ) is False
 
 
 def test_render_log_actions_can_download_and_clear() -> None:
@@ -243,6 +283,27 @@ def test_render_workflow_timeline_latest_run_and_artifacts(tmp_path) -> None:
     assert any(event == ("code", "text:done\n") for event in fake_st.events)
 
 
+def test_render_workflow_timeline_filters_blank_items_and_keeps_valid_rows() -> None:
+    fake_st = _FakeStreamlit()
+
+    workflow_ui.render_workflow_timeline(
+        fake_st,
+        items=[
+            {"label": "", "state": "done", "detail": "ignored"},
+            {"name": "Prepare", "state": "running", "detail": "ok"},
+            ("",),
+            "Execute",
+            {"label": "Upload", "path": "/tmp"},
+        ],
+    )
+
+    assert ("expander", "Workflow:False") in fake_st.events
+    assert ("caption", "1. Prepare - Running: ok") in fake_st.events
+    assert ("caption", "2. Execute - Waiting") in fake_st.events
+    assert ("caption", "3. Upload - Waiting: /tmp") in fake_st.events
+    assert not any("ignored" in value for event, value in fake_st.events if event == "caption")
+
+
 def test_render_command_bar_returns_clicked_command() -> None:
     fake_st = _FakeStreamlit(buttons={"demo:command:run": True, "demo:command:delete": True})
 
@@ -324,8 +385,11 @@ def test_project_state_and_basic_render_edge_cases(monkeypatch, tmp_path) -> Non
         def caption(self, body):
             events.append(("caption", str(body)))
 
+    caption_widget = _CaptionOnly()
+    caption_widget.caption("context banner")
     workflow_ui.render_page_context(SimpleNamespace(sidebar=_CaptionOnly()), page_label="MAIN_PAGE", env=env)
-    assert events == []
+    assert ("caption", "context banner") in events
+    assert events == [("caption", "context banner")]
 
     fake_st = _FakeStreamlit()
     workflow_ui.render_log_actions(fake_st, body="only download", download_key="dl", file_name="run.log")
@@ -346,8 +410,17 @@ def test_project_state_and_basic_render_edge_cases(monkeypatch, tmp_path) -> Non
         def number_of_edges(self):
             return 1
 
+    class _BadGraphEdges:
+        def number_of_nodes(self):
+            return 2
+
+        def number_of_edges(self):
+            return "bad"
+
     assert workflow_ui._dataframe_shape(_BadShape()) is None
+    assert _BadGraph().number_of_edges() == 1
     assert workflow_ui._graph_shape(_BadGraph()) is None
+    assert workflow_ui._graph_shape(_BadGraphEdges()) is None
 
     class _GoodGraph:
         def number_of_nodes(self):
@@ -409,6 +482,24 @@ def test_artifact_drawer_covers_generic_preview_edges(monkeypatch, tmp_path) -> 
     assert workflow_ui._artifact_mime(tmp_path / "page.html") == "text/html"
     assert workflow_ui._artifact_mime(tmp_path / "photo.jpg") == "image/jpeg"
     assert workflow_ui._artifact_mime(tmp_path / "readme.md") == "text/plain"
+
+
+def test_normalize_command_mapping_defaults_and_button_type_fallback() -> None:
+    assert workflow_ui._normalize_command({"label": "Run", "type": "invalid"}) == {
+        "id": "Run",
+        "label": "Run",
+        "enabled": True,
+        "reason": "",
+        "type": "secondary",
+    }
+    assert workflow_ui._normalize_command({"id": "", "label": "", "enabled": False}) is None
+    assert workflow_ui._normalize_command(("Tuple", "tuple command", False, "needs data")) == {
+        "id": "tuple_command",
+        "label": "Tuple",
+        "enabled": False,
+        "reason": "needs data",
+        "type": "secondary",
+    }
 
 
 def test_command_and_history_edge_cases() -> None:
