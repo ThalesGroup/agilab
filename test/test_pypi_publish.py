@@ -150,6 +150,22 @@ def test_update_static_badge_rewrites_svg(tmp_path, monkeypatch) -> None:
     assert 'width="158"' in text
 
 
+def test_git_paths_to_commit_includes_release_coverage_badges(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    coverage_badge = tmp_path / "badges" / "coverage-agilab.svg"
+    coverage_badge.parent.mkdir(parents=True)
+    coverage_badge.write_text("<svg />\n", encoding="utf-8")
+
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "builtin_app_pyprojects", lambda: [])
+    monkeypatch.setattr(module, "PUBLIC_RELEASE_METADATA_PATHS", [])
+
+    assert "badges/coverage-agilab.svg" in module.git_paths_to_commit()
+
+
 def test_fetch_url_text_falls_back_to_curl(monkeypatch) -> None:
     module = _load_pypi_publish()
 
@@ -1394,6 +1410,11 @@ def test_main_runs_release_preflight_before_build(tmp_path, monkeypatch) -> None
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
@@ -1671,6 +1692,11 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "run_pre_upload_external_install_guard", lambda *_args, **_kwargs: order.append("external-install-guard"))
     monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "next_free_post_for_all", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not auto-post for pypi")))
     monkeypatch.setattr(module, "update_release_proof_references", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
@@ -1683,7 +1709,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     else:
         raise AssertionError("main() should reject real PyPI upload collisions")
 
-    assert order == ["badge", "build", "external-install-guard", "commit", "reset"]
+    assert order == ["badge", "build", "external-install-guard", "commit", "coverage-workflow", "reset"]
 
 
 def test_twine_upload_reports_summary_and_skip_existing(monkeypatch, capsys) -> None:
@@ -1839,6 +1865,11 @@ def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
@@ -1853,6 +1884,7 @@ def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
         "pre-upload-guard",
         "release-refs",
         "commit",
+        "coverage-workflow",
         "upload",
         "tag",
         "github-release",
@@ -1924,6 +1956,11 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
@@ -1939,6 +1976,7 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
         "pre-upload-guard",
         "release-refs",
         "commit",
+        "coverage-workflow",
         "tag",
         "github-release",
         "delete-former",
@@ -2264,6 +2302,11 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
         "run_pre_upload_release_guard",
         lambda *_args, **_kwargs: order.append("pre-upload-guard"),
     )
+    monkeypatch.setattr(
+        module,
+        "run_release_coverage_workflow_prerequisite",
+        lambda *_args, **_kwargs: order.append("coverage-workflow"),
+    )
     monkeypatch.setattr(module, "generate_docs_in_docs_repository", lambda: order.append("gen-docs"))
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
     monkeypatch.setattr(module, "git_commit_docs_repository", lambda *_args, **_kwargs: order.append("commit-docs"))
@@ -2282,6 +2325,7 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
         "release-refs",
         "commit",
         "commit-docs",
+        "coverage-workflow",
         "upload",
         "tag",
         "github-release",
@@ -2328,11 +2372,13 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
     def fake_run(cmd, **_kwargs):
         command_text = " ".join(str(part) for part in cmd)
         if "generate_component_coverage_badges.py" in command_text:
-            raise AssertionError("release guard must not regenerate coverage badges")
-        if "coverage_badge_guard.py" in command_text:
-            assert "--changed-only" in cmd
+            calls.append("coverage-badge-refresh")
+        elif "coverage_badge_guard.py" in command_text:
             assert "--require-fresh-xml" not in cmd
-            calls.append("coverage-guard")
+            if "--changed-only" in cmd:
+                calls.append("coverage-guard-changed-only")
+            else:
+                calls.append("coverage-guard-all")
         else:
             calls.append(command_text)
 
@@ -2345,7 +2391,61 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
         version_targets=["agilab"],
     )
 
-    assert calls == ["release-refs-guard", "preflight", "coverage-guard"]
+    assert calls == [
+        "release-refs-guard",
+        "preflight",
+        "coverage-badge-refresh",
+        "coverage-guard-all",
+        "coverage-guard-changed-only",
+    ]
+
+
+def test_release_coverage_workflow_prerequisite_triggers_and_waits(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    cfg = _base_cfg(module, repo="pypi", git_tag=True)
+    states = iter(
+        [
+            [],
+            [{"status": "in_progress", "conclusion": "", "url": "https://example.test/runs/1"}],
+            [{"status": "completed", "conclusion": "success", "url": "https://example.test/runs/1"}],
+        ]
+    )
+    triggers: list[str] = []
+
+    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
+    monkeypatch.setattr(module, "_git_head_sha", lambda: "abc123def456")
+
+    module.run_release_coverage_workflow_prerequisite(
+        cfg,
+        timeout_seconds=30,
+        poll_seconds=1,
+        list_runs_fn=lambda _sha: next(states),
+        trigger_fn=lambda branch: triggers.append(branch),
+        sleep_fn=lambda _seconds: None,
+        time_fn=lambda: 0.0,
+    )
+
+    assert triggers == ["main"]
+
+
+def test_release_coverage_workflow_prerequisite_blocks_failed_run(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    cfg = _base_cfg(module, repo="pypi", git_tag=True)
+
+    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
+    monkeypatch.setattr(module, "_git_head_sha", lambda: "abc123def456")
+
+    with pytest.raises(SystemExit, match="Coverage workflow prerequisite failed"):
+        module.run_release_coverage_workflow_prerequisite(
+            cfg,
+            timeout_seconds=30,
+            list_runs_fn=lambda _sha: [
+                {"status": "completed", "conclusion": "failure", "url": "https://example.test/runs/1"}
+            ],
+            trigger_fn=lambda _branch: None,
+            sleep_fn=lambda _seconds: None,
+            time_fn=lambda: 0.0,
+        )
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:
