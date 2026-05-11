@@ -101,7 +101,7 @@ summarises the supported keys.
        enables the Universal Offline AI Chatbot document RAG path.
    * - ``AGILAB_PIPELINE_RECIPE_MEMORY``
      - ``1``
-     - Enables local PIPELINE recipe-memory retrieval. When enabled, the code
+     - Enables local WORKFLOW recipe-memory retrieval. When enabled, the code
        assistant mines validated ``lab_steps.toml`` entries, supervisor
        notebooks, and the local recipe-card store, then adds matching examples
        to the model-facing prompt. Saved lab questions remain unchanged.

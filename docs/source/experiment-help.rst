@@ -57,7 +57,7 @@ The assistant automatically reloads the most recent dataframe and shows it below
 the editor. If nothing has been saved yet, you will see a reminder to run a
 snippet first.
 
-When your lab step is based on app execution, use the **Pipeline** add flow:
+When your lab step is based on app execution, use the **WORKFLOW** add flow:
 
 - Generate the target snippet in **ORCHESTRATE** (typically ``AGI.run``).
 - In **Add stage** (or **New stage** on an empty project), choose ``Stage source =``
@@ -73,7 +73,7 @@ When your lab step is based on app execution, use the **Pipeline** add flow:
 - Imported snippets are marked read-only and run with the project manager runtime.
 
 If you change values in Orchestrate arguments, regenerate or re-import the
-snippet in Pipeline before running the stage.
+snippet in WORKFLOW before running the stage.
 
 AGILab does not silently rewrite saved Python snippets when a lab is reopened.
 If a generated stage becomes stale after an app or orchestration change, the
@@ -241,7 +241,7 @@ kernel.
 
 MLflow tracking
 ~~~~~~~~~~~~~~~
-Pipeline execution and MLflow tracking now share the same runtime contract:
+WORKFLOW execution and MLflow tracking now share the same runtime contract:
 
 .. figure:: diagrams/pipeline_mlflow_tracking.svg
    :alt: Diagram showing one parent MLflow run for the whole workflow and one nested run per executed stage.
@@ -310,7 +310,7 @@ See also
 --------
 
 - :doc:`agilab-help` for the overall page sequence.
-- :doc:`distributed-workers` for the full distributed workflow from ORCHESTRATE configuration to imported Pipeline stage.
+- :doc:`distributed-workers` for the full distributed workflow from ORCHESTRATE configuration to imported WORKFLOW stage.
 - :doc:`execute-help` for generating reliable snippets before running a stage.
 - :doc:`apps-pages` for analysis-side visualisations after a successful run.
 - :doc:`roadmap/versioned-pipeline-stages` for the proposed structured successor
