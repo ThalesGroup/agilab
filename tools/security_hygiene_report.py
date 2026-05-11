@@ -373,6 +373,13 @@ def _supply_chain_profile_evidence_check(security_text: str) -> dict[str, Any]:
     )
 
 
+def _release_tag_matches_version(manifest_tag: str, project_version: str) -> bool:
+    if not manifest_tag or not project_version:
+        return False
+    expected_tag = re.escape(f"v{project_version}")
+    return re.fullmatch(rf"{expected_tag}(?:-\d+)?", manifest_tag) is not None
+
+
 def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[str, Any]:
     pyproject, pyproject_error = _read_toml_artifact(repo_root / "pyproject.toml")
     manifest, manifest_error = _read_toml_artifact(
@@ -400,7 +407,7 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
     manifest_tag = str(release.get("github_release_tag") or "")
     expected_tag = f"v{project_version}" if project_version else ""
     version_aligned = bool(project_version) and manifest_version == project_version
-    tag_aligned = bool(expected_tag) and manifest_tag == expected_tag
+    tag_aligned = _release_tag_matches_version(manifest_tag, project_version)
     rendered_page_aligned = (
         bool(package_name)
         and bool(manifest_version)
@@ -431,6 +438,9 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
             "manifest_package_version": manifest_version,
             "expected_github_release_tag": expected_tag,
             "manifest_github_release_tag": manifest_tag,
+            "accepted_github_release_tag_pattern": (
+                f"{expected_tag}[-N]" if expected_tag else ""
+            ),
             "version_aligned": version_aligned,
             "tag_aligned": tag_aligned,
             "rendered_page_aligned": rendered_page_aligned,

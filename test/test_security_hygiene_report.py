@@ -79,6 +79,15 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
     assert persisted["status"] == "pass"
 
 
+def test_release_tag_alignment_accepts_same_version_retry_tags() -> None:
+    module = _load_module()
+
+    assert module._release_tag_matches_version("v2026.05.11", "2026.05.11")
+    assert module._release_tag_matches_version("v2026.05.11-2", "2026.05.11")
+    assert not module._release_tag_matches_version("v2026.05.12", "2026.05.11")
+    assert not module._release_tag_matches_version("v2026.05.11-beta", "2026.05.11")
+
+
 def test_security_hygiene_report_accepts_scan_artifacts(tmp_path: Path) -> None:
     module = _load_module()
     pip_audit = tmp_path / "pip-audit.json"
