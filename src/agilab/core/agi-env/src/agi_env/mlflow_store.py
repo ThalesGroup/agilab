@@ -13,6 +13,7 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from importlib import import_module
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -34,6 +35,29 @@ MLFLOW_RUNTIME_EXCEPTIONS = tuple(
     for exc_type in (RuntimeError, sqlite3.Error, MlflowException)
     if exc_type is not None
 )
+
+
+def mlflow_subprocess_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
+    """Return an environment safe for MLflow CLI subprocess imports."""
+    env = dict(os.environ if base_env is None else base_env)
+    env.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+    return env
+
+
+def _run_mlflow_cli(run_cmd, argv: list[str]):
+    kwargs = {
+        "check": False,
+        "capture_output": True,
+        "text": True,
+        "env": mlflow_subprocess_env(),
+    }
+    try:
+        return run_cmd(argv, **kwargs)
+    except TypeError as exc:
+        if "env" not in str(exc):
+            raise
+        kwargs.pop("env")
+        return run_cmd(argv, **kwargs)
 
 
 def get_mlflow_module():
@@ -200,11 +224,9 @@ def ensure_mlflow_sqlite_schema_current(
     if db_uri is None:
         return
 
-    result = run_cmd(
+    result = _run_mlflow_cli(
+        run_cmd,
         [sys_executable, "-m", "mlflow", "db", "upgrade", db_uri],
-        check=False,
-        capture_output=True,
-        text=True,
     )
     if _handle_mlflow_schema_upgrade_result(
         result,
@@ -292,7 +314,8 @@ def _migrate_legacy_mlflow_filestore_if_needed(
         return
 
     target_uri = sqlite_uri_for_path_fn(db_path)
-    result = run_cmd(
+    result = _run_mlflow_cli(
+        run_cmd,
         [
             sys_executable,
             "-m",
@@ -303,9 +326,6 @@ def _migrate_legacy_mlflow_filestore_if_needed(
             "--target",
             target_uri,
         ],
-        check=False,
-        capture_output=True,
-        text=True,
     )
     _handle_mlflow_filestore_migration_result(
         result,

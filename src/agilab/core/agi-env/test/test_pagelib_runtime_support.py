@@ -22,7 +22,7 @@ def test_next_free_port_retries_busy_candidates():
 
 def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
     messages: list[str] = []
-    launched: list[tuple[list[str], str]] = []
+    launched: list[tuple[list[str], str, dict[str, object]]] = []
     session_state = {}
     env = SimpleNamespace(MLFLOW_TRACKING_DIR="", home_abs=tmp_path)
 
@@ -37,7 +37,7 @@ def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
         resolve_mlflow_artifact_dir_fn=lambda _path: tmp_path / "artifacts",
         next_free_port_fn=lambda: 50123,
         wait_for_listen_port_fn=lambda _port: True,
-        subproc_fn=lambda command, cwd: launched.append((command, cwd)),
+        subproc_fn=lambda command, cwd, **kwargs: launched.append((command, cwd, kwargs)),
         cwd=str(tmp_path),
     )
 
@@ -47,8 +47,10 @@ def test_activate_mlflow_support_updates_session_state_and_env(tmp_path):
     assert env.MLFLOW_TRACKING_DIR == str(tmp_path / ".mlflow")
     assert launched
     command = launched[0][0]
+    launch_kwargs = launched[0][2]
     assert command[:4] == [sys.executable, "-m", "mlflow", "server"]
     assert command[command.index("--port") + 1] == "50123"
+    assert launch_kwargs["env"]["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] == "python"
     assert messages == []
 
 
