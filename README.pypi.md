@@ -40,7 +40,6 @@ Start with the public browser preview or the demo chooser:
 
 ```bash
 uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
-agilab first-proof --json --with-ui
 agilab
 ```
 
@@ -52,6 +51,18 @@ Advanced scenarios such as `data_io_2026_project`,
 `execution_pandas_project`, `execution_polars_project`, and
 `uav_relay_queue_project` are collected in the
 [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
+
+If startup fails, run a progressive fallback:
+
+```bash
+agilab dry-run
+agilab first-proof --json --with-ui
+```
+
+`agilab dry-run` is the fast alias for `agilab first-proof --dry-run`; it
+checks only CLI/core readiness.
+`agilab first-proof --json --with-ui` runs the full onboarding contract and
+writes `run_manifest.json` for the local UI path.
 
 ### Maturity snapshot
 

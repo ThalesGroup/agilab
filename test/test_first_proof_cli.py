@@ -361,6 +361,7 @@ def test_build_run_manifest_records_cli_command(tmp_path: Path) -> None:
 
     manifest = module.build_run_manifest(
         active_app=active_app,
+        dry_run=False,
         with_install=False,
         with_ui=False,
         commands=commands,
@@ -413,6 +414,7 @@ def test_executed_argv_records_non_default_options(tmp_path: Path) -> None:
 
     argv = module._executed_argv(
         active_app=active_app,
+        dry_run=False,
         with_install=True,
         with_ui=True,
         max_seconds=42,
@@ -427,6 +429,22 @@ def test_executed_argv_records_non_default_options(tmp_path: Path) -> None:
     assert ("--manifest-out", str(manifest_path)) == argv[
         argv.index("--manifest-out") : argv.index("--manifest-out") + 2
     ]
+
+
+def test_executed_argv_includes_dry_run_when_requested(tmp_path: Path) -> None:
+    module = _load_module()
+    active_app = module.default_active_app()
+
+    argv = module._executed_argv(
+        active_app=active_app,
+        dry_run=True,
+        with_install=False,
+        with_ui=False,
+        max_seconds=float(module.DEFAULT_MAX_SECONDS),
+        manifest_path=tmp_path / "run_manifest.json",
+    )
+
+    assert argv[:4] == ("agilab", "first-proof", "--json", "--dry-run")
 
 
 def test_resolve_active_app_rejects_missing_path_and_files(tmp_path: Path) -> None:
