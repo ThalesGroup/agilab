@@ -110,7 +110,7 @@ def test_build_install_and_run_snippets_embed_expected_values():
     assert f'AGILAB_SNIPPET_API = "{CURRENT_SNIPPET_API}"' in run_snippet
 
 
-def test_build_run_snippet_uses_stages_and_rejects_legacy_args_key():
+def test_build_run_snippet_uses_stages_and_accepts_legacy_args_key():
     env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
 
     run_snippet = orchestrate_page_support.build_run_snippet(
@@ -127,14 +127,29 @@ def test_build_run_snippet_uses_stages_and_rejects_legacy_args_key():
     assert "stages=run_stages" in run_snippet
     assert "RUN_STAGES_PAYLOAD" in run_snippet
 
-    with pytest.raises(ValueError, match="Legacy run settings key 'args'"):
+    legacy_run_snippet = orchestrate_page_support.build_run_snippet(
+        env=env,
+        verbose=1,
+        run_mode=0,
+        scheduler="None",
+        workers="None",
+        run_args={"args": [{"name": "prepare", "args": {"n": 2}}]},
+    )
+
+    assert "RUN_STAGES_PAYLOAD" in legacy_run_snippet
+    assert '"name": "prepare"' in legacy_run_snippet
+
+    with pytest.raises(ValueError, match="cannot contain both legacy key 'args' and current key 'stages'"):
         orchestrate_page_support.build_run_snippet(
             env=env,
             verbose=1,
             run_mode=0,
             scheduler="None",
             workers="None",
-            run_args={"args": [{"name": "prepare", "args": {"n": 2}}]},
+            run_args={
+                "args": [{"name": "legacy"}],
+                "stages": [{"name": "current"}],
+            },
         )
 
 
