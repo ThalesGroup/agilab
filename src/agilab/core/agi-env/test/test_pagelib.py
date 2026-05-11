@@ -1159,9 +1159,11 @@ def test_ensure_mlflow_backend_ready_upgrades_sqlite_schema_once(tmp_path, monke
         conn.execute("INSERT INTO alembic_version (version_num) VALUES (?)", ("1b5f0d9ad7c1",))
         conn.commit()
     calls = []
+    envs = []
 
-    def fake_run(cmd, check, capture_output, text):
+    def fake_run(cmd, check, capture_output, text, env=None):
         calls.append(cmd)
+        envs.append(env)
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(pagelib.subprocess, "run", fake_run)
@@ -1182,6 +1184,7 @@ def test_ensure_mlflow_backend_ready_upgrades_sqlite_schema_once(tmp_path, monke
             pagelib._sqlite_uri_for_path(db_path),
         ]
     ]
+    assert envs[0]["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] == "python"
 
 
 def test_ensure_mlflow_backend_ready_resets_unknown_alembic_revision(tmp_path, monkeypatch):
@@ -1546,13 +1549,14 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
         def __init__(self, stdout_value):
             self.stdout = stdout_value
 
-    def fake_popen(command, shell, cwd, stdout, stderr, text):
+    def fake_popen(command, shell, cwd, stdout, stderr, text, env):
         calls["command"] = command
         calls["shell"] = shell
         calls["cwd"] = cwd
         calls["stdout"] = stdout
         calls["stderr"] = stderr
         calls["text"] = text
+        calls["env"] = env
         return FakeProcess("stream-output")
 
     monkeypatch.setattr(pagelib.subprocess, "Popen", fake_popen)
@@ -1565,6 +1569,7 @@ def test_subproc_uses_absolute_cwd_and_returns_stdout(monkeypatch, tmp_path):
     assert calls["cwd"] == os.path.abspath(tmp_path / ".." / tmp_path.name)
     assert calls["stdout"] == subprocess.PIPE
     assert calls["stderr"] == subprocess.STDOUT
+    assert isinstance(calls["env"], dict)
     assert calls["text"] is True
 
 

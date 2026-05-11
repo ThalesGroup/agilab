@@ -13,6 +13,8 @@ import time
 from pathlib import Path
 from typing import Callable, Sequence
 
+from . import mlflow_store
+
 
 _SHELL_METACHARS = frozenset(";&|<>\n\r`$")
 
@@ -99,16 +101,28 @@ def run(command, cwd=None, *, subprocess_module=subprocess, log_fn=None, sys_mod
         sys_module.exit(exc.returncode)
 
 
-def subproc(command, cwd, *, subprocess_module=subprocess, os_module=os):
+def subproc(command, cwd, *, subprocess_module=subprocess, os_module=os, env=None):
     """Execute a command in the background and return its stdout pipe."""
+    process_env = dict(env) if env is not None else os_module.environ.copy()
     return subprocess_module.Popen(
         _command_argv(command, os_module=os_module),
         shell=False,
         cwd=os_module.path.abspath(cwd),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        env=process_env,
         text=True,
     ).stdout
+
+
+def _launch_mlflow_server(subproc_fn, cmd: list[str], cwd) -> None:
+    env = mlflow_store.mlflow_subprocess_env()
+    try:
+        subproc_fn(cmd, cwd, env=env)
+    except TypeError as exc:
+        if "env" not in str(exc):
+            raise
+        subproc_fn(cmd, cwd)
 
 
 def is_port_in_use(target_port, *, socket_module=socket) -> bool:
@@ -193,7 +207,7 @@ def activate_mlflow(
             "--port",
             str(port),
         ]
-        subproc_fn(cmd, cwd)
+        _launch_mlflow_server(subproc_fn, cmd, cwd)
         if not wait_for_listen_port_fn(port):
             session_state["server_started"] = False
             session_state.pop("mlflow_port", None)
