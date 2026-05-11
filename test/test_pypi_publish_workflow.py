@@ -25,6 +25,8 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
 def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
+    assert 'python-version: ["3.13"]' in text
+    assert 'python-version: ["3.13", "3.14"]' not in text
     assert "tools/workflow_parity.py" in text
     assert "--profile agi-env" in text
     assert "--profile agi-gui" in text
