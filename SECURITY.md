@@ -17,18 +17,21 @@ please upgrade to the latest release before requesting a patch.
 ## Reporting a Vulnerability
 
 - Do **not** open a public GitHub issue for suspected vulnerabilities.
-- Use GitHub private vulnerability reporting when it is available for the repository.
+- Preferred channel: use GitHub Private Vulnerability Reporting when it is available for the
+  repository.
 - If private reporting is not available to you, contact your usual Thales representative or submit
   a request via <https://cpl.thalesgroup.com/fr/contact-us> and ask for a private AGILAB security
   intake.
+- Do not include exploit code, secrets, detailed proof-of-concept material, or sensitive logs in a
+  public issue, pull request, discussion, or comment.
 - Include only non-sensitive routing details in the first contact:
   - A short summary and affected component names.
   - Which environments are affected (development install, packaged release, shared deployment, etc.).
   - A preferred way to reach you for follow-up questions.
 - Share reproduction steps, proof-of-concept material, secrets, exploit details, or sensitive logs
   only after a private channel has been confirmed.
-- Public GitHub issues may be used for non-sensitive follow-up after a fix is available, but not for
-  initial vulnerability disclosure.
+- Public GitHub issues are only for non-sensitive post-fix advisories or follow-up after a private
+  report has been triaged. They are not an initial vulnerability disclosure channel.
 
 We will acknowledge receipt within **two business days**. If you do not hear back, please resend your
 message or reach out through your usual Thales representative.
@@ -38,7 +41,8 @@ message or reach out through your usual Thales representative.
 1. We confirm the report and work with you to understand the impact.
 2. A remediation plan is drafted. You will receive an estimated timeline (typically under 30 days
    for high-severity issues).
-3. Fixes are released and security notes are published. We credit the reporter unless you request
+3. Confirmed issues are handled through a private GitHub Security Advisory when appropriate.
+4. Fixes are released and security notes are published. We credit the reporter unless you request
    otherwise.
 
 We appreciate coordinated disclosure and will keep you updated throughout the process.
