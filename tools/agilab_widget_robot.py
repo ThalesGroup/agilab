@@ -717,6 +717,23 @@ def page_result_key(app: str, page: str) -> str:
     return f"{app}::{page}"
 
 
+def _streamlit_health_failure_detail(health: Any, server: Any, *, base_url: str) -> str:
+    detail = str(getattr(health, "detail", "") or "streamlit server did not become healthy")
+    process = getattr(server, "process", None)
+    returncode = process.poll() if process is not None else None
+    output_tail_fn = getattr(server, "output_tail", None)
+    output_tail = ""
+    if callable(output_tail_fn):
+        output_tail = str(output_tail_fn() or "").strip()
+    if returncode is None and process is not None:
+        detail = f"{detail}; process still running; url={base_url}"
+    elif returncode is not None:
+        detail = f"{detail}; process exited with {returncode}; url={base_url}"
+    if output_tail:
+        detail = f"{detail}; output tail: {output_tail}"
+    return detail
+
+
 def _widget_probe_from_dict(data: dict[str, Any]) -> WidgetProbe:
     return WidgetProbe(
         app=str(data.get("app", "")),
@@ -3919,9 +3936,10 @@ def sweep_direct_apps_page(
         "--active-app",
         str(active_app),
     ]
-    with web_robot.StreamlitServer(command, env=server_env, url=base_url):
+    with web_robot.StreamlitServer(command, env=server_env, url=base_url) as server:
         health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
         if not health.success:
+            detail = _streamlit_health_failure_detail(health, server, base_url=base_url)
             result = PageSweep(
                 app_name,
                 display,
@@ -3933,7 +3951,7 @@ def sweep_direct_apps_page(
                 0,
                 1,
                 health.url or base_url,
-                [WidgetProbe(app_name, display, "streamlit", "", "failed", health.detail, health.url or base_url)],
+                [WidgetProbe(app_name, display, "streamlit", "", "failed", detail, health.url or base_url)],
                 [],
                 status="failed",
             )
@@ -4029,9 +4047,10 @@ def sweep_app(
             seed_demo_artifacts=seed_demo_artifacts,
             runtime_isolation=runtime_isolation,
         )
-        with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url):
+        with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url) as server:
             health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
             if not health.success:
+                detail = _streamlit_health_failure_detail(health, server, base_url=base_url)
                 result = PageSweep(
                     app_name,
                     "SERVER",
@@ -4043,7 +4062,7 @@ def sweep_app(
                     0,
                     1,
                     health.url or base_url,
-                    [WidgetProbe(app_name, "SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)],
+                    [WidgetProbe(app_name, "SERVER", "streamlit", "", "failed", detail, health.url or base_url)],
                     [],
                     status="failed",
                 )

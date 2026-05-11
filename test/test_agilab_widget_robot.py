@@ -48,6 +48,35 @@ def test_resolve_pages_accepts_all_csv_and_home_alias() -> None:
     assert module.resolve_pages("all") == list(module.DEFAULT_PAGES)
     assert module.resolve_pages("none") == []
     assert module.resolve_pages("PROJECT, ANALYSIS") == ["PROJECT", "ANALYSIS"]
+
+
+def test_streamlit_health_failure_detail_includes_process_output() -> None:
+    module = _load_module()
+
+    class _Health:
+        detail = "not ready"
+
+    class _Process:
+        @staticmethod
+        def poll() -> int:
+            return 2
+
+    class _Server:
+        process = _Process()
+
+        @staticmethod
+        def output_tail() -> str:
+            return "Traceback: missing dependency"
+
+    detail = module._streamlit_health_failure_detail(
+        _Health(),
+        _Server(),
+        base_url="http://127.0.0.1:8501",
+    )
+
+    assert "not ready" in detail
+    assert "process exited with 2" in detail
+    assert "Traceback: missing dependency" in detail
     assert module.resolve_pages("HOME,PROJECT") == ["", "PROJECT"]
     assert module.page_label("") == "HOME"
     assert module.DEFAULT_WIDGET_TIMEOUT_SECONDS < module.DEFAULT_TIMEOUT_SECONDS
