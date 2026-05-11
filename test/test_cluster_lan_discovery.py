@@ -4,6 +4,7 @@ import contextlib
 import json
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 import pytest
@@ -109,7 +110,7 @@ def test_discover_lan_nodes_combines_sources_and_scores_nodes(tmp_path: Path):
 
     report = discovery.discover_lan_nodes(
         discovery.DiscoveryOptions(
-            cidrs=("192.168.3.32/30",),
+            cidrs=("192.168.3.32/29",),
             remote_user="jpm",
             tcp_timeout=0.1,
             scheduler="192.168.3.103",
@@ -134,6 +135,98 @@ def test_discover_lan_nodes_combines_sources_and_scores_nodes(tmp_path: Path):
     assert cache["nodes"][0]["status"] == "ready"
     assert cache["nodes"][0]["cpu"] == "Intel Core i9; cores: 16"
     assert cache["nodes"][0]["gpu"] == "AMD Radeon Pro"
+
+
+def test_discover_lan_nodes_filters_gateway_public_and_out_of_scope_candidates(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(discovery.socket, "gethostname", lambda: "manager")
+    monkeypatch.setattr(discovery.socket, "getaddrinfo", lambda *_args, **_kwargs: [])
+    ssh_dir = tmp_path / ".ssh"
+    ssh_dir.mkdir()
+    (ssh_dir / "known_hosts").write_text(
+        "192.168.3.84 ssh-ed25519 STALE\n"
+        "192.168.20.1 ssh-ed25519 GATEWAY\n"
+        "192.168.20.15 ssh-ed25519 WORKER\n",
+        encoding="utf-8",
+    )
+    (ssh_dir / "config").write_text("Host github.com\n  HostName ssh.github.com\n", encoding="utf-8")
+    cache_path = tmp_path / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir()
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"host": "github.com"},
+                    {"host": "ssh.lightning.ai"},
+                    {"host": "192.168.3.84"},
+                    {"host": "192.168.20.15"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_runner(argv, **kwargs):
+        command = list(argv)
+        if command[:1] == ["ifconfig"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "en7: flags=8863<UP,BROADCAST,RUNNING> mtu 1500\n"
+                    "\tinet 192.168.20.111 netmask 0xffffff00 broadcast 192.168.20.255\n"
+                    "\tstatus: active\n"
+                ),
+                stderr="",
+            )
+        if command[:3] == ["ip", "route", "show"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        if command[:1] == ["route"]:
+            return subprocess.CompletedProcess(command, 0, stdout="gateway: 192.168.20.1\n", stderr="")
+        if command[:1] in (["ip"], ["netstat"], ["ipconfig"], ["hostname"], ["powershell"], ["pwsh"]):
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        if command[:2] == ["arp", "-an"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "? (192.168.20.1) at aa:bb:cc:dd:ee:ff on en7 ifscope [ethernet]\n"
+                    "? (192.168.20.15) at 11:22:33:44:55:66 on en7 ifscope [ethernet]\n"
+                ),
+                stderr="",
+            )
+        if command[:2] == ["arp", "-a"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        if command[:1] == ["ssh"]:
+            target = command[-2]
+            if target != "agi@192.168.20.15":
+                raise AssertionError(f"unexpected SSH probe: {target}")
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="\n".join(["python3=/usr/bin/python3", "uv=/usr/local/bin/uv", "sshfs=/usr/local/bin/sshfs"]),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    def fake_tcp(host: str, port: int, timeout: float) -> bool:
+        return host in {"192.168.20.1", "192.168.20.15"}
+
+    report = discovery.discover_lan_nodes(
+        discovery.DiscoveryOptions(
+            cidrs=("192.168.20.0/27",),
+            remote_user="agi",
+            tcp_timeout=0.01,
+            ssh_timeout=1,
+            use_cache=True,
+            cache_path=cache_path,
+        ),
+        home=tmp_path,
+        runner=fake_runner,
+        tcp_probe=fake_tcp,
+    )
+
+    assert [node.host for node in report.nodes] == ["192.168.20.15"]
+    assert report.nodes[0].status == "ready"
 
 
 def test_passive_cache_only_discovery_does_not_tcp_probe(tmp_path: Path):
@@ -222,6 +315,41 @@ def test_local_ipv4_hosts_supports_ubuntu_without_ifconfig(monkeypatch):
     assert hosts == {"192.168.20.15"}
 
 
+def test_local_ipv4_hosts_ignores_macos_bridge_interfaces(monkeypatch):
+    monkeypatch.setattr(discovery.socket, "gethostname", lambda: "mac-manager")
+    monkeypatch.setattr(discovery.socket, "getaddrinfo", lambda *_args, **_kwargs: [])
+
+    def fake_runner(argv, **kwargs):
+        command = list(argv)
+        if command[:1] == ["ifconfig"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "en7: flags=8863<UP,BROADCAST,RUNNING> mtu 1500\n"
+                    "\tinet 192.168.20.111 netmask 0xffffff00 broadcast 192.168.20.255\n"
+                    "\tstatus: active\n"
+                    "bridge100: flags=8a63<UP,BROADCAST,RUNNING> mtu 1500\n"
+                    "\tinet 192.168.2.1 netmask 0xffffff00 broadcast 192.168.2.255\n"
+                    "\tstatus: active\n"
+                    "utun0: flags=8051<UP,POINTOPOINT,RUNNING> mtu 1500\n"
+                    "\tinet 10.0.0.2 netmask 0xffffff00\n"
+                    "\tstatus: active\n"
+                    "en0: flags=8863<UP,BROADCAST,RUNNING> mtu 1500\n"
+                    "\tinet 192.168.99.10 netmask 0xffffff00 broadcast 192.168.99.255\n"
+                    "\tstatus: inactive\n"
+                ),
+                stderr="",
+            )
+        if tuple(command[:1]) in {("ip",), ("ipconfig",), ("powershell",), ("pwsh",), ("hostname",)}:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        raise AssertionError(f"unexpected command: {command}")
+
+    hosts = discovery._local_ipv4_hosts(runner=fake_runner)
+
+    assert hosts == {"192.168.20.111"}
+
+
 def test_local_ipv4_hosts_supports_windows_ipconfig(monkeypatch):
     monkeypatch.setattr(discovery.socket, "gethostname", lambda: "windows-manager")
     monkeypatch.setattr(
@@ -281,6 +409,31 @@ def test_arp_candidates_supports_windows_arp_a():
     assert discovery._arp_candidates(fake_runner) == (
         ("192.168.20.15", "arp"),
         ("192.168.20.130", "arp"),
+    )
+
+
+def test_arp_candidates_ignore_incomplete_bridge_rows():
+    def fake_runner(argv, **kwargs):
+        command = list(argv)
+        if command[:2] == ["arp", "-an"]:
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout=(
+                    "? (192.168.2.1) at 72:8c:f2:5c:f6:64 on bridge100 ifscope permanent [bridge]\n"
+                    "? (192.168.2.2) at (incomplete) on bridge100 ifscope [bridge]\n"
+                    "? (192.168.20.1) at aa:bb:cc:dd:ee:ff on en7 ifscope [ethernet]\n"
+                    "? (192.168.20.15) at 11:22:33:44:55:66 on en7 ifscope [ethernet]\n"
+                ),
+                stderr="",
+            )
+        if command[:2] == ["arp", "-a"]:
+            raise AssertionError("macOS arp -a fallback should be skipped after arp -an finds candidates")
+        raise AssertionError(f"unexpected command: {command}")
+
+    assert discovery._arp_candidates(fake_runner) == (
+        ("192.168.20.1", "arp"),
+        ("192.168.20.15", "arp"),
     )
 
 
@@ -365,6 +518,7 @@ def test_probe_helpers_classify_missing_prerequisites_and_reverse_ssh():
     assert discovery._parse_optional_bool("") is None
     assert "reverse_ssh=" in discovery._remote_probe_command("agi@192.168.3.103")
     assert "gpu=%s" in discovery._remote_probe_command("agi@192.168.3.103")
+    assert "lspci" in discovery._remote_probe_command("agi@192.168.3.103")
     assert 'export PATH="$HOME/.local/bin:/usr/local/bin:/opt/homebrew/bin:$PATH"' in discovery._remote_probe_command(
         "agi@192.168.3.103"
     )
@@ -374,7 +528,7 @@ def test_candidate_and_host_helpers_handle_edge_cases(tmp_path: Path, monkeypatc
     ssh_dir = tmp_path / ".ssh"
     ssh_dir.mkdir()
     (ssh_dir / "config").write_text(
-        "Host *.example.com\nHost old-mac\nHost ?wild\n",
+        "Host *.example.com\nHost old-mac\nHost github.com\nHost ?wild\n",
         encoding="utf-8",
     )
     (ssh_dir / "known_hosts").write_text(
@@ -429,6 +583,61 @@ def test_active_ssh_hosts_limits_hosts_and_ignores_probe_exceptions():
 
     assert sorted(seen) == ["192.168.3.1", "192.168.3.2"]
     assert hosts == ("192.168.3.2",)
+
+
+def test_discover_lan_nodes_probes_candidates_in_parallel(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(discovery.socket, "gethostname", lambda: "manager")
+    monkeypatch.setattr(discovery.socket, "getaddrinfo", lambda *_args, **_kwargs: [])
+    cache_path = tmp_path / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir()
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"host": "192.168.20.15"},
+                    {"host": "192.168.20.16"},
+                    {"host": "192.168.20.17"},
+                    {"host": "192.168.20.18"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    lock = threading.Lock()
+    active = 0
+    max_active = 0
+
+    def fake_runner(argv, **kwargs):
+        nonlocal active, max_active
+        command = list(argv)
+        if command[:1] in (["ifconfig"], ["ipconfig"], ["hostname"]) or command[:2] in (["arp", "-an"], ["arp", "-a"]):
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        if command[:1] == ["ip"] or command[:1] in (["powershell"], ["pwsh"]):
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        if command[:1] == ["ssh"]:
+            with lock:
+                active += 1
+                max_active = max(max_active, active)
+            threading.Event().wait(0.05)
+            with lock:
+                active -= 1
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="\n".join(["python3=/usr/bin/python3", "uv=/usr/local/bin/uv", "sshfs=/usr/local/bin/sshfs"]),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    report = discovery.discover_lan_nodes(
+        discovery.DiscoveryOptions(active=False, use_cache=True, cache_path=cache_path, probe_workers=4),
+        home=tmp_path,
+        runner=fake_runner,
+        tcp_probe=lambda *_args: (_ for _ in ()).throw(AssertionError("cache-only probe should not use TCP")),
+    )
+
+    assert len(report.nodes) == 4
+    assert max_active > 1
 
 
 def test_tcp_connect_reports_success_and_oserror(monkeypatch):

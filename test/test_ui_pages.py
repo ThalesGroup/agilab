@@ -594,6 +594,11 @@ def test_execute_page_cluster_settings(mock_ui_env):
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    data_share = Path(env.app_data_rel)
+    if data_share.exists():
+        shutil.rmtree(data_share)
+    data_share.mkdir(parents=True, exist_ok=True)
+    (data_share / "sample.bin").write_bytes(b"x" * 1536)
     runenv = Path(env.runenv)
     runenv.mkdir(parents=True, exist_ok=True)
     (runenv / "run_20260506_010203.log").write_text("first run\n", encoding="utf-8")
@@ -612,6 +617,9 @@ def test_execute_page_cluster_settings(mock_ui_env):
     assert "Manager env" in markdown_text
     assert "Worker env" in markdown_text
     assert "Runs" in markdown_text
+    assert "Data share content (size)" in markdown_text
+    assert "Data/share" not in markdown_text
+    assert "1.5 KB" in markdown_text
     assert "Resource summary" in markdown_text
     assert "Share" in markdown_text
     assert "CPU" in markdown_text

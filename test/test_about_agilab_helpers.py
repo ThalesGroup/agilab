@@ -1995,6 +1995,11 @@ def test_about_sidebar_hardware_helpers_parse_cluster_endpoints():
         "GPU": "Not detected",
         "NPU": "Not detected",
     }
+    assert layout._lspci_gpu_summary(
+        "65:00.0 VGA compatible controller: NVIDIA Corporation GA102 [GeForce RTX 3080] (rev a1)\n"
+        "65:00.1 Audio device: NVIDIA Corporation GA102 High Definition Audio Controller (rev a1)\n"
+    ) == "RTX 3080"
+    assert "lspci" in layout._remote_hardware_probe_command()
 
 
 def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
@@ -2283,6 +2288,70 @@ def test_active_app_cluster_information_counts_duplicate_scheduler_once(monkeypa
     assert lines["CPU"] == "16 cores"
     assert lines["RAM"] == "48 GB"
     assert lines["GPU"] == "Apple M4 Max"
+    assert lines["NPU"] == "Apple Neural Engine (16 cores)"
+
+
+def test_active_app_cluster_information_uses_local_alias_and_cached_remote_gpu(monkeypatch, tmp_path):
+    layout = about_agilab._about_layout
+    cache_path = tmp_path / ".agilab" / "lan_nodes.json"
+    cache_path.parent.mkdir(parents=True)
+    cache_path.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "host": "192.168.20.15",
+                        "status": "ready",
+                        "cpu": "Intel Core i9; cores: 36",
+                        "ram": "251 GB",
+                        "gpu": "RTX 3080",
+                        "npu": "Not detected",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_remote_probe(host: str, _user: str, _ssh_key_path: str) -> str:
+        if host != "192.168.20.15":
+            raise AssertionError(f"local scheduler should not be probed over SSH: {host}")
+        return "CPU=Intel Core i9; cores: 36\nRAM=251 GB\nGPU=\nNPU=\n"
+
+    fake_st = _FakeStreamlit()
+    fake_st.session_state["app_settings"] = {
+        "cluster": {
+            "cluster_enabled": True,
+            "scheduler": "192.168.20.111:8786",
+            "workers": {"192.168.20.111": 1, "192.168.20.15": 1},
+            "workers_data_path": "/Users/agi/clustershare/agi",
+        }
+    }
+    monkeypatch.setattr(layout, "st", fake_st)
+    monkeypatch.setattr(layout.Path, "home", classmethod(lambda _cls: tmp_path))
+    monkeypatch.setattr(
+        layout,
+        "_local_node_aliases",
+        lambda: frozenset({"", "local", "localhost", "127.0.0.1", "192.168.20.111"}),
+    )
+    monkeypatch.setattr(
+        layout,
+        "_local_hardware_summary",
+        lambda: {
+            "CPU": "Apple M4 Max; cores: 16",
+            "RAM": "48 GB",
+            "GPU": "Apple M4 Max",
+            "NPU": "Apple Neural Engine (16 cores)",
+        },
+    )
+    monkeypatch.setattr(layout, "_remote_hardware_probe", fake_remote_probe)
+    layout._lan_discovery_hardware_inventory.cache_clear()
+
+    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+
+    assert lines["CPU"] == "52 cores"
+    assert lines["RAM"] == "299 GB"
+    assert lines["GPU"] == "Apple M4 Max; RTX 3080"
     assert lines["NPU"] == "Apple Neural Engine (16 cores)"
 
 

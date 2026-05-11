@@ -8,6 +8,7 @@ import json
 import os
 import platform
 import re
+import socket
 import subprocess
 import tomllib
 from datetime import datetime
@@ -691,7 +692,53 @@ def _scheduler_host(scheduler: str) -> str:
 
 
 def _is_local_node(host: str) -> bool:
+    normalized = _scheduler_host(host).strip().lower()
+    if "@" in normalized:
+        normalized = normalized.rsplit("@", 1)[-1]
+    return normalized in _local_node_aliases()
+
+
+def _is_explicit_local_node(host: str) -> bool:
     return host.strip().lower() in {"", "local", "localhost", "127.0.0.1", "::1"}
+
+
+@lru_cache(maxsize=1)
+def _local_node_aliases() -> frozenset[str]:
+    aliases = {"", "local", "localhost", "127.0.0.1", "::1"}
+    for raw_name in (socket.gethostname(), socket.getfqdn()):
+        name = _safe_text(raw_name).lower()
+        if name:
+            aliases.add(name)
+    for name in tuple(aliases):
+        if not name or name in {"", "local"}:
+            continue
+        try:
+            infos = socket.getaddrinfo(name, None)
+        except OSError:
+            continue
+        for info in infos:
+            try:
+                address = _safe_text(info[4][0]).lower()
+            except (IndexError, TypeError):
+                continue
+            if address:
+                aliases.add(address)
+    for address in _local_ipv4_aliases_from_commands():
+        aliases.add(address)
+    return frozenset(aliases)
+
+
+def _local_ipv4_aliases_from_commands() -> set[str]:
+    aliases: set[str] = set()
+    ifconfig_output = _command_output(("ifconfig",))
+    for match in re.finditer(r"\binet\s+(\d+\.\d+\.\d+\.\d+)\b", ifconfig_output):
+        aliases.add(match.group(1))
+    ip_output = _command_output(("ip", "-4", "-o", "addr", "show", "scope", "global"))
+    for line in ip_output.splitlines():
+        match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)/\d+\b", line)
+        if match:
+            aliases.add(match.group(1))
+    return {address for address in aliases if not address.startswith("127.")}
 
 
 def _scheduler_display(scheduler: str, *, cluster_enabled: bool) -> str:
@@ -720,7 +767,7 @@ def _scheduler_display(scheduler: str, *, cluster_enabled: bool) -> str:
     host = host.strip()
     if not host:
         return "not configured" if cluster_enabled else "local process"
-    if cluster_enabled and not _is_local_node(host) and port is None:
+    if cluster_enabled and not _is_explicit_local_node(host) and port is None:
         port = 8786
     if port is None:
         return host
@@ -761,6 +808,9 @@ if command -v nvidia-smi >/dev/null 2>&1; then
 fi
 if [ -z "$gpu" ] && command -v system_profiler >/dev/null 2>&1; then
   gpu="$(system_profiler SPDisplaysDataType 2>/dev/null | awk -F: '/Chipset Model/ {gsub(/^[ \t]+/, "", $2); print $2; exit}')"
+fi
+if [ -z "$gpu" ] && command -v lspci >/dev/null 2>&1; then
+  gpu="$(lspci 2>/dev/null | awk '/(VGA compatible controller|3D controller|Display controller)/ && /NVIDIA/ {line=$0; if (match(line, /\[[^]]+\]/)) {line=substr(line, RSTART + 1, RLENGTH - 2)} else {sub(/^.*NVIDIA Corporation[ \t]*/, "", line); sub(/\(rev [^)]+\)/, "", line)}; sub(/^GeForce[ \t]+/, "", line); gsub(/^[ \t]+|[ \t]+$/, "", line); if (line != "") print line}' | paste -sd ';' -)"
 fi
 printf 'GPU=%s\n' "$gpu"
 npu=''
@@ -901,6 +951,21 @@ def _resource_unavailable(value: str) -> bool:
         "unknown ram",
         "unreachable",
     }
+
+
+def _merge_hardware_summary(
+    summary: dict[str, str],
+    fallback: dict[str, str] | None,
+) -> dict[str, str]:
+    if not fallback:
+        return summary
+    merged = dict(summary)
+    for key in ("CPU", "RAM", "GPU", "NPU"):
+        if _resource_unavailable(str(merged.get(key, ""))) and not _resource_unavailable(
+            str(fallback.get(key, ""))
+        ):
+            merged[key] = str(fallback[key])
+    return merged
 
 
 def _split_resource_descriptors(value: str) -> list[str]:
@@ -1190,8 +1255,9 @@ def _cluster_resource_totals(
 
     for host in nodes:
         summary = _node_hardware_summary(host, user=user, ssh_key_path=ssh_key_path)
+        configured_summary = hardware_inventory.get(_node_identity(host))
+        summary = _merge_hardware_summary(summary, configured_summary)
         if _summary_unreachable(summary):
-            configured_summary = hardware_inventory.get(_node_identity(host))
             if _hardware_summary_has_detected_resources(configured_summary):
                 summary = configured_summary
             else:
@@ -1399,7 +1465,7 @@ def _nvidia_gpu_summary() -> str:
         )
     )
     if not output:
-        return ""
+        return _lspci_gpu_summary(_command_output(("lspci",)))
 
     gpus: list[str] = []
     for line in output.splitlines():
@@ -1410,6 +1476,30 @@ def _nvidia_gpu_summary() -> str:
             gpus.append(f"{parts[0]} ({parts[1]} SMs)")
         else:
             gpus.append(parts[0])
+    if not gpus:
+        return ""
+    if len(gpus) == 1:
+        return gpus[0]
+    return f"{len(gpus)} GPUs: " + "; ".join(gpus)
+
+
+def _lspci_gpu_summary(output: str) -> str:
+    gpus: list[str] = []
+    for line in output.splitlines():
+        if "NVIDIA" not in line or not re.search(
+            r"VGA compatible controller|3D controller|Display controller",
+            line,
+        ):
+            continue
+        bracket_match = re.search(r"\[([^\]]+)\]", line)
+        if bracket_match:
+            label = bracket_match.group(1)
+        else:
+            label = re.sub(r"^.*NVIDIA Corporation\s*", "", line)
+            label = re.sub(r"\(rev [^)]+\)", "", label)
+        label = re.sub(r"^GeForce\s+", "", label).strip()
+        if label:
+            gpus.append(label)
     if not gpus:
         return ""
     if len(gpus) == 1:
