@@ -76,12 +76,9 @@ Start with the public browser preview or the demo chooser:
 ### Try this first
 
 ```bash
-python3 -m venv ~/.agilab-first-proof
-source ~/.agilab-first-proof/bin/activate
-python -m pip install --upgrade pip
-python -m pip install --upgrade "agilab[ui]"
-python -m agilab.lab_run first-proof --json --with-ui
-python -m agilab.lab_run
+uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
+agilab first-proof --json --with-ui
+agilab
 ```
 
 The public AGILAB Space is the fastest browser preview. It opens the
@@ -147,18 +144,15 @@ installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
 The PyPI package is the thinnest public entry point:
 
 ```bash
-mkdir ~/agi-workspace && cd ~/agi-workspace
-uv venv
-source .venv/bin/activate
-uv pip install --upgrade agilab
-python -m agilab.lab_run first-proof --json --max-seconds 60
-uv pip install --upgrade "agilab[ui]"
-python -m agilab.lab_run first-proof --json --with-ui --max-seconds 60
-python -m agilab.lab_run
+uv --preview-features extra-build-dependencies tool install --upgrade agilab
+agilab first-proof --json --max-seconds 60
+uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
+agilab first-proof --json --with-ui --max-seconds 60
+agilab
 ```
 
-Use `python -m agilab.lab_run first-proof --json --max-seconds 60` for a quick
-package-level CLI/core check from the same interpreter that installed AGILAB.
+Use `agilab first-proof --json --max-seconds 60` for a quick
+package-level CLI/core check from the isolated tool environment.
 The clean-install CI matrix enforces that runtime budget on Linux, macOS, and
 Windows. Install `agilab[ui]` before launching the local Streamlit app. For the
 most representative full product run, prefer the source-checkout `flight_project`
