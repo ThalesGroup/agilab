@@ -20,6 +20,178 @@ def _touch_now(path: Path) -> None:
     path.write_text("{}", encoding="utf-8")
 
 
+def test_env_file_parser_path_resolution_and_secret_placeholders(tmp_path: Path):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "# ignored",
+                "not-an-assignment",
+                "export APPS_REPOSITORY='relative-apps'",
+                "=missing_key",
+                "OPENAI_API_KEY=your-api-key",
+                "CI_TOKEN=sk-test-placeholder",
+                "REAL_PASSWORD=not-a-placeholder",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    values = security_check._parse_env_file(env_file)
+
+    assert values["APPS_REPOSITORY"] == "relative-apps"
+    assert "" not in values
+    assert security_check._resolve_path(values["APPS_REPOSITORY"], cwd=tmp_path) == (
+        tmp_path / "relative-apps"
+    )
+    assert security_check._looks_like_secret_value(values["OPENAI_API_KEY"]) is False
+    assert security_check._looks_like_secret_value(values["CI_TOKEN"]) is False
+    assert security_check._looks_like_secret_value(values["REAL_PASSWORD"]) is True
+
+
+def test_git_state_supports_gitdir_files_detached_heads_and_unknown_heads(tmp_path: Path):
+    worktree = tmp_path / "worktree"
+    real_git_dir = tmp_path / "real-git"
+    worktree.mkdir()
+    real_git_dir.mkdir()
+    (worktree / ".git").write_text("gitdir: ../real-git\n", encoding="utf-8")
+    detached = "0123456789abcdef0123456789abcdef01234567"
+    (real_git_dir / "HEAD").write_text(detached + "\n", encoding="utf-8")
+
+    detached_state = security_check._git_head_state(worktree)
+
+    assert detached_state["head_state"] == "detached"
+    assert detached_state["commit"] == detached
+
+    (real_git_dir / "HEAD").write_text("not-a-known-head-state\n", encoding="utf-8")
+
+    unknown_state = security_check._git_head_state(worktree)
+
+    assert unknown_state["head_state"] == "unknown"
+    assert unknown_state["head"] == "not-a-known-head-state"
+
+
+def test_defensive_parsers_handle_malformed_git_secret_and_streamlit_config(tmp_path: Path):
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    (worktree / ".git").write_text("not-a-gitdir-file\n", encoding="utf-8")
+
+    assert security_check._resolve_git_dir(worktree) is None
+
+    git_dir = tmp_path / "real-git"
+    git_dir.mkdir()
+    (worktree / ".git").write_text(f"gitdir: {git_dir}\n", encoding="utf-8")
+
+    assert security_check._git_head_state(worktree) == {
+        "is_git_checkout": True,
+        "head_state": "unknown",
+    }
+    assert security_check._looks_like_secret_value("") is False
+
+    streamlit_config = tmp_path / ".streamlit" / "config.toml"
+    streamlit_config.parent.mkdir()
+    streamlit_config.write_text("[server\n", encoding="utf-8")
+    assert security_check._streamlit_config_address(tmp_path) is None
+
+    streamlit_config.write_text("server = 'not-a-table'\n", encoding="utf-8")
+    assert security_check._streamlit_config_address(tmp_path) is None
+
+
+def test_apps_repository_check_reports_missing_file_nongit_and_pinned_checkout(tmp_path: Path):
+    missing = security_check._check_apps_repository(
+        {"APPS_REPOSITORY": "missing-apps"},
+        cwd=tmp_path,
+    )
+    assert missing.status == "warn"
+    assert "missing path" in missing.summary
+
+    app_file = tmp_path / "apps-file"
+    app_file.write_text("", encoding="utf-8")
+    file_check = security_check._check_apps_repository(
+        {"APPS_REPOSITORY": str(app_file)},
+        cwd=tmp_path,
+    )
+    assert file_check.status == "warn"
+    assert "not a directory" in file_check.summary
+
+    app_dir = tmp_path / "apps"
+    app_dir.mkdir()
+    nongit_check = security_check._check_apps_repository(
+        {"APPS_REPOSITORY": str(app_dir)},
+        cwd=tmp_path,
+    )
+    assert nongit_check.status == "warn"
+    assert "not a Git checkout" in nongit_check.summary
+
+    git_dir = app_dir / ".git"
+    git_dir.mkdir()
+    (git_dir / "HEAD").write_text("0123456789abcdef0123456789abcdef01234567\n", encoding="utf-8")
+    pinned_check = security_check._check_apps_repository(
+        {"APPS_REPOSITORY": str(app_dir)},
+        cwd=tmp_path,
+    )
+    assert pinned_check.status == "pass"
+    assert pinned_check.details["head_state"] == "detached"
+
+
+def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
+    cluster_check = security_check._check_cluster_share(
+        {
+            "AGI_CLUSTER_SHARE": "not-yet-mounted-share",
+            "AGI_LOCAL_SHARE": "localshare",
+            "AGI_SCHEDULER_IP": "192.168.20.111",
+            "AGI_WORKERS": "192.168.20.15",
+        },
+        cwd=tmp_path,
+    )
+
+    assert cluster_check.status == "pass"
+    assert cluster_check.details["cluster_share"].endswith("not-yet-mounted-share")
+
+    streamlit_config = tmp_path / ".streamlit" / "config.toml"
+    streamlit_config.parent.mkdir()
+    streamlit_config.write_text("[server]\naddress = '0.0.0.0'\n", encoding="utf-8")
+
+    exposure_check = security_check._check_ui_exposure(
+        {"AGILAB_AUTH_REQUIRED": "yes"},
+        home=tmp_path,
+    )
+
+    assert exposure_check.status == "pass"
+    assert exposure_check.details["host"] == "0.0.0.0"
+    assert exposure_check.details["auth_or_tls_indicator"] is True
+
+
+def test_optional_profiles_ignore_nonlocal_provider_and_print_text_skips_bad_checks(capsys):
+    ignored = security_check._check_optional_profiles({"LAB_LLM_PROVIDER": "openai"})
+    assert ignored.status == "pass"
+
+    local = security_check._check_optional_profiles({"LAB_LLM_PROVIDER": "local-ollama"})
+    assert local.status == "warn"
+    assert local.details["enabled_keys"] == ["LAB_LLM_PROVIDER"]
+
+    security_check._print_text(
+        {
+            "status": "warn",
+            "summary": {"warnings": 1},
+            "checks": [
+                "not-a-check",
+                {
+                    "status": "warn",
+                    "label": "Synthetic warning",
+                    "summary": "needs attention",
+                    "remediation": "fix it",
+                },
+            ],
+        }
+    )
+
+    output = capsys.readouterr().out
+    assert "AGILAB security-check: WARN (1 warning(s))" in output
+    assert "Synthetic warning" in output
+    assert "not-a-check" not in output
+
+
 def test_build_report_passes_for_clean_local_profile(tmp_path: Path):
     cwd = tmp_path / "repo"
     home = tmp_path / "home"

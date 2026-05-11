@@ -75,6 +75,17 @@ PREVIEW_MAX_SEARCH_FILES = int(os.environ.get("AGILAB_PREVIEW_MAX_SEARCH_FILES",
 PREVIEW_MAX_FILE_BYTES = int(os.environ.get("AGILAB_PREVIEW_MAX_FILE_BYTES", str(25 * 1024 * 1024)))
 PREVIEW_METADATA_FILENAMES = {"run_manifest.json", "notebook_import_view_plan.json"}
 PREVIEW_METADATA_PREFIXES = ("._", "reduce_summary_worker_")
+RUN_FATAL_STDERR_PATTERNS = (
+    "No virtual environment found",
+    "Command failed",
+    "Traceback",
+    "RuntimeError:",
+    "FileNotFoundError:",
+    "ModuleNotFoundError:",
+    "ImportError:",
+    "Process exited with non-zero",
+    "non-zero exit status",
+)
 
 
 @dataclass(frozen=True)
@@ -137,6 +148,12 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
             seen_roots.add(key)
             unique_roots.append(root)
     return unique_roots
+
+
+def _run_stderr_indicates_failure(stderr: Any) -> bool:
+    """Return whether returned stderr represents a failed AGILAB run."""
+    text = str(stderr or "")
+    return bool(text.strip()) and any(pattern in text for pattern in RUN_FATAL_STDERR_PATTERNS)
 
 
 def _preview_candidate_paths(candidate_roots: list[Path]) -> list[Path]:
@@ -337,12 +354,7 @@ async def render_execute_section(
 
         async def _run_and_stream():
             nonlocal log_file_path
-            runtime_root = (
-                Path(getattr(env, "agi_cluster"))
-                if bool(getattr(env, "is_source_env", False) or getattr(env, "is_worker_env", False))
-                and getattr(env, "agi_cluster", None)
-                else project_path
-            )
+            runtime_root = Path(project_path)
             with log_file_path.open("w", encoding="utf-8") as log_file:
                 def _fanout(message: str) -> None:
                     clean = strip_ansi(message or "").rstrip()
@@ -368,10 +380,13 @@ async def render_execute_section(
                 stderr = str(exc)
                 st.session_state["_last_execute_failed"] = True
             st.session_state["run_log_cache"] = st.session_state.get("log_text", "")
+        fatal_stderr = _run_stderr_indicates_failure(stderr)
+        if fatal_stderr:
+            st.session_state["_last_execute_failed"] = True
         with target_expander:
             log_placeholder.empty()
             log_body = st.session_state["run_log_cache"]
-            if run_error is not None:
+            if run_error is not None or fatal_stderr:
                 st.error("AGI execution failed.")
                 if log_body:
                     st.caption("Full run diagnostic")
@@ -401,7 +416,7 @@ async def render_execute_section(
                 st.session_state["run_log_cache"] = ""
                 st.session_state["log_text"] = ""
                 st.rerun()
-        if run_error is not None:
+        if run_error is not None or fatal_stderr:
             record_action_history(
                 st.session_state,
                 page_label="ORCHESTRATE",
@@ -613,7 +628,9 @@ async def render_execute_section(
 
     if show_run_panel and load_clicked:
         load_action = _current_artifact_state().load_action
-        if not load_action.enabled:
+        if st.session_state.get("_last_execute_failed"):
+            st.info("Latest EXECUTE failed. Check Run logs, fix the failure, then rerun before loading output.")
+        elif not load_action.enabled:
             st.info(load_action.disabled_reason)
         else:
             active_args = st.session_state.app_settings.get("args", {})

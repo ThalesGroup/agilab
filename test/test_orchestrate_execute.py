@@ -959,7 +959,7 @@ async def test_render_execute_section_skips_log_pin_editor_without_run_logs(monk
 
 
 @pytest.mark.asyncio
-async def test_render_execute_section_source_env_uses_controller_runtime(monkeypatch, tmp_path):
+async def test_render_execute_section_source_env_uses_app_runtime(monkeypatch, tmp_path):
     manager_venv = tmp_path / "project" / ".venv"
     worker_venv = tmp_path / "wenv" / ".venv"
     controller_root = tmp_path / "controller"
@@ -1010,7 +1010,91 @@ async def test_render_execute_section_source_env_uses_controller_runtime(monkeyp
         deps=deps,
     )
 
-    assert Path(captured["venv"]) == controller_root
+    assert Path(captured["venv"]) == tmp_path / "project"
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_fatal_returned_stderr_blocks_combo_load(monkeypatch, tmp_path):
+    manager_venv = tmp_path / "project" / ".venv"
+    worker_venv = tmp_path / "wenv" / ".venv"
+    manager_venv.mkdir(parents=True)
+    worker_venv.mkdir(parents=True)
+
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        },
+        buttons={"combo_exec_load_export": True},
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        if log_callback:
+            log_callback("No virtual environment found in /tmp/controller. Run INSTALL first.")
+        return "", "No virtual environment found in /tmp/controller. Run INSTALL first."
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="uav_relay_queue_project",
+        wenv_abs=tmp_path / "wenv",
+        snippet_tail="pass",
+        run_agi=_run_agi,
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="uav_relay_queue_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="asyncio.run(main())",
+        deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
+    )
+
+    assert fake_st.session_state["_last_execute_failed"] is True
+    assert "_combo_load_trigger" not in fake_st.session_state
+    assert "_combo_export_trigger" not in fake_st.session_state
+    assert any(kind == "error" and msg == "AGI execution failed." for kind, msg in fake_st.messages)
+
+
+@pytest.mark.asyncio
+async def test_render_execute_section_load_after_failed_run_shows_failure_not_missing_output(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "load",
+            "_last_execute_failed": True,
+            "df_export_file": str(tmp_path / "export.csv"),
+            "profile_report_file": tmp_path / "profile.html",
+        }
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    monkeypatch.setattr(orchestrate_execute, "find_preview_target", lambda *_args, **_kwargs: (None, []))
+
+    env = SimpleNamespace(
+        dataframe_path=tmp_path,
+        app_data_rel=None,
+        runenv=tmp_path / "runenv",
+        app="uav_relay_queue_project",
+        wenv_abs=tmp_path / "wenv",
+    )
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="uav_relay_queue_project",
+        controls_visible=True,
+        show_run_panel=True,
+        cmd="print('run')",
+        deps=_make_execute_deps(fake_st.messages, fake_st.session_state),
+    )
+
+    assert any(kind == "info" and "Latest EXECUTE failed" in msg for kind, msg in fake_st.messages)
+    assert not any(kind == "warning" and "No previewable output found yet" in msg for kind, msg in fake_st.messages)
 
 
 @pytest.mark.asyncio
