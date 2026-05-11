@@ -121,6 +121,23 @@ def test_build_robot_command_enables_workflow_artifact_assertions_for_core_sweep
     assert "--assert-workflow-artifacts" in argv
 
 
+def test_streaming_runner_keeps_child_output_on_stderr(capsys) -> None:
+    module = _load_module()
+
+    result = module._run_robot_command_streaming(
+        [sys.executable, "-c", "print('child-progress'); print('{\"ok\": true}')"]
+    )
+    captured = capsys.readouterr()
+
+    assert result.returncode == 0
+    assert "child-progress" in result.stdout
+    assert '"ok": true' in result.stdout
+    assert "child-progress" not in captured.out
+    assert "child-progress" in captured.err
+    assert "[ui-robot-matrix] start:" in captured.err
+    assert "[ui-robot-matrix] exit=0:" in captured.err
+
+
 def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
     module = _load_module()
     scenarios = module.resolve_scenarios(["all"])
