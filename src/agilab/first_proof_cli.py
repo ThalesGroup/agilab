@@ -6,13 +6,14 @@ import argparse
 from importlib import metadata as importlib_metadata
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
 import textwrap
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -34,6 +35,8 @@ RUNTIME_DISTRIBUTIONS = (
     "agi-cluster",
     "agi-gui",
 )
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+DIAGNOSTIC_TAIL_LINES = 20
 
 
 @dataclass(frozen=True)
@@ -355,6 +358,62 @@ def run_proof(
     return results
 
 
+def _strip_ansi(text: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", text)
+
+
+def _display_argv(argv: Sequence[str]) -> list[str]:
+    display = list(argv)
+    for index, value in enumerate(display[:-1]):
+        if value == "-c":
+            display[index + 1] = "<inline first-proof smoke>"
+            break
+    return display
+
+
+def _step_payload(result: ProofStepResult) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "label": result.label,
+        "description": result.description,
+        "status": "pass" if result.returncode == 0 else "fail",
+        "returncode": result.returncode,
+        "duration_seconds": result.duration_seconds,
+        "command": _display_argv(result.argv),
+        "env_overrides_count": len(result.env),
+    }
+    if result.returncode != 0 and result.stdout.strip():
+        lines = _strip_ansi(result.stdout).splitlines()
+        payload["diagnostic_tail"] = lines[-DIAGNOSTIC_TAIL_LINES:]
+    return payload
+
+
+def _command_payload(command: ProofCommand) -> dict[str, object]:
+    return {
+        "label": command.label,
+        "description": command.description,
+        "command": _display_argv(command.argv),
+        "env_overrides_count": len(command.env),
+        "timeout_seconds": command.timeout_seconds,
+    }
+
+
+def _manifest_summary_payload(manifest: run_manifest.RunManifest, manifest_path: Path) -> dict[str, object]:
+    return {
+        "path": str(manifest_path),
+        "run_id": manifest.run_id,
+        "path_id": manifest.path_id,
+        "label": manifest.label,
+        "status": manifest.status,
+        "duration_seconds": manifest.timing.duration_seconds,
+        "target_seconds": manifest.timing.target_seconds,
+        "artifact_count": len(manifest.artifacts),
+        "validation_statuses": {
+            validation.label: validation.status
+            for validation in manifest.validations
+        },
+    }
+
+
 def summarize_kpi(
     *,
     command_count: int,
@@ -485,7 +544,6 @@ def build_run_manifest(
             cwd=str(Path.cwd()),
             env_overrides={
                 "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
-                "OPENAI_API_KEY": "sk-test-first-proof-000000000000",
             },
         ),
         environment=run_manifest.RunManifestEnvironment.from_paths(
@@ -621,16 +679,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "runtime_identity": identity,
                         "run_manifest_path": str(manifest_path),
                         "run_manifest_filename": run_manifest.RUN_MANIFEST_FILENAME,
-                        "commands": [
-                            {
-                                "label": command.label,
-                                "description": command.description,
-                                "argv": list(command.argv),
-                                "env": command.env,
-                                "timeout_seconds": command.timeout_seconds,
-                            }
-                            for command in commands
-                        ],
+                        "commands": [_command_payload(command) for command in commands],
                     },
                     indent=2,
                 )
@@ -675,11 +724,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
             "runtime_identity": identity,
             **summary,
-            "results": [asdict(result) for result in results],
+            "steps": [_step_payload(result) for result in results],
         }
         if manifest is not None:
             payload["run_manifest_path"] = str(manifest_path)
-            payload["run_manifest"] = manifest.as_dict()
+            payload["run_manifest_summary"] = _manifest_summary_payload(manifest, manifest_path)
         if marker_path is not None:
             payload["agilab_path_marker"] = str(marker_path)
         print(json.dumps(payload, indent=2))

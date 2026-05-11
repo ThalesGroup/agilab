@@ -102,6 +102,11 @@ def test_main_print_only_json_emits_first_proof_contract(capsys) -> None:
     assert payload["run_manifest_path"].endswith("/log/execute/flight/run_manifest.json")
     assert payload["commands"][0]["label"] == "package preinit smoke"
     assert payload["commands"][-1]["label"] == "seeded script check"
+    serialized = json.dumps(payload)
+    assert "argv" not in serialized
+    assert '"env":' not in serialized
+    assert "sk-test-first-proof" not in serialized
+    assert "orchestrate_errors" not in serialized
 
 
 def test_main_print_only_human_emits_commands(capsys) -> None:
@@ -158,7 +163,7 @@ def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, caps
                 argv=list(command.argv),
                 returncode=0,
                 duration_seconds=0.5,
-                stdout="ok",
+                stdout="\x1b[32mok\x1b[0m",
                 env=command.env,
             )
             for command in commands
@@ -166,7 +171,9 @@ def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, caps
 
     monkeypatch.setattr(module, "run_proof", fake_run_proof)
 
-    exit_code = module.main(["--active-app", str(active_app), "--json", "--no-manifest", "--max-seconds", "5"])
+    exit_code = module.main(
+        ["--active-app", str(active_app), "--json", "--no-manifest", "--with-ui", "--max-seconds", "5"]
+    )
 
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
@@ -175,10 +182,99 @@ def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, caps
     assert "runtime_identity" in payload
     assert "agilab_version" in payload
     assert "run_manifest" not in payload
-    assert payload["results"][0]["stdout"] == "ok"
+    assert payload["steps"][0]["status"] == "pass"
+    assert "stdout" not in payload["steps"][0]
+    assert "diagnostic_tail" not in payload["steps"][0]
+    assert payload["steps"][1]["command"][-1] == "<inline first-proof smoke>"
+    serialized = json.dumps(payload)
+    assert "results" not in payload
+    assert "argv" not in serialized
+    assert '"env":' not in serialized
+    assert "OPENAI_API_KEY" not in serialized
+    assert "sk-test-first-proof" not in serialized
+    assert "orchestrate_errors" not in serialized
     marker = tmp_path / "home" / ".local" / "share" / "agilab" / ".agilab-path"
     assert payload["agilab_path_marker"] == str(marker)
     assert marker.read_text(encoding="utf-8").strip() == str(ROOT / "src" / "agilab")
+
+
+def test_main_json_reports_failure_diagnostic_tail_without_full_stdout(monkeypatch, tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    active_app = tmp_path / "custom_project"
+    active_app.mkdir()
+    (active_app / "pyproject.toml").write_text("[project]\nname = 'custom'\n", encoding="utf-8")
+
+    def fake_run_proof(commands):
+        command = commands[0]
+        return [
+            module.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=7,
+                duration_seconds=0.5,
+                stdout="\x1b[31mfirst line\x1b[0m\nboom",
+                env=command.env,
+            )
+        ]
+
+    monkeypatch.setattr(module, "run_proof", fake_run_proof)
+
+    exit_code = module.main(["--active-app", str(active_app), "--json", "--no-manifest"])
+
+    assert exit_code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["steps"][0]["status"] == "fail"
+    assert payload["steps"][0]["diagnostic_tail"] == ["first line", "boom"]
+    assert "stdout" not in payload["steps"][0]
+
+
+def test_main_json_with_manifest_embeds_only_manifest_summary(monkeypatch, tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    active_app = tmp_path / "custom_project"
+    active_app.mkdir()
+    (active_app / "pyproject.toml").write_text("[project]\nname = 'custom'\n", encoding="utf-8")
+    manifest_path = tmp_path / "run_manifest.json"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    def fake_run_proof(commands):
+        return [
+            module.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=0,
+                duration_seconds=0.5,
+                stdout="ok",
+                env=command.env,
+            )
+            for command in commands
+        ]
+
+    monkeypatch.setattr(module, "run_proof", fake_run_proof)
+
+    exit_code = module.main(
+        [
+            "--active-app",
+            str(active_app),
+            "--json",
+            "--with-ui",
+            "--manifest-out",
+            str(manifest_path),
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert "run_manifest" not in payload
+    assert payload["run_manifest_path"] == str(manifest_path)
+    assert payload["run_manifest_summary"]["path"] == str(manifest_path)
+    assert payload["run_manifest_summary"]["status"] == "fail"
+    assert manifest_path.is_file()
+    serialized = json.dumps(payload)
+    assert "orchestrate_errors" not in serialized
+    assert "sk-test-first-proof" not in serialized
+    assert "OPENAI_API_KEY" not in serialized
 
 
 def test_main_human_no_manifest_reports_failure(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -279,6 +375,7 @@ def test_build_run_manifest_records_cli_command(tmp_path: Path) -> None:
     assert encoded["status"] == "pass"
     assert encoded["command"]["argv"][:3] == ["agilab", "first-proof", "--json"]
     assert encoded["command"]["label"] == "agilab first-proof"
+    assert "OPENAI_API_KEY" not in encoded["command"]["env_overrides"]
     assert encoded["environment"]["app_name"] == "flight_project"
     proof_details = encoded["validations"][0]["details"]
     assert "runtime_identity" in proof_details
