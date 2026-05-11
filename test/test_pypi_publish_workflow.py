@@ -15,6 +15,7 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
     assert "--write-sample-directory" in text
     assert "--live-github" in text
     assert "tools/ci_artifact_harvest_report.py" in text
+    assert "if uv --preview-features extra-build-dependencies run \\\n              python tools/github_actions_artifact_index.py" in text
     assert "tools/compatibility_report.py" in text
     assert "--artifact-index \"$RUNNER_TEMP/artifact_index.json\"" in text
     assert "public-evidence-sample" in text

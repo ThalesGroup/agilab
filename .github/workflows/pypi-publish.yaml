@@ -98,7 +98,7 @@ jobs:
         run: |
           set -euxo pipefail
           for attempt in 1 2 3 4 5 6; do
-            uv --preview-features extra-build-dependencies run \
+            if uv --preview-features extra-build-dependencies run \
               python tools/github_actions_artifact_index.py \
               --live-github \
               --repo "$GITHUB_REPOSITORY" \
@@ -108,12 +108,13 @@ jobs:
               --source-machine "github-actions:${RUNNER_OS}-${RUNNER_ARCH}" \
               --download-dir "$RUNNER_TEMP/downloaded-evidence" \
               --output "$RUNNER_TEMP/artifact_index.json" \
-              --compact
-            if uv --preview-features extra-build-dependencies run \
-              python tools/ci_artifact_harvest_report.py \
-              --artifact-index "$RUNNER_TEMP/artifact_index.json" \
               --compact; then
-              break
+              if uv --preview-features extra-build-dependencies run \
+                python tools/ci_artifact_harvest_report.py \
+                --artifact-index "$RUNNER_TEMP/artifact_index.json" \
+                --compact; then
+                break
+              fi
             fi
             if [ "$attempt" = "6" ]; then
               exit 1
