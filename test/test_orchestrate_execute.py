@@ -261,6 +261,50 @@ def test_preview_candidate_paths_are_sorted_before_search_cap(tmp_path, monkeypa
     assert orchestrate_execute._preview_candidate_paths([root]) == [first]
 
 
+def test_preview_candidate_paths_removes_duplicates_across_roots(tmp_path):
+    root = tmp_path / "output"
+    root.mkdir()
+    first = root / "a.csv"
+    second = root / "b.csv"
+    first.write_text("a,b\n1,2\n", encoding="utf-8")
+    second.write_text("a,b\n3,4\n", encoding="utf-8")
+
+    candidates = orchestrate_execute._preview_candidate_paths([root, root])
+
+    assert candidates == [first, second]
+
+
+@pytest.mark.parametrize(
+    ("stderr", "expected"),
+    [
+        (None, False),
+        ("", False),
+        ("  ", False),
+        ("all good", False),
+        ("Command failed with exit code 2", True),
+        ("RuntimeError: crash", True),
+        ("Process exited with non-zero exit status 127", True),
+        ("Traceback (most recent call last):", True),
+        ("No virtual environment found", True),
+    ],
+)
+def test_run_stderr_indicates_failure(stderr, expected):
+    assert orchestrate_execute._run_stderr_indicates_failure(stderr) is expected
+
+
+def test_render_execute_notice_unknown_kind_uses_info():
+    fake_st = _FakeStreamlit()
+    fake_st.session_state[orchestrate_execute.EXECUTE_NOTICE_KEY] = {
+        "kind": "not-a-kind",
+        "message": "Fallback visible",
+    }
+
+    orchestrate_execute.render_execute_notice(fake_st, fake_st.session_state)
+
+    assert ("info", "Fallback visible") in fake_st.messages
+    assert orchestrate_execute.EXECUTE_NOTICE_KEY not in fake_st.session_state
+
+
 def test_find_preview_target_skips_oversized_files(tmp_path, monkeypatch):
     small_csv = tmp_path / "small.csv"
     small_csv.write_text("a,b\n1,2\n", encoding="utf-8")
