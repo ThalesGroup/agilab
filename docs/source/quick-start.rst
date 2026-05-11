@@ -71,7 +71,7 @@ If you installed AGILAB inside an activated project environment instead of as a
 ``uv`` tool, upgrade that environment explicitly::
 
    uv pip install --upgrade agilab
-   python -m agilab.lab_run first-proof --json
+   agilab first-proof --json
 
 The adoption checkpoint is always the same: ``run_manifest.json`` reports
 ``status: pass`` and the default ``flight_project`` analysis view opens. If it
@@ -220,18 +220,15 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
 
 **Published package route** (fastest install, less representative of the full product path)::
 
-    mkdir ~/agi-workspace && cd ~/agi-workspace
-    uv venv
-    source .venv/bin/activate
-    uv pip install agilab
-    python -m agilab.lab_run first-proof --json
+    uv --preview-features extra-build-dependencies tool install --upgrade agilab
+    agilab first-proof --json
 
 The base package install is intentionally CLI/core only. Install the UI profile
 before launching the local Streamlit app::
 
-    uv pip install "agilab[ui]"
-    python -m agilab.lab_run first-proof --json --with-ui
-    python -m agilab.lab_run
+    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
+    agilab first-proof --json --with-ui
+    agilab
 
 Optional feature stacks stay out of the base package install. Add
 ``agilab[ui]`` for the local Streamlit pages, ``agilab[ai]`` for AI assistant
@@ -239,7 +236,7 @@ features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
 ``agilab[mlflow]`` for tracking, ``agilab[local-llm]`` for local model helpers,
 and ``agilab[viz]`` for optional Plotly/matplotlib visualizations::
 
-    uv pip install "agilab[ui,ai,viz,mlflow,local-llm]"
+    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,ai,viz,mlflow,local-llm]"
 
 **agi-core demo**:
 

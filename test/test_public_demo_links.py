@@ -156,6 +156,41 @@ def test_readme_uses_agi_core_notebook_badge_for_api_route() -> None:
     ) in readme
 
 
+def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() -> None:
+    readme = README.read_text(encoding="utf-8")
+    try_this_first = readme.split("### Try this first", 1)[1].split(
+        "The public AGILAB Space",
+        1,
+    )[0]
+
+    assert (
+        'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
+        in try_this_first
+    )
+    assert "agilab first-proof --json --with-ui" in try_this_first
+    assert "agilab\n" in try_this_first
+    assert "python3 -m venv" not in try_this_first
+    assert "source ~/.agilab-first-proof/bin/activate" not in try_this_first
+    assert "python -m pip install --upgrade pip" not in try_this_first
+    assert "python -m agilab.lab_run" not in readme
+
+
+def test_quick_start_package_route_uses_tool_console_script_without_activation() -> None:
+    quick_start = Path("docs/source/quick-start.rst").read_text(encoding="utf-8")
+
+    assert (
+        "uv --preview-features extra-build-dependencies tool install --upgrade agilab"
+        in quick_start
+    )
+    assert (
+        'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
+        in quick_start
+    )
+    assert "agilab first-proof --json --with-ui" in quick_start
+    assert "source .venv/bin/activate" not in quick_start
+    assert "python -m agilab.lab_run" not in quick_start
+
+
 def test_component_readmes_do_not_embed_umbrella_demo_links() -> None:
     forbidden = (
         PUBLIC_HF_SPACE_URL,
