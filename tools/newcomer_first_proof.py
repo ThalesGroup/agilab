@@ -7,12 +7,13 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
 import textwrap
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -31,6 +32,8 @@ UV_RUN_PYTHON = (
 IGNORED_OUTPUT_PATTERNS = (
     "missing ScriptRunContext! This warning can be ignored when running in bare mode.",
 )
+ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+DIAGNOSTIC_TAIL_LINES = 20
 
 
 @dataclass(frozen=True)
@@ -320,6 +323,61 @@ def run_proof(
     return results
 
 
+def _strip_ansi(text: str) -> str:
+    return ANSI_ESCAPE_RE.sub("", text)
+
+
+def _display_argv(argv: Sequence[str]) -> list[str]:
+    display = list(argv)
+    for index, value in enumerate(display[:-1]):
+        if value == "-c":
+            display[index + 1] = "<inline first-proof smoke>"
+            break
+    return display
+
+
+def _step_payload(result: ProofStepResult) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "label": result.label,
+        "description": result.description,
+        "status": "pass" if result.returncode == 0 else "fail",
+        "returncode": result.returncode,
+        "duration_seconds": result.duration_seconds,
+        "command": _display_argv(result.argv),
+        "env_overrides_count": len(result.env),
+    }
+    if result.returncode != 0 and result.stdout.strip():
+        lines = _strip_ansi(result.stdout).splitlines()
+        payload["diagnostic_tail"] = lines[-DIAGNOSTIC_TAIL_LINES:]
+    return payload
+
+
+def _command_payload(command: ProofCommand) -> dict[str, object]:
+    return {
+        "label": command.label,
+        "description": command.description,
+        "command": _display_argv(command.argv),
+        "env_overrides_count": len(command.env),
+    }
+
+
+def _manifest_summary_payload(manifest: object, manifest_path: Path) -> dict[str, object]:
+    return {
+        "path": str(manifest_path),
+        "run_id": getattr(manifest, "run_id", ""),
+        "path_id": getattr(manifest, "path_id", ""),
+        "label": getattr(manifest, "label", ""),
+        "status": getattr(manifest, "status", ""),
+        "duration_seconds": getattr(getattr(manifest, "timing", None), "duration_seconds", None),
+        "target_seconds": getattr(getattr(manifest, "timing", None), "target_seconds", None),
+        "artifact_count": len(getattr(manifest, "artifacts", ())),
+        "validation_statuses": {
+            validation.label: validation.status
+            for validation in getattr(manifest, "validations", ())
+        },
+    }
+
+
 def summarize_kpi(
     *,
     command_count: int,
@@ -432,7 +490,6 @@ def build_run_manifest(
             cwd=str(REPO_ROOT),
             env_overrides={
                 "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
-                "OPENAI_API_KEY": "sk-test-newcomer-proof-000000000000",
             },
         ),
         environment=run_manifest.RunManifestEnvironment.from_paths(
@@ -527,15 +584,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "kpi_target_seconds": args.max_seconds,
                         "run_manifest_path": str(manifest_path),
                         "run_manifest_filename": _load_run_manifest_module().RUN_MANIFEST_FILENAME,
-                        "commands": [
-                            {
-                                "label": command.label,
-                                "description": command.description,
-                                "argv": list(command.argv),
-                                "env": command.env,
-                            }
-                            for command in commands
-                        ],
+                        "commands": [_command_payload(command) for command in commands],
                     },
                     indent=2,
                 )
@@ -572,11 +621,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             "active_app": str(active_app),
             "with_install": args.with_install,
             **summary,
-            "results": [asdict(result) for result in results],
+            "steps": [_step_payload(result) for result in results],
         }
         if manifest is not None:
             payload["run_manifest_path"] = str(manifest_path)
-            payload["run_manifest"] = manifest.as_dict()
+            payload["run_manifest_summary"] = _manifest_summary_payload(manifest, manifest_path)
         print(json.dumps(payload, indent=2))
     else:
         print(

@@ -89,6 +89,50 @@ def test_main_print_only_json_emits_selected_commands(capsys) -> None:
     assert payload["run_manifest_path"].endswith("/log/execute/flight/run_manifest.json")
     assert payload["commands"][0]["label"] == "preinit smoke"
     assert payload["commands"][-1]["label"] == "seeded script check"
+    serialized = json.dumps(payload)
+    assert "argv" not in serialized
+    assert '"env":' not in serialized
+    assert "sk-test-newcomer" not in serialized
+    assert "orchestrate_errors" not in serialized
+
+
+def test_main_json_redacts_internal_commands_and_success_stdout(monkeypatch, tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    active_app = tmp_path / "custom_project"
+    active_app.mkdir()
+    (active_app / "pyproject.toml").write_text("[project]\nname = 'custom'\n", encoding="utf-8")
+
+    def fake_run_proof(commands):
+        return [
+            module.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=0,
+                duration_seconds=0.5,
+                stdout="\x1b[32mok\x1b[0m",
+                env=command.env,
+            )
+            for command in commands
+        ]
+
+    monkeypatch.setattr(module, "run_proof", fake_run_proof)
+
+    exit_code = module.main(["--active-app", str(active_app), "--json", "--no-manifest"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["success"] is True
+    assert payload["steps"][0]["status"] == "pass"
+    assert payload["steps"][1]["command"][-1] == "<inline first-proof smoke>"
+    assert "stdout" not in payload["steps"][0]
+    serialized = json.dumps(payload)
+    assert "results" not in payload
+    assert "argv" not in serialized
+    assert '"env":' not in serialized
+    assert "OPENAI_API_KEY" not in serialized
+    assert "sk-test-newcomer" not in serialized
+    assert "orchestrate_errors" not in serialized
 
 
 def test_summarize_kpi_tracks_duration_target_and_failed_step() -> None:
@@ -182,6 +226,7 @@ def test_build_run_manifest_records_first_proof_contract(tmp_path: Path) -> None
     assert encoded["path_id"] == "source-checkout-first-proof"
     assert encoded["status"] == "pass"
     assert encoded["command"]["argv"] == ["tools/newcomer_first_proof.py", "--json"]
+    assert "OPENAI_API_KEY" not in encoded["command"]["env_overrides"]
     assert encoded["environment"]["app_name"] == "flight_project"
     assert encoded["timing"]["target_seconds"] == 600.0
     assert encoded["artifacts"][0]["name"] == "run_manifest"
