@@ -2491,7 +2491,10 @@ def test_maybe_autofix_promotes_validated_recipe_memory(monkeypatch, tmp_path):
     monkeypatch.setattr(pipeline_ai, "st", fake_st)
     memory_path = tmp_path / "cards.jsonl"
     env = SimpleNamespace(
-        envars={pipeline_recipe_memory_direct.RECIPE_MEMORY_PATH_ENV: str(memory_path)}
+        envars={
+            pipeline_recipe_memory_direct.RECIPE_MEMORY_PATH_ENV: str(memory_path),
+            pipeline_ai.GENERATED_CODE_SANDBOX_ENV: "process",
+        }
     )
 
     code, model, detail = pipeline_ai._maybe_autofix_generated_code(
