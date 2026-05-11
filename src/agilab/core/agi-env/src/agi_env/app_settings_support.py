@@ -76,6 +76,26 @@ def app_settings_contract_error(data: dict[str, Any]) -> str:
     return ""
 
 
+def normalize_app_settings_run_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Return app settings with the run-stage payload using the current key names."""
+
+    run_payload = data.get("args")
+    if not isinstance(run_payload, dict) or "args" not in run_payload:
+        return data
+
+    normalized = dict(data)
+    normalized_run_payload = dict(run_payload)
+    legacy_stages = normalized_run_payload.pop("args")
+    if "stages" in normalized_run_payload:
+        raise ValueError(
+            "app_settings.toml run payload cannot contain both legacy 'args.args' "
+            "and current 'args.stages'; keep only 'stages'."
+        )
+    normalized_run_payload["stages"] = legacy_stages
+    normalized["args"] = normalized_run_payload
+    return normalized
+
+
 def prepare_app_settings_for_write(
     payload: dict[str, Any],
     *,
@@ -86,6 +106,7 @@ def prepare_app_settings_for_write(
     data = sanitize_app_settings_for_toml(payload) if sanitize else dict(payload)
     if not isinstance(data, dict):
         raise ValueError("app_settings.toml payload must be a TOML table.")
+    data = normalize_app_settings_run_payload(data)
     error = app_settings_contract_error(data)
     if error:
         raise ValueError(error)
