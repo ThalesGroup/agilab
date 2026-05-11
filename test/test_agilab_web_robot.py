@@ -35,6 +35,10 @@ def test_build_streamlit_command_uses_source_ui_and_active_app() -> None:
         "--preview-features",
         "extra-build-dependencies",
         "run",
+        "--extra",
+    ]
+    assert command[5:7] == [
+        "ui",
         "streamlit",
     ]
     assert "src/agilab/main_page.py" in joined
@@ -100,6 +104,14 @@ def test_resolve_local_active_app_accepts_builtin_project_name() -> None:
     resolved = module.resolve_local_active_app("flight_project", str(module.DEFAULT_APPS_PATH))
 
     assert resolved == module.DEFAULT_ACTIVE_APP
+
+
+def test_resolve_local_active_app_accepts_builtin_project_shorthand() -> None:
+    module = _load_module()
+
+    resolved = module.resolve_local_active_app("uav_relay_queue", str(module.DEFAULT_APPS_PATH))
+
+    assert Path(resolved).name == "uav_relay_queue_project"
 
 
 def test_resolve_analysis_view_path_switches_between_local_and_remote() -> None:

@@ -96,6 +96,8 @@ UV_RUN_STREAMLIT = (
     "--preview-features",
     "extra-build-dependencies",
     "run",
+    "--extra",
+    "ui",
     "streamlit",
 )
 
@@ -298,6 +300,14 @@ def resolve_local_active_app(active_app: str, apps_path: str) -> Path | str:
     builtin_candidate = Path(apps_path).expanduser() / "builtin" / active_app
     if builtin_candidate.exists():
         return builtin_candidate.resolve()
+    if not active_app.endswith("_project"):
+        project_name = f"{active_app}_project"
+        apps_project_candidate = Path(apps_path).expanduser() / project_name
+        if apps_project_candidate.exists():
+            return apps_project_candidate.resolve()
+        builtin_project_candidate = Path(apps_path).expanduser() / "builtin" / project_name
+        if builtin_project_candidate.exists():
+            return builtin_project_candidate.resolve()
     return active_app
 
 

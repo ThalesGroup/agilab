@@ -930,6 +930,8 @@ def resolve_apps(apps: str, *, apps_root: Path = DEFAULT_APPS_ROOT) -> list[Path
             resolved.append(candidate.resolve())
         elif (apps_root / item).exists():
             resolved.append((apps_root / item).resolve())
+        elif not item.endswith("_project") and (apps_root / f"{item}_project").exists():
+            resolved.append((apps_root / f"{item}_project").resolve())
         else:
             resolved.append(item)
     return resolved
@@ -1013,6 +1015,8 @@ def active_app_aliases(active_app: str) -> set[str]:
     aliases = {slug}
     if slug.endswith("_project"):
         aliases.add(slug[: -len("_project")])
+    else:
+        aliases.add(f"{slug}_project")
     return aliases
 
 
@@ -1543,6 +1547,8 @@ def _selectbox_widget_control(
 ) -> tuple[WidgetControl | None, WidgetProbe | None]:
     if widget.get("disabled"):
         return None, None
+    if is_project_switching_widget(widget):
+        return None, None
     labels, issue = _selectbox_option_labels(page, widget, timeout_ms=timeout_ms, max_options_per_widget=max_options_per_widget)
     issue_probe = None
     if issue is not None:
@@ -1565,6 +1571,12 @@ def _selectbox_widget_control(
         for index, option_label in enumerate(labels)
     )
     return WidgetControl(control_id, "selectbox", label, choices), issue_probe
+
+
+def is_project_switching_widget(widget: dict[str, Any]) -> bool:
+    """Return whether a widget changes the globally active AGILAB project."""
+    label = _normalized_label(str(widget.get("label", "")))
+    return widget_scope(widget) == "sidebar" and label.startswith("project ")
 
 
 def collect_widget_combination_controls(
