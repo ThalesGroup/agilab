@@ -250,6 +250,7 @@ def test_live_github_artifact_index_uses_api_downloads(tmp_path: Path) -> None:
         )
     archive_payload = archive_bytes.getvalue()
     requested_urls: list[str] = []
+    artifact_requests: list[object] = []
 
     class _Response:
         def __init__(self, payload: bytes) -> None:
@@ -282,6 +283,7 @@ def test_live_github_artifact_index_uses_api_downloads(tmp_path: Path) -> None:
                     }
                 ).encode("utf-8")
             )
+        artifact_requests.append(req)
         return _Response(archive_payload)
 
     index = build_github_actions_artifact_index(
@@ -298,6 +300,10 @@ def test_live_github_artifact_index_uses_api_downloads(tmp_path: Path) -> None:
         "https://api.github.com/repos/ThalesGroup/agilab/actions/runs/123456789/artifacts?per_page=100&page=1",
         "https://example.invalid/artifacts/17.zip",
     ]
+    assert artifact_requests
+    artifact_request = artifact_requests[0]
+    assert "Authorization" not in getattr(artifact_request, "headers", {})
+    assert getattr(artifact_request, "unredirected_hdrs", {}).get("Authorization") == "Bearer token"
     assert index["summary"]["provider_query_count"] == 1
     assert index["summary"]["download_count"] == 1
     assert index["summary"]["network_probe_count"] == 2
