@@ -30,6 +30,10 @@ RUN_MODE_LABELS: tuple[str, ...] = (
 )
 LAN_DISCOVERY_CACHE = Path(".agilab") / "lan_nodes.json"
 LAN_READY_STATUSES = {"ready"}
+LAN_UI_TCP_TIMEOUT = 0.15
+LAN_UI_SSH_TIMEOUT = 1
+LAN_UI_MAX_HOSTS = 128
+LAN_UI_PROBE_WORKERS = 32
 
 
 @dataclass(frozen=True)
@@ -411,6 +415,10 @@ def _refresh_lan_discovery_cache(
                 remote_user=str(remote_user or "").strip(),
                 scheduler=_scheduler_ssh_target_from_cluster_value(scheduler),
                 manager_user=str(manager_user or "").strip(),
+                tcp_timeout=LAN_UI_TCP_TIMEOUT,
+                ssh_timeout=LAN_UI_SSH_TIMEOUT,
+                max_hosts=LAN_UI_MAX_HOSTS,
+                probe_workers=LAN_UI_PROBE_WORKERS,
                 use_cache=True,
                 cache_path=cache_path,
             )

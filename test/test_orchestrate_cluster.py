@@ -579,6 +579,10 @@ def test_refresh_lan_discovery_cache_runs_discovery_with_scheduler_ssh_target(mo
     assert options.remote_user == "agi"
     assert options.scheduler == "192.168.20.111"
     assert options.manager_user == "manager"
+    assert options.tcp_timeout == orchestrate_cluster.LAN_UI_TCP_TIMEOUT
+    assert options.ssh_timeout == orchestrate_cluster.LAN_UI_SSH_TIMEOUT
+    assert options.max_hosts == orchestrate_cluster.LAN_UI_MAX_HOSTS
+    assert options.probe_workers == orchestrate_cluster.LAN_UI_PROBE_WORKERS
     assert options.cache_path == cache_path
 
 

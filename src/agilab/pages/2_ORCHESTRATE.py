@@ -1143,6 +1143,7 @@ def _install_status_warning_message(install_status: dict[str, Any]) -> str | Non
 
 
 _INCOMPLETE_HEADER_VALUE_TOKENS = (
+    "empty",
     "incomplete",
     "missing",
     "no run",
@@ -1152,6 +1153,8 @@ _INCOMPLETE_HEADER_VALUE_TOKENS = (
     "not set",
     "unknown",
 )
+
+_DATA_SHARE_HEADER_SCAN_LIMIT = 1_000
 
 
 def _header_value_state(value: str, caption: str = "") -> str:
@@ -1295,6 +1298,68 @@ def _safe_display_path(value: Any) -> str:
         return str(value)
 
 
+def _format_header_byte_size(byte_count: int) -> str:
+    value = float(max(byte_count, 0))
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024 or unit == "TB":
+            if unit == "B":
+                return f"{int(value)} B"
+            precision = 0 if value >= 10 else 1
+            return f"{value:.{precision}f} {unit}"
+        value /= 1024
+    return f"{int(value)} B"
+
+
+def _data_share_content_summary(path_value: Any) -> tuple[str, str]:
+    display_path = _safe_display_path(path_value)
+    if display_path == "not configured":
+        return "not configured", display_path
+    try:
+        path = Path(path_value).expanduser()
+    except (TypeError, ValueError, RuntimeError):
+        return "not configured", str(path_value)
+
+    try:
+        if not path.exists():
+            return "missing", display_path
+        if path.is_file():
+            size = path.stat().st_size
+            return ("empty" if size <= 0 else _format_header_byte_size(size)), display_path
+        if not path.is_dir():
+            return "unknown", display_path
+
+        total_size = 0
+        file_count = 0
+        truncated = False
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [dirname for dirname in dirs if not (Path(root) / dirname).is_symlink()]
+            for filename in files:
+                candidate = Path(root) / filename
+                if candidate.is_symlink():
+                    continue
+                try:
+                    total_size += candidate.stat().st_size
+                except OSError:
+                    continue
+                file_count += 1
+                if file_count >= _DATA_SHARE_HEADER_SCAN_LIMIT:
+                    truncated = True
+                    break
+            if truncated:
+                break
+    except OSError:
+        return "unknown", display_path
+
+    if file_count == 0 or total_size <= 0:
+        return "empty", display_path
+    size_label = _format_header_byte_size(total_size)
+    file_label = f"{file_count} file" if file_count == 1 else f"{file_count} files"
+    if truncated:
+        size_label = f"{size_label}+"
+        file_label = f"{file_count}+ files"
+    return size_label, f"{file_label} in {display_path}"
+
+
 def _path_status(path: Any, *, venv: bool = False, file: bool = False) -> tuple[str, str]:
     if path in (None, ""):
         return "not configured", "not configured"
@@ -1403,9 +1468,8 @@ def _render_orchestrate_readiness_panel(
         with bottom_cols[0]:
             _render_header_value_card("Runs", run_count, run_caption)
         with bottom_cols[1]:
-            share_path = _safe_display_path(getattr(env, "app_data_rel", None))
-            share_status = "configured" if share_path != "not configured" else "missing"
-            _render_header_value_card("Data/share", share_status, share_path)
+            share_size, share_caption = _data_share_content_summary(getattr(env, "app_data_rel", None))
+            _render_header_value_card("Data share content (size)", share_size, share_caption)
         with bottom_cols[2]:
             _render_header_value_card("Last change", _latest_project_mtime(active_app), _safe_display_path(active_app))
 
