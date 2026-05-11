@@ -7,8 +7,7 @@
 # AGILAB
 
 AGILAB is a reproducible AI/ML workbench for engineering teams.
-
-It turns notebooks and scripts into reproducible apps with:
+It turns notebooks and scripts into controlled, executable apps with:
 
 - **one-command setup**
 - **controlled environments**
@@ -16,63 +15,80 @@ It turns notebooks and scripts into reproducible apps with:
 - **visible experiment evidence**
 - **optional MLflow integration**
 
-AGILAB complements MLflow. It is not a replacement for MLflow or production
-MLOps platforms.
+AGILAB complements MLflow and production MLOps platforms. It owns the
+reproducible execution and analysis layer around them.
 
-It owns the execution and reproducibility layer around tracking, packaging, and
-analysis.
+## Core Flow
 
-## Central demo
-
-Notebook/script → AGILAB app → execution (local/distributed) → MLflow →
+Notebook/script -> AGILAB app -> execution (local/distributed) -> MLflow ->
 Streamlit UI
 
-Try this first:
+Start with the public browser preview or the demo chooser:
 
-```bash
-pip install "agilab[ui]"
-agilab first-proof --json --with-ui
-agilab
-```
+- [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
+- [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
+- [Local quick start](https://thalesgroup.github.io/agilab/quick-start.html)
+- [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
 
 ## Quick Start
 
 [![AGILAB Space](https://img.shields.io/badge/AGILAB-Space-0F766E?style=for-the-badge)](https://huggingface.co/spaces/jpmorard/agilab)
 [![agi-core notebook](https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge)](https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb)
 
-The public AGILAB Space is the fastest browser preview. It opens the lightweight
-`flight_project` path by default and also exposes the
+### Local PyPI UI Proof
+
+```bash
+uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
+agilab first-proof --json --with-ui
+agilab
+```
+
+For a zero-install browser preview, open the public
+[AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab). It opens the
+lightweight `flight_project` path by default and exposes the
 `meteo_forecast_project` notebook-migration demo with forecast analysis views.
-Understand notebook-to-app migration with the Notebook Migration Demo:
-https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html
 Advanced scenarios such as `data_io_2026_project`,
 `execution_pandas_project`, `execution_polars_project`, and
-`uav_relay_queue_project` are collected in the Advanced Proof Pack:
-https://thalesgroup.github.io/agilab/advanced-proof-pack.html
+`uav_relay_queue_project` are collected in the
+[Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
 
 ### Maturity snapshot
 
 | Capability | Status |
 |---|---|
 | Local run | Stable |
-| UI Streamlit | Stable |
-| Distributed (Dask) | Beta |
+| Distributed (Dask) | Stable |
+| UI Streamlit | Beta |
 | MLflow | Beta |
 | Production | Experimental |
-| Agents RL | Roadmap |
+| RL examples | Example available |
 
-AGILAB is strongest in the bridge between notebook experimentation and
-reproducible AI applications: local execution, controlled environments, and
-analysis views. Broader production MLOps claims are intentionally limited and
-should be delivered with specialized production stacks.
+AGILAB is most mature in the bridge between notebook experimentation and
+reproducible AI applications: local execution, environment control, and
+analysis. Distributed execution is mature in the core runtime; remote cluster
+mounts, credentials, and hardware stacks remain environment-dependent.
+Production-grade MLOps features are delivered through integrations and are not
+yet a packaged platform claim.
 
-## First Run
+## Choose Your Path
+
+1. Preview the product quickly: [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
+2. Understand notebook-to-app migration: [Notebook Migration Demo](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html)
+3. Prove the full source-checkout flow: [Source Checkout](#source-checkout)
+4. Verify a CLI-only package install: [Published Package](#published-package)
+5. Audit external apps and evidence: [App Repository Updates](#app-repository-updates) and [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html)
+
+For a single-page adoption checklist, use
+[ADOPTION.md](https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md).
+
+## Source Checkout
 
 Run the installable product path with the built-in `flight_project`:
 
 ```bash
-git clone https://github.com/ThalesGroup/agilab.git
-cd agilab
+CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
+git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
+cd "$CHECKOUT"
 ./install.sh --install-apps
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 ```
@@ -81,28 +97,20 @@ Follow the in-app pages from `PROJECT` to `ANALYSIS`. To collect the same check
 as JSON:
 
 ```bash
-uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+uv --preview-features extra-build-dependencies run agilab first-proof --json
 ```
 
 The JSON proof writes `run_manifest.json` under `~/log/execute/flight/`. For
 installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
 
-## Install The Published Package
+## Published Package
+
+For a CLI-only package smoke without Streamlit:
 
 ```bash
-pip install agilab
-agilab first-proof --json
-pip install "agilab[ui]"
-agilab first-proof --json --with-ui
-agilab
+uv --preview-features extra-build-dependencies tool install --upgrade agilab
+agilab first-proof --json --max-seconds 60
 ```
-
-The base install is the thinnest public CLI/core entry point. Use
-`agilab first-proof --json` for a quick package-level check. Install
-`agilab[ui]` before launching the local Streamlit app or running
-`agilab first-proof --with-ui`. For the most representative full product run,
-prefer the source-checkout `flight_project` path above because it exercises the
-same app installation, execution, and analysis flow documented in the web UI.
 
 ## App Repository Updates
 
@@ -117,38 +125,42 @@ During an update, the apps repository is treated as the source of truth. If the
 target app/page already exists as a real directory instead of a symlink, AGILAB
 backs it up as `<name>.previous.<timestamp>`, then links the repository copy in
 its place. After the update, AGILAB runs the repository version; the
-`.previous` directory is kept only for manual recovery. The public service-mode
-path docs define the full update contract.
+`.previous` directory is kept only for manual recovery. See
+[Service mode and paths](https://thalesgroup.github.io/agilab/service_mode_and_paths.html)
+for the full path contract.
 
 ## Evidence And Scope
 
 The PyPI README is only the install entry page. Detailed capability evidence,
-compatibility status, and roadmap scope live in the public docs:
+compatibility status, and roadmap scope live in:
 
-- Features: https://thalesgroup.github.io/agilab/features.html
-- Compatibility matrix: https://thalesgroup.github.io/agilab/compatibility-matrix.html
-- MLOps positioning: https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html
-- Future work: https://thalesgroup.github.io/agilab/roadmap/agilab-future-work.html
+- [Features](https://thalesgroup.github.io/agilab/features.html)
+- [Release proof](https://thalesgroup.github.io/agilab/release-proof.html)
+- [Compatibility matrix](https://thalesgroup.github.io/agilab/compatibility-matrix.html)
+- [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
+- [Package publishing policy](https://thalesgroup.github.io/agilab/package-publishing-policy.html)
+- [Future work](https://thalesgroup.github.io/agilab/roadmap/agilab-future-work.html)
 
 ## Evaluation Snapshot
 
-Current public evaluation is `3.8 / 5`, from the four evidence-backed public
-KPI scores: adoption `4.0 / 5`, research experimentation `4.0 / 5`,
-engineering prototyping `4.0 / 5`, and production readiness `3.0 / 5`.
-Strategic potential is tracked separately at `4.2 / 5`. These are AI/ML
-experimentation-workbench scores, not production MLOps claims. Validation
-includes local and external macOS checks, AI Lightning, Hugging Face, one
-bare-metal cluster, and one VM-based cluster. Azure, AWS, and GCP deployments
-remain validation gaps.
+Current public evaluation summary, refreshed from the public KPI bundle:
+
+- `4.0 / 5` for ease of adoption, research experimentation, and engineering prototyping.
+- `3.0 / 5` for production readiness.
+- `4.2 / 5` for strategic potential.
+
+These are AI/ML workbench scores, not production MLOps claims.
+They cover project setup, environment management, execution, and result analysis.
+The overall score is the rounded category average, not a strategic score.
 
 ## Read Next
 
-- Demo chooser: https://thalesgroup.github.io/agilab/demos.html
-- Demo capture guide: https://thalesgroup.github.io/agilab/demo_capture_script.html
-- Quick start: https://thalesgroup.github.io/agilab/quick-start.html
-- Adoption guide: https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md
-- Notebook quickstart: https://thalesgroup.github.io/agilab/notebook-quickstart.html
-- Documentation: https://thalesgroup.github.io/agilab
-- Flight project guide: https://thalesgroup.github.io/agilab/flight-project.html
-- Source repository: https://github.com/ThalesGroup/agilab
-- Issues: https://github.com/ThalesGroup/agilab/issues
+- [Demo chooser](https://thalesgroup.github.io/agilab/demos.html)
+- [Demo capture guide](https://thalesgroup.github.io/agilab/demo_capture_script.html)
+- [Quick start](https://thalesgroup.github.io/agilab/quick-start.html)
+- [Adoption guide](https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md)
+- [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
+- [Documentation](https://thalesgroup.github.io/agilab)
+- [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
+- [Source repository](https://github.com/ThalesGroup/agilab)
+- [Issues](https://github.com/ThalesGroup/agilab/issues)

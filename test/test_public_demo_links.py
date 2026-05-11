@@ -137,6 +137,50 @@ def test_pypi_readme_uses_same_public_demo_entry_points() -> None:
     assert "issues/new" not in readme
 
 
+def test_pypi_readme_tracks_public_readme_contract() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+
+    assert pyproject["project"]["readme"] == "README.pypi.md"
+
+    synced_fragments = (
+        "AGILAB is a reproducible AI/ML workbench for engineering teams.",
+        "It turns notebooks and scripts into controlled, executable apps with:",
+        "AGILAB complements MLflow and production MLOps platforms.",
+        "## Core Flow",
+        "### Local PyPI UI Proof",
+        'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"',
+        "## Source Checkout",
+        "## Published Package",
+        "| Distributed (Dask) | Stable |",
+        "| UI Streamlit | Beta |",
+        "| RL examples | Example available |",
+        "Current public evaluation summary, refreshed from the public KPI bundle:",
+        "Package publishing policy",
+    )
+    for fragment in synced_fragments:
+        assert fragment in readme
+        assert fragment in pypi_readme
+
+    stale_fragments = (
+        "Try this first",
+        "## First Run",
+        "## Install The Published Package",
+        "The PyPI package is the thinnest public entry point",
+        'pip install "agilab[ui]"',
+        "pip install agilab",
+        "| Distributed (Dask) | Beta |",
+        "| UI Streamlit | Stable |",
+        "| Agents RL | Roadmap |",
+        "CODEX 5.5",
+    )
+    for fragment in stale_fragments:
+        assert fragment not in pypi_readme
+
+    assert pypi_readme.count("agilab[ui]") == 1
+
+
 def test_readme_uses_hf_space_badge_for_primary_link_without_robot_command() -> None:
     readme = README.read_text(encoding="utf-8")
 
