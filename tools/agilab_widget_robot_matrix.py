@@ -65,6 +65,28 @@ class ScenarioResult:
     output: str
 
 
+def _run_robot_command_streaming(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    """Run a robot child process while keeping matrix stdout JSON-clean."""
+
+    print(f"[ui-robot-matrix] start: {' '.join(argv)}", file=sys.stderr, flush=True)
+    proc = subprocess.Popen(
+        list(argv),
+        cwd=REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+    )
+    output_lines: list[str] = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        output_lines.append(line)
+        print(line, end="", file=sys.stderr, flush=True)
+    returncode = proc.wait()
+    print(f"[ui-robot-matrix] exit={returncode}: {' '.join(argv)}", file=sys.stderr, flush=True)
+    return subprocess.CompletedProcess(list(argv), returncode, stdout="".join(output_lines))
+
+
 DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
     "isolated-core-pages": RobotScenario(
         name="isolated-core-pages",
@@ -280,14 +302,17 @@ def run_scenario(
     options.output_dir.mkdir(parents=True, exist_ok=True)
     argv, summary_path, progress_path = build_robot_command(scenario, options=options)
     started = time.perf_counter()
-    completed = runner(
-        argv,
-        cwd=REPO_ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-    )
+    if runner is subprocess.run:
+        completed = _run_robot_command_streaming(argv)
+    else:
+        completed = runner(
+            argv,
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
     output = completed.stdout or ""
     return ScenarioResult(
         scenario=scenario,
