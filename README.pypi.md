@@ -1,4 +1,5 @@
 [![PyPI version](https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300)](https://pypi.org/project/agilab/)
+[![Version alignment](https://img.shields.io/badge/version%20alignment-release%20proof-0F766E)](https://thalesgroup.github.io/agilab/release-proof.html)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
 [![License: BSD 3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 [![Docs](https://img.shields.io/badge/docs-online-brightgreen.svg)](https://thalesgroup.github.io/agilab)
@@ -80,6 +81,21 @@ yet a packaged platform claim.
 
 For a single-page adoption checklist, use
 [ADOPTION.md](https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md).
+
+## Source Version vs Package Version
+
+AGILAB publishes from the GitHub repository, but each public surface has a
+distinct role:
+
+| Surface | Meaning | Source of truth |
+|---|---|---|
+| `main` branch and root `pyproject.toml` | Active source checkout and next release candidate. It can move after a package has already been published. | GitHub source tree |
+| Release tag | Immutable source snapshot used for a public release. Use this for reproducible source installs. | GitHub tag and GitHub Release |
+| PyPI package | Latest installable public wheel/sdist for `agilab` and the `agi-*` packages. | PyPI project and PyPI version badge |
+| Release proof | Public evidence tying the release tag, PyPI package version, docs, CI, coverage, and demo proof together. | [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html) |
+
+For development, use `main`. For reproducible release validation, use the
+release tag or the PyPI package version recorded in the release proof.
 
 ## Source Checkout
 

@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 import tomllib
 
+from packaging.version import Version
+
 README = Path("README.md")
 PYPI_README = Path("README.pypi.md")
 AGI_CORE_README = Path("src/agilab/core/agi-core/README.md")
@@ -151,6 +153,11 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "## Core Flow",
         "### Local PyPI UI Proof",
         'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"',
+        "## Source Version vs Package Version",
+        "| `main` branch and root `pyproject.toml` |",
+        "| Release tag |",
+        "| PyPI package |",
+        "| Release proof |",
         "## Source Checkout",
         "## Published Package",
         "| Distributed (Dask) | Stable |",
@@ -179,6 +186,25 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         assert fragment not in pypi_readme
 
     assert pypi_readme.count("agilab[ui]") == 1
+
+
+def test_source_package_version_contract_is_explicit_and_current() -> None:
+    readme = README.read_text(encoding="utf-8")
+    pypi_readme = PYPI_README.read_text(encoding="utf-8")
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    release = _release_proof_manifest()["release"]
+
+    source_version = pyproject["project"]["version"]
+    package_version = release["package_version"]
+
+    assert Version(source_version) >= Version(package_version)
+    assert f"agi-core=={source_version}" in pyproject["project"]["dependencies"]
+    assert "version%20alignment-release%20proof" in readme
+    assert "version%20alignment-release%20proof" in pypi_readme
+    assert "main` branch and root `pyproject.toml" in readme
+    assert "main` branch and root `pyproject.toml" in pypi_readme
+    assert "release tag, PyPI package version, docs, CI, coverage, and demo proof" in readme
+    assert "release tag, PyPI package version, docs, CI, coverage, and demo proof" in pypi_readme
 
 
 def test_readme_uses_hf_space_badge_for_primary_link_without_robot_command() -> None:
