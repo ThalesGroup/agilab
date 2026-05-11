@@ -35,10 +35,11 @@ def test_resolve_apps_accepts_all_names_and_paths(tmp_path) -> None:
     custom.mkdir()
 
     all_apps = module.resolve_apps("all")
-    selected = module.resolve_apps(f"flight_project,{custom}")
+    selected = module.resolve_apps(f"flight_project,uav_relay_queue,{custom}")
 
     assert len(all_apps) >= 2
     assert any(Path(app).name == "flight_project" for app in selected)
+    assert any(Path(app).name == "uav_relay_queue_project" for app in selected)
     assert custom.resolve() in selected
 
 
@@ -183,7 +184,9 @@ def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     module = _load_module()
 
     assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
+    assert module.active_app_aliases("uav_relay_queue") == {"uav_relay_queue", "uav_relay_queue_project"}
     assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_project")
+    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=uav_relay_queue_project", "uav_relay_queue")
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
 
 
@@ -975,6 +978,43 @@ def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> N
     assert [choice.default for choice in controls[1].choices] == [False, True]
     assert [choice.value for choice in controls[2].choices] == ["local", "cluster"]
     assert [choice.default for choice in controls[2].choices] == [True, False]
+
+
+def test_project_switching_selectbox_is_excluded_from_combination_controls() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo"
+
+    widgets = [
+        {
+            "id": "project",
+            "kind": "selectbox",
+            "label": "Project flight_project",
+            "scope": "sidebar",
+            "disabled": False,
+        },
+        {
+            "id": "cluster",
+            "kind": "checkbox",
+            "label": "Enable cluster",
+            "scope": "main",
+            "checked": False,
+            "disabled": False,
+        },
+    ]
+
+    controls, probes = module.collect_widget_combination_controls(
+        _Page(),
+        widgets,
+        app_name="flight_project",
+        page_name="ORCHESTRATE",
+        timeout_ms=1000,
+        max_options_per_widget=8,
+    )
+
+    assert [control.label for control in controls] == ["Enable cluster"]
+    assert probes == []
 
 
 def test_build_widget_combination_plan_is_exhaustive_and_reports_truncation() -> None:
