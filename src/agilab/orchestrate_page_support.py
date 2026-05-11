@@ -206,7 +206,12 @@ def _json_load_expr(value: Any) -> str:
 def _split_run_request_payload(run_args: Mapping[str, Any] | None) -> tuple[dict[str, Any], list[Any], Any, Any, bool | None]:
     payload = dict(run_args or {})
     if "args" in payload:
-        raise ValueError("Legacy run settings key 'args' is no longer supported; use 'stages'.")
+        if "stages" in payload:
+            raise ValueError(
+                "Run settings cannot contain both legacy key 'args' and current key 'stages'; "
+                "keep only 'stages'."
+            )
+        payload["stages"] = payload.pop("args")
     stages = payload.pop("stages", [])
     if stages is None:
         stages = []
