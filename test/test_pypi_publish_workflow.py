@@ -20,7 +20,23 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
     assert "--artifact-index \"$RUNNER_TEMP/artifact_index.json\"" in text
     assert "public-evidence-sample" in text
     assert "retention-days: 7" in text
-    assert "publish-library-packages:\n    needs:\n      - test\n      - release-evidence" in text
+    assert (
+        "publish-library-packages:\n    needs:\n      - test\n      - release-evidence\n"
+        "      - supply-chain-evidence"
+    ) in text
+
+
+def test_pypi_publish_uploads_supply_chain_evidence_before_publish() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "supply-chain-evidence:" in text
+    assert "tools/profile_supply_chain_scan.py" in text
+    assert "--profile all" in text
+    assert "--output-dir test-results/supply-chain" in text
+    assert "--run" in text
+    assert "scan-plan.json" in text
+    assert "supply-chain-release-evidence" in text
+    assert "retention-days: 90" in text
 
 
 def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:

@@ -103,6 +103,52 @@ mounts, credentials, and hardware stacks remain environment-dependent.
 Production-grade MLOps features are delivered through integrations and are not
 yet a packaged platform claim.
 
+## Production Boundary
+
+AGILAB should be adopted as an experimentation and validation workbench first.
+Use this boundary before deploying it in sensitive environments:
+
+| Boundary | Status | Required controls |
+|---|---|---|
+| Safe for production-like use | Local research sandboxes, internal demos, notebook-to-app migration, reproducible validation with non-sensitive data. | Normal repository hygiene and local proof evidence. |
+| Conditional use only | Shared team workspaces, SSH/Dask clusters, external apps, LLM connectors, or sensitive datasets. | Per-user isolation, explicit secrets management, TLS/auth for exposed services, SBOM plus vulnerability scan evidence, and a deployment threat model. |
+| Not safe as-is | Sole production MLOps control plane, public Streamlit exposure, regulated production model serving, enterprise governance, online monitoring, drift detection, or audit-trail ownership. | Pair AGILAB with a hardened production stack such as MLflow/Kubeflow/SageMaker/Dagster/Airflow or an internal platform. |
+
+## Dependency And Supply-Chain Boundaries
+
+The public package is intentionally profile-based so operators can install only
+what they need:
+
+| Profile | Dependency scope | Use when |
+|---|---|---|
+| Base package | `agilab` plus `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster`. This includes the core local/distributed runtime dependencies. | CLI/core first proof, source-checkout validation, and worker-runtime development. |
+| `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities. | Running the local product UI. |
+| `mlflow` extra | MLflow tracking integration. | Recording runs, metrics, artifacts, or model registry handoff evidence. |
+| `ai` and `viz` extras | API LLM clients and optional plotting packages. | Assistant-backed workflows or richer visual analysis. |
+| `local-llm` / `offline` extras | Local/offline model stacks such as Torch, Transformers, GPT-OSS, and MLX where supported. | Isolated local-model experiments; expect a larger supply-chain and hardware footprint. |
+
+Cluster/Dask dependencies are currently part of the base package through
+`agi-core`; a smaller cluster-specific package split is a packaging roadmap item,
+not a current release claim.
+
+Release and adoption supply-chain evidence is explicit: Dependabot watches
+Python and GitHub Actions manifests, release workflows publish per-profile
+`pip-audit` JSON and CycloneDX SBOM artifacts, and
+`tools/profile_supply_chain_scan.py` can regenerate the same profile evidence
+locally.
+
+## Evidence Taxonomy
+
+AGILAB separates public claims by evidence type:
+
+| Evidence type | What it proves | What it does not prove |
+|---|---|---|
+| Automated proof | Commands such as `agilab first-proof --json`, workflow parity checks, coverage, release proof, and UI robot evidence ran successfully. | Independent certification or coverage of every deployment topology. |
+| Integration tests | A specific source path, package route, app, or workflow contract is exercised by tests. | Production SLA, security certification, or external operator acceptance. |
+| Benchmarks | Timings for declared hardware, datasets, modes, and benchmark scripts. | General performance across arbitrary hardware, networks, or datasets. |
+| Self-assessment | KPI scores such as production readiness and strategic potential are maintained from repository evidence. | External validation or third-party certification. |
+| External validation | Only claimed when a named external artifact, reviewer, CI provider, or hosted demo proof is linked. | Implied endorsement beyond the linked evidence. |
+
 ## Choose Your Path
 
 1. Preview the product quickly: [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)
