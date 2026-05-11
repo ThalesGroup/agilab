@@ -16,6 +16,7 @@ import shlex
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -123,34 +124,50 @@ class StreamlitServer:
         self.env = dict(env)
         self.url = url
         self.process: subprocess.Popen[str] | None = None
+        self._output_file: Any | None = None
+        self._output_path: Path | None = None
 
     def __enter__(self) -> "StreamlitServer":
+        self._output_file = tempfile.NamedTemporaryFile(
+            mode="w+",
+            encoding="utf-8",
+            prefix="agilab-streamlit-server-",
+            suffix=".log",
+            delete=False,
+        )
+        self._output_path = Path(self._output_file.name)
         self.process = subprocess.Popen(
             self.argv,
             cwd=str(REPO_ROOT),
             env=self.env,
             text=True,
-            stdout=subprocess.PIPE,
+            stdout=self._output_file,
             stderr=subprocess.STDOUT,
         )
         return self
 
     def __exit__(self, *_exc: object) -> None:
-        if self.process is None:
-            return
-        if self.process.poll() is None:
-            self.process.terminate()
-            try:
-                self.process.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait(timeout=10)
+        try:
+            if self.process is None:
+                return
+            if self.process.poll() is None:
+                self.process.terminate()
+                try:
+                    self.process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=10)
+        finally:
+            if self._output_file is not None:
+                self._output_file.close()
 
     def output_tail(self, *, limit: int = 4000) -> str:
-        if self.process is None or self.process.stdout is None:
+        if self._output_file is not None:
+            self._output_file.flush()
+        if self._output_path is None or not self._output_path.exists():
             return ""
         try:
-            output = self.process.stdout.read()
+            output = self._output_path.read_text(encoding="utf-8", errors="replace")
         except Exception:
             return ""
         return output[-limit:]
@@ -261,6 +278,10 @@ def build_streamlit_command(
 
 def build_server_env() -> dict[str, str]:
     env = os.environ.copy()
+    # The robot itself can run in a temporary `uv --with playwright` env.
+    # The Streamlit child must resolve AGILAB from the repo project instead.
+    env.pop("UV_RUN_RECURSION_DEPTH", None)
+    env.pop("VIRTUAL_ENV", None)
     env.setdefault("AGILAB_DISABLE_BACKGROUND_SERVICES", "1")
     env.setdefault("OPENAI_API_KEY", "sk-test-agilab-web-robot-000000000000")
     env.setdefault("PYTHONUNBUFFERED", "1")

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
+import time
 from pathlib import Path
 
 
@@ -41,6 +43,32 @@ def test_build_streamlit_command_uses_source_ui_and_active_app() -> None:
     assert str(module.DEFAULT_ACTIVE_APP) in command
     assert "--apps-path" in command
     assert str(module.DEFAULT_APPS_PATH) in command
+
+
+def test_build_server_env_scrubs_parent_uv_temp_environment(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
+    monkeypatch.setenv("VIRTUAL_ENV", "/tmp/uv-build-env")
+    monkeypatch.setenv("PATH", os.environ.get("PATH", ""))
+
+    env = module.build_server_env()
+
+    assert "UV_RUN_RECURSION_DEPTH" not in env
+    assert "VIRTUAL_ENV" not in env
+    assert env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
+
+
+def test_streamlit_server_output_tail_is_available_while_process_runs() -> None:
+    module = _load_module()
+
+    command = [
+        sys.executable,
+        "-c",
+        "import time; print('server boot failed detail', flush=True); time.sleep(5)",
+    ]
+    with module.StreamlitServer(command, env={}, url="http://127.0.0.1:9999") as server:
+        time.sleep(0.2)
+        assert "server boot failed detail" in server.output_tail()
 
 
 def test_build_url_preserves_existing_query_and_encodes_current_page() -> None:
