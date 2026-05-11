@@ -12,15 +12,22 @@
 #
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+from importlib import import_module
 from pathlib import Path
 import sqlite3
 import subprocess
 import sys
 
-try:
-    from mlflow.exceptions import MlflowException
-except ImportError:  # pragma: no cover - optional dependency
-    MlflowException = None  # type: ignore[assignment]
+
+def _load_mlflow_exception_type(import_module_fn=import_module):
+    try:
+        exceptions_module = import_module_fn("mlflow.exceptions")
+    except (ImportError, TypeError):  # pragma: no cover - optional dependency can import-crash
+        return None
+    return getattr(exceptions_module, "MlflowException", None)
+
+
+MlflowException = _load_mlflow_exception_type()
 
 MLFLOW_RUNTIME_EXCEPTIONS = tuple(
     exc_type
@@ -32,7 +39,7 @@ MLFLOW_RUNTIME_EXCEPTIONS = tuple(
 def get_mlflow_module():
     try:
         import mlflow  # type: ignore
-    except ImportError:
+    except (ImportError, TypeError):
         return None
     return mlflow
 

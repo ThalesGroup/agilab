@@ -32,6 +32,27 @@ def test_get_mlflow_module_handles_missing_and_present_module(monkeypatch: pytes
     assert mlflow_store.get_mlflow_module() is fake_mlflow
 
 
+def test_mlflow_optional_import_handles_broken_transitive_dependency(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_import = builtins.__import__
+
+    def _broken_mlflow(name, *args, **kwargs):
+        if name == "mlflow":
+            raise TypeError("Descriptors cannot be created directly.")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _broken_mlflow)
+    assert mlflow_store.get_mlflow_module() is None
+
+
+def test_mlflow_exception_type_loader_handles_import_crash() -> None:
+    def _broken_import(_name: str):
+        raise TypeError("Descriptors cannot be created directly.")
+
+    assert mlflow_store._load_mlflow_exception_type(_broken_import) is None
+
+
 def test_mlflow_path_helpers_and_legacy_detection(tmp_path: Path):
     home_abs = tmp_path / "home"
     env = SimpleNamespace(home_abs=home_abs, MLFLOW_TRACKING_DIR="runs")

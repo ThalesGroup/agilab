@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import importlib.util
 import json
@@ -887,3 +888,52 @@ def test_packaged_example_main_bodies_build_public_requests(tmp_path: Path, monk
             assert request.workers == {"127.0.0.1": 1}
             assert request.mode is not None
             assert "args" not in request.params
+
+
+def test_example_notebooks_use_current_agi_run_request_api() -> None:
+    legacy_execution_kwargs = {
+        "mode",
+        "modes_enabled",
+        "rapids_enabled",
+        "scheduler",
+        "workers",
+        "workers_data_path",
+    }
+    failures: list[str] = []
+
+    for notebook in sorted(EXAMPLES_ROOT.rglob("*.ipynb")):
+        payload = json.loads(notebook.read_text(encoding="utf-8"))
+        for cell_number, cell in enumerate(payload.get("cells", []), start=1):
+            if cell.get("cell_type") != "code":
+                continue
+            source = "".join(cell.get("source", []))
+            try:
+                tree = ast.parse(source)
+            except SyntaxError as exc:
+                failures.append(f"{notebook.relative_to(ROOT)} cell {cell_number}: {exc}")
+                continue
+
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                if not (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "run"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id == "AGI"
+                ):
+                    continue
+                bad_kwargs = sorted(
+                    keyword.arg
+                    for keyword in node.keywords
+                    if keyword.arg in legacy_execution_kwargs
+                )
+                if bad_kwargs:
+                    failures.append(
+                        f"{notebook.relative_to(ROOT)} cell {cell_number}: "
+                        f"AGI.run uses legacy execution kwargs {bad_kwargs}; "
+                        "use request=RunRequest(...)"
+                    )
+
+    assert not failures, "\n".join(failures)
