@@ -24,7 +24,9 @@ Fast adoption path:
      - ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` works
        locally.
    * - 3. Record evidence
-     - Run ``uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui``.
+     - Start the app with ``agilab`` and verify the built-in flow.
+       If startup fails, run ``agilab dry-run`` then
+       ``uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui``.
      - ``~/log/execute/flight/run_manifest.json`` reports ``status: pass``.
    * - 4. Expand
      - Choose notebook, package, private app, or cluster routes only after the
@@ -53,6 +55,13 @@ package, private-app, and cluster variables during the first 10 minutes.
 
    git pull --ff-only
    ./install.sh --install-apps
+   uv --preview-features extra-build-dependencies run agilab
+
+If startup fails, run a local fallback first:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run agilab dry-run
    uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
 
 **Published package install or upgrade, CLI proof only**::
@@ -64,7 +73,6 @@ Install the UI profile when you want the local Streamlit pages from the
 published package::
 
    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
-   agilab first-proof --json --with-ui
    agilab
 
 If you installed AGILAB inside an activated project environment instead of as a
@@ -113,25 +121,38 @@ machine-readable proof record.
    ``LAB_LLM_PROVIDER``, ``UOAIC_MODEL``, and ``AGILAB_LLM_*`` values into the
    AGILAB environment file.
 
-2. **Run the first-proof CLI**::
+2. **Launch the app**::
 
-       uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+       uv --preview-features extra-build-dependencies run agilab
 
-   This is the public first-proof entry point with the UI profile enabled. It
-   checks that AGILAB imports, validates the core AGI request API, boots the
-   main page and ORCHESTRATE page against the built-in ``flight_project``, and
-   writes ``~/log/execute/flight/run_manifest.json`` with command, environment,
-   timing, artifact references, and validation status.
+   This starts the app from the source checkout.
    The source-checkout developer evidence command is the same contract through
    ``tools/newcomer_first_proof.py --json``.
 
-3. **Launch the web interface**::
+3. **Run the first-proof manifest check**:
 
-       uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+   If the app fails to start, use:
 
-   The local UI is intended to stay on loopback. If you intentionally expose it
-   through a reverse proxy, set ``AGILAB_PUBLIC_BIND_OK=1`` plus a real
-   protection indicator such as ``AGILAB_TLS_TERMINATED=1`` before using
+   .. code-block:: bash
+
+      uv --preview-features extra-build-dependencies run agilab dry-run
+      uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+
+   Then rerun:
+
+   .. code-block:: bash
+
+      uv --preview-features extra-build-dependencies run agilab
+
+   The app and all core pages can also be started directly with:
+
+   .. code-block:: bash
+
+      uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+
+   Local UI is intended to stay on loopback. If you intentionally expose it through
+   a reverse proxy, set ``AGILAB_PUBLIC_BIND_OK=1`` plus a real protection
+   indicator such as ``AGILAB_TLS_TERMINATED=1`` before using
    ``--server.address 0.0.0.0``.
 
 4. **Keep the first run local and use the built-in flight demo**
@@ -188,6 +209,12 @@ scripts::
 
     uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui --with-install
 
+``agilab dry-run`` is the fast alias for ``agilab first-proof --dry-run`` and
+checks only CLI/core readiness.
+
+Use ``--dry-run`` when startup or import errors appear before you need a full UI
+proof contract.
+
 The troubleshooting page covers the common first-run failures:
 
 - missing ``uv``
@@ -227,8 +254,13 @@ The base package install is intentionally CLI/core only. Install the UI profile
 before launching the local Streamlit app::
 
     uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
-    agilab first-proof --json --with-ui
     agilab
+
+If you also want a one-command onboarding manifest in this profile, run:
+
+.. code-block:: bash
+
+   agilab first-proof --json --with-ui
 
 Optional feature stacks stay out of the base package install. Add
 ``agilab[ui]`` for the local Streamlit pages, ``agilab[ai]`` for AI assistant

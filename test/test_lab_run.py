@@ -87,6 +87,27 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
 
     def fake_first_proof(argv: list[str]) -> int:
         captured.append(argv)
+        return 33
+
+    monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["first-proof", "--json", "--with-ui"])
+
+    assert rc == 33
+    assert captured == [["--json", "--with-ui"]]
+
+
+def test_main_dispatches_dry_run_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_first_proof(argv: list[str]) -> int:
+        captured.append(argv)
         return 31
 
     monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
@@ -96,10 +117,31 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
         lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
     )
 
-    rc = lab_run.main(["first-proof", "--json", "--with-install"])
+    rc = lab_run.main(["dry-run", "--json"])
 
     assert rc == 31
-    assert captured == [["--json", "--with-install"]]
+    assert captured == [["--dry-run", "--json"]]
+
+
+def test_main_dispatches_dry_run_alias_as_first_proof(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_first_proof(argv: list[str]) -> int:
+        captured.append(argv)
+        return 41
+
+    monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["dry-run", "--max-seconds", "45"])
+
+    assert rc == 41
+    assert captured == [["--dry-run", "--max-seconds", "45"]]
 
 
 def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch):

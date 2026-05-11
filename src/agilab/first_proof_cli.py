@@ -457,12 +457,15 @@ def _collect_existing_artifacts(output_dir: Path, manifest_path: Path) -> list[r
 def _executed_argv(
     *,
     active_app: Path,
+    dry_run: bool,
     with_install: bool,
     with_ui: bool,
     max_seconds: float,
     manifest_path: Path,
 ) -> tuple[str, ...]:
     argv: tuple[str, ...] = ("agilab", "first-proof", "--json")
+    if dry_run:
+        argv = (*argv, "--dry-run")
     if active_app.resolve() != default_active_app().resolve():
         argv = (*argv, "--active-app", str(active_app))
     if with_install:
@@ -479,6 +482,7 @@ def _executed_argv(
 def build_run_manifest(
     *,
     active_app: Path,
+    dry_run: bool,
     with_install: bool,
     with_ui: bool,
     commands: Sequence[ProofCommand],
@@ -530,12 +534,13 @@ def build_run_manifest(
     output_dir = manifest_path.expanduser().parent
     return run_manifest.build_run_manifest(
         path_id=FIRST_PROOF_PATH_ID,
-        label="AGILAB first proof",
+        label="AGILAB first-proof",
         status=status,
         command=run_manifest.RunManifestCommand(
             label="agilab first-proof",
             argv=_executed_argv(
                 active_app=active_app,
+                dry_run=dry_run,
                 with_install=with_install,
                 with_ui=with_ui,
                 max_seconds=max_seconds,
@@ -564,6 +569,7 @@ def build_run_manifest(
 def render_human(
     *,
     active_app: Path,
+    dry_run: bool = False,
     with_install: bool,
     with_ui: bool,
     commands: Sequence[ProofCommand],
@@ -600,6 +606,8 @@ def render_human(
         f"target<={summary['target_seconds']:.2f}s "
         f"within_target={'yes' if summary['within_target'] else 'no'}"
     )
+    if dry_run:
+        lines.append("mode: dry-run (core smoke only)")
     lines.append(
         "scope: package/core API smoke"
         + (" + main/ORCHESTRATE page boot" if with_ui else "")
@@ -615,13 +623,20 @@ def render_human(
     else:
         lines.append("recovery:")
         lines.append("  inspect the failing step output above")
-        lines.append("  rerun with `agilab first-proof --json` when you need a support bundle input")
+        lines.append(
+            "  rerun with `agilab first-proof --json` when you need a support bundle input"
+        )
     return "\n".join(lines)
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run the fastest AGILAB first-proof smoke and write run_manifest.json."
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run only lightweight checks (no install or UI execution).",
     )
     parser.add_argument(
         "--active-app",
@@ -660,9 +675,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
     if args.max_seconds <= 0:
         parser.error("--max-seconds must be greater than 0")
+    if args.dry_run and (args.with_install or args.with_ui):
+        parser.error("--dry-run cannot be combined with --with-install or --with-ui")
+
+    with_install = False if args.dry_run else args.with_install
+    with_ui = False if args.dry_run else args.with_ui
 
     active_app = resolve_active_app(args.active_app)
-    commands = build_proof_commands(active_app, with_install=args.with_install, with_ui=args.with_ui)
+    commands = build_proof_commands(active_app, with_install=with_install, with_ui=with_ui)
     manifest_path = resolve_manifest_path(active_app, args.manifest_out)
 
     if args.print_only:
@@ -672,8 +692,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 json.dumps(
                     {
                         "active_app": str(active_app),
-                        "with_install": args.with_install,
-                        "with_ui": args.with_ui,
+                        "with_install": with_install,
+                        "with_ui": with_ui,
+                        "dry_run": args.dry_run,
                         "kpi_target_seconds": args.max_seconds,
                         "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
                         "runtime_identity": identity,
@@ -688,8 +709,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(
                 render_human(
                     active_app=active_app,
-                    with_install=args.with_install,
-                    with_ui=args.with_ui,
+                    dry_run=args.dry_run,
+                    with_install=with_install,
+                    with_ui=with_ui,
                     commands=commands,
                     print_only=True,
                     max_seconds=args.max_seconds,
@@ -705,8 +727,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.no_manifest:
         manifest = build_run_manifest(
             active_app=active_app,
-            with_install=args.with_install,
-            with_ui=args.with_ui,
+            dry_run=args.dry_run,
+            with_install=with_install,
+            with_ui=with_ui,
             commands=commands,
             results=results,
             summary=summary,
@@ -719,8 +742,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         identity = runtime_identity()
         payload = {
             "active_app": str(active_app),
-            "with_install": args.with_install,
-            "with_ui": args.with_ui,
+            "with_install": with_install,
+            "with_ui": with_ui,
+            "dry_run": args.dry_run,
             "agilab_version": dict(identity.get("distributions", {})).get("agilab"),
             "runtime_identity": identity,
             **summary,
@@ -736,8 +760,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(
             render_human(
                 active_app=active_app,
-                with_install=args.with_install,
-                with_ui=args.with_ui,
+                dry_run=args.dry_run,
+                with_install=with_install,
+                with_ui=with_ui,
                 commands=commands,
                 results=results,
                 max_seconds=args.max_seconds,

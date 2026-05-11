@@ -70,7 +70,6 @@ Start with the public browser preview or the demo chooser:
 
 ```bash
 uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
-agilab first-proof --json --with-ui
 agilab
 ```
 
@@ -84,6 +83,18 @@ Advanced scenarios such as `data_io_2026_project`,
 [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
 The default hosted flight journey covers `PROJECT`, `ORCHESTRATE`, `WORKFLOW`,
 and `ANALYSIS`, including bundled flight analysis views.
+
+If startup fails, run a progressive fallback:
+
+```bash
+agilab dry-run
+agilab first-proof --json --with-ui
+```
+
+`agilab dry-run` is the fast alias for `agilab first-proof --dry-run`; it
+verifies CLI/core readiness only.
+`agilab first-proof --json --with-ui` does the local onboarding contract
+including manifest generation for the UI path.
 
 ### Maturity snapshot
 
