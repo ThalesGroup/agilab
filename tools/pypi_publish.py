@@ -42,6 +42,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -279,6 +280,8 @@ DEFAULT_DOCS_REPO_DIRNAME = "thales_agilab"
 DOCS_REPO_REMOTE_ENV = "DOCS_REPOSITORY_REMOTE"
 DOCS_REPO_RELEASE_PATH_PREFIXES: tuple[str, ...] = ("docs/source/",)
 GITHUB_RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
+GITHUB_REPO = "ThalesGroup/agilab"
+COVERAGE_WORKFLOW = "coverage.yml"
 PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
     "CHANGELOG.md",
     "docs/.docs_source_mirror_stamp.json",
@@ -604,6 +607,14 @@ def run_release_preflight(cfg: Cfg) -> None:
     run(cmd, cwd=REPO_ROOT)
 
 
+def run_release_coverage_badge_refresh() -> None:
+    """Refresh coverage badges from the release preflight XML before tagging."""
+
+    print("[preflight] Refreshing release coverage badges from local coverage XML")
+    run([sys.executable, "tools/generate_component_coverage_badges.py"], cwd=REPO_ROOT)
+    run([sys.executable, "tools/coverage_badge_guard.py"], cwd=REPO_ROOT)
+
+
 def run_pre_upload_release_guard(
     cfg: Cfg,
     *,
@@ -618,10 +629,7 @@ def run_pre_upload_release_guard(
         update_public_release_references_for_guard(planned_tag, chosen_version, version_targets)
     print(f"[preflight] Running pre-upload release metadata guard for {chosen_version}")
     run_release_preflight(cfg)
-    # Do not regenerate coverage badges here. Release-only metadata edits can
-    # produce local coverage XML that differs from the CI artifact source of
-    # truth, so the guard only verifies that no coverage-sensitive files were
-    # accidentally changed by the release metadata update.
+    run_release_coverage_badge_refresh()
     run(
         [
             sys.executable,
@@ -630,6 +638,134 @@ def run_pre_upload_release_guard(
         ],
         cwd=REPO_ROOT,
     )
+
+
+def _git_head_sha(repo: pathlib.Path = REPO_ROOT) -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(repo),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return result.stdout.strip()
+
+
+def _gh_json(args: list[str]) -> object:
+    if shutil.which("gh") is None:
+        raise SystemExit("ERROR: GitHub CLI ('gh') is required for the release coverage prerequisite.")
+    result = subprocess.run(
+        ["gh", *args],
+        cwd=str(REPO_ROOT),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return json.loads(result.stdout or "null")
+
+
+def list_coverage_workflow_runs_for_head(head_sha: str) -> list[dict[str, object]]:
+    payload = _gh_json(
+        [
+            "run",
+            "list",
+            "--repo",
+            GITHUB_REPO,
+            "--workflow",
+            COVERAGE_WORKFLOW,
+            "--commit",
+            head_sha,
+            "--limit",
+            "5",
+            "--json",
+            "databaseId,status,conclusion,url,createdAt,headSha",
+        ]
+    )
+    if not isinstance(payload, list):
+        raise SystemExit("ERROR: could not read GitHub coverage workflow runs.")
+    return [run for run in payload if isinstance(run, dict)]
+
+
+def trigger_coverage_workflow(branch: str) -> None:
+    run(
+        [
+            "gh",
+            "workflow",
+            "run",
+            COVERAGE_WORKFLOW,
+            "--repo",
+            GITHUB_REPO,
+            "--ref",
+            branch,
+        ],
+        cwd=REPO_ROOT,
+    )
+
+
+def release_coverage_workflow_required(cfg: Cfg) -> bool:
+    return cfg.repo == "pypi" and cfg.git_tag and not cfg.dry_run and not cfg.cleanup_only
+
+
+def run_release_coverage_workflow_prerequisite(
+    cfg: Cfg,
+    *,
+    timeout_seconds: int | None = None,
+    poll_seconds: int = 20,
+    list_runs_fn=list_coverage_workflow_runs_for_head,
+    trigger_fn=trigger_coverage_workflow,
+    sleep_fn=time.sleep,
+    time_fn=time.monotonic,
+) -> None:
+    """Require the GitHub coverage workflow to pass for the release commit."""
+
+    if not release_coverage_workflow_required(cfg):
+        return
+
+    branch = current_git_branch()
+    if branch == "HEAD":
+        raise SystemExit("ERROR: release coverage prerequisite requires a named git branch, not detached HEAD.")
+    head_sha = _git_head_sha()
+    timeout = timeout_seconds
+    if timeout is None:
+        timeout = int(os.environ.get("AGILAB_RELEASE_COVERAGE_TIMEOUT_SECONDS", "1800"))
+    deadline = time_fn() + max(1, timeout)
+    triggered = False
+    last_state: tuple[str, str] | None = None
+
+    print(f"[preflight] Requiring {COVERAGE_WORKFLOW} success for release commit {head_sha[:12]}")
+    while True:
+        runs = list_runs_fn(head_sha)
+        if runs:
+            run_info = runs[0]
+            status = str(run_info.get("status") or "")
+            conclusion = str(run_info.get("conclusion") or "")
+            url = str(run_info.get("url") or "")
+            state = (status, conclusion)
+            if status == "completed":
+                if conclusion == "success":
+                    print(f"[preflight] Coverage workflow passed for release commit: {url}")
+                    return
+                raise SystemExit(
+                    f"ERROR: Coverage workflow prerequisite failed for release commit {head_sha[:12]} "
+                    f"(conclusion={conclusion}). Fix coverage badges or tests before tagging: {url}"
+                )
+            if state != last_state:
+                print(f"[preflight] Waiting for coverage workflow ({status or 'unknown'}): {url}")
+                last_state = state
+        elif not triggered:
+            print(f"[preflight] No coverage workflow run found for {head_sha[:12]}; triggering {COVERAGE_WORKFLOW}")
+            trigger_fn(branch)
+            triggered = True
+        elif last_state != ("missing", ""):
+            print(f"[preflight] Waiting for triggered coverage workflow to appear for {head_sha[:12]}")
+            last_state = ("missing", "")
+
+        remaining = deadline - time_fn()
+        if remaining <= 0:
+            raise SystemExit(
+                f"ERROR: Timed out waiting for {COVERAGE_WORKFLOW} to pass for release commit {head_sha[:12]}."
+            )
+        sleep_fn(min(max(1, poll_seconds), remaining))
 
 
 EXTERNAL_INSTALL_PLATFORMS: tuple[str, ...] = (
@@ -2083,6 +2219,8 @@ def git_paths_to_commit(include_docs: bool = False) -> list[str]:
         badge_path = static_badge_path(package_name)
         if badge_path.exists():
             paths.append(str(badge_path.relative_to(REPO_ROOT)))
+    for coverage_badge_path in sorted((REPO_ROOT / "badges").glob("coverage-*.svg")):
+        paths.append(str(coverage_badge_path.relative_to(REPO_ROOT)))
     for rel_path in PUBLIC_RELEASE_METADATA_PATHS:
         release_path = REPO_ROOT / rel_path
         if release_path.exists():
@@ -2361,6 +2499,8 @@ def main():
                 raise KeyboardInterrupt(
                     "Interrupted after release metadata was committed before upload"
                 )
+
+        run_release_coverage_workflow_prerequisite(cfg)
 
         # Twine
         twine_check(all_files)
