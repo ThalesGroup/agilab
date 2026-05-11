@@ -112,7 +112,12 @@ class OrchestrateExecuteDeps:
 def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> list[Path]:
     candidate_roots: list[Path] = []
 
-    def _resolve_root(raw_path: Path | str, *, prefer_share: bool) -> Path:
+    def _resolve_root(
+        raw_path: Path | str,
+        *,
+        prefer_share: bool,
+        require_share: bool = False,
+    ) -> Path:
         path = Path(raw_path).expanduser()
         if path.is_absolute():
             return path
@@ -122,13 +127,30 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
                 try:
                     return Path(resolve_share_path(path)).expanduser()
                 except (OSError, TypeError, ValueError):
-                    pass
+                    if require_share:
+                        raise
         return Path.home() / path
 
-    def _attach_root(raw_path: Optional[Path | str], *, prefer_share: bool = False) -> None:
+    def _attach_root(
+        raw_path: Optional[Path | str],
+        *,
+        prefer_share: bool = False,
+        require_share: bool = False,
+    ) -> None:
         if not raw_path:
             return
-        candidate_roots.append(_resolve_root(raw_path, prefer_share=prefer_share))
+        try:
+            candidate_roots.append(
+                _resolve_root(
+                    raw_path,
+                    prefer_share=prefer_share,
+                    require_share=require_share,
+                ),
+            )
+        except (OSError, TypeError, ValueError):
+            if require_share and prefer_share:
+                return
+            candidate_roots.append(Path.home() / Path(raw_path).expanduser())
 
     _attach_root(getattr(env, "dataframe_path", None))
 
@@ -138,7 +160,7 @@ def collect_candidate_roots(env: Any, active_args: dict[str, Any] | None) -> lis
     _attach_root(getattr(env, "app_data_rel", None))
 
     if isinstance(active_args, dict):
-        _attach_root(active_args.get("data_in"), prefer_share=True)
+        _attach_root(active_args.get("data_in"), prefer_share=True, require_share=True)
 
     unique_roots: list[Path] = []
     seen_roots: set[str] = set()
