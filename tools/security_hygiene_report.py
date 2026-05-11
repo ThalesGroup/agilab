@@ -583,12 +583,14 @@ def build_report(
 
     security_text = security_path.read_text(encoding="utf-8") if security_path.is_file() else ""
     pyproject_text = pyproject_path.read_text(encoding="utf-8") if pyproject_path.is_file() else ""
+    security_text_lower = security_text.lower()
+
     checks = [
         _check_result(
             "security_policy_present",
             "Security policy is present",
             security_path.is_file()
-            and "GitHub private vulnerability reporting" in security_text,
+            and "github private vulnerability reporting" in security_text_lower,
             "SECURITY.md exposes the private vulnerability reporting channel",
             evidence=["SECURITY.md"],
         ),
