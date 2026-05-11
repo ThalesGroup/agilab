@@ -142,6 +142,42 @@ def test_collect_candidate_roots_resolves_app_args_with_share_path(tmp_path):
     ]
 
 
+def test_collect_candidate_roots_falls_back_to_home_when_share_resolution_fails(tmp_path, monkeypatch):
+    home_dir = tmp_path / "home"
+    home_dir.mkdir()
+    monkeypatch.setattr(
+        orchestrate_execute.Path,
+        "home",
+        classmethod(lambda cls: home_dir),
+    )
+
+    def _resolve_share_path(*_args, **_kwargs):
+        raise OSError("share unavailable")
+
+    env = SimpleNamespace(
+        dataframe_path=Path("relative/data"),
+        app_data_rel=None,
+        resolve_share_path=_resolve_share_path,
+    )
+    roots = orchestrate_execute.collect_candidate_roots(
+        env,
+        {
+            "data_out": "flight/output",
+            "data_in": "flight/input",
+        },
+    )
+
+    assert roots == [home_dir / "relative/data", home_dir / "flight/output"]
+    assert str(home_dir / "relative/data") in [str(roots[0]), str(roots[1])]
+
+
+def test_is_preview_metadata_file_detects_metadata_names():
+    assert orchestrate_execute._is_preview_metadata_file(orchestrate_execute.Path("run_manifest.json"))
+    assert orchestrate_execute._is_preview_metadata_file(orchestrate_execute.Path("reduce_summary_worker_0.json"))
+    assert orchestrate_execute._is_preview_metadata_file(orchestrate_execute.Path("._cache.csv"))
+    assert not orchestrate_execute._is_preview_metadata_file(orchestrate_execute.Path("dataset.csv"))
+
+
 def test_find_preview_target_ignores_empty_and_metadata_files(tmp_path):
     output_dir = tmp_path / "output"
     output_dir.mkdir()
