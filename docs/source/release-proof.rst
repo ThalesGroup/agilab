@@ -20,7 +20,7 @@ Current public release
    * - Package version
      - ``agilab==2026.05.11`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.05.11-4 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.11-4>`__
+     - `v2026.05.11-5 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.11-5>`__
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``7fc82dee40b39ceb71700a9c07dbbe9cf3c7711e``
    * - Public guardrails
