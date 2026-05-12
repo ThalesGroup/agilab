@@ -47,6 +47,7 @@ from .global_pipeline_runner_state import (
     persist_runner_state,
     write_runner_state,
 )
+from .workflow_run_manifest import WorkflowEvidenceBundle, write_workflow_run_evidence
 
 GLOBAL_RUNNER_STATE_FILENAME = "runner_state.json"
 GLOBAL_DAG_UAV_QUEUE_TEMPLATE_RELATIVE_PATH = UAV_QUEUE_TEMPLATE_RELATIVE_PATH
@@ -99,10 +100,37 @@ class DagRunEngine:
             output_path=self.state_path,
             dag_path=self.dag_path,
         )
+        self.write_evidence(
+            proof.runner_state,
+            state_path=self.state_path,
+            trigger={"surface": "workflow", "action": "state_created"},
+        )
         return proof.runner_state, self.state_path, self.dag_path
 
     def write_state(self, state: Mapping[str, Any]) -> Path:
-        return write_runner_state(self.state_path, state)
+        state_path = write_runner_state(self.state_path, state)
+        self.write_evidence(
+            state,
+            state_path=state_path,
+            trigger={"surface": "workflow", "action": "state_written"},
+        )
+        return state_path
+
+    def write_evidence(
+        self,
+        state: Mapping[str, Any],
+        *,
+        state_path: Path | None = None,
+        trigger: Mapping[str, Any] | None = None,
+    ) -> WorkflowEvidenceBundle:
+        return write_workflow_run_evidence(
+            state=state,
+            state_path=state_path or self.state_path,
+            repo_root=self.repo_root,
+            lab_dir=self.lab_dir,
+            dag_path=self.dag_path,
+            trigger=trigger,
+        )
 
     def dispatch_next_runnable(self, state: Mapping[str, Any]) -> RunnerDispatchResult:
         return dispatch_next_runnable_state(state)
