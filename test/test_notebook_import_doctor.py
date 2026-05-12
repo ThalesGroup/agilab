@@ -3,12 +3,11 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import types
 from pathlib import Path
 
-from agilab import notebook_import_doctor as doctor
-
-
 REPORT_PATH = Path("tools/notebook_import_doctor_report.py").resolve()
+DOCTOR_PATH = Path("src/agilab/notebook_import_doctor.py").resolve()
 
 
 def _load_module(path: Path, name: str):
@@ -18,6 +17,16 @@ def _load_module(path: Path, name: str):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _load_agilab_module(path: Path, name: str):
+    package = types.ModuleType("agilab")
+    package.__path__ = [str(Path("src/agilab").resolve())]
+    sys.modules["agilab"] = package
+    return _load_module(path, name)
+
+
+doctor = _load_agilab_module(DOCTOR_PATH, "agilab.notebook_import_doctor")
 
 
 def test_notebook_import_doctor_detects_hidden_state_and_artifacts() -> None:

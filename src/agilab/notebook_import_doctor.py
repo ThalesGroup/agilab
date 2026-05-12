@@ -86,9 +86,8 @@ def diagnose_notebook(
         source_notebook=source_notebook,
         run_id=run_id,
     )
-    steps = [
-        step for step in notebook_import.get("pipeline_steps", []) if isinstance(step, dict)
-    ]
+    raw_steps = notebook_import.get("pipeline_stages", notebook_import.get("pipeline_steps", []))
+    steps = [step for step in raw_steps if isinstance(step, dict)]
     cell_reports: list[dict[str, Any]] = []
     issues: list[NotebookImportDoctorIssue] = []
     cumulative_defs: dict[str, str] = {}
