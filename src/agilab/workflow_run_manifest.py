@@ -10,14 +10,26 @@ import re
 import sys
 from typing import Any, Mapping, Sequence
 
+from agilab.evidence_graph import (
+    EVIDENCE_GRAPH_KIND,
+    build_evidence_graph_from_workflow_manifest,
+    validate_evidence_graph,
+)
+from agilab.workflow_runtime_contract import (
+    build_workflow_runtime_contract,
+    validate_workflow_runtime_contract,
+)
 
-WORKFLOW_RUN_MANIFEST_SCHEMA_VERSION = 2
+
+WORKFLOW_RUN_MANIFEST_SCHEMA_VERSION = 3
+SUPPORTED_WORKFLOW_RUN_MANIFEST_SCHEMAS = {2, WORKFLOW_RUN_MANIFEST_SCHEMA_VERSION}
 WORKFLOW_RUN_MANIFEST_KIND = "agilab.workflow_run_manifest"
 EVIDENCE_LEDGER_SCHEMA_VERSION = 1
 EVIDENCE_LEDGER_KIND = "agilab.evidence_ledger"
 WORKFLOW_EVIDENCE_DIRNAME = "workflow_evidence"
 WORKFLOW_RUN_MANIFEST_FILENAME = "workflow_run_manifest.json"
 EVIDENCE_LEDGER_FILENAME = "evidence_ledger.json"
+EVIDENCE_GRAPH_FILENAME = "evidence_graph.json"
 LATEST_WORKFLOW_EVIDENCE_FILENAME = "latest_workflow_evidence.json"
 SUPPORTED_STATUSES = {"pass", "fail", "unknown"}
 
@@ -26,9 +38,11 @@ SUPPORTED_STATUSES = {"pass", "fail", "unknown"}
 class WorkflowEvidenceBundle:
     manifest_path: Path
     ledger_path: Path
+    graph_path: Path
     latest_path: Path
     manifest: dict[str, Any]
     ledger: dict[str, Any]
+    graph: dict[str, Any]
 
 
 def utc_now() -> str:
@@ -66,6 +80,10 @@ def workflow_evidence_paths(lab_dir: Path, manifest_id: str) -> tuple[Path, Path
     )
 
 
+def workflow_evidence_graph_path(lab_dir: Path, manifest_id: str) -> Path:
+    return workflow_evidence_root(lab_dir) / _safe_id(manifest_id) / EVIDENCE_GRAPH_FILENAME
+
+
 def build_workflow_run_manifest(
     *,
     state: Mapping[str, Any],
@@ -80,11 +98,13 @@ def build_workflow_run_manifest(
     state_snapshot = _json_safe(dict(state))
     state_sha256 = workflow_state_digest(state)
     run_id = _safe_id(str(state.get("run_id", "") or "workflow-run"))
-    manifest_id = f"{run_id}-{state_sha256[:12]}"
+    manifest_id = f"{run_id}-v{WORKFLOW_RUN_MANIFEST_SCHEMA_VERSION}-{state_sha256[:12]}"
     manifest_path, ledger_path, _latest_path = workflow_evidence_paths(lab_dir, manifest_id)
+    graph_path = workflow_evidence_graph_path(lab_dir, manifest_id)
     units = _unit_rows(state)
     produced_artifacts, consumed_artifacts = _artifact_contracts(units)
     status = _manifest_status(state, units)
+    runtime_contract = build_workflow_runtime_contract(state)
     source = state.get("source", {})
     source = source if isinstance(source, Mapping) else {}
     summary = state.get("summary", {})
@@ -141,9 +161,14 @@ def build_workflow_run_manifest(
         "stages": [_stage_record(unit) for unit in units],
         "artifacts": [_file_record(state_path, name="runner_state", kind="runner_state")],
         "validations": validations,
+        "runtime_contract": runtime_contract,
         "evidence_ledger": {
             "path": str(ledger_path),
             "kind": EVIDENCE_LEDGER_KIND,
+        },
+        "evidence_graph": {
+            "path": str(graph_path),
+            "kind": EVIDENCE_GRAPH_KIND,
         },
         "state_snapshot": {
             "sha256": state_sha256,
@@ -159,6 +184,7 @@ def build_evidence_ledger(
     *,
     manifest_path: Path,
     ledger_path: Path,
+    extra_artifacts: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     manifest_digest = sha256_payload(dict(manifest))
     manifest_id = str(manifest.get("manifest_id", "") or "")
@@ -182,6 +208,20 @@ def build_evidence_ledger(
                 ],
             }
         )
+    artifacts = [
+        {
+            "name": WORKFLOW_RUN_MANIFEST_FILENAME,
+            "kind": WORKFLOW_RUN_MANIFEST_KIND,
+            "path": str(manifest_path),
+            "sha256": manifest_digest,
+        },
+        {
+            "name": EVIDENCE_LEDGER_FILENAME,
+            "kind": EVIDENCE_LEDGER_KIND,
+            "path": str(ledger_path),
+        },
+    ]
+    artifacts.extend(_json_safe(dict(artifact)) for artifact in extra_artifacts or [])
     return {
         "schema_version": EVIDENCE_LEDGER_SCHEMA_VERSION,
         "kind": EVIDENCE_LEDGER_KIND,
@@ -191,19 +231,7 @@ def build_evidence_ledger(
         "status": str(manifest.get("status", "unknown") or "unknown"),
         "created_at": str(manifest.get("created_at", "") or utc_now()),
         "claims": claims,
-        "artifacts": [
-            {
-                "name": WORKFLOW_RUN_MANIFEST_FILENAME,
-                "kind": WORKFLOW_RUN_MANIFEST_KIND,
-                "path": str(manifest_path),
-                "sha256": manifest_digest,
-            },
-            {
-                "name": EVIDENCE_LEDGER_FILENAME,
-                "kind": EVIDENCE_LEDGER_KIND,
-                "path": str(ledger_path),
-            },
-        ],
+        "artifacts": artifacts,
     }
 
 
@@ -230,12 +258,26 @@ def write_workflow_run_evidence(
         lab_dir,
         str(manifest["manifest_id"]),
     )
+    graph_path = workflow_evidence_graph_path(lab_dir, str(manifest["manifest_id"]))
+    graph = build_evidence_graph_from_workflow_manifest(manifest)
+    graph_issues = validate_evidence_graph(graph)
+    if graph_issues:
+        raise ValueError(f"Invalid workflow evidence graph: {'; '.join(graph_issues)}")
     ledger = build_evidence_ledger(
         manifest,
         manifest_path=manifest_path,
         ledger_path=ledger_path,
+        extra_artifacts=[
+            {
+                "name": EVIDENCE_GRAPH_FILENAME,
+                "kind": EVIDENCE_GRAPH_KIND,
+                "path": str(graph_path),
+                "sha256": sha256_payload(graph),
+            }
+        ],
     )
     _write_immutable_json(manifest_path, manifest)
+    _write_immutable_json(graph_path, graph)
     _write_immutable_json(ledger_path, ledger)
     _write_json(
         latest_path,
@@ -246,15 +288,18 @@ def write_workflow_run_evidence(
             "status": manifest["status"],
             "manifest_path": str(manifest_path),
             "ledger_path": str(ledger_path),
+            "graph_path": str(graph_path),
             "updated_at": manifest["created_at"],
         },
     )
     return WorkflowEvidenceBundle(
         manifest_path=manifest_path,
         ledger_path=ledger_path,
+        graph_path=graph_path,
         latest_path=latest_path,
         manifest=manifest,
         ledger=ledger,
+        graph=graph,
     )
 
 
@@ -262,13 +307,23 @@ def load_workflow_run_manifest(path: Path) -> dict[str, Any]:
     payload = json.loads(path.expanduser().read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"workflow run manifest must be a JSON object: {path}")
-    if int(payload.get("schema_version", 0)) != WORKFLOW_RUN_MANIFEST_SCHEMA_VERSION:
+    if int(payload.get("schema_version", 0)) not in SUPPORTED_WORKFLOW_RUN_MANIFEST_SCHEMAS:
         raise ValueError(f"Unsupported workflow run manifest schema: {payload.get('schema_version')!r}")
     if str(payload.get("kind", "")) != WORKFLOW_RUN_MANIFEST_KIND:
         raise ValueError(f"Unsupported workflow run manifest kind: {payload.get('kind')!r}")
     status = str(payload.get("status", "unknown"))
     if status not in SUPPORTED_STATUSES:
         raise ValueError(f"Unsupported workflow run manifest status: {status!r}")
+    runtime_contract = payload.get("runtime_contract")
+    if runtime_contract is not None:
+        if not isinstance(runtime_contract, Mapping):
+            raise ValueError("workflow run manifest runtime_contract must be a JSON object")
+        issues = validate_workflow_runtime_contract(runtime_contract)
+        if issues:
+            raise ValueError(f"Invalid workflow runtime contract: {'; '.join(issues)}")
+    evidence_graph = payload.get("evidence_graph")
+    if evidence_graph is not None and not isinstance(evidence_graph, Mapping):
+        raise ValueError("workflow run manifest evidence_graph must be a JSON object")
     return payload
 
 
@@ -288,14 +343,18 @@ def workflow_manifest_summary(manifest: Mapping[str, Any]) -> dict[str, Any]:
     workflow = workflow if isinstance(workflow, Mapping) else {}
     contracts = manifest.get("artifact_contracts", {})
     contracts = contracts if isinstance(contracts, Mapping) else {}
+    runtime_contract = manifest.get("runtime_contract", {})
+    runtime_contract = runtime_contract if isinstance(runtime_contract, Mapping) else {}
     return {
         "manifest_id": str(manifest.get("manifest_id", "") or ""),
         "run_id": str(manifest.get("run_id", "") or ""),
         "status": str(manifest.get("status", "unknown") or "unknown"),
+        "phase": str(runtime_contract.get("phase", "unknown") or "unknown"),
         "dag_path": str(workflow.get("dag_path", "") or ""),
         "unit_count": int(workflow.get("unit_count", 0) or 0),
         "produced_count": int(contracts.get("produced_count", 0) or 0),
         "consumed_count": int(contracts.get("consumed_count", 0) or 0),
+        "event_count": int(runtime_contract.get("event_count", 0) or 0),
     }
 
 
@@ -549,4 +608,3 @@ def _file_record(path: Path, *, name: str, kind: str) -> dict[str, Any]:
         "size_bytes": expanded.stat().st_size if exists and expanded.is_file() else None,
         "sha256": _sha256_file_or_empty(expanded),
     }
-

@@ -33,7 +33,9 @@ def _ensure_agilab_package_path() -> None:
 
 _ensure_agilab_package_path()
 dag_run_engine = importlib.import_module("agilab.dag_run_engine")
+evidence_graph = importlib.import_module("agilab.evidence_graph")
 workflow_run_manifest = importlib.import_module("agilab.workflow_run_manifest")
+runtime_contract = importlib.import_module("agilab.workflow_runtime_contract")
 
 LATEST_WORKFLOW_EVIDENCE_FILENAME = workflow_run_manifest.LATEST_WORKFLOW_EVIDENCE_FILENAME
 WORKFLOW_EVIDENCE_DIRNAME = workflow_run_manifest.WORKFLOW_EVIDENCE_DIRNAME
@@ -135,27 +137,72 @@ def test_workflow_run_manifest_writes_immutable_manifest_and_ledger(tmp_path: Pa
 
     assert first.manifest_path == second.manifest_path
     assert first.ledger_path == second.ledger_path
+    assert first.graph_path == second.graph_path
     assert first.latest_path == lab_dir / ".agilab" / WORKFLOW_EVIDENCE_DIRNAME / LATEST_WORKFLOW_EVIDENCE_FILENAME
 
     manifest = load_workflow_run_manifest(first.manifest_path)
     ledger = load_evidence_ledger(first.ledger_path)
+    graph = json.loads(first.graph_path.read_text(encoding="utf-8"))
     summary = workflow_manifest_summary(manifest)
 
-    assert manifest["schema_version"] == 2
+    assert manifest["schema_version"] == workflow_run_manifest.WORKFLOW_RUN_MANIFEST_SCHEMA_VERSION
+    assert "-v3-" in manifest["manifest_id"]
     assert manifest["status"] == "pass"
+    assert first.graph == graph
+    assert first.graph_path == first.manifest_path.parent / workflow_run_manifest.EVIDENCE_GRAPH_FILENAME
+    assert evidence_graph.validate_evidence_graph(graph) == ()
+    assert graph["summary"]["node_kinds"]["stage"] == 2
     assert summary["unit_count"] == 2
     assert summary["produced_count"] == 2
     assert summary["consumed_count"] == 1
+    assert summary["phase"] == "completed"
+    assert summary["event_count"] == 1
+    assert manifest["runtime_contract"]["schema"] == runtime_contract.WORKFLOW_RUNTIME_CONTRACT_SCHEMA
+    assert manifest["runtime_contract"]["phase"] == "completed"
+    assert runtime_contract.enabled_workflow_control_labels(manifest["runtime_contract"]) == ()
     assert manifest["runner_state"]["sha256"]
     assert manifest["runner_state"]["snapshot_sha256"]
     assert ledger["manifest_id"] == manifest["manifest_id"]
     assert ledger["claims"]
+    assert {
+        artifact["name"]
+        for artifact in ledger["artifacts"]
+    } >= {workflow_run_manifest.EVIDENCE_GRAPH_FILENAME, workflow_run_manifest.WORKFLOW_RUN_MANIFEST_FILENAME}
     assert {
         evidence["sha256"]
         for claim in ledger["claims"]
         for evidence in claim["evidence"]
         if evidence["kind"] == "agilab.workflow_run_manifest"
     } == {sha256_payload(manifest)}
+
+
+def test_workflow_run_manifest_loads_legacy_schema_v2_without_graph(tmp_path: Path) -> None:
+    legacy_path = tmp_path / "legacy_workflow_run_manifest.json"
+    legacy_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "kind": workflow_run_manifest.WORKFLOW_RUN_MANIFEST_KIND,
+                "manifest_id": "legacy-demo",
+                "run_id": "legacy-run",
+                "status": "unknown",
+                "workflow": {"unit_count": 0},
+                "artifact_contracts": {"produced_count": 0, "consumed_count": 0},
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest = load_workflow_run_manifest(legacy_path)
+    summary = workflow_manifest_summary(manifest)
+
+    assert manifest["schema_version"] == 2
+    assert summary["manifest_id"] == "legacy-demo"
+    assert summary["phase"] == "unknown"
+    assert "evidence_graph" not in manifest
 
 
 def test_dag_run_engine_emits_workflow_evidence_on_state_writes(tmp_path: Path) -> None:

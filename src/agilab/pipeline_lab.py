@@ -1633,12 +1633,18 @@ def _latest_workflow_evidence_summary(state_path: Path) -> dict[str, Any]:
     manifest_summary = workflow_manifest_summary(manifest)
     runner_state = manifest.get("runner_state", {})
     runner_state = runner_state if isinstance(runner_state, Mapping) else {}
+    runtime_contract = manifest.get("runtime_contract", {})
+    runtime_contract = runtime_contract if isinstance(runtime_contract, Mapping) else {}
     ledger_payload = manifest.get("evidence_ledger", {})
     ledger_payload = ledger_payload if isinstance(ledger_payload, Mapping) else {}
     ledger_path = _resolve_workflow_evidence_path(
         latest_payload.get("ledger_path") or ledger_payload.get("path"),
         latest_path,
     )
+    graph_payload = manifest.get("evidence_graph", {})
+    graph_payload = graph_payload if isinstance(graph_payload, Mapping) else {}
+    graph_path_value = latest_payload.get("graph_path") or graph_payload.get("path") or ""
+    graph_path = _resolve_workflow_evidence_path(graph_path_value, latest_path) if graph_path_value else None
     status_label = _workflow_evidence_status_label(
         str(manifest.get("status", "")),
         str(runner_state.get("run_status", "")),
@@ -1650,11 +1656,15 @@ def _latest_workflow_evidence_summary(state_path: Path) -> dict[str, Any]:
         "latest_path": str(latest_path),
         "manifest_path": str(manifest_path),
         "ledger_path": str(ledger_path),
+        "graph_path": str(graph_path) if graph_path else "",
         "manifest_id": manifest_summary.get("manifest_id", ""),
         "run_id": manifest_summary.get("run_id", ""),
         "unit_count": manifest_summary.get("unit_count", 0),
         "produced_count": manifest_summary.get("produced_count", 0),
         "consumed_count": manifest_summary.get("consumed_count", 0),
+        "phase": manifest_summary.get("phase", runtime_contract.get("phase", "unknown")),
+        "event_count": manifest_summary.get("event_count", runtime_contract.get("event_count", 0)),
+        "enabled_controls": _enabled_workflow_control_labels(runtime_contract),
         "runner_state_sha256": str(runner_state.get("snapshot_sha256", "")),
     }
 
@@ -1673,12 +1683,32 @@ def _render_workflow_run_evidence(state_path: Path) -> None:
     creates_col.metric("Creates", int(evidence.get("produced_count", 0) or 0))
     uses_col.metric("Uses", int(evidence.get("consumed_count", 0) or 0))
     st.caption(str(evidence.get("message", "Latest workflow evidence recorded.")))
+    st.caption(
+        "Runtime phase: "
+        f"`{evidence.get('phase', 'unknown')}`; "
+        f"events: {int(evidence.get('event_count', 0) or 0)}; "
+        f"enabled controls: {', '.join(evidence.get('enabled_controls', ())) or 'none'}"
+    )
     manifest_path = str(evidence.get("manifest_path", ""))
     ledger_path = str(evidence.get("ledger_path", ""))
+    graph_path = str(evidence.get("graph_path", ""))
     if manifest_path:
         st.caption(f"Manifest: `{manifest_path}`")
     if ledger_path:
         st.caption(f"Ledger: `{ledger_path}`")
+    if graph_path:
+        st.caption(f"Evidence graph: `{graph_path}`")
+
+
+def _enabled_workflow_control_labels(runtime_contract: Mapping[str, Any]) -> tuple[str, ...]:
+    controls = runtime_contract.get("controls", [])
+    if not isinstance(controls, list):
+        return ()
+    return tuple(
+        str(control.get("label", "") or "")
+        for control in controls
+        if isinstance(control, Mapping) and bool(control.get("enabled")) and str(control.get("label", "") or "")
+    )
 
 
 def _dot_quote(value: Any) -> str:

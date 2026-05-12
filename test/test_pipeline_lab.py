@@ -906,8 +906,12 @@ def test_pipeline_stages_runner_state_writes_workflow_evidence(tmp_path):
     assert evidence["available"] is True
     assert evidence["status_label"] == "planned"
     assert evidence["unit_count"] == 1
+    assert evidence["phase"] == "planned"
+    assert evidence["event_count"] == 1
+    assert "Run next stage" in evidence["enabled_controls"]
     assert Path(evidence["manifest_path"]).is_file()
     assert Path(evidence["ledger_path"]).is_file()
+    assert Path(evidence["graph_path"]).is_file()
 
 
 def test_render_workflow_run_evidence_displays_latest_manifest(monkeypatch, tmp_path):
@@ -938,8 +942,13 @@ def test_render_workflow_run_evidence_displays_latest_manifest(monkeypatch, tmp_
     assert ("metric", "Steps=2") in fake_st.messages
     assert ("metric", "Creates=2") in fake_st.messages
     assert ("metric", "Uses=1") in fake_st.messages
+    assert any(
+        kind == "caption" and "Runtime phase: `planned`; events: 1" in message
+        for kind, message in fake_st.messages
+    )
     assert any(kind == "caption" and message.startswith("Manifest: `") for kind, message in fake_st.messages)
     assert any(kind == "caption" and message.startswith("Ledger: `") for kind, message in fake_st.messages)
+    assert any(kind == "caption" and message.startswith("Evidence graph: `") for kind, message in fake_st.messages)
 
 
 def test_render_workflow_run_evidence_handles_missing_pointer(monkeypatch, tmp_path):
