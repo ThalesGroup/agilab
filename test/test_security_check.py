@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import importlib.util
 import json
+import runpy
 import sys
 from pathlib import Path
 
@@ -337,3 +338,24 @@ def test_build_report_accepts_generated_code_sandbox_indicator(tmp_path: Path):
     check = next(item for item in report["checks"] if item["id"] == "generated_code_execution_boundary")
     assert check["status"] == "pass"
     assert check["details"]["sandbox"] == "container"
+
+
+def test_script_entrypoint_exits_with_main_status(tmp_path: Path, monkeypatch, capsys):
+    home = tmp_path / "home"
+    home.mkdir()
+    _touch_now(tmp_path / "pip-audit.json")
+    _touch_now(tmp_path / "sbom-cyclonedx.json")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(sys, "argv", [str(SECURITY_CHECK_PATH), "--json"])
+
+    try:
+        runpy.run_path(str(SECURITY_CHECK_PATH), run_name="__main__")
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:  # pragma: no cover - the script contract is to raise SystemExit.
+        raise AssertionError("security_check script did not exit")
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["kind"] == "agilab.security_check"
+    assert payload["status"] == "pass"

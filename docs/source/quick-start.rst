@@ -69,7 +69,7 @@ If startup fails, run a local fallback first:
    uv --preview-features extra-build-dependencies tool install --upgrade agilab
    agilab first-proof --json
 
-Install the UI profile when you want the local Streamlit pages from the
+Use the UI profile when you want the local Streamlit pages from the
 published package::
 
    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
@@ -248,7 +248,7 @@ The dedicated docs page for this route is :doc:`agilab-demo`.
 **Published package route** (fastest install, less representative of the full product path)::
 
     uv --preview-features extra-build-dependencies tool install --upgrade agilab
-    agilab first-proof --json
+    agilab first-proof --json --max-seconds 60
 
 The base package install is intentionally CLI/core only. Install the UI profile
 before launching the local Streamlit app::
@@ -256,10 +256,12 @@ before launching the local Streamlit app::
     uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
     agilab
 
-If you also want a one-command onboarding manifest in this profile, run:
+If startup fails, or if you also want a one-command onboarding manifest in this
+profile, run:
 
 .. code-block:: bash
 
+   agilab dry-run
    agilab first-proof --json --with-ui
 
 Optional feature stacks stay out of the base package install. Add

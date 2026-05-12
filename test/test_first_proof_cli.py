@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import runpy
 import subprocess
 import sys
 import tomllib
@@ -141,11 +142,55 @@ def test_runtime_identity_records_launcher_and_distribution_versions(monkeypatch
     assert identity["distributions"]["agi-node"] == "2026.5.8"
 
 
+def test_runtime_identity_handles_missing_launcher_and_distributions(monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module.shutil, "which", lambda name: None)
+
+    def missing_version(name):
+        raise module.importlib_metadata.PackageNotFoundError(name)
+
+    monkeypatch.setattr(module.importlib_metadata, "version", missing_version)
+
+    identity = module.runtime_identity()
+
+    assert identity["launcher_path"] is None
+    assert set(identity["distributions"]) == set(module.RUNTIME_DISTRIBUTIONS)
+    assert all(version is None for version in identity["distributions"].values())
+
+
+def test_repo_root_and_marker_root_fall_back_outside_source_checkout(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    assert module._detect_repo_root(tmp_path) is None
+
+    monkeypatch.setattr(module, "_detect_repo_root", lambda start=module.PACKAGE_ROOT: None)
+
+    assert module._agilab_package_marker_root() == module.PACKAGE_ROOT.resolve()
+
+
+def test_default_active_app_falls_back_to_packaged_path(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    package_root = tmp_path / "package" / "agilab"
+    monkeypatch.setattr(module, "PACKAGE_ROOT", package_root)
+    monkeypatch.setattr(module, "_detect_repo_root", lambda start=package_root: None)
+
+    active_app = module.default_active_app()
+
+    assert active_app == (package_root / "apps" / "builtin" / module.FIRST_PROOF_PROJECT).resolve()
+
+
 def test_main_rejects_non_positive_kpi_target() -> None:
     module = _load_module()
 
     with pytest.raises(SystemExit):
         module.main(["--max-seconds", "0"])
+
+
+def test_main_rejects_dry_run_with_extended_profiles() -> None:
+    module = _load_module()
+
+    with pytest.raises(SystemExit):
+        module.main(["--dry-run", "--with-ui"])
 
 
 def test_main_json_no_manifest_reports_success(monkeypatch, tmp_path: Path, capsys) -> None:
@@ -309,6 +354,40 @@ def test_main_human_no_manifest_reports_failure(monkeypatch, tmp_path: Path, cap
     assert "boom" in output
 
 
+def test_main_human_success_reports_manifest_and_next_steps(monkeypatch, tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    active_app = tmp_path / "custom_project"
+    active_app.mkdir()
+    (active_app / "pyproject.toml").write_text("[project]\nname = 'custom'\n", encoding="utf-8")
+    manifest_path = tmp_path / "manifest" / "run_manifest.json"
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+
+    def fake_run_proof(commands):
+        command = commands[0]
+        return [
+            module.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=0,
+                duration_seconds=0.5,
+                stdout="",
+                env=command.env,
+            )
+        ]
+
+    monkeypatch.setattr(module, "run_proof", fake_run_proof)
+
+    exit_code = module.main(["--active-app", str(active_app), "--manifest-out", str(manifest_path)])
+
+    assert exit_code == 0
+    output = capsys.readouterr().out
+    assert "verdict: PASS" in output
+    assert "run `agilab`" in output
+    assert f"run manifest: {manifest_path}" in output
+    assert manifest_path.is_file()
+
+
 def test_run_proof_stops_on_first_failure() -> None:
     module = _load_module()
     commands = module.build_proof_commands(module.default_active_app(), with_install=True, with_ui=True)
@@ -321,6 +400,23 @@ def test_run_proof_stops_on_first_failure() -> None:
 
     assert [result.label for result in results] == ["package preinit smoke", "package ui smoke"]
     assert results[-1].returncode == 7
+
+
+def test_run_proof_returns_all_results_when_every_step_passes() -> None:
+    module = _load_module()
+    commands = module.build_proof_commands(module.default_active_app(), with_install=True)
+
+    def fake_runner(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    results = module.run_proof(commands, runner=fake_runner)
+
+    assert [result.label for result in results] == [
+        "package preinit smoke",
+        "flight install smoke",
+        "seeded script check",
+    ]
+    assert all(result.returncode == 0 for result in results)
 
 
 def test_run_command_records_timeout() -> None:
@@ -339,6 +435,19 @@ def test_run_command_records_timeout() -> None:
 
     assert result.returncode == 124
     assert "Timed out after 1s" in result.stdout
+
+
+def test_run_command_records_empty_stdout() -> None:
+    module = _load_module()
+    command = module.ProofCommand(label="demo", description="demo", argv=(sys.executable, "-V"))
+
+    def fake_runner(cmd, **kwargs):
+        return subprocess.CompletedProcess(cmd, 0, stdout=None, stderr="")
+
+    result = module.run_command(command, runner=fake_runner)
+
+    assert result.returncode == 0
+    assert result.stdout == ""
 
 
 def test_build_run_manifest_records_cli_command(tmp_path: Path) -> None:
@@ -403,6 +512,17 @@ def test_collect_existing_artifacts_skips_internal_helpers(tmp_path: Path) -> No
     assert {"run_manifest", "metrics.json"} <= artifact_names
     assert ".hidden" not in artifact_names
     assert "AGI_install_flight.py" not in artifact_names
+
+
+def test_collect_existing_artifacts_handles_missing_output_dir(tmp_path: Path) -> None:
+    module = _load_module()
+    output_dir = tmp_path / "missing-output"
+    manifest_path = output_dir / "run_manifest.json"
+
+    artifacts = module._collect_existing_artifacts(output_dir, manifest_path)
+
+    assert [artifact.name for artifact in artifacts] == ["run_manifest"]
+    assert artifacts[0].path == str(manifest_path)
 
 
 def test_executed_argv_records_non_default_options(tmp_path: Path) -> None:
@@ -507,3 +627,13 @@ def test_package_discovery_includes_about_page_helpers() -> None:
     assert "agilab.about_page*" in package_includes
     for helper in ("bootstrap.py", "env_editor.py", "layout.py", "onboarding.py"):
         assert (ROOT / "src" / "agilab" / "about_page" / helper).is_file()
+
+
+def test_script_entrypoint_print_only_exits_successfully(capsys, monkeypatch) -> None:
+    monkeypatch.setattr(sys, "argv", [str(MODULE_PATH), "--print-only"])
+
+    with pytest.raises(SystemExit) as exc:
+        runpy.run_path(str(MODULE_PATH), run_name="__main__")
+
+    assert exc.value.code == 0
+    assert "AGILAB first proof" in capsys.readouterr().out

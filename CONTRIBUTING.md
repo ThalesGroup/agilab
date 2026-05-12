@@ -19,6 +19,7 @@ supported first routes.
 - Open a GitHub issue containing `[CONTRIBUTOR]` in its title if you are a new contributor.
 - Keep pull requests focused on one app, feature, bug class, or documentation path.
 - Prefer app-local changes before shared-core changes. Shared core includes `src/agilab/core/*`, installer/build/deploy tooling, and generic helpers reused across apps.
+- State the stability boundary when a change crosses runtime core, beta UI, built-in examples, learning examples, release tooling, or agent/IDE automation.
 - Declare any third-party intellectual property used by your change in an `IP.md` file before pushing.
 - Open management/process issues with `[MANAGEMENT]` in the title.
 
@@ -38,6 +39,7 @@ supported first routes.
 - Include a license check report using [checklicense](https://pypi.org/project/licensecheck/) when new dependencies, vendored code, or generated artifacts are introduced.
 - If dependencies, extras, workflows, or optional runtime profiles change, include the relevant SBOM / `pip-audit` evidence or explain why the existing release profile is unchanged.
 - Keep generated and local-only artifacts out of the diff.
+- Keep repository-scope changes explicit: runtime packages, beta UI, built-in apps, examples, release tooling, docs, and agent workflows should not be mixed unless the pull request explains why.
 
 ## Security Checklist
 

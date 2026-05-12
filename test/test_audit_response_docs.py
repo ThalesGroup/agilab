@@ -135,10 +135,17 @@ def test_quick_start_documents_security_adoption_checkpoint() -> None:
 
 def test_readme_uses_recommended_workbench_positioning() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
+    local_pypi_proof = readme.split("### Local PyPI UI Proof", 1)[1].split(
+        "For a zero-install browser preview", 1
+    )[0]
 
     assert "AGILAB is a reproducible AI/ML workbench for engineering teams." in readme
     assert "AGILAB complements MLflow and production MLOps platforms." in readme
+    assert "MLflow tracks experiments; AGILAB transforms notebooks and scripts" in readme
     assert "reproducible execution and analysis layer" in readme
+    assert "agilab\n```" in local_pypi_proof
+    assert "first-proof" not in local_pypi_proof
+    assert "If startup fails, run a progressive fallback" in readme
     assert "| `examples` extra |" in readme
     assert "| `agents` extra |" in readme
     assert "| `dev` extra |" in readme
@@ -146,10 +153,18 @@ def test_readme_uses_recommended_workbench_positioning() -> None:
 
 def test_quick_start_documents_public_install_tiers() -> None:
     quick_start = (DOCS_SOURCE / "quick-start.rst").read_text(encoding="utf-8")
+    ui_route = quick_start.split(
+        "The base package install is intentionally CLI/core only. Install the UI profile",
+        1,
+    )[1].split("Optional feature stacks", 1)[0]
 
     assert "``agilab[agents]`` for the packaged agent workflow client dependencies" in quick_start
     assert "``agilab[examples]`` for notebook/demo helper dependencies" in quick_start
     assert "``agilab[dev]`` for contributor-only test/build tooling" in quick_start
+    assert 'tool install --upgrade "agilab[ui]"\n    agilab' in ui_route
+    assert "agilab first-proof --json --max-seconds 60" not in ui_route
+    assert "agilab dry-run" in ui_route
+    assert "agilab first-proof --json --with-ui" in ui_route
     assert "base, UI, AI, agents, examples, MLflow, local-LLM, offline, and dev install" in quick_start
 
 

@@ -47,6 +47,7 @@ def test_discover_app_templates_returns_deterministic_template_specs(tmp_path: P
     assert registry.require("a_app_template").root_path == a_template.resolve()
     assert registry.require("z_app_template").settings_path == z_template.resolve() / "src" / "app_settings.toml"
     assert registry.require("a_app_template").schema == APP_TEMPLATE_SCHEMA
+    assert registry.templates == (registry.require("a_app_template"), registry.require("z_app_template"))
 
 
 def test_discover_app_templates_can_require_manifest_and_settings(tmp_path: Path) -> None:
@@ -102,3 +103,27 @@ def test_app_template_registry_reports_invalid_unknown_and_duplicate_names(tmp_p
         AppTemplateRegistry((first, duplicate))
     with pytest.raises(KeyError, match="Unknown app template 'missing_app_template'"):
         AppTemplateRegistry((first,)).require("missing_app_template")
+
+
+def test_app_template_spec_normalizes_string_paths(tmp_path: Path) -> None:
+    template = AppTemplateSpec(
+        " string_paths_app_template ",
+        str(tmp_path / "template"),
+        str(tmp_path / "template" / "pyproject.toml"),
+        str(tmp_path / "template" / "src" / "app_settings.toml"),
+    )
+
+    assert template.name == "string_paths_app_template"
+    assert template.root_path == tmp_path / "template"
+    assert template.pyproject_path == tmp_path / "template" / "pyproject.toml"
+    assert template.settings_path == tmp_path / "template" / "src" / "app_settings.toml"
+
+
+def test_discover_app_templates_handles_invalid_and_missing_roots(tmp_path: Path) -> None:
+    missing = tmp_path / "missing"
+    file_root = tmp_path / "templates.txt"
+    file_root.write_text("not a directory", encoding="utf-8")
+
+    assert discover_app_templates(missing).names() == ()
+    assert discover_app_templates(file_root).names() == ()
+    assert discover_app_template(object(), "demo_app_template") is None

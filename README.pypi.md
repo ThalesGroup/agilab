@@ -18,6 +18,8 @@ It turns notebooks and scripts into controlled, executable apps with:
 
 AGILAB complements MLflow and production MLOps platforms. It owns the
 reproducible execution and analysis layer around them.
+In short: MLflow tracks experiments; AGILAB transforms notebooks and scripts
+into reproducible executable AI applications.
 
 ## Core Flow
 
@@ -130,6 +132,26 @@ AGILAB separates public claims by evidence type:
 | Benchmarks | Timings for declared hardware, datasets, modes, and benchmark scripts. | General performance across arbitrary hardware, networks, or datasets. |
 | Self-assessment | KPI scores such as production readiness and strategic potential are maintained from repository evidence. | External validation or third-party certification. |
 | External validation | Only claimed when a named external artifact, reviewer, CI provider, or hosted demo proof is linked. | Implied endorsement beyond the linked evidence. |
+
+## Repository Map And Stability Boundaries
+
+The source repository intentionally keeps runtime packages, UI, built-in apps,
+examples, release tooling, agent workflows, and docs together so release proof
+can validate one coherent tree. Their stability differs:
+
+| Area | Role | Stability contract |
+|---|---|---|
+| `src/agilab/core/*` | Runtime packages and compact API. | Stable where documented. |
+| `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI. | Beta product surface. |
+| `src/agilab/apps/builtin` | First-proof and demo apps. | Packaged examples, not deployment templates. |
+| `src/agilab/examples` | Learning scripts and notebooks. | Educational examples with optional dependencies. |
+| `tools`, `.github`, IDE and agent folders | Contributor/release automation. | Maintainer tooling, not runtime API. |
+
+Local source checkouts can grow after runs because app `.venv` directories,
+build outputs, caches, logs, and datasets are created locally. Those artifacts
+are not the package contract. Public wheels exclude virtual environments,
+tests, `docs/html`, build directories, generated C files, `__pycache__`, `.pyc`,
+and `.egg-info` artifacts.
 
 ## Choose Your Path
 

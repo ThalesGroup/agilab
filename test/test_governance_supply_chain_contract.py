@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import tomllib
 
 
 DEPENDABOT = Path(".github/dependabot.yml")
@@ -8,6 +9,7 @@ PR_TEMPLATE = Path(".github/PULL_REQUEST_TEMPLATE.md")
 CONTRIBUTING = Path("CONTRIBUTING.md")
 README = Path("README.md")
 PYPI_README = Path("README.pypi.md")
+PYPROJECT = Path("pyproject.toml")
 
 
 def test_dependabot_visibility_covers_python_and_github_actions() -> None:
@@ -37,11 +39,15 @@ def test_contributing_documents_enterprise_governance_boundaries() -> None:
         "Security Checklist",
         "External App Acceptance",
         "SBOM / `pip-audit` evidence",
+        "State the stability boundary",
+        "Keep repository-scope changes explicit",
     ):
         assert fragment in contributing
 
     for fragment in (
+        "Stability boundary: runtime core / beta UI / built-in app / learning example / release tooling / agent or IDE automation",
         "DCO/CLA status",
+        "Repository-scope changes stay within the stated stability boundary",
         "Security checklist considered",
         "SBOM / `pip-audit` evidence",
         "External app/example changes meet the public acceptance criteria",
@@ -70,5 +76,43 @@ def test_readmes_explain_production_dependency_and_evidence_boundaries() -> None
             "Self-assessment",
             "External validation",
             "Independent certification",
+            "## Repository Map And Stability Boundaries",
+            "Runtime packages",
+            "Beta product surface",
+            "Packaged examples",
+            "Maintainer tooling, not runtime API",
         ):
             assert fragment in text
+
+
+def test_readmes_document_package_surface_contract() -> None:
+    for path in (README, PYPI_README):
+        text = path.read_text(encoding="utf-8")
+        for fragment in (
+            "Local source checkouts can grow after runs",
+            "not the package contract",
+            "exclude virtual environments",
+            "tests, `docs/html`, build directories",
+            "generated C files",
+            "`__pycache__`, `.pyc`",
+            "`.egg-info` artifacts",
+        ):
+            assert fragment in text
+
+
+def test_pyproject_keeps_local_artifacts_out_of_package_surface() -> None:
+    pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    setuptools_config = pyproject["tool"]["setuptools"]
+    find_config = setuptools_config["packages"]["find"]
+    package_data = setuptools_config["package-data"]["agilab"]
+    exclude_data = setuptools_config["exclude-package-data"]["agilab"]
+
+    assert setuptools_config["include-package-data"] is False
+    assert ".venv*" in find_config["exclude"]
+    assert "test*" in find_config["exclude"]
+    assert "build*" in find_config["exclude"]
+    assert not any(".venv" in pattern for pattern in package_data)
+    assert not any("docs/html" in pattern for pattern in package_data)
+    assert "apps/builtin/*/src/*/*.c" in exclude_data
+    assert "apps/builtin/*/src/*.pyc" in exclude_data
+    assert "apps/builtin/*/src/*/*.egg-info/*" in exclude_data
