@@ -148,6 +148,16 @@ def test_package_lookup_rejects_unknown_package() -> None:
         package_by_name("not-a-public-package")
 
 
+def test_src_layout_packages_do_not_publish_top_level_init_modules() -> None:
+    leaking_src_roots = [
+        package.name
+        for package in LIBRARY_PACKAGE_CONTRACTS
+        if (project_path(REPO_ROOT, package) / "src" / "__init__.py").exists()
+    ]
+
+    assert leaking_src_roots == []
+
+
 def test_workflow_and_docs_cover_the_same_eight_package_split() -> None:
     workflow = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text(encoding="utf-8")
     docs = (REPO_ROOT / "docs/source/package-publishing-policy.rst").read_text(encoding="utf-8")
