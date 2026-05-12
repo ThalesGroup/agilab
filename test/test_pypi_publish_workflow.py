@@ -68,6 +68,12 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "id-token: write" in text
     assert "name: ${{ matrix.pypi_environment }}" in text
     assert "name: pypi-agilab" in text
+    assert "trusted-publisher-contract:" in text
+    assert "Render PyPI trusted publisher contract" in text
+    assert "tools/pypi_trusted_publisher_contract.py" in text
+    assert "--check-workflow .github/workflows/pypi-publish.yaml" in text
+    assert "Report trusted publisher claim for ${{ matrix.package }}" in text
+    assert "Report trusted publisher claim for agilab" in text
     assert "uses: pypa/gh-action-pypi-publish@" in text
     assert "# release/v1" in text
     assert "tools/pypi_distribution_state.py" in text

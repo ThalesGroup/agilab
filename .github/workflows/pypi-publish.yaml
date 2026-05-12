@@ -168,11 +168,32 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  trusted-publisher-contract:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Render PyPI trusted publisher contract
+        run: |
+          set -euxo pipefail
+          python tools/pypi_trusted_publisher_contract.py \
+            --check-workflow .github/workflows/pypi-publish.yaml \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+
   publish-library-packages:
     needs:
       - test
       - release-evidence
       - supply-chain-evidence
+      - trusted-publisher-contract
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -265,6 +286,14 @@ jobs:
           echo "ERROR: PyPI publication requires Trusted Publishing/OIDC. Configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
           exit 2
 
+      - name: Report trusted publisher claim for ${{ matrix.package }}
+        if: steps.library-pypi-state.outputs.all-exist != 'true'
+        run: |
+          set -euxo pipefail
+          python tools/pypi_trusted_publisher_contract.py \
+            --package "${{ matrix.package }}" \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+
       # PyPI OIDC tokens are project-scoped. The matrix gives each PyPI
       # project a distinct GitHub environment claim.
       - name: Publish ${{ matrix.package }} to PyPI with trusted publishing
@@ -333,6 +362,14 @@ jobs:
           fi
           echo "ERROR: PyPI publication requires Trusted Publishing/OIDC. Configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
           exit 2
+
+      - name: Report trusted publisher claim for agilab
+        if: steps.agilab-pypi-state.outputs.all-exist != 'true'
+        run: |
+          set -euxo pipefail
+          python tools/pypi_trusted_publisher_contract.py \
+            --package agilab \
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
 
       - name: Publish agilab to PyPI with trusted publishing
         if: steps.agilab-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
