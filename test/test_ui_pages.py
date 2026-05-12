@@ -290,6 +290,17 @@ def _all_button_labels(at: AppTest) -> list[str]:
     return labels
 
 
+def _page_text(at: AppTest) -> str:
+    elements = [
+        *at.markdown,
+        *at.caption,
+        *at.info,
+        *at.warning,
+        *at.error,
+    ]
+    return "\n".join(str(item.value) for item in elements)
+
+
 def _element_labels(container) -> list[str]:
     return [
         str(label)
@@ -302,6 +313,46 @@ def _assert_docs_actions_absent(at: AppTest) -> None:
     labels = _all_button_labels(at)
     assert "Read Documentation" not in labels
     assert "Open Local Documentation" not in labels
+
+
+def _write_minimal_run_manifest(manifest_path: Path, *, app_name: str = "flight_project") -> None:
+    run_manifest = _import_agilab_module("agilab.run_manifest")
+    manifest = run_manifest.build_run_manifest(
+        path_id=f"{app_name}-apptest",
+        label="WORKFLOW AppTest run",
+        status="pass",
+        command=run_manifest.RunManifestCommand(
+            label="workflow apptest",
+            argv=("agilab", "workflow"),
+            cwd=str(Path.cwd()),
+            env_overrides={},
+        ),
+        environment=run_manifest.RunManifestEnvironment(
+            python_version="3.13.13",
+            python_executable=sys.executable,
+            platform="test",
+            repo_root=str(Path.cwd()),
+            active_app=str(Path.cwd() / "src/agilab/apps/builtin" / app_name),
+            app_name=app_name,
+        ),
+        timing=run_manifest.RunManifestTiming(
+            started_at="2026-05-12T10:00:00Z",
+            finished_at="2026-05-12T10:00:03Z",
+            duration_seconds=3.25,
+            target_seconds=60.0,
+        ),
+        artifacts=[],
+        validations=[
+            run_manifest.RunManifestValidation(
+                label="workflow_page",
+                status="pass",
+                summary="WORKFLOW page rendered",
+            )
+        ],
+        run_id="run-workflow-apptest",
+        created_at="2026-05-12T10:00:03Z",
+    )
+    run_manifest.write_run_manifest(manifest, manifest_path)
 
 
 def test_first_party_pages_configure_docs_menu_items() -> None:
@@ -1230,6 +1281,79 @@ def test_experiment_page_load(mock_ui_env):
     assert "Inspect experiment runs separately from pipeline execution." not in sidebar_text
     assert "Start it from Edit." not in sidebar_text
     assert "MLflow" not in sidebar_text
+
+
+def test_workflow_page_surfaces_existing_run_log_contract(mock_ui_env):
+    """WORKFLOW should reference the existing log/execute run evidence, not a parallel history."""
+    at = _app_test("src/agilab/pages/3_WORKFLOW.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.get_projects = MagicMock(return_value=["flight_project"])
+    runenv = Path(env.runenv)
+    runenv.mkdir(parents=True, exist_ok=True)
+    latest_log = runenv / "run_20260512_100000.log"
+    latest_log.write_text("workflow run finished\n", encoding="utf-8")
+    _write_minimal_run_manifest(runenv / "run_manifest.json", app_name="flight_project")
+
+    at.session_state["env"] = env
+    at.session_state["flight_project"] = [0, "", "", "", "", ""]
+    at.session_state["flight_project__venv_map"] = {}
+
+    at.run()
+
+    assert not at.exception
+    page_text = _page_text(at)
+    assert "Execution log" in page_text
+    assert "Plan evidence" in page_text
+    assert str(latest_log) in page_text
+    assert str(runenv / "run_manifest.json") in page_text
+    assert "Latest execution" in "".join(str(item.label) for item in at.expander)
+
+
+def test_workflow_dag_project_keeps_dataframe_load_export_controls_hidden(tmp_path):
+    """DAG-only projects should expose workflow execution, not dataframe load/export actions."""
+    export_root = tmp_path / "export"
+    log_root = tmp_path / "log"
+    home_root = tmp_path / "home"
+    export_root.mkdir()
+    log_root.mkdir()
+    home_root.mkdir()
+    apps_dir = Path("src/agilab/apps/builtin").resolve()
+    with patch.dict(
+        os.environ,
+        {
+            "HOME": str(home_root),
+            "AGI_EXPORT_DIR": str(export_root),
+            "AGI_LOG_DIR": str(log_root),
+            "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+            "OPENAI_API_KEY": "dummy",
+            "IS_SOURCE_ENV": "1",
+        },
+        clear=False,
+    ):
+        env = AgiEnv(apps_path=apps_dir, app="global_dag_project", verbose=0)
+        env.init_done = True
+        env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+        env.get_projects = MagicMock(return_value=["global_dag_project"])
+        at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=30)
+        at.session_state["env"] = env
+        at.session_state["global_dag_project"] = [0, "", "", "", "", ""]
+        at.session_state["global_dag"] = [0, "", "", "", "", ""]
+        at.session_state["global_dag_project__venv_map"] = {}
+
+        at.run()
+
+    assert not at.exception
+    page_text = _page_text(at)
+    assert "Execution log" in page_text
+    assert "Plan evidence" in page_text
+    labels = _all_button_labels(at)
+    assert "Run workflow" in labels
+    assert "Load output" not in labels
+    assert "Export" not in labels
+    assert "Delete output" not in labels
+    assert "No dataframe export found yet" not in page_text
 
 
 def test_pipeline_page_restores_missing_export_stages_from_project_source(mock_ui_env):
