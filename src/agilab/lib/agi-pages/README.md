@@ -4,10 +4,10 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-pages.svg)](https://pypi.org/project/agi-pages/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-pages)](https://opensource.org/licenses/BSD-3-Clause)
 
-`agi-pages` packages the public AGILAB analysis page bundles. These are the
-sidecar Streamlit dashboards used by the AGILAB ANALYSIS page for maps,
-training reports, release decisions, UAV queue analysis, and related visual
-inspections.
+`agi-pages` packages optional public analysis view modules for AGILAB. When the
+package is installed, the AGILAB ANALYSIS page can discover reusable views for
+maps and topology, training reports, release decisions, queue/resilience
+analysis, and related run-result inspections.
 
 ## Quick Install
 
