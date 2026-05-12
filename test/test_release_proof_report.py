@@ -311,6 +311,21 @@ def test_release_proof_manifest_and_toml_helpers_fail_clearly(tmp_path: Path) ->
     invalid_manifest = tmp_path / "release_proof.toml"
     invalid_manifest.write_text('schema = "wrong.schema"\n', encoding="utf-8")
 
+    assert module._format_toml_scalar(True) == "true"
+    assert module._format_toml_scalar(7) == "7"
+    empty_list_lines: list[str] = []
+    module._dump_toml_key_value(empty_list_lines, "items", [])
+    assert empty_list_lines == ["items = []"]
+    manifest_text = module.dump_manifest(
+        {
+            "schema": module.SCHEMA,
+            "release": {"package_name": "agilab", "package_version": "2026.05.11"},
+            "ci_runs": [{"workflow": "coverage", "run_id": "1"}],
+        }
+    )
+    assert "[release]" in manifest_text
+    assert "[[ci_runs]]" in manifest_text
+
     with pytest.raises(ValueError, match="agilab.release_proof.v1"):
         module.load_manifest(invalid_manifest)
     with pytest.raises(KeyError, match="unknown release proof template key"):
@@ -323,6 +338,18 @@ def test_release_proof_manifest_and_toml_helpers_fail_clearly(tmp_path: Path) ->
         module._dump_toml_key_value([], "items", [{"key": "value"}])
     with pytest.raises(TypeError, match="must be emitted as a table"):
         module._dump_toml_key_value([], "table", {"key": "value"})
+    with pytest.raises(TypeError, match="release.*table"):
+        module._template_context({"release": []})
+    with pytest.raises(TypeError, match="package_extras"):
+        module._template_context({"release": {"package_name": "agilab", "package_extras": "ui"}})
+    with pytest.raises(TypeError, match="\\[missing\\]"):
+        module._required_table("missing", {})
+    with pytest.raises(TypeError, match="items"):
+        module._required_list("items", {"items": "not-a-list"})
+
+    wrapped: list[str] = []
+    module._append_wrapped(wrapped, "", initial_indent="- ")
+    assert wrapped == ["-"]
 
 
 def test_release_proof_version_comparison_accepts_package_lag() -> None:
@@ -348,3 +375,74 @@ def test_release_proof_load_project_version_handles_missing_or_invalid_pyproject
     assert module._load_project_version(tmp_path) is None
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
     assert module._load_project_version(tmp_path) is None
+
+
+def test_release_proof_github_and_git_helpers_cover_failure_paths(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+
+    assert module._run_git(tmp_path, ["remote", "get-url", "origin"]) is None
+    assert module._release_tag_prefix("draft") is None
+    assert module._latest_local_release_tag(tmp_path, "draft") is None
+    assert module._github_repo_base_url(tmp_path) is None
+    with pytest.raises(RuntimeError, match="unable to infer GitHub repository"):
+        module._resolve_github_repo(tmp_path, None)
+    assert module._github_created_at("") is None
+    assert module._github_created_at("not-a-date") is None
+
+    monkeypatch.setattr(module, "_run_git", lambda _root, _args: "git@github.com:ThalesGroup/agilab.git")
+    assert module._github_repo_base_url(tmp_path) == "https://github.com/ThalesGroup/agilab"
+    assert module._github_repo_name(tmp_path) == "ThalesGroup/agilab"
+    assert module._resolve_github_repo(tmp_path, "Owner/repo") == "Owner/repo"
+
+    monkeypatch.setattr(module, "_run_git", lambda _root, _args: "ssh://example.com/repo.git")
+    assert module._github_repo_base_url(tmp_path) is None
+
+
+def test_release_proof_latest_successful_github_runs_filters_rows(monkeypatch) -> None:
+    module = _load_module()
+
+    rows = [
+        "not-a-row",
+        {"workflowName": "coverage", "headSha": "other", "status": "completed", "conclusion": "success"},
+        {"workflowName": "coverage", "headSha": "abc", "status": "completed", "conclusion": "failure"},
+        {
+            "databaseId": 42,
+            "workflowName": "coverage",
+            "headSha": "abc",
+            "status": "completed",
+            "conclusion": "success",
+            "url": "https://github.com/ThalesGroup/agilab/actions/runs/42",
+            "createdAt": "2026-05-11T00:00:00Z",
+            "event": "push",
+        },
+    ]
+    monkeypatch.setattr(module, "_run_gh_json", lambda _args: rows)
+
+    found = module._latest_successful_github_runs(
+        repo="ThalesGroup/agilab",
+        workflows=("coverage",),
+        branch="main",
+        head_sha="abc",
+        limit=10,
+    )
+    assert found["coverage"]["databaseId"] == "42"
+
+    monkeypatch.setattr(module, "_run_gh_json", lambda _args: {"not": "a-list"})
+    with pytest.raises(RuntimeError, match="JSON list"):
+        module._latest_successful_github_runs(
+            repo="ThalesGroup/agilab",
+            workflows=("coverage",),
+            branch=None,
+            head_sha=None,
+            limit=10,
+        )
+
+    monkeypatch.setattr(module, "_run_gh_json", lambda _args: [])
+    with pytest.raises(RuntimeError, match="missing successful GitHub workflow runs"):
+        module._latest_successful_github_runs(
+            repo="ThalesGroup/agilab",
+            workflows=("coverage",),
+            branch=None,
+            head_sha="abc",
+            limit=10,
+        )
