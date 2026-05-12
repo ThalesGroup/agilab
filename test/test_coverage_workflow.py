@@ -114,6 +114,13 @@ def test_agi_gui_coverage_includes_notebook_colab_support_helper() -> None:
     assert "test/test_notebook_colab_support.py" in run_block
 
 
+def test_agi_gui_coverage_includes_first_proof_and_notebook_import_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_first_proof_wizard.py" in run_block
+    assert "test/test_notebook_import_doctor.py" in run_block
+
+
 def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
     run_block = _agi_gui_run_block()
 
@@ -147,6 +154,17 @@ def test_agi_gui_coverage_includes_about_agilab_helpers() -> None:
     assert "test/test_about_agilab_helpers.py" in run_block
 
 
+def test_agi_gui_coverage_includes_core_ui_runtime_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_action_execution.py" in run_block
+    assert "test/test_import_guard.py" in run_block
+    assert "test/test_logging_utils.py" in run_block
+    assert "test/test_page_bundle_registry.py" in run_block
+    assert "test/test_runtime_diagnostics.py" in run_block
+    assert "test/test_snippet_registry.py" in run_block
+
+
 def test_agi_gui_coverage_includes_cluster_doctor_helpers() -> None:
     run_block = _agi_gui_run_block()
 
@@ -154,10 +172,37 @@ def test_agi_gui_coverage_includes_cluster_doctor_helpers() -> None:
     assert "test/test_cluster_lan_discovery.py" in run_block
 
 
+def test_agi_gui_coverage_includes_dag_execution_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_dag_execution_adapters.py" in run_block
+    assert "test/test_dag_execution_registry.py" in run_block
+    assert "test/test_dag_run_engine.py" in run_block
+
+
+def test_agi_gui_coverage_includes_workflow_contract_helpers() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_evidence_graph.py" in run_block
+    assert "test/test_multi_app_dag_draft.py" in run_block
+    assert "test/test_multi_app_dag_templates.py" in run_block
+    assert "test/test_workflow_run_manifest.py" in run_block
+    assert "test/test_workflow_runtime_contract.py" in run_block
+
+
 def test_agi_gui_coverage_includes_pipeline_run_controls() -> None:
     run_block = _agi_gui_run_block()
 
+    assert "test/test_pipeline_ai_support.py" in run_block
+    assert "test/test_pipeline_page_state.py" in run_block
+    assert "test/test_pipeline_recipe_memory.py" in run_block
     assert "test/test_pipeline_run_controls.py" in run_block
+
+
+def test_agi_gui_coverage_includes_orchestrate_page_support() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_orchestrate_page_support.py" in run_block
 
 
 def test_agi_gui_coverage_explicit_test_files_exist() -> None:

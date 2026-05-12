@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 
 MODULE_PATH = Path("tools/workflow_parity.py").resolve()
+WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 
 
 def _has_with_dependency(argv: list[str], dependency: str) -> bool:
@@ -24,6 +26,59 @@ def _load_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _coverage_workflow_agi_gui_targets() -> dict[str, list[str]]:
+    chunks: dict[str, list[str]] = {}
+    current_chunk: str | None = None
+    for line in WORKFLOW_PATH.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        match = re.fullmatch(r"run_gui_chunk ([a-z]+) \\", stripped)
+        if match:
+            current_chunk = match.group(1)
+            chunks[current_chunk] = []
+            continue
+        if current_chunk is None:
+            continue
+        if not stripped:
+            current_chunk = None
+            continue
+        if stripped.startswith(("test/", "src/agilab/")):
+            chunks[current_chunk].append(stripped.removesuffix("\\").strip())
+            continue
+        current_chunk = None
+    return chunks
+
+
+def _parity_agi_gui_targets(module) -> dict[str, list[str]]:
+    args = SimpleNamespace(components=None, skills=None, app_path=None, worker_copy=None)
+    commands = module._profile_commands(args)["agi-gui"][:6]
+    targets_by_chunk: dict[str, list[str]] = {}
+    for command in commands:
+        match = re.fullmatch(r"agi-gui coverage \(([a-z]+)\)", command.label)
+        assert match is not None
+        targets_by_chunk[match.group(1)] = [
+            arg for arg in command.argv if arg.startswith(("test/", "src/agilab/"))
+        ]
+    return targets_by_chunk
+
+
+def test_agi_gui_workflow_parity_matches_coverage_workflow_targets() -> None:
+    module = _load_module()
+    expected = {
+        chunk: module._expand_repo_globs(paths)
+        for chunk, paths in _coverage_workflow_agi_gui_targets().items()
+    }
+    actual = _parity_agi_gui_targets(module)
+
+    assert set(actual) == set(expected)
+    for chunk in sorted(expected):
+        missing = sorted(set(expected[chunk]) - set(actual[chunk]))
+        extra = sorted(set(actual[chunk]) - set(expected[chunk]))
+        assert not missing and not extra, (
+            f"workflow_parity agi-gui chunk {chunk!r} drifted from coverage.yml; "
+            f"missing={missing}, extra={extra}"
+        )
 
 
 def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
