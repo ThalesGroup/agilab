@@ -152,6 +152,47 @@ def test_data_connector_facility_accepts_aws_azure_and_gcp_object_storage(tmp_pa
     assert any(connector.get("account") == "agilabstorage" for connector in object_rows)
 
 
+def test_data_connector_facility_accepts_secret_uri_auth_refs(tmp_path: Path) -> None:
+    core_module = _load_module(CORE_PATH, "data_connector_facility_secret_uri_test_module")
+    catalog = {
+        "connectors": [
+            {
+                "id": "warehouse_sql",
+                "kind": "sql",
+                "label": "Warehouse SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+                "driver": "postgresql",
+                "query_mode": "read_only",
+            },
+            {
+                "id": "ops_opensearch",
+                "kind": "opensearch",
+                "label": "Operations OpenSearch",
+                "url": "https://opensearch.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env://OPENSEARCH_TOKEN",
+            },
+            {
+                "id": "artifact_object_store",
+                "kind": "object_storage",
+                "label": "Artifact Object Store",
+                "provider": "s3",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "secret://agilab/aws_profile",
+            },
+        ]
+    }
+
+    state = core_module.build_data_connector_facility(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "validated"
+    assert state["summary"]["raw_secret_count"] == 0
+
+
 def test_data_connector_facility_accepts_elk_and_hawk_search(tmp_path: Path) -> None:
     core_module = _load_module(CORE_PATH, "data_connector_facility_search_test_module")
     catalog = {

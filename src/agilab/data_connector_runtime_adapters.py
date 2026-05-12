@@ -23,6 +23,7 @@ from agilab.data_connector_search import (
     search_index_runtime_dependency,
     search_index_target,
 )
+from agilab.secret_uri import credential_env_name
 
 
 SCHEMA = "agilab.data_connector_runtime_adapters.v1"
@@ -43,9 +44,7 @@ def _connector_target(connector: Mapping[str, Any]) -> str:
 
 
 def _credential_env_name(credential_source: str) -> str:
-    if credential_source.startswith("env:"):
-        return credential_source.removeprefix("env:")
-    return ""
+    return credential_env_name(credential_source)
 
 
 def _sql_dependency(connector: Mapping[str, Any]) -> str:
