@@ -41,7 +41,7 @@ def _load_page_meta() -> tuple[str, str]:
         return PAGE_LOGO, PAGE_TITLE
 
     _meta_path = Path(__file__).with_name("page_meta.py")
-    _meta_spec = importlib.util.spec_from_file_location("view_uav_queue_analysis_page_meta", _meta_path)
+    _meta_spec = importlib.util.spec_from_file_location("view_queue_resilience_page_meta", _meta_path)
     if _meta_spec is None or _meta_spec.loader is None:  # pragma: no cover - defensive fallback
         raise RuntimeError(f"Unable to load page metadata from {_meta_path}")
     _meta_module = importlib.util.module_from_spec(_meta_spec)
@@ -103,8 +103,8 @@ else:
 render_logo(PAGE_LOGO)
 st.title(PAGE_TITLE)
 st.caption(
-    "Use exported relay-queue telemetry to compare routing policies, queue hotspots, and delivery outcomes "
-    "without reopening the simulator code."
+    "Use exported queue telemetry to inspect backlog, routing pressure, and delivery outcomes "
+    "without reopening the producer code."
 )
 st.info(
     "Each run also writes `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, "
@@ -115,15 +115,15 @@ st.info(
 default_root = _default_artifact_root(env)
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
-    value=st.session_state.setdefault("uav_queue_analysis_datadir", str(default_root)),
-    key="uav_queue_analysis_datadir",
+    value=st.session_state.setdefault("queue_resilience_datadir", str(default_root)),
+    key="queue_resilience_datadir",
 )
 artifact_root = Path(artifact_root_value).expanduser()
 
 metrics_pattern = st.sidebar.text_input(
     "Summary glob",
-    value=st.session_state.setdefault("uav_queue_summary_glob", "**/*_summary_metrics.json"),
-    key="uav_queue_summary_glob",
+    value=st.session_state.setdefault("queue_resilience_summary_glob", "**/*_summary_metrics.json"),
+    key="queue_resilience_summary_glob",
 )
 
 summary_files = _discover_files(artifact_root, metrics_pattern) if artifact_root.exists() else []
@@ -162,12 +162,12 @@ routing_df = pd.read_csv(routing_path)
 
 intro_left, intro_right = st.columns([1.6, 1.2])
 with intro_left:
-    st.subheader("Why this is a good AGILAB demo")
+    st.subheader("Why this run is useful")
     st.markdown(
         "- one scenario file becomes a reproducible project\n"
         "- one routing knob changes queue buildup and delivery outcomes\n"
         "- the exported packet and queue telemetry stays explorable across reruns\n"
-        "- the internal simulator can later be swapped for a fuller UavNetSim adapter"
+        "- the producer can later be swapped while preserving the analysis contract"
     )
 with intro_right:
     st.subheader("Run metadata")

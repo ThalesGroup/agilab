@@ -31,9 +31,13 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py -- --active-app src/agilab/apps/builtin/meteo_forecast_project
   - Compares a candidate bundle against a baseline bundle, applies explicit evidence gates, and exports `promotion_decision.json`.
 
-- view_uav_relay_queue_analysis
-  - uv run streamlit run src/agilab/apps-pages/view_uav_relay_queue_analysis/src/view_uav_relay_queue_analysis/view_uav_relay_queue_analysis.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
-  - Designed for the lightweight UAV queue demo. Reads `*_summary_metrics.json`, `*_queue_timeseries.csv`, `*_packet_events.csv`, `*_node_positions.csv`, and `*_routing_summary.csv`.
+- view_queue_resilience
+  - uv run streamlit run src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/view_queue_resilience.py -- --active-app src/agilab/apps/builtin/uav_queue_project
+  - Generic queue telemetry analysis page. Reads `*_summary_metrics.json`, `*_queue_timeseries.csv`, `*_packet_events.csv`, `*_node_positions.csv`, and `*_routing_summary.csv`.
+
+- view_relay_resilience
+  - uv run streamlit run src/agilab/apps-pages/view_relay_resilience/src/view_relay_resilience/view_relay_resilience.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
+  - Generic relay queue comparison page. Reads `*_summary_metrics.json`, `*_queue_timeseries.csv`, `*_packet_events.csv`, `*_node_positions.csv`, and `*_routing_summary.csv`.
   - The same run also exports `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, `_trajectory_summary.json`, and per-node trajectory CSVs so `view_maps_network` can reuse the scenario directly.
 
 - view_training_analysis

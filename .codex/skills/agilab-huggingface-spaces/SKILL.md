@@ -59,8 +59,8 @@ Profile app/page sets:
     `execution_polars_project`, `flight_project`, `meteo_forecast_project`,
     `mycode_project`, `uav_queue_project`, `uav_relay_queue_project`
   - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,
-    `view_maps_network`, `view_release_decision`, `view_uav_queue_analysis`,
-    `view_uav_relay_queue_analysis`
+    `view_maps_network`, `view_release_decision`, `view_queue_resilience`,
+    `view_relay_resilience`
 
 The advanced profile installs every current built-in demo app, but it still
 avoids unrelated historical heavyweight pages that are not part of the current

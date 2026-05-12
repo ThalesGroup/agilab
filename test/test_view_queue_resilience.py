@@ -10,32 +10,32 @@ from unittest.mock import patch
 import pytest
 
 PAGE_PATH = (
-    "src/agilab/apps-pages/view_uav_queue_analysis/src/view_uav_queue_analysis/view_uav_queue_analysis.py"
+    "src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/view_queue_resilience.py"
 )
 PAGE_META_PATH = Path(
-    "src/agilab/apps-pages/view_uav_queue_analysis/src/view_uav_queue_analysis/page_meta.py"
+    "src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/page_meta.py"
 )
 
 
 def _page_title() -> str:
-    spec = importlib.util.spec_from_file_location("view_uav_queue_analysis_page_meta", PAGE_META_PATH)
+    spec = importlib.util.spec_from_file_location("view_queue_resilience_page_meta", PAGE_META_PATH)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.PAGE_TITLE
 
 
-def _load_uav_queue_helpers() -> ModuleType:
+def _load_queue_helpers() -> ModuleType:
     source = Path(PAGE_PATH).read_text(encoding="utf-8")
     prefix = source.split('\nst.set_page_config(layout="wide")\n', 1)[0]
-    module = ModuleType("view_uav_queue_analysis_test_module")
+    module = ModuleType("view_queue_resilience_test_module")
     module.__file__ = str(Path(PAGE_PATH).resolve())
     module.__package__ = None
     exec(compile(prefix, str(Path(PAGE_PATH)), "exec"), module.__dict__)
     return module
 
 
-def test_view_uav_queue_analysis_renders_exported_artifacts(
+def test_view_queue_resilience_renders_exported_artifacts(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -103,7 +103,7 @@ def test_view_uav_queue_analysis_renders_exported_artifacts(
     assert len(at.selectbox) >= 1
     assert len(at.text_input) >= 2
 
-def test_view_uav_queue_analysis_reports_missing_peer_artifacts(
+def test_view_queue_resilience_reports_missing_peer_artifacts(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -147,7 +147,7 @@ def test_view_uav_queue_analysis_reports_missing_peer_artifacts(
     assert len(at.code) >= 1
 
 
-def test_view_uav_queue_analysis_warns_when_artifact_directory_is_missing(
+def test_view_queue_resilience_warns_when_artifact_directory_is_missing(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -163,7 +163,7 @@ def test_view_uav_queue_analysis_warns_when_artifact_directory_is_missing(
     assert any("Artifact directory does not exist yet" in warning.value for warning in at.warning)
 
 
-def test_view_uav_queue_analysis_reports_missing_delivered_source_packets(
+def test_view_queue_resilience_reports_missing_delivered_source_packets(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -218,12 +218,12 @@ def test_view_uav_queue_analysis_reports_missing_delivered_source_packets(
     assert any(subheader.value == "Notes" for subheader in at.subheader)
 
 
-def test_view_uav_queue_analysis_helper_branches(monkeypatch, tmp_path) -> None:
-    module = _load_uav_queue_helpers()
+def test_view_queue_resilience_helper_branches(monkeypatch, tmp_path) -> None:
+    module = _load_queue_helpers()
 
     repo_root = tmp_path / "repo"
     src_root = repo_root / "src"
-    module_path = src_root / "agilab" / "apps-pages" / "view_uav_queue_analysis" / "src" / "view_uav_queue_analysis" / "view_uav_queue_analysis.py"
+    module_path = src_root / "agilab" / "apps-pages" / "view_queue_resilience" / "src" / "view_queue_resilience" / "view_queue_resilience.py"
     module_path.parent.mkdir(parents=True)
     module_path.write_text("# stub\n", encoding="utf-8")
     (module_path.parent / "page_meta.py").write_text(
@@ -253,23 +253,23 @@ def test_view_uav_queue_analysis_helper_branches(monkeypatch, tmp_path) -> None:
     assert module._safe_metric(object()) == "n/a"
 
 
-def test_view_uav_queue_analysis_package_meta_and_discover_exception(monkeypatch, tmp_path) -> None:
-    module = _load_uav_queue_helpers()
-    monkeypatch.setitem(sys.modules, "view_uav_queue_analysis", ModuleType("view_uav_queue_analysis"))
-    page_meta_name = "view_uav_queue_analysis.page_meta"
+def test_view_queue_resilience_package_meta_and_discover_exception(monkeypatch, tmp_path) -> None:
+    module = _load_queue_helpers()
+    monkeypatch.setitem(sys.modules, "view_queue_resilience", ModuleType("view_queue_resilience"))
+    page_meta_name = "view_queue_resilience.page_meta"
     monkeypatch.setitem(
         sys.modules,
         page_meta_name,
         SimpleNamespace(PAGE_LOGO="pkg-logo.svg", PAGE_TITLE="Pkg Queue"),
     )
-    monkeypatch.setattr(module, "__package__", "view_uav_queue_analysis")
+    monkeypatch.setattr(module, "__package__", "view_queue_resilience")
     assert module._load_page_meta() == ("pkg-logo.svg", "Pkg Queue")
 
     broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
     assert module._discover_files(broken_base, "*.json") == []
 
 
-def test_view_uav_queue_analysis_reuses_existing_session_env(tmp_path, create_temp_app_project, monkeypatch) -> None:
+def test_view_queue_resilience_reuses_existing_session_env(tmp_path, create_temp_app_project, monkeypatch) -> None:
     project_dir = create_temp_app_project(
         "uav_queue_project",
         package_name="uav_queue",
@@ -314,7 +314,7 @@ def test_view_uav_queue_analysis_reuses_existing_session_env(tmp_path, create_te
     assert any(title.value == _page_title() for title in at.title)
 
 
-def test_view_uav_queue_analysis_warns_when_summary_glob_is_empty(
+def test_view_queue_resilience_warns_when_summary_glob_is_empty(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(

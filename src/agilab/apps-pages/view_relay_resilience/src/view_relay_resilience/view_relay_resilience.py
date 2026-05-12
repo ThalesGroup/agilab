@@ -32,9 +32,9 @@ _ensure_repo_on_path()
 from agi_env import AgiEnv
 from agi_gui.pagelib import render_logo
 
-RUN_SELECTION_KEY = "uav_relay_queue_selected_runs"
-DETAIL_RUN_KEY = "uav_relay_queue_detail_run"
-REFERENCE_RUN_KEY = "uav_relay_queue_reference_run"
+RUN_SELECTION_KEY = "relay_resilience_selected_runs"
+DETAIL_RUN_KEY = "relay_resilience_detail_run"
+REFERENCE_RUN_KEY = "relay_resilience_reference_run"
 
 
 def _resolve_active_app() -> Path:
@@ -189,11 +189,11 @@ if "env" not in st.session_state:
 else:
     env = st.session_state["env"]
 
-render_logo("UAV Relay Queue Analysis")
-st.title("UAV relay queue analysis")
+render_logo("Relay Resilience Analysis")
+st.title("Relay resilience analysis")
 st.caption(
     "Use exported relay-queue telemetry to compare routing policies, queue hotspots, and delivery outcomes "
-    "without reopening the simulator code."
+    "without reopening the producer code."
 )
 st.info(
     "Each run also writes `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, "
@@ -204,15 +204,15 @@ st.info(
 default_root = _default_artifact_root(env)
 artifact_root_value = st.sidebar.text_input(
     "Artifact directory",
-    value=st.session_state.setdefault("uav_relay_queue_analysis_datadir", str(default_root)),
-    key="uav_relay_queue_analysis_datadir",
+    value=st.session_state.setdefault("relay_resilience_datadir", str(default_root)),
+    key="relay_resilience_datadir",
 )
 artifact_root = Path(artifact_root_value).expanduser()
 
 metrics_pattern = st.sidebar.text_input(
     "Summary glob",
-    value=st.session_state.setdefault("uav_relay_queue_summary_glob", "**/*_summary_metrics.json"),
-    key="uav_relay_queue_summary_glob",
+    value=st.session_state.setdefault("relay_resilience_summary_glob", "**/*_summary_metrics.json"),
+    key="relay_resilience_summary_glob",
 )
 
 summary_files = _discover_files(artifact_root, metrics_pattern) if artifact_root.exists() else []
@@ -330,12 +330,12 @@ st.subheader(f"Detailed run: {detailed_run_label}")
 
 intro_left, intro_right = st.columns([1.6, 1.2])
 with intro_left:
-    st.subheader("Why this is a good AGILAB demo")
+    st.subheader("Why this run is useful")
     st.markdown(
         "- one scenario file becomes a reproducible project\n"
         "- one routing knob changes queue buildup and delivery outcomes\n"
         "- the exported packet and queue telemetry stays explorable across reruns\n"
-        "- the internal simulator can later be swapped for a fuller UavNetSim adapter"
+        "- the producer can later be swapped while preserving the analysis contract"
     )
 with intro_right:
     st.subheader("Run metadata")

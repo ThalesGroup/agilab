@@ -79,7 +79,7 @@ Tips & Notes
   available; page bundles simply add extra entries to the Analysis catalogue when
   the project opts into them.
 - ``UAV Relay Queue`` is a good reference setup (install id
-  ``uav_relay_queue_project``): select both ``view_uav_relay_queue_analysis`` and
+  ``uav_relay_queue_project``): select both ``view_relay_resilience`` and
   ``view_maps_network`` to inspect the same run through a dedicated queue
   dashboard and the generic topology map.
 - AGILab caches the list per project, so the Analysis grid reflects the exact

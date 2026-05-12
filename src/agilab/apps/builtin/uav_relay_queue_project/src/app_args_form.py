@@ -138,7 +138,7 @@ else:
         app_settings.setdefault("cluster", {})
         app_settings["args"] = validated_payload
         app_settings.setdefault("pages", {})
-        app_settings["pages"]["view_module"] = ["view_uav_relay_queue_analysis", "view_maps_network"]
+        app_settings["pages"]["view_module"] = ["view_relay_resilience", "view_maps_network"]
         st.session_state["app_settings"] = app_settings
         st.session_state["is_args_from_ui"] = True
         st.success(f"Saved to `{settings_path}`.")

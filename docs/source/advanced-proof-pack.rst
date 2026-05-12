@@ -33,7 +33,7 @@ What belongs here
      - Network-style experiment analysis: queue buildup, packet drops, routing
        policy changes, topology, trajectories, and generic network map views.
      - Select the built-in app, run it, then open
-       ``view_uav_queue_analysis``, ``view_uav_relay_queue_analysis``, or
+       ``view_queue_resilience``, ``view_relay_resilience``, or
        ``view_maps_network``.
    * - ``inter_project_dag`` packaged preview
      - App-to-app artifact handoff without private infrastructure: one app
@@ -117,7 +117,7 @@ Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
 
 **Network lane**
   ``uav_relay_queue_project`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` ->
-  ``view_uav_relay_queue_analysis`` plus ``view_maps_network``. Stop when queue
+  ``view_relay_resilience`` plus ``view_maps_network``. Stop when queue
   buildup, relay choice, drops, topology, and trajectories are visible from the
   same run artifacts.
 

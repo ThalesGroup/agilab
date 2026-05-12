@@ -215,7 +215,7 @@ UAV_QUEUE_SCENES: tuple[Scene, ...] = (
         zoom_start=1.0,
         zoom_end=1.03,
         highlight=(0.22, 0.30, 0.95, 0.93),
-        highlight_label="view_uav_relay_queue_analysis",
+        highlight_label="view_relay_resilience",
         overlay="uav_analysis",
     ),
 )
@@ -1163,7 +1163,7 @@ def draw_uav_analysis_overlay(canvas: Image.Image, scene: Scene, slide_x: int, s
     draw = ImageDraw.Draw(panel)
     draw.rounded_rectangle((0, 0, box_w - 1, box_h - 1), radius=28, fill=(9, 22, 35, 244), outline=(255, 255, 255, 34), width=2)
     draw.rounded_rectangle((18, 16, 250, 52), radius=14, fill=(255, 255, 255, 22))
-    draw.text((36, 24), "view_uav_relay_queue_analysis", font=FONT_HIGHLIGHT, fill=INK)
+    draw.text((36, 24), "view_relay_resilience", font=FONT_HIGHLIGHT, fill=INK)
 
     left_card = (24, 76, 222, 166)
     right_card = (238, 76, 436, 166)

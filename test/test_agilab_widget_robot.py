@@ -175,7 +175,7 @@ def test_configured_apps_pages_for_app_reads_app_settings() -> None:
     routes = module.configured_apps_pages_for_app(app)
 
     assert [route.name for route in routes] == [
-        "view_uav_relay_queue_analysis",
+        "view_relay_resilience",
         "view_maps_network",
     ]
 

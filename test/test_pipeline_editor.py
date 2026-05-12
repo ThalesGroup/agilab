@@ -1486,12 +1486,12 @@ launch_note = "Open this after the run."
     [
         (
             "uav_queue_project",
-            ("view_uav_queue_analysis", "view_maps_network"),
+            ("view_queue_resilience", "view_maps_network"),
             "UAV Queue Analysis",
         ),
         (
             "uav_relay_queue_project",
-            ("view_uav_relay_queue_analysis", "view_maps_network"),
+            ("view_relay_resilience", "view_maps_network"),
             "UAV Relay Queue Analysis",
         ),
     ],
