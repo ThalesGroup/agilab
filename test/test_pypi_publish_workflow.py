@@ -50,6 +50,7 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
     assert "--profile agi-core-combined" in text
     assert "--profile shared-core-typing" in text
     assert "--profile dependency-policy" in text
+    assert "--profile release-proof" in text
     assert "uv run --dev --project agi-cluster python -m pytest" not in text
 
 
