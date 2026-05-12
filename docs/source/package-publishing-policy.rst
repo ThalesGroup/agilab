@@ -44,17 +44,22 @@ to render UI.
 Published app/example asset package
 -----------------------------------
 
-``agi-apps`` is published to PyPI from ``src/agilab/lib/agi-apps``. It carries
-the public ``agilab.apps`` and ``agilab.examples`` payload: built-in projects,
-the app installer script, sample data, notebooks, and learning examples. The
-root ``agilab`` wheel stays lean; ``agilab[ui]`` and ``agilab[examples]`` pull
-``agi-apps`` when the packaged first-proof or demo assets are needed.
+``agi-apps`` is published to PyPI as a wheel from
+``src/agilab/lib/agi-apps``. The ``agi-apps`` wheel is published to PyPI as a
+wheel-only asset. It carries the public ``agilab.apps`` and
+``agilab.examples`` payload: built-in projects, the app installer script,
+sample data, notebooks, and learning examples. The root ``agilab`` wheel stays
+lean; ``agilab[ui]`` and
+``agilab[examples]`` pull ``agi-apps`` when the packaged first-proof or demo
+assets are needed.
 
 Published page-bundle asset package
 -----------------------------------
 
-``agi-pages`` is published to PyPI from ``src/agilab/lib/agi-pages``. It carries
-the public analysis page bundles that used to be embedded in the root
+``agi-pages`` is published to PyPI as a wheel from
+``src/agilab/lib/agi-pages``. The ``agi-pages`` wheel is published to PyPI as a
+wheel-only asset. It carries the public analysis page bundles that used to be
+embedded in the root
 ``agilab`` wheel under ``apps-pages``. The package exposes
 ``agi_pages.bundles_root()`` so ``agi-env`` can discover installed page bundles
 without making base ``agilab`` depend on them. ``agilab[ui]`` pulls

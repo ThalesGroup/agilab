@@ -1,20 +1,17 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 
-WORKFLOW_PATH = Path(".github/workflows/pypi-publish.yaml")
-TEST_PYPI_WORKFLOW_PATH = Path(".github/workflows/test-pypi-publish.yaml")
-PYPI_LIBRARY_PACKAGES = [
-    ("agi-env", "src/agilab/core/agi-env", "src/agilab/core/agi-env/dist", "pypi-agi-env"),
-    ("agi-gui", "src/agilab/lib/agi-gui", "src/agilab/lib/agi-gui/dist", "pypi-agi-gui"),
-    ("agi-pages", "src/agilab/lib/agi-pages", "src/agilab/lib/agi-pages/dist", "pypi-agi-pages"),
-    ("agi-node", "src/agilab/core/agi-node", "src/agilab/core/agi-node/dist", "pypi-agi-node"),
-    ("agi-cluster", "src/agilab/core/agi-cluster", "src/agilab/core/agi-cluster/dist", "pypi-agi-cluster"),
-    ("agi-core", "src/agilab/core/agi-core", "src/agilab/core/agi-core/dist", "pypi-agi-core"),
-    ("agi-apps", "src/agilab/lib/agi-apps", "src/agilab/lib/agi-apps/dist", "pypi-agi-apps"),
-]
-ALL_PYPI_PACKAGES = [package for package, *_ in PYPI_LIBRARY_PACKAGES] + ["agilab"]
+REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO_ROOT / "tools"))
+
+from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, PACKAGE_NAMES, UMBRELLA_PACKAGE_CONTRACT
+
+
+WORKFLOW_PATH = REPO_ROOT / ".github/workflows/pypi-publish.yaml"
+TEST_PYPI_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/test-pypi-publish.yaml"
 
 
 def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None:
@@ -99,19 +96,21 @@ def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
     assert "fail-fast: false" in text
     assert text.count("uses: pypa/gh-action-pypi-publish@") == 2
 
-    for package, project, dist, environment in PYPI_LIBRARY_PACKAGES:
-        assert f"package: {package}" in text
-        assert f"project: {project}" in text
-        assert f"dist: {dist}" in text
-        assert f"pypi_environment: {environment}" in text
+    for package in LIBRARY_PACKAGE_CONTRACTS:
+        assert f"package: {package.name}" in text
+        assert f"project: {package.project}" in text
+        assert f"dist: {package.dist}" in text
+        assert f"pypi_project: {package.name}" in text
+        assert f"pypi_environment: {package.pypi_environment}" in text
 
-    assert "pypi-agilab" in text
+    assert UMBRELLA_PACKAGE_CONTRACT.pypi_environment in text
     assert "Publish ${{ matrix.package }} to PyPI with trusted publishing" in text
 
 
 def test_test_pypi_publish_delegates_to_the_eight_package_release_tool() -> None:
     text = TEST_PYPI_WORKFLOW_PATH.read_text(encoding="utf-8")
-    tool_text = Path("tools/pypi_publish.py").read_text(encoding="utf-8")
+    tool_text = (REPO_ROOT / "tools/pypi_publish.py").read_text(encoding="utf-8")
+    contract_text = (REPO_ROOT / "tools/package_split_contract.py").read_text(encoding="utf-8")
 
     assert "tools/pypi_publish.py" in text
     assert "--repo testpypi" in text
@@ -126,5 +125,6 @@ def test_test_pypi_publish_delegates_to_the_eight_package_release_tool() -> None
     assert "Build & upload library packages" not in text
     assert "Build & upload umbrella" not in text
 
-    for package in ALL_PYPI_PACKAGES:
-        assert f'"{package}"' in tool_text or f'("{package}"' in tool_text
+    assert "package_split_contract" in tool_text
+    for package in PACKAGE_NAMES:
+        assert f'name="{package}"' in contract_text
