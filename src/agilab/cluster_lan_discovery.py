@@ -28,6 +28,14 @@ CACHE_VERSION = 1
 
 
 @dataclass(frozen=True)
+class _InterfaceIPv4:
+    host: str
+    prefix: int | None = None
+    interface: str = ""
+    source: str = ""
+
+
+@dataclass(frozen=True)
 class DiscoveryOptions:
     cidrs: tuple[str, ...] = ()
     remote_user: str = ""
@@ -117,9 +125,10 @@ def discover_lan_nodes(
     runner = runner or _run_text
     tcp_probe = tcp_probe or _tcp_connect
 
-    local_hosts = _local_ipv4_hosts(runner=runner)
+    local_interfaces = _local_ipv4_interfaces(runner=runner)
+    local_hosts = {item.host for item in local_interfaces}
     local_aliases = _local_host_aliases(local_hosts)
-    cidrs = options.cidrs or _default_cidrs(local_hosts)
+    cidrs = options.cidrs or _default_cidrs_from_interfaces(local_interfaces)
     cidr_networks = _cidr_networks(cidrs)
     gateway_hosts = _default_gateway_hosts(runner)
     candidates: dict[str, set[str]] = {}
@@ -158,6 +167,7 @@ def discover_lan_nodes(
                 port=options.port,
                 timeout=options.tcp_timeout,
                 max_hosts=options.max_hosts,
+                probe_workers=options.probe_workers,
                 tcp_probe=tcp_probe,
             )
         )
@@ -469,6 +479,7 @@ def _active_ssh_hosts(
     port: int,
     timeout: float,
     max_hosts: int,
+    probe_workers: int = 64,
     tcp_probe: TcpProbe,
 ) -> tuple[str, ...]:
     hosts: list[str] = []
@@ -484,7 +495,7 @@ def _active_ssh_hosts(
         return ()
 
     found: list[str] = []
-    workers = min(64, max(1, len(hosts)))
+    workers = min(max(1, int(probe_workers)), max(1, len(hosts)))
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(tcp_probe, host, port, timeout): host for host in hosts}
         for future in as_completed(futures):
@@ -510,11 +521,32 @@ def _run_text(argv: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess
 
 
 def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
-    hosts: set[str] = set()
+    return {item.host for item in _local_ipv4_interfaces(runner=runner)}
+
+
+def _local_ipv4_interfaces(*, runner: Runner) -> tuple[_InterfaceIPv4, ...]:
+    interfaces: list[_InterfaceIPv4] = []
+
+    def add(host: str, *, prefix: int | None = None, interface: str = "", source: str = "") -> None:
+        if _ignored_lan_interface(interface):
+            return
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            return
+        if address.version != 4 or address.is_loopback:
+            return
+        interfaces.append(_InterfaceIPv4(str(address), prefix, interface, source))
+
+    if runner is _run_text:
+        interfaces.extend(_psutil_ipv4_interfaces())
+        if _has_usable_lan_ipv4({item.host for item in interfaces}):
+            return _dedupe_interfaces(interfaces)
+
     try:
         hostname = socket.gethostname()
         for item in socket.getaddrinfo(hostname, None, family=socket.AF_INET):
-            hosts.add(item[4][0])
+            add(item[4][0], source="hostname")
     except OSError:
         pass
 
@@ -523,17 +555,20 @@ def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
     except Exception:
         completed = subprocess.CompletedProcess(["ifconfig"], 1, stdout="", stderr="")
     if completed.returncode == 0:
-        hosts.update(_ifconfig_ipv4_hosts(completed.stdout))
+        interfaces.extend(_ifconfig_ipv4_interfaces(completed.stdout))
 
-    route_hosts: set[str] = set()
     try:
         completed = runner(["ip", "route", "get", "1.1.1.1"], capture_output=True, text=True, timeout=2)
     except Exception:
         completed = subprocess.CompletedProcess(["ip"], 1, stdout="", stderr="")
     if completed.returncode == 0:
         for match in re.finditer(r"\bsrc\s+(\d+\.\d+\.\d+\.\d+)\b", completed.stdout):
-            route_hosts.add(match.group(1))
-    hosts.update(route_hosts)
+            interface_match = re.search(r"\bdev\s+([^\s]+)", completed.stdout)
+            add(
+                match.group(1),
+                interface=interface_match.group(1) if interface_match else "",
+                source="ip-route",
+            )
 
     try:
         completed = runner(["ip", "-4", "-o", "addr", "show", "scope", "global"], capture_output=True, text=True, timeout=2)
@@ -545,24 +580,23 @@ def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
             interface = fields[1].rstrip(":") if len(fields) > 1 else ""
             if interface.startswith(("br-", "docker", "veth", "virbr")) or interface in {"lo"}:
                 continue
-            match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)/\d+", line)
+            match = re.search(r"\binet\s+(\d+\.\d+\.\d+\.\d+)/(\d+)", line)
             if match:
-                hosts.add(match.group(1))
+                add(match.group(1), prefix=_parse_prefix(match.group(2)), interface=interface, source="ip-addr")
 
-    if not _has_usable_lan_ipv4(hosts):
+    if not _has_usable_lan_ipv4({item.host for item in interfaces}):
         try:
             completed = runner(["ipconfig"], capture_output=True, text=True, timeout=2)
         except Exception:
             completed = subprocess.CompletedProcess(["ipconfig"], 1, stdout="", stderr="")
         if completed.returncode == 0:
-            for match in re.finditer(r"\bIPv4[^\r\n:]*:\s*(\d+\.\d+\.\d+\.\d+)", completed.stdout, re.IGNORECASE):
-                hosts.add(match.group(1))
+            interfaces.extend(_windows_ipconfig_ipv4_interfaces(completed.stdout))
 
-    if not _has_usable_lan_ipv4(hosts):
+    if not _has_usable_lan_ipv4({item.host for item in interfaces}):
         powershell_cmd = (
             "Get-NetIPAddress -AddressFamily IPv4 | "
             "Where-Object { $_.IPAddress -and $_.IPAddress -notlike '169.254.*' } | "
-            "ForEach-Object { $_.IPAddress }"
+            "ForEach-Object { \"$($_.IPAddress)/$($_.PrefixLength)\" }"
         )
         for executable in ("powershell", "pwsh"):
             try:
@@ -577,16 +611,17 @@ def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
             if completed.returncode != 0:
                 continue
             for token in completed.stdout.split():
+                raw_host, _, raw_prefix = token.partition("/")
                 try:
-                    address = ipaddress.ip_address(token)
+                    address = ipaddress.ip_address(raw_host)
                 except ValueError:
                     continue
                 if address.version == 4:
-                    hosts.add(str(address))
-            if _has_usable_lan_ipv4(hosts):
+                    add(str(address), prefix=_parse_prefix(raw_prefix), source="powershell")
+            if _has_usable_lan_ipv4({item.host for item in interfaces}):
                 break
 
-    if not _has_usable_lan_ipv4(hosts):
+    if not _has_usable_lan_ipv4({item.host for item in interfaces}):
         try:
             completed = runner(["hostname", "-I"], capture_output=True, text=True, timeout=2)
         except Exception:
@@ -598,8 +633,54 @@ def _local_ipv4_hosts(*, runner: Runner) -> set[str]:
                 except ValueError:
                     continue
                 if address.version == 4:
-                    hosts.add(str(address))
-    return {host for host in hosts if not host.startswith("127.")}
+                    add(str(address), source="hostname-I")
+    return _dedupe_interfaces(interfaces)
+
+
+def _psutil_ipv4_interfaces() -> tuple[_InterfaceIPv4, ...]:
+    try:
+        psutil = __import__("psutil")
+    except Exception:
+        return ()
+    try:
+        net_if_addrs = psutil.net_if_addrs()
+    except Exception:
+        return ()
+    try:
+        net_if_stats = psutil.net_if_stats()
+    except Exception:
+        net_if_stats = {}
+
+    interfaces: list[_InterfaceIPv4] = []
+    for interface, addresses in net_if_addrs.items():
+        if _ignored_lan_interface(interface):
+            continue
+        stats = net_if_stats.get(interface)
+        if stats is not None and not getattr(stats, "isup", True):
+            continue
+        for address in addresses:
+            if getattr(address, "family", None) != socket.AF_INET:
+                continue
+            host = getattr(address, "address", "")
+            prefix = _prefix_from_netmask(getattr(address, "netmask", ""))
+            try:
+                parsed = ipaddress.ip_address(host)
+            except ValueError:
+                continue
+            if parsed.version == 4 and not parsed.is_loopback:
+                interfaces.append(_InterfaceIPv4(str(parsed), prefix, interface, "psutil"))
+    return _dedupe_interfaces(interfaces)
+
+
+def _dedupe_interfaces(interfaces: Sequence[_InterfaceIPv4]) -> tuple[_InterfaceIPv4, ...]:
+    best: dict[str, _InterfaceIPv4] = {}
+    for item in interfaces:
+        if item.host.startswith("127."):
+            continue
+        current = best.get(item.host)
+        if current is None or (current.prefix is None and item.prefix is not None):
+            best[item.host] = item
+    return tuple(sorted(best.values(), key=lambda item: _host_sort_key(item.host)))
 
 
 def _ignored_lan_interface(interface_name: str) -> bool:
@@ -624,7 +705,11 @@ def _ignored_lan_interface(interface_name: str) -> bool:
 
 
 def _ifconfig_ipv4_hosts(output: str) -> set[str]:
-    hosts: set[str] = set()
+    return {item.host for item in _ifconfig_ipv4_interfaces(output)}
+
+
+def _ifconfig_ipv4_interfaces(output: str) -> tuple[_InterfaceIPv4, ...]:
+    interfaces: list[_InterfaceIPv4] = []
     interface_name = ""
     block: list[str] = []
 
@@ -635,7 +720,14 @@ def _ifconfig_ipv4_hosts(output: str) -> set[str]:
         if re.search(r"^\s*status:\s+inactive\s*$", text, re.MULTILINE):
             return
         for match in re.finditer(r"\binet\s+(\d+\.\d+\.\d+\.\d+)\s+netmask\s+(0x[0-9a-fA-F]+)", text):
-            hosts.add(match.group(1))
+            interfaces.append(
+                _InterfaceIPv4(
+                    match.group(1),
+                    _prefix_from_netmask(match.group(2)),
+                    interface_name,
+                    "ifconfig",
+                )
+            )
 
     for line in output.splitlines():
         if line and not line.startswith((" ", "\t")) and ":" in line:
@@ -645,7 +737,43 @@ def _ifconfig_ipv4_hosts(output: str) -> set[str]:
         else:
             block.append(line)
     flush()
-    return hosts
+    return _dedupe_interfaces(interfaces)
+
+
+def _windows_ipconfig_ipv4_interfaces(output: str) -> tuple[_InterfaceIPv4, ...]:
+    interfaces: list[_InterfaceIPv4] = []
+    interface_name = ""
+    host = ""
+    netmask = ""
+
+    def flush() -> None:
+        nonlocal host, netmask
+        if host:
+            interfaces.append(
+                _InterfaceIPv4(
+                    host,
+                    _prefix_from_netmask(netmask),
+                    interface_name,
+                    "ipconfig",
+                )
+            )
+        host = ""
+        netmask = ""
+
+    for line in output.splitlines():
+        if line and not line.startswith((" ", "\t")) and line.rstrip().endswith(":"):
+            flush()
+            interface_name = line.strip().rstrip(":")
+            continue
+        match = re.search(r"\bIPv4[^\r\n:]*:\s*(\d+\.\d+\.\d+\.\d+)", line, re.IGNORECASE)
+        if match:
+            host = match.group(1)
+            continue
+        match = re.search(r"\bSubnet Mask[^\r\n:]*:\s*(\d+\.\d+\.\d+\.\d+)", line, re.IGNORECASE)
+        if match:
+            netmask = match.group(1)
+    flush()
+    return _dedupe_interfaces(interfaces)
 
 
 def _has_usable_lan_ipv4(hosts: set[str]) -> bool:
@@ -667,16 +795,49 @@ def _has_usable_lan_ipv4(hosts: set[str]) -> bool:
 
 
 def _default_cidrs(local_hosts: set[str]) -> tuple[str, ...]:
+    return _default_cidrs_from_interfaces(tuple(_InterfaceIPv4(host) for host in local_hosts))
+
+
+def _default_cidrs_from_interfaces(interfaces: Sequence[_InterfaceIPv4]) -> tuple[str, ...]:
     cidrs: list[str] = []
-    for host in sorted(local_hosts, key=_host_sort_key):
+    for item in sorted(interfaces, key=lambda value: _host_sort_key(value.host)):
         try:
-            address = ipaddress.ip_address(host)
+            address = ipaddress.ip_address(item.host)
         except ValueError:
             continue
         if address.is_private and not address.is_link_local:
-            network = ipaddress.ip_network(f"{host}/24", strict=False)
+            prefix = _scan_prefix(item.prefix)
+            network = ipaddress.ip_network(f"{item.host}/{prefix}", strict=False)
             cidrs.append(str(network))
     return tuple(dict.fromkeys(cidrs))
+
+
+def _scan_prefix(prefix: int | None) -> int:
+    if prefix is None or prefix < 24 or prefix > 30:
+        return 24
+    return prefix
+
+
+def _parse_prefix(value: str) -> int | None:
+    try:
+        prefix = int(value)
+    except (TypeError, ValueError):
+        return None
+    if 0 <= prefix <= 32:
+        return prefix
+    return None
+
+
+def _prefix_from_netmask(value: str | None) -> int | None:
+    if not value:
+        return None
+    try:
+        if value.startswith(("0x", "0X")):
+            mask_int = int(value, 16)
+            return bin(mask_int & 0xFFFFFFFF).count("1")
+        return ipaddress.ip_network(f"0.0.0.0/{value}").prefixlen
+    except ValueError:
+        return None
 
 
 def _cidr_networks(cidrs: Sequence[str]) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
