@@ -1,6 +1,7 @@
-## Contributor Quick Start
+## Contributor Onboarding
 
-Use the same local-first path as adopters before changing code:
+Use this path for your first AGILAB contribution. It gives maintainers a
+known-good baseline before review starts.
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
@@ -13,6 +14,45 @@ uv --preview-features extra-build-dependencies run python tools/newcomer_first_p
 If the newcomer proof fails, fix that baseline first or document why your
 change is unrelated. The adoption checklist in `ADOPTION.md` explains the
 supported first routes.
+
+### Choose Your Contribution Lane
+
+Pick one lane before editing. This keeps pull requests focused and avoids
+running expensive checks too early.
+
+| Lane | Good first scope | First validation |
+|---|---|---|
+| Docs only | README, CONTRIBUTING, docs text, screenshots, links | `git diff --check` plus docs mirror check if `docs/source` changes |
+| App or example | Built-in app, example README, app args, analysis view | Targeted app/page `pytest` or the app smoke test |
+| UI helper | Streamlit page state, sidebar/header, workflow/orchestrate helper | Targeted root `pytest` for the touched helper |
+| Workflow or release tooling | `.github`, badges, package policy, release proof | Matching `tools/workflow_parity.py --profile <name>` |
+| Shared core | `src/agilab/core/*`, installer/build/deploy, generic runtime helpers | Ask for maintainer approval first, then run the focused core regression plan |
+
+If you are unsure, start with docs or app-local changes. Shared core changes
+have the highest blast radius and need a clear regression plan before edits.
+
+### Before Opening Your First Pull Request
+
+1. Keep the diff focused on one bug class, one feature, or one documentation
+   path.
+2. Run the smallest validation that proves the change.
+3. Paste the validation command and result in the pull request.
+4. State whether the change touches public docs, dependencies, security,
+   release tooling, generated artifacts, or shared core.
+5. If the first proof or validation fails for an unrelated local reason, paste
+   the failure and explain why it is unrelated.
+
+Useful PR evidence block:
+
+```text
+Scope:
+Validation:
+Risk area: docs | app | UI | workflow | shared core | security | dependency
+Generated artifacts updated: yes/no
+```
+
+Need help choosing a lane? Open a GitHub issue with `[CONTRIBUTOR]` in the
+title and include the command you ran plus the first failing log lines.
 
 ## How To Contribute
 

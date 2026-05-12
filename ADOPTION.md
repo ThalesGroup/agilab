@@ -81,17 +81,22 @@ Common first checks:
 
 ## Contributor Day 1
 
-For contribution work, keep the same local-first discipline:
+For contribution work, start with the same local-first discipline, then pick
+one contribution lane from `CONTRIBUTING.md` before editing:
 
 ```bash
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 git config core.hooksPath .githooks
 uv --preview-features extra-build-dependencies sync --group dev
-uv --preview-features extra-build-dependencies run agilab first-proof
+uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 ```
 
 Before opening a pull request, run the narrowest check that proves your change.
 For docs-only changes, `git diff --check` is usually enough. For code changes,
 prefer targeted `pytest` or the matching `tools/workflow_parity.py --profile`
 command before broader validation.
+
+Paste the validation command and result in the pull request. If you are unsure
+which lane applies, open a `[CONTRIBUTOR]` issue with the command you ran and
+the first failing log lines.

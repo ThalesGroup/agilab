@@ -222,7 +222,8 @@ Current packaging policy is conservative:
 2. Understand notebook-to-app migration: [Notebook Migration Demo](https://thalesgroup.github.io/agilab/notebook-migration-skforecast-meteo.html)
 3. Prove the full source-checkout flow: [Source Checkout](#source-checkout)
 4. Verify a CLI-only package install: [Published Package](#published-package)
-5. Audit external apps and evidence: [App Repository Updates](#app-repository-updates) and [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html)
+5. Contribute safely: [Contributor onboarding](CONTRIBUTING.md)
+6. Audit external apps and evidence: [App Repository Updates](#app-repository-updates) and [Release Proof](https://thalesgroup.github.io/agilab/release-proof.html)
 
 For a single-page adoption checklist, use [ADOPTION.md](ADOPTION.md).
 
@@ -333,6 +334,7 @@ active agents that adapt flight paths or routing to improve network KPIs.
 - [MLOps positioning](https://thalesgroup.github.io/agilab/agilab-mlops-positioning.html)
 - [Strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
+- [Contributor onboarding](CONTRIBUTING.md)
 - [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
 - [Adoption guide](ADOPTION.md)
 - [Releases](https://github.com/ThalesGroup/agilab/releases)
