@@ -22,15 +22,17 @@ Current public release
    * - GitHub release
      - `v2026.05.12-6 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-6>`__
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``7fc82dee40b39ceb71700a9c07dbbe9cf3c7711e``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``0fe409050dbef645d73b1e642f31aa0682736d83``
    * - Public guardrails
-     - `repo-guardrails run 25756318096 <https://github.com/ThalesGroup/agilab/actions/runs/25756318096>`__ passed repository guardrails and clean package first-proof jobs
+     - `repo-guardrails run 25761463607 <https://github.com/ThalesGroup/agilab/actions/runs/25761463607>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
-     - `docs-source-guard run 25756318120 <https://github.com/ThalesGroup/agilab/actions/runs/25756318120>`__ passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 25760790372 <https://github.com/ThalesGroup/agilab/actions/runs/25760790372>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 25756318150 <https://github.com/ThalesGroup/agilab/actions/runs/25756318150>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 25760790376 <https://github.com/ThalesGroup/agilab/actions/runs/25760790376>`__ built the public documentation from the managed docs mirror
    * - Coverage
-     - `coverage run 25756318126 <https://github.com/ThalesGroup/agilab/actions/runs/25756318126>`__ passed component coverage and badge freshness checks
+     - `coverage run 25761463615 <https://github.com/ThalesGroup/agilab/actions/runs/25761463615>`__ passed component coverage and badge freshness checks
+   * - PyPI publish
+     - `pypi-publish run 25760807169 <https://github.com/ThalesGroup/agilab/actions/runs/25760807169>`__ published all eight PyPI distributions with Trusted Publishing/OIDC
 
 What was proved
 ---------------
