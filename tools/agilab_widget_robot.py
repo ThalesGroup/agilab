@@ -3066,9 +3066,14 @@ def _wait_for_action_outcome(
             return None, True
         elif not require_feedback and time.perf_counter() >= min_observation_deadline:
             return None, True
-        if time.perf_counter() >= deadline:
+        now = time.perf_counter()
+        if now >= deadline:
+            if require_feedback and allow_idle_settle and (
+                soft_feedback_seen or now >= min_observation_deadline
+            ):
+                return None, True
             return None, False
-        _wait_for_timeout(page, min(250, max(10, (deadline - time.perf_counter()) * 1000.0)))
+        _wait_for_timeout(page, min(250, max(10, (deadline - now) * 1000.0)))
 
 
 def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:
