@@ -139,6 +139,18 @@ def test_readme_uses_recommended_workbench_positioning() -> None:
     assert "AGILAB is a reproducible AI/ML workbench for engineering teams." in readme
     assert "AGILAB complements MLflow and production MLOps platforms." in readme
     assert "reproducible execution and analysis layer" in readme
+    assert "| `examples` extra |" in readme
+    assert "| `agents` extra |" in readme
+    assert "| `dev` extra |" in readme
+
+
+def test_quick_start_documents_public_install_tiers() -> None:
+    quick_start = (DOCS_SOURCE / "quick-start.rst").read_text(encoding="utf-8")
+
+    assert "``agilab[agents]`` for the packaged agent workflow client dependencies" in quick_start
+    assert "``agilab[examples]`` for notebook/demo helper dependencies" in quick_start
+    assert "``agilab[dev]`` for contributor-only test/build tooling" in quick_start
+    assert "base, UI, AI, agents, examples, MLflow, local-LLM, offline, and dev install" in quick_start
 
 
 def test_package_publishing_policy_addresses_common_audit_misreads() -> None:

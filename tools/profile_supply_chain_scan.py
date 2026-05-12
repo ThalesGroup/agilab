@@ -15,9 +15,12 @@ PROFILE_EXTRAS: dict[str, tuple[str, ...]] = {
     "base": (),
     "ui": ("ui",),
     "ai": ("ai",),
+    "agents": ("agents",),
+    "examples": ("examples",),
     "mlflow": ("mlflow",),
     "local-llm": ("local-llm",),
     "offline": ("offline",),
+    "dev": ("dev",),
 }
 DEFAULT_PROFILES = tuple(PROFILE_EXTRAS)
 
