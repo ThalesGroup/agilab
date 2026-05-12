@@ -29,39 +29,47 @@ github_release_tag = "v2026.05.12-6"
 github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-6"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "7fc82dee40b39ceb71700a9c07dbbe9cf3c7711e"
+hf_space_commit = "0fe409050dbef645d73b1e642f31aa0682736d83"
 
 [[ci_runs]]
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "25756318096"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25756318096"
+run_id = "25761463607"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25761463607"
 summary = "passed repository guardrails and clean package first-proof jobs"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "25756318120"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25756318120"
+run_id = "25760790372"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25760790372"
 summary = "passed docs mirror and release-proof consistency checks"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "25756318150"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25756318150"
+run_id = "25760790376"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25760790376"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
 id = "coverage"
 label = "Coverage"
 workflow = "coverage"
-run_id = "25756318126"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25756318126"
+run_id = "25761463615"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25761463615"
 summary = "passed component coverage and badge freshness checks"
+
+[[ci_runs]]
+id = "pypi-publish"
+label = "PyPI publish"
+workflow = "pypi-publish"
+run_id = "25760807169"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25760807169"
+summary = "published all eight PyPI distributions with Trusted Publishing/OIDC"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"
