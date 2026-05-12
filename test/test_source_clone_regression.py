@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import importlib.util
 import io
+import os
 import subprocess
 import sys
 import tarfile
@@ -33,6 +35,37 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
     with tarfile.open(fileobj=io.BytesIO(completed.stdout)) as archive:
         archive.extractall(clone_root, filter="data")
     return clone_root
+
+
+def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
+    active_app = clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    completed = subprocess.run(
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            str(clone_root / "tools" / "newcomer_first_proof.py"),
+            "--active-app",
+            str(active_app),
+            "--with-install",
+            "--json",
+            "--no-manifest",
+        ],
+        cwd=clone_root,
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "HOME": str(clone_root / "home"),
+            "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+            "OPENAI_API_KEY": "sk-test-source-clone-proof-000000000000",
+            "PYTHONUNBUFFERED": "1",
+        },
+    )
+    return json.loads(completed.stdout)
 
 
 def test_full_regression_passes_from_a_fresh_source_clone(tmp_path: Path) -> None:
@@ -80,3 +113,15 @@ def test_full_regression_passes_from_a_fresh_source_clone(tmp_path: Path) -> Non
     assert compatibility_report["status"] == "pass"
     assert compatibility_report["summary"]["failed"] == 0
     assert compatibility_report["summary"]["manifest_evidence"]["load_failures"] == 0
+
+    proof_payload = _run_clone_newcomer_proof(clone_root)
+    assert proof_payload["active_app"] == str(clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_project")
+    assert proof_payload["with_install"] is True
+    assert proof_payload["success"] is True
+    assert proof_payload["passed_steps"] == proof_payload["expected_steps"] == 4
+    assert [step["label"] for step in proof_payload["steps"]] == [
+        "preinit smoke",
+        "source ui smoke",
+        "flight install smoke",
+        "seeded script check",
+    ]
