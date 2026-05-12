@@ -58,33 +58,20 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "id-token: write" in text
-    assert "environment:\n      name: pypi" in text
+    assert "name: ${{ matrix.pypi_environment }}" in text
+    assert "name: pypi-agilab" in text
     assert "uses: pypa/gh-action-pypi-publish@" in text
     assert "# release/v1" in text
     assert "tools/pypi_distribution_state.py" in text
-    assert "steps.agi-env-pypi-state.outputs.all-exist != 'true'" in text
-    assert "steps.agi-gui-pypi-state.outputs.all-exist != 'true'" in text
-    assert "steps.agi-pages-pypi-state.outputs.all-exist != 'true'" in text
-    assert "steps.agi-node-pypi-state.outputs.all-exist != 'true'" in text
-    assert "steps.agi-cluster-pypi-state.outputs.all-exist != 'true'" in text
-    assert "steps.agi-core-pypi-state.outputs.all-exist != 'true'" in text
-    assert "steps.agi-apps-pypi-state.outputs.all-exist != 'true'" in text
+    assert "steps.library-pypi-state.outputs.all-exist != 'true'" in text
     assert "steps.agilab-pypi-state.outputs.all-exist != 'true'" in text
     assert "PYPI_TRUSTED_PUBLISHING" in text
     assert "PyPI publication requires Trusted Publishing/OIDC" in text
     assert "packages-dir: dist-library/" not in text
-    assert "packages-dir: src/agilab/core/agi-env/dist/" in text
-    assert "packages-dir: src/agilab/lib/agi-gui/dist/" in text
-    assert "packages-dir: src/agilab/lib/agi-pages/dist/" in text
-    assert "packages-dir: src/agilab/core/agi-node/dist/" in text
-    assert "packages-dir: src/agilab/core/agi-cluster/dist/" in text
-    assert "packages-dir: src/agilab/core/agi-core/dist/" in text
-    assert "packages-dir: src/agilab/lib/agi-apps/dist/" in text
+    assert "packages-dir: ${{ matrix.dist }}" in text
     assert "packages-dir: dist/" in text
-    assert "Build agi-pages" in text
-    assert "src/agilab/lib/agi-pages/dist/*" in text
-    assert "Build agi-apps" in text
-    assert "src/agilab/lib/agi-apps/dist/*" in text
+    assert "Build ${{ matrix.package }}" in text
+    assert "Verify ${{ matrix.package }}" in text
     assert "PYPI_API_TOKEN" not in text
     assert "PYPI_SECRET" not in text
     assert "PYPI_TOKEN" not in text
@@ -96,17 +83,29 @@ def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "PyPI OIDC tokens are project-scoped" in text
+    assert "distinct GitHub environment claim" in text
     assert "dist-library" not in text
-    assert text.count("uses: pypa/gh-action-pypi-publish@") == 8
+    assert "fail-fast: false" in text
+    assert text.count("uses: pypa/gh-action-pypi-publish@") == 2
 
-    for package in [
-        "agi-env",
-        "agi-gui",
-        "agi-pages",
-        "agi-node",
-        "agi-cluster",
-        "agi-core",
-        "agi-apps",
-        "agilab",
+    for package, project, dist, environment in [
+        ("agi-env", "src/agilab/core/agi-env", "src/agilab/core/agi-env/dist", "pypi-agi-env"),
+        ("agi-gui", "src/agilab/lib/agi-gui", "src/agilab/lib/agi-gui/dist", "pypi-agi-gui"),
+        ("agi-pages", "src/agilab/lib/agi-pages", "src/agilab/lib/agi-pages/dist", "pypi-agi-pages"),
+        ("agi-node", "src/agilab/core/agi-node", "src/agilab/core/agi-node/dist", "pypi-agi-node"),
+        (
+            "agi-cluster",
+            "src/agilab/core/agi-cluster",
+            "src/agilab/core/agi-cluster/dist",
+            "pypi-agi-cluster",
+        ),
+        ("agi-core", "src/agilab/core/agi-core", "src/agilab/core/agi-core/dist", "pypi-agi-core"),
+        ("agi-apps", "src/agilab/lib/agi-apps", "src/agilab/lib/agi-apps/dist", "pypi-agi-apps"),
     ]:
-        assert f"Publish {package} to PyPI with trusted publishing" in text
+        assert f"package: {package}" in text
+        assert f"project: {project}" in text
+        assert f"dist: {dist}" in text
+        assert f"pypi_environment: {environment}" in text
+
+    assert "pypi-agilab" in text
+    assert "Publish ${{ matrix.package }} to PyPI with trusted publishing" in text
