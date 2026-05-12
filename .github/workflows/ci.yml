@@ -139,7 +139,25 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Check release package is visible on PyPI
+        id: release-package
+        shell: bash
+        run: |
+          set -euo pipefail
+          if python tools/install_release_proof_package.py --check-available-only; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" || "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "ERROR: release-proof package is not visible on PyPI during a strict ${GITHUB_EVENT_NAME} guardrail run." >&2
+            exit 1
+          fi
+          echo "::notice::Release-proof package is not visible on PyPI yet; skipping clean public install for this ${GITHUB_EVENT_NAME} run to avoid racing the tag publish workflow."
+
       - name: Install released AGILAB package
+        if: steps.release-package.outputs.available == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -147,6 +165,7 @@ jobs:
           python tools/install_release_proof_package.py --retries 20 --delay-seconds 15
 
       - name: Validate clean package first proof
+        if: steps.release-package.outputs.available == 'true'
         shell: bash
         env:
           AGILAB_DISABLE_BACKGROUND_SERVICES: "1"

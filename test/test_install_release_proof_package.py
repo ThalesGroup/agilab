@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 
@@ -101,3 +102,45 @@ def test_install_with_retry_uses_exact_spec_and_refreshes_index(monkeypatch) -> 
     ]
     assert all("--no-cache-dir" in call for call in install_calls)
     assert sleeps == [0.25]
+
+
+class _JsonResponse:
+    def __init__(self, payload: dict[str, object]) -> None:
+        self._payload = payload
+
+    def __enter__(self) -> "_JsonResponse":
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+    def read(self) -> bytes:
+        return json.dumps(self._payload).encode("utf-8")
+
+
+def test_pypi_release_visible_normalizes_zero_padded_calendar_versions() -> None:
+    module = _load_module()
+
+    def opener(_url: str, *, timeout: float) -> _JsonResponse:
+        assert timeout == 20.0
+        return _JsonResponse({"releases": {"2026.5.12.post3": []}})
+
+    assert module.pypi_release_visible(
+        "agilab",
+        "2026.05.12.post3",
+        opener=opener,
+    )
+
+
+def test_pypi_release_visible_returns_false_when_release_is_absent() -> None:
+    module = _load_module()
+
+    def opener(_url: str, *, timeout: float) -> _JsonResponse:
+        assert timeout == 20.0
+        return _JsonResponse({"releases": {"2026.5.12.post2": []}})
+
+    assert not module.pypi_release_visible(
+        "agilab",
+        "2026.05.12.post3",
+        opener=opener,
+    )
