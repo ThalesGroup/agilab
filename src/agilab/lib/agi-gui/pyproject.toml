@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.12.post1"
+version = "2026.05.12.post2"
 name = "agi-gui"
 description = "AGILAB Streamlit UI dependency bundle and compatibility imports"
 requires-python = ">=3.11"
@@ -32,7 +32,7 @@ keywords = [
     "python",
 ]
 
-dependencies = ["agi-env==2026.05.12.post1", "gitpython>=3.1.50", "streamlit>=1.56.0", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "watchdog"]
+dependencies = ["agi-env==2026.05.12.post2", "gitpython>=3.1.50", "streamlit>=1.56.0", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "watchdog"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -42,6 +42,8 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
 
 
 

@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.12.post1"
+version = "2026.05.12.post2"
 name = "agi-apps"
 description = "AGILAB public built-in app and example asset package"
 requires-python = ">=3.11"
@@ -31,7 +31,7 @@ keywords = [
     "workflow-orchestration",
 ]
 
-dependencies = ["agi-core==2026.05.12.post1"]
+dependencies = ["agi-core==2026.05.12.post2"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -41,6 +41,8 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
 
 
 
