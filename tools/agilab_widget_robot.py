@@ -1588,24 +1588,13 @@ def collect_widget_combination_controls(
     timeout_ms: float,
     max_options_per_widget: int,
 ) -> tuple[list[WidgetControl], list[WidgetProbe]]:
+    del page, app_name, page_name, timeout_ms, max_options_per_widget
+    # Keep exhaustive combinations on stable controls only. AGILAB pages use
+    # many dependent selectboxes whose option lists legitimately change after
+    # another widget is selected; putting those in a Cartesian product produces
+    # stale-option false positives instead of useful UI regressions.
     controls = collect_static_widget_combination_controls(widgets)
-    probes: list[WidgetProbe] = []
-    for widget in widgets:
-        if str(widget.get("kind", "")) != "selectbox":
-            continue
-        control, probe = _selectbox_widget_control(
-            page,
-            widget,
-            app_name=app_name,
-            page_name=page_name,
-            timeout_ms=timeout_ms,
-            max_options_per_widget=max_options_per_widget,
-        )
-        if probe is not None:
-            probes.append(probe)
-        if control is not None:
-            controls.append(control)
-    return controls, probes
+    return controls, []
 
 
 def _short_detail(detail: str, *, limit: int = 500) -> str:
