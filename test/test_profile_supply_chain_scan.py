@@ -29,8 +29,12 @@ def test_build_profile_scan_exports_matching_extra(tmp_path: Path) -> None:
     assert "--extra" in export_cmd
     assert "agents" in export_cmd
     assert scan.requirements.endswith("agents/requirements.txt")
+    assert scan.audit_requirements.endswith("agents/requirements-audit.txt")
     assert scan.pip_audit_json.endswith("agents/pip-audit.json")
     assert scan.sbom_json.endswith("agents/sbom-cyclonedx.json")
+    assert str(scan.audit_requirements) in scan.commands[1]
+    assert "--no-deps" in scan.commands[1]
+    assert "--disable-pip" in scan.commands[1]
 
 
 def test_cli_prints_all_profile_scan_plan(tmp_path: Path, capsys) -> None:
@@ -50,3 +54,32 @@ def test_cli_prints_all_profile_scan_plan(tmp_path: Path, capsys) -> None:
     assert profiles["dev"]["extras"] == ["dev"]
     assert any("pip-audit" in command for command in profiles["ui"]["commands"][1])
     assert any("cyclonedx-py" in command for command in profiles["ui"]["commands"][2])
+
+
+def test_write_pip_audit_requirements_removes_local_editables(tmp_path: Path) -> None:
+    module = _load_module()
+    requirements = tmp_path / "requirements.txt"
+    audit_requirements = tmp_path / "requirements-audit.txt"
+    requirements.write_text(
+        "\n".join(
+            [
+                "# exported",
+                "-e .",
+                "    # via agilab",
+                "agi-core @ file:///repo/src/agilab/core/agi-core",
+                "    # via agilab",
+                "requests==2.33.1 \\",
+                "    --hash=sha256:abc",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    module.write_pip_audit_requirements(requirements, audit_requirements)
+
+    text = audit_requirements.read_text(encoding="utf-8")
+    assert "-e ." not in text
+    assert "file:///repo" not in text
+    assert "requests==2.33.1" in text
+    assert "--hash=sha256:abc" in text

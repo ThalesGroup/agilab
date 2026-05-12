@@ -35,7 +35,7 @@ keywords = [
     "job-scheduling",
     "mlops",
 ]
-dependencies = ["agi-env==2026.05.12", "agi-node==2026.05.12", "asyncssh", "dask[distributed]", "humanize", "numpy", "packaging", "polars", "psutil", "scikit-learn", "tomlkit"]
+dependencies = ["agi-env==2026.05.12", "agi-node==2026.05.12", "asyncssh", "dask[distributed]", "humanize", "numpy", "packaging", "polars", "psutil", "scikit-learn", "tomlkit", "urllib3>=2.7.0"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
