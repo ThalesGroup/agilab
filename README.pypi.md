@@ -152,8 +152,8 @@ can validate one coherent tree. Their stability differs:
 |---|---|---|
 | `src/agilab/core/*` | Runtime packages and compact API. | Stable where documented. |
 | `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI. | Beta product surface. |
-| `src/agilab/lib/agi-apps` | PyPI package carrying public built-in apps/examples. | Packaged asset surface for `agilab[ui]` and `agilab[examples]`. |
-| `src/agilab/lib/agi-pages` | PyPI package carrying public analysis page bundles. | Packaged page-bundle surface for `agilab[ui]` and `agilab[pages]`. |
+| `src/agilab/lib/agi-apps` | PyPI package carrying public built-in apps/examples. | Packaged asset surface for the `ui` and `examples` extras. |
+| `src/agilab/lib/agi-pages` | PyPI package carrying public analysis page bundles. | Packaged page-bundle surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | First-proof and demo apps. | Packaged examples, not deployment templates. |
 | `src/agilab/examples` | Learning scripts and notebooks. | Educational examples with optional dependencies. |
 | `tools`, `.github`, IDE and agent folders | Contributor/release automation. | Maintainer tooling, not runtime API. |

@@ -182,8 +182,8 @@ AGILAB is a monorepo, but it is not a single stability surface:
 |---|---|---|
 | `src/agilab/core/agi-env`, `agi-node`, `agi-cluster`, `agi-core` | Runtime packages for environment setup, worker packaging, distributed execution, and the compact API. | Stable where documented; changes require focused regression evidence. |
 | `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI and page helpers. | Beta product surface; useful for operators, still evolving. |
-| `src/agilab/lib/agi-apps` | PyPI package that carries public built-in app/example assets. | Packaged asset surface for `agilab[ui]` and `agilab[examples]`. |
-| `src/agilab/lib/agi-pages` | PyPI package that carries public analysis page bundles. | Packaged page-bundle surface for `agilab[ui]` and `agilab[pages]`. |
+| `src/agilab/lib/agi-apps` | PyPI package that carries public built-in app/example assets. | Packaged asset surface for the `ui` and `examples` extras. |
+| `src/agilab/lib/agi-pages` | PyPI package that carries public analysis page bundles. | Packaged page-bundle surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | Public built-in apps used for first proof, demos, workflow examples, and regression coverage. | Packaged examples, not enterprise deployment templates. |
 | `src/agilab/examples` | Learning scripts, notebooks, and preview examples. | Educational material; optional helper dependencies live behind extras. |
 | `tools`, `.github`, `pycharm`, `.codex`, `.claude`, `dev` | Contributor, release, agent, and IDE automation. | Maintainer tooling, not runtime API. |
@@ -208,9 +208,9 @@ Current packaging policy is conservative:
 - Base `agilab` keeps CLI/core proof dependencies separate from UI, page bundles,
   examples, agents, MLflow, visualization, local-LLM, offline, and dev profiles.
 - Built-in apps, examples, and small sample data live in the `agi-apps` wheel
-  and are pulled in by `agilab[ui]` and `agilab[examples]`.
+  and are pulled in by the `ui` and `examples` extras.
 - Public analysis page bundles live in the `agi-pages` wheel and are pulled in
-  by `agilab[ui]` and `agilab[pages]`.
+  by the `ui` and `pages` extras.
 - Larger optional stacks must stay behind extras, and release evidence must
   include SBOM / `pip-audit` data for the actual enabled profile.
 - Further cluster/runtime splitting is a roadmap item; it is not claimed as
