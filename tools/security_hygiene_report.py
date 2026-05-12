@@ -380,6 +380,24 @@ def _release_tag_matches_version(manifest_tag: str, project_version: str) -> boo
     return re.fullmatch(rf"{expected_tag}(?:-\d+)?", manifest_tag) is not None
 
 
+def _version_key(version: str) -> tuple[int, ...] | None:
+    parts = re.findall(r"\d+", version)
+    if not parts:
+        return None
+    return tuple(int(part) for part in parts)
+
+
+def _version_not_newer(left: str, right: str) -> bool:
+    left_key = _version_key(left)
+    right_key = _version_key(right)
+    if left_key is None or right_key is None:
+        return left == right
+    max_len = max(len(left_key), len(right_key))
+    padded_left = left_key + (0,) * (max_len - len(left_key))
+    padded_right = right_key + (0,) * (max_len - len(right_key))
+    return padded_left <= padded_right
+
+
 def _release_package_spec(package_name: str, package_version: str, release: Mapping[str, Any]) -> str:
     package_extras = release.get("package_extras", []) or []
     extras = []
@@ -415,9 +433,13 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
     manifest_version = str(release.get("package_version") or "")
     manifest_tag = str(release.get("github_release_tag") or "")
     package_spec = _release_package_spec(package_name, manifest_version, release)
-    expected_tag = f"v{project_version}" if project_version else ""
-    version_aligned = bool(project_version) and manifest_version == project_version
-    tag_aligned = _release_tag_matches_version(manifest_tag, project_version)
+    expected_tag = f"v{manifest_version}" if manifest_version else ""
+    version_aligned = (
+        bool(project_version)
+        and bool(manifest_version)
+        and _version_not_newer(manifest_version, project_version)
+    )
+    tag_aligned = _release_tag_matches_version(manifest_tag, manifest_version)
     rendered_page_aligned = (
         bool(package_name)
         and bool(manifest_version)
@@ -453,6 +475,7 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
                 f"{expected_tag}[-N]" if expected_tag else ""
             ),
             "version_aligned": version_aligned,
+            "exact_source_version_match": project_version == manifest_version,
             "tag_aligned": tag_aligned,
             "rendered_page_aligned": rendered_page_aligned,
         },

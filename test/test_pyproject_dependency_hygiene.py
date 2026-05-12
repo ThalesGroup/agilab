@@ -11,7 +11,9 @@ from packaging.requirements import Requirement
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src"
 SRC_PACKAGE = SRC_ROOT / "agilab"
+TOOLS_ROOT = REPO_ROOT / "tools"
 sys.path.insert(0, str(SRC_ROOT))
+sys.path.insert(0, str(TOOLS_ROOT))
 
 import agilab as _agilab_package
 
@@ -19,6 +21,7 @@ if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
 from agilab.app_template_registry import discover_app_templates
+from package_split_contract import ROOT_EXTRA_INTERNAL_REQUIREMENTS
 
 
 def _load_pyproject(path: Path) -> dict:
@@ -55,9 +58,12 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     deps = _dependency_names(REPO_ROOT / "pyproject.toml")
 
     app_or_example_owned = {
-        "agi-apps",
-        "agi-pages",
-        "agi-gui",
+        *{
+            package
+            for extra, packages in ROOT_EXTRA_INTERNAL_REQUIREMENTS.items()
+            if extra != "dependencies"
+            for package in packages
+        },
         "asyncssh",
         "fastparquet",
         "geojson",
@@ -160,10 +166,10 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
 
     assert _optional_dependency_names(pyproject, "ai") == {"openai"}
     assert _optional_dependency_names(pyproject, "agents") == {"openai"}
-    assert {"agi-apps", "jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
-    assert _optional_dependency_names(pyproject, "pages") == {"agi-pages"}
+    assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["examples"]) | {"jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
+    assert _optional_dependency_names(pyproject, "pages") == set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["pages"])
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
-    assert {"agi-apps", "agi-pages", "agi-gui", "streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
+    assert set(ROOT_EXTRA_INTERNAL_REQUIREMENTS["ui"]) | {"streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
     assert _optional_dependency_names(pyproject, "mlflow") == {"mlflow"}
     assert {"build", "pytest", "pytest-cov", "pip-audit", "cyclonedx-bom", "twine", "wheel"} <= _optional_dependency_names(
         pyproject, "dev"

@@ -10,7 +10,14 @@ from pathlib import Path
 import pytest
 
 
-MODULE_PATH = Path("tools/pypi_publish.py").resolve()
+REPO_ROOT = Path(__file__).resolve().parents[1]
+TOOLS_ROOT = REPO_ROOT / "tools"
+sys.path.insert(0, str(TOOLS_ROOT))
+
+from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, WHEEL_ONLY_PACKAGE_NAMES
+
+
+MODULE_PATH = REPO_ROOT / "tools/pypi_publish.py"
 
 
 def _load_pypi_publish():
@@ -971,6 +978,7 @@ def test_publishable_libs_include_asset_packages_in_release_order() -> None:
 
     package_names = [name for name, *_ in module.publishable_libs()]
 
+    assert package_names == [package.name for package in LIBRARY_PACKAGE_CONTRACTS]
     assert "agi-pages" in package_names
     assert "agi-apps" in package_names
     assert package_names.index("agi-gui") < package_names.index("agi-pages")
@@ -980,7 +988,7 @@ def test_publishable_libs_include_asset_packages_in_release_order() -> None:
 def test_asset_packages_are_wheel_only_for_release_tooling() -> None:
     module = _load_pypi_publish()
 
-    for package in ("agi-apps", "agi-pages"):
+    for package in WHEEL_ONLY_PACKAGE_NAMES:
         assert module.effective_dist_kind(package, "wheel") == "wheel"
         assert module.effective_dist_kind(package, "both") == "wheel"
         with pytest.raises(SystemExit, match=f"{package} is wheel-only"):
@@ -1733,7 +1741,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
     else:
         raise AssertionError("main() should reject real PyPI upload collisions")
 
-    assert order == ["badge", "build", "external-install-guard", "commit", "coverage-workflow", "reset"]
+    assert order == ["badge", "build", "external-install-guard", "coverage-workflow", "reset"]
 
 
 def test_twine_upload_reports_summary_and_skip_existing(monkeypatch, capsys) -> None:
@@ -1825,7 +1833,7 @@ def test_main_does_not_reset_release_files_after_success(tmp_path, monkeypatch) 
     assert reset_calls == []
 
 
-def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
+def test_main_commits_after_successful_upload_before_tagging(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
     project_dir = tmp_path / "agi-env"
@@ -1906,13 +1914,70 @@ def test_main_commits_before_upload_and_tagging(tmp_path, monkeypatch) -> None:
         "preflight",
         "external-install-guard",
         "pre-upload-guard",
-        "release-refs",
-        "commit",
         "coverage-workflow",
         "upload",
+        "release-refs",
+        "commit",
         "tag",
         "github-release",
     ]
+
+
+def test_main_does_not_publish_release_metadata_when_upload_fails(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+
+    project_dir = tmp_path / "agi-env"
+    project_dir.mkdir()
+    pyproject = project_dir / "pyproject.toml"
+    pyproject.write_text(
+        "[project]\nname = 'agi-env'\nversion = '2026.03.16'\ndependencies = []\n",
+        encoding="utf-8",
+    )
+
+    cfg = _base_cfg(
+        module,
+        repo="pypi",
+        version="2026.03.23",
+        git_tag=True,
+        git_commit_version=True,
+        git_reset_on_failure=True,
+        packages=["agi-env"],
+    )
+    order: list[str] = []
+
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "CORE", [("agi-env", pyproject, project_dir)])
+    monkeypatch.setattr(module, "UMBRELLA", ("agilab", tmp_path / "missing.toml", tmp_path))
+    monkeypatch.setattr(module, "pypi_releases", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(module, "remove_symlinks_for_umbrella", lambda: [])
+    monkeypatch.setattr(module, "restore_symlinks", lambda _entries: None)
+    monkeypatch.setattr(module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
+    monkeypatch.setattr(module, "twine_check", lambda _files: None)
+    monkeypatch.setattr(
+        module,
+        "twine_upload",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("upload failed")),
+    )
+    monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
+    monkeypatch.setattr(module, "run_pre_upload_external_install_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_coverage_workflow_prerequisite", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
+    monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
+    monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
+    monkeypatch.setattr(module, "create_and_push_tag", lambda *_args, **_kwargs: order.append("tag"))
+    monkeypatch.setattr(module, "create_or_update_github_release", lambda *_args, **_kwargs: order.append("github-release"))
+    monkeypatch.setattr(module, "git_reset_pyprojects", lambda: order.append("reset"))
+
+    with pytest.raises(RuntimeError, match="upload failed"):
+        module.main()
+
+    assert order == ["preflight", "reset"]
 
 
 def test_main_deletes_former_github_release_after_current_release(tmp_path, monkeypatch) -> None:
@@ -1966,7 +2031,7 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
     monkeypatch.setattr(module, "sync_builtin_app_versions", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "dist_files", lambda _project_dir: [str(project_dir / "dist" / "fake.whl")])
     monkeypatch.setattr(module, "twine_check", lambda _files: None)
-    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "twine_upload", lambda *_args, **_kwargs: order.append("upload"))
     monkeypatch.setattr(module, "update_selected_badges", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "uv_build_project", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
@@ -1998,9 +2063,10 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
         "preflight",
         "external-install-guard",
         "pre-upload-guard",
+        "coverage-workflow",
+        "upload",
         "release-refs",
         "commit",
-        "coverage-workflow",
         "tag",
         "github-release",
         "delete-former",
@@ -2346,11 +2412,11 @@ def test_main_generates_docs_before_docs_commit_and_tag(tmp_path, monkeypatch) -
         "external-install-guard",
         "pre-upload-guard",
         "gen-docs",
+        "coverage-workflow",
+        "upload",
         "release-refs",
         "commit",
         "commit-docs",
-        "coverage-workflow",
-        "upload",
         "tag",
         "github-release",
     ]

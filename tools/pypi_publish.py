@@ -51,6 +51,25 @@ from email.parser import Parser
 from typing import Dict, List, Tuple
 from html.parser import HTMLParser
 
+try:
+    from package_split_contract import (
+        APP_PACKAGE_NAMES,
+        CORE_PACKAGE_NAMES,
+        PAGE_PACKAGE_NAMES,
+        UMBRELLA_PACKAGE_CONTRACT,
+        WHEEL_ONLY_PACKAGE_NAMES,
+        package_by_name,
+    )
+except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.pypi_publish
+    from tools.package_split_contract import (
+        APP_PACKAGE_NAMES,
+        CORE_PACKAGE_NAMES,
+        PAGE_PACKAGE_NAMES,
+        UMBRELLA_PACKAGE_CONTRACT,
+        WHEEL_ONLY_PACKAGE_NAMES,
+        package_by_name,
+    )
+
 # third-party bootstrap (install if missing)
 def _ensure_pkgs():
     need = []
@@ -241,33 +260,19 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
 # ---------- Repo layout (agilab) ----------
 REPO_ROOT = pathlib.Path.cwd().resolve()
 
-CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [
-    ("agi-env",     REPO_ROOT / "src/agilab/core/agi-env/pyproject.toml",     REPO_ROOT / "src/agilab/core/agi-env"),
-    ("agi-node",    REPO_ROOT / "src/agilab/core/agi-node/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-node"),
-    ("agi-cluster", REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml", REPO_ROOT / "src/agilab/core/agi-cluster"),
-    ("agi-core",    REPO_ROOT / "src/agilab/core/agi-core/pyproject.toml",    REPO_ROOT / "src/agilab/core/agi-core"),
-]
+def _package_entry(package_name: str) -> Tuple[str, pathlib.Path, pathlib.Path]:
+    package = package_by_name(package_name)
+    project_dir = REPO_ROOT if package.project == "." else REPO_ROOT / package.project
+    return package.name, REPO_ROOT / package.pyproject, project_dir
+
+
+CORE: List[Tuple[str, pathlib.Path, pathlib.Path]] = [_package_entry(name) for name in CORE_PACKAGE_NAMES]
 def page_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
-    agi_gui = (
-        "agi-gui",
-        REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml",
-        REPO_ROOT / "src/agilab/lib/agi-gui",
-    )
-    agi_pages = (
-        "agi-pages",
-        REPO_ROOT / "src/agilab/lib/agi-pages/pyproject.toml",
-        REPO_ROOT / "src/agilab/lib/agi-pages",
-    )
-    return [entry for entry in (agi_gui, agi_pages) if entry[1].exists()]
+    return [entry for entry in (_package_entry(name) for name in PAGE_PACKAGE_NAMES) if entry[1].exists()]
 
 
 def app_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
-    agi_apps = (
-        "agi-apps",
-        REPO_ROOT / "src/agilab/lib/agi-apps/pyproject.toml",
-        REPO_ROOT / "src/agilab/lib/agi-apps",
-    )
-    return [agi_apps] if agi_apps[1].exists() else []
+    return [entry for entry in (_package_entry(name) for name in APP_PACKAGE_NAMES) if entry[1].exists()]
 
 
 def publishable_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
@@ -289,9 +294,9 @@ def publishable_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
     return libs
 
 
-UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
+UMBRELLA = _package_entry(UMBRELLA_PACKAGE_CONTRACT.name)
 ALL_PACKAGE_NAMES = [name for name, *_ in publishable_libs()] + [UMBRELLA[0]]
-WHEEL_ONLY_PACKAGES = {"agi-apps", "agi-pages"}
+WHEEL_ONLY_PACKAGES = set(WHEEL_ONLY_PACKAGE_NAMES)
 
 APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY",)
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
@@ -2517,24 +2522,6 @@ def main():
         if cfg.repo == "pypi" and cfg.gen_docs:
             generate_docs_in_docs_repository()
             docs_generated = True
-
-        if cfg.repo == "pypi" and cfg.git_commit_version:
-            with defer_sigint("pre-upload release metadata commit") as deferred_interrupt:
-                if planned_tag is not None:
-                    update_public_release_references(planned_tag, chosen, version_targets)
-                    release_references_updated = True
-                git_commit_version(chosen, include_docs=cfg.gen_docs, push=True)
-                if should_commit_docs_repository_after_release(
-                    docs_repo_ready=docs_repo_ready,
-                    gen_docs=cfg.gen_docs,
-                    release_tag=planned_tag,
-                ):
-                    git_commit_docs_repository(chosen, push=True)
-                release_metadata_committed = True
-            if deferred_interrupt["value"]:
-                raise KeyboardInterrupt(
-                    "Interrupted after release metadata was committed before upload"
-                )
 
         run_release_coverage_workflow_prerequisite(cfg)
 
