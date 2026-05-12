@@ -102,6 +102,27 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
     assert captured == [["--json", "--with-ui"]]
 
 
+def test_main_dispatches_agent_run_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_agent_run(argv: list[str]) -> int:
+        captured.append(argv)
+        return 35
+
+    monkeypatch.setattr(lab_run, "_run_agent_run", fake_agent_run)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["agent-run", "--agent", "codex", "--", "codex", "review"])
+
+    assert rc == 35
+    assert captured == [["--agent", "codex", "--", "codex", "review"]]
+
+
 def test_main_dispatches_dry_run_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []

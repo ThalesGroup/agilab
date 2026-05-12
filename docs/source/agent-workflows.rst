@@ -48,6 +48,23 @@ Then follow the repo rules in:
 The main rule is simple: run the narrowest local proof first, then reproduce
 the real AGILAB path before broader validation.
 
+Agent run evidence
+------------------
+
+Use ``agilab agent-run`` when a coding-agent action should leave AGILAB
+evidence instead of only a tool-specific log::
+
+   agilab agent-run --agent codex --label "Review current diff" -- codex review
+
+The command writes a redacted ``agilab.agent_run.v1`` manifest plus local
+``stdout.txt`` and ``stderr.txt`` artifacts under
+``~/log/agents/<agent>/<run-id>/``. Environment override values passed with
+``--env KEY=VALUE`` are redacted from the manifest. Command arguments are
+redacted by default and represented by an argv hash; pass
+``--include-command-args`` only when the prompt/arguments are safe to store. The
+stdout/stderr files stay local artifacts so tool output is not embedded in
+public JSON by default.
+
 Supported agent paths
 ---------------------
 
