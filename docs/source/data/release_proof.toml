@@ -21,6 +21,7 @@ related_pages = [
 [release]
 package_name = "agilab"
 package_version = "2026.05.12.post2"
+package_extras = ["examples"]
 pypi_url = "https://pypi.org/project/agilab/"
 github_release_tag = "v2026.05.12-5"
 github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-5"
@@ -63,7 +64,7 @@ summary = "passed component coverage and badge freshness checks"
 [proof_command]
 summary = "A clean package install can run the public first proof:"
 commands = [
-  "python -m pip install {package_spec}",
+  "python -m pip install \"{package_spec}\"",
   "python -m agilab.lab_run first-proof --json --max-seconds 60",
 ]
 
@@ -73,7 +74,7 @@ commands = [
   "python -m venv .venv",
   ". .venv/bin/activate",
   "python -m pip install --upgrade pip",
-  "python -m pip install {package_spec}",
+  "python -m pip install \"{package_spec}\"",
   "python -m agilab.lab_run first-proof --json --max-seconds 60",
 ]
 follow_up = "Use :doc:`quick-start` when you want the fuller source-checkout path with the built-in app installation and Streamlit UI."

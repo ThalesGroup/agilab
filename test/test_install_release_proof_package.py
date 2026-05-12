@@ -55,6 +55,18 @@ def test_release_package_spec_includes_manifest_extras(tmp_path: Path) -> None:
     )
 
 
+def test_current_release_proof_installs_public_example_payload() -> None:
+    module = _load_module()
+
+    package_name, _package_version, package_spec = module.release_package_spec(
+        Path("docs/source/data/release_proof.toml")
+    )
+
+    assert package_name == "agilab"
+    assert package_spec.startswith("agilab[")
+    assert "examples" in package_spec
+
+
 def test_install_with_retry_uses_exact_spec_and_refreshes_index(monkeypatch) -> None:
     module = _load_module()
     install_calls: list[list[str]] = []
