@@ -24,13 +24,13 @@ Current public release
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``7fc82dee40b39ceb71700a9c07dbbe9cf3c7711e``
    * - Public guardrails
-     - `repo-guardrails run 25582096270 <https://github.com/ThalesGroup/agilab/actions/runs/25582096270>`__ passed repository guardrails and clean package first-proof jobs
+     - `repo-guardrails run 25756318096 <https://github.com/ThalesGroup/agilab/actions/runs/25756318096>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
-     - `docs-source-guard run 25581456410 <https://github.com/ThalesGroup/agilab/actions/runs/25581456410>`__ passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 25756318120 <https://github.com/ThalesGroup/agilab/actions/runs/25756318120>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 25582096237 <https://github.com/ThalesGroup/agilab/actions/runs/25582096237>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 25756318150 <https://github.com/ThalesGroup/agilab/actions/runs/25756318150>`__ built the public documentation from the managed docs mirror
    * - Coverage
-     - `coverage run 25582096277 <https://github.com/ThalesGroup/agilab/actions/runs/25582096277>`__ passed component coverage and badge freshness checks
+     - `coverage run 25756318126 <https://github.com/ThalesGroup/agilab/actions/runs/25756318126>`__ passed component coverage and badge freshness checks
 
 What was proved
 ---------------
