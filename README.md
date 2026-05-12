@@ -143,6 +143,14 @@ what they need:
 | `local-llm` / `offline` extras | Local/offline model stacks such as Torch, Transformers, GPT-OSS, and MLX where supported. | Isolated local-model experiments; expect a larger supply-chain and hardware footprint. |
 | `dev` extra | Contributor test/build/audit tooling only. | Validating a source checkout or release candidate; avoid it for runtime installs. |
 
+Agent workflows can now produce AGILAB evidence directly. Use
+`agilab agent-run --agent codex --label "Review current diff" -- codex review`
+to execute a local coding-agent command and write a redacted
+`agilab.agent_run.v1` manifest plus local stdout/stderr artifacts under
+`~/log/agents/`. Command arguments are redacted by default and represented by
+an argv hash; pass `--include-command-args` only when the prompt/arguments are
+safe to store.
+
 Cluster/Dask dependencies are currently part of the base package through
 `agi-core`; a smaller cluster-specific package split is a packaging roadmap item,
 not a current release claim.

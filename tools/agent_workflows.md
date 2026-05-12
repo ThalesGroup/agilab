@@ -11,6 +11,22 @@ Use the short repo contract in [AGENT_CONVENTIONS.md](../AGENT_CONVENTIONS.md)
 for local coding agents with smaller context windows. Use [AGENTS.md](../AGENTS.md)
 for the full AGILAB runbook when the task touches risky surfaces.
 
+## Trace an agent run
+
+Use `agilab agent-run` when a coding-agent action should leave product-style
+evidence instead of only a tool-specific log:
+
+```bash
+agilab agent-run --agent codex --label "Review current diff" -- codex review
+```
+
+The command writes a redacted `agilab.agent_run.v1` manifest plus local
+`stdout.txt` and `stderr.txt` artifacts under `~/log/agents/<agent>/<run-id>/`.
+Command arguments are redacted by default and represented by an argv hash;
+environment override values passed with `--env KEY=VALUE` are also redacted
+from the manifest. Pass `--include-command-args` only when the prompt/arguments
+are safe to store.
+
 ## CLI-first references
 
 - [CLI-first workflow](../docs/CLI_FIRST_WORKFLOW.md)

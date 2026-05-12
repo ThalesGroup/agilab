@@ -70,3 +70,14 @@ def test_agent_workflow_wrappers_are_shell_valid_and_reference_repo_defaults() -
     assert "AGILAB_OPENCODE_AGENT" in opencode_text
     assert "agilab-build" in opencode_text
     assert "agilab-review" in opencode_text
+
+
+def test_agent_run_evidence_command_is_documented() -> None:
+    agent_workflows = (REPO_ROOT / "tools" / "agent_workflows.md").read_text(encoding="utf-8")
+    public_docs = (REPO_ROOT / "docs" / "source" / "agent-workflows.rst").read_text(encoding="utf-8")
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+    for text in (agent_workflows, public_docs, readme):
+        assert "agilab agent-run --agent codex" in text
+        assert "agilab.agent_run.v1" in text
+        assert "~/log/agents/" in text

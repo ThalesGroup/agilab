@@ -117,6 +117,12 @@ def _run_first_proof(argv: list[str]) -> int:
     return first_proof_cli.main(argv)
 
 
+def _run_agent_run(argv: list[str]) -> int:
+    from agilab import agent_run
+
+    return agent_run.main(argv)
+
+
 def _run_security_check(argv: list[str]) -> int:
     from agilab import security_check
 
@@ -159,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_doctor(raw_argv[1:])
     if raw_argv[:1] in (["first-proof"], ["first_proof"]):
         return _run_first_proof(raw_argv[1:])
+    if raw_argv[:1] in (["agent-run"], ["agent_run"]):
+        return _run_agent_run(raw_argv[1:])
     if raw_argv[:1] == ["dry-run"]:
         return _run_first_proof(["--dry-run", *raw_argv[1:]])
     if raw_argv[:1] in (["security-check"], ["security_check"]):
