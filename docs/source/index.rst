@@ -32,6 +32,7 @@ references, and example projects.
    quick-start
    release-proof
    newcomer-troubleshooting
+   contributor-guide
    architecture-five-minutes
    compatibility-matrix
 
