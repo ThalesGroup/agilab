@@ -174,9 +174,48 @@ jobs:
       - release-evidence
       - supply-chain-evidence
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: agi-env
+            project: src/agilab/core/agi-env
+            dist: src/agilab/core/agi-env/dist
+            pypi_project: agi-env
+            pypi_environment: pypi-agi-env
+          - package: agi-gui
+            project: src/agilab/lib/agi-gui
+            dist: src/agilab/lib/agi-gui/dist
+            pypi_project: agi-gui
+            pypi_environment: pypi-agi-gui
+          - package: agi-pages
+            project: src/agilab/lib/agi-pages
+            dist: src/agilab/lib/agi-pages/dist
+            pypi_project: agi-pages
+            pypi_environment: pypi-agi-pages
+          - package: agi-node
+            project: src/agilab/core/agi-node
+            dist: src/agilab/core/agi-node/dist
+            pypi_project: agi-node
+            pypi_environment: pypi-agi-node
+          - package: agi-cluster
+            project: src/agilab/core/agi-cluster
+            dist: src/agilab/core/agi-cluster/dist
+            pypi_project: agi-cluster
+            pypi_environment: pypi-agi-cluster
+          - package: agi-core
+            project: src/agilab/core/agi-core
+            dist: src/agilab/core/agi-core/dist
+            pypi_project: agi-core
+            pypi_environment: pypi-agi-core
+          - package: agi-apps
+            project: src/agilab/lib/agi-apps
+            dist: src/agilab/lib/agi-apps/dist
+            pypi_project: agi-apps
+            pypi_environment: pypi-agi-apps
     environment:
-      name: pypi
-      url: https://pypi.org/project/agilab/
+      name: ${{ matrix.pypi_environment }}
+      url: https://pypi.org/project/${{ matrix.pypi_project }}/
     permissions:
       contents: read
       id-token: write
@@ -198,117 +237,25 @@ jobs:
       - name: Install uv and twine
         run: python -m pip install --upgrade --no-cache-dir uv twine
 
-      - name: Clean previous builds
-        run: |
-          rm -rf src/agilab/core/agi-env/dist
-          rm -rf src/agilab/lib/agi-gui/dist
-          rm -rf src/agilab/lib/agi-pages/dist
-          rm -rf src/agilab/lib/agi-apps/dist
-          rm -rf src/agilab/core/agi-node/dist
-          rm -rf src/agilab/core/agi-cluster/dist
-          rm -rf src/agilab/core/agi-core/dist
+      - name: Clean previous ${{ matrix.package }} build
+        run: rm -rf "${{ matrix.dist }}"
 
-      # Build + verify + publish to PyPI (official)
-      - name: Build agi-env
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-env --wheel
-      - name: Verify agi-env
-        run: twine check src/agilab/core/agi-env/dist/*
+      - name: Build ${{ matrix.package }}
+        run: uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}" --wheel
 
-      - name: Build agi-gui
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/lib/agi-gui --wheel
-      - name: Verify agi-gui
-        run: twine check src/agilab/lib/agi-gui/dist/*
+      - name: Verify ${{ matrix.package }}
+        run: twine check "${{ matrix.dist }}"/*
 
-      - name: Build agi-pages
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/lib/agi-pages --wheel
-      - name: Verify agi-pages
-        run: twine check src/agilab/lib/agi-pages/dist/*
-
-      - name: Build agi-node
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-node --wheel
-      - name: Verify agi-node
-        run: twine check src/agilab/core/agi-node/dist/*
-
-      - name: Build agi-cluster
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-cluster --wheel
-      - name: Verify agi-cluster
-        run: twine check src/agilab/core/agi-cluster/dist/*
-
-      - name: Build agi-core
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-core --wheel
-      - name: Verify agi-core
-        run: twine check src/agilab/core/agi-core/dist/*
-
-      - name: Build agi-apps
-        run: uv --preview-features extra-build-dependencies build --project src/agilab/lib/agi-apps --wheel
-      - name: Verify agi-apps
-        run: twine check src/agilab/lib/agi-apps/dist/*
-
-      - name: Check whether agi-env distributions already exist on PyPI
-        id: agi-env-pypi-state
+      - name: Check whether ${{ matrix.package }} distributions already exist on PyPI
+        id: library-pypi-state
         run: |
           set -euxo pipefail
           python tools/pypi_distribution_state.py \
-            --dist-dir src/agilab/core/agi-env/dist \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Check whether agi-gui distributions already exist on PyPI
-        id: agi-gui-pypi-state
-        run: |
-          set -euxo pipefail
-          python tools/pypi_distribution_state.py \
-            --dist-dir src/agilab/lib/agi-gui/dist \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Check whether agi-pages distributions already exist on PyPI
-        id: agi-pages-pypi-state
-        run: |
-          set -euxo pipefail
-          python tools/pypi_distribution_state.py \
-            --dist-dir src/agilab/lib/agi-pages/dist \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Check whether agi-node distributions already exist on PyPI
-        id: agi-node-pypi-state
-        run: |
-          set -euxo pipefail
-          python tools/pypi_distribution_state.py \
-            --dist-dir src/agilab/core/agi-node/dist \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Check whether agi-cluster distributions already exist on PyPI
-        id: agi-cluster-pypi-state
-        run: |
-          set -euxo pipefail
-          python tools/pypi_distribution_state.py \
-            --dist-dir src/agilab/core/agi-cluster/dist \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Check whether agi-core distributions already exist on PyPI
-        id: agi-core-pypi-state
-        run: |
-          set -euxo pipefail
-          python tools/pypi_distribution_state.py \
-            --dist-dir src/agilab/core/agi-core/dist \
-            --github-output "$GITHUB_OUTPUT"
-
-      - name: Check whether agi-apps distributions already exist on PyPI
-        id: agi-apps-pypi-state
-        run: |
-          set -euxo pipefail
-          python tools/pypi_distribution_state.py \
-            --dist-dir src/agilab/lib/agi-apps/dist \
+            --dist-dir "${{ matrix.dist }}" \
             --github-output "$GITHUB_OUTPUT"
 
       - name: Ensure PyPI auth is configured for library packages
-        if: >-
-          steps.agi-env-pypi-state.outputs.all-exist != 'true' ||
-          steps.agi-gui-pypi-state.outputs.all-exist != 'true' ||
-          steps.agi-pages-pypi-state.outputs.all-exist != 'true' ||
-          steps.agi-node-pypi-state.outputs.all-exist != 'true' ||
-          steps.agi-cluster-pypi-state.outputs.all-exist != 'true' ||
-          steps.agi-core-pypi-state.outputs.all-exist != 'true' ||
-          steps.agi-apps-pypi-state.outputs.all-exist != 'true'
+        if: steps.library-pypi-state.outputs.all-exist != 'true'
         run: |
           set -euo pipefail
           if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
@@ -318,61 +265,19 @@ jobs:
           echo "ERROR: PyPI publication requires Trusted Publishing/OIDC. Configure a PyPI trusted publisher for this workflow and set repository variable PYPI_TRUSTED_PUBLISHING=true." >&2
           exit 2
 
-      # PyPI OIDC tokens are project-scoped, so each distribution family must
-      # be published by a separate trusted-publishing action call.
-      - name: Publish agi-env to PyPI with trusted publishing
-        if: steps.agi-env-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
+      # PyPI OIDC tokens are project-scoped. The matrix gives each PyPI
+      # project a distinct GitHub environment claim.
+      - name: Publish ${{ matrix.package }} to PyPI with trusted publishing
+        if: steps.library-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
-          packages-dir: src/agilab/core/agi-env/dist/
-          skip-existing: true
-
-      - name: Publish agi-gui to PyPI with trusted publishing
-        if: steps.agi-gui-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-        with:
-          packages-dir: src/agilab/lib/agi-gui/dist/
-          skip-existing: true
-
-      - name: Publish agi-pages to PyPI with trusted publishing
-        if: steps.agi-pages-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-        with:
-          packages-dir: src/agilab/lib/agi-pages/dist/
-          skip-existing: true
-
-      - name: Publish agi-node to PyPI with trusted publishing
-        if: steps.agi-node-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-        with:
-          packages-dir: src/agilab/core/agi-node/dist/
-          skip-existing: true
-
-      - name: Publish agi-cluster to PyPI with trusted publishing
-        if: steps.agi-cluster-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-        with:
-          packages-dir: src/agilab/core/agi-cluster/dist/
-          skip-existing: true
-
-      - name: Publish agi-core to PyPI with trusted publishing
-        if: steps.agi-core-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-        with:
-          packages-dir: src/agilab/core/agi-core/dist/
-          skip-existing: true
-
-      - name: Publish agi-apps to PyPI with trusted publishing
-        if: steps.agi-apps-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-        with:
-          packages-dir: src/agilab/lib/agi-apps/dist/
+          packages-dir: ${{ matrix.dist }}
           skip-existing: true
   publish-agilab:
     needs: publish-library-packages
     runs-on: ubuntu-latest
     environment:
-      name: pypi
+      name: pypi-agilab
       url: https://pypi.org/project/agilab/
     permissions:
       contents: read
