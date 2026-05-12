@@ -42,6 +42,17 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
 
 def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
     active_app = clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    env = {
+        **os.environ,
+        "HOME": str(clone_root / "home"),
+        "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+        "OPENAI_API_KEY": "sk-test-source-clone-proof-000000000000",
+        "PYTHONUNBUFFERED": "1",
+    }
+    # A fresh source clone proof must not inherit the caller's active venv.
+    # Nested uv commands intentionally choose the clone/app environments.
+    for key in ("VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT", "UV_RUN_RECURSION_DEPTH"):
+        env.pop(key, None)
     completed = subprocess.run(
         [
             "uv",
@@ -60,13 +71,7 @@ def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
         check=True,
         capture_output=True,
         text=True,
-        env={
-            **os.environ,
-            "HOME": str(clone_root / "home"),
-            "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
-            "OPENAI_API_KEY": "sk-test-source-clone-proof-000000000000",
-            "PYTHONUNBUFFERED": "1",
-        },
+        env=env,
     )
     return json.loads(completed.stdout)
 
