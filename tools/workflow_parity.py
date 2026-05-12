@@ -293,20 +293,29 @@ def _agi_gui_profile() -> list[CommandSpec]:
 
 
 def _agi_gui_coverage_combine() -> CommandSpec:
-    chunk_paths = [
+    chunk_bases = [
         f"test-results/coverage-agi-gui-{chunk}.db"
         for chunk in AGI_GUI_COVERAGE_CHUNKS
     ]
     combine_code = (
         "from pathlib import Path\n"
         "import subprocess, sys, time\n"
-        f"paths = {chunk_paths!r}\n"
+        f"chunk_bases = {chunk_bases!r}\n"
         "missing = []\n"
-        "for _ in range(30):\n"
-        "    missing = [path for path in paths if not Path(path).exists()]\n"
+        "paths = []\n"
+        "for _ in range(120):\n"
+        "    missing = []\n"
+        "    paths = []\n"
+        "    for base in chunk_bases:\n"
+        "        base_path = Path(base)\n"
+        "        candidates = sorted(base_path.parent.glob(base_path.name + '*'))\n"
+        "        candidates = [path for path in candidates if path.is_file() and path.stat().st_size > 0]\n"
+        "        if not candidates:\n"
+        "            missing.append(base)\n"
+        "        paths.extend(str(path) for path in candidates)\n"
         "    if not missing:\n"
         "        break\n"
-        "    time.sleep(0.2)\n"
+        "    time.sleep(0.5)\n"
         "if missing:\n"
         "    print('Missing agi-gui coverage chunks: ' + ', '.join(missing))\n"
         "    sys.exit(1)\n"
@@ -362,6 +371,7 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
             "run",
             "--rcfile=.coveragerc.agi-gui",
             f"--data-file={data_file}",
+            "--parallel-mode",
             "-m",
             "pytest",
             "-q",
@@ -378,7 +388,11 @@ def _agi_gui_coverage_chunk(label: str, targets: Sequence[str], *, clean: bool =
         env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
         timeout_seconds=8 * 60,
         ensure_dirs=["test-results"],
-        remove_paths=[*clean_paths, junit_path] if clean else [data_file, junit_path],
+        remove_paths=(
+            [*clean_paths, *(f"{path}.*" for path in clean_paths), junit_path]
+            if clean
+            else [data_file, f"{data_file}.*", junit_path]
+        ),
     )
 
 
@@ -899,14 +913,19 @@ def _prepare_command(spec: CommandSpec) -> None:
     for rel_dir in spec.ensure_dirs:
         (REPO_ROOT / rel_dir).mkdir(parents=True, exist_ok=True)
     for rel_path in spec.remove_paths:
-        target = REPO_ROOT / rel_path
-        if target.is_dir():
-            shutil.rmtree(target, ignore_errors=True)
-        else:
-            try:
-                target.unlink()
-            except FileNotFoundError:
-                pass
+        targets = (
+            sorted(REPO_ROOT.glob(rel_path))
+            if any(token in rel_path for token in "*?[")
+            else [REPO_ROOT / rel_path]
+        )
+        for target in targets:
+            if target.is_dir():
+                shutil.rmtree(target, ignore_errors=True)
+            else:
+                try:
+                    target.unlink()
+                except FileNotFoundError:
+                    pass
 
 
 def _run_command(spec: CommandSpec) -> CommandResult:

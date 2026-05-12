@@ -111,10 +111,16 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_gui_commands[0].remove_paths[:2] == [".coverage.agi-gui", "coverage-agi-gui.xml"]
     assert all("coverage" in command.argv for command in agi_gui_chunks)
     assert all("--append" not in command.argv for command in agi_gui_chunks)
+    assert all("--parallel-mode" in command.argv for command in agi_gui_chunks)
+    assert "test-results/coverage-agi-gui-support.db.*" in agi_gui_commands[0].remove_paths
+    assert "test-results/coverage-agi-gui-pipeline.db.*" in agi_gui_commands[1].remove_paths
     assert "--data-file=test-results/coverage-agi-gui-support.db" in agi_gui_commands[0].argv
     agi_gui_combine_argv = " ".join(agi_gui_combine.argv)
     assert "'coverage', 'combine'" in agi_gui_combine_argv
     assert "--keep" in agi_gui_combine_argv
+    assert "range(120)" in agi_gui_combine_argv
+    assert "parent.glob(base_path.name + '*')" in agi_gui_combine_argv
+    assert "stat().st_size > 0" in agi_gui_combine_argv
     assert "test-results/coverage-agi-gui-pipeline.db" in agi_gui_combine_argv
     assert "coverage-agi-gui.xml" in agi_gui_xml.argv
     assert "src/agilab/lib/agi-gui/test" in agi_gui_argv
@@ -220,6 +226,35 @@ def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> No
         "--worker-copy",
         "~/wenv/builtin/flight_worker",
     ]
+
+
+def test_prepare_command_removes_globbed_coverage_fragments(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    results_dir = tmp_path / "test-results"
+    results_dir.mkdir()
+    exact = results_dir / "coverage-agi-gui-pages.db"
+    fragment = results_dir / "coverage-agi-gui-pages.db.m41.123.abc"
+    unrelated = results_dir / "coverage-agi-gui-views.db.m41.123.abc"
+    exact.write_text("exact")
+    fragment.write_text("fragment")
+    unrelated.write_text("unrelated")
+
+    module._prepare_command(
+        module.CommandSpec(
+            label="cleanup",
+            argv=["true"],
+            ensure_dirs=["test-results"],
+            remove_paths=[
+                "test-results/coverage-agi-gui-pages.db",
+                "test-results/coverage-agi-gui-pages.db.*",
+            ],
+        )
+    )
+
+    assert not exact.exists()
+    assert not fragment.exists()
+    assert unrelated.exists()
 
 
 def test_run_profiles_stops_on_first_failure_by_default() -> None:
