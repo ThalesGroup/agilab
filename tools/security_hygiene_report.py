@@ -376,8 +376,24 @@ def _supply_chain_profile_evidence_check(security_text: str) -> dict[str, Any]:
 def _release_tag_matches_version(manifest_tag: str, project_version: str) -> bool:
     if not manifest_tag or not project_version:
         return False
-    expected_tag = re.escape(f"v{project_version}")
-    return re.fullmatch(rf"{expected_tag}(?:-\d+)?", manifest_tag) is not None
+    accepted_bases = [project_version]
+    post_base = re.sub(r"\.post\d+\Z", "", project_version)
+    if post_base != project_version:
+        accepted_bases.append(post_base)
+    return any(
+        re.fullmatch(rf"{re.escape(f'v{base}')}(?:-\d+)?", manifest_tag) is not None
+        for base in accepted_bases
+    )
+
+
+def _accepted_release_tag_pattern(project_version: str) -> str:
+    if not project_version:
+        return ""
+    patterns = [f"v{project_version}[-N]"]
+    post_base = re.sub(r"\.post\d+\Z", "", project_version)
+    if post_base != project_version:
+        patterns.append(f"v{post_base}[-N]")
+    return " or ".join(patterns)
 
 
 def _version_key(version: str) -> tuple[int, ...] | None:
@@ -471,8 +487,8 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
             "manifest_package_spec": package_spec,
             "expected_github_release_tag": expected_tag,
             "manifest_github_release_tag": manifest_tag,
-            "accepted_github_release_tag_pattern": (
-                f"{expected_tag}[-N]" if expected_tag else ""
+            "accepted_github_release_tag_pattern": _accepted_release_tag_pattern(
+                manifest_version
             ),
             "version_aligned": version_aligned,
             "exact_source_version_match": project_version == manifest_version,

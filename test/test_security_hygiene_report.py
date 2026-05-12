@@ -86,7 +86,11 @@ def test_release_tag_alignment_accepts_same_version_retry_tags() -> None:
     assert not module._release_tag_matches_version("v2026.05.11", "")
     assert module._release_tag_matches_version("v2026.05.11", "2026.05.11")
     assert module._release_tag_matches_version("v2026.05.11-2", "2026.05.11")
+    assert module._release_tag_matches_version("v2026.05.12.post1", "2026.05.12.post1")
+    assert module._release_tag_matches_version("v2026.05.12.post1-2", "2026.05.12.post1")
+    assert module._release_tag_matches_version("v2026.05.12-5", "2026.05.12.post1")
     assert not module._release_tag_matches_version("v2026.05.12", "2026.05.11")
+    assert not module._release_tag_matches_version("v2026.05.13", "2026.05.12.post1")
     assert not module._release_tag_matches_version("v2026.05.11-beta", "2026.05.11")
 
 
