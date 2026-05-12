@@ -170,8 +170,14 @@ def test_quick_start_documents_public_install_tiers() -> None:
 
 def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
     policy = (DOCS_SOURCE / "package-publishing-policy.rst").read_text(encoding="utf-8")
+    normalized_policy = " ".join(policy.split())
     readme = Path("README.md").read_text(encoding="utf-8")
 
+    assert "Release synchronization contract" in policy
+    assert "one planned version and one committed dependency graph" in normalized_policy
+    assert "internal runtime dependency pins used by the published wheels" in policy
+    assert "must not rewrite versions or dependency metadata\nduring the upload job" in policy
+    assert "dependency-policy hygiene, docs mirror\nintegrity, installer behavior" in policy
     assert "Real PyPI publication must not silently auto-create\n``.postN`` releases" in policy
     assert "multiple same-day post releases should be treated as release\nprocess debt" in policy
     assert "disallow_untyped_defs = true" in policy

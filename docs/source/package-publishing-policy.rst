@@ -72,6 +72,37 @@ directly into a single wheel, that migration must update dependency metadata,
 installer tests, notebook examples, and the release preflight before the
 standalone runtime packages can be retired from the public publish flow.
 
+Release synchronization contract
+--------------------------------
+
+Release automation is intentionally conservative because AGILAB publishes an
+umbrella package plus several runtime packages. A public release must have one
+planned version and one committed dependency graph before files are uploaded to
+real PyPI.
+
+The release commit should synchronize:
+
+- the root ``agilab`` version,
+- ``agi-core``, ``agi-env``, ``agi-node``, ``agi-cluster``, and ``agi-gui``
+  package versions,
+- internal runtime dependency pins used by the published wheels,
+- built-in app version metadata and lower-bound runtime requirements,
+- public README badges, release proof references, and docs mirror stamp when
+  they changed.
+
+Real PyPI publication may skip distributions that already exist for the exact
+same release graph, but it must not rewrite versions or dependency metadata
+during the upload job. If the release needs a different version, choose it
+explicitly, regenerate the release commit, rerun preflight, and publish from
+that committed state. TestPyPI rehearsals may still use retry-oriented
+``.postN`` versions, but those rehearsals are not the source of truth for a
+real release.
+
+The required preflight is the place to catch synchronization drift. It should
+validate package metadata, internal pins, dependency-policy hygiene, docs mirror
+integrity, installer behavior, and release-proof consistency before either the
+library packages or the umbrella ``agilab`` wheel are uploaded.
+
 Publishing authentication
 -------------------------
 
