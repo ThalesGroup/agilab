@@ -55,7 +55,8 @@ jobs:
             --profile agi-gui \
             --profile agi-core-combined \
             --profile shared-core-typing \
-            --profile dependency-policy
+            --profile dependency-policy \
+            --profile release-proof
 
 
   release-evidence:

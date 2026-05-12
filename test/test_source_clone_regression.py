@@ -9,8 +9,11 @@ import sys
 import tarfile
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
+RELEASE_PROOF_ENV = "AGILAB_RUN_RELEASE_PROOF_SLOW"
 
 
 def _load_module(path: Path, name: str):
@@ -114,7 +117,16 @@ def test_full_regression_passes_from_a_fresh_source_clone(tmp_path: Path) -> Non
     assert compatibility_report["summary"]["failed"] == 0
     assert compatibility_report["summary"]["manifest_evidence"]["load_failures"] == 0
 
+
+@pytest.mark.release_proof
+@pytest.mark.skipif(
+    os.environ.get(RELEASE_PROOF_ENV) != "1",
+    reason=f"set {RELEASE_PROOF_ENV}=1 to run the slow fresh-clone install proof",
+)
+def test_newcomer_first_proof_passes_from_fresh_source_clone(tmp_path: Path) -> None:
+    clone_root = _materialize_fresh_source_clone(tmp_path)
     proof_payload = _run_clone_newcomer_proof(clone_root)
+
     assert proof_payload["active_app"] == str(clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_project")
     assert proof_payload["with_install"] is True
     assert proof_payload["success"] is True

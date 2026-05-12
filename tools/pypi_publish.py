@@ -556,6 +556,7 @@ def release_preflight_profiles(cfg: Cfg) -> list[str]:
         "installer",
         "shared-core-typing",
         "dependency-policy",
+        "release-proof",
     ]
 
 

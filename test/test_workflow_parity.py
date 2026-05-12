@@ -46,6 +46,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
     dependency_policy = profiles["dependency-policy"][0]
+    release_proof = profiles["release-proof"][0]
     security_adoption = profiles["security-adoption"][0]
     cloud_emulators = profiles["cloud-emulators"]
     ui_robot_matrix = profiles["ui-robot-matrix"][0]
@@ -149,6 +150,12 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert dependency_policy.label == "dependency policy"
     assert dependency_policy.argv[-1] == "test/test_pyproject_dependency_hygiene.py"
     assert "addopts=" in dependency_policy.argv
+    assert release_proof.label == "fresh source clone first-proof install"
+    assert release_proof.env["AGILAB_RUN_RELEASE_PROOF_SLOW"] == "1"
+    assert release_proof.timeout_seconds == 15 * 60
+    assert "-m" in release_proof.argv
+    assert "release_proof" in release_proof.argv
+    assert release_proof.argv[-1].endswith("test_newcomer_first_proof_passes_from_fresh_source_clone")
     assert security_adoption.label == "security adoption check"
     assert security_adoption.argv[-3:] == [
         "tools/security_adoption_check.py",
@@ -187,6 +194,7 @@ def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
     assert "cloud-emulators" in selected
     assert "agi-node" not in selected
     assert "agi-cluster" not in selected
+    assert "release-proof" not in selected
     assert "security-adoption" not in selected
     assert "ui-robot-matrix" not in selected
 

@@ -419,6 +419,7 @@ pythonpath = [
 asyncio_mode = "auto"
 markers = [
   "integration: live/external integration checks (excluded from default CI suite)",
+  "release_proof: expensive release-proof gates that run only during release validation",
   "ui_robot: browser-driven AGILAB UI robot checks (opt-in; launches Streamlit/Playwright)",
 ]
 # addopts = "--import-mode=importlib"   # if you had it

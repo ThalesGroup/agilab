@@ -82,6 +82,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "installer",
             "shared-core-typing",
             "dependency-policy",
+            "release-proof",
             "security-adoption",
             "cloud-emulators",
             "ui-robot-matrix",
@@ -142,6 +143,7 @@ def _profile_descriptions() -> dict[str, str]:
         "installer": "Run local installer parity checks including shell syntax and contract checks.",
         "shared-core-typing": "Run the curated shared-core strict mypy slice.",
         "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
+        "release-proof": "Run expensive release-proof gates such as fresh-clone first-proof install validation.",
         "security-adoption": (
             "Write an advisory security-check JSON artifact; set "
             "AGILAB_SECURITY_CHECK_STRICT=1 to fail on warnings."
@@ -164,6 +166,7 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "installer": _installer_profile(args.app_path, args.worker_copy),
         "shared-core-typing": _shared_core_typing_profile(),
         "dependency-policy": _dependency_policy_profile(),
+        "release-proof": _release_proof_profile(),
         "security-adoption": _security_adoption_profile(),
         "cloud-emulators": _cloud_emulators_profile(),
         "ui-robot-matrix": _ui_robot_matrix_profile(),
@@ -778,6 +781,35 @@ def _dependency_policy_profile() -> list[CommandSpec]:
     ]
 
 
+def _release_proof_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="fresh source clone first-proof install",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "pytest",
+                "-q",
+                "-o",
+                "addopts=",
+                "-m",
+                "release_proof",
+                "test/test_source_clone_regression.py::test_newcomer_first_proof_passes_from_fresh_source_clone",
+            ],
+            env={
+                "AGILAB_RUN_RELEASE_PROOF_SLOW": "1",
+                "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+                "OPENAI_API_KEY": "sk-test-release-proof-000000000000",
+                "PYTHONUNBUFFERED": "1",
+                "VIRTUAL_ENV": "",
+            },
+            timeout_seconds=15 * 60,
+        )
+    ]
+
+
 def _security_adoption_profile() -> list[CommandSpec]:
     return [
         CommandSpec(
@@ -859,7 +891,7 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
 def _selected_profiles(args: argparse.Namespace) -> list[str]:
     if args.profile:
         return args.profile
-    opt_in_profiles = {"agi-node", "agi-cluster", "security-adoption", "ui-robot-matrix"}
+    opt_in_profiles = {"agi-node", "agi-cluster", "release-proof", "security-adoption", "ui-robot-matrix"}
     return [name for name in _profile_descriptions() if name not in opt_in_profiles]
 
 

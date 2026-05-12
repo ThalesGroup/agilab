@@ -438,6 +438,7 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
         "installer",
         "shared-core-typing",
         "dependency-policy",
+        "release-proof",
     ]
 
 
@@ -472,6 +473,7 @@ def test_run_release_preflight_cleans_stale_coverage_before_workflow(tmp_path, m
     assert calls[0][1] == tmp_path
     assert calls[0][2] == [False, False, False]
     assert "tools/workflow_parity.py" in calls[0][0]
+    assert calls[0][0][-2:] == ["--profile", "release-proof"]
 
 
 def test_validate_wheel_external_machine_metadata_rejects_unmarked_mlx(tmp_path) -> None:
