@@ -4,6 +4,17 @@ from pathlib import Path
 
 
 WORKFLOW_PATH = Path(".github/workflows/pypi-publish.yaml")
+TEST_PYPI_WORKFLOW_PATH = Path(".github/workflows/test-pypi-publish.yaml")
+PYPI_LIBRARY_PACKAGES = [
+    ("agi-env", "src/agilab/core/agi-env", "src/agilab/core/agi-env/dist", "pypi-agi-env"),
+    ("agi-gui", "src/agilab/lib/agi-gui", "src/agilab/lib/agi-gui/dist", "pypi-agi-gui"),
+    ("agi-pages", "src/agilab/lib/agi-pages", "src/agilab/lib/agi-pages/dist", "pypi-agi-pages"),
+    ("agi-node", "src/agilab/core/agi-node", "src/agilab/core/agi-node/dist", "pypi-agi-node"),
+    ("agi-cluster", "src/agilab/core/agi-cluster", "src/agilab/core/agi-cluster/dist", "pypi-agi-cluster"),
+    ("agi-core", "src/agilab/core/agi-core", "src/agilab/core/agi-core/dist", "pypi-agi-core"),
+    ("agi-apps", "src/agilab/lib/agi-apps", "src/agilab/lib/agi-apps/dist", "pypi-agi-apps"),
+]
+ALL_PYPI_PACKAGES = [package for package, *_ in PYPI_LIBRARY_PACKAGES] + ["agilab"]
 
 
 def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None:
@@ -88,20 +99,7 @@ def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
     assert "fail-fast: false" in text
     assert text.count("uses: pypa/gh-action-pypi-publish@") == 2
 
-    for package, project, dist, environment in [
-        ("agi-env", "src/agilab/core/agi-env", "src/agilab/core/agi-env/dist", "pypi-agi-env"),
-        ("agi-gui", "src/agilab/lib/agi-gui", "src/agilab/lib/agi-gui/dist", "pypi-agi-gui"),
-        ("agi-pages", "src/agilab/lib/agi-pages", "src/agilab/lib/agi-pages/dist", "pypi-agi-pages"),
-        ("agi-node", "src/agilab/core/agi-node", "src/agilab/core/agi-node/dist", "pypi-agi-node"),
-        (
-            "agi-cluster",
-            "src/agilab/core/agi-cluster",
-            "src/agilab/core/agi-cluster/dist",
-            "pypi-agi-cluster",
-        ),
-        ("agi-core", "src/agilab/core/agi-core", "src/agilab/core/agi-core/dist", "pypi-agi-core"),
-        ("agi-apps", "src/agilab/lib/agi-apps", "src/agilab/lib/agi-apps/dist", "pypi-agi-apps"),
-    ]:
+    for package, project, dist, environment in PYPI_LIBRARY_PACKAGES:
         assert f"package: {package}" in text
         assert f"project: {project}" in text
         assert f"dist: {dist}" in text
@@ -109,3 +107,24 @@ def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
 
     assert "pypi-agilab" in text
     assert "Publish ${{ matrix.package }} to PyPI with trusted publishing" in text
+
+
+def test_test_pypi_publish_delegates_to_the_eight_package_release_tool() -> None:
+    text = TEST_PYPI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    tool_text = Path("tools/pypi_publish.py").read_text(encoding="utf-8")
+
+    assert "tools/pypi_publish.py" in text
+    assert "--repo testpypi" in text
+    assert "--dist wheel" in text
+    assert "--git-reset-on-failure" in text
+    assert "--no-pypirc-check" in text
+    assert "TWINE_USERNAME: __token__" in text
+    assert "TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}" in text
+
+    assert "CORE = [" not in text
+    assert "versions.json" not in text
+    assert "Build & upload library packages" not in text
+    assert "Build & upload umbrella" not in text
+
+    for package in ALL_PYPI_PACKAGES:
+        assert f'"{package}"' in tool_text or f'("{package}"' in tool_text
