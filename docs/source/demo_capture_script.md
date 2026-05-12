@@ -447,7 +447,7 @@ Suggested flow:
 6. Move to `WORKFLOW`.
 7. Show that the run is now replayable as a tracked stage.
 8. Move to `ANALYSIS`.
-9. Open `view_uav_relay_queue_analysis`.
+9. Open `view_relay_resilience`.
 10. End on queue buildup, drops, or route usage.
 
 Narration:
@@ -480,7 +480,7 @@ Suggested timeline:
    Move to `WORKFLOW`, show the generated or replayable stage, and explain that
    the experiment is now explicit instead of being buried in one-off scripts.
 5. `2:00 -> 2:40`
-   Move to `ANALYSIS`, open `view_uav_relay_queue_analysis`, and show queue
+   Move to `ANALYSIS`, open `view_relay_resilience`, and show queue
    timeseries, drops, and routing summary.
 6. `2:40 -> 3:00`
    Optionally open `view_maps_network` or end on the queue page, then close on:
@@ -505,7 +505,7 @@ Suggested click path:
 7. `WORKFLOW`
 8. short pause on the explicit stage
 9. `ANALYSIS`
-10. `view_uav_relay_queue_analysis`
+10. `view_relay_resilience`
 11. optional final pause on `view_maps_network`
 
 ## Recording and visual rules

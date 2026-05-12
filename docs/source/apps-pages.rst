@@ -72,7 +72,7 @@ the per-user workspace copy of ``app_settings.toml``:
 .. code-block:: toml
 
    [pages]
-   view_module = ["view_uav_relay_queue_analysis", "view_maps_network"]
+   view_module = ["view_relay_resilience", "view_maps_network"]
 
 The file lives at ``~/.agilab/apps/<project>/app_settings.toml`` and is seeded
 from the app's versioned ``app_settings.toml`` source file (for example
@@ -125,32 +125,41 @@ Network topology viewer synchronised with geographic views.
 
 - Input: node positions + link definitions in the dataset.
 - Output: map + graph views to inspect connectivity, link types, and snapshots.
-- It can also reuse the built-in ``UAV Relay Queue`` exports (install id
-  ``uav_relay_queue_project``) when a run provides ``pipeline/topology.gml``,
-  ``pipeline/allocations_steps.csv``, and trajectory CSV files in the same run
-  directory.
+- It can also reuse any queue-analysis run that provides
+  ``pipeline/topology.gml``, ``pipeline/allocations_steps.csv``, and
+  trajectory CSV files in the same run directory.
 
-view_uav_relay_queue_analysis
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+view_queue_resilience
+^^^^^^^^^^^^^^^^^^^^^
 
-Dedicated analysis page for the built-in ``UAV Relay Queue`` example
-(``uav_relay_queue_project`` install id).
+Queue telemetry page for producer-agnostic queue-analysis artifacts.
 
-- Input: one run directory under ``~/export/uav_relay_queue/queue_analysis/<artifact_stem>/``.
+- Input: one or more summary files under
+  ``~/export/<app_target>/queue_analysis/<artifact_stem>/``.
 - Output: queue occupancy charts, per-packet delay and drop summaries, route
-  usage, and a quick explanation of why the scenario is a good AGILAB demo.
+  usage, and run metadata for reproducibility checks.
+
+view_relay_resilience
+^^^^^^^^^^^^^^^^^^^^^
+
+Relay queue comparison page for producer-agnostic queue-analysis artifacts.
+
+- Input: one or more run directories under
+  ``~/export/<app_target>/queue_analysis/<artifact_stem>/``.
+- Output: multi-run comparison tables, queue occupancy charts, per-packet delay
+  and drop summaries, route usage, and run metadata for reproducibility checks.
 - The same run directory also exposes generic ``pipeline/`` artifacts so you can
   open ``view_maps_network`` on the exact same result.
 
-Notes for distributed runs
---------------------------
+Producer example for distributed runs
+-------------------------------------
 
-- The ``UAV Relay Queue`` demo (install id ``uav_relay_queue_project``) distributes
-  one scenario JSON file per worker. One simulation is one work item; AGILAB
-  does not split a single scenario across multiple workers.
-- Each scenario now writes into its own
-  ``~/export/uav_relay_queue/queue_analysis/<artifact_stem>/`` directory, so
-  distributed runs with several scenario files do not overwrite each other's
+- A compatible queue-analysis producer should distribute one scenario or
+  workload file per worker. One simulation remains one work item; AGILAB does
+  not split a single scenario across multiple workers.
+- Each workload should write into its own
+  ``~/export/<app_target>/queue_analysis/<artifact_stem>/`` directory, so
+  distributed runs with several workload files do not overwrite each other's
   ``pipeline/`` artifacts.
 
 See also

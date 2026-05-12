@@ -31,7 +31,7 @@ Default flow:
 1. Select `uav_queue_project` in `PROJECT`.
 2. Review paths and routing parameters in the app args form.
 3. Run the app from `ORCHESTRATE`.
-4. Open `view_uav_queue_analysis` from `ANALYSIS`.
+4. Open `view_queue_resilience` from `ANALYSIS`.
 5. Open `view_maps_network` from `ANALYSIS` to reuse the same run as a generic
    topology/trajectory/allocation map.
 6. Re-run with `routing_policy = "queue_aware"` to compare against the default

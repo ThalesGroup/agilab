@@ -1,7 +1,7 @@
 [notebook_export]
 
 [[notebook_export.related_pages]]
-module = "view_uav_queue_analysis"
+module = "view_queue_resilience"
 label = "UAV Queue Analysis"
 description = "Inspect queue buildup, drops, per-packet events, node positions, and route usage for the lightweight UAV queue demo."
 artifacts = [

@@ -7,8 +7,8 @@ from types import ModuleType, SimpleNamespace
 import pytest
 
 PAGE_PATH = (
-    "src/agilab/apps-pages/view_uav_relay_queue_analysis/"
-    "src/view_uav_relay_queue_analysis/view_uav_relay_queue_analysis.py"
+    "src/agilab/apps-pages/view_relay_resilience/"
+    "src/view_relay_resilience/view_relay_resilience.py"
 )
 
 
@@ -78,14 +78,14 @@ def _write_relay_run(
 def _load_relay_helpers() -> ModuleType:
     source = Path(PAGE_PATH).read_text(encoding="utf-8")
     prefix = source.split('\nst.set_page_config(layout="wide")\n', 1)[0]
-    module = ModuleType("view_uav_relay_queue_analysis_test_module")
+    module = ModuleType("view_relay_resilience_test_module")
     module.__file__ = str(Path(PAGE_PATH).resolve())
     module.__package__ = None
     exec(compile(prefix, str(Path(PAGE_PATH)), "exec"), module.__dict__)
     return module
 
 
-def test_view_uav_relay_queue_analysis_renders_exported_artifacts(
+def test_view_relay_resilience_renders_exported_artifacts(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -115,14 +115,14 @@ def test_view_uav_relay_queue_analysis_renders_exported_artifacts(
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
-    assert any(title.value == "UAV relay queue analysis" for title in at.title)
+    assert any(title.value == "Relay resilience analysis" for title in at.title)
     assert any(metric.label == "PDR" for metric in at.metric)
     assert len(at.dataframe) >= 1
     assert len(at.selectbox) >= 1
     assert len(at.text_input) >= 2
 
 
-def test_view_uav_relay_queue_analysis_compares_multiple_runs(
+def test_view_relay_resilience_compares_multiple_runs(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -165,7 +165,7 @@ def test_view_uav_relay_queue_analysis_compares_multiple_runs(
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
-    runs_widget = at.multiselect(key="uav_relay_queue_selected_runs")
+    runs_widget = at.multiselect(key="relay_resilience_selected_runs")
     assert len(runs_widget.options) == 2
 
     at = runs_widget.set_value(list(runs_widget.options)).run()
@@ -180,7 +180,7 @@ def test_view_uav_relay_queue_analysis_compares_multiple_runs(
     assert any(metric.label == "Runs selected" and metric.value == "2" for metric in at.metric)
 
 
-def test_view_uav_relay_queue_analysis_reports_missing_peer_artifacts(
+def test_view_relay_resilience_reports_missing_peer_artifacts(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -219,12 +219,12 @@ def test_view_uav_relay_queue_analysis_reports_missing_peer_artifacts(
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
 
     assert not at.exception
-    assert any(title.value == "UAV relay queue analysis" for title in at.title)
+    assert any(title.value == "Relay resilience analysis" for title in at.title)
     assert any("Related queue artifacts are missing" in error.value for error in at.error)
     assert len(at.code) >= 1
 
 
-def test_view_uav_relay_queue_analysis_warns_when_artifact_directory_is_missing(
+def test_view_relay_resilience_warns_when_artifact_directory_is_missing(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -240,7 +240,7 @@ def test_view_uav_relay_queue_analysis_warns_when_artifact_directory_is_missing(
     assert any("Artifact directory does not exist yet" in warning.value for warning in at.warning)
 
 
-def test_view_uav_relay_queue_analysis_reports_missing_delivered_source_packets(
+def test_view_relay_resilience_reports_missing_delivered_source_packets(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -280,12 +280,12 @@ def test_view_uav_relay_queue_analysis_reports_missing_delivered_source_packets(
     assert any(subheader.value == "Notes" for subheader in at.subheader)
 
 
-def test_view_uav_relay_queue_analysis_helper_branches(monkeypatch, tmp_path) -> None:
+def test_view_relay_resilience_helper_branches(monkeypatch, tmp_path) -> None:
     module = _load_relay_helpers()
 
     repo_root = tmp_path / "repo"
     src_root = repo_root / "src"
-    module_path = src_root / "agilab" / "apps-pages" / "view_uav_relay_queue_analysis" / "src" / "view_uav_relay_queue_analysis" / "view_uav_relay_queue_analysis.py"
+    module_path = src_root / "agilab" / "apps-pages" / "view_relay_resilience" / "src" / "view_relay_resilience" / "view_relay_resilience.py"
     module_path.parent.mkdir(parents=True)
     module_path.write_text("# stub\n", encoding="utf-8")
     monkeypatch.setattr(module, "__file__", str(module_path))
@@ -316,13 +316,13 @@ def test_view_uav_relay_queue_analysis_helper_branches(monkeypatch, tmp_path) ->
     assert module._build_max_queue_comparison_frame({"broken": broken_queue}).empty
 
 
-def test_view_uav_relay_queue_analysis_discover_exception(monkeypatch, tmp_path) -> None:
+def test_view_relay_resilience_discover_exception(monkeypatch, tmp_path) -> None:
     module = _load_relay_helpers()
     broken_base = SimpleNamespace(glob=lambda _pattern: (_ for _ in ()).throw(RuntimeError("broken glob")))
     assert module._discover_files(broken_base, "*.json") == []
 
 
-def test_view_uav_relay_queue_analysis_warns_when_summary_glob_is_empty(
+def test_view_relay_resilience_warns_when_summary_glob_is_empty(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -340,7 +340,7 @@ def test_view_uav_relay_queue_analysis_warns_when_summary_glob_is_empty(
     assert any("No summary metrics file found" in warning.value for warning in at.warning)
 
 
-def test_view_uav_relay_queue_analysis_requires_a_selected_run(
+def test_view_relay_resilience_requires_a_selected_run(
     tmp_path, create_temp_app_project, run_page_app_test
 ) -> None:
     project_dir = create_temp_app_project(
@@ -367,7 +367,7 @@ def test_view_uav_relay_queue_analysis_requires_a_selected_run(
     )
 
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export")
-    at.multiselect(key="uav_relay_queue_selected_runs").set_value([]).run()
+    at.multiselect(key="relay_resilience_selected_runs").set_value([]).run()
 
     assert not at.exception
     assert any("Select at least one run in the sidebar." in info.value for info in at.info)

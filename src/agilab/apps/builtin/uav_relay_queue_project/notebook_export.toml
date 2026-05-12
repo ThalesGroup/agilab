@@ -1,7 +1,7 @@
 [notebook_export]
 
 [[notebook_export.related_pages]]
-module = "view_uav_relay_queue_analysis"
+module = "view_relay_resilience"
 label = "UAV Relay Queue Analysis"
 description = "Inspect queue depth, packet delivery, relay routing summary, and node positions for the relay-queue demo."
 artifacts = [

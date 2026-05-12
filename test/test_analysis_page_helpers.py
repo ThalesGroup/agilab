@@ -266,7 +266,7 @@ def test_migrate_legacy_analysis_page_config_leaves_network_apps_unchanged():
     cfg = {
         "pages": {
             "default_view": "view_maps_network",
-            "view_module": ["view_uav_queue_analysis", "view_maps_network"],
+            "view_module": ["view_queue_resilience", "view_maps_network"],
         }
     }
 
@@ -274,7 +274,7 @@ def test_migrate_legacy_analysis_page_config_leaves_network_apps_unchanged():
 
     assert changed is False
     assert cfg["pages"]["default_view"] == "view_maps_network"
-    assert cfg["pages"]["view_module"] == ["view_uav_queue_analysis", "view_maps_network"]
+    assert cfg["pages"]["view_module"] == ["view_queue_resilience", "view_maps_network"]
 
 
 def test_migrate_legacy_analysis_page_config_preserves_custom_flight_defaults():

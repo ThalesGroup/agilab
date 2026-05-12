@@ -1,5 +1,5 @@
 [project]
-name = "view-uav-queue-analysis"
+name = "view-queue-resilience"
 version = "2026.04.08"
 requires-python = ">=3.13"
 dependencies = [

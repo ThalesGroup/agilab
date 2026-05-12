@@ -151,12 +151,12 @@ _ANALYSIS_VIEW_PROFILES = {
         "Review forecast metrics and predictions.",
         "Use after a forecasting pipeline writes analysis artifacts.",
     ),
-    "view_uav_queue_analysis": (
+    "view_queue_resilience": (
         "Queue resilience",
-        "Review UAV queue metrics, delivery, and overload symptoms.",
+        "Review queue metrics, delivery, and overload symptoms.",
         "Use for failure-injection and queue-behavior examples.",
     ),
-    "view_uav_relay_queue_analysis": (
+    "view_relay_resilience": (
         "Relay queue resilience",
         "Compare relay queue behavior across runs and degraded conditions.",
         "Use for relay-network resilience analysis.",
