@@ -387,6 +387,98 @@ def test_local_ipv4_hosts_supports_windows_ipconfig(monkeypatch):
     assert ("ipconfig",) in commands
 
 
+def test_local_ipv4_interfaces_use_psutil_without_shelling_out(monkeypatch):
+    class Address:
+        def __init__(self, address: str, netmask: str) -> None:
+            self.family = discovery.socket.AF_INET
+            self.address = address
+            self.netmask = netmask
+
+    class Stats:
+        def __init__(self, isup: bool) -> None:
+            self.isup = isup
+
+    class FakePsutil:
+        @staticmethod
+        def net_if_addrs():
+            return {
+                "en7": [Address("192.168.20.110", "255.255.255.240")],
+                "en8": [Address("192.168.99.10", "255.255.255.0")],
+                "bridge100": [Address("192.168.2.1", "255.255.255.0")],
+                "lo0": [Address("127.0.0.1", "255.0.0.0")],
+            }
+
+        @staticmethod
+        def net_if_stats():
+            return {"en7": Stats(True), "en8": Stats(False)}
+
+    monkeypatch.setitem(sys.modules, "psutil", FakePsutil)
+
+    def fail_runner(argv, **kwargs):
+        raise AssertionError(f"psutil-backed discovery should not shell out for local interfaces: {argv}")
+
+    monkeypatch.setattr(discovery, "_run_text", fail_runner)
+    interfaces = discovery._local_ipv4_interfaces(runner=discovery._run_text)
+
+    assert interfaces == (discovery._InterfaceIPv4("192.168.20.110", 28, "en7", "psutil"),)
+
+
+def test_discover_lan_nodes_uses_adapter_prefix_for_default_scan(tmp_path: Path, monkeypatch):
+    class Address:
+        family = discovery.socket.AF_INET
+        address = "192.168.20.110"
+        netmask = "255.255.255.240"
+
+    class FakePsutil:
+        @staticmethod
+        def net_if_addrs():
+            return {"en7": [Address()]}
+
+    monkeypatch.setitem(sys.modules, "psutil", FakePsutil)
+    scanned: list[str] = []
+
+    def fake_runner(argv, **kwargs):
+        command = list(argv)
+        if command[:2] in (["arp", "-an"], ["arp", "-a"]):
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+        if command[:1] in (["ip"], ["route"], ["netstat"], ["ipconfig"]):
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        if command[:1] == ["ssh"]:
+            assert command[-2] == "agi@192.168.20.109"
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="\n".join(["python3=/usr/bin/python3", "uv=/usr/local/bin/uv", "sshfs=/usr/bin/sshfs"]),
+                stderr="",
+            )
+        raise AssertionError(f"unexpected command: {command}")
+
+    def fake_tcp(host: str, port: int, timeout: float) -> bool:
+        scanned.append(host)
+        return host == "192.168.20.109"
+
+    monkeypatch.setattr(discovery, "_run_text", fake_runner)
+    report = discovery.discover_lan_nodes(
+        discovery.DiscoveryOptions(active=True, remote_user="agi", probe_workers=2),
+        home=tmp_path,
+        tcp_probe=fake_tcp,
+    )
+
+    assert report.cidrs == ("192.168.20.96/28",)
+    assert "192.168.20.130" not in scanned
+    assert report.nodes[0].host == "192.168.20.109"
+    assert report.nodes[0].status == "ready"
+
+
+def test_default_cidrs_clamp_broad_prefix_to_host_subnet():
+    assert discovery._default_cidrs_from_interfaces((discovery._InterfaceIPv4("10.20.30.40", 16),)) == (
+        "10.20.30.0/24",
+    )
+    assert discovery._default_cidrs_from_interfaces((discovery._InterfaceIPv4("192.168.20.110", 28),)) == (
+        "192.168.20.96/28",
+    )
+
+
 def test_arp_candidates_supports_windows_arp_a():
     def fake_runner(argv, **kwargs):
         command = list(argv)
