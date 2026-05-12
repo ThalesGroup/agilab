@@ -35,6 +35,16 @@ and adopters a versioned, repository-local upgrade trail.
 - Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
   ask users to clean up and regenerate after core API changes.
 
+## [2026.05.12.post3] - 2026-05-12
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-6
+
+### Changed
+
+- Published AGILAB `2026.05.12.post3` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Kept the Trusted Publishing contract visible in the release workflow so each PyPI project/environment claim is auditable before upload.
+- Used this corrective post release to prove fresh GitHub OIDC uploads instead of relying on skipped existing distributions.
+
 ## [2026.05.12.post2] - 2026-05-12
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-5
@@ -543,3 +553,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.12]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-2
 [2026.05.12.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-5
 [2026.05.12.post2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-5
+[2026.05.12.post3]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-6
