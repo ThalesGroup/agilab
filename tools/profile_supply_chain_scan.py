@@ -31,6 +31,7 @@ class ProfileScan:
     profile: str
     extras: tuple[str, ...]
     requirements: str
+    audit_requirements: str
     pip_audit_json: str
     sbom_json: str
     commands: tuple[tuple[str, ...], ...]
@@ -51,6 +52,7 @@ def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
         raise ValueError(f"Unknown profile: {profile}")
     profile_dir = _profile_output_dir(output_root, profile)
     requirements = profile_dir / "requirements.txt"
+    audit_requirements = profile_dir / "requirements-audit.txt"
     pip_audit_json = profile_dir / "pip-audit.json"
     sbom_json = profile_dir / "sbom-cyclonedx.json"
 
@@ -79,7 +81,9 @@ def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
             "pip-audit",
             "pip-audit",
             "-r",
-            str(requirements),
+            str(audit_requirements),
+            "--no-deps",
+            "--disable-pip",
             "--format",
             "json",
             "--output",
@@ -105,6 +109,7 @@ def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
         profile=profile,
         extras=PROFILE_EXTRAS[profile],
         requirements=str(requirements),
+        audit_requirements=str(audit_requirements),
         pip_audit_json=str(pip_audit_json),
         sbom_json=str(sbom_json),
         commands=commands,
@@ -127,11 +132,40 @@ def _expand_profiles(values: Sequence[str] | None) -> list[str]:
     return list(dict.fromkeys(expanded))
 
 
+def _is_local_requirement_line(stripped: str) -> bool:
+    return (
+        stripped.startswith("-e ")
+        or stripped.startswith("--editable ")
+        or stripped.startswith("file:")
+        or " @ file:" in stripped
+    )
+
+
+def write_pip_audit_requirements(requirements: Path, audit_requirements: Path) -> None:
+    """Write a pip-audit compatible requirements file without local editables."""
+
+    lines = requirements.read_text(encoding="utf-8").splitlines(keepends=True)
+    filtered: list[str] = []
+    skipping_local_block = False
+    for line in lines:
+        stripped = line.strip()
+        if skipping_local_block and (line.startswith((" ", "\t")) or stripped.startswith("--hash")):
+            continue
+        skipping_local_block = False
+        if _is_local_requirement_line(stripped):
+            skipping_local_block = True
+            continue
+        filtered.append(line)
+    audit_requirements.write_text("".join(filtered), encoding="utf-8")
+
+
 def _run_plan(plan: Sequence[ProfileScan]) -> None:
     for scan in plan:
         Path(scan.requirements).parent.mkdir(parents=True, exist_ok=True)
-        for command in scan.commands:
+        for index, command in enumerate(scan.commands):
             subprocess.run(command, check=True)
+            if index == 0:
+                write_pip_audit_requirements(Path(scan.requirements), Path(scan.audit_requirements))
 
 
 def _build_parser() -> argparse.ArgumentParser:
