@@ -148,6 +148,68 @@ API tokens are not part of the normal release path. If a package or repository
 is not configured as a PyPI trusted publisher, the publish workflow should stop
 with an explicit configuration error instead of falling back to a stored token.
 
+Each PyPI project must have a GitHub trusted publisher entry matching the
+release workflow claims exactly. The workflow renders the same contract with
+``tools/pypi_trusted_publisher_contract.py`` before publication and appends the
+per-package claim to the GitHub step summary before each upload. A PyPI
+``invalid-publisher`` error means the GitHub OIDC token was valid, but the PyPI
+project did not have a matching publisher entry or one of the fields differed.
+
+Configure these entries in each PyPI project under
+``Settings > Publishing > Trusted publishers > Add GitHub publisher``:
+
+.. list-table::
+   :header-rows: 1
+
+   * - PyPI project
+     - Owner
+     - Repository
+     - Workflow
+     - Environment
+   * - ``agi-env``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-env``
+   * - ``agi-gui``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-gui``
+   * - ``agi-pages``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-pages``
+   * - ``agi-node``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-node``
+   * - ``agi-cluster``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-cluster``
+   * - ``agi-core``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-core``
+   * - ``agi-apps``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agi-apps``
+   * - ``agilab``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-agilab``
+
+The corresponding OIDC subject for each row is
+``repo:ThalesGroup/agilab:environment:<environment>``.
+
 The local ``tools/pypi_publish.py`` helper may still build packages and publish
 to TestPyPI for rehearsals, but local twine upload to real PyPI is disabled by
 default. Real PyPI files should come from ``.github/workflows/pypi-publish.yaml``
