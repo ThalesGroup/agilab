@@ -272,6 +272,8 @@ jobs:
           run_gui_chunk support \
             src/agilab/test \
             src/agilab/lib/agi-gui/test \
+            test/test_agent_run.py \
+            test/test_agent_tool_safety.py \
             test/test_orchestrate_cluster.py \
             test/test_orchestrate_distribution.py \
             test/test_orchestrate_execute.py \
@@ -282,17 +284,23 @@ jobs:
             test/test_analysis_page_helpers.py \
             test/test_about_agilab_helpers.py \
             test/test_app_template_registry.py \
+            test/test_code_editor_support.py \
             test/test_cluster_flight_validation.py \
             test/test_cluster_lan_discovery.py \
             test/test_dag_distributed_submitter.py \
+            test/test_env_file_utils.py \
             test/test_agilab_dev_shortcuts.py \
             test/test_ga_regression_selector.py \
             test/test_pinned_expander.py \
+            test/test_security_check.py \
+            test/test_secret_uri.py \
+            test/test_ui_public_bind_guard.py \
             test/test_venv_linker.py \
             test/test_workflow_ui.py
 
           run_gui_chunk pipeline \
             test/test_first_proof_cli.py \
+            test/test_generated_actions.py \
             test/test_notebook_colab_support.py \
             test/test_page_docs.py \
             test/test_pipeline_ai.py \
@@ -323,6 +331,7 @@ jobs:
             test/test_streamlit_args.py \
             test/test_pagelib.py \
             test/test_connector_registry.py \
+            test/test_page_project_selector.py \
             test/test_run_manifest.py
 
           run_gui_chunk views \
