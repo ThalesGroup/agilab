@@ -46,6 +46,8 @@ It turns notebooks and scripts into controlled, executable apps with:
 
 AGILAB complements MLflow and production MLOps platforms. It owns the
 reproducible execution and analysis layer around them.
+In short: MLflow tracks experiments; AGILAB transforms notebooks and scripts
+into reproducible executable AI applications.
 
 ## Core Flow
 
@@ -162,6 +164,44 @@ AGILAB separates public claims by evidence type:
 | Benchmarks | Timings for declared hardware, datasets, modes, and benchmark scripts. | General performance across arbitrary hardware, networks, or datasets. |
 | Self-assessment | KPI scores such as production readiness and strategic potential are maintained from repository evidence. | External validation or third-party certification. |
 | External validation | Only claimed when a named external artifact, reviewer, CI provider, or hosted demo proof is linked. | Implied endorsement beyond the linked evidence. |
+
+## Repository Map And Stability Boundaries
+
+AGILAB is a monorepo, but it is not a single stability surface:
+
+| Area | Role | Stability contract |
+|---|---|---|
+| `src/agilab/core/agi-env`, `agi-node`, `agi-cluster`, `agi-core` | Runtime packages for environment setup, worker packaging, distributed execution, and the compact API. | Stable where documented; changes require focused regression evidence. |
+| `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI and page helpers. | Beta product surface; useful for operators, still evolving. |
+| `src/agilab/apps/builtin` | Public built-in apps used for first proof, demos, workflow examples, and regression coverage. | Packaged examples, not enterprise deployment templates. |
+| `src/agilab/examples` | Learning scripts, notebooks, and preview examples. | Educational material; optional helper dependencies live behind extras. |
+| `tools`, `.github`, `pycharm`, `.codex`, `.claude`, `dev` | Contributor, release, agent, and IDE automation. | Maintainer tooling, not runtime API. |
+| `docs/source` | Public documentation mirror. | Published docs source; canonical docs are synchronized before release. |
+
+This split is intentional. Treat AGILAB as an AI engineering reproducibility
+workbench first: stable runtime contracts, beta UI, packaged examples, and
+maintainer automation live together so release proof can validate the same
+source tree users install from.
+
+## Package Surface Contract
+
+Local source checkouts can grow after runs because built-in apps can create
+`.venv` directories, build outputs, caches, datasets, and local logs.
+Those local artifacts are not the package contract. Public wheels are bounded
+by `pyproject.toml` package data rules and exclude virtual environments,
+tests, `docs/html`, build directories, generated C files,
+`__pycache__`, `.pyc`, and `.egg-info` artifacts.
+
+Current packaging policy is conservative:
+
+- Base `agilab` keeps CLI/core proof dependencies separate from UI, examples,
+  agents, MLflow, visualization, local-LLM, offline, and dev profiles.
+- Built-in apps and small sample data are packaged so `agilab` can launch a
+  useful first proof immediately.
+- Larger optional stacks must stay behind extras, and release evidence must
+  include SBOM / `pip-audit` data for the actual enabled profile.
+- Further cluster/runtime splitting is a roadmap item; it is not claimed as
+  complete in the current release.
 
 ## Choose Your Path
 

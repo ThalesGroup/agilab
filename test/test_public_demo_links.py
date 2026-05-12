@@ -257,7 +257,9 @@ def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() ->
         'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
         in local_proof
     )
-    assert "agilab first-proof --json --with-ui" in local_proof
+    assert "agilab first-proof" not in local_proof
+    assert "agilab first-proof --json --with-ui" in readme
+    assert "If startup fails, run a progressive fallback" in readme
     assert "agilab\n" in local_proof
     assert "python3 -m venv" not in local_proof
     assert "source ~/.agilab-first-proof/bin/activate" not in local_proof
@@ -274,6 +276,10 @@ def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() ->
 
 def test_quick_start_package_route_uses_tool_console_script_without_activation() -> None:
     quick_start = Path("docs/source/quick-start.rst").read_text(encoding="utf-8")
+    ui_route = quick_start.split(
+        "The base package install is intentionally CLI/core only. Install the UI profile",
+        1,
+    )[1].split("Optional feature stacks", 1)[0]
 
     assert (
         "uv --preview-features extra-build-dependencies tool install --upgrade agilab"
@@ -283,6 +289,8 @@ def test_quick_start_package_route_uses_tool_console_script_without_activation()
         'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"'
         in quick_start
     )
+    assert "agilab first-proof --json --max-seconds 60" in quick_start
+    assert "agilab first-proof --json --max-seconds 60" not in ui_route
     assert "agilab first-proof --json --with-ui" in quick_start
     assert "source .venv/bin/activate" not in quick_start
     assert "python -m agilab.lab_run" not in quick_start

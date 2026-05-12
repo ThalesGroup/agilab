@@ -8,6 +8,7 @@
 - Affected repo areas:
 - User-facing impact:
 - Runtime / packaging / docs impact:
+- Stability boundary: runtime core / beta UI / built-in app / learning example / release tooling / agent or IDE automation
 
 ## Validation
 
@@ -32,6 +33,7 @@ Commands / checks run:
 - [ ] Shared core touched only with explicit approval when required
 - [ ] Dependencies updated/removed coherently
 - [ ] Release/tag/PyPI impact considered
+- [ ] Repository-scope changes stay within the stated stability boundary or explain why multiple boundaries are needed
 - [ ] DCO/CLA status is acceptable for this contribution
 - [ ] Security checklist considered: secrets, filesystem writes, SSH/cluster behavior, Streamlit exposure, logs, and artifacts
 - [ ] New dependency or optional-profile impact includes SBOM / `pip-audit` evidence or a clear non-release-impact explanation

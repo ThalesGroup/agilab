@@ -113,3 +113,15 @@ def test_render_action_result_supports_warning_outcomes():
         ("warning", "Already exists."),
         ("info", "Next: Pick another name."),
     ]
+
+
+def test_render_action_result_supports_info_without_optional_messages():
+    fake_st = _FakeStreamlit()
+
+    result = action_execution.ActionResult.info("Nothing to do.")
+
+    action_execution.render_action_result(fake_st, result)
+
+    assert result.status == "info"
+    assert result.data == {}
+    assert fake_st.messages == [("info", "Nothing to do.")]
