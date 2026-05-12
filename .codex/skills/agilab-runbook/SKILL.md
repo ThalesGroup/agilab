@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-05-09
+  updated: 2026-05-12
 ---
 
 # AGILab runbook (Agent Skill)
@@ -177,6 +177,22 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - PyPI simple index: `https://pypi.org/simple/agilab/`
   - GitHub Release: `gh release list --limit 5` and `gh release view <tag>`
   - GitHub static badge: `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
+- Also verify the GitHub deployment environments, not only the workflow conclusion:
+  - the current split-package publisher uses `pypi-agilab` plus `pypi-agi-env`,
+    `pypi-agi-gui`, `pypi-agi-pages`, `pypi-agi-node`, `pypi-agi-cluster`,
+    `pypi-agi-core`, and `pypi-agi-apps`
+  - the legacy `/deployments/pypi` page can stay red from older releases because
+    the current Trusted Publisher/OIDC claim intentionally no longer uses the
+    generic `pypi` GitHub environment
+  - check active environment states with:
+    `for env in pypi-agilab pypi-agi-env pypi-agi-gui pypi-agi-pages pypi-agi-node pypi-agi-cluster pypi-agi-core pypi-agi-apps; do id=$(gh api --method GET repos/ThalesGroup/agilab/deployments -f environment="$env" --jq '.[0].id'); state=$(gh api repos/ThalesGroup/agilab/deployments/$id/statuses --jq '.[0].state'); echo "$env $id $state"; done`
+  - before retiring a stale generic `pypi` deployment, confirm it has no rules,
+    secrets, or variables:
+    `gh api repos/ThalesGroup/agilab/environments/pypi`, `gh secret list --repo ThalesGroup/agilab --env pypi`, and `gh variable list --repo ThalesGroup/agilab --env pypi`
+  - if the generic `pypi` environment is only stale legacy status, mark its
+    latest failed deployment `inactive` and point the status at the successful
+    `pypi-publish` run; do not rewrite a genuinely failed deployment as
+    `success`
 - Verify the published wheel from outside the repo checkout so imports cannot resolve to local source:
   - `cd /tmp && uv run --refresh-package agilab --no-project --with agilab==<version> python -c "import importlib.metadata as m; print(m.version('agilab'))"`
 - If the release is followed by a Hugging Face deploy, refresh release proof metadata with the live Space commit after runtime cutover, then sync and push both docs repos:
