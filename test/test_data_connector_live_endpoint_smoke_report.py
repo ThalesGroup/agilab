@@ -105,3 +105,24 @@ def test_live_endpoint_smoke_skips_missing_credentials(
     assert rows["ops_opensearch"]["status"] == "skipped"
     assert rows["ops_opensearch"]["execution_status"] == "skipped_missing_credentials"
     assert rows["ops_opensearch"]["credential_env_name"] == "OPENSEARCH_TOKEN"
+
+
+def test_live_endpoint_smoke_defers_secret_uri_resolution_to_operator_runtime(tmp_path: Path) -> None:
+    module = _load_module(REPORT_PATH, "data_connector_live_smoke_secret_uri_test")
+    catalog = module._sqlite_smoke_catalog(tmp_path / "smoke.sqlite")
+    for connector in catalog["connectors"]:
+        if connector.get("id") == "ops_opensearch":
+            connector["auth_ref"] = "secret://agilab/opensearch_token"
+    core = _load_module(CORE_PATH, "data_connector_live_smoke_secret_uri_core")
+
+    state = core.build_data_connector_live_endpoint_smoke(
+        catalog,
+        source_path=tmp_path / "catalog.toml",
+        execute=True,
+        allowed_connector_ids=["ops_opensearch"],
+    )
+
+    rows = {row["connector_id"]: row for row in state["endpoint_smokes"]}
+    assert rows["ops_opensearch"]["status"] == "skipped"
+    assert rows["ops_opensearch"]["execution_status"] == "skipped_operator_runtime_secret"
+    assert rows["ops_opensearch"]["credential_env_name"] == ""

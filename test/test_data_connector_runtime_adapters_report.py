@@ -165,6 +165,53 @@ def test_data_connector_runtime_adapters_accepts_aws_s3_alias(tmp_path: Path) ->
     assert adapter["credential_env_name"] == "AWS_PROFILE"
 
 
+def test_data_connector_runtime_adapters_accept_secret_uri_auth_refs(tmp_path: Path) -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "data_connector_runtime_adapters_secret_uri_test_module",
+    )
+    catalog = {
+        "connectors": [
+            {
+                "id": "warehouse_sql",
+                "kind": "sql",
+                "label": "Warehouse SQL",
+                "uri": "postgresql://warehouse.example.invalid/agilab",
+                "driver": "postgresql",
+                "query_mode": "read_only",
+            },
+            {
+                "id": "ops_opensearch",
+                "kind": "opensearch",
+                "label": "Operations OpenSearch",
+                "url": "https://opensearch.example.invalid",
+                "index": "agilab-runs-*",
+                "auth_ref": "env://OPENSEARCH_TOKEN",
+            },
+            {
+                "id": "artifact_object_store",
+                "kind": "object_storage",
+                "label": "Artifact Object Store",
+                "provider": "s3",
+                "bucket": "agilab-artifacts",
+                "prefix": "experiments/",
+                "auth_ref": "secret://agilab/aws_profile",
+            },
+        ]
+    }
+
+    state = core_module.build_data_connector_runtime_adapters(
+        catalog,
+        source_path=tmp_path / "connectors.toml",
+    )
+
+    assert state["run_status"] == "ready_for_runtime_binding"
+    adapters = {row["connector_id"]: row for row in state["adapters"]}
+    assert adapters["ops_opensearch"]["credential_env_name"] == "OPENSEARCH_TOKEN"
+    assert adapters["artifact_object_store"]["credential_env_name"] == ""
+    assert adapters["artifact_object_store"]["credential_resolution"] == "deferred_to_operator_runtime"
+
+
 def test_data_connector_runtime_adapters_accepts_elk_and_hawk_search(tmp_path: Path) -> None:
     core_module = _load_module(
         CORE_PATH,
