@@ -40,6 +40,9 @@ src/agi_node/
 src/agilab/apps/src/
 src/agilab/core/agi-node/src/agi_node/agi_dispatcher/src/
 
+# Generated root-level AGILAB app workspaces
+/*_project/
+
 # Pytest caches
 .pytest*
 test-results/
