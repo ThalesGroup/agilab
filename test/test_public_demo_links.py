@@ -249,6 +249,15 @@ def test_readme_agent_skill_badges_use_raw_urls_for_public_renderers() -> None:
     assert 'src="badges/skills-claude.svg"' not in readme
 
 
+def test_readme_uses_explicit_wheel_yes_badge() -> None:
+    readme = README.read_text(encoding="utf-8")
+
+    assert "https://img.shields.io/badge/wheel-yes-0F766E" in readme
+    assert 'alt="Wheel: yes"' in readme
+    assert "https://img.shields.io/pypi/format/agilab" not in readme
+    assert 'alt="PyPI format"' not in readme
+
+
 def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() -> None:
     readme = README.read_text(encoding="utf-8")
     local_proof = readme.split("### Local PyPI UI Proof", 1)[1].split(
