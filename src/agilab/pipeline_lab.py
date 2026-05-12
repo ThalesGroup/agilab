@@ -186,6 +186,18 @@ run_ready_controlled_global_dag_stages = _dag_run_engine_module.run_ready_contro
 runner_state_dag_matches = _dag_run_engine_module.runner_state_dag_matches
 write_runner_state = _dag_run_engine_module.write_runner_state
 
+_workflow_run_manifest_module = import_agilab_module(
+    "agilab.workflow_run_manifest",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "workflow_run_manifest.py",
+    fallback_name="agilab_workflow_run_manifest_fallback",
+)
+LATEST_WORKFLOW_EVIDENCE_FILENAME = _workflow_run_manifest_module.LATEST_WORKFLOW_EVIDENCE_FILENAME
+WORKFLOW_EVIDENCE_DIRNAME = _workflow_run_manifest_module.WORKFLOW_EVIDENCE_DIRNAME
+load_workflow_run_manifest = _workflow_run_manifest_module.load_workflow_run_manifest
+workflow_manifest_summary = _workflow_run_manifest_module.workflow_manifest_summary
+write_workflow_run_evidence = _workflow_run_manifest_module.write_workflow_run_evidence
+
 _multi_app_dag_module = import_agilab_module(
     "agilab.multi_app_dag",
     current_file=__file__,
@@ -1440,6 +1452,105 @@ def _render_global_dag_execution_capability(
         st.caption(message)
 
 
+def _workflow_evidence_latest_path(state_path: Path) -> Path:
+    return state_path.expanduser().parent / WORKFLOW_EVIDENCE_DIRNAME / LATEST_WORKFLOW_EVIDENCE_FILENAME
+
+
+def _resolve_workflow_evidence_path(raw_path: Any, latest_path: Path) -> Path:
+    candidate = Path(str(raw_path or "")).expanduser()
+    if candidate.is_absolute():
+        return candidate
+    return latest_path.parent / candidate
+
+
+def _workflow_evidence_status_label(status: str, run_status: str = "") -> str:
+    normalized = str(status or "").strip().lower()
+    if normalized == "pass":
+        return "completed"
+    if normalized == "fail":
+        return "failed"
+    run_status = str(run_status or "").strip().lower()
+    if run_status in {"planned", "running", "stale", "completed", "failed"}:
+        return run_status
+    if normalized == "unknown":
+        return "planned/running"
+    return normalized or "not recorded"
+
+
+def _latest_workflow_evidence_summary(state_path: Path) -> dict[str, Any]:
+    latest_path = _workflow_evidence_latest_path(state_path)
+    if not latest_path.is_file():
+        return {
+            "available": False,
+            "status_label": "not recorded",
+            "message": "No workflow evidence has been recorded for this plan yet.",
+            "latest_path": str(latest_path),
+        }
+    try:
+        latest_payload = json.loads(latest_path.read_text(encoding="utf-8"))
+        if not isinstance(latest_payload, dict):
+            raise ValueError("latest evidence pointer must be a JSON object")
+        manifest_path = _resolve_workflow_evidence_path(latest_payload.get("manifest_path"), latest_path)
+        manifest = load_workflow_run_manifest(manifest_path)
+    except Exception as exc:
+        return {
+            "available": False,
+            "status_label": "unreadable",
+            "message": f"Latest workflow evidence could not be read: {exc}",
+            "latest_path": str(latest_path),
+        }
+
+    manifest_summary = workflow_manifest_summary(manifest)
+    runner_state = manifest.get("runner_state", {})
+    runner_state = runner_state if isinstance(runner_state, Mapping) else {}
+    ledger_payload = manifest.get("evidence_ledger", {})
+    ledger_payload = ledger_payload if isinstance(ledger_payload, Mapping) else {}
+    ledger_path = _resolve_workflow_evidence_path(
+        latest_payload.get("ledger_path") or ledger_payload.get("path"),
+        latest_path,
+    )
+    status_label = _workflow_evidence_status_label(
+        str(manifest.get("status", "")),
+        str(runner_state.get("run_status", "")),
+    )
+    return {
+        "available": True,
+        "status_label": status_label,
+        "message": f"Latest workflow evidence: {status_label}.",
+        "latest_path": str(latest_path),
+        "manifest_path": str(manifest_path),
+        "ledger_path": str(ledger_path),
+        "manifest_id": manifest_summary.get("manifest_id", ""),
+        "run_id": manifest_summary.get("run_id", ""),
+        "unit_count": manifest_summary.get("unit_count", 0),
+        "produced_count": manifest_summary.get("produced_count", 0),
+        "consumed_count": manifest_summary.get("consumed_count", 0),
+        "runner_state_sha256": str(runner_state.get("snapshot_sha256", "")),
+    }
+
+
+def _render_workflow_run_evidence(state_path: Path) -> None:
+    evidence = _latest_workflow_evidence_summary(state_path)
+    st.markdown("**Run evidence**")
+    if not evidence.get("available"):
+        st.caption(str(evidence.get("message", "No workflow evidence has been recorded yet.")))
+        st.caption(f"Evidence pointer: `{evidence.get('latest_path', '')}`")
+        return
+
+    status_col, steps_col, creates_col, uses_col = st.columns(4)
+    status_col.metric("Evidence", str(evidence.get("status_label", "unknown")))
+    steps_col.metric("Steps", int(evidence.get("unit_count", 0) or 0))
+    creates_col.metric("Creates", int(evidence.get("produced_count", 0) or 0))
+    uses_col.metric("Uses", int(evidence.get("consumed_count", 0) or 0))
+    st.caption(str(evidence.get("message", "Latest workflow evidence recorded.")))
+    manifest_path = str(evidence.get("manifest_path", ""))
+    ledger_path = str(evidence.get("ledger_path", ""))
+    if manifest_path:
+        st.caption(f"Manifest: `{manifest_path}`")
+    if ledger_path:
+        st.caption(f"Ledger: `{ledger_path}`")
+
+
 def _dot_quote(value: Any) -> str:
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
@@ -2069,6 +2180,25 @@ def _pipeline_stages_state_matches(
     )
 
 
+def _write_pipeline_stages_runner_state_with_evidence(
+    state_path: Path,
+    state: Mapping[str, Any],
+    *,
+    lab_dir: Path,
+    trigger: Mapping[str, Any],
+) -> Path:
+    written_path = write_runner_state(state_path, state)
+    write_workflow_run_evidence(
+        state=state,
+        state_path=written_path,
+        repo_root=_repo_root_for_global_dag(),
+        lab_dir=lab_dir,
+        dag_path=None,
+        trigger=trigger,
+    )
+    return written_path
+
+
 def _load_or_create_pipeline_stages_runner_state(
     env: AgiEnv,
     lab_dir: Path,
@@ -2117,7 +2247,12 @@ def _load_or_create_pipeline_stages_runner_state(
                 reason="lab_stages.toml changed after the last observed workflow run.",
                 previous_digest=previous_digest,
             )
-            write_runner_state(state_path, stale_state)
+            _write_pipeline_stages_runner_state_with_evidence(
+                state_path,
+                stale_state,
+                lab_dir=lab_dir,
+                trigger={"surface": "workflow", "action": "project_stages_stale"},
+            )
             return stale_state, state_path
 
     state = _build_pipeline_stages_runner_state(
@@ -2138,7 +2273,12 @@ def _load_or_create_pipeline_stages_runner_state(
             )
         else:
             _apply_pipeline_stages_execution_evidence(state, evidence)
-    write_runner_state(state_path, state)
+    _write_pipeline_stages_runner_state_with_evidence(
+        state_path,
+        state,
+        lab_dir=lab_dir,
+        trigger={"surface": "workflow", "action": "project_stages_state_written"},
+    )
     return state, state_path
 
 
@@ -2174,6 +2314,7 @@ def _render_global_runner_state_view(
         real_run_support=real_run_support,
     )
     _render_global_dag_readiness(state)
+    _render_workflow_run_evidence(state_path)
     running_col, completed_col, failed_col = st.columns(3)
     running_col.metric("Running", int(summary.get("running_count", 0) or 0))
     completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))

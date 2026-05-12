@@ -887,6 +887,71 @@ def test_pipeline_stages_runner_state_builds_single_app_preview_dag(tmp_path):
     assert second["artifact_dependencies"][0]["artifact"] == "stage_001_complete"
 
 
+def test_pipeline_stages_runner_state_writes_workflow_evidence(tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text("", encoding="utf-8")
+    env = SimpleNamespace(app="demo_project", target="demo_project")
+
+    state, state_path = pipeline_lab._load_or_create_pipeline_stages_runner_state(
+        env,
+        tmp_path,
+        stages_file=stages_file,
+        pipeline_stages=[{"D": "Load", "Q": "load data", "C": "print('load')", "M": "model-a"}],
+        index_page="demo",
+        session_state={},
+    )
+    evidence = pipeline_lab._latest_workflow_evidence_summary(state_path)
+
+    assert state["summary"]["unit_count"] == 1
+    assert evidence["available"] is True
+    assert evidence["status_label"] == "planned"
+    assert evidence["unit_count"] == 1
+    assert Path(evidence["manifest_path"]).is_file()
+    assert Path(evidence["ledger_path"]).is_file()
+
+
+def test_render_workflow_run_evidence_displays_latest_manifest(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    state_path = tmp_path / ".agilab" / "runner_state.json"
+    state = pipeline_lab._build_pipeline_stages_runner_state(
+        SimpleNamespace(app="demo_project", target="demo_project"),
+        stages_file=tmp_path / "lab_stages.toml",
+        pipeline_stages=[
+            {"D": "Load", "Q": "load data", "C": "print('load')", "M": "model-a"},
+            {"D": "Train", "Q": "train model", "C": "print('train')", "M": "model-b"},
+        ],
+    )
+    pipeline_lab.write_runner_state(state_path, state)
+    pipeline_lab.write_workflow_run_evidence(
+        state=state,
+        state_path=state_path,
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        trigger={"surface": "test", "action": "render"},
+    )
+
+    pipeline_lab._render_workflow_run_evidence(state_path)
+
+    assert ("markdown", "**Run evidence**") in fake_st.messages
+    assert ("metric", "Evidence=planned") in fake_st.messages
+    assert ("metric", "Steps=2") in fake_st.messages
+    assert ("metric", "Creates=2") in fake_st.messages
+    assert ("metric", "Uses=1") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Manifest: `") for kind, message in fake_st.messages)
+    assert any(kind == "caption" and message.startswith("Ledger: `") for kind, message in fake_st.messages)
+
+
+def test_render_workflow_run_evidence_handles_missing_pointer(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+
+    pipeline_lab._render_workflow_run_evidence(tmp_path / ".agilab" / "runner_state.json")
+
+    assert ("markdown", "**Run evidence**") in fake_st.messages
+    assert any("No workflow evidence has been recorded" in message for kind, message in fake_st.messages if kind == "caption")
+
+
 def test_global_runner_panel_renders_project_stages_as_preview_dag(monkeypatch, tmp_path):
     stages = [
         {"D": "Load data", "Q": "Load input dataframe", "M": "gpt-a", "C": "print('load')", "E": "", "R": ""},
