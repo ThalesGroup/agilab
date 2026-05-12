@@ -55,6 +55,8 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     deps = _dependency_names(REPO_ROOT / "pyproject.toml")
 
     app_or_example_owned = {
+        "agi-apps",
+        "agi-pages",
         "agi-gui",
         "asyncssh",
         "fastparquet",
@@ -158,9 +160,10 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
 
     assert _optional_dependency_names(pyproject, "ai") == {"openai"}
     assert _optional_dependency_names(pyproject, "agents") == {"openai"}
-    assert {"jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
+    assert {"agi-apps", "jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
+    assert _optional_dependency_names(pyproject, "pages") == {"agi-pages"}
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
-    assert {"agi-gui", "streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
+    assert {"agi-apps", "agi-pages", "agi-gui", "streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
     assert _optional_dependency_names(pyproject, "mlflow") == {"mlflow"}
     assert {"build", "pytest", "pytest-cov", "pip-audit", "cyclonedx-bom", "twine", "wheel"} <= _optional_dependency_names(
         pyproject, "dev"

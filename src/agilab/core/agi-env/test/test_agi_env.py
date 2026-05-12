@@ -264,6 +264,24 @@ def test_init_envars_app_honours_relative_mlflow_and_pages_overrides(tmp_path: P
     assert env.AGILAB_PAGES_ABS == tmp_path / "custom-pages"
 
 
+def test_init_envars_app_uses_optional_agi_pages_provider(tmp_path: Path, monkeypatch):
+    env = object.__new__(AgiEnv)
+    env.home_abs = tmp_path / "home"
+    env.home_abs.mkdir()
+    env.target = "sb3_trainer"
+    env.agilab_pck = tmp_path / "pkg"
+    env.agilab_pck.mkdir()
+    env.read_agilab_path = lambda: None
+    pages_root = tmp_path / "installed-agi-pages"
+    pages_root.mkdir()
+    monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
+    monkeypatch.setattr(agi_env_module, "_optional_agi_pages_bundles_root", lambda: pages_root)
+
+    env.init_envars_app({"MLFLOW_TRACKING_DIR": "mlruns"})
+
+    assert env.AGILAB_PAGES_ABS == pages_root
+
+
 def test_blank_env_assignments_are_treated_as_unset_globally(tmp_path: Path, monkeypatch):
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
     fake_home = tmp_path / "fake_home"

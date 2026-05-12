@@ -21,10 +21,10 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
     {
         "id": "flight-local-first-proof",
         "label": "Local package proof",
-        "route": "packaged CLI/core first-proof for flight_project",
+        "route": "packaged examples-profile first-proof for flight_project",
         "target_seconds": FIRST_PROOF_TARGET_SECONDS,
         "commands": [
-            "python -m pip install agilab",
+            'python -m pip install "agilab[examples]"',
             "python -m agilab.lab_run first-proof --json --max-seconds 60",
         ],
         "evidence_files": [
@@ -37,10 +37,10 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
             "~/log/execute/flight/run_manifest.json",
             "~/log/execute/flight",
         ],
-        "scope": "Clean local base package proof; install `agilab[ui]` for the visible flight analysis route.",
+        "scope": "Clean local package proof with the `agi-apps` public built-in payload; install `agilab[ui]` for the visible flight analysis route and the `agi-pages` analysis views.",
         "limits": [
             "No remote cluster certification",
-            "Base package proof does not install optional UI, MLflow, visualization, or local-LLM extras",
+            "Examples-profile proof does not install optional UI, MLflow, visualization, or local-LLM extras",
             "Released package proof is separate from unmerged branch validation",
         ],
     },

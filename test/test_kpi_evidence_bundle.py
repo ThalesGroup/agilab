@@ -244,7 +244,7 @@ def test_supply_chain_attestation_report_contract_fingerprints_package() -> None
     assert check["details"]["summary"]["license_present"] is True
     assert check["details"]["summary"]["core_component_count"] == 4
     assert check["details"]["summary"]["core_release_graph_aligned"] is True
-    assert check["details"]["summary"]["page_lib_component_count"] == 1
+    assert check["details"]["summary"]["page_lib_component_count"] == 2
     assert check["details"]["summary"]["page_lib_release_graph_aligned"] is True
     assert check["details"]["summary"]["aligned_internal_dependency_pins"] is True
     assert check["details"]["summary"]["mismatched_internal_dependency_pin_count"] == 0

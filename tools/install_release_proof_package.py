@@ -16,6 +16,14 @@ from typing import Callable, Sequence
 DEFAULT_MANIFEST = Path("docs/source/data/release_proof.toml")
 
 
+def _release_package_spec(package_name: str, package_version: str, extras: Sequence[str]) -> str:
+    normalized_extras = [str(extra).strip() for extra in extras if str(extra).strip()]
+    if normalized_extras:
+        extras_text = ",".join(sorted(normalized_extras))
+        return f"{package_name}[{extras_text}]=={package_version}"
+    return f"{package_name}=={package_version}"
+
+
 def release_package_spec(manifest_path: Path) -> tuple[str, str, str]:
     """Return package name, version, and exact pip spec from release_proof.toml."""
     with manifest_path.open("rb") as stream:
@@ -23,11 +31,18 @@ def release_package_spec(manifest_path: Path) -> tuple[str, str, str]:
     release = manifest.get("release", {})
     package_name = str(release.get("package_name", "")).strip()
     package_version = str(release.get("package_version", "")).strip()
+    package_extras = release.get("package_extras", []) or []
+    if not isinstance(package_extras, list):
+        raise ValueError(f"{manifest_path} release.package_extras must be a list when provided")
     if not package_name or not package_version:
         raise ValueError(
             f"{manifest_path} must contain release.package_name and release.package_version"
         )
-    return package_name, package_version, f"{package_name}=={package_version}"
+    return package_name, package_version, _release_package_spec(
+        package_name,
+        package_version,
+        package_extras,
+    )
 
 
 Runner = Callable[[Sequence[str]], subprocess.CompletedProcess[str]]

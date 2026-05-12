@@ -1,0 +1,134 @@
+[project]
+version = "2026.05.11"
+name = "agi-apps"
+description = "AGILAB public built-in app and example asset package"
+requires-python = ">=3.11"
+readme = "README.md"
+authors = [
+    { name = "Jean-Pierre Morard" }
+]
+maintainers = [{ name = "Jean-Pierre Morard" }]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+classifiers = [
+    "Intended Audience :: Developers",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+]
+
+keywords = [
+    "agilab",
+    "examples",
+    "apps",
+    "reproducibility",
+    "workflow-orchestration",
+]
+
+dependencies = ["agi-core==2026.05.11"]
+
+[project.urls]
+Documentation = "https://thalesgroup.github.io/agilab"
+Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-apps"
+Issues = "https://github.com/ThalesGroup/agilab/issues"
+Homepage = "https://github.com/ThalesGroup/agilab"
+Repository = "https://github.com/ThalesGroup/agilab"
+Discussions = "https://github.com/ThalesGroup/agilab/discussions"
+Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
+
+[tool.uv.sources.agi-core]
+    path = "../../core/agi-core"
+    editable = true
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = false
+package-dir = {"" = "../../.."}
+
+[tool.setuptools.packages.find]
+where = ["../../.."]
+include = [
+    "agilab.apps",
+    "agilab.examples",
+]
+
+[tool.setuptools.package-data]
+"agilab.apps" = [
+    "README.md",
+    "install.py",
+    "builtin/*/pyproject.toml",
+    "builtin/*/README.md",
+    "builtin/*/lab_stages.toml",
+    "builtin/*/dag_templates/*.json",
+    "builtin/*/scenario_templates/*.json",
+    "builtin/*/service_templates/*.json",
+    "builtin/*/tracking_templates/*.json",
+    "builtin/*/pipeline_view.dot",
+    "builtin/*/notebook_export.toml",
+    "builtin/*/notebook_import_views.toml",
+    "builtin/*/src/**/*.py",
+    "builtin/*/src/**/*.pyx",
+    "builtin/*/src/**/*.toml",
+    "builtin/*/src/*.json",
+    "builtin/*/src/**/*.csv",
+    "builtin/*/src/**/*.dot",
+    "builtin/*/src/*/*.7z",
+    "builtin/*/src/*/sample_data/*.json",
+    "templates/*/pyproject.toml",
+    "templates/*/README.md",
+    "templates/*/src/**/*.py",
+    "templates/*/src/**/*.json",
+    "templates/*/src/**/*.toml",
+]
+"agilab.examples" = [
+    "README.md",
+    "*/README.md",
+    "*/AGI_*.py",
+    "inter_project_dag/*.py",
+    "mlflow_auto_tracking/*.py",
+    "notebook_to_dask/*.py",
+    "notebook_to_dask/*.json",
+    "notebook_to_dask/*.toml",
+    "notebook_to_dask/*.ipynb",
+    "notebook_quickstart/*.ipynb",
+    "notebook_migrations/*/README.md",
+    "notebook_migrations/*/analysis_artifacts/*.csv",
+    "notebook_migrations/*/analysis_artifacts/*.json",
+    "notebook_migrations/*/data/*.csv",
+    "notebook_migrations/*/migrated_project/*.dot",
+    "notebook_migrations/*/migrated_project/*.toml",
+    "notebook_migrations/*/notebooks/*.ipynb",
+    "resilience_failure_injection/*.py",
+    "service_mode/*.py",
+    "train_then_serve/*.py",
+]
+
+[tool.setuptools.exclude-package-data]
+"agilab.apps" = [
+    "builtin/*/src/__pycache__/*",
+    "builtin/*/src/*/__pycache__/*",
+    "builtin/*/src/*/*/__pycache__/*",
+    "builtin/*/src/*.pyc",
+    "builtin/*/src/*/*.pyc",
+    "builtin/*/src/*/*/*.pyc",
+    "builtin/*/src/*.egg-info/*",
+    "builtin/*/src/*/*.egg-info/*",
+    "builtin/*/src/*/*.c",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]

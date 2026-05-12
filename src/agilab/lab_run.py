@@ -19,7 +19,7 @@ import tomllib
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
-UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'` or install `agi-gui`."
+UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
 _PUBLIC_BIND_GUARD_PATH = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
 _PUBLIC_BIND_GUARD_SPEC = importlib.util.spec_from_file_location(
     "agilab_ui_public_bind_guard_local",
@@ -134,6 +134,7 @@ def _missing_ui_dependencies() -> list[str]:
     for module_name, distribution_name in (
         ("streamlit", "streamlit"),
         ("agi_gui", "agi-gui"),
+        ("agilab.apps", "agi-apps"),
     ):
         if importlib.util.find_spec(module_name) is None:
             missing.append(distribution_name)

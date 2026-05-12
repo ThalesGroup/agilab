@@ -160,12 +160,13 @@ def test_quick_start_documents_public_install_tiers() -> None:
 
     assert "``agilab[agents]`` for the packaged agent workflow client dependencies" in quick_start
     assert "``agilab[examples]`` for notebook/demo helper dependencies" in quick_start
+    assert "``agilab[pages]`` for analysis\npage bundles without the full UI profile" in quick_start
     assert "``agilab[dev]`` for contributor-only test/build tooling" in quick_start
     assert 'tool install --upgrade "agilab[ui]"\n    agilab' in ui_route
     assert "agilab first-proof --json --max-seconds 60" not in ui_route
     assert "agilab dry-run" in ui_route
     assert "agilab first-proof --json --with-ui" in ui_route
-    assert "base, UI, AI, agents, examples, MLflow, local-LLM, offline, and dev install" in quick_start
+    assert "base, UI, pages, AI, agents, examples, MLflow, local-LLM, offline, and dev\ninstall profiles" in quick_start
 
 
 def test_package_publishing_policy_addresses_common_audit_misreads() -> None:

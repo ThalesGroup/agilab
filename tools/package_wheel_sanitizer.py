@@ -12,6 +12,9 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-core",
         "agi-cluster",
         "agilab",
+        "agi-gui",
+        "agi-apps",
+        "agi-pages",
     }
 )
 
@@ -82,6 +85,24 @@ def sanitize_packaged_builtin_app_pyprojects(build_lib: str | Path) -> list[Path
     return changed
 
 
+def sanitize_packaged_page_bundle_pyprojects(build_lib: str | Path) -> list[Path]:
+    """Sanitize page-bundle manifests inside the agi-pages wheel build tree."""
+
+    pages_root = Path(build_lib) / "agi_pages"
+    if not pages_root.exists():
+        return []
+
+    changed: list[Path] = []
+    for pyproject_path in sorted(pages_root.glob("*/pyproject.toml")):
+        original = pyproject_path.read_text(encoding="utf-8")
+        sanitized = strip_packaged_core_uv_sources(original)
+        if sanitized == original:
+            continue
+        pyproject_path.write_text(sanitized, encoding="utf-8")
+        changed.append(pyproject_path)
+    return changed
+
+
 def purge_packaged_builtin_app_artifacts(build_lib: str | Path) -> list[Path]:
     """Remove local build/test artifacts from packaged built-in apps."""
 
@@ -102,4 +123,44 @@ def purge_packaged_builtin_app_artifacts(build_lib: str | Path) -> list[Path]:
         if artifact.suffix in {".pyc", ".pyo", ".c"}:
             artifact.unlink()
             removed.append(artifact)
+    return removed
+
+
+def purge_packaged_page_bundle_artifacts(build_lib: str | Path) -> list[Path]:
+    """Remove local build/test artifacts from packaged page bundles."""
+
+    pages_root = Path(build_lib) / "agi_pages"
+    if not pages_root.exists():
+        return []
+
+    removed: list[Path] = []
+    for pycache_dir in sorted(pages_root.rglob("__pycache__")):
+        shutil.rmtree(pycache_dir)
+        removed.append(pycache_dir)
+    for artifact in sorted(pages_root.rglob("*")):
+        if artifact.is_dir():
+            if artifact.name.endswith(".egg-info"):
+                shutil.rmtree(artifact)
+                removed.append(artifact)
+            continue
+        if artifact.suffix in {".pyc", ".pyo"} or artifact.name == "uv.lock":
+            artifact.unlink()
+            removed.append(artifact)
+    return removed
+
+
+def purge_packaged_public_app_payload(build_lib: str | Path) -> list[Path]:
+    """Remove public app/example/page payload from the root agilab wheel build tree."""
+
+    package_root = Path(build_lib) / "agilab"
+    removed: list[Path] = []
+    for relative_path in ("apps", "examples", "apps-pages"):
+        path = package_root / relative_path
+        if not path.exists():
+            continue
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+        removed.append(path)
     return removed

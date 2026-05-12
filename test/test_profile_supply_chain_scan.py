@@ -44,6 +44,7 @@ def test_cli_prints_all_profile_scan_plan(tmp_path: Path, capsys) -> None:
     assert set(profiles) == set(module.DEFAULT_PROFILES)
     assert profiles["base"]["extras"] == []
     assert profiles["ui"]["extras"] == ["ui"]
+    assert profiles["pages"]["extras"] == ["pages"]
     assert profiles["agents"]["extras"] == ["agents"]
     assert profiles["examples"]["extras"] == ["examples"]
     assert profiles["dev"]["extras"] == ["dev"]

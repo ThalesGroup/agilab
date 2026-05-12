@@ -102,9 +102,10 @@ what they need:
 
 | Profile | Dependency scope | Use when |
 |---|---|---|
-| Base package | `agilab` plus `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster`. This includes the core local/distributed runtime dependencies. | CLI/core first proof, source-checkout validation, and worker-runtime development. |
-| `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities. | Running the local product UI. |
-| `examples` extra | Notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, and learning examples beyond the CLI proof. |
+| Base package | `agilab` plus `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster`. This includes the core local/distributed runtime dependencies but not the built-in app or page-bundle payload. | CLI/core tooling, source-checkout validation, and worker-runtime development. |
+| `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities, `agi-apps` public built-in projects, and `agi-pages` analysis page bundles. | Running the local product UI with the public demo projects and analysis views available. |
+| `examples` extra | `agi-apps` public built-in apps/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
+| `pages` extra | `agi-pages` public analysis page bundles without the full UI profile. | Installing or validating sidecar page bundles separately from built-in app projects. |
 | `agents` extra | API client dependency boundary for packaged agent workflow helpers. | Reproducible coding-agent and assistant-backed workflows. |
 | `mlflow` extra | MLflow tracking integration. | Recording runs, metrics, artifacts, or model registry handoff evidence. |
 | `ai` and `viz` extras | API LLM clients and optional plotting packages. | Assistant-backed workflows or richer visual analysis. |
@@ -151,6 +152,8 @@ can validate one coherent tree. Their stability differs:
 |---|---|---|
 | `src/agilab/core/*` | Runtime packages and compact API. | Stable where documented. |
 | `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI. | Beta product surface. |
+| `src/agilab/lib/agi-apps` | PyPI package carrying public built-in apps/examples. | Packaged asset surface for `agilab[ui]` and `agilab[examples]`. |
+| `src/agilab/lib/agi-pages` | PyPI package carrying public analysis page bundles. | Packaged page-bundle surface for `agilab[ui]` and `agilab[pages]`. |
 | `src/agilab/apps/builtin` | First-proof and demo apps. | Packaged examples, not deployment templates. |
 | `src/agilab/examples` | Learning scripts and notebooks. | Educational examples with optional dependencies. |
 | `tools`, `.github`, IDE and agent folders | Contributor/release automation. | Maintainer tooling, not runtime API. |
@@ -214,7 +217,7 @@ installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
 For a CLI-only package smoke without Streamlit:
 
 ```bash
-uv --preview-features extra-build-dependencies tool install --upgrade agilab
+uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"
 agilab first-proof --json --max-seconds 60
 ```
 

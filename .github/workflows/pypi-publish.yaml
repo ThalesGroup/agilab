@@ -203,6 +203,8 @@ jobs:
           rm -rf dist-library
           rm -rf src/agilab/core/agi-env/dist
           rm -rf src/agilab/lib/agi-gui/dist
+          rm -rf src/agilab/lib/agi-pages/dist
+          rm -rf src/agilab/lib/agi-apps/dist
           rm -rf src/agilab/core/agi-node/dist
           rm -rf src/agilab/core/agi-cluster/dist
           rm -rf src/agilab/core/agi-core/dist
@@ -217,6 +219,11 @@ jobs:
         run: uv --preview-features extra-build-dependencies build --project src/agilab/lib/agi-gui --wheel
       - name: Verify agi-gui
         run: twine check src/agilab/lib/agi-gui/dist/*
+
+      - name: Build agi-pages
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/lib/agi-pages --wheel
+      - name: Verify agi-pages
+        run: twine check src/agilab/lib/agi-pages/dist/*
 
       - name: Build agi-node
         run: uv --preview-features extra-build-dependencies build --project src/agilab/core/agi-node --wheel
@@ -233,15 +240,22 @@ jobs:
       - name: Verify agi-core
         run: twine check src/agilab/core/agi-core/dist/*
 
+      - name: Build agi-apps
+        run: uv --preview-features extra-build-dependencies build --project src/agilab/lib/agi-apps --wheel
+      - name: Verify agi-apps
+        run: twine check src/agilab/lib/agi-apps/dist/*
+
       - name: Collect library distributions
         run: |
           set -euxo pipefail
           mkdir -p dist-library
           cp src/agilab/core/agi-env/dist/* dist-library/
           cp src/agilab/lib/agi-gui/dist/* dist-library/
+          cp src/agilab/lib/agi-pages/dist/* dist-library/
           cp src/agilab/core/agi-node/dist/* dist-library/
           cp src/agilab/core/agi-cluster/dist/* dist-library/
           cp src/agilab/core/agi-core/dist/* dist-library/
+          cp src/agilab/lib/agi-apps/dist/* dist-library/
 
       - name: Check whether library distributions already exist on PyPI
         id: library-pypi-state

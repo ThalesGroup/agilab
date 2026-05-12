@@ -19,6 +19,8 @@ COMPONENT_READMES = (
     Path("src/agilab/core/agi-node/README.md"),
     Path("src/agilab/core/agi-cluster/README.md"),
     Path("src/agilab/lib/agi-gui/README.md"),
+    Path("src/agilab/lib/agi-apps/README.md"),
+    Path("src/agilab/lib/agi-pages/README.md"),
 )
 CHANGELOG = Path("CHANGELOG.md")
 PUBLIC_DOC_PAGES = (
@@ -50,6 +52,7 @@ RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 CURRENT_RELEASE_VERSION = "2026.05.01.post4"
 KPI_BUNDLE_TOOL = Path("tools/kpi_evidence_bundle.py").resolve()
 NOTEBOOK_PIPELINE_IMPORT = Path("src/agilab/notebook_pipeline_import.py").resolve()
+AGI_APPS_PYPROJECT = Path("src/agilab/lib/agi-apps/pyproject.toml")
 
 
 @lru_cache(maxsize=1)
@@ -438,15 +441,15 @@ def test_meteo_notebook_migration_assets_are_complete_and_packaged() -> None:
         source = METEO_NOTEBOOK_MIGRATION / relative_path
         assert source.is_file(), f"Missing repository meteo migration asset: {source}"
 
-    package_data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"][
+    package_data = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))["tool"]["setuptools"][
         "package-data"
-    ]["agilab"]
+    ]["agilab.examples"]
     for pattern in (
-        "examples/notebook_migrations/*/notebooks/*.ipynb",
-        "examples/notebook_migrations/*/analysis_artifacts/*.json",
-        "examples/notebook_migrations/*/analysis_artifacts/*.csv",
-        "examples/notebook_migrations/*/migrated_project/*.toml",
-        "examples/notebook_migrations/*/migrated_project/*.dot",
+        "notebook_migrations/*/notebooks/*.ipynb",
+        "notebook_migrations/*/analysis_artifacts/*.json",
+        "notebook_migrations/*/analysis_artifacts/*.csv",
+        "notebook_migrations/*/migrated_project/*.toml",
+        "notebook_migrations/*/migrated_project/*.dot",
     ):
         assert pattern in package_data
 
@@ -470,10 +473,10 @@ def test_notebook_quickstart_assets_are_packaged_from_agilab_package_tree() -> N
     for notebook in required_notebooks:
         assert (notebook_dir / notebook).is_file(), notebook
 
-    package_data = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"][
+    package_data = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))["tool"]["setuptools"][
         "package-data"
-    ]["agilab"]
-    assert "examples/notebook_quickstart/*.ipynb" in package_data
+    ]["agilab.examples"]
+    assert "notebook_quickstart/*.ipynb" in package_data
 
 
 def test_meteo_forecast_project_declares_notebook_import_views() -> None:

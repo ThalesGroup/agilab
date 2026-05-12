@@ -14,6 +14,7 @@ from typing import Iterable, Sequence
 PROFILE_EXTRAS: dict[str, tuple[str, ...]] = {
     "base": (),
     "ui": ("ui",),
+    "pages": ("pages",),
     "ai": ("ai",),
     "agents": ("agents",),
     "examples": ("examples",),
