@@ -195,8 +195,22 @@ def test_agi_gui_coverage_includes_analysis_page_helpers() -> None:
 def test_agi_gui_coverage_includes_support_parity_helpers() -> None:
     run_block = _agi_gui_run_block()
 
+    assert "test/test_agent_run.py" in run_block
+    assert "test/test_agent_tool_safety.py" in run_block
+    assert "test/test_code_editor_support.py" in run_block
+    assert "test/test_env_file_utils.py" in run_block
+    assert "test/test_security_check.py" in run_block
+    assert "test/test_secret_uri.py" in run_block
+    assert "test/test_ui_public_bind_guard.py" in run_block
     assert "test/test_venv_linker.py" in run_block
     assert "test/test_workflow_ui.py" in run_block
+
+
+def test_agi_gui_coverage_includes_direct_generation_and_selector_tests() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_generated_actions.py" in run_block
+    assert "test/test_page_project_selector.py" in run_block
 
 
 def test_agi_gui_coverage_includes_report_helper_regressions() -> None:
