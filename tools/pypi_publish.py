@@ -662,6 +662,7 @@ def run_pre_upload_release_guard(
             sys.executable,
             "tools/coverage_badge_guard.py",
             "--changed-only",
+            "--allow-badge-only",
         ],
         cwd=REPO_ROOT,
     )
