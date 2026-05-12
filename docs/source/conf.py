@@ -74,13 +74,23 @@ except Exception as e:
 # Autodoc should describe the checkout being built. Keep `.agilab-path` only as
 # an import fallback above; scanning it here can document stale generated apps.
 project_root = repo_root
+
+
+def _is_generated_root_project_src(src: Path) -> bool:
+    """Skip local generated project workspaces accidentally left at repo root."""
+    project_dir = src.parent
+    return project_dir.parent == project_root and project_dir.name.endswith("_project")
+
+
 for proj in [
     "*project",
     "agilab/cluster",
     "agilab/node",
     "agilab/env",
 ]:
-    for src in project_root.rglob(f"{proj}/src"):
+    for src in sorted(project_root.rglob(f"{proj}/src")):
+        if _is_generated_root_project_src(src):
+            continue
         path = str(src)
         if not src.exists():
             print(path, "does not exist; skipping")

@@ -39,3 +39,15 @@ def test_docs_template_keeps_release_and_build_revision_separate() -> None:
 
     assert "Current release {{ docs_version }}" in template
     assert "Docs build {{ docs_build_revision }}" in template
+
+
+def test_docs_conf_skips_generated_root_project_workspaces() -> None:
+    conf = _load_conf_module()
+
+    assert conf._is_generated_root_project_src(ROOT / "temporary_demo_project" / "src") is True
+    assert (
+        conf._is_generated_root_project_src(
+            ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_project" / "src"
+        )
+        is False
+    )
