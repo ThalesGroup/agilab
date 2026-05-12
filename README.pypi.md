@@ -257,6 +257,7 @@ Current public evaluation summary, refreshed from the public KPI bundle:
 - `4.0 / 5` for ease of adoption, research experimentation, and engineering prototyping.
 - `3.0 / 5` for production readiness.
 - `4.2 / 5` for strategic potential.
+- Overall public evaluation, rounded category average: `3.8 / 5`.
 
 These are AI/ML workbench scores, not production MLOps claims.
 They cover project setup, environment management, execution, and result analysis.
