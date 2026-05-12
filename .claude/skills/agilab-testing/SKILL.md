@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-09
+  updated: 2026-05-12
 ---
 
 # Testing Skill (AGILAB)
@@ -61,10 +61,16 @@ Use this skill when validating changes.
   - Do not assume `glob`, `rglob`, `iterdir`, or `os.scandir` order across macOS, Linux, and GitHub runners.
   - If order is user-visible, sort in the runtime/helper.
   - If order is not part of the contract, compare sorted values or sets in tests.
-- Root test isolation:
+- Root and core test isolation:
   - Tests under `test/` must not depend on the real machine `HOME` or an existing `~/.agilab/.env`.
   - Prefer the shared `test/conftest.py` fixtures for a clean fake home; add local monkeypatches only
     when a test truly needs custom env overrides.
+  - Tests under `src/agilab/core/test` must also run with a fake `HOME`, cleaned AGILAB-related
+    environment variables, and a valid temporary `~/.local/share/agilab/.agilab-path` pointing at
+    the checkout's `src/agilab` directory. A polluted developer marker must not affect core tests.
+  - Reset singleton state and restore class-level mutable state in shared fixtures. In particular,
+    tests that stub `AgiEnv.logger` must not leak that stub into later tests that expect the full
+    logger API.
 - Cluster/share regressions:
   - Keep explicit regressions for “cluster share missing”, “cluster share equals local share”, and
     “no silent fallback to localshare”.
