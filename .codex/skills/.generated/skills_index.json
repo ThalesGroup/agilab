@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-12T18:01:04Z",
+  "generated_at_utc": "2026-05-12T21:42:00Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -71,7 +71,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-09",
+      "updated": "2026-05-12",
       "path": ".codex/skills/agilab-runbook/SKILL.md",
       "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## AGILab working rules (repo policy)\n- **Use `uv` for all runs** so dependencies resolve in managed envs:"
     },
