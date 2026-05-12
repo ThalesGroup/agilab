@@ -62,6 +62,7 @@ def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
         "geopy",
         "humanize",
         "jupyter-ai",
+        "jupyterlab",
         "keras",
         "matplotlib",
         "mlflow",
@@ -156,9 +157,14 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
     pyproject = REPO_ROOT / "pyproject.toml"
 
     assert _optional_dependency_names(pyproject, "ai") == {"openai"}
+    assert _optional_dependency_names(pyproject, "agents") == {"openai"}
+    assert {"jupyterlab", "matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "examples")
     assert {"matplotlib", "plotly"} <= _optional_dependency_names(pyproject, "viz")
     assert {"agi-gui", "streamlit", "networkx", "pandas", "tomli_w"} <= _optional_dependency_names(pyproject, "ui")
     assert _optional_dependency_names(pyproject, "mlflow") == {"mlflow"}
+    assert {"build", "pytest", "pytest-cov", "pip-audit", "cyclonedx-bom", "twine", "wheel"} <= _optional_dependency_names(
+        pyproject, "dev"
+    )
     assert {"gpt-oss", "mlx", "mlx-lm", "transformers", "torch"} <= _optional_dependency_names(
         pyproject, "local-llm"
     )

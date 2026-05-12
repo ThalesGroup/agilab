@@ -134,9 +134,12 @@ what they need:
 |---|---|---|
 | Base package | `agilab` plus `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster`. This includes the core local/distributed runtime dependencies. | CLI/core first proof, source-checkout validation, and worker-runtime development. |
 | `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities. | Running the local product UI. |
+| `examples` extra | Notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, and learning examples beyond the CLI proof. |
+| `agents` extra | API client dependency boundary for packaged agent workflow helpers. | Reproducible coding-agent and assistant-backed workflows. |
 | `mlflow` extra | MLflow tracking integration. | Recording runs, metrics, artifacts, or model registry handoff evidence. |
 | `ai` and `viz` extras | API LLM clients and optional plotting packages. | Assistant-backed workflows or richer visual analysis. |
 | `local-llm` / `offline` extras | Local/offline model stacks such as Torch, Transformers, GPT-OSS, and MLX where supported. | Isolated local-model experiments; expect a larger supply-chain and hardware footprint. |
+| `dev` extra | Contributor test/build/audit tooling only. | Validating a source checkout or release candidate; avoid it for runtime installs. |
 
 Cluster/Dask dependencies are currently part of the base package through
 `agi-core`; a smaller cluster-specific package split is a packaging roadmap item,

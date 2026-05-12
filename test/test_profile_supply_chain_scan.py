@@ -21,16 +21,16 @@ def _load_module():
 def test_build_profile_scan_exports_matching_extra(tmp_path: Path) -> None:
     module = _load_module()
 
-    scan = module.build_profile_scan("offline", output_root=tmp_path)
+    scan = module.build_profile_scan("agents", output_root=tmp_path)
 
     export_cmd = list(scan.commands[0])
-    assert scan.extras == ("offline",)
+    assert scan.extras == ("agents",)
     assert export_cmd[:5] == ["uv", "--preview-features", "extra-build-dependencies", "export", "--no-dev"]
     assert "--extra" in export_cmd
-    assert "offline" in export_cmd
-    assert scan.requirements.endswith("offline/requirements.txt")
-    assert scan.pip_audit_json.endswith("offline/pip-audit.json")
-    assert scan.sbom_json.endswith("offline/sbom-cyclonedx.json")
+    assert "agents" in export_cmd
+    assert scan.requirements.endswith("agents/requirements.txt")
+    assert scan.pip_audit_json.endswith("agents/pip-audit.json")
+    assert scan.sbom_json.endswith("agents/sbom-cyclonedx.json")
 
 
 def test_cli_prints_all_profile_scan_plan(tmp_path: Path, capsys) -> None:
@@ -44,5 +44,8 @@ def test_cli_prints_all_profile_scan_plan(tmp_path: Path, capsys) -> None:
     assert set(profiles) == set(module.DEFAULT_PROFILES)
     assert profiles["base"]["extras"] == []
     assert profiles["ui"]["extras"] == ["ui"]
+    assert profiles["agents"]["extras"] == ["agents"]
+    assert profiles["examples"]["extras"] == ["examples"]
+    assert profiles["dev"]["extras"] == ["dev"]
     assert any("pip-audit" in command for command in profiles["ui"]["commands"][1])
     assert any("cyclonedx-py" in command for command in profiles["ui"]["commands"][2])

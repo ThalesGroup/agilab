@@ -265,10 +265,13 @@ If you also want a one-command onboarding manifest in this profile, run:
 Optional feature stacks stay out of the base package install. Add
 ``agilab[ui]`` for the local Streamlit pages, ``agilab[ai]`` for AI assistant
 features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
-``agilab[mlflow]`` for tracking, ``agilab[local-llm]`` for local model helpers,
-and ``agilab[viz]`` for optional Plotly/matplotlib visualizations::
+``agilab[agents]`` for the packaged agent workflow client dependencies,
+``agilab[examples]`` for notebook/demo helper dependencies, ``agilab[mlflow]``
+for tracking, ``agilab[local-llm]`` for local model helpers,
+``agilab[viz]`` for optional Plotly/matplotlib visualizations, and
+``agilab[dev]`` for contributor-only test/build tooling::
 
-    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,ai,viz,mlflow,local-llm]"
+    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui,agents,examples,viz,mlflow,local-llm]"
 
 **agi-core demo**:
 
@@ -314,7 +317,8 @@ To generate per-profile scan evidence instead of a single generic artifact::
 
 This writes ``requirements.txt``, ``pip-audit.json``, and
 ``sbom-cyclonedx.json`` under ``test-results/supply-chain/<profile>/`` for the
-base, UI, AI, MLflow, local-LLM, and offline install profiles.
+base, UI, AI, agents, examples, MLflow, local-LLM, offline, and dev install
+profiles.
 
 Maintainers can produce the same artifact from the repo workflow-parity helper::
 

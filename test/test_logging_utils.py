@@ -24,3 +24,11 @@ def test_bound_log_value_truncates_with_ellipsis() -> None:
 
     assert logging_utils.bound_log_value(text, 10) == "xxxxxxx..."
     assert len(logging_utils.bound_log_value(text, 10)) == 10
+
+
+def test_bound_log_value_handles_nonpositive_and_tiny_limits() -> None:
+    assert logging_utils.bound_log_value("payload", 0) == ""
+    assert logging_utils.bound_log_value("payload", -1) == ""
+    assert logging_utils.bound_log_value("payload", 1) == "."
+    assert logging_utils.bound_log_value("payload", 2) == ".."
+    assert logging_utils.bound_log_value("payload", 3) == "..."
