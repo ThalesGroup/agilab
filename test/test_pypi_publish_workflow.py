@@ -68,6 +68,10 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "PyPI publication requires Trusted Publishing/OIDC" in text
     assert "packages-dir: dist-library/" in text
     assert "packages-dir: dist/" in text
+    assert "Build agi-pages" in text
+    assert "src/agilab/lib/agi-pages/dist/*" in text
+    assert "Build agi-apps" in text
+    assert "src/agilab/lib/agi-apps/dist/*" in text
     assert "PYPI_API_TOKEN" not in text
     assert "PYPI_SECRET" not in text
     assert "PYPI_TOKEN" not in text

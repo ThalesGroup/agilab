@@ -87,6 +87,32 @@ def test_sanitize_packaged_builtin_app_pyprojects_updates_build_tree(tmp_path: P
     assert "[tool.uv.sources]" not in pyproject.read_text(encoding="utf-8")
 
 
+def test_sanitize_packaged_page_bundle_pyprojects_updates_build_tree(tmp_path: Path) -> None:
+    module = _load_module()
+    pyproject = tmp_path / "agi_pages/view_maps/pyproject.toml"
+    pyproject.parent.mkdir(parents=True)
+    pyproject.write_text(
+        "\n".join(
+            [
+                "[project]",
+                'name = "view-maps"',
+                'dependencies = ["agi-gui"]',
+                "",
+                "[tool.uv.sources]",
+                'agi-gui = { path = "../../lib/agi-gui", editable = true }',
+                'agi-env = { path = "../../core/agi-env", editable = true }',
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    changed = module.sanitize_packaged_page_bundle_pyprojects(tmp_path)
+
+    assert changed == [pyproject]
+    assert "[tool.uv.sources]" not in pyproject.read_text(encoding="utf-8")
+
+
 def test_purge_packaged_builtin_app_artifacts_removes_build_noise(tmp_path: Path) -> None:
     module = _load_module()
     app_src = tmp_path / "agilab/apps/builtin/flight_project/src/flight"
@@ -114,3 +140,45 @@ def test_purge_packaged_builtin_app_artifacts_removes_build_noise(tmp_path: Path
     assert not remove_c.exists()
     assert keep_source.is_file()
     assert keep_pyx.is_file()
+
+
+def test_purge_packaged_page_bundle_artifacts_removes_build_noise(tmp_path: Path) -> None:
+    module = _load_module()
+    page_src = tmp_path / "agi_pages/view_maps/src/view_maps"
+    pycache = page_src / "__pycache__"
+    pycache.mkdir(parents=True)
+    keep_source = page_src / "view_maps.py"
+    remove_pyc = pycache / "view_maps.cpython-313.pyc"
+    remove_lock = tmp_path / "agi_pages/view_maps/uv.lock"
+    keep_source.write_text("print('ok')\n", encoding="utf-8")
+    remove_pyc.write_bytes(b"pyc")
+    remove_lock.write_text("lock\n", encoding="utf-8")
+
+    removed = module.purge_packaged_page_bundle_artifacts(tmp_path)
+
+    assert pycache in removed
+    assert remove_pyc in removed or not remove_pyc.exists()
+    assert remove_lock in removed
+    assert not pycache.exists()
+    assert not remove_lock.exists()
+    assert keep_source.is_file()
+
+
+def test_purge_packaged_public_app_payload_removes_root_wheel_payload_only(tmp_path: Path) -> None:
+    module = _load_module()
+    apps = tmp_path / "agilab/apps"
+    examples = tmp_path / "agilab/examples"
+    apps_pages = tmp_path / "agilab/apps-pages"
+    apps.mkdir(parents=True)
+    examples.mkdir()
+    apps_pages.mkdir()
+    (apps / "install.py").write_text("# installer\n", encoding="utf-8")
+    (examples / "README.md").write_text("examples\n", encoding="utf-8")
+    (apps_pages / "README.md").write_text("views\n", encoding="utf-8")
+
+    removed = module.purge_packaged_public_app_payload(tmp_path)
+
+    assert removed == [apps, examples, apps_pages]
+    assert not apps.exists()
+    assert not examples.exists()
+    assert not apps_pages.exists()

@@ -381,7 +381,7 @@ $AppsRoot = Join-Path $AgiSpace "apps"
 Ensure-Dir $AppsRoot
 
 $Venv = Join-Path $AgiSpace ".venv"
-$Packages = @("agilab", "agi-env", "agi-node", "agi-cluster", "agi-core")
+$Packages = @("agilab", "agi-env", "agi-node", "agi-cluster", "agi-core", "agi-gui", "agi-apps", "agi-pages")
 $VersionArgSet = $PSBoundParameters.ContainsKey('Version')
 
 $LocalShareDir = Join-Path (Join-Path (Join-Path $Home ".local") "share") "agilab"
@@ -567,7 +567,7 @@ try {
     Pop-Location
 }
 
-foreach ($leftover in @("agi_env", "agi-node", "agi-cluster", "agi-core")) {
+foreach ($leftover in @("agi_env", "agi-node", "agi-cluster", "agi-core", "agi-gui", "agi-apps", "agi-pages")) {
     $path = Join-Path $Venv $leftover
     if (Test-Path -LiteralPath $path) {
         Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction SilentlyContinue

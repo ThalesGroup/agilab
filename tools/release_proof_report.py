@@ -147,9 +147,14 @@ def _template_context(manifest: Mapping[str, Any]) -> dict[str, Any]:
         raise TypeError("[release] must be a table")
     package_name = str(release.get("package_name", ""))
     package_version = str(release.get("package_version", ""))
+    package_extras = release.get("package_extras", []) or []
+    if not isinstance(package_extras, list):
+        raise TypeError("[release].package_extras must be a list when provided")
+    extras = [str(extra).strip() for extra in package_extras if str(extra).strip()]
+    package_spec_name = f"{package_name}[{','.join(sorted(extras))}]" if extras else package_name
     return {
         **{str(key): value for key, value in release.items()},
-        "package_spec": f"{package_name}=={package_version}",
+        "package_spec": f"{package_spec_name}=={package_version}",
     }
 
 

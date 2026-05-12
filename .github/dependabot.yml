@@ -80,3 +80,25 @@ updates:
     labels:
       - "dependencies"
       - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-apps"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:15"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-pages"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:30"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"

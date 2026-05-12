@@ -186,6 +186,24 @@ from agi_env.agi_logger import AgiLogger
 logger = AgiLogger.get_logger(__name__)
 
 
+def _optional_agi_pages_bundles_root() -> Path | None:
+    """Return the optional agi-pages bundle root without making it a hard dependency."""
+
+    if importlib.util.find_spec("agi_pages") is None:
+        return None
+    try:
+        import agi_pages  # type: ignore
+    except (ImportError, AttributeError, TypeError, OSError):
+        return None
+    bundles_root = getattr(agi_pages, "bundles_root", None)
+    if not callable(bundles_root):
+        return None
+    try:
+        return Path(bundles_root()).expanduser()
+    except (TypeError, OSError, RuntimeError):
+        return None
+
+
 def _ensure_dir(path: str | Path) -> Path:
     """Create a directory if missing and log only when it is first created."""
     target = Path(path)
@@ -1146,13 +1164,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         if pages_override:
             pages_root = Path(pages_override).expanduser()
         else:
-            candidates = [self.agilab_pck / "agilab/apps-pages",
-                          self.agilab_pck / "apps-pages"]
+            candidates = [
+                self.agilab_pck / "apps-pages",
+                self.agilab_pck / "agilab/apps-pages",
+            ]
             repo_hint = self.read_agilab_path()
             if repo_hint:
                 repo_hint = Path(repo_hint)
                 for suffix in ("apps-pages", "agilab/apps-pages"):
                     candidates.append(repo_hint / suffix)
+            agi_pages_root = _optional_agi_pages_bundles_root()
+            if agi_pages_root is not None:
+                candidates.append(agi_pages_root)
 
             pages_root = next((c.resolve() for c in candidates if c and c.exists()), candidates[0])
 

@@ -66,8 +66,11 @@ If startup fails, run a local fallback first:
 
 **Published package install or upgrade, CLI proof only**::
 
-   uv --preview-features extra-build-dependencies tool install --upgrade agilab
+   uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"
    agilab first-proof --json
+
+The ``examples`` extra installs the ``agi-apps`` payload that contains the
+public built-in ``flight_project`` used by the proof.
 
 Use the UI profile when you want the local Streamlit pages from the
 published package::
@@ -75,10 +78,15 @@ published package::
    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
    agilab
 
+The ``ui`` extra installs ``agi-apps`` for public built-in projects and
+``agi-pages`` for packaged ANALYSIS page bundles. A base ``agilab`` install
+stays CLI/core-only; run ``agilab dry-run`` there when you only need the
+lightweight import/runtime smoke.
+
 If you installed AGILAB inside an activated project environment instead of as a
 ``uv`` tool, upgrade that environment explicitly::
 
-   uv pip install --upgrade agilab
+   uv pip install --upgrade "agilab[examples]"
    agilab first-proof --json
 
 The adoption checkpoint is always the same: ``run_manifest.json`` reports
@@ -265,7 +273,8 @@ profile, run:
    agilab first-proof --json --with-ui
 
 Optional feature stacks stay out of the base package install. Add
-``agilab[ui]`` for the local Streamlit pages, ``agilab[ai]`` for AI assistant
+``agilab[ui]`` for the local Streamlit app, ``agilab[pages]`` for analysis
+page bundles without the full UI profile, ``agilab[ai]`` for AI assistant
 features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
 ``agilab[agents]`` for the packaged agent workflow client dependencies,
 ``agilab[examples]`` for notebook/demo helper dependencies, ``agilab[mlflow]``
@@ -319,8 +328,8 @@ To generate per-profile scan evidence instead of a single generic artifact::
 
 This writes ``requirements.txt``, ``pip-audit.json``, and
 ``sbom-cyclonedx.json`` under ``test-results/supply-chain/<profile>/`` for the
-base, UI, AI, agents, examples, MLflow, local-LLM, offline, and dev install
-profiles.
+base, UI, pages, AI, agents, examples, MLflow, local-LLM, offline, and dev
+install profiles.
 
 Maintainers can produce the same artifact from the repo workflow-parity helper::
 

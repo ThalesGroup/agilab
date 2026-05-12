@@ -37,6 +37,24 @@ def test_release_package_spec_reads_manifest_version(tmp_path: Path) -> None:
     )
 
 
+def test_release_package_spec_includes_manifest_extras(tmp_path: Path) -> None:
+    module = _load_module()
+    manifest = tmp_path / "release_proof.toml"
+    manifest.write_text(
+        "[release]\n"
+        'package_name = "agilab"\n'
+        'package_version = "2026.05.05.post2"\n'
+        'package_extras = ["ui", "examples"]\n',
+        encoding="utf-8",
+    )
+
+    assert module.release_package_spec(manifest) == (
+        "agilab",
+        "2026.05.05.post2",
+        "agilab[examples,ui]==2026.05.05.post2",
+    )
+
+
 def test_install_with_retry_uses_exact_spec_and_refreshes_index(monkeypatch) -> None:
     module = _load_module()
     install_calls: list[list[str]] = []

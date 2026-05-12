@@ -11,7 +11,7 @@ from pathlib import Path
 import platform
 import re
 import tomllib
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -380,6 +380,15 @@ def _release_tag_matches_version(manifest_tag: str, project_version: str) -> boo
     return re.fullmatch(rf"{expected_tag}(?:-\d+)?", manifest_tag) is not None
 
 
+def _release_package_spec(package_name: str, package_version: str, release: Mapping[str, Any]) -> str:
+    package_extras = release.get("package_extras", []) or []
+    extras = []
+    if isinstance(package_extras, list):
+        extras = [str(extra).strip() for extra in package_extras if str(extra).strip()]
+    package_spec_name = f"{package_name}[{','.join(sorted(extras))}]" if extras else package_name
+    return f"{package_spec_name}=={package_version}"
+
+
 def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[str, Any]:
     pyproject, pyproject_error = _read_toml_artifact(repo_root / "pyproject.toml")
     manifest, manifest_error = _read_toml_artifact(
@@ -405,13 +414,14 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
     package_name = str(release.get("package_name") or "")
     manifest_version = str(release.get("package_version") or "")
     manifest_tag = str(release.get("github_release_tag") or "")
+    package_spec = _release_package_spec(package_name, manifest_version, release)
     expected_tag = f"v{project_version}" if project_version else ""
     version_aligned = bool(project_version) and manifest_version == project_version
     tag_aligned = _release_tag_matches_version(manifest_tag, project_version)
     rendered_page_aligned = (
         bool(package_name)
         and bool(manifest_version)
-        and f"{package_name}=={manifest_version}" in release_proof
+        and package_spec in release_proof
         and bool(manifest_tag)
         and manifest_tag in release_proof
     )
@@ -436,6 +446,7 @@ def _release_proof_freshness_check(repo_root: Path, security_text: str) -> dict[
             "manifest_error": manifest_error,
             "pyproject_version": project_version,
             "manifest_package_version": manifest_version,
+            "manifest_package_spec": package_spec,
             "expected_github_release_tag": expected_tag,
             "manifest_github_release_tag": manifest_tag,
             "accepted_github_release_tag_pattern": (

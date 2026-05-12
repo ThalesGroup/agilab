@@ -253,24 +253,45 @@ def page_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
         REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml",
         REPO_ROOT / "src/agilab/lib/agi-gui",
     )
-    return [agi_gui] if agi_gui[1].exists() else []
+    agi_pages = (
+        "agi-pages",
+        REPO_ROOT / "src/agilab/lib/agi-pages/pyproject.toml",
+        REPO_ROOT / "src/agilab/lib/agi-pages",
+    )
+    return [entry for entry in (agi_gui, agi_pages) if entry[1].exists()]
+
+
+def app_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
+    agi_apps = (
+        "agi-apps",
+        REPO_ROOT / "src/agilab/lib/agi-apps/pyproject.toml",
+        REPO_ROOT / "src/agilab/lib/agi-apps",
+    )
+    return [agi_apps] if agi_apps[1].exists() else []
 
 
 def publishable_libs() -> List[Tuple[str, pathlib.Path, pathlib.Path]]:
     libs: List[Tuple[str, pathlib.Path, pathlib.Path]] = []
     inserted_page_libs = False
+    inserted_app_libs = False
     for entry in CORE:
         libs.append(entry)
         if entry[0] == "agi-env":
             libs.extend(page_libs())
             inserted_page_libs = True
+        if entry[0] == "agi-core":
+            libs.extend(app_libs())
+            inserted_app_libs = True
     if not inserted_page_libs:
         libs.extend(page_libs())
+    if not inserted_app_libs:
+        libs.extend(app_libs())
     return libs
 
 
 UMBRELLA = ("agilab", REPO_ROOT / "pyproject.toml", REPO_ROOT)
 ALL_PACKAGE_NAMES = [name for name, *_ in publishable_libs()] + [UMBRELLA[0]]
+WHEEL_ONLY_PACKAGES = {"agi-apps", "agi-pages"}
 
 APPS_REPO_ENV_KEYS: tuple[str, ...] = ("APPS_REPOSITORY",)
 DEFAULT_APPS_REPO_DIRNAME = "agilab-apps"
@@ -1297,6 +1318,19 @@ def uv_build_project(project_dir: pathlib.Path, dist_kind: str):
         run(["uv", "build", "--project", str(project_dir), "--wheel"], cwd=project_dir)
     if dist_kind in ("sdist", "both"):
         run(["uv", "build", "--project", str(project_dir), "--sdist"], cwd=project_dir)
+
+
+def effective_dist_kind(package_name: str, requested: str) -> str:
+    """Return the build artifact kind supported by a published package."""
+    if package_name in WHEEL_ONLY_PACKAGES:
+        if requested == "sdist":
+            raise SystemExit(
+                f"ERROR: {package_name} is wheel-only because its public app payload "
+                "is packaged from the monorepo source tree. Use --dist wheel or --dist both."
+            )
+        if requested == "both":
+            return "wheel"
+    return requested
 
 
 def uv_build_repo_root(dist_kind: str):
@@ -2435,11 +2469,12 @@ def main():
                 raise SystemExit(f"fatal: Could not update version in {toml}\n{e}")
             pin_internal_deps(toml, pins)
             update_release_badge_for_project(name, toml, project)
+            dist_kind = effective_dist_kind(name, cfg.dist)
             if cfg.dry_run:
-                print(f"[build] {name}: (dry-run would build {cfg.dist} artifacts for {chosen})")
+                print(f"[build] {name}: (dry-run would build {dist_kind} artifacts for {chosen})")
                 files = []
             else:
-                uv_build_project(project, cfg.dist)
+                uv_build_project(project, dist_kind)
                 files = dist_files(project)
                 if files:
                     print(f"[build] {name}: {', '.join(files)}")
@@ -2524,7 +2559,7 @@ def main():
                 set_version_in_pyproject(toml, chosen2)
                 pin_internal_deps(toml, pins2)
                 update_release_badge_for_project(name, toml, project)
-                uv_build_project(project, cfg.dist)
+                uv_build_project(project, effective_dist_kind(name, cfg.dist))
                 all_files2.extend(dist_files(project))
             if build_umbrella:
                 if sync_builtin_versions:

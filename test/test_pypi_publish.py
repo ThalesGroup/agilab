@@ -966,6 +966,28 @@ def test_builtin_app_pyprojects_includes_worker_manifests(tmp_path, monkeypatch)
     assert module.builtin_app_pyprojects() == [app_pyproject, worker_pyproject]
 
 
+def test_publishable_libs_include_asset_packages_in_release_order() -> None:
+    module = _load_pypi_publish()
+
+    package_names = [name for name, *_ in module.publishable_libs()]
+
+    assert "agi-pages" in package_names
+    assert "agi-apps" in package_names
+    assert package_names.index("agi-gui") < package_names.index("agi-pages")
+    assert package_names.index("agi-core") < package_names.index("agi-apps")
+
+
+def test_asset_packages_are_wheel_only_for_release_tooling() -> None:
+    module = _load_pypi_publish()
+
+    for package in ("agi-apps", "agi-pages"):
+        assert module.effective_dist_kind(package, "wheel") == "wheel"
+        assert module.effective_dist_kind(package, "both") == "wheel"
+        with pytest.raises(SystemExit, match=f"{package} is wheel-only"):
+            module.effective_dist_kind(package, "sdist")
+    assert module.effective_dist_kind("agilab", "both") == "both"
+
+
 def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)

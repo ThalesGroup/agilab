@@ -11,7 +11,8 @@ User-facing install surfaces
 For public users, the supported entry points are:
 
 - ``agilab``: the top-level CLI package. Add the ``ui`` extra for the local
-  Streamlit web interface.
+  Streamlit web interface, or the ``examples`` extra for public built-in apps
+  and notebooks.
 - ``agi-core``: the compact notebook/API runtime used by the public notebook
   examples.
 
@@ -40,6 +41,27 @@ adds the Streamlit/UI dependencies used by AGILAB pages and apps-pages bundles.
 Worker environments should keep using ``agi-env`` unless they explicitly need
 to render UI.
 
+Published app/example asset package
+-----------------------------------
+
+``agi-apps`` is published to PyPI from ``src/agilab/lib/agi-apps``. It carries
+the public ``agilab.apps`` and ``agilab.examples`` payload: built-in projects,
+the app installer script, sample data, notebooks, and learning examples. The
+root ``agilab`` wheel stays lean; ``agilab[ui]`` and ``agilab[examples]`` pull
+``agi-apps`` when the packaged first-proof or demo assets are needed.
+
+Published page-bundle asset package
+-----------------------------------
+
+``agi-pages`` is published to PyPI from ``src/agilab/lib/agi-pages``. It carries
+the public analysis page bundles that used to be embedded in the root
+``agilab`` wheel under ``apps-pages``. The package exposes
+``agi_pages.bundles_root()`` so ``agi-env`` can discover installed page bundles
+without making base ``agilab`` depend on them. ``agilab[ui]`` pulls
+``agi-pages`` for the local ANALYSIS page; ``agilab[pages]`` installs the page
+payload separately when operators want that asset surface without the full UI
+profile.
+
 Why keep them published
 -----------------------
 
@@ -48,7 +70,13 @@ Publishing these runtime packages keeps the release process reproducible:
 - ``pip install agilab`` and ``uvx agilab`` can resolve the exact base package
   graph for CLI and first-proof checks.
 - ``pip install "agilab[ui]"`` installs the matching ``agi-gui`` package and
-  Streamlit page dependencies for the local web interface.
+  Streamlit page dependencies for the local web interface, plus ``agi-apps`` and
+  ``agi-pages`` so the UI opens with public built-in projects and analysis views
+  available.
+- ``pip install "agilab[examples]"`` installs ``agi-apps`` plus notebook/demo
+  helper dependencies for public packaged examples.
+- ``pip install "agilab[pages]"`` installs ``agi-pages`` for analysis page
+  bundle discovery without also pulling public built-in apps.
 - ``agi-core`` can pin the matching ``agi-env``, ``agi-node``, and
   ``agi-cluster`` versions for a release.
 - ``agilab[ui]`` can pin the matching ``agi-gui`` version for the UI/page
@@ -61,11 +89,14 @@ Publishing these runtime packages keeps the release process reproducible:
 Release rule
 ------------
 
-For each public release, publish the runtime packages and ``agi-gui`` with the
-same version as ``agilab`` and ``agi-core`` unless a deliberate packaging
-migration removes that need. Do not skip ``agi-node``, ``agi-cluster``, or
-``agi-gui`` from the publish matrix while ``agi-core`` and the ``agilab[ui]``
-extra depend on them as external packages.
+For each public release, publish the runtime packages, ``agi-gui``,
+``agi-pages``, and ``agi-apps`` with the same version as ``agilab`` and
+``agi-core`` unless a
+deliberate packaging migration removes that need. Do not skip ``agi-node``,
+``agi-cluster``, ``agi-gui``, ``agi-pages``, or ``agi-apps`` from the publish
+matrix while ``agi-core`` and the ``agilab[ui]`` / ``agilab[examples]`` /
+``agilab[pages]`` extras depend on
+them as external packages.
 
 If AGILAB later embeds the ``agi_node`` and ``agi_cluster`` Python modules
 directly into a single wheel, that migration must update dependency metadata,
@@ -83,7 +114,8 @@ real PyPI.
 The release commit should synchronize:
 
 - the root ``agilab`` version,
-- ``agi-core``, ``agi-env``, ``agi-node``, ``agi-cluster``, and ``agi-gui``
+- ``agi-core``, ``agi-env``, ``agi-node``, ``agi-cluster``, ``agi-gui``,
+  ``agi-pages``, and ``agi-apps``
   package versions,
 - internal runtime dependency pins used by the published wheels,
 - built-in app version metadata and lower-bound runtime requirements,

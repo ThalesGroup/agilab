@@ -34,6 +34,8 @@ RUNTIME_DISTRIBUTIONS = (
     "agi-node",
     "agi-cluster",
     "agi-gui",
+    "agi-apps",
+    "agi-pages",
 )
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 DIAGNOSTIC_TAIL_LINES = 20
@@ -124,9 +126,23 @@ def default_active_app() -> Path:
     return candidates[-1].resolve()
 
 
+def default_core_smoke_target() -> Path:
+    """Return an existing path for core-only dry-run evidence."""
+
+    return _runtime_root().resolve()
+
+
 def resolve_active_app(path_value: str | None) -> Path:
     active_app = Path(path_value).expanduser().resolve() if path_value else default_active_app()
     if not active_app.exists():
+        if path_value is None:
+            raise FileNotFoundError(
+                "Default first-proof app not found: "
+                f"{active_app}. Install the public app payload with "
+                '`python -m pip install "agilab[examples]"` or '
+                '`python -m pip install "agilab[ui]"`, then rerun this command. '
+                "Alternatively pass --active-app /path/to/<app>_project."
+            )
         raise FileNotFoundError(f"Active app path not found: {active_app}")
     if not active_app.is_dir():
         raise NotADirectoryError(f"Active app path is not a directory: {active_app}")
@@ -187,6 +203,33 @@ def _preinit_smoke_command(active_app: Path) -> ProofCommand:
         label="package preinit smoke",
         description="Import AGILAB packages and verify the built-in flight_project path.",
         argv=(sys.executable, "-c", _preinit_smoke_code(active_app)),
+    )
+
+
+def _core_smoke_code() -> str:
+    return textwrap.dedent(
+        """
+        import importlib.metadata as md
+
+        import agilab
+        import agi_env
+        import agi_node
+        import agi_cluster
+        from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest
+
+        print("agilab", md.version("agilab"))
+        print("agi-node", md.version("agi-node"))
+        print("agi-cluster-api", AGI.__name__, RunRequest.__name__, StageRequest.__name__)
+        print("core-smoke", "ok")
+        """
+    ).strip()
+
+
+def _core_smoke_command() -> ProofCommand:
+    return ProofCommand(
+        label="package preinit smoke",
+        description="Import AGILAB core packages without requiring packaged app or page assets.",
+        argv=(sys.executable, "-c", _core_smoke_code()),
     )
 
 
@@ -466,7 +509,8 @@ def _executed_argv(
     argv: tuple[str, ...] = ("agilab", "first-proof", "--json")
     if dry_run:
         argv = (*argv, "--dry-run")
-    if active_app.resolve() != default_active_app().resolve():
+    default_target = default_core_smoke_target() if dry_run else default_active_app()
+    if active_app.resolve() != default_target.resolve():
         argv = (*argv, "--active-app", str(active_app))
     if with_install:
         argv = (*argv, "--with-install")
@@ -525,9 +569,13 @@ def build_run_manifest(
         ),
         run_manifest.RunManifestValidation(
             label="recommended_project",
-            status="pass" if active_app.name == FIRST_PROOF_PROJECT else "fail",
-            summary="active app is the recommended public flight_project",
-            details={"active_app": str(active_app), "app_name": active_app.name},
+            status="pass" if dry_run or active_app.name == FIRST_PROOF_PROJECT else "fail",
+            summary=(
+                "core-only dry-run does not require a public app payload"
+                if dry_run
+                else "active app is the recommended public flight_project"
+            ),
+            details={"active_app": str(active_app), "app_name": active_app.name, "dry_run": dry_run},
         ),
     ]
     status = "pass" if all(validation.status == "pass" for validation in validations) else "fail"
@@ -579,8 +627,11 @@ def render_human(
 ) -> str:
     lines = [
         "AGILAB first proof",
-        f"active app: {active_app}",
     ]
+    if dry_run and active_app.resolve() == default_core_smoke_target().resolve():
+        lines.append("active app: not required (core smoke only)")
+    else:
+        lines.append(f"active app: {active_app}")
     identity = runtime_identity()
     distributions = dict(identity.get("distributions", {}))
     agilab_version = distributions.get("agilab") or "unknown"
@@ -681,8 +732,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     with_install = False if args.dry_run else args.with_install
     with_ui = False if args.dry_run else args.with_ui
 
-    active_app = resolve_active_app(args.active_app)
-    commands = build_proof_commands(active_app, with_install=with_install, with_ui=with_ui)
+    core_only_dry_run = args.dry_run and args.active_app is None
+    active_app = default_core_smoke_target() if core_only_dry_run else resolve_active_app(args.active_app)
+    commands = [_core_smoke_command()] if core_only_dry_run else build_proof_commands(
+        active_app,
+        with_install=with_install,
+        with_ui=with_ui,
+    )
     manifest_path = resolve_manifest_path(active_app, args.manifest_out)
 
     if args.print_only:

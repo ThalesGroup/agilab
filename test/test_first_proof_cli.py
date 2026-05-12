@@ -14,6 +14,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "src" / "agilab" / "first_proof_cli.py"
+AGI_APPS_PYPROJECT = ROOT / "src/agilab/lib/agi-apps/pyproject.toml"
 sys.path.insert(0, str(ROOT / "src"))
 
 
@@ -156,6 +157,13 @@ def test_runtime_identity_handles_missing_launcher_and_distributions(monkeypatch
     assert identity["launcher_path"] is None
     assert set(identity["distributions"]) == set(module.RUNTIME_DISTRIBUTIONS)
     assert all(version is None for version in identity["distributions"].values())
+
+
+def test_runtime_identity_tracks_public_app_payload_distribution() -> None:
+    module = _load_module()
+
+    assert "agi-apps" in module.RUNTIME_DISTRIBUTIONS
+    assert "agi-pages" in module.RUNTIME_DISTRIBUTIONS
 
 
 def test_repo_root_and_marker_root_fall_back_outside_source_checkout(monkeypatch, tmp_path: Path) -> None:
@@ -553,7 +561,7 @@ def test_executed_argv_records_non_default_options(tmp_path: Path) -> None:
 
 def test_executed_argv_includes_dry_run_when_requested(tmp_path: Path) -> None:
     module = _load_module()
-    active_app = module.default_active_app()
+    active_app = module.default_core_smoke_target()
 
     argv = module._executed_argv(
         active_app=active_app,
@@ -565,6 +573,7 @@ def test_executed_argv_includes_dry_run_when_requested(tmp_path: Path) -> None:
     )
 
     assert argv[:4] == ("agilab", "first-proof", "--json", "--dry-run")
+    assert "--active-app" not in argv
 
 
 def test_resolve_active_app_rejects_missing_path_and_files(tmp_path: Path) -> None:
@@ -577,6 +586,54 @@ def test_resolve_active_app_rejects_missing_path_and_files(tmp_path: Path) -> No
         module.resolve_active_app(str(missing))
     with pytest.raises(NotADirectoryError):
         module.resolve_active_app(str(file_path))
+
+
+def test_resolve_active_app_explains_missing_packaged_app_payload(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    package_root = tmp_path / "package" / "agilab"
+    monkeypatch.setattr(module, "PACKAGE_ROOT", package_root)
+    monkeypatch.setattr(module, "_detect_repo_root", lambda start=package_root: None)
+
+    with pytest.raises(FileNotFoundError, match=r"agilab\[examples\].*agilab\[ui\]"):
+        module.resolve_active_app(None)
+
+
+def test_dry_run_does_not_require_public_asset_packages(monkeypatch, tmp_path: Path, capsys) -> None:
+    module = _load_module()
+    package_root = tmp_path / "package" / "agilab"
+    package_root.mkdir(parents=True)
+    monkeypatch.setattr(module, "PACKAGE_ROOT", package_root)
+    monkeypatch.setattr(module, "_detect_repo_root", lambda start=package_root: None)
+
+    captured_commands = []
+
+    def fake_run_proof(commands):
+        captured_commands.extend(commands)
+        return [
+            module.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=0,
+                duration_seconds=0.25,
+                stdout="core ok",
+                env=command.env,
+            )
+            for command in commands
+        ]
+
+    monkeypatch.setattr(module, "run_proof", fake_run_proof)
+
+    exit_code = module.main(["--dry-run", "--json", "--no-manifest"])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["dry_run"] is True
+    assert payload["active_app"] == str(package_root.resolve())
+    assert payload["success"] is True
+    assert [command.label for command in captured_commands] == ["package preinit smoke"]
+    assert "active_app =" not in captured_commands[0].argv[-1]
+    assert "core-smoke" in captured_commands[0].argv[-1]
 
 
 def test_resolve_active_app_rejects_missing_pyproject(tmp_path: Path) -> None:
@@ -599,24 +656,24 @@ def test_write_agilab_path_marker_initializes_packaged_examples(monkeypatch, tmp
 
 
 def test_package_data_includes_app_installer_for_with_install() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
 
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab.apps"]
 
-    assert "apps/install.py" in package_data
-    assert "examples/*/AGI_*.py" in package_data
-    assert "examples/notebook_quickstart/*.ipynb" in package_data
+    assert "install.py" in package_data
+    assert "builtin/*/pyproject.toml" in package_data
+    assert "builtin/*/src/**/*.py" in package_data
 
 
 def test_package_data_includes_flight_dataset_archive_for_execute() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
 
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
-    excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agilab", [])
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab.apps"]
+    excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agilab.apps", [])
 
     assert (ROOT / "src/agilab/apps/builtin/flight_project/src/flight_worker/dataset.7z").is_file()
-    assert "apps/builtin/*/src/*/*.7z" in package_data
-    assert "apps/builtin/*/src/*/*.7z" not in excluded_data
+    assert "builtin/*/src/*/*.7z" in package_data
+    assert "builtin/*/src/*/*.7z" not in excluded_data
 
 
 def test_package_discovery_includes_about_page_helpers() -> None:

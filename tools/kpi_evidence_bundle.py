@@ -430,8 +430,10 @@ def _check_supply_chain_attestation_report(repo_root: Path) -> dict[str, Any]:
             and summary.get("core_release_graph_aligned") is True
             and summary.get("aligned_internal_dependency_pins") is True
             and summary.get("mismatched_internal_dependency_pin_count") == 0
-            and summary.get("page_lib_component_count") == 1
+            and summary.get("page_lib_component_count") == 2
             and summary.get("page_lib_release_graph_aligned") is True
+            and summary.get("app_lib_component_count") == 1
+            and summary.get("app_lib_release_graph_aligned") is True
             and summary.get("builtin_app_pyproject_count") == 10
             and summary.get("aligned_builtin_app_versions") is True
             and summary.get("mismatched_builtin_app_version_count") == 0

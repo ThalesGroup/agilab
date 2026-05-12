@@ -37,6 +37,9 @@ def test_public_proof_scenarios_pass_static_contract(tmp_path: Path) -> None:
         "mlflow-tracking-proof",
     ]
     rows = {scenario["id"]: scenario for scenario in report["scenarios"]}
+    assert 'python -m pip install "agilab[examples]"' in rows[
+        "flight-local-first-proof"
+    ]["commands"]
     assert "python -m agilab.lab_run first-proof --json --max-seconds 60" in rows[
         "flight-local-first-proof"
     ]["commands"]

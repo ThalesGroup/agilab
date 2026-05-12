@@ -15,9 +15,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = ROOT / "src/agilab/apps/install.py"
+ROOT_PYPROJECT = ROOT / "pyproject.toml"
+AGI_APPS_PYPROJECT = ROOT / "src/agilab/lib/agi-apps/pyproject.toml"
+AGI_PAGES_PYPROJECT = ROOT / "src/agilab/lib/agi-pages/pyproject.toml"
 BUILTIN_APPS_ROOT = ROOT / "src/agilab/apps/builtin"
 APP_TEMPLATES_ROOT = ROOT / "src/agilab/apps/templates"
 EXAMPLES_ROOT = ROOT / "src/agilab/examples"
+APPS_PAGES_ROOT = ROOT / "src/agilab/apps-pages"
 EXAMPLE_APPS = {
     "data_io_2026": ("AGI_install_data_io_2026.py", "AGI_run_data_io_2026.py"),
     "flight": ("AGI_install_flight.py", "AGI_run_flight.py"),
@@ -117,6 +121,26 @@ def _load_installer(monkeypatch, tmp_path: Path):
 
 def _builtin_app_dirs() -> list[Path]:
     return sorted(path for path in BUILTIN_APPS_ROOT.glob("*_project") if path.is_dir())
+
+
+def _root_package_data() -> list[str]:
+    pyproject = tomllib.loads(ROOT_PYPROJECT.read_text(encoding="utf-8"))
+    return pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+
+
+def _agi_apps_package_data(package: str) -> list[str]:
+    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
+    return pyproject["tool"]["setuptools"]["package-data"][package]
+
+
+def _agi_apps_excluded_data(package: str) -> list[str]:
+    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
+    return pyproject["tool"]["setuptools"]["exclude-package-data"].get(package, [])
+
+
+def _agi_pages_package_data() -> list[str]:
+    pyproject = tomllib.loads(AGI_PAGES_PYPROJECT.read_text(encoding="utf-8"))
+    return pyproject["tool"]["setuptools"]["package-data"]["agi_pages"]
 
 
 def _packaged_app_dirs() -> list[Path]:
@@ -313,48 +337,69 @@ def test_packaged_example_readmes_teach_safe_adaptation() -> None:
 
 
 def test_packaged_example_readmes_are_included_as_package_data() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+    package_data = _agi_apps_package_data("agilab.examples")
 
-    assert "examples/README.md" in package_data
-    assert "examples/*/README.md" in package_data
-    assert "examples/*/AGI_*.py" in package_data
-    assert "examples/inter_project_dag/*.py" in package_data
-    assert "examples/mlflow_auto_tracking/*.py" in package_data
-    assert "examples/notebook_to_dask/*.py" in package_data
-    assert "examples/notebook_to_dask/*.json" in package_data
-    assert "examples/notebook_to_dask/*.toml" in package_data
-    assert "examples/notebook_to_dask/*.ipynb" in package_data
-    assert "examples/notebook_quickstart/*.ipynb" in package_data
-    assert "examples/notebook_migrations/*/README.md" in package_data
-    assert "examples/notebook_migrations/*/analysis_artifacts/*.csv" in package_data
-    assert "examples/notebook_migrations/*/analysis_artifacts/*.json" in package_data
-    assert "examples/notebook_migrations/*/data/*.csv" in package_data
-    assert "examples/notebook_migrations/*/migrated_project/*.dot" in package_data
-    assert "examples/notebook_migrations/*/migrated_project/*.toml" in package_data
-    assert "examples/notebook_migrations/*/notebooks/*.ipynb" in package_data
-    assert "examples/resilience_failure_injection/*.py" in package_data
-    assert "examples/service_mode/*.py" in package_data
-    assert "examples/train_then_serve/*.py" in package_data
+    assert "README.md" in package_data
+    assert "*/README.md" in package_data
+    assert "*/AGI_*.py" in package_data
+    assert "inter_project_dag/*.py" in package_data
+    assert "mlflow_auto_tracking/*.py" in package_data
+    assert "notebook_to_dask/*.py" in package_data
+    assert "notebook_to_dask/*.json" in package_data
+    assert "notebook_to_dask/*.toml" in package_data
+    assert "notebook_to_dask/*.ipynb" in package_data
+    assert "notebook_quickstart/*.ipynb" in package_data
+    assert "notebook_migrations/*/README.md" in package_data
+    assert "notebook_migrations/*/analysis_artifacts/*.csv" in package_data
+    assert "notebook_migrations/*/analysis_artifacts/*.json" in package_data
+    assert "notebook_migrations/*/data/*.csv" in package_data
+    assert "notebook_migrations/*/migrated_project/*.dot" in package_data
+    assert "notebook_migrations/*/migrated_project/*.toml" in package_data
+    assert "notebook_migrations/*/notebooks/*.ipynb" in package_data
+    assert "resilience_failure_injection/*.py" in package_data
+    assert "service_mode/*.py" in package_data
+    assert "train_then_serve/*.py" in package_data
+
+
+def test_root_package_does_not_embed_builtin_apps_examples_or_pages() -> None:
+    package_data = _root_package_data()
+
+    assert "apps/install.py" not in package_data
+    assert not any(pattern.startswith("apps/builtin/") for pattern in package_data)
+    assert not any(pattern.startswith("examples/") for pattern in package_data)
+    assert not any(pattern.startswith("apps-pages/") for pattern in package_data)
+
+
+def test_agi_pages_package_exposes_analysis_page_bundles() -> None:
+    package_data = _agi_pages_package_data()
+    pyproject = tomllib.loads(AGI_PAGES_PYPROJECT.read_text(encoding="utf-8"))
+
+    assert (APPS_PAGES_ROOT / "README.md").is_file()
+    assert (APPS_PAGES_ROOT / "__init__.py").is_file()
+    assert (APPS_PAGES_ROOT / "view_maps" / "pyproject.toml").is_file()
+    assert "README.md" in package_data
+    assert "*/README.md" in package_data
+    assert "*/pyproject.toml" in package_data
+    assert "*/src/**/*.py" in package_data
+    assert pyproject["tool"]["setuptools"]["package-dir"]["agi_pages"] == "../../apps-pages"
+    assert pyproject["tool"]["setuptools"]["packages"] == ["agi_pages"]
 
 
 def test_packaged_builtin_app_prompt_seeds_are_included_as_package_data() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
-    excluded_data = pyproject["tool"]["setuptools"]["exclude-package-data"]["agilab"]
+    package_data = _agi_apps_package_data("agilab.apps")
+    excluded_data = _agi_apps_excluded_data("agilab.apps")
 
-    assert "apps/builtin/*/src/*.json" in package_data
-    assert "apps/builtin/*/src/pre_prompt.json" not in excluded_data
+    assert "builtin/*/src/*.json" in package_data
+    assert "builtin/*/src/pre_prompt.json" not in excluded_data
 
 
 def test_packaged_builtin_app_dag_templates_are_included_as_package_data() -> None:
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab"]
+    package_data = _agi_apps_package_data("agilab.apps")
 
-    assert "apps/builtin/*/dag_templates/*.json" in package_data
-    assert "apps/builtin/*/scenario_templates/*.json" in package_data
-    assert "apps/builtin/*/service_templates/*.json" in package_data
-    assert "apps/builtin/*/tracking_templates/*.json" in package_data
+    assert "builtin/*/dag_templates/*.json" in package_data
+    assert "builtin/*/scenario_templates/*.json" in package_data
+    assert "builtin/*/service_templates/*.json" in package_data
+    assert "builtin/*/tracking_templates/*.json" in package_data
 
 
 def test_preview_example_payloads_live_with_builtin_apps() -> None:

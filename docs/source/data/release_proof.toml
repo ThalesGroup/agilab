@@ -21,6 +21,7 @@ related_pages = [
 [release]
 package_name = "agilab"
 package_version = "2026.05.11"
+package_extras = ["examples"]
 pypi_url = "https://pypi.org/project/agilab/"
 github_release_tag = "v2026.05.11-5"
 github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.11-5"
