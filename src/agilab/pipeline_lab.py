@@ -121,6 +121,16 @@ render_latest_outputs = _workflow_ui_module.render_latest_outputs
 render_latest_run_card = _workflow_ui_module.render_latest_run_card
 render_workflow_timeline = _workflow_ui_module.render_workflow_timeline
 
+_run_manifest_module = import_agilab_module(
+    "agilab.run_manifest",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "run_manifest.py",
+    fallback_name="agilab_run_manifest_fallback",
+)
+RUN_MANIFEST_FILENAME = _run_manifest_module.RUN_MANIFEST_FILENAME
+load_run_manifest = _run_manifest_module.load_run_manifest
+manifest_summary = _run_manifest_module.manifest_summary
+
 _pipeline_runtime_module = import_agilab_module(
     "agilab.pipeline_runtime",
     current_file=__file__,
@@ -1477,6 +1487,126 @@ def _workflow_evidence_status_label(status: str, run_status: str = "") -> str:
     return normalized or "not recorded"
 
 
+def _run_manifest_status_label(status: str) -> str:
+    normalized = str(status or "").strip().lower()
+    if normalized == "pass":
+        return "done"
+    if normalized == "fail":
+        return "failed"
+    return normalized or "waiting"
+
+
+def _workflow_run_log_dir(env: Any) -> Path | None:
+    raw_runenv = getattr(env, "runenv", None)
+    if raw_runenv:
+        return Path(raw_runenv).expanduser()
+    target = str(getattr(env, "target", "") or getattr(env, "app", "") or "").strip()
+    if not target:
+        return None
+    return Path.home() / "log" / "execute" / target
+
+
+def _latest_run_log_file(run_log_dir: Path) -> Path | None:
+    try:
+        candidates = [path for path in run_log_dir.expanduser().glob("run_*.log") if path.is_file()]
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if not candidates:
+        return None
+
+    def _sort_key(path: Path) -> tuple[float, str]:
+        try:
+            return path.stat().st_mtime, path.name
+        except OSError:
+            return 0.0, path.name
+
+    return sorted(candidates, key=_sort_key)[-1]
+
+
+def _format_duration_seconds(value: Any) -> str:
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return ""
+    if seconds < 0:
+        return ""
+    if seconds < 60:
+        return f"{seconds:.2f}s"
+    minutes, remainder = divmod(seconds, 60)
+    return f"{int(minutes)}m {remainder:.0f}s"
+
+
+def _latest_operational_run_summary(run_log_dir: Path | None) -> dict[str, Any]:
+    if run_log_dir is None:
+        return {
+            "available": False,
+            "status": "waiting",
+            "message": "No execution log directory is configured for this project.",
+            "run_log_dir": "",
+        }
+    run_log_dir = run_log_dir.expanduser()
+    manifest_path = run_log_dir / RUN_MANIFEST_FILENAME
+    latest_log_path = _latest_run_log_file(run_log_dir)
+    summary: dict[str, Any] = {
+        "available": bool(latest_log_path or manifest_path.is_file()),
+        "status": "done" if latest_log_path else "waiting",
+        "message": f"Execution logs are read from `{run_log_dir}`.",
+        "run_log_dir": str(run_log_dir),
+        "log_path": str(latest_log_path) if latest_log_path is not None else "",
+        "manifest_path": str(manifest_path) if manifest_path.is_file() else "",
+        "started_at": "",
+        "duration": "",
+        "run_id": "",
+    }
+    if manifest_path.is_file():
+        try:
+            manifest = load_run_manifest(manifest_path)
+            manifest_payload = manifest_summary(manifest)
+            summary.update(
+                {
+                    "available": True,
+                    "status": _run_manifest_status_label(str(manifest_payload.get("status", ""))),
+                    "started_at": manifest.timing.started_at,
+                    "duration": _format_duration_seconds(manifest.timing.duration_seconds),
+                    "run_id": str(manifest_payload.get("run_id", "")),
+                }
+            )
+        except Exception as exc:
+            summary.update(
+                {
+                    "available": True,
+                    "status": "warning",
+                    "message": f"Run manifest could not be read: {exc}",
+                    "manifest_path": str(manifest_path),
+                }
+            )
+    return summary
+
+
+def _render_existing_execution_log(run_log_dir: Path | None, *, key_prefix: str) -> None:
+    run_summary = _latest_operational_run_summary(run_log_dir)
+    st.markdown("**Execution log**")
+    if not run_summary.get("available"):
+        st.caption(str(run_summary.get("message", "No execution log has been recorded yet.")))
+        if run_summary.get("run_log_dir"):
+            st.caption(f"Log directory: `{run_summary['run_log_dir']}`")
+        return
+
+    render_latest_run_card(
+        st,
+        status=run_summary.get("status", ""),
+        log_path=run_summary.get("log_path", ""),
+        started_at=run_summary.get("started_at", ""),
+        duration=run_summary.get("duration", ""),
+        key_prefix=key_prefix,
+        title="Latest execution",
+    )
+    st.caption(str(run_summary.get("message", "")))
+    manifest_path = str(run_summary.get("manifest_path", ""))
+    if manifest_path:
+        st.caption(f"Run manifest: `{manifest_path}`")
+
+
 def _latest_workflow_evidence_summary(state_path: Path) -> dict[str, Any]:
     latest_path = _workflow_evidence_latest_path(state_path)
     if not latest_path.is_file():
@@ -1531,7 +1661,7 @@ def _latest_workflow_evidence_summary(state_path: Path) -> dict[str, Any]:
 
 def _render_workflow_run_evidence(state_path: Path) -> None:
     evidence = _latest_workflow_evidence_summary(state_path)
-    st.markdown("**Run evidence**")
+    st.markdown("**Plan evidence**")
     if not evidence.get("available"):
         st.caption(str(evidence.get("message", "No workflow evidence has been recorded yet.")))
         st.caption(f"Evidence pointer: `{evidence.get('latest_path', '')}`")
@@ -2291,6 +2421,7 @@ def _render_global_runner_state_view(
     repo_root: Path,
     index_page_str: str,
     dag_label_override: str = "",
+    run_log_dir: Path | None = None,
     project_stage_snippet_rows: list[dict[str, str]] | None = None,
     distributed_request_preview_rows: list[dict[str, str]] | None = None,
 ) -> None:
@@ -2314,6 +2445,7 @@ def _render_global_runner_state_view(
         real_run_support=real_run_support,
     )
     _render_global_dag_readiness(state)
+    _render_existing_execution_log(run_log_dir, key_prefix=f"workflow:{index_page_str}:execution")
     _render_workflow_run_evidence(state_path)
     running_col, completed_col, failed_col = st.columns(3)
     running_col.metric("Running", int(summary.get("running_count", 0) or 0))
@@ -2610,6 +2742,7 @@ def _render_global_runner_state_panel(
                 repo_root=repo_root,
                 index_page_str=index_page_str,
                 dag_label_override=GLOBAL_DAG_SOURCE_PROJECT_STAGES,
+                run_log_dir=_workflow_run_log_dir(env),
                 project_stage_snippet_rows=_pipeline_stage_snippet_rows(project_stage_rows),
             )
             return
@@ -2705,6 +2838,7 @@ def _render_global_runner_state_panel(
                 dag_engine=dag_engine,
                 repo_root=repo_root,
                 index_page_str=index_page_str,
+                run_log_dir=_workflow_run_log_dir(env),
             )
             return
 
@@ -2981,6 +3115,7 @@ def _render_global_runner_state_panel(
             dag_engine=dag_engine,
             repo_root=repo_root,
             index_page_str=index_page_str,
+            run_log_dir=_workflow_run_log_dir(env),
             distributed_request_preview_rows=distributed_preview_rows,
         )
 

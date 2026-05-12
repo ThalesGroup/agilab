@@ -933,7 +933,7 @@ def test_render_workflow_run_evidence_displays_latest_manifest(monkeypatch, tmp_
 
     pipeline_lab._render_workflow_run_evidence(state_path)
 
-    assert ("markdown", "**Run evidence**") in fake_st.messages
+    assert ("markdown", "**Plan evidence**") in fake_st.messages
     assert ("metric", "Evidence=planned") in fake_st.messages
     assert ("metric", "Steps=2") in fake_st.messages
     assert ("metric", "Creates=2") in fake_st.messages
@@ -948,8 +948,75 @@ def test_render_workflow_run_evidence_handles_missing_pointer(monkeypatch, tmp_p
 
     pipeline_lab._render_workflow_run_evidence(tmp_path / ".agilab" / "runner_state.json")
 
-    assert ("markdown", "**Run evidence**") in fake_st.messages
+    assert ("markdown", "**Plan evidence**") in fake_st.messages
     assert any("No workflow evidence has been recorded" in message for kind, message in fake_st.messages if kind == "caption")
+
+
+def test_render_existing_execution_log_uses_runenv_manifest_and_latest_log(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    runenv = tmp_path / "runenv"
+    runenv.mkdir()
+    old_log = runenv / "run_20260501_000000.log"
+    old_log.write_text("old\n", encoding="utf-8")
+    latest_log = runenv / "run_20260501_000001.log"
+    latest_log.write_text("latest\n", encoding="utf-8")
+    old_time = 1_800_000_000
+    latest_time = old_time + 10
+    os.utime(old_log, (old_time, old_time))
+    os.utime(latest_log, (latest_time, latest_time))
+    manifest_path = runenv / "run_manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "kind": "agilab.run_manifest",
+                "run_id": "run-demo",
+                "path_id": "demo-path",
+                "label": "Demo run",
+                "status": "pass",
+                "command": {"label": "demo", "argv": ["agilab"], "cwd": str(tmp_path), "env_overrides": {}},
+                "environment": {
+                    "python_version": "3.13.13",
+                    "python_executable": sys.executable,
+                    "platform": "test",
+                    "repo_root": str(tmp_path),
+                    "active_app": str(tmp_path / "demo_project"),
+                    "app_name": "demo_project",
+                },
+                "timing": {
+                    "started_at": "2026-05-11T06:37:45Z",
+                    "finished_at": "2026-05-11T06:38:00Z",
+                    "duration_seconds": 15.25,
+                    "target_seconds": 60.0,
+                },
+                "artifacts": [],
+                "validations": [{"label": "proof", "status": "pass", "summary": "ok", "details": {}}],
+                "created_at": "2026-05-11T06:38:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    pipeline_lab._render_existing_execution_log(runenv, key_prefix="demo")
+
+    assert ("markdown", "**Execution log**") in fake_st.messages
+    assert ("caption", "Status: Done") in fake_st.messages
+    assert ("caption", "Started: 2026-05-11T06:37:45Z") in fake_st.messages
+    assert ("caption", "Duration: 15.25s") in fake_st.messages
+    assert ("caption", f"Log: {latest_log}") in fake_st.messages
+    assert ("caption", f"Run manifest: `{manifest_path}`") in fake_st.messages
+    assert ("download_button", "demo:latest_log") in fake_st.messages
+
+
+def test_render_existing_execution_log_handles_missing_runenv(monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+
+    pipeline_lab._render_existing_execution_log(None, key_prefix="demo")
+
+    assert ("markdown", "**Execution log**") in fake_st.messages
+    assert any("No execution log directory is configured" in message for kind, message in fake_st.messages if kind == "caption")
 
 
 def test_global_runner_panel_renders_project_stages_as_preview_dag(monkeypatch, tmp_path):
