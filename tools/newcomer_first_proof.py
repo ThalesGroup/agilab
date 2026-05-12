@@ -27,6 +27,8 @@ UV_RUN_PYTHON = (
     "--preview-features",
     "extra-build-dependencies",
     "run",
+    "--extra",
+    "ui",
     "python",
 )
 IGNORED_OUTPUT_PATTERNS = (
