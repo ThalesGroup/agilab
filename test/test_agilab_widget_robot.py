@@ -1017,6 +1017,47 @@ def test_project_switching_selectbox_is_excluded_from_combination_controls() -> 
     assert probes == []
 
 
+def test_dynamic_selectboxes_are_excluded_from_exhaustive_combinations() -> None:
+    module = _load_module()
+
+    class _Page:
+        url = "http://demo"
+
+        def locator(self, *_args: object, **_kwargs: object) -> object:
+            raise AssertionError("selectbox options must not be queried for combination setup")
+
+    widgets = [
+        {
+            "id": "workflow-view",
+            "kind": "selectbox",
+            "label": "Workflow view",
+            "scope": "main",
+            "disabled": False,
+        },
+        {
+            "id": "cluster",
+            "kind": "toggle",
+            "label": "Enable cluster",
+            "scope": "main",
+            "checked": False,
+            "disabled": False,
+        },
+    ]
+
+    controls, probes = module.collect_widget_combination_controls(
+        _Page(),
+        widgets,
+        app_name="flight_project",
+        page_name="WORKFLOW",
+        timeout_ms=1000,
+        max_options_per_widget=8,
+    )
+
+    assert [control.kind for control in controls] == ["toggle"]
+    assert [control.label for control in controls] == ["Enable cluster"]
+    assert probes == []
+
+
 def test_build_widget_combination_plan_is_exhaustive_and_reports_truncation() -> None:
     module = _load_module()
     checkbox = module.WidgetControl(
