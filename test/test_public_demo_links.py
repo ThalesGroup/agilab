@@ -170,6 +170,7 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "| UI Streamlit | Beta |",
         "| RL examples | Example available |",
         "Current public evaluation summary, refreshed from the public KPI bundle:",
+        "Overall public evaluation, rounded category average: `3.8 / 5`.",
         "Package publishing policy",
     )
     for fragment in synced_fragments:
@@ -187,6 +188,7 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "| UI Streamlit | Stable |",
         "| Agents RL | Roadmap |",
         "CODEX 5.5",
+        "One forward-looking improvement area is elasticity",
     )
     for fragment in stale_fragments:
         assert fragment not in pypi_readme
