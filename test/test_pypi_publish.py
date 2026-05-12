@@ -2466,8 +2466,10 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
         elif "coverage_badge_guard.py" in command_text:
             assert "--require-fresh-xml" not in cmd
             if "--changed-only" in cmd:
+                assert "--allow-badge-only" in cmd
                 calls.append("coverage-guard-changed-only")
             else:
+                assert "--allow-badge-only" not in cmd
                 calls.append("coverage-guard-all")
         else:
             calls.append(command_text)
