@@ -36,8 +36,8 @@ def _import_agilab_module(module_name: str):
 orchestrate_execute = _import_agilab_module("agilab.orchestrate_execute")
 
 
-def _load_orchestrate_execute_with_missing_matplotlib():
-    module_name = "agilab.orchestrate_execute_missing_matplotlib"
+def _load_orchestrate_execute_with_missing(module_suffix: str, *missing_modules: str):
+    module_name = f"agilab.orchestrate_execute_missing_{module_suffix}"
     module_path = Path("src/agilab/orchestrate_execute.py")
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     assert spec is not None and spec.loader is not None
@@ -45,7 +45,7 @@ def _load_orchestrate_execute_with_missing_matplotlib():
     original_import = __import__
 
     def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name in {"matplotlib", "matplotlib.pyplot"}:
+        if name in missing_modules:
             raise ModuleNotFoundError(name)
         return original_import(name, globals, locals, fromlist, level)
 
@@ -59,6 +59,14 @@ def _load_orchestrate_execute_with_missing_matplotlib():
     finally:
         builtins.__import__ = previous
     return module
+
+
+def _load_orchestrate_execute_with_missing_matplotlib():
+    return _load_orchestrate_execute_with_missing("matplotlib", "matplotlib", "matplotlib.pyplot")
+
+
+def _load_orchestrate_execute_with_missing_networkx():
+    return _load_orchestrate_execute_with_missing("networkx", "networkx", "networkx.readwrite")
 
 
 def test_collect_candidate_roots_deduplicates_paths(tmp_path):
@@ -480,6 +488,17 @@ def test_render_graph_preview_requires_matplotlib(monkeypatch):
 
     with pytest.raises(RuntimeError, match="matplotlib unavailable"):
         orchestrate_execute._render_graph_preview(graph, None)
+
+
+def test_orchestrate_execute_import_survives_missing_networkx():
+    module = _load_orchestrate_execute_with_missing_networkx()
+
+    assert module.nx is None
+    assert module.json_graph is None
+    assert isinstance(module._NETWORKX_IMPORT_ERROR, ModuleNotFoundError)
+    assert module._is_networkx_graph(object()) is False
+    with pytest.raises(RuntimeError, match=r"agilab\[ui\]"):
+        module._render_graph_preview(object(), None)
 
 
 @pytest.mark.parametrize(
