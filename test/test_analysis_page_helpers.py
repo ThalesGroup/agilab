@@ -90,6 +90,48 @@ def test_analysis_sidebar_view_url_encodes_project_and_path(tmp_path: Path):
     assert "view+maps.py" in url or "view%20maps.py" in url
 
 
+def test_analysis_sidebar_notebook_url_encodes_project_and_path(tmp_path: Path):
+    module = _load_analysis_module()
+    notebook_path = tmp_path / "flight notebook.ipynb"
+
+    url = module._analysis_sidebar_notebook_url("flight_project", notebook_path)
+
+    assert url.startswith("?")
+    assert "active_app=flight_project" in url
+    assert "current_notebook=" in url
+    assert "flight+notebook.ipynb" in url or "flight%20notebook.ipynb" in url
+
+
+def test_discover_project_notebooks_skips_checkpoints_and_sorts(tmp_path: Path):
+    module = _load_analysis_module()
+    project_root = tmp_path / "flight_project"
+    notebooks_root = project_root / "notebooks"
+    (notebooks_root / "extra").mkdir(parents=True)
+    (notebooks_root / ".ipynb_checkpoints").mkdir()
+    (notebooks_root / "lab_stages.ipynb").write_text("{}", encoding="utf-8")
+    (notebooks_root / "extra" / "demo.ipynb").write_text("{}", encoding="utf-8")
+    (notebooks_root / ".ipynb_checkpoints" / "lab_stages-checkpoint.ipynb").write_text(
+        "{}",
+        encoding="utf-8",
+    )
+
+    notebooks = module.discover_project_notebooks(project_root)
+
+    assert list(notebooks) == ["extra/demo.ipynb", "lab_stages.ipynb"]
+    assert notebooks["lab_stages.ipynb"] == (notebooks_root / "lab_stages.ipynb").resolve()
+
+
+def test_configured_notebook_options_filters_unavailable_entries():
+    module = _load_analysis_module()
+
+    selected = module._configured_notebook_options(
+        ["lab_stages.ipynb", "missing.ipynb", "extra\\demo.ipynb", "lab_stages.ipynb"],
+        ["extra/demo.ipynb", "lab_stages.ipynb"],
+    )
+
+    assert selected == ["lab_stages.ipynb", "extra/demo.ipynb"]
+
+
 def test_resolve_discovered_views_skips_broken_entry(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
     good_view = tmp_path / "good_view.py"
@@ -189,6 +231,55 @@ def test_render_view_page_embeds_sidecar_with_streamlit_iframe(tmp_path: Path, m
 
     assert calls == [
         ("http://127.0.0.1:8765/?datadir_rel=sample&embed=true", {"height": 900})
+    ]
+
+
+def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    project_root = tmp_path / "apps" / "flight_project"
+    notebook_path = project_root / "notebooks" / "lab_stages.ipynb"
+    notebook_path.parent.mkdir(parents=True)
+    notebook_path.write_text("{}", encoding="utf-8")
+    calls: list[tuple[str, dict[str, object]]] = []
+
+    class _Column:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    fake_logger = SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None)
+    fake_env = SimpleNamespace(
+        apps_path=project_root.parent,
+        target=None,
+        app="flight_project",
+        active_app="",
+        AGILAB_LOG_ABS=tmp_path,
+        logger=fake_logger,
+    )
+    fake_st = SimpleNamespace(
+        session_state={"env": fake_env},
+        query_params={"current_notebook": str(notebook_path), "active_app": "flight_project"},
+        columns=lambda _spec: [_Column(), _Column(), _Column()],
+        button=lambda *_args, **_kwargs: False,
+        subheader=lambda *_args, **_kwargs: None,
+        iframe=lambda src, **kwargs: calls.append((src, kwargs)),
+    )
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_hide_parent_sidebar", lambda: None)
+    monkeypatch.setattr(module, "_is_hosted_analysis_runtime", lambda _env: False)
+    monkeypatch.setattr(module, "_ensure_notebook_sidecar", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(module, "_port_for", lambda _key: 8766)
+
+    asyncio.run(module.render_notebook_page(notebook_path))
+
+    assert calls == [
+        (
+            "http://127.0.0.1:8766/lab/tree/notebooks/lab_stages.ipynb?active_app=flight_project&embed=true",
+            {"height": 900},
+        )
     ]
 
 

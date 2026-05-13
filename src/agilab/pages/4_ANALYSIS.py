@@ -26,7 +26,7 @@ import asyncio
 import shlex
 import importlib.util
 import traceback
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 import shutil
 
 from pathlib import Path
@@ -194,6 +194,16 @@ _ANALYSIS_ARTIFACT_SUFFIXES = {
     ".jpeg",
     ".svg",
     ".html",
+}
+
+_NOTEBOOK_IGNORED_DIRS = {
+    ".git",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".venv",
+    "__pycache__",
+    "venv",
 }
 
 _MINIMAL_PAGE_TEMPLATE_PYPROJECT = """[project]
@@ -628,6 +638,33 @@ def _store_active_app(env: AgiEnv) -> None:
         pass
 
 
+def _active_app_path_for_env(env: Any) -> Path | None:
+    """Resolve the active project path from the current Analysis page environment."""
+    apps_path_value = getattr(env, "apps_path", None)
+    if apps_path_value:
+        for name in (getattr(env, "target", None), getattr(env, "app", None)):
+            if not name:
+                continue
+            resolved = _resolve_app_path(Path(apps_path_value), str(name))
+            if resolved is not None:
+                return resolved
+
+    active_app_value = getattr(env, "active_app", None)
+    if active_app_value:
+        candidate = Path(active_app_value)
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _active_app_arg_for_env(env: Any) -> str:
+    active_app_path = _active_app_path_for_env(env)
+    if active_app_path is not None:
+        return str(active_app_path)
+    active_app_value = getattr(env, "active_app", None)
+    return str(active_app_value) if active_app_value else ""
+
+
 def _initialize_analysis_env(requested_app: str | None) -> AgiEnv:
     apps_path_value = st.session_state.get("apps_path")
     apps_path = Path(apps_path_value).expanduser() if apps_path_value else None
@@ -892,6 +929,36 @@ def discover_views(pages_dir: Union[str, Path]) -> list[Path]:
             out.add(entry.resolve())
 
     return sorted(out, key=lambda p: (p.as_posix(), p.name))
+
+
+def discover_project_notebooks(project_root: str | Path | None) -> dict[str, Path]:
+    """Return project notebook labels mapped to concrete files under <project>/notebooks."""
+    if project_root is None:
+        return {}
+    try:
+        notebooks_root = (Path(project_root).expanduser() / "notebooks").resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return {}
+    if not notebooks_root.is_dir():
+        return {}
+
+    discovered: dict[str, Path] = {}
+    try:
+        notebook_paths = sorted(notebooks_root.rglob("*.ipynb"), key=lambda path: path.as_posix())
+    except OSError:
+        return {}
+    for notebook_path in notebook_paths:
+        try:
+            rel_path = notebook_path.resolve().relative_to(notebooks_root)
+        except (OSError, ValueError):
+            continue
+        if any(part in _NOTEBOOK_IGNORED_DIRS or part.startswith(".") for part in rel_path.parts):
+            continue
+        if notebook_path.name.endswith("-checkpoint.ipynb"):
+            continue
+        if notebook_path.is_file():
+            discovered[rel_path.as_posix()] = notebook_path.resolve()
+    return discovered
 
 
 def _find_view_entrypoint(view_root: Path) -> Path | None:
@@ -1235,6 +1302,31 @@ def _configured_view_options(
     return _dedupe_preserve_order(options)
 
 
+def _normalize_notebook_name(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    normalized = value.strip().replace("\\", "/")
+    while normalized.startswith("/"):
+        normalized = normalized[1:]
+    return normalized
+
+
+def _configured_notebook_options(
+    configured_notebooks: object,
+    available_notebooks: list[str],
+) -> list[str]:
+    """Resolve persisted notebook selections into available multiselect options."""
+    if not isinstance(configured_notebooks, list):
+        return []
+    available = set(available_notebooks)
+    options: list[str] = []
+    for value in configured_notebooks:
+        normalized = _normalize_notebook_name(value)
+        if normalized in available:
+            options.append(normalized)
+    return _dedupe_preserve_order(options)
+
+
 async def _render_selected_view_route(current_page: str | None) -> bool:
     """Render a selected analysis view route and surface one explicit user-facing failure."""
     if not current_page or current_page in ("", "main"):
@@ -1243,6 +1335,19 @@ async def _render_selected_view_route(current_page: str | None) -> bool:
         await render_view_page(Path(current_page))
     except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as exc:
         st.error(f"Failed to render view: {exc}")
+        st.caption("Full traceback")
+        st.code(traceback.format_exc(), language="text")
+    return True
+
+
+async def _render_selected_notebook_route(current_notebook: str | None) -> bool:
+    """Render a selected notebook route and surface one explicit user-facing failure."""
+    if not current_notebook or current_notebook in ("", "main"):
+        return False
+    try:
+        await render_notebook_page(Path(current_notebook))
+    except (RuntimeError, OSError, TypeError, ValueError, AttributeError, KeyError, ImportError) as exc:
+        st.error(f"Failed to render notebook: {exc}")
         st.caption("Full traceback")
         st.code(traceback.format_exc(), language="text")
     return True
@@ -1488,6 +1593,13 @@ def _analysis_sidebar_view_url(project: str | None, view_path: Path) -> str:
     return f"?{urlencode(params)}"
 
 
+def _analysis_sidebar_notebook_url(project: str | None, notebook_path: Path) -> str:
+    params = {"current_notebook": str(notebook_path.resolve())}
+    if project:
+        params["active_app"] = project
+    return f"?{urlencode(params)}"
+
+
 def _render_analysis_sidebar_view_launcher(
     *,
     project: str | None,
@@ -1538,6 +1650,55 @@ def _render_analysis_sidebar_view_launcher(
         )
     for display_label in missing_views:
         st.sidebar.caption(f"Missing: {display_label}")
+
+
+def _render_analysis_sidebar_notebook_launcher(
+    *,
+    project: str | None,
+    selected_notebooks: list[str],
+    notebook_names: list[str],
+    notebook_lookup: dict[str, Path],
+) -> None:
+    launch_options = list(dict.fromkeys(selected_notebooks or notebook_names))
+    if not launch_options:
+        return
+
+    linked_notebooks = set(selected_notebooks)
+    st.sidebar.markdown("### Notebooks")
+    link_rows: list[str] = []
+    missing_notebooks: list[str] = []
+    for notebook_name in launch_options:
+        notebook_path = notebook_lookup.get(notebook_name)
+        display_label = notebook_name
+        if notebook_path is None:
+            missing_notebooks.append(display_label)
+            continue
+        link_href = html.escape(_analysis_sidebar_notebook_url(project, notebook_path), quote=True)
+        link_label = html.escape(display_label)
+        link_weight = "650" if notebook_name in linked_notebooks else "450"
+        link_rows.append(
+            "<div class='agilab-analysis-notebook-link'>"
+            f"<a href='{link_href}' style='font-weight:{link_weight};'>{link_label}</a>"
+            "</div>"
+        )
+
+    if link_rows:
+        st.sidebar.markdown(
+            (
+                "<style>"
+                ".agilab-analysis-notebook-links{display:flex;flex-direction:column;"
+                "gap:.12rem;margin:.1rem 0 .45rem 0;}"
+                ".agilab-analysis-notebook-link a{font-size:.88rem;line-height:1.18;text-decoration:none;}"
+                ".agilab-analysis-notebook-link a:hover{text-decoration:underline;}"
+                "</style>"
+                "<div class='agilab-analysis-notebook-links'>"
+                + "".join(link_rows)
+                + "</div>"
+            ),
+            unsafe_allow_html=True,
+        )
+    for display_label in missing_notebooks:
+        st.sidebar.caption(f"Missing notebook: {display_label}")
 
 
 def _render_custom_analysis_page_authoring(
@@ -1667,6 +1828,95 @@ async def _render_view_page_inline(view_path: Path, active_app: str) -> None:
                 pass
         sys.modules.pop(module_name, None)
 
+
+def _project_root_for_notebook(notebook_path: Path, active_app_path: Path | None) -> Path:
+    resolved_notebook = notebook_path.resolve()
+    if active_app_path is not None:
+        try:
+            resolved_notebook.relative_to((active_app_path / "notebooks").resolve())
+            return active_app_path.resolve()
+        except (OSError, ValueError):
+            pass
+    for parent in resolved_notebook.parents:
+        if parent.name == "notebooks":
+            return parent.parent
+    return active_app_path.resolve() if active_app_path is not None else resolved_notebook.parent
+
+
+def _notebook_log_paths(notebook_path: Path, logs_root: Path) -> tuple[str, str]:
+    stem = re.sub(r"[^0-9A-Za-z_-]", "_", notebook_path.stem) or "notebook"
+    token = _short_page_token(notebook_path)
+    base = logs_root / f"notebook_{stem}_{token}"
+    return str(base.with_suffix(".log")), str(base.with_suffix(".err"))
+
+
+def _notebook_lab_tree_path(notebook_path: Path, project_root: Path) -> str:
+    try:
+        rel_path = notebook_path.resolve().relative_to(project_root.resolve())
+    except (OSError, ValueError):
+        rel_path = Path(notebook_path.name)
+    return quote(rel_path.as_posix(), safe="/")
+
+
+def _ensure_notebook_sidecar(
+    notebook_key: str,
+    notebook_path: Path,
+    port: int,
+    project_root: Path,
+) -> bool:
+    """Start a local JupyterLab sidecar rooted at the active project."""
+    if _is_port_open(port):
+        return True
+    env = st.session_state["env"]
+    ip = "127.0.0.1"
+    cmd_prefix = env.envars.get(f"{ip}_CMD_PREFIX", "")
+    uv = cmd_prefix + env.uv
+    attempts: list[str] = []
+    last_error = ""
+
+    log_file, err_file = _notebook_log_paths(notebook_path, env.AGILAB_LOG_ABS)
+    env.out_log = log_file
+    env.err_log = err_file
+
+    project_home = str(project_root.resolve())
+    project_home_quoted = shlex.quote(project_home)
+    notebook_arg = shlex.quote(str(notebook_path.resolve()))
+    run_cmd = (
+        f"{uv} --preview-features extra-build-dependencies run "
+        f"--project {project_home_quoted} --with jupyterlab --with ipykernel "
+        f"jupyter lab {notebook_arg} --no-browser "
+        f"--ServerApp.ip=127.0.0.1 --ServerApp.port={port} "
+        f"--ServerApp.open_browser=False --ServerApp.token= --ServerApp.password= "
+        f"--ServerApp.allow_origin={shlex.quote('*')} --ServerApp.disable_check_xsrf=True "
+        f"--ServerApp.root_dir={project_home_quoted}"
+    )
+    env.logger.info("Starting project notebook sidecar: %s", run_cmd)
+    attempts.append(f"Trying JupyterLab sidecar rooted at: {project_home}")
+    run_process = exec_bg(env, run_cmd, cwd=project_home)
+
+    for _ in range(240):
+        if _is_port_open(port):
+            return True
+        if run_process.poll() is not None:
+            break
+        time.sleep(0.1)
+
+    if run_process.poll() is not None and run_process.returncode != 0:
+        last_error = f"Notebook sidecar exited with code {run_process.returncode} for {project_home}"
+        attempts.append(last_error)
+        env.logger.error(last_error)
+    elif run_process.poll() is None:
+        _terminate_process_quietly(run_process)
+        last_error = f"Notebook sidecar did not open port {port} for {project_home}"
+        attempts.append(last_error)
+        env.logger.error(last_error)
+
+    if last_error:
+        env.logger.error("Failed to start notebook sidecar for %s", notebook_path)
+    st.session_state[f"notebook_sidecar_attempts__{notebook_key}"] = attempts
+    return False
+
+
 # --- helper: hide the parent (this page's) Streamlit sidebar when embedding a child ---
 def _hide_parent_sidebar():
     st.markdown(
@@ -1712,6 +1962,7 @@ async def main():
     # Navigation by query param
     qp = st.query_params
     current_page = qp.get("current_page")
+    current_notebook = qp.get("current_notebook")
     requested_app = qp.get("active_app")
 
     if 'env' not in st.session_state:
@@ -1747,7 +1998,9 @@ async def main():
     custom_view_lookup: dict[str, Path] = {}
     pages_root = Path(env.AGILAB_PAGES_ABS)
 
-    # Route: only render a view when the param is a concrete path, not "main"/empty
+    # Route: only render a child surface when the param is concrete, not "main"/empty
+    if await _render_selected_notebook_route(current_notebook):
+        return
     if await _render_selected_view_route(current_page):
         return
 
@@ -1808,6 +2061,27 @@ async def main():
     if st.session_state.get(selection_key) != widget_selection:
         st.session_state[selection_key] = widget_selection
 
+    active_app_path = _active_app_path_for_env(env)
+    notebook_lookup = discover_project_notebooks(active_app_path)
+    notebook_names = list(notebook_lookup.keys())
+    notebook_selection_key = f"notebook_selection__{project or 'default'}"
+    notebooks_cfg = cfg.get("notebooks", {})
+    notebooks_cfg = notebooks_cfg if isinstance(notebooks_cfg, dict) else {}
+    has_notebook_session_selection = notebook_selection_key in st.session_state
+    if has_notebook_session_selection:
+        notebook_widget_selection = _configured_notebook_options(
+            st.session_state.get(notebook_selection_key, []),
+            notebook_names,
+        )
+    else:
+        notebook_widget_selection = _configured_notebook_options(
+            notebooks_cfg.get("selected", []),
+            notebook_names,
+        )
+    if st.session_state.get(notebook_selection_key) != notebook_widget_selection:
+        st.session_state[notebook_selection_key] = notebook_widget_selection
+    selected_notebooks = list(notebook_widget_selection)
+
     _render_analysis_workspace_overview(
         env,
         selection_state=selection_state,
@@ -1823,6 +2097,15 @@ async def main():
             format_func=lambda option: _view_label(option, set(resolved_pages.keys())),
             help="Selected views are persisted in the active project's app settings.",
         )
+
+    if notebook_names:
+        with st.expander("Choose notebooks", expanded=False):
+            selected_notebooks = st.multiselect(
+                "Notebooks",
+                notebook_names,
+                key=notebook_selection_key,
+                help="Selected notebooks are persisted in the active project's app settings.",
+            )
 
     pages_cfg_for_selection = dict(pages_cfg)
     selected_view_set = set(selected_views)
@@ -1849,12 +2132,19 @@ async def main():
         has_session_selection=True,
     )
     selected_views = list(selection_state.selected_views)
+    selected_notebooks = [name for name in selected_notebooks if name in notebook_lookup]
     _render_analysis_sidebar_view_launcher(
         project=project,
         selected_views=selected_views,
         view_names=view_names,
         resolved_pages=resolved_pages,
         custom_view_lookup=custom_view_lookup,
+    )
+    _render_analysis_sidebar_notebook_launcher(
+        project=project,
+        selected_notebooks=selected_notebooks,
+        notebook_names=notebook_names,
+        notebook_lookup=notebook_lookup,
     )
 
     persisted_pages = cfg.setdefault("pages", {})
@@ -1871,6 +2161,16 @@ async def main():
     if "default_view" in persisted_pages:
         del persisted_pages["default_view"]
         config_changed = True
+
+    if notebook_names or isinstance(cfg.get("notebooks"), dict):
+        persisted_notebooks = cfg.setdefault("notebooks", {})
+        if not isinstance(persisted_notebooks, dict):
+            persisted_notebooks = {}
+            cfg["notebooks"] = persisted_notebooks
+            config_changed = True
+        if persisted_notebooks.get("selected") != selected_notebooks:
+            persisted_notebooks["selected"] = selected_notebooks
+            config_changed = True
     if config_changed:
         _write_config(app_settings, cfg)
 
@@ -1882,6 +2182,77 @@ async def main():
         custom_view_lookup=custom_view_lookup,
         all_available_views=all_available_views,
     )
+
+
+async def render_notebook_page(notebook_path: Path):
+    """Render a project notebook by launching JupyterLab as a project-rooted sidecar."""
+    env = st.session_state["env"]
+    resolved_notebook = Path(notebook_path).expanduser().resolve()
+    if resolved_notebook.suffix.lower() != ".ipynb":
+        raise ValueError(f"Selected notebook is not an .ipynb file: {resolved_notebook}")
+    if not resolved_notebook.exists():
+        raise FileNotFoundError(f"Notebook does not exist: {resolved_notebook}")
+
+    active_app_path = _active_app_path_for_env(env)
+    project_root = _project_root_for_notebook(resolved_notebook, active_app_path)
+    try:
+        notebook_label = resolved_notebook.relative_to(project_root / "notebooks").as_posix()
+    except ValueError:
+        notebook_label = resolved_notebook.name
+
+    _hide_parent_sidebar()
+
+    back_col, title_col, _ = st.columns([1, 6, 1])
+    with back_col:
+        if st.button("← Back to Analysis", type="primary"):
+            st.query_params["current_notebook"] = ""
+            st.query_params["current_page"] = "main"
+            st.rerun()
+    with title_col:
+        st.subheader(f"Notebook: `{notebook_label}`")
+
+    if _is_hosted_analysis_runtime(env):
+        st.warning("Notebook sidecars are available in local AGILAB runtimes only.")
+        return
+
+    notebook_key = f"{notebook_label}|{project_root.as_posix()}"
+    port = _port_for(f"notebook|{notebook_key}")
+    sidecar_ready = _ensure_notebook_sidecar(notebook_key, resolved_notebook, port, project_root)
+
+    qp = st.query_params
+    extras = {}
+    for key, value in qp.items():
+        if key in {"current_page", "current_notebook"}:
+            continue
+        extras[key] = value
+    extras["embed"] = "true"
+    query = urlencode(extras, doseq=True)
+    notebook_url_path = _notebook_lab_tree_path(resolved_notebook, project_root)
+    if not sidecar_ready:
+        env.logger.error("Notebook sidecar failed to start for %s on port %s.", resolved_notebook, port)
+        log_file, err_file = _notebook_log_paths(resolved_notebook, env.AGILAB_LOG_ABS)
+        logs = Path(log_file)
+        errors = Path(err_file)
+        st.error("The notebook sidecar did not start correctly.", icon="⚠️")
+        st.caption("If this persists, check logs and sidecar attempts below.")
+        with st.expander("Notebook sidecar logs", expanded=True):
+            if logs.exists():
+                st.code(logs.read_text(encoding="utf-8", errors="ignore"), language="bash")
+            else:
+                st.write("No log file found.")
+            if errors.exists():
+                st.code(errors.read_text(encoding="utf-8", errors="ignore"), language="bash")
+            else:
+                st.write("No error log file found.")
+            sidecar_attempts = st.session_state.get(f"notebook_sidecar_attempts__{notebook_key}", [])
+            if sidecar_attempts:
+                st.markdown("Attempt summary:")
+                st.code("\n".join(sidecar_attempts), language="bash")
+        return
+    url = f"http://127.0.0.1:{port}/lab/tree/{notebook_url_path}?{query}"
+    env.logger.info("notebook url: %s", url)
+    st.iframe(url, height=900)
+
 
 async def render_view_page(view_path: Path):
     """Render a specific view by launching it as a sidecar app in its own venv and iframing it."""
@@ -1901,23 +2272,7 @@ async def render_view_page(view_path: Path):
     # --- sidecar per-view run + iframe embed ---
     # Unique key for port hashing (works even if two Page share the same filename)
     view_key = f"{view_path.stem}|{view_path.parent.as_posix()}"
-    active_app_path: Path | None = None
-    if env.apps_path:
-        for name in (env.target, env.app):
-            if name:
-                candidate = Path(env.apps_path) / name
-                if candidate.exists():
-                    active_app_path = candidate
-                    break
-    if active_app_path is None and env.active_app:
-        candidate = Path(env.active_app)
-        if candidate.exists():
-            active_app_path = candidate
-
-    if active_app_path is None and env.active_app:
-        active_app_arg = str(env.active_app)
-    else:
-        active_app_arg = str(active_app_path) if active_app_path else ""
+    active_app_arg = _active_app_arg_for_env(env)
 
     if _is_hosted_analysis_runtime(env):
         env.logger.info("Hosted runtime detected; rendering analysis view inline: %s", view_path)
@@ -1931,7 +2286,7 @@ async def render_view_page(view_path: Path):
     qp = st.query_params
     extras = {}
     for k, v in qp.items():
-        if k == "current_page":
+        if k in {"current_page", "current_notebook"}:
             continue
         extras[k] = v
     extras["embed"] = "true"
