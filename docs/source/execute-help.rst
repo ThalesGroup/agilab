@@ -71,8 +71,8 @@ Main Content Area
   context every time.
 - ``LOAD DATA`` fetches the latest dataframe path configured for the project and
   shows an in-place preview. The preview is available even after a rerun.
-- ``Prepare Data for Pipeline and Analysis`` creates (or updates) the CSV that
-  powers the Pipeline and Analysis pages. Use the column selector with
+- ``Prepare Data for WORKFLOW and ANALYSIS`` creates (or updates) the CSV that
+  powers the WORKFLOW and ANALYSIS pages. Use the column selector with
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
 
@@ -208,7 +208,7 @@ is:
 2. Let ORCHESTRATE generate the current ``AGI.install(...)``,
    ``AGI.get_distrib(...)``, and ``AGI.run(...)`` snippets.
 3. Reuse the generated run snippet in :doc:`experiment-help` when the
-   distributed execution should become a reproducible Pipeline stage.
+   distributed execution should become a reproducible WORKFLOW stage.
 
 You usually do not write these orchestration snippets manually first. They are
 generated from the current UI configuration. See :doc:`distributed-workers` for
@@ -223,12 +223,12 @@ For a first pass through the UI, follow this sequence exactly:
 4. Open ``Run`` and copy or export the generated ``AGI.run`` snippet.
 5. Optionally open ``Notebook`` to download the current orchestration recipe as
    a runnable notebook for review or handoff.
-6. In :doc:`experiment-help`, import or regenerate that snippet as a Pipeline
+6. In :doc:`experiment-help`, import or regenerate that snippet as a WORKFLOW
    stage instead of retyping it.
 
-Snippet Handoff to Pipeline
+Snippet Handoff to WORKFLOW
 ---------------------------
-For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
+For newcomers, keep ORCHESTRATE and WORKFLOW in sync with this workflow:
 
 1. Generate the snippet in **Orchestrate** (typically ``AGI.run``).
 2. On **WORKFLOW**, open **Add stage** (or **New stage** when starting fresh),
@@ -237,7 +237,7 @@ For newcomers, keep Orchestrate and Pipeline in sync with this workflow:
    import it directly.
 3. For app updates, update ``<module> args`` in the per-user workspace
    ``app_settings.toml`` / ``[args]`` then regenerate or re-import the matching
-   snippet in Pipeline.
+   snippet in WORKFLOW.
 
 This avoids running stale code that still references old app argument values.
 For example, when an app renames an argument, older saved snippets that still
@@ -332,5 +332,5 @@ See also
 --------
 
 - :doc:`agilab-help` to place Orchestrate in the full page flow.
-- :doc:`experiment-help` for running the generated snippet in the Pipeline assistant.
+- :doc:`experiment-help` for running the generated snippet in the WORKFLOW assistant.
 - :doc:`explore-help` for launching result views.

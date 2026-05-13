@@ -37,7 +37,7 @@ Published UI support package
 
 ``agi-gui`` is also published to PyPI from ``src/agilab/lib/agi-gui``. It is
 not part of the core runtime: it depends on the headless ``agi-env`` package and
-adds the Streamlit/UI dependencies used by AGILAB pages and apps-pages bundles.
+adds the Streamlit/UI dependencies used by AGILAB pages and page bundles.
 Worker environments should keep using ``agi-env`` unless they explicitly need
 to render UI.
 

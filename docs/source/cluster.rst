@@ -28,7 +28,7 @@ The normal workflow is:
 2. Let ORCHESTRATE generate the install, distribution, and run snippets for the
    current cluster definition.
 3. Reuse the generated run snippet in :doc:`experiment-help` when you want the
-   distributed orchestration to become a Pipeline stage.
+   distributed orchestration to become a WORKFLOW stage.
 
 See :doc:`distributed-workers` for the practical guide.
 

@@ -8,7 +8,7 @@ Overview
   worker package, ``app_args`` definitions, Analysis configuration) with minimal
   business logic so you can focus on custom code.
 - Ships with blank web forms and prompt files to illustrate where to plug
-  in UI customisation and Pipeline prompts.
+  in UI customisation and WORKFLOW prompts.
 
 Scientific placeholders
 -----------------------

@@ -12,7 +12,7 @@ reference behind that interface.
    :class: diagram-panel diagram-hero
 
 The web interface exposes a set of built-in pages plus optional app-specific
-dashboards ("page bundles", sometimes called ``apps-pages``).
+dashboards called page bundles.
 
 For newcomer onboarding, start with :doc:`newcomer-guide` and
 :doc:`quick-start`.

@@ -16,7 +16,7 @@ For most users, the recommended sequence is:
 2. Let **ORCHESTRATE** generate the ``AGI.install(...)``,
    ``AGI.get_distrib(...)``, or ``AGI.run(...)`` snippet for the current setup.
 3. Reuse that generated snippet in :doc:`experiment-help` when you want the
-   distributed run to become a reproducible pipeline stage.
+   distributed run to become a reproducible WORKFLOW stage.
 
 You normally do not start by writing cluster orchestration code from scratch.
 
