@@ -22,19 +22,19 @@
 <text xml:space="preserve" text-anchor="start" x="8" y="-288.5" font-family="Helvetica,sans-Serif" font-size="10.00">+start()</text>
 <text xml:space="preserve" text-anchor="start" x="8" y="-277.25" font-family="Helvetica,sans-Serif" font-size="10.00">+stop()</text>
 </g>
-<!-- PandasWorker -->
+<!-- PolarsWorker -->
 <g id="node2" class="node">
-<title>PandasWorker</title>
+<title>PolarsWorker</title>
 <path fill="#f8f9fb" stroke="#4a5568" stroke-width="1.1" d="M22.5,-162.5C22.5,-162.5 78.25,-162.5 78.25,-162.5 84.25,-162.5 90.25,-168.5 90.25,-174.5 90.25,-174.5 90.25,-211.5 90.25,-211.5 90.25,-217.5 84.25,-223.5 78.25,-223.5 78.25,-223.5 22.5,-223.5 22.5,-223.5 16.5,-223.5 10.5,-217.5 10.5,-211.5 10.5,-211.5 10.5,-174.5 10.5,-174.5 10.5,-168.5 16.5,-162.5 22.5,-162.5"/>
-<text xml:space="preserve" text-anchor="middle" x="50.38" y="-210" font-family="Helvetica,sans-Serif" font-size="10.00">PandasWorker</text>
+<text xml:space="preserve" text-anchor="middle" x="50.38" y="-210" font-family="Helvetica,sans-Serif" font-size="10.00">PolarsWorker</text>
 <polyline fill="none" stroke="#4a5568" stroke-width="1.1" points="10.5,-204.25 90.25,-204.25"/>
 <text xml:space="preserve" text-anchor="start" x="18.5" y="-190.75" font-family="Helvetica,sans-Serif" font-size="10.00">+work_pool()</text>
 <text xml:space="preserve" text-anchor="start" x="18.5" y="-179.5" font-family="Helvetica,sans-Serif" font-size="10.00">+work_done()</text>
 <text xml:space="preserve" text-anchor="start" x="18.5" y="-168.25" font-family="Helvetica,sans-Serif" font-size="10.00">+works()</text>
 </g>
-<!-- BaseWorker&#45;&gt;PandasWorker -->
+<!-- BaseWorker&#45;&gt;PolarsWorker -->
 <g id="edge1" class="edge">
-<title>BaseWorker&#45;&gt;PandasWorker</title>
+<title>BaseWorker&#45;&gt;PolarsWorker</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.05" d="M50.38,-271.08C50.38,-259.36 50.38,-246.81 50.38,-235.31"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.05" points="53.88,-235.37 50.38,-225.37 46.88,-235.37 53.88,-235.37"/>
 </g>
@@ -53,9 +53,9 @@
 <text xml:space="preserve" text-anchor="start" x="9.12" y="-17.5" font-family="Helvetica,sans-Serif" font-size="10.00">+start()</text>
 <text xml:space="preserve" text-anchor="start" x="9.12" y="-6.25" font-family="Helvetica,sans-Serif" font-size="10.00">+stop()</text>
 </g>
-<!-- PandasWorker&#45;&gt;FlightWorker -->
+<!-- PolarsWorker&#45;&gt;FlightWorker -->
 <g id="edge2" class="edge">
-<title>PandasWorker&#45;&gt;FlightWorker</title>
+<title>PolarsWorker&#45;&gt;FlightWorker</title>
 <path fill="none" stroke="#4a5568" stroke-width="1.05" d="M50.38,-162.04C50.38,-151.39 50.38,-138.92 50.38,-126.39"/>
 <polygon fill="#4a5568" stroke="#4a5568" stroke-width="1.05" points="53.88,-126.51 50.38,-116.51 46.88,-126.51 53.88,-126.51"/>
 </g>
