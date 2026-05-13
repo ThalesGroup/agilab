@@ -6,6 +6,8 @@
 - Keep one target variable.
 - Keep one artifact folder.
 - Replace hidden state with explicit input/output files.
+- Put reusable project notebooks under `<app_project>/notebooks/`.
+- Keep generated notebook exports and import sidecars out of the app source tree.
 
 ## AGILAB side
 
@@ -13,6 +15,12 @@
 - `lab_stages.toml` captures the semantic sequence.
 - `pipeline_view.dot` explains the pipeline in business terms.
 - `ANALYSIS` reads exported files instead of rerunning notebook code.
+- `notebook_import_views.toml` lives with the app project and maps imported
+  notebook artifacts to Analysis views.
+- WORKFLOW notebook import writes to the selected export workspace and looks up
+  view manifests from the selected app project.
+- ANALYSIS notebook launch reads from `<app_project>/notebooks/` and persists
+  the selected notebook list.
 
 ## Migration value to show
 
@@ -20,4 +28,6 @@
 - reruns are explicit
 - artifacts are comparable across runs
 - the analysis page is reusable without reopening notebooks
+- notebooks remain available for interactive exploration without becoming the
+  source of truth for pipeline state
 - notebook logic can later move to manager/worker code without changing the story
