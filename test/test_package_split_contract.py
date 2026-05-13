@@ -203,6 +203,7 @@ def test_workflow_and_docs_cover_the_same_package_split() -> None:
             "pypi_project": package.name,
             "pypi_environment": package.pypi_environment,
             "artifact_policy": package.artifact_policy,
+            "publish_to_pypi": "true" if package.role in release_plan.PYPI_PUBLISH_ROLES else "false",
         }
         for package in LIBRARY_PACKAGE_CONTRACTS
     ]

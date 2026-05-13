@@ -39,7 +39,33 @@ def _resolve_builtin_worker_paths(
     if env_obj.worker_path.exists() or env_obj.is_worker_env:
         return
 
-    candidate_apps: list[Path] = []
+    candidate_apps: list[tuple[Path, Path | None]] = []
+    seen_candidates: set[str] = set()
+
+    def _add_candidate(candidate_app: Path, builtin_root: Path | None) -> None:
+        try:
+            key = str(candidate_app.resolve(strict=False))
+        except OSError:
+            key = str(candidate_app)
+        if key in seen_candidates:
+            return
+        seen_candidates.add(key)
+        candidate_apps.append((candidate_app, builtin_root))
+
+    builtin_roots: list[Path] = []
+    if apps_path is not None:
+        builtin_roots.append(apps_path / "builtin")
+    if env_obj.builtin_apps_path is not None:
+        builtin_roots.append(env_obj.builtin_apps_path)
+    builtin_roots.append(apps_root / "builtin")
+    builtin_roots.append(env_obj.agilab_pck / "apps" / "builtin")
+
+    for builtin_root in builtin_roots:
+        try:
+            _add_candidate(builtin_root / env_obj.app, builtin_root)
+        except TypeError:
+            continue
+
     expected_project_names = {str(env_obj.app), f"{target}_project"}
     for project_path in getattr(env_obj, "installed_app_project_paths", ()):
         try:
@@ -47,23 +73,9 @@ def _resolve_builtin_worker_paths(
         except (TypeError, ValueError):
             continue
         if project.name in expected_project_names:
-            candidate_apps.append(project)
+            _add_candidate(project, project.parent)
 
-    builtin_roots: list[Path] = []
-    if env_obj.builtin_apps_path is not None:
-        builtin_roots.append(env_obj.builtin_apps_path)
-    if apps_path is not None:
-        builtin_roots.append(apps_path / "builtin")
-    builtin_roots.append(apps_root / "builtin")
-    builtin_roots.append(env_obj.agilab_pck / "apps" / "builtin")
-
-    for builtin_root in builtin_roots:
-        try:
-            candidate_apps.append(builtin_root / env_obj.app)
-        except TypeError:
-            continue
-
-    for candidate_app in candidate_apps:
+    for candidate_app, builtin_root in candidate_apps:
         candidate_worker = candidate_app / "src" / target_worker / f"{target_worker}.py"
         if not candidate_worker.exists():
             continue
@@ -72,7 +84,8 @@ def _resolve_builtin_worker_paths(
         except OSError:
             env_obj.active_app = candidate_app
         _refresh_worker_paths(env_obj, target=target, target_worker=target_worker)
-        env_obj.builtin_apps_path = builtin_root
+        if builtin_root is not None:
+            env_obj.builtin_apps_path = builtin_root
         logger.info(
             "Resolved builtin app %s from %s after missing worker path in %s",
             env_obj.app,

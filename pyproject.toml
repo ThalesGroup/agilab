@@ -332,6 +332,10 @@ ydata-profiling = ["standard-imghdr"]
     path = "./src/agilab/apps-pages/view_release_decision"
     editable = true
 
+[tool.uv.sources.view-shap-explanation]
+    path = "./src/agilab/apps-pages/view_shap_explanation"
+    editable = true
+
 [tool.uv.sources.view-training-analysis]
     path = "./src/agilab/apps-pages/view_training_analysis"
     editable = true

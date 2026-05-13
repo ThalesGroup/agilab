@@ -13,8 +13,10 @@
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from importlib import import_module
+from importlib.util import find_spec
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -36,12 +38,41 @@ MLFLOW_RUNTIME_EXCEPTIONS = tuple(
     if exc_type is not None
 )
 
+_MLFLOW_CLI_BOOTSTRAP = "from mlflow.cli import cli; cli()"
+
 
 def mlflow_subprocess_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     """Return an environment safe for MLflow CLI subprocess imports."""
     env = dict(os.environ if base_env is None else base_env)
     env.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
     return env
+
+
+def _module_available(module_name: str, *, find_spec_fn=find_spec) -> bool:
+    try:
+        return find_spec_fn(module_name) is not None
+    except (ImportError, ModuleNotFoundError, TypeError, ValueError):
+        return False
+
+
+def mlflow_cli_argv(
+    args: list[str],
+    *,
+    sys_executable: str = sys.executable,
+    which_fn=shutil.which,
+    find_spec_fn=find_spec,
+) -> list[str]:
+    """Return an MLflow CLI argv without relying on ``python -m mlflow``."""
+
+    executable = which_fn("mlflow")
+    if executable:
+        return [executable, *args]
+    if _module_available("mlflow.cli", find_spec_fn=find_spec_fn):
+        return [sys_executable, "-c", _MLFLOW_CLI_BOOTSTRAP, *args]
+    raise RuntimeError(
+        "MLflow CLI is required but not installed in this environment. "
+        "Install `agilab[mlflow]` or `mlflow` before starting the MLflow server."
+    )
 
 
 def _run_mlflow_cli(run_cmd, argv: list[str]):
@@ -226,7 +257,10 @@ def ensure_mlflow_sqlite_schema_current(
 
     result = _run_mlflow_cli(
         run_cmd,
-        [sys_executable, "-m", "mlflow", "db", "upgrade", db_uri],
+        mlflow_cli_argv(
+            ["db", "upgrade", db_uri],
+            sys_executable=sys_executable,
+        ),
     )
     if _handle_mlflow_schema_upgrade_result(
         result,
@@ -316,16 +350,16 @@ def _migrate_legacy_mlflow_filestore_if_needed(
     target_uri = sqlite_uri_for_path_fn(db_path)
     result = _run_mlflow_cli(
         run_cmd,
-        [
-            sys_executable,
-            "-m",
-            "mlflow",
-            "migrate-filestore",
-            "--source",
-            str(tracking_dir),
-            "--target",
-            target_uri,
-        ],
+        mlflow_cli_argv(
+            [
+                "migrate-filestore",
+                "--source",
+                str(tracking_dir),
+                "--target",
+                target_uri,
+            ],
+            sys_executable=sys_executable,
+        ),
     )
     _handle_mlflow_filestore_migration_result(
         result,

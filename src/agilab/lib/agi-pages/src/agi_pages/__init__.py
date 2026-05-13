@@ -20,6 +20,7 @@ PUBLIC_PAGE_MODULES = (
     "view_queue_resilience",
     "view_relay_resilience",
     "view_release_decision",
+    "view_shap_explanation",
     "view_training_analysis",
 )
 

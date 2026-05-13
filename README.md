@@ -211,7 +211,8 @@ Current packaging policy is conservative:
   `agi-app-flight-project` and `agi-app-mycode-project`; `agi-apps` is the
   umbrella catalog/example package pulled in by the `ui` and `examples` extras.
 - Public analysis page bundles live in the `agi-pages` wheel and are pulled in
-  by the `ui` and `pages` extras.
+  by the `ui` and `pages` extras. The bundle set includes domain views such as
+  `view-shap-explanation` for SHAP-style local explanation evidence.
 - Larger optional stacks must stay behind extras, and release evidence must
   include SBOM / `pip-audit` data for the actual enabled profile.
 - Further cluster/runtime splitting is a roadmap item; it is not claimed as

@@ -31,6 +31,10 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py -- --active-app src/agilab/apps/builtin/meteo_forecast_project
   - Compares a candidate bundle against a baseline bundle, applies explicit evidence gates, and exports `promotion_decision.json`.
 
+- view_shap_explanation
+  - uv run streamlit run src/agilab/apps-pages/view_shap_explanation/src/view_shap_explanation/view_shap_explanation.py -- --active-app src/agilab/apps/builtin/mycode_project
+  - Displays local feature-attribution evidence exported by SHAPKit, the modern `shap` package, or a compatible custom explainer.
+
 - view_queue_resilience
   - uv run streamlit run src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/view_queue_resilience.py -- --active-app src/agilab/apps/builtin/uav_queue_project
   - Generic queue telemetry analysis page. Reads `*_summary_metrics.json`, `*_queue_timeseries.csv`, `*_packet_events.csv`, `*_node_positions.csv`, and `*_routing_summary.csv`.
