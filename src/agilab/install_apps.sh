@@ -295,6 +295,41 @@ app_has_required_sources() {
   [[ -f "$pyproject" && -f "$manager" && -f "$worker" ]]
 }
 
+page_has_required_sources() {
+  local page_dir="$1"
+  local page_name pyproject source_match
+
+  page_name="$(basename -- "$page_dir")"
+  case "$page_name" in
+    ""|.*|.venv|__pycache__|templates|*.previous.*)
+      return 1
+      ;;
+  esac
+
+  pyproject="$page_dir/pyproject.toml"
+  [[ -f "$pyproject" ]] || return 1
+  grep -Fq '[project.entry-points."agilab.pages"]' "$pyproject" || return 1
+
+  if [[ -f "$page_dir/$page_name.py" || -f "$page_dir/main.py" || -f "$page_dir/app.py" ]]; then
+    return 0
+  fi
+  if [[ -f "$page_dir/src/$page_name/$page_name.py" \
+     || -f "$page_dir/src/$page_name/main.py" \
+     || -f "$page_dir/src/$page_name/app.py" ]]; then
+    return 0
+  fi
+
+  source_match="$(
+    find "$page_dir/src" \
+      -mindepth 2 \
+      -maxdepth 2 \
+      -type f \
+      \( -name "${page_name}.py" -o -name "view_*.py" -o -name "main.py" -o -name "app.py" \) \
+      -print -quit 2>/dev/null || true
+  )"
+  [[ -n "$source_match" ]]
+}
+
 app_has_collectable_pytests() {
   local app_dir="${1:-.}"
 
@@ -577,17 +612,19 @@ elif [[ -n "${BUILTIN_PAGES_FROM_ENV}" && -n "${BUILTIN_PAGES_FROM_ENV//[[:space
 else
   while IFS= read -r -d '' dir; do
     dir_name="$(basename -- "$dir")"
-    if [[ " ${BUILTIN_PAGES[@]-} " != *" ${dir_name} "* ]]; then
+    if page_has_required_sources "$dir" && [[ " ${BUILTIN_PAGES[@]-} " != *" ${dir_name} "* ]]; then
       BUILTIN_PAGES+=("$dir_name")
     fi
-  done < <(find "$PAGES_DEST_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
+  done < <(find "$PAGES_DEST_BASE" -mindepth 1 -maxdepth 1 -type d -print0)
 fi
 
 if (( SKIP_REPOSITORY_PAGES == 0 )); then
   declare -a repository_pages_found=()
   while IFS= read -r -d '' dir; do
-    repository_pages_found+=("$(basename -- "$dir")")
-  done < <(find "$PAGES_TARGET_BASE" -mindepth 1 -maxdepth 1 -type d ! -name ".venv" -print0)
+    if page_has_required_sources "$dir"; then
+      repository_pages_found+=("$(basename -- "$dir")")
+    fi
+  done < <(find "$PAGES_TARGET_BASE" -mindepth 1 -maxdepth 1 -type d -print0)
   if (( ${#repository_pages_found[@]} )); then
     REPOSITORY_PAGES=("${repository_pages_found[@]}")
   else
@@ -1009,7 +1046,12 @@ pushd -- "$AGILAB_REPO/apps-pages" >/dev/null
 
 for page in ${INCLUDED_PAGES+"${INCLUDED_PAGES[@]}"}; do
     echo -e "${BLUE}Installing $page...${NC}"
-    pushd "$page" >/dev/null
+    page_dir="$AGILAB_REPO/apps-pages/$page"
+    if ! page_has_required_sources "$page_dir"; then
+        echo -e "${YELLOW}Skipping page '$page': not an installable AGILAB page project.${NC}"
+        continue
+    fi
+    pushd "$page_dir" >/dev/null
     unlink_linked_venv ".venv" "$page"
     ${UV_PREVIEW[@]} sync --project . --preview-features python-upgrade
     status=$?
