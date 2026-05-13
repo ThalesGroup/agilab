@@ -30,7 +30,7 @@ keywords = [
   "distributed-computing",
   "distributed-execution",
 ]
-dependencies = ["agi-env==2026.05.12.post3", "agi-node==2026.05.12.post3", "agi-cluster==2026.05.12.post3"]
+dependencies = ["agi-env==2026.05.13", "agi-node==2026.05.13", "agi-cluster==2026.05.13"]
 
 [project.urls]
 Homepage = "https://github.com/ThalesGroup/agilab"

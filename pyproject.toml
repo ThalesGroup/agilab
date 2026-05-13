@@ -60,7 +60,7 @@ agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
 ai = ["openai>=2.32.0"]
-ui = ["agi-apps==2026.05.13", "agi-pages==2026.05.13", "agi-gui==2026.05.12.post3", "networkx>=3.6.1", "pandas>=2.3.0", "streamlit>=1.56.0", "tomli_w>=1.2.0"]
+ui = ["agi-apps==2026.05.13", "agi-pages==2026.05.13", "agi-gui==2026.05.13", "networkx>=3.6.1", "pandas>=2.3.0", "streamlit>=1.56.0", "tomli_w>=1.2.0"]
 viz = ["matplotlib>=3.10.0", "plotly>=6.7.0"]
 mlflow = ["mlflow>=3.11.1"]
 examples = ["agi-apps==2026.05.13", "jupyterlab>=4.4.0", "matplotlib>=3.10.0", "plotly>=6.7.0"]
