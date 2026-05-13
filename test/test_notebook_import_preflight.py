@@ -131,6 +131,44 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     assert "artifacts/orders.parquet" in view_plan["matched_views"][0]["matched_artifacts"]
 
 
+def test_supervisor_notebook_import_preserves_artifact_role_inference() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_preflight_supervisor_roles_module")
+    source = "\n".join(
+        [
+            "import pandas as pd",
+            "df = pd.read_csv('shared/orders.csv')",
+            "df.to_parquet('shared/summary.parquet')",
+        ]
+    )
+    imported = core_module.build_notebook_pipeline_import(
+        notebook={
+            "cells": [],
+            "metadata": {
+                "agilab": {
+                    "stages": [
+                        {
+                            "description": "Build shared summary",
+                            "question": "Summarize orders.",
+                            "code": source,
+                        }
+                    ]
+                }
+            },
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        },
+        source_notebook="supervisor.ipynb",
+    )
+
+    preflight = core_module.build_notebook_import_preflight(imported)
+
+    assert imported["source"]["import_mode"] == "agilab_supervisor_metadata"
+    assert imported["pipeline_stages"][0]["source_cell_index"] == 1
+    assert preflight["artifact_contract"]["inputs"] == ["shared/orders.csv"]
+    assert preflight["artifact_contract"]["outputs"] == ["shared/summary.parquet"]
+    assert preflight["artifact_contract"]["unknown"] == []
+
+
 def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> None:
     module = _load_module(REPORT_PATH, "notebook_import_preflight_report_test_module")
     notebook_path = tmp_path / "risky.ipynb"

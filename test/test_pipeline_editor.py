@@ -1078,6 +1078,163 @@ optional_artifacts = ["data/*.csv"]
     assert ("revision", "bump") in messages
 
 
+def test_confirm_notebook_import_preview_uses_app_manifest_without_writing_to_app(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    uploaded = SimpleNamespace(
+        name="flight.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["# Flight analysis\n"]},
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "import pandas as pd\n",
+                            "df = pd.read_csv('flight/raw/input.csv')\n",
+                            "df.to_parquet('flight/dataframe/output.parquet')\n",
+                        ],
+                    },
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        info=lambda message, *args, **kwargs: messages.append(("info", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: messages.append(("revision", "bump")))
+
+    export_dir = tmp_path / "exported_notebooks" / "flight_project"
+    app_dir = tmp_path / "apps" / "builtin" / "flight_project"
+    app_dir.mkdir(parents=True)
+    (app_dir / "notebook_import_views.toml").write_text(
+        """
+schema = "agilab.notebook_import_views.v1"
+app = "flight_project"
+
+[[views]]
+id = "flight_maps"
+module = "view_maps"
+required_artifacts_any = ["flight/dataframe/*.parquet"]
+optional_artifacts = ["flight/raw/*.csv"]
+""".strip()
+        + "\n",
+        encoding="utf-8",
+    )
+
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, export_dir)
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+
+    count = pipeline_editor.confirm_notebook_import_preview(
+        export_dir,
+        export_dir / "lab_stages.toml",
+        "idx",
+        view_manifest_dir=app_dir,
+    )
+
+    view_plan = json.loads((export_dir / "notebook_import_view_plan.json").read_text(encoding="utf-8"))
+    assert count == 1
+    assert (export_dir / "lab_stages.toml").is_file()
+    assert (export_dir / "notebook_import_contract.json").is_file()
+    assert not (app_dir / "notebook_import_contract.json").exists()
+    assert view_plan["status"] == "matched"
+    assert view_plan["matched_views"][0]["module"] == "view_maps"
+    assert set(view_plan["matched_views"][0]["matched_artifacts"]) == {
+        "flight/dataframe/output.parquet",
+        "flight/raw/input.csv",
+    }
+    assert ("revision", "bump") in messages
+
+
+def test_confirm_notebook_import_preview_blocks_unsafe_preflight(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    uploaded = SimpleNamespace(
+        name="empty.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {"cells": [{"cell_type": "markdown", "source": ["# Notes only\n"]}]}
+        ).encode("utf-8"),
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: messages.append(("revision", "bump")))
+
+    module_dir = tmp_path / "demo_project"
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, module_dir)
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+
+    count = pipeline_editor.confirm_notebook_import_preview(
+        module_dir,
+        module_dir / "lab_stages.toml",
+        "idx",
+    )
+
+    assert count == 0
+    assert not (module_dir / "lab_stages.toml").exists()
+    assert not (module_dir / "notebook_import_contract.json").exists()
+    assert "idx__notebook_import_preview" in fake_st.session_state
+    assert "page_broken" not in fake_st.session_state
+    assert messages == [
+        ("error", "Notebook import is blocked: Notebook import produced no runnable code cells.")
+    ]
+
+
+def test_render_notebook_import_preview_hides_import_button_for_blocked_preflight(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    button_labels: list[str] = []
+
+    def _button(label, *args, **kwargs):
+        button_labels.append(label)
+        return True
+
+    sidebar = SimpleNamespace(
+        caption=lambda message, *args, **kwargs: messages.append(("caption", message)),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        button=_button,
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State(
+            {
+                "idx__notebook_import_preview": {
+                    "cell_count": 0,
+                    "preflight": {
+                        "safe_to_import": False,
+                        "summary": {"pipeline_stage_count": 0, "input_count": 0, "output_count": 0},
+                        "risk_counts": {"error": 1},
+                        "risks": [
+                            {
+                                "level": "error",
+                                "message": "Notebook import produced no runnable code cells.",
+                            }
+                        ],
+                    },
+                }
+            }
+        ),
+        sidebar=sidebar,
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+
+    pipeline_editor.render_notebook_import_preview(
+        tmp_path / "demo_project",
+        tmp_path / "demo_project" / "lab_stages.toml",
+        "idx",
+    )
+
+    assert button_labels == ["Cancel import"]
+    assert "idx__notebook_import_preview" not in fake_st.session_state
+    assert ("error", "Notebook import blocked: Notebook import produced no runnable code cells.") in messages
+
+
 def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_path):
     stages_file = tmp_path / "lab_stages.toml"
     stages_file.write_text(

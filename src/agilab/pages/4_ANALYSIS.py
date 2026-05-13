@@ -1560,6 +1560,8 @@ def _render_analysis_workspace_overview(
     *,
     selection_state: Any,
     available_view_count: int,
+    selected_notebook_count: int,
+    available_notebook_count: int,
 ) -> None:
     artifact_summary = _scan_analysis_artifacts(_active_analysis_data_root(env))
     artifact_count = int(artifact_summary["count"])
@@ -1570,9 +1572,16 @@ def _render_analysis_workspace_overview(
     latest_value = latest_label if artifact_count else "No output"
     latest_caption = "latest file timestamp" if artifact_count else "run a project first"
     views_caption = f"{selected_count} linked to {project_label}" if selected_count else "choose views below"
+    notebooks_caption = (
+        f"{selected_notebook_count} linked to {project_label}"
+        if selected_notebook_count
+        else "choose notebooks below"
+        if available_notebook_count
+        else "no notebooks found"
+    )
 
     with st.container(border=True):
-        cols = st.columns(3)
+        cols = st.columns(4)
         with cols[0]:
             suffix = "+" if artifact_summary["truncated"] else ""
             _render_analysis_metric("Output files", f"{artifact_count}{suffix}", latest_label)
@@ -1580,6 +1589,12 @@ def _render_analysis_workspace_overview(
             _render_analysis_metric("Latest output", latest_value, latest_caption)
         with cols[2]:
             _render_analysis_metric("Views selected", f"{selected_count}/{available_view_count}", views_caption)
+        with cols[3]:
+            _render_analysis_metric(
+                "Notebooks selected",
+                f"{selected_notebook_count}/{available_notebook_count}",
+                notebooks_caption,
+            )
 
         if not artifact_summary["exists"]:
             st.info("Run ORCHESTRATE or WORKFLOW to create analysis outputs.")
@@ -2099,6 +2114,8 @@ async def main():
         env,
         selection_state=selection_state,
         available_view_count=len(view_names),
+        selected_notebook_count=len(selected_notebooks),
+        available_notebook_count=len(notebook_names),
     )
 
     with st.expander("Choose analysis views", expanded=False):

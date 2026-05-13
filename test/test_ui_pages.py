@@ -1082,6 +1082,7 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "Output files" in markdown_text
     assert "Latest output" in markdown_text
     assert "Views selected" in markdown_text
+    assert "Notebooks selected" in markdown_text
     assert "Available views" not in markdown_text
     assert "selected / available" not in markdown_text
     assert "agilab-header-value--incomplete" in markdown_text
@@ -1262,6 +1263,10 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     with settings_file.open("rb") as f:
         settings_payload = tomllib.load(f)
     assert settings_payload["notebooks"]["selected"] == ["extra/demo.ipynb"]
+    markdown_text = "\n".join(str(item.value) for item in at.markdown)
+    assert "Notebooks selected" in markdown_text
+    assert "1 linked to flight_project" in markdown_text
+    assert "agilab-header-value agilab-header-value--ready'>1/2</div>" in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "### Notebooks" in sidebar_markdown
     assert "extra/demo.ipynb" in sidebar_markdown
@@ -1275,6 +1280,10 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
 
     assert not reloaded.exception
     assert reloaded.session_state[selection_key] == ["extra/demo.ipynb"]
+    reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
+    assert "Notebooks selected" in reloaded_markdown
+    assert "1 linked to flight_project" in reloaded_markdown
+    assert "agilab-header-value agilab-header-value--ready'>1/2</div>" in reloaded_markdown
     reloaded_sidebar_markdown = "\n".join(str(item.value) for item in reloaded.sidebar.markdown)
     assert "extra/demo.ipynb" in reloaded_sidebar_markdown
     assert "lab_stages.ipynb" not in reloaded_sidebar_markdown
@@ -1414,6 +1423,26 @@ def test_workflow_dag_project_keeps_dataframe_load_export_controls_hidden(tmp_pa
     assert "Export" not in labels
     assert "Delete output" not in labels
     assert "No dataframe export found yet" not in page_text
+
+
+def test_workflow_notebook_manifest_dir_prefers_selected_project(tmp_path):
+    workflow_page = _import_agilab_module("agilab.pages.3_WORKFLOW")
+    apps_root = tmp_path / "apps"
+    active_project = apps_root / "alpha_project"
+    selected_project = apps_root / "beta_project"
+    active_project.mkdir(parents=True)
+    selected_project.mkdir()
+    env = SimpleNamespace(
+        apps_path=apps_root,
+        builtin_apps_path=apps_root / "builtin",
+        active_app=active_project,
+        app="alpha_project",
+        target="alpha_project",
+    )
+
+    resolved = workflow_page._resolve_active_app_project_dir(env, "beta_project")
+
+    assert resolved == selected_project.resolve()
 
 
 def test_pipeline_page_restores_missing_export_stages_from_project_source(mock_ui_env):

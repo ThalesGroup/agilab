@@ -514,7 +514,7 @@ def _build_from_supervisor_metadata(
             {
                 "id": f"supervisor-stage-{stage_index}",
                 "order": len(pipeline_stages) + 1,
-                "source_cell_index": 0,
+                "source_cell_index": stage_index,
                 "cell_type": "code",
                 "execution_count": None,
                 "source_lines": source.splitlines(keepends=True),
