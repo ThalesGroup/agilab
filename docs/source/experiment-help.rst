@@ -210,8 +210,10 @@ not just a static dump of code cells.
 * You can open it outside the AGILAB UI in Jupyter-compatible tools such as
   JupyterLab or PyCharm.
 * For a source checkout, prefer the project-local mirror under
-  ``<app-project>/notebooks/lab_stages.ipynb`` and launch it from that app
-  project explicitly, for example:
+  ``<app-project>/notebooks/lab_stages.ipynb``. ANALYSIS discovers notebooks in
+  that directory and exposes selected entries in its sidebar ``Notebooks``
+  section. You can also launch the notebook from the app project explicitly, for
+  example:
 
   .. code-block:: bash
 

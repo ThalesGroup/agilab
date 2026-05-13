@@ -6,10 +6,11 @@ ANALYSIS
 
 Introduction
 ------------
-The **Analysis** page is the catalog and launcher for installed analysis views.
+The **Analysis** page is the catalog and launcher for installed analysis views
+and project notebooks.
 
-It lets you choose which views belong to the active project and launch them in
-isolated sidecar sessions.
+It lets you choose which views and notebooks belong to the active project and
+launch them in isolated sidecar sessions.
 
 Page snapshot
 -------------
@@ -19,7 +20,7 @@ Page snapshot
    :align: center
    :class: diagram-panel diagram-wide
 
-   ANALYSIS exposes the available page bundles, stores the selected views per project, and launches them as sidecar dashboards.
+   ANALYSIS exposes available page bundles and project notebooks, stores the selected launchers per project, and opens them as sidecar dashboards.
 
 Sidebar
 -------
@@ -30,9 +31,13 @@ Sidebar
 - ``Analysis views`` lists compact launch links for the selected views. If no
   view has been selected yet, it lists every discovered view so you can launch
   one without first editing the project configuration.
-- The currently selected project determines which views are stored inside its
-  workspace ``app_settings.toml`` file under ``~/.agilab/apps/<project>/``
-  in the ``[pages]`` section.
+- ``Notebooks`` appears below ``Analysis views`` when the active project has
+  ``.ipynb`` files under ``<project>/notebooks``. If no notebook has been
+  selected yet, it lists every discovered project notebook.
+- The currently selected project determines which views and notebooks are
+  stored inside its workspace ``app_settings.toml`` file under
+  ``~/.agilab/apps/<project>/`` in the ``[pages]`` and ``[notebooks]``
+  sections.
 
 Main Content Area
 -----------------
@@ -62,6 +67,13 @@ Main Content Area
       customized. Use **Starting point** when you want to begin from a blank
       template or duplicate an existing app page before clicking **Create**.
 
+      Use **Choose notebooks** to choose which project notebooks are shown as
+      sidebar shortcuts for the selected project. AGILab discovers notebooks
+      under ``<app-project>/notebooks`` recursively, ignores hidden folders and
+      ``.ipynb_checkpoints``, and stores the selected relative notebook paths in
+      ``~/.agilab/apps/<project>/app_settings.toml`` under
+      ``[notebooks].selected``.
+
    .. tab-item:: Launch
 
       Each selected view appears as a compact sidebar link. Opening it launches
@@ -70,6 +82,11 @@ Main Content Area
       directories pointed to ``${AGILAB_VENVS_ABS}`` and
       ``${AGILAB_PAGES_VENVS_ABS}``). The child app is then embedded via iframe
       and a ``Back to Analysis`` control keeps navigation lightweight.
+
+      Each selected notebook appears below the view links. Opening it launches a
+      local JupyterLab sidecar rooted at the active app project and embeds the
+      selected notebook from ``<app-project>/notebooks``. This keeps notebooks
+      project-local while leaving page bundles in ``${AGILAB_PAGES_ABS}``.
 
 Tips & Notes
 ------------
@@ -84,6 +101,10 @@ Tips & Notes
   dashboard and the generic topology map.
 - AGILab caches the list per project, so the Analysis grid reflects the exact
   configuration stored in ``app_settings.toml``.
+- Project notebooks are ordinary ``.ipynb`` files owned by the app project. Use
+  the ``notebooks`` directory for exported supervisor notebooks such as
+  ``lab_stages.ipynb`` and for additional notebooks that explain or inspect that
+  project.
 - If a view needs its own Python environment, place it alongside the page
   bundle (``.venv`` or ``venv``) or in the shared directories referenced by the
   ``AGILAB_VENVS_ABS`` / ``AGILAB_PAGES_VENVS_ABS`` environment variables.
@@ -104,6 +125,11 @@ If analysis view discovery is unexpected, use these checks:
   that your browser blocks mixed local/remote content.
 - If the selected bundle list is not saved, check write permission on
   ``~/.agilab/apps/<project>/app_settings.toml``.
+- If ``Notebooks`` is missing, confirm the active project has at least one
+  ``.ipynb`` file under ``<app-project>/notebooks`` and that the file is not in
+  ``.ipynb_checkpoints`` or another hidden folder.
+- If a notebook launch opens a blank frame, confirm JupyterLab can start locally
+  for that project and that your browser allows the embedded ``127.0.0.1`` frame.
 - If ``view_maps_network`` opens but shows no UAV queue data, point the data
   directory to one run folder such as
   ``~/export/uav_relay_queue/queue_analysis/<artifact_stem>/`` rather than the parent
