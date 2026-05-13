@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.13"
+version = "2026.05.13.post1"
 name = "agi-apps"
 description = "AGILAB public app package umbrella and example assets"
 requires-python = ">=3.11"
@@ -32,7 +32,7 @@ keywords = [
 ]
 
 dependencies = [
-    "agi-core==2026.05.13",
+    "agi-core==2026.05.13.post1",
     "agi-app-data-io-2026-project==0.1.0",
     "agi-app-execution-pandas-project==0.1.0",
     "agi-app-execution-polars-project==0.1.0",

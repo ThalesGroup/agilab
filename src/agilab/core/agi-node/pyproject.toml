@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.13"
+version = "2026.05.13.post1"
 name = "agi-node"
 description = "Distributed worker orchestration and execution support library for AGILAB"
 requires-python = ">=3.11"
@@ -35,7 +35,7 @@ keywords = [
     "pandas",
     "polars",
 ]
-dependencies = ["agi-env==2026.05.13", "cython", "humanize", "numpy", "pandas", "parso", "polars", "psutil", "py7zr", "setuptools"]
+dependencies = ["agi-env==2026.05.13.post1", "cython", "humanize", "numpy", "pandas", "parso", "polars", "psutil", "py7zr", "setuptools"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
