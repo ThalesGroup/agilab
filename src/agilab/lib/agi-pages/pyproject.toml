@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.13.post2"
+version = "2026.05.13.post3"
 name = "agi-pages"
 description = "AGILAB public analysis page umbrella and provider package"
 requires-python = ">=3.11"
@@ -32,7 +32,7 @@ keywords = [
 ]
 
 dependencies = [
-    "agi-gui==2026.05.13.post2",
+    "agi-gui==2026.05.13.post3",
 ]
 
 [project.urls]
