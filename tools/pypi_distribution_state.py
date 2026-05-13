@@ -41,6 +41,7 @@ class DistributionState:
     path: Path
     name: str
     version: Version
+    filename: str
     exists: bool
     latest: Version | None
 
@@ -64,6 +65,10 @@ def _is_distribution_file(path: Path) -> bool:
 
 
 def fetch_pypi_releases(name: str) -> set[Version]:
+    return set(fetch_pypi_distribution_files(name))
+
+
+def fetch_pypi_distribution_files(name: str) -> dict[Version, set[str]]:
     url = PYPI_JSON_URL.format(name=urllib.parse.quote(name))
     try:
         with urllib.request.urlopen(url, timeout=20) as response:
@@ -75,40 +80,60 @@ def fetch_pypi_releases(name: str) -> set[Version]:
     except (OSError, json.JSONDecodeError) as exc:
         raise DistributionStateError(f"could not fetch PyPI metadata for {name}: {exc}") from exc
 
-    releases: set[Version] = set()
-    for raw_version in (payload.get("releases") or {}).keys():
+    releases: dict[Version, set[str]] = {}
+    for raw_version, files in (payload.get("releases") or {}).items():
         try:
-            releases.add(Version(str(raw_version)))
+            version = Version(str(raw_version))
         except InvalidVersion:
             continue
+        filenames = {
+            str(file_payload.get("filename"))
+            for file_payload in files or []
+            if isinstance(file_payload, dict) and file_payload.get("filename")
+        }
+        releases[version] = filenames
     return releases
 
 
 def analyze_distribution_dir(
     dist_dir: Path,
     *,
-    fetch_releases: Callable[[str], set[Version]] = fetch_pypi_releases,
+    fetch_releases: Callable[[str], set[Version]] | None = None,
+    fetch_distributions: Callable[[str], dict[Version, set[str]]] | None = None,
 ) -> list[DistributionState]:
     files = sorted(path for path in dist_dir.iterdir() if path.is_file() and _is_distribution_file(path))
     if not files:
         raise DistributionStateError(f"no distribution files found in {dist_dir}")
 
     release_cache: dict[str, set[Version]] = {}
+    distribution_cache: dict[str, dict[Version, set[str]]] = {}
     states: list[DistributionState] = []
     for path in files:
         name, version = _parse_distribution_name(path)
-        releases = release_cache.setdefault(name, fetch_releases(name))
+        exact_filenames_known = fetch_releases is None
+        if fetch_distributions is not None:
+            distributions = distribution_cache.setdefault(name, fetch_distributions(name))
+            releases = set(distributions)
+            exact_filenames_known = True
+        elif fetch_releases is not None:
+            releases = release_cache.setdefault(name, fetch_releases(name))
+            distributions = {release: set() for release in releases}
+        else:
+            distributions = distribution_cache.setdefault(name, fetch_pypi_distribution_files(name))
+            releases = set(distributions)
         latest = max(releases) if releases else None
         if latest is not None and version < latest:
             raise DistributionStateError(
                 f"{path.name} is version {version}, but PyPI latest for {name} is {latest}"
             )
+        exists = path.name in distributions.get(version, set()) if exact_filenames_known else version in releases
         states.append(
             DistributionState(
                 path=path,
                 name=name,
                 version=version,
-                exists=version in releases,
+                filename=path.name,
+                exists=exists,
                 latest=latest,
             )
         )

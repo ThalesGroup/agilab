@@ -34,6 +34,7 @@ def test_pypi_distribution_state_marks_existing_artifacts(tmp_path: Path) -> Non
 
     assert len(states) == 1
     assert states[0].name == "agi-env"
+    assert states[0].filename == "agi_env-2026.4.29.post2-py3-none-any.whl"
     assert states[0].exists is True
     assert states[0].latest == Version("2026.4.29.post2")
 
@@ -65,3 +66,21 @@ def test_pypi_distribution_state_writes_github_outputs(tmp_path: Path) -> None:
 
     assert "all-exist=false" in output.read_text(encoding="utf-8")
     assert "missing-count=1" in output.read_text(encoding="utf-8")
+
+
+def test_pypi_distribution_state_requires_exact_remote_filename(tmp_path: Path) -> None:
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "agilab-2026.5.12.post3-py3-none-any.whl").write_bytes(b"")
+    (dist / "agilab-2026.5.12.post3.tar.gz").write_bytes(b"")
+
+    states = analyze_distribution_dir(
+        dist,
+        fetch_distributions=lambda _name: {
+            Version("2026.5.12.post3"): {"agilab-2026.5.12.post3-py3-none-any.whl"}
+        },
+    )
+
+    by_filename = {state.filename: state for state in states}
+    assert by_filename["agilab-2026.5.12.post3-py3-none-any.whl"].exists is True
+    assert by_filename["agilab-2026.5.12.post3.tar.gz"].exists is False

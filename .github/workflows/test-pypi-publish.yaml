@@ -55,7 +55,7 @@ jobs:
           set -euxo pipefail
           args=(
             --repo testpypi
-            --dist wheel
+            --dist both
             --verbose
             --git-reset-on-failure
             --no-pypirc-check
