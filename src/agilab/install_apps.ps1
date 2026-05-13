@@ -194,6 +194,64 @@ function Resolve-AppDirectoryName {
     return $null
 }
 
+function Test-PageProject {
+    param([string]$PagePath)
+    if ([string]::IsNullOrWhiteSpace($PagePath) -or -not (Test-Path -LiteralPath $PagePath -PathType Container)) {
+        return $false
+    }
+
+    $pageName = Split-Path -Leaf (Normalize-PathInput $PagePath)
+    if ([string]::IsNullOrWhiteSpace($pageName)) {
+        return $false
+    }
+    if ($pageName.StartsWith(".", [System.StringComparison]::Ordinal) -or
+        $pageName -eq ".venv" -or
+        $pageName -eq "__pycache__" -or
+        $pageName -eq "templates" -or
+        $pageName -like "*.previous.*") {
+        return $false
+    }
+
+    $pyproject = Join-PathSafe $PagePath "pyproject.toml"
+    if (-not (Test-Path -LiteralPath $pyproject -PathType Leaf)) {
+        return $false
+    }
+
+    $pyprojectText = [string](Get-Content -LiteralPath $pyproject -Raw -ErrorAction SilentlyContinue)
+    if (-not $pyprojectText.Contains('[project.entry-points."agilab.pages"]')) {
+        return $false
+    }
+
+    $directCandidates = @(
+        (Join-PathSafe $PagePath ("{0}.py" -f $pageName)),
+        (Join-PathSafe $PagePath "main.py"),
+        (Join-PathSafe $PagePath "app.py"),
+        (Join-PathSafe $PagePath "src" $pageName ("{0}.py" -f $pageName)),
+        (Join-PathSafe $PagePath "src" $pageName "main.py"),
+        (Join-PathSafe $PagePath "src" $pageName "app.py")
+    )
+    foreach ($candidate in $directCandidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $true
+        }
+    }
+
+    $srcRoot = Join-PathSafe $PagePath "src"
+    if (-not (Test-Path -LiteralPath $srcRoot -PathType Container)) {
+        return $false
+    }
+
+    $sourceMatch = Get-ChildItem -LiteralPath $srcRoot -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            $_.Name -eq ("{0}.py" -f $pageName) -or
+            $_.Name -eq "main.py" -or
+            $_.Name -eq "app.py" -or
+            $_.Name -like "view_*.py"
+        } |
+        Select-Object -First 1
+    return [bool]$sourceMatch
+}
+
 function Remove-Link {
     param([Parameter(Mandatory=$true)][string]$Path)
     if (-not (Is-Link $Path)) { return }
@@ -411,7 +469,7 @@ if (-not [string]::IsNullOrWhiteSpace($pagesOverride)) {
     $builtinPages = ConvertTo-List $env:BUILTIN_PAGES
     Write-Color BLUE ("(Pages) Override enabled via BUILTIN_PAGES: {0}" -f ($builtinPages -join ' '))
 } elseif (Test-Path -LiteralPath $PAGES_DEST_BASE) {
-    Get-ChildItem -LiteralPath $PAGES_DEST_BASE -Directory | Where-Object { $_.Name -ne '.venv' } | ForEach-Object {
+    Get-ChildItem -LiteralPath $PAGES_DEST_BASE -Directory | Where-Object { Test-PageProject $_.FullName } | ForEach-Object {
         if (-not ($builtinPages -contains $_.Name)) {
             $builtinPages += $_.Name
         }
@@ -421,7 +479,7 @@ if (-not [string]::IsNullOrWhiteSpace($pagesOverride)) {
 $repositoryPages = @()
 if (-not $SkipRepositoryPages -and (Test-Path -LiteralPath $PAGES_TARGET_BASE)) {
     $repositoryPages = Get-ChildItem -LiteralPath $PAGES_TARGET_BASE -Directory |
-        Where-Object { $_.Name -ne '.venv' } |
+        Where-Object { Test-PageProject $_.FullName } |
         ForEach-Object { $_.Name }
 }
 
@@ -736,12 +794,17 @@ if (-not [string]::IsNullOrEmpty($appsPagesRoot) -and (Test-Path -LiteralPath $a
     Push-Location $appsPagesRoot
     foreach ($page in $includedPages) {
         Write-Color BLUE ("Installing {0}..." -f $page)
-        if (-not (Test-Path -LiteralPath $page)) {
+        $pagePath = Join-PathSafe $appsPagesRoot $page
+        if (-not (Test-Path -LiteralPath $pagePath -PathType Container)) {
             Write-Color YELLOW ("Skipping page '{0}': directory not found." -f $page)
             $status = 1
             continue
         }
-        Push-Location $page
+        if (-not (Test-PageProject $pagePath)) {
+            Write-Color YELLOW ("Skipping page '{0}': not an installable AGILAB page project." -f $page)
+            continue
+        }
+        Push-Location $pagePath
         $exit = Invoke-UvPreview @("sync", "--project", ".", "--preview-features", "python-upgrade")
         if ($exit -ne 0) {
             Write-Color RED ("Error during 'uv sync' for page '{0}'." -f $page)
