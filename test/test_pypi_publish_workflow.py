@@ -82,6 +82,16 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "steps.agilab-pypi-state.outputs.all-exist != 'true'" in text
     assert "PYPI_TRUSTED_PUBLISHING" in text
     assert "PyPI publication requires Trusted Publishing/OIDC" in text
+    assert "artifact_policy: wheel+sdist" in text
+    assert "artifact_policy: wheel-only" in text
+    assert 'uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}" --wheel' in text
+    assert 'uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}"' in text
+    assert "uv --preview-features extra-build-dependencies build\n" in text
+    assert "tools/release_artifact_manifest.py" in text
+    assert "--artifact-policy wheel+sdist" in text
+    assert "--artifact-policy \"${{ matrix.artifact_policy }}\"" in text
+    assert "release-dist-${{ matrix.package }}" in text
+    assert "release-dist-agilab" in text
     assert "packages-dir: dist-library/" not in text
     assert "packages-dir: ${{ matrix.dist }}" in text
     assert "packages-dir: dist/" in text
@@ -114,6 +124,22 @@ def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
     assert "Publish ${{ matrix.package }} to PyPI with trusted publishing" in text
 
 
+def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "publish-release-assets:" in text
+    assert "actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53" in text
+    assert "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26" in text
+    assert "attestations: write" in text
+    assert "artifact-metadata: write" in text
+    assert "subject-path: github-release-assets/**" in text
+    assert "supply-chain-release-evidence.tar.gz" in text
+    assert "release-distribution-evidence.tar.gz" in text
+    assert "shasum -a 256 * > SHA256SUMS.txt" in text
+    assert "gh release upload \"$release_tag\" github-release-assets/* --clobber" in text
+    assert "gh release create \"$release_tag\"" in text
+
+
 def test_pypi_publish_does_not_recreate_legacy_single_pypi_environment() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
     expected_environments = {
@@ -133,7 +159,7 @@ def test_test_pypi_publish_delegates_to_the_eight_package_release_tool() -> None
 
     assert "tools/pypi_publish.py" in text
     assert "--repo testpypi" in text
-    assert "--dist wheel" in text
+    assert "--dist both" in text
     assert "--git-reset-on-failure" in text
     assert "--no-pypirc-check" in text
     assert "TWINE_USERNAME: __token__" in text

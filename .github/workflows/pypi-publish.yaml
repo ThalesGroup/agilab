@@ -204,36 +204,43 @@ jobs:
             dist: src/agilab/core/agi-env/dist
             pypi_project: agi-env
             pypi_environment: pypi-agi-env
+            artifact_policy: wheel+sdist
           - package: agi-gui
             project: src/agilab/lib/agi-gui
             dist: src/agilab/lib/agi-gui/dist
             pypi_project: agi-gui
             pypi_environment: pypi-agi-gui
+            artifact_policy: wheel+sdist
           - package: agi-pages
             project: src/agilab/lib/agi-pages
             dist: src/agilab/lib/agi-pages/dist
             pypi_project: agi-pages
             pypi_environment: pypi-agi-pages
+            artifact_policy: wheel-only
           - package: agi-node
             project: src/agilab/core/agi-node
             dist: src/agilab/core/agi-node/dist
             pypi_project: agi-node
             pypi_environment: pypi-agi-node
+            artifact_policy: wheel+sdist
           - package: agi-cluster
             project: src/agilab/core/agi-cluster
             dist: src/agilab/core/agi-cluster/dist
             pypi_project: agi-cluster
             pypi_environment: pypi-agi-cluster
+            artifact_policy: wheel+sdist
           - package: agi-core
             project: src/agilab/core/agi-core
             dist: src/agilab/core/agi-core/dist
             pypi_project: agi-core
             pypi_environment: pypi-agi-core
+            artifact_policy: wheel+sdist
           - package: agi-apps
             project: src/agilab/lib/agi-apps
             dist: src/agilab/lib/agi-apps/dist
             pypi_project: agi-apps
             pypi_environment: pypi-agi-apps
+            artifact_policy: wheel-only
     environment:
       name: ${{ matrix.pypi_environment }}
       url: https://pypi.org/project/${{ matrix.pypi_project }}/
@@ -262,10 +269,26 @@ jobs:
         run: rm -rf "${{ matrix.dist }}"
 
       - name: Build ${{ matrix.package }}
-        run: uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}" --wheel
+        run: |
+          set -euxo pipefail
+          if [ "${{ matrix.artifact_policy }}" = "wheel-only" ]; then
+            uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}" --wheel
+          else
+            uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}"
+          fi
 
       - name: Verify ${{ matrix.package }}
         run: twine check "${{ matrix.dist }}"/*
+
+      - name: Record ${{ matrix.package }} release artifact hashes
+        run: |
+          set -euxo pipefail
+          python tools/release_artifact_manifest.py \
+            --dist-dir "${{ matrix.dist }}" \
+            --package "${{ matrix.package }}" \
+            --artifact-policy "${{ matrix.artifact_policy }}" \
+            --output-dir "test-results/release-artifacts/${{ matrix.package }}" \
+            --output-prefix "${{ matrix.package }}"
 
       - name: Check whether ${{ matrix.package }} distributions already exist on PyPI
         id: library-pypi-state
@@ -274,6 +297,16 @@ jobs:
           python tools/pypi_distribution_state.py \
             --dist-dir "${{ matrix.dist }}" \
             --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload ${{ matrix.package }} release distribution evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-dist-${{ matrix.package }}
+          path: |
+            ${{ matrix.dist }}/*
+            test-results/release-artifacts/${{ matrix.package }}/*
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Ensure PyPI auth is configured for library packages
         if: steps.library-pypi-state.outputs.all-exist != 'true'
@@ -339,10 +372,20 @@ jobs:
           find src/agilab/apps src/agilab/views -type l -print -delete || true
 
       - name: Build agilab
-        run: uv --preview-features extra-build-dependencies build --wheel
+        run: uv --preview-features extra-build-dependencies build
 
       - name: Verify agilab
         run: twine check dist/*
+
+      - name: Record agilab release artifact hashes
+        run: |
+          set -euxo pipefail
+          python tools/release_artifact_manifest.py \
+            --dist-dir dist \
+            --package agilab \
+            --artifact-policy wheel+sdist \
+            --output-dir test-results/release-artifacts/agilab \
+            --output-prefix agilab
 
       - name: Check whether agilab distribution already exists on PyPI
         id: agilab-pypi-state
@@ -351,6 +394,16 @@ jobs:
           python tools/pypi_distribution_state.py \
             --dist-dir dist \
             --github-output "$GITHUB_OUTPUT"
+
+      - name: Upload agilab release distribution evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: release-dist-agilab
+          path: |
+            dist/*
+            test-results/release-artifacts/agilab/*
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Ensure PyPI auth is configured for agilab
         if: steps.agilab-pypi-state.outputs.all-exist != 'true'
@@ -377,3 +430,69 @@ jobs:
         with:
           packages-dir: dist/
           skip-existing: true
+
+  publish-release-assets:
+    needs:
+      - publish-library-packages
+      - publish-agilab
+      - supply-chain-evidence
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    env:
+      VERSION: ${{ github.event.inputs.version || github.ref_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download release distribution artifacts
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: release-dist-*
+          path: release-assets/distributions
+
+      - name: Download supply-chain profile evidence
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: supply-chain-release-evidence
+          path: release-assets/supply-chain
+
+      - name: Assemble GitHub Release supply-chain assets
+        run: |
+          set -euxo pipefail
+          mkdir -p github-release-assets
+          find release-assets/distributions -type f \( \
+            -name '*.whl' -o \
+            -name '*.tar.gz' -o \
+            -name '*-artifact-hashes.json' -o \
+            -name '*-SHA256SUMS.txt' \
+          \) -print -exec cp {} github-release-assets/ \;
+          tar -czf github-release-assets/supply-chain-release-evidence.tar.gz \
+            -C release-assets/supply-chain .
+          tar -czf github-release-assets/release-distribution-evidence.tar.gz \
+            -C release-assets/distributions .
+          (cd github-release-assets && shasum -a 256 * > SHA256SUMS.txt)
+
+      - name: Attest GitHub Release assets
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4
+        with:
+          subject-path: github-release-assets/**
+
+      - name: Upload supply-chain assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          release_tag="${VERSION#refs/tags/}"
+          if [[ "$release_tag" != v* ]]; then
+            release_tag="v${release_tag}"
+          fi
+          if ! gh release view "$release_tag" >/dev/null 2>&1; then
+            gh release create "$release_tag" \
+              --title "AGILAB ${release_tag#v}" \
+              --notes "AGILAB release artifacts and supply-chain evidence."
+          fi
+          gh release upload "$release_tag" github-release-assets/* --clobber
