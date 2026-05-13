@@ -283,6 +283,51 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
     ]
 
 
+def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Path, monkeypatch):
+    module = _load_analysis_module()
+    project_root = tmp_path / "apps" / "flight_project"
+    notebook_path = project_root / "notebooks" / "lab_stages.ipynb"
+    notebook_path.parent.mkdir(parents=True)
+    notebook_path.write_text("{}", encoding="utf-8")
+    commands: list[tuple[str, str]] = []
+    port_checks = iter([False, True])
+
+    class _FakeProcess:
+        returncode = None
+
+        def poll(self):
+            return None
+
+    fake_logger = SimpleNamespace(info=lambda *_args, **_kwargs: None, error=lambda *_args, **_kwargs: None)
+    fake_env = SimpleNamespace(
+        envars={},
+        uv="uv --quiet",
+        AGILAB_LOG_ABS=tmp_path,
+        logger=fake_logger,
+    )
+    fake_st = SimpleNamespace(session_state={"env": fake_env})
+
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_is_port_open", lambda _port: next(port_checks))
+
+    def _fake_exec_bg(_env, cmd: str, cwd: str, process_env=None):
+        commands.append((cmd, cwd))
+        return _FakeProcess()
+
+    monkeypatch.setattr(module, "exec_bg", _fake_exec_bg)
+
+    assert module._ensure_notebook_sidecar("notebook-key", notebook_path, 8766, project_root) is True
+
+    assert len(commands) == 1
+    command, cwd = commands[0]
+    assert cwd == str(project_root.resolve())
+    assert "jupyter lab --no-browser" in command
+    assert str(notebook_path.resolve()) not in command
+    assert "--ServerApp.root_dir=" in command
+    assert "--ServerApp.tornado_settings=" in command
+    assert "frame-ancestors *;" in command
+
+
 def test_resolve_default_view_accepts_named_view(tmp_path: Path):
     module = _load_analysis_module()
     view_path = tmp_path / "view_maps_network.py"

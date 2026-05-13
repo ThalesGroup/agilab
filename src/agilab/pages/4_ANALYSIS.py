@@ -19,6 +19,7 @@ import socket
 import time
 import hashlib
 import html
+import json
 import re
 import inspect
 from typing import Any, Union
@@ -1858,6 +1859,17 @@ def _notebook_lab_tree_path(notebook_path: Path, project_root: Path) -> str:
     return quote(rel_path.as_posix(), safe="/")
 
 
+def _notebook_iframe_tornado_settings_arg() -> str:
+    """Return Jupyter headers that allow the local Streamlit parent to embed Lab."""
+    settings = {
+        "headers": {
+            "Content-Security-Policy": "frame-ancestors *;",
+            "X-Frame-Options": "",
+        }
+    }
+    return shlex.quote(json.dumps(settings, separators=(",", ":")))
+
+
 def _ensure_notebook_sidecar(
     notebook_key: str,
     notebook_path: Path,
@@ -1880,15 +1892,16 @@ def _ensure_notebook_sidecar(
 
     project_home = str(project_root.resolve())
     project_home_quoted = shlex.quote(project_home)
-    notebook_arg = shlex.quote(str(notebook_path.resolve()))
+    tornado_settings = _notebook_iframe_tornado_settings_arg()
     run_cmd = (
         f"{uv} --preview-features extra-build-dependencies run "
         f"--project {project_home_quoted} --with jupyterlab --with ipykernel "
-        f"jupyter lab {notebook_arg} --no-browser "
+        f"jupyter lab --no-browser "
         f"--ServerApp.ip=127.0.0.1 --ServerApp.port={port} "
         f"--ServerApp.open_browser=False --ServerApp.token= --ServerApp.password= "
         f"--ServerApp.allow_origin={shlex.quote('*')} --ServerApp.disable_check_xsrf=True "
-        f"--ServerApp.root_dir={project_home_quoted}"
+        f"--ServerApp.root_dir={project_home_quoted} "
+        f"--ServerApp.tornado_settings={tornado_settings}"
     )
     env.logger.info("Starting project notebook sidecar: %s", run_cmd)
     attempts.append(f"Trying JupyterLab sidecar rooted at: {project_home}")
