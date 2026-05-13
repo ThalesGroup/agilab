@@ -5,9 +5,9 @@
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-pages)](https://opensource.org/licenses/BSD-3-Clause)
 
 `agi-pages` is the umbrella/provider package for AGILAB public analysis views.
-It installs the supported `view-*` distributions and exposes a small discovery
-API so the AGILAB ANALYSIS page and exported notebooks can resolve installed
-view bundles without embedding the page source in the root `agilab` wheel.
+It exposes a small discovery API so the AGILAB ANALYSIS page and exported
+notebooks can resolve installed view bundles without embedding the page source
+in the root `agilab` wheel.
 
 ## Quick Install
 
@@ -34,6 +34,6 @@ print(agi_pages.bundles_root())
 `agi-env` uses this provider only when `agi-pages` is installed. A base
 `agilab` install remains CLI/core-only and does not require this package.
 
-The default umbrella covers the public views with general AGILAB UI runtime
-compatibility. Specialized views with narrower runtime constraints can still be
-installed independently.
+The default umbrella covers the shared AGILAB UI runtime. Specialized views
+with narrower runtime constraints are built as release artifacts and can be
+installed independently once their PyPI publishers are configured.

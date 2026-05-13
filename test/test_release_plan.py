@@ -51,15 +51,17 @@ def test_release_plan_library_matrix_matches_package_split_contract() -> None:
     assert module.umbrella_package() == _expected_entry(UMBRELLA_PACKAGE_CONTRACT, module)
 
 
-def test_release_plan_publishes_all_payload_packages_required_by_umbrellas() -> None:
+def test_release_plan_archives_decoupled_payload_packages_without_pypi_upload() -> None:
     module = _load_module()
     matrix = {entry["package"]: entry for entry in module.library_matrix()}
 
     assert APP_PROJECT_PACKAGES
     assert PAGE_BUNDLE_PACKAGES
-    assert matrix["agi-app-flight-project"]["publish_to_pypi"] == "true"
+    assert matrix["agi-app-flight-project"]["publish_to_pypi"] == "false"
     for package in (*APP_PROJECT_PACKAGES, *PAGE_BUNDLE_PACKAGES):
-        assert matrix[package.name]["publish_to_pypi"] == "true", package.name
+        assert matrix[package.name]["publish_to_pypi"] == "false", package.name
+    assert matrix["agi-pages"]["publish_to_pypi"] == "true"
+    assert matrix["agi-apps"]["publish_to_pypi"] == "true"
 
 
 def test_release_plan_github_output_is_compact_and_parseable(tmp_path: Path) -> None:

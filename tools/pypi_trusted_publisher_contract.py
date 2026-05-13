@@ -12,13 +12,18 @@ from typing import Iterable, Sequence
 
 try:
     from package_split_contract import PACKAGE_CONTRACTS, PACKAGE_NAMES
+    from release_plan import PYPI_PUBLISH_ROLES
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
     from tools.package_split_contract import PACKAGE_CONTRACTS, PACKAGE_NAMES
+    from tools.release_plan import PYPI_PUBLISH_ROLES
 
 
 DEFAULT_OWNER = "ThalesGroup"
 DEFAULT_REPOSITORY = "agilab"
 DEFAULT_WORKFLOW = "pypi-publish.yaml"
+PYPI_PUBLISH_PACKAGE_NAMES = tuple(
+    package.name for package in PACKAGE_CONTRACTS if package.role in PYPI_PUBLISH_ROLES
+)
 
 
 @dataclass(frozen=True)
@@ -45,7 +50,7 @@ def trusted_publisher_claims(
 ) -> list[TrustedPublisherClaim]:
     """Return the expected PyPI trusted-publisher claims in release order."""
 
-    selected = set(package_names or PACKAGE_NAMES)
+    selected = set(package_names or PYPI_PUBLISH_PACKAGE_NAMES)
     unknown = selected.difference(PACKAGE_NAMES)
     if unknown:
         raise ValueError(f"Unknown public package(s): {', '.join(sorted(unknown))}")

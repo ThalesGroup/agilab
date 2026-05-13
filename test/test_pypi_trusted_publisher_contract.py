@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools" / "pypi_trusted_publisher_contract.py"
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
-from package_split_contract import PACKAGE_CONTRACTS, PACKAGE_NAMES
+from package_split_contract import PACKAGE_CONTRACTS
 
 
 def _load_module():
@@ -25,10 +25,13 @@ def _load_module():
 def test_trusted_publisher_claims_match_package_split_contract() -> None:
     module = _load_module()
     claims = module.trusted_publisher_claims()
+    expected_packages = [
+        package for package in PACKAGE_CONTRACTS if package.role in module.PYPI_PUBLISH_ROLES
+    ]
 
-    assert [claim.project for claim in claims] == list(PACKAGE_NAMES)
+    assert [claim.project for claim in claims] == [package.name for package in expected_packages]
     assert [claim.environment for claim in claims] == [
-        package.pypi_environment for package in PACKAGE_CONTRACTS
+        package.pypi_environment for package in expected_packages
     ]
     for claim in claims:
         assert claim.owner == "ThalesGroup"
@@ -76,10 +79,11 @@ def test_workflow_contract_validation_covers_release_publish_matrix() -> None:
 
 
 def test_docs_list_every_required_trusted_publisher_environment() -> None:
+    module = _load_module()
     docs = (REPO_ROOT / "docs/source/package-publishing-policy.rst").read_text(encoding="utf-8")
 
     assert "invalid-publisher" in docs
     assert "repo:ThalesGroup/agilab:environment:<environment>" in docs
-    for package in PACKAGE_CONTRACTS:
-        assert f"``{package.name}``" in docs
-        assert f"``{package.pypi_environment}``" in docs
+    for claim in module.trusted_publisher_claims():
+        assert f"``{claim.project}``" in docs
+        assert f"``{claim.environment}``" in docs
