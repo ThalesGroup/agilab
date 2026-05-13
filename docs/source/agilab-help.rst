@@ -6,8 +6,7 @@ This page maps the built-in AGILab web pages and shows how they fit together.
 The main web interface exposes one navigation surface for:
 
 - **Core pages** (Project, Orchestrate, Workflow, Analysis), and
-- **Page bundles and project notebooks** (optional sidecar surfaces launched
-  from Analysis).
+- **Page bundles** (optional dashboards launched from Analysis).
 
 How pages are presented
 -----------------------
@@ -24,8 +23,7 @@ Core pages
 - :doc:`edit-help` — **PROJECT**: inspect and modify project sources and settings.
 - :doc:`execute-help` — **ORCHESTRATE**: install workers, generate distributions, and run pipelines.
 - :doc:`experiment-help` — **WORKFLOW**: iterate in ``lab_stages.toml``, run snippets against exported data, and export a runnable supervisor notebook for use outside the AGILAB UI.
-- :doc:`explore-help` — **ANALYSIS**: discover, configure, and launch page bundles
-  and project notebooks.
+- :doc:`explore-help` — **ANALYSIS**: discover, configure, and launch page bundles.
 
 Core page tour
 --------------
@@ -60,8 +58,8 @@ Use this as a page map, not as the newcomer proof path:
 3. Move to :doc:`experiment-help` (Workflow) to import or iterate that
    generated stage in ``lab_stages.toml`` and export a runnable supervisor
    notebook when you want the pipeline outside the AGILAB UI.
-4. Open :doc:`explore-help` (Analysis) to configure and launch page bundles or
-   project notebooks for deeper views.
+4. Open :doc:`explore-help` (Analysis) to configure and launch page bundles for
+   deeper views.
 
 Public navigation split
 -----------------------
