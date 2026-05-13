@@ -184,6 +184,28 @@ def _notebook_import_module_name(module_dir: Path) -> str:
     return module or "lab_stages"
 
 
+def _notebook_import_preview_is_safe(preview: Dict[str, Any]) -> bool:
+    preflight = preview.get("preflight", {})
+    return isinstance(preflight, dict) and preflight.get("safe_to_import") is True
+
+
+def _notebook_import_blocking_detail(preflight: Any) -> str:
+    if not isinstance(preflight, dict):
+        return "Notebook preflight did not produce a valid report."
+    risks = preflight.get("risks", [])
+    if isinstance(risks, list):
+        messages: list[str] = []
+        for risk in risks:
+            if not isinstance(risk, dict) or risk.get("level") != "error":
+                continue
+            message = str(risk.get("message") or risk.get("rule") or "").strip()
+            if message:
+                messages.append(message)
+        if messages:
+            return "; ".join(messages[:3])
+    return "Notebook import preflight marked this notebook unsafe to import."
+
+
 def build_notebook_import_preview(
     uploaded_file: Any,
     module_dir: Path,
@@ -233,6 +255,8 @@ def write_notebook_import_preview(
     preview: Dict[str, Any],
     module_dir: Path,
     stages_file: Path,
+    *,
+    view_manifest_dir: Path | None = None,
 ) -> int:
     """Persist a previously built notebook import preview."""
     module_dir = Path(module_dir)
@@ -250,7 +274,7 @@ def write_notebook_import_preview(
     contract_path = module_dir / "notebook_import_contract.json"
     pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
     view_plan_path = module_dir / "notebook_import_view_plan.json"
-    view_manifest_path = discover_notebook_import_view_manifest(module_dir)
+    view_manifest_path = discover_notebook_import_view_manifest(view_manifest_dir or module_dir)
     write_notebook_import_contract(
         contract_path,
         notebook_import,
@@ -910,14 +934,25 @@ def notebook_to_toml(
     uploaded_file: Any,
     toml_file_name: str,
     module_dir: Path,
+    *,
+    view_manifest_dir: Path | None = None,
 ) -> int:
     """Convert uploaded Jupyter notebook file to a TOML file."""
     preview = build_notebook_import_preview(uploaded_file, module_dir)
     if preview is None:
         return 0
+    if not _notebook_import_preview_is_safe(preview):
+        detail = _notebook_import_blocking_detail(preview.get("preflight", {}))
+        _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
+        return 0
     try:
         stages_file = Path(module_dir) / toml_file_name
-        return write_notebook_import_preview(preview, module_dir, stages_file)
+        return write_notebook_import_preview(
+            preview,
+            module_dir,
+            stages_file,
+            view_manifest_dir=view_manifest_dir,
+        )
     except (OSError, TypeError, ValueError) as e:
         _emit_streamlit_message("error", f"Failed to save TOML file: {e}")
         logger.error(
@@ -931,6 +966,7 @@ def on_preview_notebook_import(
     key: str,
     module_dir: Path,
     index_page: str,
+    view_manifest_dir: Path | None = None,
 ) -> None:
     """Build a notebook import preview from the sidebar uploader without writing files."""
     uploaded_file = st.session_state.get(key)
@@ -965,6 +1001,8 @@ def confirm_notebook_import_preview(
     module_dir: Path,
     stages_file: Path,
     index_page: str,
+    *,
+    view_manifest_dir: Path | None = None,
 ) -> int:
     """Persist the current notebook import preview and update editor state."""
     preview_key = _notebook_import_preview_key(index_page)
@@ -972,8 +1010,17 @@ def confirm_notebook_import_preview(
     if not isinstance(preview, dict):
         _emit_streamlit_message("error", "No notebook import preview is available.")
         return 0
+    if not _notebook_import_preview_is_safe(preview):
+        detail = _notebook_import_blocking_detail(preview.get("preflight", {}))
+        _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
+        return 0
     try:
-        cell_count = write_notebook_import_preview(preview, module_dir, stages_file)
+        cell_count = write_notebook_import_preview(
+            preview,
+            module_dir,
+            stages_file,
+            view_manifest_dir=view_manifest_dir,
+        )
     except (OSError, TypeError, ValueError) as exc:
         _emit_streamlit_message("error", f"Failed to save notebook import preview: {exc}")
         logger.error(
@@ -1003,6 +1050,8 @@ def render_notebook_import_preview(
     module_dir: Path,
     stages_file: Path,
     index_page: str,
+    *,
+    view_manifest_dir: Path | None = None,
 ) -> None:
     """Render confirm/cancel controls for the current notebook import preview."""
     preview = st.session_state.get(_notebook_import_preview_key(index_page))
@@ -1021,11 +1070,23 @@ def render_notebook_import_preview(
             f"{int(summary.get('output_count', 0) or 0)} output(s), "
             f"{int(risk_counts.get('warning', 0) or 0)} warning(s)."
         )
+    if not _notebook_import_preview_is_safe(preview):
+        error = getattr(sidebar, "error", None)
+        if callable(error):
+            error(f"Notebook import blocked: {_notebook_import_blocking_detail(preflight)}")
     button = getattr(sidebar, "button", None)
     if not callable(button):
         return
-    if button("Import preview", key=f"{index_page}__confirm_notebook_import"):
-        confirm_notebook_import_preview(module_dir, stages_file, index_page)
+    if _notebook_import_preview_is_safe(preview) and button(
+        "Import preview",
+        key=f"{index_page}__confirm_notebook_import",
+    ):
+        confirm_notebook_import_preview(
+            module_dir,
+            stages_file,
+            index_page,
+            view_manifest_dir=view_manifest_dir,
+        )
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)
 

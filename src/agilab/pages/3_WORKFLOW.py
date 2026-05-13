@@ -564,15 +564,22 @@ def _render_notebook_actions(
         )
 
         key = index_page_str + "import_notebook"
+        import_module_dir = stages_file.parent
+        view_manifest_dir = _resolve_active_app_project_dir(env, project_name)
         st.markdown("##### Import")
         st.file_uploader(
             "Import notebook",
             type="ipynb",
             key=key,
             on_change=on_preview_notebook_import,
-            args=(key, module_path, index_page_str),
+            args=(key, import_module_dir, index_page_str, view_manifest_dir),
         )
-        render_notebook_import_preview(module_path, stages_file, index_page_str)
+        render_notebook_import_preview(
+            import_module_dir,
+            stages_file,
+            index_page_str,
+            view_manifest_dir=view_manifest_dir,
+        )
 
         export_context = build_notebook_export_context(
             env,
@@ -796,6 +803,52 @@ def _canonical_pipeline_project_modules(env: AgiEnv, raw_modules: List[str]) -> 
     # canonical *_project directory is known.
     _add(getattr(env, "target", ""))
     return modules
+
+
+def _resolve_active_app_project_dir(env: AgiEnv, project_name: str) -> Path | None:
+    raw_names = [project_name, getattr(env, "app", None), getattr(env, "target", None)]
+    app_names = [str(name).strip() for name in raw_names if str(name or "").strip()]
+    candidates: list[Any] = []
+    for root_attr in ("apps_path", "builtin_apps_path"):
+        root = getattr(env, root_attr, None)
+        if not root:
+            continue
+        for app_name in app_names:
+            candidates.append(Path(root) / app_name)
+    apps_path = getattr(env, "apps_path", None)
+    if apps_path:
+        for app_name in app_names:
+            candidates.append(Path(apps_path) / "builtin" / app_name)
+    for attr in ("active_app", "active_app_path", "app_path"):
+        value = getattr(env, attr, None)
+        if not value:
+            continue
+        try:
+            candidate = Path(value).expanduser()
+        except (OSError, TypeError, ValueError):
+            continue
+        if app_names and candidate.name not in app_names:
+            continue
+        candidates.append(candidate)
+
+    seen: set[Path] = set()
+    for raw_candidate in candidates:
+        try:
+            candidate = Path(raw_candidate).expanduser()
+        except (OSError, TypeError, ValueError):
+            continue
+        if not candidate.is_absolute() and len(candidate.parts) <= 1:
+            continue
+        try:
+            resolved = candidate.resolve()
+        except (OSError, RuntimeError):
+            resolved = candidate
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        if resolved.is_dir():
+            return resolved
+    return None
 
 
 def sidebar_controls() -> None:
