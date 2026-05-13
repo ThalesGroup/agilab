@@ -58,7 +58,7 @@ def test_demo_page_keeps_three_generic_demo_routes() -> None:
     assert "Distributed worker route" in demos
     assert "MLflow tracking route" in demos
     assert "Notebook migration route" in demos
-    assert "python -m pip install agilab" in demos
+    assert 'python -m pip install "agilab[examples]"' in demos
     assert "tools/public_proof_scenarios.py --compact" in demos
     assert "--first-proof-json first-proof.json --hf-smoke-json hf-space-smoke.json" in demos
     assert "python -m agilab.lab_run first-proof --json --max-seconds 60" in demos
@@ -72,17 +72,26 @@ def test_release_proof_page_collects_public_audit_evidence() -> None:
     demos = (DOCS_SOURCE / "demos.rst").read_text(encoding="utf-8")
     manifest = _release_proof_manifest()
     release = manifest["release"]
+    package_spec = release["package_name"]
+    if extras := release.get("package_extras", []):
+        package_spec = f"{package_spec}[{','.join(extras)}]"
     ci_runs = {row["id"]: row for row in manifest["ci_runs"]}
 
     assert "Release Proof" in page
     assert "generated from docs/source/data/release_proof.toml" in page
-    assert f"{release['package_name']}=={release['package_version']}" in page
+    assert f"{package_spec}=={release['package_version']}" in page
     assert release["github_release_tag"] in page
     assert f"repo-guardrails run {ci_runs['release-guardrails']['run_id']}" in page
     assert f"docs-source-guard run {ci_runs['docs-source-guard']['run_id']}" in page
     assert f"coverage run {ci_runs['coverage']['run_id']}" in page
     assert release["hf_space_commit"] in page
     assert "python -m agilab.lab_run first-proof --json --max-seconds 60" in page
+    assert (
+        "Live public-demo availability is checked only when a public-demo-smoke run"
+        in normalized_page
+    )
+    assert "opened the public AGILAB demo route during the release guardrail run" not in page
+    assert "hosted demo availability at the time of validation" not in page
     assert "does not certify every remote cluster topology" in normalized_page
     assert "release-proof" in index
     assert ":doc:`release-proof`" in demos
