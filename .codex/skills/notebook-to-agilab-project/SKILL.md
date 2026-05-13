@@ -1,9 +1,9 @@
 ---
 name: notebook-to-agilab-project
-description: Migrate a small local notebook workflow into an AGILAB project. Use this skill when a user wants a sequence of notebooks turned into a reproducible AGILAB project with lab_stages.toml, explicit artifact contracts, a conceptual workflow view, and an ANALYSIS page that shows why the migration is useful.
+description: Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-07
+  updated: 2026-05-13
 ---
 
 # Notebook To AGILAB Project
@@ -40,6 +40,7 @@ delivery.
    - `PROJECT`: args and dataset location
    - `WORKFLOW`: explicit ordered stages in `lab_stages.toml`
    - `ANALYSIS`: one page that reads the exported artifacts
+   - project notebooks: reusable `.ipynb` files under `<app_project>/notebooks/`
 
 4. Make the migration value explicit.
    - Show what was implicit in notebooks.
@@ -57,6 +58,33 @@ delivery.
 - a `pipeline_view.dot` or `pipeline_view.json`
 - exported sample artifacts for ANALYSIS
 - one analysis page bundle or a concrete plan to create it
+
+## Notebook Import And Launch Guardrails
+
+Use these checks whenever a notebook migration touches WORKFLOW import or the
+ANALYSIS notebook launcher:
+
+- Keep project-owned notebooks under `<app_project>/notebooks/`.
+- Keep generated WORKFLOW exports and import sidecars in the selected project
+  export workspace, normally under `exported_notebooks/<project>/`.
+- Do not create or maintain both `flight` and `flight_project` project roots.
+  Pick the canonical project directory name and make aliases point to it only
+  when an existing installer contract requires that.
+- For WORKFLOW notebook import, separate the output directory from the manifest
+  lookup directory:
+  - output: `stages_file.parent`
+  - manifest lookup: selected app project root, for example
+    `src/agilab/apps/builtin/<project>/notebook_import_views.toml`
+- Resolve manifest lookup from the selected project name first. Do not blindly
+  reuse `env.active_app` when WORKFLOW can switch projects in the same session.
+- Treat `preflight.safe_to_import` as a hard gate. If it is false, show the
+  blocking preflight error and do not write `lab_stages.toml` or notebook import
+  sidecars.
+- For supervisor-exported notebooks, preserve each imported stage's
+  `source_cell_index` so artifact role inference can classify inputs and outputs
+  from the right source code.
+- ANALYSIS should discover launchable notebooks from the app project notebooks
+  directory and persist notebook selection alongside view selection.
 
 ## References
 
