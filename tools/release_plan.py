@@ -16,6 +16,14 @@ except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
 
 
 SCHEMA_VERSION = "agilab.release_plan.v1"
+PYPI_PUBLISH_ROLES = {
+    "runtime-component",
+    "ui-component",
+    "page-umbrella",
+    "runtime-bundle",
+    "app-umbrella",
+    "top-level-bundle",
+}
 
 
 def _package_entry(package: Any) -> dict[str, str]:
@@ -26,6 +34,7 @@ def _package_entry(package: Any) -> dict[str, str]:
         "pypi_project": package.name,
         "pypi_environment": package.pypi_environment,
         "artifact_policy": package.artifact_policy,
+        "publish_to_pypi": "true" if package.role in PYPI_PUBLISH_ROLES else "false",
     }
 
 
@@ -66,16 +75,17 @@ def format_text(payload: dict[str, Any]) -> str:
     ]
     for package in payload["library_matrix"]:
         lines.append(
-            "  - {package}: {project} -> {pypi_environment} ({artifact_policy})".format(
-                **package
-            )
+            (
+                "  - {package}: {project} -> {pypi_environment} "
+                "({artifact_policy}, publish={publish_to_pypi})"
+            ).format(**package)
         )
     umbrella = payload["umbrella_package"]
     lines.extend(
         [
             "",
             "Umbrella package:",
-            "  - {package}: {project} -> {pypi_environment} ({artifact_policy})".format(
+            "  - {package}: {project} -> {pypi_environment} ({artifact_policy}, publish={publish_to_pypi})".format(
                 **umbrella
             ),
         ]
@@ -87,13 +97,14 @@ def format_markdown(payload: dict[str, Any]) -> str:
     lines = [
         "## AGILAB release package plan",
         "",
-        "| Package | Project | PyPI environment | Artifact policy |",
-        "| --- | --- | --- | --- |",
+        "| Package | Project | PyPI environment | Artifact policy | Publish to PyPI |",
+        "| --- | --- | --- | --- | --- |",
     ]
     for package in [*payload["library_matrix"], payload["umbrella_package"]]:
         lines.append(
             f"| `{package['package']}` | `{package['project']}` | "
-            f"`{package['pypi_environment']}` | `{package['artifact_policy']}` |"
+            f"`{package['pypi_environment']}` | `{package['artifact_policy']}` | "
+            f"`{package['publish_to_pypi']}` |"
         )
     return "\n".join(lines) + "\n"
 
@@ -132,6 +143,9 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         ),
         "--artifact-policy \"${{ matrix.artifact_policy }}\"": (
             "artifact verification must use the generated artifact policy"
+        ),
+        "matrix.publish_to_pypi == 'true'": (
+            "PyPI upload steps must be gated by the generated publish flag"
         ),
     }
     missing = [

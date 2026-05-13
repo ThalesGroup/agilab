@@ -85,6 +85,7 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "# release/v1" in text
     assert "tools/pypi_distribution_state.py" in text
     assert "steps.library-pypi-state.outputs.all-exist != 'true'" in text
+    assert "matrix.publish_to_pypi == 'true'" in text
     assert "steps.agilab-pypi-state.outputs.all-exist != 'true'" in text
     assert "PYPI_TRUSTED_PUBLISHING" in text
     assert "PyPI publication requires Trusted Publishing/OIDC" in text
@@ -133,7 +134,7 @@ def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "publish-release-assets:" in text
-    assert "actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53" in text
+    assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c" in text
     assert "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26" in text
     assert "attestations: write" in text
     assert "artifact-metadata: write" in text
