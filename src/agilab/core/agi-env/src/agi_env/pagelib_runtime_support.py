@@ -193,20 +193,20 @@ def activate_mlflow(
             tracking_dir
         )
         artifact_uri = resolve_mlflow_artifact_dir_fn(tracking_dir).as_uri()
-        cmd = [
-            sys.executable,
-            "-m",
-            "mlflow",
-            "server",
-            "--backend-store-uri",
-            backend_uri,
-            "--default-artifact-root",
-            artifact_uri,
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-        ]
+        cmd = mlflow_store.mlflow_cli_argv(
+            [
+                "server",
+                "--backend-store-uri",
+                backend_uri,
+                "--default-artifact-root",
+                artifact_uri,
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(port),
+            ],
+            sys_executable=sys.executable,
+        )
         _launch_mlflow_server(subproc_fn, cmd, cwd)
         if not wait_for_listen_port_fn(port):
             session_state["server_started"] = False

@@ -48,6 +48,7 @@ PAGE_BUNDLE_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("view-queue-resilience", "src/agilab/apps-pages/view_queue_resilience"),
     ("view-relay-resilience", "src/agilab/apps-pages/view_relay_resilience"),
     ("view-release-decision", "src/agilab/apps-pages/view_release_decision"),
+    ("view-shap-explanation", "src/agilab/apps-pages/view_shap_explanation"),
     ("view-training-analysis", "src/agilab/apps-pages/view_training_analysis"),
 )
 

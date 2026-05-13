@@ -43,6 +43,7 @@ dependencies = [
     "view-queue-resilience==0.1.0",
     "view-relay-resilience==0.1.0",
     "view-release-decision==0.1.0",
+    "view-shap-explanation==0.1.0",
     "view-training-analysis==0.1.0",
 ]
 
@@ -108,6 +109,10 @@ dev = [
 
 [tool.uv.sources.view-release-decision]
     path = "../../apps-pages/view_release_decision"
+    editable = true
+
+[tool.uv.sources.view-shap-explanation]
+    path = "../../apps-pages/view_shap_explanation"
     editable = true
 
 [tool.uv.sources.view-training-analysis]

@@ -146,6 +146,11 @@ _ANALYSIS_VIEW_PROFILES = {
         "Aggregate run evidence into pass/fail release support.",
         "Use before publishing a demo, package, or validation result.",
     ),
+    "view_shap_explanation": (
+        "SHAP explanation",
+        "Inspect local feature attributions exported by SHAPKit, shap, or compatible explainers.",
+        "Use after a model workflow writes feature-attribution artifacts.",
+    ),
     "view_forecast_analysis": (
         "Forecast evidence",
         "Review forecast metrics and predictions.",

@@ -35,6 +35,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "view-queue-resilience",
         "view-relay-resilience",
         "view-release-decision",
+        "view-shap-explanation",
         "view-training-analysis",
     }
 )
