@@ -222,6 +222,28 @@ proof: package smoke tests, docs, and hosted demos are useful evidence, but they
 do not certify private clusters, sensitive-data deployments, or production
 operations.
 
+GitHub deployment environments
+------------------------------
+
+The real PyPI workflow uses one GitHub deployment environment per PyPI project
+so Trusted Publishing receives a project-specific OIDC claim:
+
+- ``pypi-agi-env``
+- ``pypi-agi-node``
+- ``pypi-agi-cluster``
+- ``pypi-agi-core``
+- ``pypi-agi-gui``
+- ``pypi-agi-pages``
+- ``pypi-agi-apps``
+- ``pypi-agilab``
+
+The old bare ``pypi`` environment belongs to the retired single-package
+publisher and must not be recreated or referenced by workflows. If GitHub's
+repository landing page shows ``pypi inactive`` in the Deployments widget, it is
+stale deployment history, not a current AGILAB component. Maintainers should
+delete only the retired ``pypi`` deployment records/environment and keep the
+package-specific environments above.
+
 Release cadence and post releases
 ---------------------------------
 

@@ -46,8 +46,9 @@ What was proved
 
 - The public GitHub Actions matrix validated the packaged first proof on
   Ubuntu, macOS, and Windows runners.
-- The hosted Hugging Face Space opened the public AGILAB demo route during the
-  release guardrail run.
+- The release proof records the hosted Hugging Face Space URL and commit. Live
+  public-demo availability is checked only when a public-demo-smoke run is
+  pinned or supplied separately.
 - The checked-in ``docs/source/data/ui_robot_evidence.json`` records the latest
   successful all-built-in UI robot matrix sweep, including app/page/widget
   counts and zero detected UI failures.
@@ -95,11 +96,13 @@ specific UI robot evidence run.
 Scope and limits
 ----------------
 
-This evidence proves the public package smoke, hosted demo availability at the
-time of validation, and documented first-proof routes. It does not certify
-every remote cluster topology, every GPU stack, private app repositories, cloud
-accounts, security posture, or long-running production operations. Those areas
-remain environment-dependent and are tracked in :doc:`compatibility-matrix`.
+This evidence proves the public package smoke, hosted demo identity, and
+documented first-proof routes. It proves live hosted-demo availability only
+when a public-demo-smoke run is pinned or supplied separately. It does not
+certify every remote cluster topology, every GPU stack, private app
+repositories, cloud accounts, security posture, or long-running production
+operations. Those areas remain environment-dependent and are tracked in
+:doc:`compatibility-matrix`.
 
 Related pages
 -------------

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import sys
 
 
@@ -111,6 +112,18 @@ def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
 
     assert UMBRELLA_PACKAGE_CONTRACT.pypi_environment in text
     assert "Publish ${{ matrix.package }} to PyPI with trusted publishing" in text
+
+
+def test_pypi_publish_does_not_recreate_legacy_single_pypi_environment() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    expected_environments = {
+        package.pypi_environment for package in LIBRARY_PACKAGE_CONTRACTS
+    } | {UMBRELLA_PACKAGE_CONTRACT.pypi_environment}
+
+    assert "pypi" not in expected_environments
+    assert len(expected_environments) == len(LIBRARY_PACKAGE_CONTRACTS) + 1
+    assert re.search(r"^\s*environment:\s*pypi\s*$", text, re.MULTILINE) is None
+    assert re.search(r"^\s*name:\s*pypi\s*$", text, re.MULTILINE) is None
 
 
 def test_test_pypi_publish_delegates_to_the_eight_package_release_tool() -> None:
