@@ -1053,6 +1053,10 @@ def test_flight_app_args_form_hf_seed_dataset_missing_is_informational(monkeypat
 
 def test_explore_page_multiselect(mock_ui_env):
     """Test the EXPLORE page multiselect and button rendering."""
+    notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
+    notebooks_dir.mkdir()
+    (notebooks_dir / "lab_stages.ipynb").write_text("{}", encoding="utf-8")
+
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
@@ -1091,6 +1095,10 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "agilab-analysis-view-links" in sidebar_markdown
     assert "current_page=" in sidebar_markdown
     assert "view_maps" in sidebar_markdown
+    assert "### Notebooks" in sidebar_markdown
+    assert "agilab-analysis-notebook-links" in sidebar_markdown
+    assert "current_notebook=" in sidebar_markdown
+    assert "lab_stages.ipynb" in sidebar_markdown
     sidebar_buttons = [button.label for button in at.sidebar.button]
     assert "view_maps" not in sidebar_buttons
     assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "analysis_sidebar_view__flight_project"]
@@ -1100,6 +1108,8 @@ def test_explore_page_multiselect(mock_ui_env):
     ms = at.multiselect(key=selection_key)
     
     assert "view_maps" in ms.options
+    notebook_ms = at.multiselect(key="notebook_selection__flight_project")
+    assert "lab_stages.ipynb" in notebook_ms.options
     
     # Select it
     ms.select("view_maps").run()
@@ -1223,6 +1233,52 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     assert "view_maps" not in reloaded_sidebar_markdown
     assert "view_barycentric" in reloaded_sidebar_markdown
     assert "current_page=" in reloaded_sidebar_markdown
+
+
+def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
+    """ANALYSIS persists selected project notebook launcher links."""
+    notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
+    (notebooks_dir / "extra").mkdir(parents=True)
+    (notebooks_dir / "lab_stages.ipynb").write_text("{}", encoding="utf-8")
+    (notebooks_dir / "extra" / "demo.ipynb").write_text("{}", encoding="utf-8")
+
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.query_params["current_page"] = "main"
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    settings_file = env.resolve_user_app_settings_file("flight_project")
+    settings_file.write_text(
+        "[pages]\nview_module = []\n[notebooks]\nselected = []\n",
+        encoding="utf-8",
+    )
+    at.session_state["env"] = env
+
+    at.run()
+
+    assert not at.exception
+    selection_key = "notebook_selection__flight_project"
+    at.multiselect(key=selection_key).select("extra/demo.ipynb").run()
+
+    assert not at.exception
+    with settings_file.open("rb") as f:
+        settings_payload = tomllib.load(f)
+    assert settings_payload["notebooks"]["selected"] == ["extra/demo.ipynb"]
+    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
+    assert "### Notebooks" in sidebar_markdown
+    assert "extra/demo.ipynb" in sidebar_markdown
+    assert "lab_stages.ipynb" not in sidebar_markdown
+    assert "current_notebook=" in sidebar_markdown
+
+    reloaded = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    reloaded.query_params["current_page"] = "main"
+    reloaded.session_state["env"] = env
+    reloaded.run()
+
+    assert not reloaded.exception
+    assert reloaded.session_state[selection_key] == ["extra/demo.ipynb"]
+    reloaded_sidebar_markdown = "\n".join(str(item.value) for item in reloaded.sidebar.markdown)
+    assert "extra/demo.ipynb" in reloaded_sidebar_markdown
+    assert "lab_stages.ipynb" not in reloaded_sidebar_markdown
+    assert "current_notebook=" in reloaded_sidebar_markdown
 
 
 def test_explore_page_sidebar_links_initialize_from_view_module(mock_ui_env):
