@@ -69,6 +69,33 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             profile_args.extend(["--profile", profile])
         return [_uv_python("tools/workflow_parity.py", *profile_args, *extras)]
 
+    if command in {"release", "pre-release"}:
+        forwarded = args or ["--staged"]
+        return [
+            _uv_python("tools/impact_validate.py", *forwarded),
+            _uv_python(
+                "tools/release_plan.py",
+                "--check-workflow",
+                ".github/workflows/pypi-publish.yaml",
+            ),
+            _uv_python(
+                "tools/pypi_trusted_publisher_contract.py",
+                "--check-workflow",
+                ".github/workflows/pypi-publish.yaml",
+            ),
+            _uv_python(
+                "tools/workflow_parity.py",
+                "--profile",
+                "dependency-policy",
+                "--profile",
+                "shared-core-typing",
+                "--profile",
+                "docs",
+                "--profile",
+                "badges",
+            ),
+        ]
+
     if command in {"badge", "guard"}:
         defaults = ["--changed-only", "--require-fresh-xml"]
         return [_uv_python("tools/coverage_badge_guard.py", *defaults, *args)]
@@ -97,6 +124,7 @@ def _usage() -> str:
   ./dev [--print-only] test [pytest args]
   ./dev [--print-only] regress [ga_regression_selector args]
   ./dev [--print-only] flow|profile <profile> [profile...] [workflow args]
+  ./dev [--print-only] release [impact_validate args]
   ./dev [--print-only] badge|guard [coverage_badge_guard args]
   ./dev [--print-only] docs
   ./dev [--print-only] skills <skill> [skill...]
@@ -107,6 +135,7 @@ High-frequency mappings:
   test      -> Run targeted pytest with -q while keeping all extra pytest arguments.
   regress   -> Use the GA regression selector on staged files and run the selected pytest subset.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags.
+  release   -> Run local release guards: impact, generated PyPI plan, trusted publisher contract, docs, dependency policy, typing, and badge freshness.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
   docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
   skills    -> Sync repo skills from Claude to Codex, then validate and regenerate indexes.

@@ -61,6 +61,16 @@ def _load_pypi_publish():
     return module
 
 
+def _load_release_plan():
+    module_path = REPO_ROOT / "tools/release_plan.py"
+    spec = importlib.util.spec_from_file_location("release_plan_contract_test_module", module_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_package_contract_matches_pyproject_names_paths_and_versions() -> None:
     versions: dict[str, str] = {}
 
@@ -162,13 +172,22 @@ def test_workflow_and_docs_cover_the_same_eight_package_split() -> None:
     workflow = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text(encoding="utf-8")
     docs = (REPO_ROOT / "docs/source/package-publishing-policy.rst").read_text(encoding="utf-8")
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    release_plan = _load_release_plan()
 
-    assert workflow.count("          - package: ") == len(LIBRARY_PACKAGE_CONTRACTS)
-    for package in LIBRARY_PACKAGE_CONTRACTS:
-        assert f"package: {package.name}" in workflow
-        assert f"project: {package.project}" in workflow
-        assert f"dist: {package.dist}" in workflow
-        assert f"pypi_environment: {package.pypi_environment}" in workflow
+    assert "tools/release_plan.py" in workflow
+    assert "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}" in workflow
+    assert workflow.count("          - package: ") == 0
+    assert release_plan.library_matrix() == [
+        {
+            "package": package.name,
+            "project": package.project,
+            "dist": package.dist,
+            "pypi_project": package.name,
+            "pypi_environment": package.pypi_environment,
+            "artifact_policy": package.artifact_policy,
+        }
+        for package in LIBRARY_PACKAGE_CONTRACTS
+    ]
 
     assert UMBRELLA_PACKAGE_CONTRACT.pypi_environment in workflow
 

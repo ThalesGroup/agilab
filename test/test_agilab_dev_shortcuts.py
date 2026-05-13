@@ -187,6 +187,69 @@ def test_workflow_profile_shortcut_repeats_profile_flags_and_keeps_options():
     ]
 
 
+def test_release_shortcut_runs_local_release_guards():
+    assert agilab_dev.planned_commands(["release"]) == [
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/impact_validate.py",
+            "--staged",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/release_plan.py",
+            "--check-workflow",
+            ".github/workflows/pypi-publish.yaml",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/pypi_trusted_publisher_contract.py",
+            "--check-workflow",
+            ".github/workflows/pypi-publish.yaml",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/workflow_parity.py",
+            "--profile",
+            "dependency-policy",
+            "--profile",
+            "shared-core-typing",
+            "--profile",
+            "docs",
+            "--profile",
+            "badges",
+        ],
+    ]
+
+
+def test_release_shortcut_keeps_impact_arguments():
+    assert agilab_dev.planned_commands(["release", "--files", "pyproject.toml"])[0] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "run",
+        "python",
+        "tools/impact_validate.py",
+        "--files",
+        "pyproject.toml",
+    ]
+
+
 def test_badge_guard_shortcut_uses_changed_only_fresh_xml_defaults():
     assert agilab_dev.planned_commands(["badge"]) == [
         [
