@@ -39,6 +39,16 @@ def _resolve_builtin_worker_paths(
     if env_obj.worker_path.exists() or env_obj.is_worker_env:
         return
 
+    candidate_apps: list[Path] = []
+    expected_project_names = {str(env_obj.app), f"{target}_project"}
+    for project_path in getattr(env_obj, "installed_app_project_paths", ()):
+        try:
+            project = Path(project_path)
+        except (TypeError, ValueError):
+            continue
+        if project.name in expected_project_names:
+            candidate_apps.append(project)
+
     builtin_roots: list[Path] = []
     if env_obj.builtin_apps_path is not None:
         builtin_roots.append(env_obj.builtin_apps_path)
@@ -49,9 +59,11 @@ def _resolve_builtin_worker_paths(
 
     for builtin_root in builtin_roots:
         try:
-            candidate_app = builtin_root / env_obj.app
+            candidate_apps.append(builtin_root / env_obj.app)
         except TypeError:
             continue
+
+    for candidate_app in candidate_apps:
         candidate_worker = candidate_app / "src" / target_worker / f"{target_worker}.py"
         if not candidate_worker.exists():
             continue

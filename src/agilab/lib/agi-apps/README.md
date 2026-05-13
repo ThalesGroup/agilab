@@ -4,10 +4,14 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-apps.svg)](https://pypi.org/project/agi-apps/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-apps)](https://opensource.org/licenses/BSD-3-Clause)
 
-`agi-apps` packages the public AGILAB built-in app projects and learning
-examples. It owns the `agilab.apps` and `agilab.examples` payload that the
-`agilab[ui]` and `agilab[examples]` profiles use for first-proof runs,
-newcomer demos, and workflow examples.
+`agi-apps` is the umbrella package for public AGILAB app project
+distributions. The app code now lives in focused packages such as
+`agi-app-flight-project`, `agi-app-mycode-project`, and
+`agi-app-meteo-forecast-project`.
+
+The umbrella keeps the lightweight `agilab.apps.install` helper and
+`agilab.examples` learning assets, then depends on the per-app packages so
+`agilab[ui]` and `agilab[examples]` still install the public app catalog.
 
 ## Quick Install
 
@@ -22,21 +26,13 @@ pip install "agilab[examples]"
 pip install "agilab[ui]"
 ```
 
-`agilab[examples]` adds notebook/demo helper dependencies. `agilab[ui]` adds
-the Streamlit UI stack and includes `agi-apps` so the UI opens with the public
-built-in projects available.
-
 ## Contents
 
-- `agilab.apps.install`: app installer entry point used by first-proof and UI
-  workflows.
-- `agilab.apps.builtin`: public built-in app projects such as `flight_project`,
-  `global_dag_project`, and UAV queue examples.
+- `agi_apps`: catalog of public app project distributions.
+- `agilab.apps.install`: installer helper used by first-proof and UI workflows.
 - `agilab.examples`: runnable scripts, previews, and notebook examples.
+- `agi-app-*-project`: self-contained packages that expose app project roots
+  through the `agilab.apps` entry point group.
 
-The package contains public examples, not private enterprise app templates or a
-production MLOps platform.
-
-`agi-apps` is published as a wheel-only package. The payload is assembled from
-the AGILAB monorepo during wheel build, so source distributions are deliberately
-disabled to avoid incomplete public app archives.
+The package contains public examples and app package dependencies, not private
+enterprise app templates or a production MLOps platform.

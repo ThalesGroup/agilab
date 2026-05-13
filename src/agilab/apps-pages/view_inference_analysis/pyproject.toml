@@ -1,12 +1,17 @@
 [project]
 name = "view-inference-analysis"
-version = "2026.04.17"
-requires-python = ">=3.13"
+version = "0.1.0"
+description = "AGILAB page bundle for inference analysis."
+readme = { text = "AGILAB page bundle for inference analysis.", content-type = "text/markdown" }
+requires-python = ">=3.11"
 dependencies = [
-    "agi-gui",
+    "agi-gui>=2026.05.12.post3,<2027.0",
     "pandas>=2.3.0",
     "plotly>=6.3.0",
 ]
+
+[project.entry-points."agilab.pages"]
+view_inference_analysis = "view_inference_analysis:bundle_root"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

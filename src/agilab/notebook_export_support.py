@@ -439,11 +439,98 @@ def _load_related_page_manifest(
     return {}, ()
 
 
+def _bundle_record_from_provider(bundle: Any) -> dict[str, str]:
+    if bundle is None:
+        return {}
+    if hasattr(bundle, "as_dict"):
+        try:
+            raw_record = bundle.as_dict()
+        except Exception:
+            raw_record = {}
+    elif isinstance(bundle, dict):
+        raw_record = bundle
+    else:
+        raw_record = {
+            "name": getattr(bundle, "name", ""),
+            "module": getattr(bundle, "module", "") or getattr(bundle, "name", ""),
+            "root_path": getattr(bundle, "root_path", ""),
+            "script_path": getattr(bundle, "script_path", ""),
+            "inline_renderer": getattr(bundle, "inline_renderer", ""),
+        }
+    record = {
+        "name": str(raw_record.get("name", "") or raw_record.get("module", "") or ""),
+        "module": str(raw_record.get("module", "") or raw_record.get("name", "") or ""),
+        "root_path": _normalize_path(raw_record.get("root_path", "")),
+        "script_path": _normalize_path(raw_record.get("script_path", "")),
+        "inline_renderer": str(raw_record.get("inline_renderer", "") or ""),
+    }
+    return record if record["script_path"] else {}
+
+
+def _discover_agi_pages_bundle(module_name: str, pages_root: str | Path | None = None) -> dict[str, str]:
+    try:
+        import agi_pages
+    except Exception:
+        return {}
+
+    resolver = getattr(agi_pages, "resolve_bundle", None)
+    if callable(resolver):
+        try:
+            bundle = resolver(module_name, pages_root=pages_root or None)
+        except TypeError:
+            try:
+                bundle = resolver(module_name)
+            except Exception:
+                bundle = None
+        except Exception:
+            bundle = None
+        record = _bundle_record_from_provider(bundle)
+        if record:
+            return record
+
+    script_resolver = getattr(agi_pages, "script_path", None)
+    if not callable(script_resolver):
+        return {}
+    try:
+        script = script_resolver(module_name, pages_root=pages_root or None)
+    except TypeError:
+        try:
+            script = script_resolver(module_name)
+        except Exception:
+            script = ""
+    except Exception:
+        script = ""
+    if not script:
+        return {}
+
+    inline_renderer = ""
+    inline_resolver = getattr(agi_pages, "inline_renderer_target", None)
+    if callable(inline_resolver):
+        try:
+            inline_renderer = str(inline_resolver(module_name, pages_root=pages_root or None) or "")
+        except TypeError:
+            try:
+                inline_renderer = str(inline_resolver(module_name) or "")
+            except Exception:
+                inline_renderer = ""
+        except Exception:
+            inline_renderer = ""
+    return {
+        "name": module_name,
+        "module": module_name,
+        "root_path": "",
+        "script_path": _normalize_path(script),
+        "inline_renderer": inline_renderer,
+    }
+
+
 def _discover_page_script(pages_root: str | Path | None, module_name: str) -> str:
-    if not pages_root:
-        return ""
-    bundle = discover_page_bundle(pages_root, module_name)
-    return str(bundle.script_path) if bundle is not None else ""
+    if pages_root:
+        bundle = discover_page_bundle(pages_root, module_name)
+        if bundle is not None:
+            return str(bundle.script_path)
+    provider_record = _discover_agi_pages_bundle(module_name, pages_root=pages_root)
+    return provider_record.get("script_path", "")
 
 
 def _discover_page_inline_renderer(
@@ -462,7 +549,8 @@ def _discover_page_inline_renderer(
     except (OSError, RuntimeError, TypeError, ValueError):
         return ""
     if not candidate.exists():
-        return ""
+        provider_record = _discover_agi_pages_bundle(page)
+        return provider_record.get("inline_renderer", "")
     return f"{candidate}:render_inline"
 
 
@@ -919,10 +1007,244 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return summary
 
 
+        def _path_exists(path_value):
+            if not path_value:
+                return False
+            try:
+                return Path(path_value).expanduser().exists()
+            except Exception:
+                return False
+
+
+        def _inline_renderer_target_exists(target):
+            target_text = str(target or "").strip()
+            if not target_text:
+                return False
+            module_target, _, _ = target_text.partition(":")
+            module_target = module_target.strip()
+            if not module_target:
+                return False
+            try:
+                path_target = Path(module_target).expanduser()
+            except Exception:
+                return True
+            if path_target.suffix == ".py" or "/" in module_target or "\\\\" in module_target:
+                return path_target.exists()
+            return True
+
+
+        def _resolve_pages_root():
+            configured = _normalized_path(AGILAB_NOTEBOOK_EXPORT.get("pages_root"))
+            if configured and _path_exists(configured):
+                return configured
+
+            try:
+                from agi_env import AgiEnv
+
+                env = AgiEnv()
+                pages_root = _normalized_path(getattr(env, "AGILAB_PAGES_ABS", ""))
+                if pages_root and _path_exists(pages_root):
+                    AGILAB_NOTEBOOK_EXPORT["pages_root"] = pages_root
+                    return pages_root
+            except Exception:
+                pass
+
+            try:
+                import agi_pages
+
+                pages_root = _normalized_path(agi_pages.bundles_root())
+                if pages_root and _path_exists(pages_root):
+                    AGILAB_NOTEBOOK_EXPORT["pages_root"] = pages_root
+                    return pages_root
+            except Exception:
+                pass
+
+            return configured
+
+
+        def _bundle_to_record(bundle):
+            if bundle is None:
+                return {{}}
+            if hasattr(bundle, "as_dict"):
+                try:
+                    raw_record = bundle.as_dict()
+                except Exception:
+                    raw_record = {{}}
+            elif isinstance(bundle, dict):
+                raw_record = bundle
+            else:
+                raw_record = {{
+                    "name": getattr(bundle, "name", ""),
+                    "module": getattr(bundle, "module", "") or getattr(bundle, "name", ""),
+                    "root_path": getattr(bundle, "root_path", ""),
+                    "script_path": getattr(bundle, "script_path", ""),
+                    "inline_renderer": getattr(bundle, "inline_renderer", ""),
+                }}
+
+            record = {{
+                "name": str(raw_record.get("name", "") or raw_record.get("module", "") or ""),
+                "module": str(raw_record.get("module", "") or raw_record.get("name", "") or ""),
+                "root_path": _normalized_path(raw_record.get("root_path", "")),
+                "script_path": _normalized_path(raw_record.get("script_path", "")),
+                "inline_renderer": str(raw_record.get("inline_renderer", "") or ""),
+            }}
+            return record if record.get("script_path") else {{}}
+
+
+        def _resolve_agi_pages_bundle(page, pages_root=None):
+            try:
+                import agi_pages
+            except Exception:
+                return {{}}
+
+            resolver = getattr(agi_pages, "resolve_bundle", None)
+            if callable(resolver):
+                try:
+                    bundle = resolver(page, pages_root=pages_root or None)
+                except TypeError:
+                    try:
+                        bundle = resolver(page)
+                    except Exception:
+                        bundle = None
+                except Exception:
+                    bundle = None
+                record = _bundle_to_record(bundle)
+                if record:
+                    return record
+
+            script_resolver = getattr(agi_pages, "script_path", None)
+            if not callable(script_resolver):
+                return {{}}
+            try:
+                script = script_resolver(page, pages_root=pages_root or None)
+            except TypeError:
+                try:
+                    script = script_resolver(page)
+                except Exception:
+                    script = ""
+            except Exception:
+                script = ""
+            if not script:
+                return {{}}
+            inline_renderer = ""
+            inline_resolver = getattr(agi_pages, "inline_renderer_target", None)
+            if callable(inline_resolver):
+                try:
+                    inline_renderer = str(inline_resolver(page, pages_root=pages_root or None) or "")
+                except TypeError:
+                    try:
+                        inline_renderer = str(inline_resolver(page) or "")
+                    except Exception:
+                        inline_renderer = ""
+                except Exception:
+                    inline_renderer = ""
+            return {{
+                "name": str(page),
+                "module": str(page),
+                "root_path": "",
+                "script_path": _normalized_path(script),
+                "inline_renderer": inline_renderer,
+            }}
+
+
+        def _inline_renderer_target_for_script(script):
+            if not script:
+                return ""
+            try:
+                candidate = Path(script).expanduser().resolve().with_name("notebook_inline.py")
+            except Exception:
+                return ""
+            if not candidate.exists():
+                return ""
+            return f"{{candidate}}:render_inline"
+
+
+        def _resolve_page_bundle_from_root(page, pages_root):
+            root_text = _normalized_path(pages_root)
+            page_name = str(page or "").strip()
+            if not root_text or not page_name:
+                return {{}}
+            try:
+                root = Path(root_text).expanduser()
+            except Exception:
+                return {{}}
+            direct_file = root / f"{{page_name}}.py"
+            if direct_file.exists() and direct_file.is_file():
+                script = direct_file.resolve()
+                return {{
+                    "name": page_name,
+                    "module": page_name,
+                    "root_path": str(root.resolve()),
+                    "script_path": str(script),
+                    "inline_renderer": _inline_renderer_target_for_script(script),
+                }}
+            bundle_dir = root / page_name
+            if not bundle_dir.exists() or not bundle_dir.is_dir():
+                return {{}}
+            candidates = []
+            for pattern_root in (bundle_dir, bundle_dir / "src" / page_name):
+                candidates.extend(
+                    [
+                        pattern_root / f"{{page_name}}.py",
+                        pattern_root / "main.py",
+                        pattern_root / "app.py",
+                    ]
+                )
+            script = None
+            for candidate in candidates:
+                if candidate.exists() and candidate.is_file():
+                    script = candidate.resolve()
+                    break
+            if script is None:
+                fallback = sorted((bundle_dir / "src").glob("*/view_*.py"))
+                if fallback:
+                    script = fallback[0].resolve()
+            if script is None:
+                return {{}}
+            return {{
+                "name": page_name,
+                "module": page_name,
+                "root_path": str(bundle_dir.resolve()),
+                "script_path": str(script),
+                "inline_renderer": _inline_renderer_target_for_script(script),
+            }}
+
+
+        def _resolve_page_bundle_record(page):
+            pages_root = _resolve_pages_root()
+            record = _resolve_agi_pages_bundle(page, pages_root=pages_root)
+            if record:
+                return record
+            if pages_root:
+                record = _resolve_page_bundle_from_root(page, pages_root)
+                if record:
+                    return record
+            return _resolve_agi_pages_bundle(page)
+
+
+        def _enrich_page_record(record):
+            resolved = dict(record)
+            page = str(resolved.get("module") or resolved.get("name") or "").strip()
+            if not page:
+                return resolved
+            script_path = _normalized_path(resolved.get("script_path"))
+            inline_renderer = str(resolved.get("inline_renderer") or "").strip()
+            script_missing = not script_path or not _path_exists(script_path)
+            inline_missing = bool(inline_renderer) and not _inline_renderer_target_exists(inline_renderer)
+            if script_missing or not inline_renderer or inline_missing:
+                provider_record = _resolve_page_bundle_record(page)
+                if provider_record:
+                    if script_missing and provider_record.get("script_path"):
+                        resolved["script_path"] = provider_record["script_path"]
+                    if (not inline_renderer or inline_missing) and provider_record.get("inline_renderer"):
+                        resolved["inline_renderer"] = provider_record["inline_renderer"]
+            return resolved
+
+
         def _page_record(page):
             for record in AGILAB_NOTEBOOK_EXPORT.get("related_pages", []):
                 if record.get("module") == page:
-                    return record
+                    return _enrich_page_record(record)
             raise KeyError(f"Unknown analysis page: {{page}}")
 
 
@@ -1164,7 +1486,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             record = _page_record(page)
             active_app = resolve_active_app_root()
             script_path = record.get("script_path") or ""
-            if not script_path:
+            if not script_path or not _path_exists(script_path):
                 return f"# Missing page script for analysis page {{page}}"
             cmd = [
                 "uv",

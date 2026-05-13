@@ -1166,6 +1166,10 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.resolve_user_app_settings_file("flight_project").write_text(
+        "[pages]\nview_module = []\n",
+        encoding="utf-8",
+    )
     at.session_state["env"] = env
 
     at.run()
@@ -1561,6 +1565,10 @@ def test_explore_page_deselect_view(mock_ui_env):
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
     env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env.resolve_user_app_settings_file("flight_project").write_text(
+        "[pages]\nview_module = []\n",
+        encoding="utf-8",
+    )
     at.session_state["env"] = env
     at.run()
     assert not at.exception

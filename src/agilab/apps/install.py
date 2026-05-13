@@ -35,12 +35,30 @@ def _package_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def _installed_app_dir_candidates(app_slug: str) -> list[Path]:
+    try:
+        from agi_env.app_provider_registry import installed_app_project_paths
+    except Exception:
+        return []
+
+    expected_names = {f"{app_slug}_project", app_slug.replace("-", "_")}
+    candidates: list[Path] = []
+    for project_root in installed_app_project_paths():
+        if project_root.name in expected_names:
+            candidates.append(project_root)
+    return candidates
+
+
 def _app_dir_candidates(app_slug: str) -> list[Path]:
     package_root = _package_root()
-    return [
+    candidates = [
         package_root / "apps" / "builtin" / f"{app_slug}_project",
         package_root / "apps" / f"{app_slug}_project",
     ]
+    for installed_candidate in _installed_app_dir_candidates(app_slug):
+        if installed_candidate not in candidates:
+            candidates.append(installed_candidate)
+    return candidates
 
 
 def _inject_source_core_paths(script_path: str | os.PathLike[str], sys_path: list[str]) -> None:

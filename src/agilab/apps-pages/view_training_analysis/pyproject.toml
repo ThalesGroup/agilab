@@ -1,13 +1,18 @@
 [project]
 name = "view-training-analysis"
-version = "2026.04.09"
-requires-python = ">=3.13"
+version = "0.1.0"
+description = "AGILAB page bundle for training analysis."
+readme = { text = "AGILAB page bundle for training analysis.", content-type = "text/markdown" }
+requires-python = ">=3.11"
 dependencies = [
-    "agi-gui",
+    "agi-gui>=2026.05.12.post3,<2027.0",
     "pandas>=2.3.0",
     "plotly>=6.3.0",
     "tensorboard",
 ]
+
+[project.entry-points."agilab.pages"]
+view_training_analysis = "view_training_analysis:bundle_root"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

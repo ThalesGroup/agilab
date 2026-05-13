@@ -5,7 +5,10 @@ from __future__ import annotations
 import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, Sequence
+
+from .app_provider_registry import resolve_installed_app_project
 
 
 @dataclass(frozen=True)
@@ -169,6 +172,7 @@ def resolve_active_app_selection(
     active_app_override: Path | None,
     apps_path: Path | None,
     builtin_apps_path: Path | None,
+    installed_app_projects: Sequence[Path] = (),
     home_abs: Path,
     is_worker_env: bool,
     default_app: str,
@@ -192,13 +196,29 @@ def resolve_active_app_selection(
         except OSError:
             pass
         active_app = base_dir / app
+        active_app_exists = False
+        try:
+            active_app_exists = active_app.exists()
+        except OSError:
+            active_app_exists = False
         if builtin_apps_path:
             candidate_builtin = builtin_apps_path / app
             try:
                 if candidate_builtin.exists():
                     active_app = candidate_builtin
+                    active_app_exists = True
             except OSError:
                 pass
+        if not active_app_exists:
+            installed_app = resolve_installed_app_project(
+                app,
+                projects=[
+                    SimpleNamespace(name=project.name, project_root=project, provider=project.name)
+                    for project in installed_app_projects
+                ],
+            )
+            if installed_app is not None:
+                active_app = installed_app
 
     return ActiveAppSelection(app=app, active_app=active_app)
 

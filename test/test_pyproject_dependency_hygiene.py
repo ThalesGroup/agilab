@@ -21,7 +21,7 @@ if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
 from agilab.app_template_registry import discover_app_templates
-from package_split_contract import ROOT_EXTRA_INTERNAL_REQUIREMENTS
+from package_split_contract import PACKAGE_NAMES, ROOT_EXTRA_INTERNAL_REQUIREMENTS
 
 
 def _load_pyproject(path: Path) -> dict:
@@ -344,6 +344,7 @@ def test_non_core_app_manifests_avoid_exact_pins_except_known_runtime_caps() -> 
     allowed_exact_pins = {
         "src/agilab/apps-pages/view_autoencoder_latenspace/pyproject.toml": {"tensorflow"},
     }
+    internal_packages = {name.lower() for name in PACKAGE_NAMES}
 
     violations: list[str] = []
     for pyproject in sorted(app_pyprojects):
@@ -353,6 +354,8 @@ def test_non_core_app_manifests_avoid_exact_pins_except_known_runtime_caps() -> 
         for dependency in data.get("project", {}).get("dependencies", []):
             requirement = Requirement(dependency)
             if requirement.name.lower() in allowed:
+                continue
+            if requirement.name.lower() in internal_packages:
                 continue
             if any(spec.operator == "==" for spec in requirement.specifier):
                 violations.append(f"{relative_path}: {dependency}")

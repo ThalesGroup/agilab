@@ -131,6 +131,7 @@ from agi_env.bootstrap_support import (
     resolve_package_dir,
     resolve_requested_apps_path,
 )
+from agi_env.app_provider_registry import installed_app_project_paths
 from agi_env.credential_store_support import read_cluster_credentials
 from agi_env.source_analysis_support import (
     extract_base_info as extract_ast_base_info,
@@ -461,12 +462,14 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             apps_repository_root=repo_apps,
         )
         self.apps_repository_root = apps_repository_root or repo_apps
+        self.installed_app_project_paths = installed_app_project_paths()
 
         active_app_selection = resolve_active_app_selection(
             app=app,
             active_app_override=active_app_override,
             apps_path=apps_path,
             builtin_apps_path=self.builtin_apps_path,
+            installed_app_projects=self.installed_app_project_paths,
             home_abs=home_abs,
             is_worker_env=self.is_worker_env,
             default_app=str(envars.get("APP_DEFAULT", "flight_project") or "").strip(),
@@ -984,6 +987,15 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     if name not in seen:
                         projects.append(name)
                         seen.add(name)
+
+        for project_path in sorted(getattr(self, "installed_app_project_paths", ()), key=lambda candidate: candidate.name):
+            try:
+                name = Path(project_path).name
+            except (TypeError, ValueError):
+                continue
+            if name.endswith("_project") and name not in seen:
+                projects.append(name)
+                seen.add(name)
 
         return projects
 

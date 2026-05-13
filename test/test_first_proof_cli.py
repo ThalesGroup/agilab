@@ -659,21 +659,24 @@ def test_package_data_includes_app_installer_for_with_install() -> None:
     pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
 
     package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab.apps"]
+    dependencies = pyproject["project"]["dependencies"]
 
     assert "install.py" in package_data
-    assert "builtin/*/pyproject.toml" in package_data
-    assert "builtin/*/src/**/*.py" in package_data
+    assert not any(pattern.startswith("builtin/") for pattern in package_data)
+    assert any(dependency.startswith("agi-app-flight-project==") for dependency in dependencies)
 
 
-def test_package_data_includes_flight_dataset_archive_for_execute() -> None:
-    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
+def test_flight_project_package_data_includes_payload_for_execute() -> None:
+    pyproject = tomllib.loads(
+        (ROOT / "src/agilab/lib/agi-app-flight-project/pyproject.toml").read_text(encoding="utf-8")
+    )
 
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab.apps"]
-    excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agilab.apps", [])
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agi_app_flight_project"]
+    excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agi_app_flight_project", [])
 
     assert (ROOT / "src/agilab/apps/builtin/flight_project/src/flight_worker/dataset.7z").is_file()
-    assert "builtin/*/src/*/*.7z" in package_data
-    assert "builtin/*/src/*/*.7z" not in excluded_data
+    assert "project/**/*" in package_data
+    assert "project/**/.venv/**" in excluded_data
 
 
 def test_package_discovery_includes_about_page_helpers() -> None:

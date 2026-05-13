@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 import sys
 
@@ -34,6 +35,16 @@ def _write_bundle(root: Path, name: str, *, pyproject: bool = True, script_name:
     script = package_root / (script_name or f"{name}.py")
     script.write_text("def main(): pass\n", encoding="utf-8")
     return script
+
+
+def _load_agi_pages_provider():
+    provider_path = Path(__file__).resolve().parents[1] / "src/agilab/lib/agi-pages/src/agi_pages/__init__.py"
+    spec = importlib.util.spec_from_file_location("agi_pages_provider_test_module", provider_path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_discover_page_bundles_supports_top_level_and_packaged_layouts(tmp_path: Path) -> None:
@@ -118,3 +129,54 @@ def test_configured_page_bundle_names_reads_default_and_view_module() -> None:
 
     assert configured_page_bundle_names(settings) == ("view_default", "view_extra")
     assert configured_page_bundle_names({}) == ()
+
+
+def test_agi_pages_provider_resolves_scripts_and_inline_renderers(tmp_path: Path) -> None:
+    provider = _load_agi_pages_provider()
+    script = _write_bundle(tmp_path, "view_demo")
+    inline = script.with_name("notebook_inline.py")
+    inline.write_text("def render_inline(): pass\n", encoding="utf-8")
+
+    bundle = provider.resolve_bundle("view_demo", pages_root=tmp_path)
+
+    assert bundle is not None
+    assert bundle.script_path == script.resolve()
+    assert bundle.inline_renderer == f"{inline.resolve()}:render_inline"
+    assert provider.script_path("view_demo", pages_root=tmp_path) == script.resolve()
+    assert provider.inline_renderer_target("view_demo", pages_root=tmp_path).endswith(
+        "notebook_inline.py:render_inline"
+    )
+    assert provider.iter_bundles(tmp_path)[0].as_dict()["module"] == "view_demo"
+
+
+def test_agi_pages_provider_resolves_installed_entry_point_when_source_root_is_stale(tmp_path: Path, monkeypatch) -> None:
+    provider = _load_agi_pages_provider()
+    package_root = tmp_path / "site-packages" / "view_maps"
+    package_root.mkdir(parents=True)
+    script = package_root / "view_maps.py"
+    script.write_text("def main(): pass\n", encoding="utf-8")
+
+    class FakeEntryPoint:
+        name = "view_maps"
+
+        @staticmethod
+        def load():
+            return lambda: package_root
+
+    class FakeEntryPoints(tuple):
+        def select(self, *, group: str):
+            if group == provider.PAGE_BUNDLE_ENTRYPOINT_GROUP:
+                return self
+            return ()
+
+    monkeypatch.setattr(
+        provider.importlib.metadata,
+        "entry_points",
+        lambda: FakeEntryPoints((FakeEntryPoint(),)),
+    )
+
+    bundle = provider.resolve_bundle("view_maps", pages_root=tmp_path / "stale-apps-pages")
+
+    assert bundle is not None
+    assert bundle.root_path == package_root.resolve()
+    assert bundle.script_path == script.resolve()

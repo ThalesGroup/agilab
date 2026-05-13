@@ -1,7 +1,7 @@
 [project]
-version = "2026.05.12.post3"
+version = "2026.05.13"
 name = "agi-apps"
-description = "AGILAB public built-in app and example asset package"
+description = "AGILAB public app package umbrella and example assets"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
@@ -31,7 +31,19 @@ keywords = [
     "workflow-orchestration",
 ]
 
-dependencies = ["agi-core==2026.05.12.post3"]
+dependencies = [
+    "agi-core==2026.05.13",
+    "agi-app-data-io-2026-project==0.1.0",
+    "agi-app-execution-pandas-project==0.1.0",
+    "agi-app-execution-polars-project==0.1.0",
+    "agi-app-flight-project==0.1.0",
+    "agi-app-global-dag-project==0.1.0",
+    "agi-app-meteo-forecast-project==0.1.0",
+    "agi-app-mycode-project==0.1.0",
+    "agi-app-tescia-diagnostic-project==0.1.0",
+    "agi-app-uav-queue-project==0.1.0",
+    "agi-app-uav-relay-queue-project==0.1.0",
+]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -42,12 +54,6 @@ Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
-
-
-
-
-
-
 [dependency-groups]
 dev = [
     "pytest",
@@ -57,48 +63,66 @@ dev = [
     path = "../../core/agi-core"
     editable = true
 
+[tool.uv.sources.agi-app-data-io-2026-project]
+    path = "../agi-app-data-io-2026-project"
+    editable = true
+
+[tool.uv.sources.agi-app-execution-pandas-project]
+    path = "../agi-app-execution-pandas-project"
+    editable = true
+
+[tool.uv.sources.agi-app-execution-polars-project]
+    path = "../agi-app-execution-polars-project"
+    editable = true
+
+[tool.uv.sources.agi-app-flight-project]
+    path = "../agi-app-flight-project"
+    editable = true
+
+[tool.uv.sources.agi-app-global-dag-project]
+    path = "../agi-app-global-dag-project"
+    editable = true
+
+[tool.uv.sources.agi-app-meteo-forecast-project]
+    path = "../agi-app-meteo-forecast-project"
+    editable = true
+
+[tool.uv.sources.agi-app-mycode-project]
+    path = "../agi-app-mycode-project"
+    editable = true
+
+[tool.uv.sources.agi-app-tescia-diagnostic-project]
+    path = "../agi-app-tescia-diagnostic-project"
+    editable = true
+
+[tool.uv.sources.agi-app-uav-queue-project]
+    path = "../agi-app-uav-queue-project"
+    editable = true
+
+[tool.uv.sources.agi-app-uav-relay-queue-project]
+    path = "../agi-app-uav-relay-queue-project"
+    editable = true
+
 [build-system]
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 include-package-data = false
-package-dir = {"" = "../../.."}
-
-[tool.setuptools.packages.find]
-where = ["../../.."]
-include = [
+package-dir = {"" = "src"}
+packages = [
+    "agi_apps",
     "agilab.apps",
     "agilab.examples",
 ]
 
 [tool.setuptools.package-data]
+"agi_apps" = [
+    "catalog.json",
+]
 "agilab.apps" = [
     "README.md",
     "install.py",
-    "builtin/*/pyproject.toml",
-    "builtin/*/README.md",
-    "builtin/*/lab_stages.toml",
-    "builtin/*/dag_templates/*.json",
-    "builtin/*/scenario_templates/*.json",
-    "builtin/*/service_templates/*.json",
-    "builtin/*/tracking_templates/*.json",
-    "builtin/*/pipeline_view.dot",
-    "builtin/*/notebook_export.toml",
-    "builtin/*/notebook_import_views.toml",
-    "builtin/*/src/**/*.py",
-    "builtin/*/src/**/*.pyx",
-    "builtin/*/src/**/*.toml",
-    "builtin/*/src/*.json",
-    "builtin/*/src/**/*.csv",
-    "builtin/*/src/**/*.dot",
-    "builtin/*/src/*/*.7z",
-    "builtin/*/src/*/sample_data/*.json",
-    "templates/*/pyproject.toml",
-    "templates/*/README.md",
-    "templates/*/src/**/*.py",
-    "templates/*/src/**/*.json",
-    "templates/*/src/**/*.toml",
 ]
 "agilab.examples" = [
     "README.md",
@@ -125,15 +149,16 @@ include = [
 
 [tool.setuptools.exclude-package-data]
 "agilab.apps" = [
-    "builtin/*/src/__pycache__/*",
-    "builtin/*/src/*/__pycache__/*",
-    "builtin/*/src/*/*/__pycache__/*",
-    "builtin/*/src/*.pyc",
-    "builtin/*/src/*/*.pyc",
-    "builtin/*/src/*/*/*.pyc",
-    "builtin/*/src/*.egg-info/*",
-    "builtin/*/src/*/*.egg-info/*",
-    "builtin/*/src/*/*.c",
+    "builtin/**",
+    "templates/**",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/*.pyo",
+]
+"agilab.examples" = [
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "**/*.pyo",
 ]
 
 [tool.pytest.ini_options]

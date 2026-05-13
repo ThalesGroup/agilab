@@ -1,13 +1,18 @@
 [project]
 name = "view-maps"
-version = "2025.12.12"
-requires-python = ">=3.13"
+version = "0.1.0"
+description = "AGILAB page bundle for map analysis."
+readme = { text = "AGILAB page bundle for map analysis.", content-type = "text/markdown" }
+requires-python = ">=3.11"
 dependencies = [
-    "agi-gui",
-    "agi-node",
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "agi-node>=2026.05.12.post3,<2027.0",
     "plotly>=6.3.0",
     "sqlalchemy>=2.0.43",
 ]
+
+[project.entry-points."agilab.pages"]
+view_maps = "view_maps:bundle_root"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

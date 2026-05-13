@@ -363,6 +363,27 @@ def test_resolve_active_app_selection_covers_no_builtin_path_and_builtin_exists_
     assert selected.active_app == apps_root.resolve() / "demo_project"
 
 
+def test_resolve_active_app_selection_uses_installed_app_project_provider(tmp_path):
+    apps_root = tmp_path / "apps"
+    apps_root.mkdir()
+    installed_project = tmp_path / "site-packages" / "agi_app_flight_project" / "project" / "flight_project"
+    installed_project.mkdir(parents=True)
+    (installed_project / "pyproject.toml").write_text("[project]\nname='flight_project'\n", encoding="utf-8")
+
+    selected = resolve_active_app_selection(
+        app="flight_project",
+        active_app_override=None,
+        apps_path=apps_root,
+        builtin_apps_path=None,
+        installed_app_projects=(installed_project,),
+        home_abs=tmp_path / "home",
+        is_worker_env=False,
+        default_app="demo_project",
+    )
+
+    assert selected.active_app == installed_project.resolve()
+
+
 def test_can_link_repo_apps_rejects_builtin_and_nested_project_roots(tmp_path):
     apps_root = tmp_path / "apps"
     builtin_root = apps_root / "builtin"

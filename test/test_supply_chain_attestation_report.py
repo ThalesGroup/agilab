@@ -379,6 +379,12 @@ def test_supply_chain_attestation_rejects_stale_builtin_app_release_metadata(
             f"version = '{version}'\n"
             f"dependencies = ['agi-core=={version}']\n"
         ),
+        "src/agilab/lib/agi-app-demo-project/pyproject.toml": (
+            "[project]\n"
+            "name = 'agi-app-demo-project'\n"
+            f"version = '{version}'\n"
+            "dependencies = ['agi-core>=2026.04.30.post4']\n"
+        ),
         "src/agilab/apps/builtin/demo_project/pyproject.toml": (
             "[project]\n"
             "name = 'demo-project'\n"

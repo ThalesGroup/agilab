@@ -1,15 +1,20 @@
 [project]
 name = "view-barycentric-graph"
-version = "2025.12.12"
-requires-python = ">=3.13"
+version = "0.1.0"
+description = "AGILAB page bundle for barycentric graph analysis."
+readme = { text = "AGILAB page bundle for barycentric graph analysis.", content-type = "text/markdown" }
+requires-python = ">=3.11"
 dependencies = [
-    "agi-gui",
+    "agi-gui>=2026.05.12.post3,<2027.0",
     "plotly>=6.3.0",
     "barviz>=1.2.2",
     "scikit-learn>=1.7.2",
     "scipy>=1.16,<2",
     "sqlalchemy>=2.0.43",
 ]
+
+[project.entry-points."agilab.pages"]
+view_barycentric = "view_barycentric:bundle_root"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

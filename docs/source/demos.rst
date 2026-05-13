@@ -82,9 +82,10 @@ The static scenario contract is available as JSON:
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
   Stop when the command exits successfully and writes ``run_manifest.json``.
-  This package route uses ``agi-apps`` for the public built-in project payload.
-  Install ``agilab[ui]`` and rerun with ``--with-ui`` when you also want to
-  boot the packaged local pages and ``agi-pages`` analysis views.
+  This package route uses ``agi-apps`` as the public app umbrella and resolves
+  the built-in project from the matching per-app package. Install
+  ``agilab[ui]`` and rerun with ``--with-ui`` when you also want to boot the
+  packaged local pages and ``agi-pages`` analysis views.
   The same route is available in the UI by following ``PROJECT`` ->
   ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_project``.
 

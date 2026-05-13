@@ -32,7 +32,7 @@ Current public release
    * - Coverage
      - `coverage run 25761463615 <https://github.com/ThalesGroup/agilab/actions/runs/25761463615>`__ passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 25760807169 <https://github.com/ThalesGroup/agilab/actions/runs/25760807169>`__ published all eight PyPI distributions with Trusted Publishing/OIDC
+     - `pypi-publish run 25760807169 <https://github.com/ThalesGroup/agilab/actions/runs/25760807169>`__ published the release PyPI distribution set with Trusted Publishing/OIDC
 
 What was proved
 ---------------

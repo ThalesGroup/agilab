@@ -1860,6 +1860,80 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "ValuesPolicy" in pycharm_sitecustomize.read_text(encoding="utf-8")
 
 
+def test_notebook_helper_re_resolves_stale_analysis_page_paths_with_agi_env_and_agi_pages(
+    tmp_path,
+    monkeypatch,
+):
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "agilab").mkdir(parents=True, exist_ok=True)
+    (repo_root / ".idea").mkdir(parents=True, exist_ok=True)
+    export_dir = tmp_path / "export" / "demo_project"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    toml_path = export_dir / "lab_stages.toml"
+    app_root = tmp_path / "apps" / "demo_project"
+    app_root.mkdir(parents=True)
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+
+    installed_pages_root = tmp_path / "site-packages" / "agi_pages"
+    page_script = installed_pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
+    page_script.parent.mkdir(parents=True)
+    page_script.write_text("print('page')\n", encoding="utf-8")
+    page_script.with_name("notebook_inline.py").write_text(
+        "def render_inline(*, page, record, export_payload):\n    return 'inline:' + page\n",
+        encoding="utf-8",
+    )
+
+    stale_pages_root = tmp_path / "missing-pages"
+    context = notebook_export_support.NotebookExportContext(
+        project_name="demo_project",
+        module_path="demo_project",
+        artifact_dir=str(export_dir),
+        active_app=str(app_root),
+        pages_root=str(stale_pages_root),
+        repo_root=str(repo_root),
+        related_pages=(
+            notebook_export_support.RelatedPageExport(
+                module="view_demo",
+                label="Demo Analysis",
+                script_path=str(stale_pages_root / "view_demo.py"),
+                inline_renderer=str(stale_pages_root / "notebook_inline.py:render_inline"),
+            ),
+        ),
+    )
+
+    pipeline_editor.toml_to_notebook({"demo_project": ["print('stage')\n"]}, toml_path, export_context=context)
+    notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
+    helper_source = "".join(notebook["cells"][1]["source"])
+    assert "_resolve_pages_root" in helper_source
+    assert "_resolve_agi_pages_bundle" in helper_source
+
+    fake_agi_env = types.ModuleType("agi_env")
+
+    class _FakeAgiEnv:
+        def __init__(self, *args, **kwargs):
+            self.AGILAB_PAGES_ABS = installed_pages_root
+
+    fake_agi_env.AgiEnv = _FakeAgiEnv
+    monkeypatch.setitem(sys.modules, "agi_env", fake_agi_env)
+
+    provider_path = Path(__file__).resolve().parents[1] / "src/agilab/lib/agi-pages/src/agi_pages/__init__.py"
+    spec = importlib.util.spec_from_file_location("agi_pages", provider_path)
+    assert spec and spec.loader
+    agi_pages = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "agi_pages", agi_pages)
+    spec.loader.exec_module(agi_pages)
+
+    namespace: dict[str, object] = {}
+    exec(helper_source, namespace)
+
+    argv = namespace["analysis_launch_argv"]("view_demo", port=9876)
+    assert isinstance(argv, list)
+    assert str(page_script.resolve()) in argv
+    assert argv[-2:] == ["--active-app", str(app_root)]
+    assert namespace["render_analysis_page"]("view_demo", fallback_launch=False) == "inline:view_demo"
+    assert namespace["AGILAB_NOTEBOOK_EXPORT"]["pages_root"] == str(installed_pages_root)
+
+
 def test_notebook_helper_replays_app_shorthand_stages_as_agi_run_scripts(tmp_path):
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
