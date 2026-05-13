@@ -255,7 +255,7 @@ cd "$CHECKOUT"
 uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
 ```
 
-Follow the in-app pages from `PROJECT` to `ORCHESTRATE`, `PIPELINE`, and
+Follow the in-app pages from `PROJECT` to `ORCHESTRATE`, `WORKFLOW`, and
 `ANALYSIS`. To collect the same check as JSON:
 
 ```bash
