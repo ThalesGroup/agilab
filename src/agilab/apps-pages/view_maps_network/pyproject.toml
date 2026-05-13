@@ -1,16 +1,21 @@
 [project]
 name = "view-maps-network"
-version = "2025.12.12"
-requires-python = ">=3.13"
+version = "0.1.0"
+description = "AGILAB page bundle for map network analysis."
+readme = { text = "AGILAB page bundle for map network analysis.", content-type = "text/markdown" }
+requires-python = ">=3.11"
 dependencies = [
-    "agi-gui",
-    "agi-node",
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "agi-node>=2026.05.12.post3,<2027.0",
     "ipython",
     "networkx",
     "plotly",
     "matplotlib",
     "sqlalchemy>=2.0.43",
 ]
+
+[project.entry-points."agilab.pages"]
+view_maps_network = "view_maps_network:bundle_root"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

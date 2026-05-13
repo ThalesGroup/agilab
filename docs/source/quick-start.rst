@@ -69,8 +69,9 @@ If startup fails, run a local fallback first:
    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"
    agilab first-proof --json
 
-The ``examples`` extra installs the ``agi-apps`` payload that contains the
-public built-in ``flight_project`` used by the proof.
+The ``examples`` extra installs the ``agi-apps`` umbrella, which depends on the
+per-app package that contains the public built-in ``flight_project`` used by
+the proof.
 
 Use the UI profile when you want the local Streamlit pages from the
 published package::
@@ -78,10 +79,10 @@ published package::
    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
    agilab
 
-The ``ui`` extra installs ``agi-apps`` for public built-in projects and
-``agi-pages`` for packaged ANALYSIS page bundles. A base ``agilab`` install
-stays CLI/core-only; run ``agilab dry-run`` there when you only need the
-lightweight import/runtime smoke.
+The ``ui`` extra installs ``agi-apps`` and its per-app project packages for
+public built-in projects, plus ``agi-pages`` for packaged ANALYSIS page
+bundles. A base ``agilab`` install stays CLI/core-only; run ``agilab dry-run``
+there when you only need the lightweight import/runtime smoke.
 
 If you installed AGILAB inside an activated project environment instead of as a
 ``uv`` tool, upgrade that environment explicitly::

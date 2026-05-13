@@ -37,7 +37,7 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
             "~/log/execute/flight/run_manifest.json",
             "~/log/execute/flight",
         ],
-        "scope": "Clean local package proof with the `agi-apps` public built-in payload; install `agilab[ui]` for the visible flight analysis route and the `agi-pages` analysis views.",
+        "scope": "Clean local package proof with the `agi-apps` public app umbrella and per-app payloads; install `agilab[ui]` for the visible flight analysis route and the `agi-pages` analysis views.",
         "limits": [
             "No remote cluster certification",
             "Examples-profile proof does not install optional UI, MLflow, visualization, or local-LLM extras",

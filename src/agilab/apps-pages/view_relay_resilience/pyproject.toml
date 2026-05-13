@@ -1,12 +1,17 @@
 [project]
 name = "view-relay-resilience"
-version = "2026.04.08"
-requires-python = ">=3.13"
+version = "0.1.0"
+description = "AGILAB page bundle for relay resilience analysis."
+readme = { text = "AGILAB page bundle for relay resilience analysis.", content-type = "text/markdown" }
+requires-python = ">=3.11"
 dependencies = [
-    "agi-gui",
-    "agi-node",
+    "agi-gui>=2026.05.12.post3,<2027.0",
+    "agi-node>=2026.05.12.post3,<2027.0",
     "pandas>=2.3.0",
 ]
+
+[project.entry-points."agilab.pages"]
+view_relay_resilience = "view_relay_resilience:bundle_root"
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

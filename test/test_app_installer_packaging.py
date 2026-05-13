@@ -14,10 +14,16 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+TOOLS_ROOT = ROOT / "tools"
+sys.path.insert(0, str(TOOLS_ROOT))
+
+from package_split_contract import APP_PROJECT_PACKAGE_SPECS
+
 MODULE_PATH = ROOT / "src/agilab/apps/install.py"
 ROOT_PYPROJECT = ROOT / "pyproject.toml"
 AGI_APPS_PYPROJECT = ROOT / "src/agilab/lib/agi-apps/pyproject.toml"
 AGI_PAGES_PYPROJECT = ROOT / "src/agilab/lib/agi-pages/pyproject.toml"
+AGI_PAGES_SOURCE_PACKAGE = ROOT / "src/agilab/lib/agi-pages/src/agi_pages"
 BUILTIN_APPS_ROOT = ROOT / "src/agilab/apps/builtin"
 APP_TEMPLATES_ROOT = ROOT / "src/agilab/apps/templates"
 EXAMPLES_ROOT = ROOT / "src/agilab/examples"
@@ -96,6 +102,18 @@ APP_GENERATED_DIRS = {
     "dist",
 }
 APP_GENERATED_SUFFIXES = {".c", ".pyc", ".pyo", ".pyx", ".so"}
+APP_PROJECT_BY_DISTRIBUTION = {
+    "agi-app-data-io-2026-project": "data_io_2026_project",
+    "agi-app-execution-pandas-project": "execution_pandas_project",
+    "agi-app-execution-polars-project": "execution_polars_project",
+    "agi-app-flight-project": "flight_project",
+    "agi-app-global-dag-project": "global_dag_project",
+    "agi-app-meteo-forecast-project": "meteo_forecast_project",
+    "agi-app-mycode-project": "mycode_project",
+    "agi-app-tescia-diagnostic-project": "tescia_diagnostic_project",
+    "agi-app-uav-queue-project": "uav_queue_project",
+    "agi-app-uav-relay-queue-project": "uav_relay_queue_project",
+}
 
 
 def _expected_script_paths() -> list[Path]:
@@ -140,7 +158,11 @@ def _agi_apps_excluded_data(package: str) -> list[str]:
 
 def _agi_pages_package_data() -> list[str]:
     pyproject = tomllib.loads(AGI_PAGES_PYPROJECT.read_text(encoding="utf-8"))
-    return pyproject["tool"]["setuptools"]["package-data"]["agi_pages"]
+    return pyproject["tool"]["setuptools"].get("package-data", {}).get("agi_pages", [])
+
+
+def _agi_app_project_pyproject(distribution: str) -> dict:
+    return tomllib.loads((ROOT / "src/agilab/lib" / distribution / "pyproject.toml").read_text(encoding="utf-8"))
 
 
 def _packaged_app_dirs() -> list[Path]:
@@ -230,11 +252,22 @@ def test_app_dir_candidates_prefer_packaged_builtin_apps(tmp_path: Path, monkeyp
     module = _load_installer(monkeypatch, tmp_path)
     package_root = tmp_path / "site-packages" / "agilab"
     monkeypatch.setattr(module, "_package_root", lambda: package_root)
+    monkeypatch.setattr(module, "_installed_app_dir_candidates", lambda app_slug: [])
 
     assert module._app_dir_candidates("flight") == [
         package_root / "apps" / "builtin" / "flight_project",
         package_root / "apps" / "flight_project",
     ]
+
+
+def test_app_dir_candidates_include_installed_app_project_packages(tmp_path: Path, monkeypatch) -> None:
+    module = _load_installer(monkeypatch, tmp_path)
+    package_root = tmp_path / "site-packages" / "agilab"
+    installed_root = tmp_path / "site-packages" / "agi_app_flight_project" / "project" / "flight_project"
+    monkeypatch.setattr(module, "_package_root", lambda: package_root)
+    monkeypatch.setattr(module, "_installed_app_dir_candidates", lambda app_slug: [installed_root])
+
+    assert module._app_dir_candidates("flight")[-1] == installed_root
 
 
 def test_packaged_agi_example_scripts_are_compile_safe() -> None:
@@ -370,36 +403,71 @@ def test_root_package_does_not_embed_builtin_apps_examples_or_pages() -> None:
     assert not any(pattern.startswith("apps-pages/") for pattern in package_data)
 
 
-def test_agi_pages_package_exposes_analysis_page_bundles() -> None:
+def test_agi_pages_package_exposes_analysis_page_provider_and_umbrella_dependencies() -> None:
     package_data = _agi_pages_package_data()
     pyproject = tomllib.loads(AGI_PAGES_PYPROJECT.read_text(encoding="utf-8"))
+    dependencies = set(pyproject["project"]["dependencies"])
 
     assert (APPS_PAGES_ROOT / "README.md").is_file()
     assert (APPS_PAGES_ROOT / "__init__.py").is_file()
     assert (APPS_PAGES_ROOT / "view_maps" / "pyproject.toml").is_file()
-    assert "README.md" in package_data
-    assert "*/README.md" in package_data
-    assert "*/pyproject.toml" in package_data
-    assert "*/src/**/*.py" in package_data
-    assert pyproject["tool"]["setuptools"]["package-dir"]["agi_pages"] == "../../apps-pages"
+    assert not any(pattern.startswith("*/") for pattern in package_data)
+    assert not any("src" in pattern for pattern in package_data)
+    assert (AGI_PAGES_SOURCE_PACKAGE / "__init__.py").is_file()
+    source_text = (AGI_PAGES_SOURCE_PACKAGE / "__init__.py").read_text(encoding="utf-8")
+    assert "PAGE_BUNDLE_ENTRYPOINT_GROUP" in source_text
+    assert "PUBLIC_PAGE_MODULES" in source_text
+    assert "view_maps" in source_text
+    assert {
+        "view-barycentric-graph==0.1.0",
+        "view-data-io-decision==0.1.0",
+        "view-forecast-analysis==0.1.0",
+        "view-inference-analysis==0.1.0",
+        "view-maps==0.1.0",
+        "view-maps-3d==0.1.0",
+        "view-maps-network==0.1.0",
+        "view-queue-resilience==0.1.0",
+        "view-relay-resilience==0.1.0",
+        "view-release-decision==0.1.0",
+        "view-training-analysis==0.1.0",
+    } <= dependencies
+    assert pyproject["tool"]["setuptools"]["package-dir"] == {"": "src"}
     assert pyproject["tool"]["setuptools"]["packages"] == ["agi_pages"]
 
 
-def test_packaged_builtin_app_prompt_seeds_are_included_as_package_data() -> None:
-    package_data = _agi_apps_package_data("agilab.apps")
-    excluded_data = _agi_apps_excluded_data("agilab.apps")
+def test_per_app_project_packages_expose_self_contained_project_payloads() -> None:
+    missing_entry_points: list[str] = []
 
-    assert "builtin/*/src/*.json" in package_data
-    assert "builtin/*/src/pre_prompt.json" not in excluded_data
+    for distribution, _project_path in APP_PROJECT_PACKAGE_SPECS:
+        pyproject = _agi_app_project_pyproject(distribution)
+        import_package = distribution.replace("-", "_")
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        slug = project_name.removesuffix("_project")
+
+        assert pyproject["tool"]["setuptools"]["packages"] == [import_package]
+        assert pyproject["tool"]["setuptools"]["package-data"][import_package] == ["project/**/*"]
+        entry_points = pyproject["project"]["entry-points"]["agilab.apps"]
+        if slug not in entry_points or project_name not in entry_points:
+            missing_entry_points.append(distribution)
+
+    assert not missing_entry_points
 
 
-def test_packaged_builtin_app_dag_templates_are_included_as_package_data() -> None:
-    package_data = _agi_apps_package_data("agilab.apps")
+def test_agi_apps_is_umbrella_not_builtin_app_payload_package() -> None:
+    pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
+    package_data = pyproject["tool"]["setuptools"]["package-data"]
+    dependencies = pyproject["project"]["dependencies"]
 
-    assert "builtin/*/dag_templates/*.json" in package_data
-    assert "builtin/*/scenario_templates/*.json" in package_data
-    assert "builtin/*/service_templates/*.json" in package_data
-    assert "builtin/*/tracking_templates/*.json" in package_data
+    assert "install.py" in package_data["agilab.apps"]
+    assert not any(pattern.startswith("builtin/") for pattern in package_data["agilab.apps"])
+    assert all(f"{distribution}==" in " ".join(dependencies) for distribution, _ in APP_PROJECT_PACKAGE_SPECS)
+
+
+def test_agi_apps_catalog_matches_per_app_packages() -> None:
+    catalog = json.loads((ROOT / "src/agilab/lib/agi-apps/src/agi_apps/catalog.json").read_text(encoding="utf-8"))
+    catalog_distributions = [item["distribution"] for item in catalog]
+
+    assert catalog_distributions == [distribution for distribution, _ in APP_PROJECT_PACKAGE_SPECS]
 
 
 def test_preview_example_payloads_live_with_builtin_apps() -> None:

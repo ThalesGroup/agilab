@@ -29,6 +29,7 @@ PAGE_LIB_PYPROJECTS = {
 APP_LIB_PYPROJECTS = {
     "agi-apps": Path("src/agilab/lib/agi-apps/pyproject.toml"),
 }
+APP_PROJECT_PACKAGE_ROOT = Path("src/agilab/lib")
 ATTESTED_ROOT_FILES = (
     Path("pyproject.toml"),
     Path("uv.lock"),
@@ -204,6 +205,26 @@ def _app_lib_rows(repo_root: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _app_project_package_rows(repo_root: Path) -> list[dict[str, Any]]:
+    rows = []
+    package_root = repo_root / APP_PROJECT_PACKAGE_ROOT
+    for path in sorted(package_root.glob("agi-app-*-project/pyproject.toml")):
+        metadata = _project_metadata(path) if path.is_file() else {}
+        package_name = str(metadata.get("name") or path.parent.name)
+        app_name = package_name.removeprefix("agi-app-").replace("-", "_")
+        rows.append(
+            {
+                "name": package_name,
+                "app": app_name,
+                "path": _safe_relative(repo_root, path),
+                "exists": path.is_file(),
+                "version": metadata.get("version", ""),
+                "sha256": _file_sha256(path) if path.is_file() else "",
+            }
+        )
+    return rows
+
+
 _DEPENDENCY_SPEC_RE = re.compile(
     r"^\s*([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?\s*(?:(==|>=)\s*([^,;\s]+))?"
 )
@@ -338,6 +359,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
     core_components = _core_rows(repo_root)
     page_lib_components = _page_lib_rows(repo_root)
     app_lib_components = _app_lib_rows(repo_root)
+    app_project_package_components = _app_project_package_rows(repo_root)
     app_pyprojects = _app_pyproject_rows(repo_root)
     package_data_patterns = _package_data_patterns(repo_root)
     builtin_payload_files = _builtin_payload_rows(repo_root)
@@ -428,8 +450,19 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
     app_lib_release_graph_aligned = aligned_app_lib_versions or (
         aligned_internal_dependency_pins and bool(aligned_root_app_lib_pins)
     )
+    expected_app_project_versions = {
+        str(row["app"]): str(row["version"])
+        for row in app_project_package_components
+        if row.get("version")
+    }
     mismatched_builtin_app_versions = [
-        row for row in app_pyprojects if row.get("version") != root_version
+        {
+            **row,
+            "expected_version": expected_app_project_versions.get(str(row.get("app")), ""),
+        }
+        for row in app_pyprojects
+        if expected_app_project_versions.get(str(row.get("app")))
+        and row.get("version") != expected_app_project_versions.get(str(row.get("app")))
     ]
     aligned_builtin_app_versions = not mismatched_builtin_app_versions
     app_metadata = {
@@ -480,7 +513,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
             {
                 "level": "error",
                 "location": "core.version_alignment",
-                "message": "bundled AGI core package versions or exact release pins do not align",
+                "message": "bundled AGI core components are not covered by exact bundle pins",
             }
         )
     if not page_lib_release_graph_aligned:
@@ -488,7 +521,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
             {
                 "level": "error",
                 "location": "page_lib.version_alignment",
-                "message": "AGILAB page library versions or exact release pins do not align",
+                "message": "AGILAB page libraries are not covered by exact bundle pins",
             }
         )
     if not app_lib_release_graph_aligned:
@@ -496,7 +529,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
             {
                 "level": "error",
                 "location": "app_lib.version_alignment",
-                "message": "AGILAB app library versions or exact release pins do not align",
+                "message": "AGILAB app libraries are not covered by exact bundle pins",
             }
         )
     for row in mismatched_internal_dependency_pins:
@@ -519,7 +552,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
                 "location": f"builtin_apps.{row['app']}.version",
                 "message": (
                     f"built-in app {row['app']} has version {row['version']} "
-                    f"but expected {root_version}"
+                    f"but expected {row['expected_version']}"
                 ),
             }
         )
@@ -588,6 +621,10 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
             "app_lib_versions": app_lib_versions,
             "aligned_app_lib_versions": aligned_app_lib_versions,
             "app_lib_release_graph_aligned": app_lib_release_graph_aligned,
+            "app_project_package_component_count": len(app_project_package_components),
+            "app_project_package_versions": {
+                row["name"]: row["version"] for row in app_project_package_components
+            },
             "builtin_app_pyproject_count": len(app_pyprojects),
             "package_data_pattern_count": len(package_data_patterns),
             "package_data_patterns": package_data_patterns,
@@ -629,6 +666,7 @@ def build_supply_chain_attestation(repo_root: Path) -> dict[str, Any]:
         "core_components": core_components,
         "page_lib_components": page_lib_components,
         "app_lib_components": app_lib_components,
+        "app_project_package_components": app_project_package_components,
         "builtin_app_pyprojects": app_pyprojects,
         "package_data_patterns": package_data_patterns,
         "builtin_payload_files": builtin_payload_files,

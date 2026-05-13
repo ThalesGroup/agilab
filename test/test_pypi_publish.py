@@ -238,7 +238,7 @@ def test_sync_builtin_app_versions_lower_bounds_internal_runtime_deps(tmp_path, 
     assert "[tool.uv.sources]" in text
 
 
-def test_main_syncs_builtin_apps_before_umbrella_build(tmp_path, monkeypatch) -> None:
+def test_main_does_not_rewrite_builtin_apps_for_umbrella_build(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
 
     umbrella_pyproject = tmp_path / "pyproject.toml"
@@ -290,7 +290,7 @@ def test_main_syncs_builtin_apps_before_umbrella_build(tmp_path, monkeypatch) ->
 
     module.main()
 
-    assert order == ["sync-builtin", "build-root"]
+    assert order == ["build-root"]
 
 
 def test_require_safe_pypi_release_rejects_missing_repo_sync_flags() -> None:

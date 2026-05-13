@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.12.post3"
+version = "2026.05.13"
 name = "agi-core"
 description = "Meta-package that installs and wires agi-env, agi-node, and agi-cluster together"
 readme = "README.md"

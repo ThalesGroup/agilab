@@ -69,7 +69,7 @@ label = "PyPI publish"
 workflow = "pypi-publish"
 run_id = "25760807169"
 url = "https://github.com/ThalesGroup/agilab/actions/runs/25760807169"
-summary = "published all eight PyPI distributions with Trusted Publishing/OIDC"
+summary = "published the release PyPI distribution set with Trusted Publishing/OIDC"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"

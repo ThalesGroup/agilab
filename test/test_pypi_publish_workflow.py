@@ -157,7 +157,7 @@ def test_pypi_publish_does_not_recreate_legacy_single_pypi_environment() -> None
     assert re.search(r"^\s*name:\s*pypi\s*$", text, re.MULTILINE) is None
 
 
-def test_test_pypi_publish_delegates_to_the_eight_package_release_tool() -> None:
+def test_test_pypi_publish_delegates_to_the_package_release_tool() -> None:
     text = TEST_PYPI_WORKFLOW_PATH.read_text(encoding="utf-8")
     tool_text = (REPO_ROOT / "tools/pypi_publish.py").read_text(encoding="utf-8")
     contract_text = (REPO_ROOT / "tools/package_split_contract.py").read_text(encoding="utf-8")
@@ -177,4 +177,4 @@ def test_test_pypi_publish_delegates_to_the_eight_package_release_tool() -> None
 
     assert "package_split_contract" in tool_text
     for package in PACKAGE_NAMES:
-        assert f'name="{package}"' in contract_text
+        assert package in contract_text

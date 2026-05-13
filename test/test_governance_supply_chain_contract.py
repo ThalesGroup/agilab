@@ -26,6 +26,19 @@ def test_dependabot_visibility_covers_python_and_github_actions() -> None:
     assert 'directory: "/src/agilab/core/agi-core"' in text
     assert 'directory: "/src/agilab/lib/agi-gui"' in text
     assert 'directory: "/src/agilab/lib/agi-apps"' in text
+    for package in (
+        "agi-app-data-io-2026-project",
+        "agi-app-execution-pandas-project",
+        "agi-app-execution-polars-project",
+        "agi-app-flight-project",
+        "agi-app-global-dag-project",
+        "agi-app-meteo-forecast-project",
+        "agi-app-mycode-project",
+        "agi-app-tescia-diagnostic-project",
+        "agi-app-uav-queue-project",
+        "agi-app-uav-relay-queue-project",
+    ):
+        assert f'directory: "/src/agilab/lib/{package}"' in text
     assert 'directory: "/src/agilab/lib/agi-pages"' in text
     assert 'interval: "weekly"' in text
 
@@ -112,9 +125,10 @@ def test_pyproject_keeps_local_artifacts_out_of_package_surface() -> None:
     exclude_data = setuptools_config["exclude-package-data"]["agilab"]
     agi_apps_pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
     agi_pages_pyproject = tomllib.loads(AGI_PAGES_PYPROJECT.read_text(encoding="utf-8"))
+    agi_apps_package_data = agi_apps_pyproject["tool"]["setuptools"]["package-data"]["agilab.apps"]
     agi_apps_exclude_data = agi_apps_pyproject["tool"]["setuptools"]["exclude-package-data"]["agilab.apps"]
-    agi_pages_package_data = agi_pages_pyproject["tool"]["setuptools"]["package-data"]["agi_pages"]
-    agi_pages_exclude_data = agi_pages_pyproject["tool"]["setuptools"]["exclude-package-data"]["agi_pages"]
+    agi_pages_package_data = agi_pages_pyproject["tool"]["setuptools"].get("package-data", {}).get("agi_pages", [])
+    agi_pages_exclude_data = agi_pages_pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agi_pages", [])
 
     assert setuptools_config["include-package-data"] is False
     assert ".venv*" in find_config["exclude"]
@@ -127,9 +141,9 @@ def test_pyproject_keeps_local_artifacts_out_of_package_surface() -> None:
     assert not any(pattern.startswith("examples/") for pattern in package_data)
     assert not any(pattern.startswith("apps-pages/") for pattern in package_data)
     assert not any(pattern.startswith("apps/builtin/") for pattern in exclude_data)
-    assert "builtin/*/src/*/*.c" in agi_apps_exclude_data
-    assert "builtin/*/src/*.pyc" in agi_apps_exclude_data
-    assert "builtin/*/src/*/*.egg-info/*" in agi_apps_exclude_data
-    assert "*/pyproject.toml" in agi_pages_package_data
-    assert "*/src/**/*.py" in agi_pages_package_data
-    assert "*/uv.lock" in agi_pages_exclude_data
+    assert "install.py" in agi_apps_package_data
+    assert not any(pattern.startswith("builtin/") for pattern in agi_apps_package_data)
+    assert "builtin/**" in agi_apps_exclude_data
+    assert "*/pyproject.toml" not in agi_pages_package_data
+    assert "*/src/**/*.py" not in agi_pages_package_data
+    assert "*/uv.lock" not in agi_pages_exclude_data

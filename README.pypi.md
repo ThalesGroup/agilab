@@ -103,8 +103,8 @@ what they need:
 | Profile | Dependency scope | Use when |
 |---|---|---|
 | Base package | `agilab` plus `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster`. This includes the core local/distributed runtime dependencies but not the built-in app or page-bundle payload. | CLI/core tooling, source-checkout validation, and worker-runtime development. |
-| `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities, `agi-apps` public built-in projects, and `agi-pages` analysis page bundles. | Running the local product UI with the public demo projects and analysis views available. |
-| `examples` extra | `agi-apps` public built-in apps/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
+| `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities, `agi-apps` plus per-app project packages, and `agi-pages` analysis page bundles. | Running the local product UI with the public demo projects and analysis views available. |
+| `examples` extra | `agi-apps` app catalog/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
 | `pages` extra | `agi-pages` public analysis page bundles without the full UI profile. | Installing or validating sidecar page bundles separately from built-in app projects. |
 | `agents` extra | API client dependency boundary for packaged agent workflow helpers. | Reproducible coding-agent and assistant-backed workflows. |
 | `mlflow` extra | MLflow tracking integration. | Recording runs, metrics, artifacts, or model registry handoff evidence. |
@@ -152,7 +152,7 @@ can validate one coherent tree. Their stability differs:
 |---|---|---|
 | `src/agilab/core/*` | Runtime packages and compact API. | Stable where documented. |
 | `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI. | Beta product surface. |
-| `src/agilab/lib/agi-apps` | PyPI package carrying public built-in apps/examples. | Packaged asset surface for the `ui` and `examples` extras. |
+| `src/agilab/lib/agi-apps` | PyPI umbrella carrying app catalog/example assets and depending on per-app project packages. | Packaged asset surface for the `ui` and `examples` extras. |
 | `src/agilab/lib/agi-pages` | PyPI package carrying public analysis page bundles. | Packaged page-bundle surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | First-proof and demo apps. | Packaged examples, not deployment templates. |
 | `src/agilab/examples` | Learning scripts and notebooks. | Educational examples with optional dependencies. |

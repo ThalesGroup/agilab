@@ -266,10 +266,11 @@ single notebook but less ceremony than a production MLOps platform:
   ``tools/supply_chain_attestation_report.py --compact`` in
   ``supply_chain_static_attestation`` mode against
   ``agilab.supply_chain_attestation.v1``; it fingerprints package metadata,
-  lockfile, license, bundled AGI core versions, exact internal dependency pins,
-  built-in app versions, built-in app internal dependency lower bounds, and
-  built-in app manifests plus package payload inventory and package payload
-  budgets without formal supply-chain attestation claims
+  lockfile, license, bundled AGI core versions, exact bundle dependency pins,
+  app/page payload package versions, built-in app payload versions, runtime
+  dependency lower bounds, and built-in app manifests plus package payload inventory
+  and package payload budgets without formal supply-chain
+  attestation claims
 - the security hygiene report validates
   ``tools/security_hygiene_report.py --compact`` in
   ``agilab.security_hygiene.v1`` mode; it checks the public security policy,

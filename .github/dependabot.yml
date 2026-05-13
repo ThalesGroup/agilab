@@ -93,11 +93,121 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-pages"
+    directory: "/src/agilab/lib/agi-app-data-io-2026-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:20"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-execution-pandas-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:25"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-execution-polars-project"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "08:30"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-flight-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:35"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-global-dag-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:40"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-meteo-forecast-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:45"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-mycode-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:50"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-tescia-diagnostic-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:55"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-uav-queue-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-uav-relay-queue-project"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:05"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-pages"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:10"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"

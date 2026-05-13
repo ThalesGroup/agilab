@@ -6,8 +6,9 @@ agilab local publisher for TestPyPI using ~/.pypirc.
 
 Highlights
 - Builds with uv (wheels and/or sdists). No pep517 shim.
-- Unified version for published AGI libraries + umbrella. Real PyPI never auto-bumps
-  to .postN; choose an explicit new version instead. TestPyPI may auto-bump for retries.
+- Per-package versions for published AGI components, bundles, and payload packages.
+  Real PyPI never auto-bumps to .postN; choose an explicit new version instead.
+  TestPyPI may auto-bump for retries.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - TestPyPI twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
 - Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
@@ -54,7 +55,10 @@ from html.parser import HTMLParser
 try:
     from package_split_contract import (
         APP_PACKAGE_NAMES,
+        ASSET_PACKAGE_NAMES,
         CORE_PACKAGE_NAMES,
+        EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
+        LIBRARY_PACKAGE_CONTRACTS,
         PAGE_PACKAGE_NAMES,
         UMBRELLA_PACKAGE_CONTRACT,
         WHEEL_ONLY_PACKAGE_NAMES,
@@ -63,7 +67,10 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.pypi_publish
     from tools.package_split_contract import (
         APP_PACKAGE_NAMES,
+        ASSET_PACKAGE_NAMES,
         CORE_PACKAGE_NAMES,
+        EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
+        LIBRARY_PACKAGE_CONTRACTS,
         PAGE_PACKAGE_NAMES,
         UMBRELLA_PACKAGE_CONTRACT,
         WHEEL_ONLY_PACKAGE_NAMES,
@@ -1071,6 +1078,52 @@ def compute_unified_version(core_names: List[str], repo_target: str, base_versio
     return chosen, collisions
 
 
+def compute_package_versions(
+    targets: List[Tuple[str, pathlib.Path, pathlib.Path]],
+    repo_target: str,
+    explicit_version: str | None,
+) -> Tuple[Dict[str, str], Dict[str, List[str]]]:
+    versions: Dict[str, str] = {}
+    collisions: Dict[str, List[str]] = {}
+    for name, toml_path, _project_dir in targets:
+        if explicit_version is not None:
+            chosen, package_collisions = compute_unified_version([name], repo_target, explicit_version)
+            versions[name] = chosen
+            collisions.update(package_collisions)
+            continue
+
+        chosen = get_version_from_pyproject(toml_path)
+        versions[name] = chosen
+        releases = pypi_releases(name, repo_target)
+        hits = sorted(release for release in releases if versions_equivalent(chosen, release))
+        if hits:
+            collisions[name] = hits
+        latest = latest_existing_release([name], repo_target)
+        if latest is not None and safe_ver(chosen) < safe_ver(latest):
+            raise SystemExit(
+                f"ERROR: {name} pyproject version {chosen} is lower than existing release "
+                f"{latest} on {repo_target}. Choose a version >= the latest release."
+            )
+    return versions, collisions
+
+
+def primary_release_version(package_versions: Dict[str, str]) -> str:
+    for package_name in (UMBRELLA[0], "agi-core", "agi-pages", "agi-apps"):
+        version = package_versions.get(package_name)
+        if version:
+            return version
+    try:
+        return next(iter(package_versions.values()))
+    except StopIteration as exc:
+        raise SystemExit("ERROR: no packages selected for release") from exc
+
+
+def pin_internal_deps_for_package(package_name: str, pyproject_path: pathlib.Path, pins: Dict[str, str]) -> bool:
+    if package_name not in EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES:
+        return False
+    return pin_internal_deps(pyproject_path, pins)
+
+
 # ---------- TOML ops ----------
 def get_version_from_pyproject(pyproject_path: str | pathlib.Path) -> str:
     p = pathlib.Path(pyproject_path)
@@ -1331,8 +1384,8 @@ def effective_dist_kind(package_name: str, requested: str) -> str:
     if package_name in WHEEL_ONLY_PACKAGES:
         if requested == "sdist":
             raise SystemExit(
-                f"ERROR: {package_name} is wheel-only because its public app payload "
-                "is packaged from the monorepo source tree. Use --dist wheel or --dist both."
+                f"ERROR: {package_name} is wheel-only by package policy. "
+                "Use --dist wheel or --dist both."
             )
         if requested == "both":
             return "wheel"
@@ -2387,12 +2440,12 @@ def main():
 
     selected_core_entries = [entry for entry in publishable_libs() if entry[0] in selected_packages]
     build_umbrella = UMBRELLA[0] in selected_packages
-    sync_builtin_versions = bool(build_umbrella)
     if not selected_core_entries and not build_umbrella:
         raise SystemExit("ERROR: --packages must include at least one buildable package")
 
     selected_core_names = [name for name, *_ in selected_core_entries]
     version_targets = selected_core_names + ([UMBRELLA[0]] if build_umbrella else [])
+    build_entries = selected_core_entries + ([UMBRELLA] if build_umbrella else [])
 
     if cfg.cleanup_only and cfg.delete_pypi_releases:
         delete_exact_pypi_releases(cfg, version_targets)
@@ -2414,26 +2467,13 @@ def main():
         # Name hygiene
         sanitize_project_names([p for _, p, _ in selected_core_entries])
 
-        # Determine version target
-        if cfg.packages and cfg.version is None:
-            existing_versions: set[str] = set()
-            for _, toml_path, _ in selected_core_entries:
-                existing_versions.add(get_version_from_pyproject(toml_path))
-            if build_umbrella:
-                existing_versions.add(get_version_from_pyproject(UMBRELLA[1]))
-            if len(existing_versions) != 1:
-                raise SystemExit(
-                    "ERROR: Selected packages have differing versions. "
-                    "Specify --version explicitly to override."
-                )
-            base_version = existing_versions.pop()
-        else:
-            base_version = cfg.version
+        package_versions, collisions = compute_package_versions(build_entries, cfg.repo, cfg.version)
+        chosen = primary_release_version(package_versions)
 
-        chosen, collisions = compute_unified_version(version_targets, cfg.repo, base_version)
-
-        print(f"[plan] Unified version: {chosen}")
-        date_tag = normalize_base(chosen)  # date base (YYYY.MM.DD)
+        print("[plan] Package versions:")
+        for name in version_targets:
+            print(f"  - {name}: {package_versions[name]}")
+        date_tag = normalize_base(chosen)  # primary date base (YYYY.MM.DD)
         print(f"[plan] Tag base (UTC): {date_tag}")
         planned_tag = compute_date_tag() if cfg.repo == "pypi" and cfg.git_tag else None
         if cfg.dry_run:
@@ -2455,11 +2495,7 @@ def main():
         release_snapshot = capture_release_file_state(git_paths_to_commit(include_docs=cfg.gen_docs))
         current_versions = {name: get_version_from_pyproject(toml) for name, toml, _ in publishable_libs()}
         pins = current_versions.copy()
-        for name in selected_core_names:
-            pins[name] = chosen
-
-        if sync_builtin_versions:
-            sync_builtin_app_versions(chosen, pins)
+        pins.update(package_versions)
 
         # Update README badges before building so the packaged long_description
         # and uploaded PyPI page embed the new versioned badge immediately.
@@ -2469,15 +2505,16 @@ def main():
 
         # core
         for name, toml, project in selected_core_entries:
+            package_version = package_versions[name]
             try:
-                set_version_in_pyproject(toml, chosen)
+                set_version_in_pyproject(toml, package_version)
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {toml}\n{e}")
-            pin_internal_deps(toml, pins)
+            pin_internal_deps_for_package(name, toml, pins)
             update_release_badge_for_project(name, toml, project)
             dist_kind = effective_dist_kind(name, cfg.dist)
             if cfg.dry_run:
-                print(f"[build] {name}: (dry-run would build {dist_kind} artifacts for {chosen})")
+                print(f"[build] {name}: (dry-run would build {dist_kind} artifacts for {package_version})")
                 files = []
             else:
                 uv_build_project(project, dist_kind)
@@ -2488,15 +2525,16 @@ def main():
 
         # umbrella
         if build_umbrella:
+            package_version = package_versions[UMBRELLA[0]]
             _, umbrella_toml, _ = UMBRELLA
             try:
-                set_version_in_pyproject(umbrella_toml, chosen)
+                set_version_in_pyproject(umbrella_toml, package_version)
             except Exception as e:
                 raise SystemExit(f"fatal: Could not update version in {umbrella_toml}\n{e}")
-            pin_internal_deps(umbrella_toml, pins)
+            pin_internal_deps_for_package(UMBRELLA[0], umbrella_toml, pins)
             update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
             if cfg.dry_run:
-                print(f"[build] umbrella: (dry-run would build {cfg.dist} artifacts for {chosen})")
+                print(f"[build] umbrella: (dry-run would build {cfg.dist} artifacts for {package_version})")
                 root_files = []
             else:
                 uv_build_repo_root(cfg.dist)
@@ -2536,25 +2574,25 @@ def main():
                     "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
                 )
             print('[auto-bump] upload collision detected; bumping to next .postN and retrying upload...')
-            base_only = normalize_base(chosen)
-            chosen2 = next_free_post_for_all(version_targets, cfg.repo, base_only)
+            package_versions2 = {
+                name: next_free_post_for_all([name], cfg.repo, normalize_base(version))
+                for name, version in package_versions.items()
+            }
+            chosen2 = primary_release_version(package_versions2)
             pins2 = pins.copy()
-            for name in selected_core_names:
-                pins2[name] = chosen2
+            pins2.update(package_versions2)
             update_selected_badges(selected_core_entries, build_umbrella)
             all_files2: List[str] = []
             for name, toml, project in selected_core_entries:
-                set_version_in_pyproject(toml, chosen2)
-                pin_internal_deps(toml, pins2)
+                set_version_in_pyproject(toml, package_versions2[name])
+                pin_internal_deps_for_package(name, toml, pins2)
                 update_release_badge_for_project(name, toml, project)
                 uv_build_project(project, effective_dist_kind(name, cfg.dist))
                 all_files2.extend(dist_files(project))
             if build_umbrella:
-                if sync_builtin_versions:
-                    sync_builtin_app_versions(chosen2, pins2)
                 _, umbrella_toml, _ = UMBRELLA
-                set_version_in_pyproject(umbrella_toml, chosen2)
-                pin_internal_deps(umbrella_toml, pins2)
+                set_version_in_pyproject(umbrella_toml, package_versions2[UMBRELLA[0]])
+                pin_internal_deps_for_package(UMBRELLA[0], umbrella_toml, pins2)
                 update_release_badge_for_project(UMBRELLA[0], umbrella_toml, UMBRELLA[2])
                 uv_build_repo_root(cfg.dist)
                 all_files2.extend(dist_files_root())
@@ -2570,6 +2608,7 @@ def main():
             globals()['UPLOAD_SUCCESS_COUNT'] = 0
             twine_upload(all_files2, cfg.repo, cfg.skip_existing, cfg.retries)
             chosen = chosen2
+            package_versions = package_versions2
 
         if not cfg.dry_run:
             update_selected_badges(selected_core_entries, build_umbrella)

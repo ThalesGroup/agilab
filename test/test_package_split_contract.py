@@ -14,6 +14,9 @@ TOOLS_ROOT = REPO_ROOT / "tools"
 sys.path.insert(0, str(TOOLS_ROOT))
 
 from package_split_contract import (
+    APP_PROJECT_PACKAGE_SPECS,
+    ASSET_PACKAGE_NAMES,
+    EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES,
     LIBRARY_PACKAGE_CONTRACTS,
     PACKAGE_CONTRACTS,
     PACKAGE_NAMES,
@@ -51,6 +54,10 @@ def _exact_pin(requirement: Requirement) -> str | None:
     return None
 
 
+def _has_lower_bound(requirement: Requirement) -> bool:
+    return any(specifier.operator in {">=", "~="} for specifier in requirement.specifier)
+
+
 def _load_pypi_publish():
     module_path = REPO_ROOT / "tools/pypi_publish.py"
     spec = importlib.util.spec_from_file_location("pypi_publish_contract_test_module", module_path)
@@ -71,9 +78,7 @@ def _load_release_plan():
     return module
 
 
-def test_package_contract_matches_pyproject_names_paths_and_versions() -> None:
-    versions: dict[str, str] = {}
-
+def test_package_contract_matches_pyproject_names_paths_and_roles() -> None:
     for package in PACKAGE_CONTRACTS:
         project_dir = project_path(REPO_ROOT, package)
         pyproject = pyproject_path(REPO_ROOT, package)
@@ -82,13 +87,14 @@ def test_package_contract_matches_pyproject_names_paths_and_versions() -> None:
 
         data = _load_toml(pyproject)
         assert data["project"]["name"] == package.name
-        versions[package.name] = data["project"]["version"]
-
-    assert len(set(versions.values())) == 1
+        assert data["project"]["version"]
 
 
-def test_internal_dependencies_are_exactly_pinned_to_the_package_split_version() -> None:
-    package_version = _load_toml(pyproject_path(REPO_ROOT, UMBRELLA_PACKAGE_CONTRACT))["project"]["version"]
+def test_internal_dependencies_follow_bundle_or_asset_version_policy() -> None:
+    versions = {
+        package.name: _load_toml(pyproject_path(REPO_ROOT, package))["project"]["version"]
+        for package in PACKAGE_CONTRACTS
+    }
     internal_names = set(PACKAGE_NAMES)
     violations: list[str] = []
 
@@ -105,8 +111,20 @@ def test_internal_dependencies_are_exactly_pinned_to_the_package_split_version()
                 if requirement.name.lower() not in internal_names:
                     continue
                 exact_version = _exact_pin(requirement)
-                if exact_version != package_version:
-                    violations.append(f"{package.name}:{section}:{requirement}")
+                if package.name in ASSET_PACKAGE_NAMES:
+                    if exact_version is not None:
+                        violations.append(f"{package.name}:{section}:{requirement}: asset payload must not exact-pin internal packages")
+                    if not _has_lower_bound(requirement):
+                        violations.append(f"{package.name}:{section}:{requirement}: asset payload must declare a compatible runtime floor")
+                    continue
+
+                expected_version = versions[requirement.name.lower()]
+                if package.name not in EXACT_INTERNAL_DEPENDENCY_PACKAGE_NAMES:
+                    violations.append(f"{package.name}: missing version policy")
+                elif exact_version != expected_version:
+                    violations.append(
+                        f"{package.name}:{section}:{requirement}: expected {requirement.name}=={expected_version}"
+                    )
 
     assert violations == []
 
@@ -168,7 +186,7 @@ def test_src_layout_packages_do_not_publish_top_level_init_modules() -> None:
     assert leaking_src_roots == []
 
 
-def test_workflow_and_docs_cover_the_same_eight_package_split() -> None:
+def test_workflow_and_docs_cover_the_same_package_split() -> None:
     workflow = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text(encoding="utf-8")
     docs = (REPO_ROOT / "docs/source/package-publishing-policy.rst").read_text(encoding="utf-8")
     readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
@@ -197,3 +215,22 @@ def test_workflow_and_docs_cover_the_same_eight_package_split() -> None:
     for package_name in WHEEL_ONLY_PACKAGE_NAMES:
         assert f"``{package_name}`` is published to PyPI as a wheel" in docs
         assert package_by_name(package_name).artifact_policy == "wheel-only"
+    assert "agi-pages" not in WHEEL_ONLY_PACKAGE_NAMES
+    assert "agi-apps" not in WHEEL_ONLY_PACKAGE_NAMES
+    assert package_by_name("agi-pages").artifact_policy == "wheel+sdist"
+    assert package_by_name("agi-apps").artifact_policy == "wheel+sdist"
+    assert "``agi-pages`` wheel is published to PyPI as a\nwheel-only asset" not in docs
+
+
+def test_app_project_package_contracts_match_declared_project_packages() -> None:
+    app_project_contracts = [
+        (package.name, package.project)
+        for package in LIBRARY_PACKAGE_CONTRACTS
+        if package.role == "app-project"
+    ]
+
+    assert app_project_contracts == list(APP_PROJECT_PACKAGE_SPECS)
+    assert package_by_name("agi-core").role == "runtime-bundle"
+    assert app_project_contracts
+    package_names = [package.name for package in LIBRARY_PACKAGE_CONTRACTS]
+    assert max(package_names.index(name) for name, _ in app_project_contracts) < package_names.index("agi-apps")
