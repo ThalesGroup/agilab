@@ -216,12 +216,12 @@ dev = [
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.data-files]
+[tool.setuptools.package-data]
 agi_env = [
-    "src/resources/*",
-    "*.ipynb",
-    "*.json",
-    "*.toml",
+    "resources/**/*",
+    "resources/.agilab/*",
+    "resources/mistral_offline/data/.gitignore",
+    "resources/mistral_offline/data/.gitkeep",
 ]
 
 [tool.mypy]
