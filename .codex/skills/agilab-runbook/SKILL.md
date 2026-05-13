@@ -178,14 +178,18 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - GitHub Release: `gh release list --limit 5` and `gh release view <tag>`
   - GitHub static badge: `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
 - Also verify the GitHub deployment environments, not only the workflow conclusion:
-  - the current split-package publisher uses `pypi-agilab` plus `pypi-agi-env`,
-    `pypi-agi-gui`, `pypi-agi-pages`, `pypi-agi-node`, `pypi-agi-cluster`,
-    `pypi-agi-core`, and `pypi-agi-apps`
+  - the split-package publisher now publishes runtime components, UI components,
+    page bundles, app-project payloads, the `agi-pages` / `agi-apps` umbrellas,
+    and the top-level `agilab` package. Do not check only `pypi-agi-apps` or
+    `pypi-agi-pages`; a green umbrella publish can still hide a missing payload
+    such as `pypi-agi-app-flight-project`.
   - the legacy `/deployments/pypi` page can stay red from older releases because
     the current Trusted Publisher/OIDC claim intentionally no longer uses the
     generic `pypi` GitHub environment
-  - check active environment states with:
-    `for env in pypi-agilab pypi-agi-env pypi-agi-gui pypi-agi-pages pypi-agi-node pypi-agi-cluster pypi-agi-core pypi-agi-apps; do id=$(gh api --method GET repos/ThalesGroup/agilab/deployments -f environment="$env" --jq '.[0].id'); state=$(gh api repos/ThalesGroup/agilab/deployments/$id/statuses --jq '.[0].state'); echo "$env $id $state"; done`
+  - derive the authoritative package/environment list from the release plan:
+    `uv --preview-features extra-build-dependencies run python tools/release_plan.py --check-workflow .github/workflows/pypi-publish.yaml`
+  - for a focused deployment-status check, query the environment names emitted by
+    the release plan instead of maintaining a separate hard-coded list
   - before retiring a stale generic `pypi` deployment, confirm it has no rules,
     secrets, or variables:
     `gh api repos/ThalesGroup/agilab/environments/pypi`, `gh secret list --repo ThalesGroup/agilab --env pypi`, and `gh variable list --repo ThalesGroup/agilab --env pypi`
