@@ -33,6 +33,7 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
         "publish-library-packages:\n    needs:\n      - test\n      - release-evidence\n"
         "      - supply-chain-evidence"
     ) in text
+    assert "      - release-plan" in text
 
 
 def test_pypi_publish_uploads_supply_chain_evidence_before_publish() -> None:
@@ -69,10 +70,15 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "id-token: write" in text
     assert "name: ${{ matrix.pypi_environment }}" in text
     assert "name: pypi-agilab" in text
-    assert "trusted-publisher-contract:" in text
+    assert "trusted-publisher-contract:" not in text
     assert "Render PyPI trusted publisher contract" in text
     assert "tools/pypi_trusted_publisher_contract.py" in text
     assert "--check-workflow .github/workflows/pypi-publish.yaml" in text
+    assert "release-plan:" in text
+    assert "Render release package plan" in text
+    assert "tools/release_plan.py" in text
+    assert "library_matrix: ${{ steps.release-plan.outputs.library_matrix }}" in text
+    assert "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}" in text
     assert "Report trusted publisher claim for ${{ matrix.package }}" in text
     assert "Report trusted publisher claim for agilab" in text
     assert "uses: pypa/gh-action-pypi-publish@" in text
@@ -82,8 +88,6 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "steps.agilab-pypi-state.outputs.all-exist != 'true'" in text
     assert "PYPI_TRUSTED_PUBLISHING" in text
     assert "PyPI publication requires Trusted Publishing/OIDC" in text
-    assert "artifact_policy: wheel+sdist" in text
-    assert "artifact_policy: wheel-only" in text
     assert 'uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}" --wheel' in text
     assert 'uv --preview-features extra-build-dependencies build --project "${{ matrix.project }}"' in text
     assert "uv --preview-features extra-build-dependencies build\n" in text
@@ -113,12 +117,13 @@ def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
     assert "fail-fast: false" in text
     assert text.count("uses: pypa/gh-action-pypi-publish@") == 2
 
-    for package in LIBRARY_PACKAGE_CONTRACTS:
-        assert f"package: {package.name}" in text
-        assert f"project: {package.project}" in text
-        assert f"dist: {package.dist}" in text
-        assert f"pypi_project: {package.name}" in text
-        assert f"pypi_environment: {package.pypi_environment}" in text
+    static_package_entries = {
+        match.strip()
+        for match in re.findall(r"^\s*-\s+package:\s+(.+)$", text, re.MULTILINE)
+    }
+    assert static_package_entries.isdisjoint(
+        {package.name for package in LIBRARY_PACKAGE_CONTRACTS}
+    )
 
     assert UMBRELLA_PACKAGE_CONTRACT.pypi_environment in text
     assert "Publish ${{ matrix.package }} to PyPI with trusted publishing" in text

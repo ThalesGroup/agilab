@@ -78,16 +78,29 @@ def validate_workflow_contract(
         "uses: pypa/gh-action-pypi-publish@": "workflow must use trusted publishing action",
         "PYPI_TRUSTED_PUBLISHING": "workflow must keep the trusted-publishing gate",
     }
+    if any(claim.project != "agilab" for claim in claims):
+        required_fragments["tools/release_plan.py"] = "generated library release matrix"
+        required_fragments[
+            "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}"
+        ] = "library release matrix generated from package contract"
+        required_fragments["name: ${{ matrix.pypi_environment }}"] = (
+            "matrix-specific library GitHub environments"
+        )
+        required_fragments[
+            "url: https://pypi.org/project/${{ matrix.pypi_project }}/"
+        ] = "matrix-specific PyPI project URLs"
+        required_fragments['--package "${{ matrix.package }}"'] = (
+            "matrix-specific trusted publisher claim reporting"
+        )
+        required_fragments['--artifact-policy "${{ matrix.artifact_policy }}"'] = (
+            "matrix-specific artifact policy verification"
+        )
+
     for claim in claims:
         if claim.project == "agilab":
             required_fragments["name: pypi-agilab"] = "agilab GitHub environment"
             required_fragments["Publish agilab to PyPI with trusted publishing"] = (
                 "agilab trusted publish step"
-            )
-        else:
-            required_fragments[f"pypi_project: {claim.project}"] = f"{claim.project} matrix project"
-            required_fragments[f"pypi_environment: {claim.environment}"] = (
-                f"{claim.project} GitHub environment"
             )
 
     return [

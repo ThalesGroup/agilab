@@ -25,13 +25,14 @@ Use this runbook whenever you:
   The top shortcuts are `impact` for impact validation, `bugfix` for impact plus a fast
   GA-selected regression run, `test` for targeted `pytest -q`,
   `regress` for GA-selected fast regression subsets, `flow` for one or more workflow parity
-  profiles, `badge` for the explicit release/pre-release coverage-badge guard, and `docs` for docs
-  mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
+  profiles, `release` for local pre-tag release guards, `badge` for the explicit release/pre-release
+  coverage-badge guard, and `docs` for docs mirror sync plus stamp verification. `impact` tells you what must be validated, `test` runs the
   narrow pytest slice, `bugfix` is the default low-load pre-push loop for normal code fixes,
   `regress` optimizes a likely regression subset from changed files and optional JUnit timings,
-  `flow` matches local GitHub workflow profiles, `badge` checks badge freshness when intentionally
-  requested, and `docs` keeps the public mirror aligned. Use `--print-only` to audit the expanded
-  commands.
+  `flow` matches local GitHub workflow profiles, `release` checks impact, generated PyPI release
+  plan, trusted-publisher contract, dependency policy, strict typing, docs, and badges before a tag,
+  `badge` checks badge freshness when intentionally requested, and `docs` keeps the public mirror
+  aligned. Use `--print-only` to audit the expanded commands.
 - **Upgrade packaged tools first**: Before launching the published CLI with `uvx
   agilab`, run `uv --preview-features extra-build-dependencies tool install --upgrade agilab` to install or pick up the latest wheel.
 - **No repo uvx**: Reserve `uvx` for packaged installs outside this checkout. Launching
