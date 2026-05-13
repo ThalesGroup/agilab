@@ -10,8 +10,9 @@ distributions. The app code now lives in focused packages such as
 `agi-app-meteo-forecast-project`.
 
 The umbrella keeps the lightweight `agilab.apps.install` helper and
-`agilab.examples` learning assets, then depends on the per-app packages so
-`agilab[ui]` and `agilab[examples]` still install the public app catalog.
+`agilab.examples` learning assets. Per-app project packages are built as
+release artifacts and can be installed independently once their PyPI publishers
+are configured.
 
 ## Quick Install
 
@@ -31,8 +32,8 @@ pip install "agilab[ui]"
 - `agi_apps`: catalog of public app project distributions.
 - `agilab.apps.install`: installer helper used by first-proof and UI workflows.
 - `agilab.examples`: runnable scripts, previews, and notebook examples.
-- `agi-app-*-project`: self-contained packages that expose app project roots
-  through the `agilab.apps` entry point group.
+- `agi-app-*-project`: self-contained release artifacts that expose app project
+  roots through the `agilab.apps` entry point group when installed.
 
-The package contains public examples and app package dependencies, not private
-enterprise app templates or a production MLOps platform.
+The package contains public examples and the app catalog, not private enterprise
+app templates or a production MLOps platform.

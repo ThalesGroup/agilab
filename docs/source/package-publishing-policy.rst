@@ -41,12 +41,13 @@ adds the Streamlit/UI dependencies used by AGILAB pages and page bundles.
 Worker environments should keep using ``agi-env`` unless they explicitly need
 to render UI.
 
-Published page-bundle packages
-------------------------------
+Archived page-bundle packages
+-----------------------------
 
-The public analysis pages are published as self-contained page-bundle
-packages. Each package carries one generic analysis page bundle and is pulled
-by the ``agi-pages`` umbrella package:
+The public analysis pages are built as self-contained page-bundle package
+artifacts. Each package carries one generic analysis page bundle and is
+uploaded to the GitHub Release distribution archive until its PyPI Trusted
+Publisher entry is configured:
 
 - ``view-barycentric-graph``
 - ``view-data-io-decision``
@@ -61,29 +62,28 @@ by the ``agi-pages`` umbrella package:
 - ``view-shap-explanation``
 - ``view-training-analysis``
 
-These packages are published as both wheels and source distributions. Their
-names stay app-agnostic because page bundles must be reusable by AGILAB apps
-and exported notebooks.
+These packages are built as both wheels and source distributions. Their names
+stay app-agnostic because page bundles must be reusable by AGILAB apps and
+exported notebooks.
 
 Published page-bundle umbrella package
 --------------------------------------
 
 ``agi-pages`` is published to PyPI from ``src/agilab/lib/agi-pages`` as both a
-wheel and source distribution. It is an umbrella/provider package for the
-``view-*`` distributions and exposes ``agi_pages.bundles_root()`` plus
+wheel and source distribution. It is an umbrella/provider package for page
+bundle discovery and exposes ``agi_pages.bundles_root()`` plus
 bundle-resolution helpers so ``agi-env`` and exported notebooks can discover
 installed page bundles without making base ``agilab`` depend on them.
 ``agilab[ui]`` pulls ``agi-pages`` for the local ANALYSIS page;
-``agilab[pages]`` installs the page provider and public ``view-*`` packages
-without the full UI profile.
+``agilab[pages]`` installs the page provider without the full UI profile.
 
-Published app project packages
-------------------------------
+Archived app project packages
+-----------------------------
 
-The public built-in app projects are published as self-contained app project
-packages. Each package carries one project payload and exposes it through the
-``agilab.apps`` entry point group so ``agi-env`` can resolve installed apps
-without the monorepo checkout:
+The public built-in app projects are built as self-contained app project
+package artifacts. Each package carries one project payload and exposes it
+through the ``agilab.apps`` entry point group so ``agi-env`` can resolve
+installed apps without the monorepo checkout once that package is installed:
 
 - ``agi-app-data-io-2026-project``
 - ``agi-app-execution-pandas-project``
@@ -96,19 +96,22 @@ without the monorepo checkout:
 - ``agi-app-uav-queue-project``
 - ``agi-app-uav-relay-queue-project``
 
-These packages are published as both wheels and source distributions. The
-payload is staged during package build, with local virtual environments,
-compiled artifacts, locks, and generated build outputs excluded.
+These packages are built as both wheels and source distributions and uploaded
+to the GitHub Release distribution archive until their PyPI Trusted Publisher
+entries are configured. The payload is staged during package build, with local
+virtual environments, compiled artifacts, locks, and generated build outputs
+excluded.
 
 Published app/example umbrella package
 --------------------------------------
 
 ``agi-apps`` is published to PyPI from ``src/agilab/lib/agi-apps`` as both a
-wheel and source distribution. It is now an umbrella/catalog package: it keeps
-the lightweight ``agilab.apps.install`` helper and ``agilab.examples`` learning
-assets, then depends on the matching ``agi-app-*-project`` distributions. The
-root ``agilab`` wheel stays lean; ``agilab[ui]`` and ``agilab[examples]`` pull
-``agi-apps`` when the packaged first-proof or demo assets are needed.
+wheel and source distribution. It is an umbrella/catalog package: it keeps the
+lightweight ``agilab.apps.install`` helper and ``agilab.examples`` learning
+assets while the per-app payload packages remain independently versioned
+release artifacts. The root ``agilab`` wheel stays lean; ``agilab[ui]`` and
+``agilab[examples]`` pull ``agi-apps`` when the packaged first-proof or demo
+assets are needed.
 
 Why keep them published
 -----------------------
@@ -146,15 +149,17 @@ dependency graph changed. AGILAB uses independent version tracks:
 - bundle packages such as ``agi-core``, ``agi-pages``, ``agi-apps``, and the
   root ``agilab`` version the curated dependency graph they expose;
 - payload packages such as ``view-*`` and ``agi-app-*-project`` version the
-  page or app payload they carry.
+  page or app payload they carry and are archived with release artifacts until
+  their PyPI publishers are configured.
 
-Bundle packages should exact-pin the payload/component versions they curate for
+Bundle packages should exact-pin the component versions they curate for
 reproducible installs. Payload packages should declare compatible AGILAB runtime
 ranges instead of exact-pinning every AGILAB release, so a runtime patch does
 not force republishing unchanged pages or apps. Do not skip ``agi-node``,
-``agi-cluster``, ``agi-gui``, any page-bundle package, ``agi-pages``, any app
-project package, or ``agi-apps`` from the publish matrix when their own version
-or dependency graph changed.
+``agi-cluster``, ``agi-gui``, ``agi-pages``, ``agi-apps``, or the root
+``agilab`` package from the PyPI publish matrix when their own version or
+dependency graph changed. Keep page-bundle and app-project payload packages in
+the release artifact matrix even when their PyPI upload flag is disabled.
 
 If AGILAB later embeds the ``agi_node`` and ``agi_cluster`` Python modules
 directly into a single wheel, that migration must update dependency metadata,
@@ -199,15 +204,18 @@ API tokens are not part of the normal release path. If a package or repository
 is not configured as a PyPI trusted publisher, the publish workflow should stop
 with an explicit configuration error instead of falling back to a stored token.
 
-Each PyPI project must have a GitHub trusted publisher entry matching the
-release workflow claims exactly. The workflow renders the same contract with
+Each PyPI project selected for upload must have a GitHub trusted publisher entry
+matching the release workflow claims exactly. The workflow renders the same contract with
 ``tools/pypi_trusted_publisher_contract.py`` before publication and appends the
 per-package claim to the GitHub step summary before each upload. A PyPI
 ``invalid-publisher`` error means the GitHub OIDC token was valid, but the PyPI
 project did not have a matching publisher entry or one of the fields differed.
 
 Configure these entries in each PyPI project under
-``Settings > Publishing > Trusted publishers > Add GitHub publisher``:
+``Settings > Publishing > Trusted publishers > Add GitHub publisher``. Entries
+for archived payload packages are activation targets for future PyPI uploads;
+the current PyPI release path only requests OIDC tokens for packages marked
+``publish_to_pypi=true`` in ``tools/release_plan.py``:
 
 .. list-table::
    :header-rows: 1

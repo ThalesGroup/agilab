@@ -19,10 +19,8 @@ SCHEMA_VERSION = "agilab.release_plan.v1"
 PYPI_PUBLISH_ROLES = {
     "runtime-component",
     "ui-component",
-    "page-bundle",
     "page-umbrella",
     "runtime-bundle",
-    "app-project",
     "app-umbrella",
     "top-level-bundle",
 }
