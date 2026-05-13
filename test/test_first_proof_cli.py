@@ -655,7 +655,7 @@ def test_write_agilab_path_marker_initializes_packaged_examples(monkeypatch, tmp
     assert marker.read_text(encoding="utf-8").strip() == str(ROOT / "src" / "agilab")
 
 
-def test_package_data_includes_app_installer_for_with_install() -> None:
+def test_agi_apps_umbrella_keeps_installer_without_payload_dependencies() -> None:
     pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
 
     package_data = pyproject["tool"]["setuptools"]["package-data"]["agilab.apps"]
@@ -663,7 +663,8 @@ def test_package_data_includes_app_installer_for_with_install() -> None:
 
     assert "install.py" in package_data
     assert not any(pattern.startswith("builtin/") for pattern in package_data)
-    assert any(dependency.startswith("agi-app-flight-project==") for dependency in dependencies)
+    assert any(dependency.startswith("agi-core==") for dependency in dependencies)
+    assert not any(dependency.startswith("agi-app-") for dependency in dependencies)
 
 
 def test_flight_project_package_data_includes_payload_for_execute() -> None:
