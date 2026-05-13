@@ -179,6 +179,8 @@ def activate_mlflow(
     """Start the local MLflow server and persist its runtime state."""
     if not env:
         return None
+    if session_state.get("mlflow_autostart_disabled"):
+        return False
 
     session_state["rapids_default"] = True
     tracking_dir = resolve_mlflow_tracking_dir_fn(env)
@@ -218,6 +220,15 @@ def activate_mlflow(
         session_state["server_started"] = True
         session_state["mlflow_port"] = port
         return True
+    except mlflow_store.MissingMlflowCliError as exc:
+        session_state["server_started"] = False
+        session_state["mlflow_autostart_disabled"] = True
+        session_state["mlflow_status_message"] = str(exc)
+        session_state.pop("mlflow_port", None)
+        warning = getattr(streamlit, "warning", None)
+        if callable(warning):
+            warning(f"MLflow is optional and was not started automatically. {exc}")
+        return False
     except (RuntimeError, OSError, ValueError, AttributeError) as exc:
         session_state["server_started"] = False
         session_state.pop("mlflow_port", None)
