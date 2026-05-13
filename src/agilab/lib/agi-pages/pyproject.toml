@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.13"
+version = "2026.05.13.post1"
 name = "agi-pages"
 description = "AGILAB public analysis page umbrella and provider package"
 requires-python = ">=3.11"
@@ -32,7 +32,7 @@ keywords = [
 ]
 
 dependencies = [
-    "agi-gui==2026.05.13",
+    "agi-gui==2026.05.13.post1",
     "view-barycentric-graph==0.1.0",
     "view-data-io-decision==0.1.0",
     "view-forecast-analysis==0.1.0",
