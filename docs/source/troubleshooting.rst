@@ -53,15 +53,17 @@ C - Exemple of Tests Sequence:
 
 - ** zip-all gen**
 
-  TGenerate the zip of the whole agi project directory with .gitignore filtration. A agi.zip file should created at the root dir of your projectu
+  Generate a zip archive of the whole AGILab project directory using
+  .gitignore-style filtering. The command writes ``agi.zip`` at the project
+  root.
 
 - ** test-agi-env test**
 
-  This will lunch unitary test for agi_env components and display their pytest results
+  Run the unit tests for ``agi_env`` and display their pytest output.
 
 - ** core test**
 
-  This will lunch all the unitary tests for agi_core components and display their pytest results
+  Run all unit tests for ``agi_core`` and display their pytest output.
 
 - ** app_script gen**
 

@@ -184,9 +184,10 @@ def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
     readme = Path("README.md").read_text(encoding="utf-8")
 
     assert "Release synchronization contract" in policy
-    assert "one planned version and one committed dependency graph" in normalized_policy
-    assert "internal runtime dependency pins used by the published wheels" in policy
-    assert "must not rewrite versions or dependency metadata\nduring the upload job" in policy
+    assert "may have several package versions" in normalized_policy
+    assert "one committed dependency graph" in normalized_policy
+    assert "exact internal dependency pins used by bundle packages" in policy
+    assert "must not rewrite versions or dependency metadata during the upload job" in normalized_policy
     assert "dependency-policy hygiene, docs mirror\nintegrity, installer behavior" in policy
     assert "Real PyPI publication must not silently auto-create\n``.postN`` releases" in policy
     assert "multiple same-day post releases should be treated as release\nprocess debt" in policy

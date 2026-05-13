@@ -1,7 +1,7 @@
 :orphan:
 
-Page Bundles (apps-pages)
-=========================
+Page Bundles
+============
 
 This page explains the optional analysis dashboards that AGILab can launch from
 the **ANALYSIS** page.
@@ -10,9 +10,9 @@ If you are new to AGILab, do not start here. Start with
 :doc:`newcomer-guide`, then use :doc:`explore-help` when you are ready to add
 custom or optional views.
 
-Page bundles (sometimes called ``apps-pages``) are standalone dashboards that
-complement the built-in workflow pages. In the UI they appear alongside the
-main pages, but they run in their own sidecar web process.
+Page bundles are standalone dashboards that complement the built-in workflow
+pages. In the UI they appear alongside the main pages, but they run in their
+own sidecar web process.
 
 What is a page bundle?
 ----------------------
@@ -39,8 +39,8 @@ For fastest setup, AGILAB Analysis also exposes a **minimal template generator**
   **Starting point**.
 - Open the generated page and replace the sample logic with your own visuals.
 
-Tutorial: clone an existing apps-page
--------------------------------------
+Tutorial: clone an existing page bundle
+---------------------------------------
 
 Use this when one public page bundle is already close to what you need and you
 want a new copy to modify safely.

@@ -39,8 +39,8 @@ page first.
 
    A compact visual tour of the four built-in Streamlit pages that structure the AGILAB workflow.
 
-Page bundles (apps-pages)
--------------------------
+Page bundles
+------------
 
 Page bundles are optional dashboards stored under ``${AGILAB_PAGES_ABS}``
 (default: ``src/agilab/apps-pages``). They are enabled per project via
