@@ -22,7 +22,7 @@ def _load_module():
     return module
 
 
-def _expected_entry(package) -> dict[str, str]:
+def _expected_entry(package, module) -> dict[str, str]:
     return {
         "package": package.name,
         "project": package.project,
@@ -30,6 +30,7 @@ def _expected_entry(package) -> dict[str, str]:
         "pypi_project": package.name,
         "pypi_environment": package.pypi_environment,
         "artifact_policy": package.artifact_policy,
+        "publish_to_pypi": "true" if package.role in module.PYPI_PUBLISH_ROLES else "false",
     }
 
 
@@ -37,9 +38,9 @@ def test_release_plan_library_matrix_matches_package_split_contract() -> None:
     module = _load_module()
 
     assert module.library_matrix() == [
-        _expected_entry(package) for package in LIBRARY_PACKAGE_CONTRACTS
+        _expected_entry(package, module) for package in LIBRARY_PACKAGE_CONTRACTS
     ]
-    assert module.umbrella_package() == _expected_entry(UMBRELLA_PACKAGE_CONTRACT)
+    assert module.umbrella_package() == _expected_entry(UMBRELLA_PACKAGE_CONTRACT, module)
 
 
 def test_release_plan_github_output_is_compact_and_parseable(tmp_path: Path) -> None:

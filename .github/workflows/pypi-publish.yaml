@@ -279,7 +279,7 @@ jobs:
           retention-days: 90
 
       - name: Ensure PyPI auth is configured for library packages
-        if: steps.library-pypi-state.outputs.all-exist != 'true'
+        if: steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
         run: |
           set -euo pipefail
           if [ "${PYPI_TRUSTED_PUBLISHING:-}" = "true" ]; then
@@ -290,7 +290,7 @@ jobs:
           exit 2
 
       - name: Report trusted publisher claim for ${{ matrix.package }}
-        if: steps.library-pypi-state.outputs.all-exist != 'true'
+        if: steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true'
         run: |
           set -euxo pipefail
           python tools/pypi_trusted_publisher_contract.py \
@@ -300,7 +300,7 @@ jobs:
       # PyPI OIDC tokens are project-scoped. The matrix gives each PyPI
       # project a distinct GitHub environment claim.
       - name: Publish ${{ matrix.package }} to PyPI with trusted publishing
-        if: steps.library-pypi-state.outputs.all-exist != 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
+        if: steps.library-pypi-state.outputs.all-exist != 'true' && matrix.publish_to_pypi == 'true' && env.PYPI_TRUSTED_PUBLISHING == 'true'
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
         with:
           packages-dir: ${{ matrix.dist }}
