@@ -5,7 +5,7 @@ This page maps the built-in AGILab web pages and shows how they fit together.
 
 The main web interface exposes one navigation surface for:
 
-- **Core pages** (Project, Orchestrate, Pipeline, Analysis), and
+- **Core pages** (Project, Orchestrate, Workflow, Analysis), and
 - **Page bundles** (optional dashboards launched from Analysis).
 
 How pages are presented
@@ -55,7 +55,7 @@ Use this as a page map, not as the newcomer proof path:
 2. Use :doc:`execute-help` (Orchestrate) to install dependencies, build
    distributions, configure distributed workers when needed, and generate a
    run snippet.
-3. Move to :doc:`experiment-help` (Pipeline) to import or iterate that
+3. Move to :doc:`experiment-help` (Workflow) to import or iterate that
    generated stage in ``lab_stages.toml`` and export a runnable supervisor
    notebook when you want the pipeline outside the AGILAB UI.
 4. Open :doc:`explore-help` (Analysis) to configure and launch page bundles for

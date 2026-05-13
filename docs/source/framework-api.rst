@@ -13,7 +13,7 @@ Core and UI packages
   headless environment utilities used by apps, workers, and installers.
 - ``agi_gui`` is the UI/page helper package under ``src/agilab/lib/agi-gui``. It
   depends on ``agi_env`` and adds the Streamlit-facing imports used by AGILAB
-  pages and apps-pages bundles.
+  pages and page bundles.
 - ``agi_core`` keeps the shared framework contracts intentionally thin; for now,
   the architecture page is more useful than autodoc because the top-level Python
   package exports only a minimal public surface.

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1360" height="940" viewBox="0 0 1360 940" role="img" aria-labelledby="title desc">
   <title id="title">AGILAB 3-minute tour</title>
-  <desc id="desc">Narrative README diagram showing the built-in UAV Relay Queue path across Project, Orchestrate, Pipeline, and Analysis, then the concrete value AGILAB gives to engineering teams.</desc>
+  <desc id="desc">Narrative README diagram showing the built-in UAV Relay Queue path across Project, Orchestrate, Workflow, and Analysis, then the concrete value AGILAB gives to engineering teams.</desc>
   <defs>
     <style>
       text {
