@@ -135,7 +135,7 @@ organization's security requirements in mind. At minimum:
 - Treat public release evidence as bounded evidence, not production certification. PyPI publishing
   should use Trusted Publishing/OIDC, SBOM and vulnerability scan artifacts should be archived when
   available, and deployments that handle sensitive data need their own threat model and acceptance
-  profile.
+  profile. Release evidence does not certify long-running production operations.
 - Generate supply-chain evidence for the actual install profile you deploy, not only for the base
   package. At minimum, archive a CycloneDX SBOM and ``pip-audit`` report for each enabled profile
   such as base CLI, ``agilab[ui]``, MLflow/tracking, offline/local-LLM tooling, and
