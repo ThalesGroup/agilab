@@ -41,6 +41,10 @@ MLFLOW_RUNTIME_EXCEPTIONS = tuple(
 _MLFLOW_CLI_BOOTSTRAP = "from mlflow.cli import cli; cli()"
 
 
+class MissingMlflowCliError(RuntimeError):
+    """Raised when the optional MLflow CLI is not available."""
+
+
 def mlflow_subprocess_env(base_env: dict[str, str] | None = None) -> dict[str, str]:
     """Return an environment safe for MLflow CLI subprocess imports."""
     env = dict(os.environ if base_env is None else base_env)
@@ -69,7 +73,7 @@ def mlflow_cli_argv(
         return [executable, *args]
     if _module_available("mlflow.cli", find_spec_fn=find_spec_fn):
         return [sys_executable, "-c", _MLFLOW_CLI_BOOTSTRAP, *args]
-    raise RuntimeError(
+    raise MissingMlflowCliError(
         "MLflow CLI is required but not installed in this environment. "
         "Install `agilab[mlflow]` or `mlflow` before starting the MLflow server."
     )

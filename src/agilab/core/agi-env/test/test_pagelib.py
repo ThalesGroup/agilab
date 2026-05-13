@@ -127,6 +127,13 @@ def test_background_services_enabled_respects_streamlit_testing_state(monkeypatc
     assert pagelib.background_services_enabled() is False
 
 
+def test_background_services_enabled_respects_mlflow_autostart_disabled(monkeypatch):
+    monkeypatch.delenv("AGILAB_DISABLE_BACKGROUND_SERVICES", raising=False)
+    monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state={"mlflow_autostart_disabled": True}))
+
+    assert pagelib.background_services_enabled() is False
+
+
 def test_background_services_enabled_defaults_to_true(monkeypatch):
     monkeypatch.delenv("AGILAB_DISABLE_BACKGROUND_SERVICES", raising=False)
     monkeypatch.setattr(pagelib, "st", SimpleNamespace(session_state={}))
