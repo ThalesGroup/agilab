@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import os
 import shutil
@@ -8,11 +10,19 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-import networkx as nx
-from networkx.readwrite import json_graph
 import pandas as pd
 import streamlit as st
 from code_editor import code_editor
+
+try:
+    import networkx as nx
+    from networkx.readwrite import json_graph
+except ModuleNotFoundError as exc:
+    nx = None  # type: ignore[assignment]
+    json_graph = None  # type: ignore[assignment]
+    _NETWORKX_IMPORT_ERROR = exc
+else:
+    _NETWORKX_IMPORT_ERROR = None
 
 try:
     import matplotlib.pyplot as plt
@@ -21,6 +31,27 @@ except ModuleNotFoundError as exc:
     _MATPLOTLIB_IMPORT_ERROR = exc
 else:
     _MATPLOTLIB_IMPORT_ERROR = None
+
+_NETWORKX_ERROR_TYPE = getattr(nx, "NetworkXError", RuntimeError) if nx is not None else RuntimeError
+_PREVIEW_LOAD_EXCEPTIONS = (OSError, RuntimeError, TypeError, ValueError, _NETWORKX_ERROR_TYPE)
+
+
+def _networkx_unavailable_message() -> str:
+    return (
+        f"networkx unavailable: {_NETWORKX_IMPORT_ERROR}. "
+        "Install the UI dependencies with `pip install 'agilab[ui]'` or run `uv sync --extra ui`."
+    )
+
+
+def _require_networkx():
+    if nx is None:
+        raise RuntimeError(_networkx_unavailable_message())
+    return nx
+
+
+def _is_networkx_graph(value: object) -> bool:
+    return nx is not None and isinstance(value, nx.Graph)
+
 
 from agi_env import AgiEnv
 from agi_gui.pagelib import cached_load_df, find_files, open_new_tab, render_dataframe_preview, save_csv
@@ -269,7 +300,8 @@ def render_execute_notice(streamlit_api, session_state) -> None:
     renderer(message)
 
 
-def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional[str]) -> None:
+def _render_graph_preview(graph_preview: "nx.Graph", source_preview_name: Optional[str]) -> None:
+    nx_module = _require_networkx()
     if plt is None:
         raise RuntimeError(
             f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
@@ -278,10 +310,10 @@ def _render_graph_preview(graph_preview: nx.Graph, source_preview_name: Optional
 
     st.caption("Graph preview generated from JSON output")
     fig, ax = plt.subplots(figsize=(8, 6))
-    pos = nx.spring_layout(graph_preview, seed=42)
-    nx.draw_networkx_nodes(graph_preview, pos, node_color="skyblue", ax=ax)
-    nx.draw_networkx_edges(graph_preview, pos, ax=ax, alpha=0.5)
-    nx.draw_networkx_labels(graph_preview, pos, ax=ax, font_size=9)
+    pos = nx_module.spring_layout(graph_preview, seed=42)
+    nx_module.draw_networkx_nodes(graph_preview, pos, node_color="skyblue", ax=ax)
+    nx_module.draw_networkx_edges(graph_preview, pos, ax=ax, alpha=0.5)
+    nx_module.draw_networkx_labels(graph_preview, pos, ax=ax, font_size=9)
     ax.axis("off")
     st.pyplot(fig, width="stretch")
     plt.close(fig)
@@ -723,6 +755,8 @@ async def render_execute_section(
                     elif suffix == ".json":
                         payload = json.loads(target_file.read_text())
                         if isinstance(payload, dict) and "nodes" in payload and "links" in payload:
+                            if json_graph is None:
+                                raise RuntimeError(_networkx_unavailable_message())
                             graph = json_graph.node_link_graph(payload, directed=payload.get("directed", True))
                             st.session_state["loaded_df"] = None
                             st.session_state["_force_export_open"] = False
@@ -741,8 +775,9 @@ async def render_execute_section(
                             st.info(message)
                             load_notice = ("info", message)
                     elif suffix == ".gml":
-                        graph = nx.read_gml(target_file)
-                        edge_df = nx.to_pandas_edgelist(graph)
+                        nx_module = _require_networkx()
+                        graph = nx_module.read_gml(target_file)
+                        edge_df = nx_module.to_pandas_edgelist(graph)
                         if not edge_df.empty:
                             st.session_state["loaded_df"] = edge_df
                             st.session_state["_force_export_open"] = True
@@ -770,7 +805,7 @@ async def render_execute_section(
                         st.warning(f"Unsupported file format: {target_file.suffix}")
                 except json.JSONDecodeError as exc:
                     st.error(f"Failed to decode JSON from {target_file.name}: {exc}")
-                except (OSError, RuntimeError, TypeError, ValueError, nx.NetworkXError) as exc:
+                except _PREVIEW_LOAD_EXCEPTIONS as exc:
                     st.error(f"Unable to load {target_file.name}: {exc}")
                 if loaded_output_changed:
                     if load_notice:
@@ -974,7 +1009,7 @@ async def render_execute_section(
         )
         if source_preview_name:
             st.caption(f"Previewing {source_preview_name}")
-    elif isinstance(graph_preview, nx.Graph):
+    elif _is_networkx_graph(graph_preview):
         try:
             _render_graph_preview(graph_preview, source_preview_name)
         except (OSError, RuntimeError, TypeError, ValueError) as exc:

@@ -4,9 +4,16 @@ import textwrap
 from collections import defaultdict
 from typing import Any
 
-import networkx as nx
 import pandas as pd
 import streamlit as st
+
+try:
+    import networkx as nx
+except ModuleNotFoundError as exc:
+    nx = None  # type: ignore[assignment]
+    _NETWORKX_IMPORT_ERROR = exc
+else:
+    _NETWORKX_IMPORT_ERROR = None
 
 try:
     import matplotlib.pyplot as plt
@@ -17,6 +24,19 @@ except ModuleNotFoundError as exc:
     _MATPLOTLIB_IMPORT_ERROR = exc
 else:
     _MATPLOTLIB_IMPORT_ERROR = None
+
+
+def _networkx_unavailable_message() -> str:
+    return (
+        f"networkx unavailable: {_NETWORKX_IMPORT_ERROR}. "
+        "Install the UI dependencies with `pip install 'agilab[ui]'` or run `uv sync --extra ui`."
+    )
+
+
+def _require_networkx():
+    if nx is None:
+        raise RuntimeError(_networkx_unavailable_message())
+    return nx
 
 
 def import_plotly_graph_objects(import_module_fn=importlib.import_module):
@@ -30,13 +50,14 @@ def import_plotly_graph_objects(import_module_fn=importlib.import_module):
 
 def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
     """Shared drawing routine for distribution or DAG graphs."""
+    nx_module = _require_networkx()
     if plt is None or Patch is None:
         raise RuntimeError(
             f"matplotlib unavailable: {_MATPLOTLIB_IMPORT_ERROR}. "
             "Install the optional visualization dependencies with `pip install 'agilab[viz]'`."
         )
 
-    pos = nx.multipartite_layout(graph, subset_key="level", align="horizontal")
+    pos = nx_module.multipartite_layout(graph, subset_key="level", align="horizontal")
     pos = {k: (-x, -y) for k, (x, y) in pos.items()}
 
     ip_nodes = [n for n, d in graph.nodes(data=True) if d.get("level") == 0]
@@ -47,12 +68,16 @@ def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
     plt.figure(figsize=(12, 8))
     plt.margins(x=0.1, y=0.1)
 
-    nx.draw_networkx_nodes(graph, pos, nodelist=ip_nodes, node_color="royalblue", node_shape="o", node_size=1500)
-    nx.draw_networkx_nodes(graph, pos, nodelist=worker_nodes, node_color="skyblue", node_shape="o", node_size=1500)
-    nx.draw_networkx_nodes(graph, pos, nodelist=partition_nodes, node_color="lightgreen", node_shape="s", node_size=1500)
+    nx_module.draw_networkx_nodes(graph, pos, nodelist=ip_nodes, node_color="royalblue", node_shape="o", node_size=1500)
+    nx_module.draw_networkx_nodes(graph, pos, nodelist=worker_nodes, node_color="skyblue", node_shape="o", node_size=1500)
+    nx_module.draw_networkx_nodes(
+        graph, pos, nodelist=partition_nodes, node_color="lightgreen", node_shape="s", node_size=1500
+    )
     if show_leaf_list:
-        nx.draw_networkx_nodes(graph, pos, nodelist=leaf_nodes, node_color="lightgrey", node_shape="s", node_size=1000)
-    nx.draw_networkx_edges(graph, pos)
+        nx_module.draw_networkx_nodes(
+            graph, pos, nodelist=leaf_nodes, node_color="lightgrey", node_shape="s", node_size=1000
+        )
+    nx_module.draw_networkx_edges(graph, pos)
 
     ax = plt.gca()
     for node in graph.nodes():
@@ -70,9 +95,9 @@ def draw_distribution(graph, partition_key, show_leaf_list, title) -> None:
             bbox=dict(facecolor="white", edgecolor="none", pad=1.0, alpha=1.0),
         )
 
-    edge_labels = nx.get_edge_attributes(graph, "weight")
+    edge_labels = nx_module.get_edge_attributes(graph, "weight")
     if edge_labels:
-        nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
+        nx_module.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
 
     patches = [
         Patch(facecolor="royalblue", label="Host IP"),
@@ -129,6 +154,10 @@ def extract_chunk_info(chunk, partition_key, weights_key) -> tuple[Any, Any]:
 
 def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key, show_leaf_list=False) -> None:
     """Display the distribution tree of the workload."""
+    if nx is None:
+        st.warning(_networkx_unavailable_message())
+        return
+
     total = 0
     total_per_host = defaultdict(int)
     workers_works = defaultdict(list)
@@ -186,6 +215,10 @@ def show_tree(workers, work_plan_metadata, work_plan, partition_key, weights_key
 
 def show_graph(workers, work_plan_metadata, work_plan, partition_key, weights_key, show_leaf_list=False) -> None:
     """Display a directed acyclic graph based on workplan metadata."""
+    if nx is None:
+        st.warning(_networkx_unavailable_message())
+        return
+
     total = 0
     total_per_host = defaultdict(int)
     workers_works = defaultdict(list)

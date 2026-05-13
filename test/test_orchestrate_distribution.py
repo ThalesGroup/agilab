@@ -401,6 +401,55 @@ def test_orchestrate_distribution_import_fallback_sets_matplotlib_error():
     assert isinstance(module._MATPLOTLIB_IMPORT_ERROR, ModuleNotFoundError)
 
 
+def test_orchestrate_distribution_import_fallback_sets_networkx_error():
+    module = _load_module_with_missing(
+        "agilab.orchestrate_distribution_no_networkx",
+        "src/agilab/orchestrate_distribution.py",
+        "networkx",
+    )
+    warnings: list[str] = []
+
+    module.st = SimpleNamespace(warning=warnings.append)
+
+    assert module.nx is None
+    assert isinstance(module._NETWORKX_IMPORT_ERROR, ModuleNotFoundError)
+    module.show_tree(["127.0.0.1-0"], [[("p1", 1)]], [[["file.csv"]]], "partition", "size")
+    assert warnings
+    assert "agilab[ui]" in warnings[0]
+
+
+def test_orchestrate_page_import_survives_missing_networkx():
+    module_name = "agilab_page_orchestrate_missing_networkx"
+    module_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
+    original_import = __import__
+    removed_modules = {
+        name: sys.modules.pop(name, None)
+        for name in ("agilab.orchestrate_distribution", "agilab.orchestrate_execute")
+    }
+
+    def _patched_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name in {"networkx", "networkx.readwrite"}:
+            raise ModuleNotFoundError(name)
+        return original_import(name, globals, locals, fromlist, level)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr("builtins.__import__", _patched_import)
+        importlib.invalidate_caches()
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            for name, previous in removed_modules.items():
+                if previous is not None:
+                    sys.modules[name] = previous
+
+    assert callable(module.show_graph)
+    assert callable(module.render_execute_section)
+
+
 def test_workload_barchart_emits_plotly_figure(monkeypatch):
     plotted = []
 
