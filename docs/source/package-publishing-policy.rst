@@ -58,6 +58,7 @@ by the ``agi-pages`` umbrella package:
 - ``view-queue-resilience``
 - ``view-relay-resilience``
 - ``view-release-decision``
+- ``view-shap-explanation``
 - ``view-training-analysis``
 
 These packages are published as both wheels and source distributions. Their
@@ -276,6 +277,11 @@ Configure these entries in each PyPI project under
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-view-release-decision``
+   * - ``view-shap-explanation``
+     - ``ThalesGroup``
+     - ``agilab``
+     - ``pypi-publish.yaml``
+     - ``pypi-view-shap-explanation``
    * - ``view-training-analysis``
      - ``ThalesGroup``
      - ``agilab``
@@ -398,6 +404,7 @@ so Trusted Publishing receives a project-specific OIDC claim:
 - ``pypi-view-queue-resilience``
 - ``pypi-view-relay-resilience``
 - ``pypi-view-release-decision``
+- ``pypi-view-shap-explanation``
 - ``pypi-view-training-analysis``
 - ``pypi-agi-pages``
 - ``pypi-agi-app-data-io-2026-project``

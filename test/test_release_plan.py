@@ -13,6 +13,14 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, UMBRELLA_PACKAGE_CONTRACT
 
 
+APP_PROJECT_PACKAGES = tuple(
+    package for package in LIBRARY_PACKAGE_CONTRACTS if package.role == "app-project"
+)
+PAGE_BUNDLE_PACKAGES = tuple(
+    package for package in LIBRARY_PACKAGE_CONTRACTS if package.role == "page-bundle"
+)
+
+
 def _load_module():
     spec = importlib.util.spec_from_file_location("release_plan_test_module", MODULE_PATH)
     assert spec and spec.loader
@@ -41,6 +49,17 @@ def test_release_plan_library_matrix_matches_package_split_contract() -> None:
         _expected_entry(package, module) for package in LIBRARY_PACKAGE_CONTRACTS
     ]
     assert module.umbrella_package() == _expected_entry(UMBRELLA_PACKAGE_CONTRACT, module)
+
+
+def test_release_plan_publishes_all_payload_packages_required_by_umbrellas() -> None:
+    module = _load_module()
+    matrix = {entry["package"]: entry for entry in module.library_matrix()}
+
+    assert APP_PROJECT_PACKAGES
+    assert PAGE_BUNDLE_PACKAGES
+    assert matrix["agi-app-flight-project"]["publish_to_pypi"] == "true"
+    for package in (*APP_PROJECT_PACKAGES, *PAGE_BUNDLE_PACKAGES):
+        assert matrix[package.name]["publish_to_pypi"] == "true", package.name
 
 
 def test_release_plan_github_output_is_compact_and_parseable(tmp_path: Path) -> None:
