@@ -17,6 +17,7 @@ DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
 NOTEBOOK_EXPORT_SCHEMA = "agilab.notebook_export.v1"
 NOTEBOOK_EXPORT_SCHEMA_VERSION = 1
 PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
+PROJECT_NOTEBOOK_MIRROR_DIR = "notebooks"
 ALLOW_WORKSPACE_SIBLING_APPS_ENV = "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
 APPS_REPOSITORY_ENV_KEYS = ("APPS_REPOSITORY",)
 
@@ -39,18 +40,22 @@ def _preferred_jupyter_commands(notebook_path: Path) -> tuple[str, str]:
     except Exception:
         current_file = Path(__file__)
 
-    repo_root = None
+    project_root = None
     try:
-        if current_file.parents[1].name == "exported_notebooks":
-            repo_root = current_file.parents[2]
+        if current_file.parent.name == "notebooks":
+            candidate = current_file.parent.parent
+            if (candidate / "pyproject.toml").exists() or (candidate / "src" / "app_settings.toml").exists():
+                project_root = candidate
+        elif current_file.parents[1].name == "exported_notebooks":
+            project_root = current_file.parents[2]
     except Exception:
-        repo_root = None
+        project_root = None
 
     quoted_notebook = shlex.quote(str(notebook_path))
-    if repo_root is None:
+    if project_root is None:
         prefix = "uv run"
     else:
-        prefix = f"uv --project {shlex.quote(str(repo_root))} run"
+        prefix = f"uv --project {shlex.quote(str(project_root))} run"
 
     lab_cmd = f"{prefix} --with jupyterlab jupyter lab {quoted_notebook}"
     execute_cmd = (
@@ -269,6 +274,26 @@ def _iter_checkout_workspace_apps_dirs(
         yield from _emit(sibling / "src" / "agilab" / "apps")
 
 
+def _project_notebook_mirror_path(
+    export_context: NotebookExportContext | None,
+    notebook_name: str,
+) -> Path | None:
+    if export_context is None or not export_context.active_app:
+        return None
+    try:
+        app_root = Path(export_context.active_app).expanduser().resolve(strict=False)
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    if not app_root.is_dir():
+        return None
+    project_name = str(export_context.project_name or "").strip()
+    if project_name and app_root.name not in _project_name_candidates(project_name):
+        return None
+    if not (app_root / "pyproject.toml").is_file() and not (app_root / "src" / "app_settings.toml").is_file():
+        return None
+    return app_root / PROJECT_NOTEBOOK_MIRROR_DIR / notebook_name
+
+
 def pycharm_notebook_mirror_path(
     toml_path: str | Path,
     *,
@@ -283,6 +308,9 @@ def pycharm_notebook_mirror_path(
     repo_root = _resolve_pycharm_repo_root(export_context, current_file=current_file)
     if repo_root is None:
         return ""
+    project_mirror = _project_notebook_mirror_path(export_context, notebook_path.name)
+    if project_mirror is not None:
+        return str(project_mirror)
     if notebook_path.is_relative_to(repo_root):
         return str(notebook_path)
 

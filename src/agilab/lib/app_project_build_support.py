@@ -80,6 +80,7 @@ _EXCLUDED_PAYLOAD_DIRS = {
     "Modules",
     "build",
     "dist",
+    "notebooks",
     "test",
 }
 _EXCLUDED_PAYLOAD_FILES = {".DS_Store", ".gitignore", ".lock", "uv.lock"}

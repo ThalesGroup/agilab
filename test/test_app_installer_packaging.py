@@ -100,6 +100,7 @@ APP_GENERATED_DIRS = {
     "agilab",
     "build",
     "dist",
+    "notebooks",
 }
 APP_GENERATED_SUFFIXES = {".c", ".pyc", ".pyo", ".pyx", ".so"}
 APP_PROJECT_BY_DISTRIBUTION = {
