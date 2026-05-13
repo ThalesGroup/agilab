@@ -209,23 +209,21 @@ not just a static dump of code cells.
 * The notebook is written beside ``lab_stages.toml`` as ``lab_stages.ipynb``.
 * You can open it outside the AGILAB UI in Jupyter-compatible tools such as
   JupyterLab or PyCharm.
-* For a source checkout, prefer the project-local mirror under
-  ``<app-project>/notebooks/lab_stages.ipynb``. ANALYSIS discovers notebooks in
-  that directory and exposes selected entries in its sidebar ``Notebooks``
-  section. You can also launch the notebook from the app project explicitly, for
-  example:
+* For a source checkout, prefer the mirror under
+  ``exported_notebooks/<module>/lab_stages.ipynb`` and launch it from the AGILAB
+  root project explicitly, for example:
 
   .. code-block:: bash
 
-     APP_PROJECT="${AGILAB_APP_PROJECT:-/path/to/checkout/src/agilab/apps/builtin/flight_project}"
-     uv --project "$APP_PROJECT" run --with jupyterlab jupyter lab "$APP_PROJECT/notebooks/lab_stages.ipynb"
+     CHECKOUT="${AGILAB_CHECKOUT:-/path/to/checkout}"
+     uv --project "$CHECKOUT" run --with jupyterlab jupyter lab exported_notebooks/<module>/lab_stages.ipynb
 
   or execute it headlessly with:
 
   .. code-block:: bash
 
-     APP_PROJECT="${AGILAB_APP_PROJECT:-/path/to/checkout/src/agilab/apps/builtin/flight_project}"
-     uv --project "$APP_PROJECT" run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace "$APP_PROJECT/notebooks/lab_stages.ipynb"
+     CHECKOUT="${AGILAB_CHECKOUT:-/path/to/checkout}"
+     uv --project "$CHECKOUT" run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace exported_notebooks/<module>/lab_stages.ipynb
 
 * The exported notebook keeps the recorded per-stage runtime and environment
   metadata instead of flattening the whole pipeline into one implicit kernel
