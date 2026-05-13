@@ -75,7 +75,7 @@ def fetch_pypi_distribution_files(name: str) -> dict[Version, set[str]]:
             payload = json.load(response)
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
-            return set()
+            return {}
         raise DistributionStateError(f"could not fetch PyPI metadata for {name}: HTTP {exc.code}") from exc
     except (OSError, json.JSONDecodeError) as exc:
         raise DistributionStateError(f"could not fetch PyPI metadata for {name}: {exc}") from exc

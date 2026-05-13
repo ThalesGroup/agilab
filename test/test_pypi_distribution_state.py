@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import urllib.error
 from pathlib import Path
 
 import pytest
@@ -84,3 +85,18 @@ def test_pypi_distribution_state_requires_exact_remote_filename(tmp_path: Path) 
     by_filename = {state.filename: state for state in states}
     assert by_filename["agilab-2026.5.12.post3-py3-none-any.whl"].exists is True
     assert by_filename["agilab-2026.5.12.post3.tar.gz"].exists is False
+
+
+def test_fetch_pypi_distribution_files_returns_empty_mapping_for_missing_project(monkeypatch: pytest.MonkeyPatch) -> None:
+    def raise_not_found(*_args: object, **_kwargs: object) -> object:
+        raise urllib.error.HTTPError(
+            url="https://pypi.org/pypi/example-missing-package/json",
+            code=404,
+            msg="Not Found",
+            hdrs=None,
+            fp=None,
+        )
+
+    monkeypatch.setattr(pypi_distribution_state.urllib.request, "urlopen", raise_not_found)
+
+    assert pypi_distribution_state.fetch_pypi_distribution_files("example-missing-package") == {}
