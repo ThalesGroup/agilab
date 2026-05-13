@@ -57,6 +57,7 @@ IGNORED_PAYLOAD_PATH_PARTS = {
     "__pycache__",
     "build",
     "dist",
+    "notebooks",
 }
 
 

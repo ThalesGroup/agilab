@@ -1420,6 +1420,35 @@ def test_pycharm_notebook_mirror_path_targets_source_checkout_for_external_expor
     assert mirror_path == str(repo_root / "exported_notebooks" / "uav_graph_routing" / "lab_stages.ipynb")
 
 
+def test_pycharm_notebook_mirror_path_prefers_project_notebooks_for_active_app(tmp_path):
+    repo_root = tmp_path / "repo"
+    (repo_root / "src" / "agilab").mkdir(parents=True, exist_ok=True)
+    (repo_root / ".idea").mkdir(parents=True, exist_ok=True)
+    app_root = repo_root / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    (app_root / "src").mkdir(parents=True, exist_ok=True)
+    (app_root / "pyproject.toml").write_text("[project]\nname='flight_project'\n", encoding="utf-8")
+
+    paths = []
+    for project_name, artifact_name in (("flight_project", "flight"), ("flight", "flight_project")):
+        export_dir = tmp_path / "export" / artifact_name
+        export_dir.mkdir(parents=True, exist_ok=True)
+        context = notebook_export_support.NotebookExportContext(
+            project_name=project_name,
+            module_path=artifact_name,
+            artifact_dir=str(export_dir),
+            active_app=str(app_root),
+            repo_root=str(repo_root),
+        )
+        paths.append(
+            notebook_export_support.pycharm_notebook_mirror_path(
+                export_dir / "lab_stages.toml",
+                export_context=context,
+            )
+        )
+
+    assert paths == [str(app_root / "notebooks" / "lab_stages.ipynb")] * 2
+
+
 def test_build_notebook_export_context_reads_related_pages_from_app_settings(tmp_path):
     pages_root = tmp_path / "apps-pages"
     page_script = pages_root / "view_demo" / "src" / "view_demo" / "view_demo.py"
@@ -1772,11 +1801,14 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     export_dir = tmp_path / "export" / "demo_project"
     export_dir.mkdir(parents=True, exist_ok=True)
     toml_path = export_dir / "lab_stages.toml"
+    app_root = tmp_path / "apps" / "demo_project"
+    (app_root / "src").mkdir(parents=True, exist_ok=True)
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
     context = notebook_export_support.NotebookExportContext(
         project_name="demo_project",
         module_path="demo_project",
         artifact_dir=str(export_dir),
-        active_app=str(tmp_path / "apps" / "demo_project"),
+        active_app=str(app_root),
         app_settings_file=str(tmp_path / ".agilab" / "apps" / "demo_project" / "app_settings.toml"),
         pages_root=str(tmp_path / "apps-pages"),
         repo_root=str(repo_root),
@@ -1811,7 +1843,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     )
 
     notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
-    pycharm_mirror = repo_root / "exported_notebooks" / "demo_project" / "lab_stages.ipynb"
+    pycharm_mirror = app_root / "notebooks" / "lab_stages.ipynb"
     pycharm_sitecustomize = pycharm_mirror.parent / "sitecustomize.py"
     mirror_notebook = json.loads(pycharm_mirror.read_text(encoding="utf-8"))
     metadata = notebook["metadata"]["agilab"]
@@ -2554,6 +2586,36 @@ def test_pycharm_notebook_sitecustomize_uses_repo_project_prefix_for_mirror(tmp_
     assert result.returncode != 0
     assert f"uv --project {repo_root} run --with jupyterlab jupyter lab" in result.stderr
     assert f"uv --project {repo_root} run --with nbconvert python -m jupyter nbconvert" in result.stderr
+
+
+def test_pycharm_notebook_sitecustomize_uses_app_project_prefix_for_project_notebooks(tmp_path):
+    app_root = tmp_path / "apps" / "demo_project"
+    shim_dir = app_root / "notebooks"
+    shim_dir.mkdir(parents=True, exist_ok=True)
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    (shim_dir / "sitecustomize.py").write_text(
+        notebook_export_support.pycharm_notebook_sitecustomize_text(),
+        encoding="utf-8",
+    )
+    notebook_path = shim_dir / "lab_stages.ipynb"
+    notebook_path.write_text('{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 5}\n', encoding="utf-8")
+
+    import subprocess
+
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(shim_dir)
+
+    result = subprocess.run(
+        [sys.executable, str(notebook_path)],
+        cwd=shim_dir,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert f"uv --project {app_root} run --with jupyterlab jupyter lab" in result.stderr
+    assert f"uv --project {app_root} run --with nbconvert python -m jupyter nbconvert" in result.stderr
 
 
 def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_path):
