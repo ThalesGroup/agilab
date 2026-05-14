@@ -1211,7 +1211,7 @@ def test_confirm_notebook_import_preview_promotes_selected_cell_only(monkeypatch
     assert contract["artifact_contract"]["inputs"] == ["inputs/orders.parquet"]
     assert contract["artifact_contract"]["outputs"] == ["results/summary.json"]
     assert fake_st.session_state["idx"][-1] == 1
-    assert ("success", "Promoted notebook cell cell-4 to AGILAB stage.") in messages
+    assert ("success", "Promoted cell-4 to an AGILAB stage.") in messages
     assert ("revision", "bump") in messages
 
 
@@ -1350,7 +1350,7 @@ def test_render_notebook_import_preview_can_promote_selected_cell(monkeypatch, t
         "idx",
     )
 
-    assert selected["selectbox"][0] == "Notebook cell to promote"
+    assert selected["selectbox"][0] == "Notebook import scope"
     assert "All runnable cells" in selected["selectbox"][1]
     assert selected["confirm"][3]["selected_stage_ids"] == [options[1]["id"]]
     assert ("button", "Promote selected cell") in messages
@@ -3032,7 +3032,7 @@ def test_notebook_to_toml_skips_non_code_and_empty_code_cells(monkeypatch, tmp_p
     stored = tomllib.loads((tmp_path / "demo_project" / "lab_stages.toml").read_text(encoding="utf-8"))
     assert count == 1
     assert stored["demo_project"][0]["D"] == "ignore"
-    assert stored["demo_project"][0]["Q"] == "Imported notebook cell cell-3"
+    assert stored["demo_project"][0]["Q"] == "Imported cell-3 from notebook"
     assert stored["demo_project"][0]["C"] == "print(3)\n"
     assert stored["demo_project"][0]["M"] == ""
     assert stored["demo_project"][0]["NB_CELL_ID"] == "cell-3"

@@ -738,6 +738,13 @@ def _source_from_stage(stage: Mapping[str, Any]) -> str:
     return "".join(_coerce_source_lines(stage.get("source_lines", [])))
 
 
+def _default_imported_stage_question(stage: Mapping[str, Any]) -> str:
+    stage_id = str(stage.get("id", "") or "").strip()
+    if stage_id:
+        return f"Imported {stage_id} from notebook"
+    return "Imported notebook cell"
+
+
 def _artifact_paths(stage: Mapping[str, Any]) -> list[str]:
     references = stage.get("artifact_references", [])
     if not isinstance(references, list):
@@ -792,7 +799,7 @@ def build_lab_stages_preview(
             "D": str(stage.get("description", "") or "")
             or _context_summary(context_ids, contexts),
             "Q": str(stage.get("question", "") or "")
-            or f"Imported notebook cell {stage.get('id', '')}",
+            or _default_imported_stage_question(stage),
             "C": code,
             "M": str(stage.get("model", "") or ""),
             "NB_CELL_ID": str(stage.get("id", "")),
