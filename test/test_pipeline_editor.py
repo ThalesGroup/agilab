@@ -1151,6 +1151,70 @@ optional_artifacts = ["flight/raw/*.csv"]
     assert ("revision", "bump") in messages
 
 
+def test_confirm_notebook_import_preview_promotes_selected_cell_only(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    uploaded = SimpleNamespace(
+        name="selected.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["# Load orders\n"]},
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "import pandas as pd\n",
+                            "df = pd.read_csv('data/orders.csv')\n",
+                            "df.to_parquet('outputs/orders.parquet')\n",
+                        ],
+                    },
+                    {"cell_type": "markdown", "source": ["# Summarise orders\n"]},
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "from pathlib import Path\n",
+                            "summary = Path('inputs/orders.parquet').read_text()\n",
+                            "Path('results/summary.json').write_text(summary)\n",
+                        ],
+                    },
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        info=lambda message, *args, **kwargs: messages.append(("info", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: messages.append(("revision", "bump")))
+
+    module_dir = tmp_path / "demo_project"
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, module_dir)
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+
+    count = pipeline_editor.confirm_notebook_import_preview(
+        module_dir,
+        module_dir / "lab_stages.toml",
+        "idx",
+        selected_stage_ids=["cell-4"],
+    )
+
+    stored = tomllib.loads((module_dir / "lab_stages.toml").read_text(encoding="utf-8"))
+    contract = json.loads((module_dir / "notebook_import_contract.json").read_text(encoding="utf-8"))
+    assert count == 1
+    assert len(stored["demo_project"]) == 1
+    assert stored["demo_project"][0]["NB_CELL_ID"] == "cell-4"
+    assert stored["demo_project"][0]["D"] == "Summarise orders"
+    assert contract["artifact_contract"]["inputs"] == ["inputs/orders.parquet"]
+    assert contract["artifact_contract"]["outputs"] == ["results/summary.json"]
+    assert fake_st.session_state["idx"][-1] == 1
+    assert ("success", "Promoted notebook cell cell-4 to AGILAB stage.") in messages
+    assert ("revision", "bump") in messages
+
+
 def test_confirm_notebook_import_preview_blocks_unsafe_preflight(monkeypatch, tmp_path):
     messages: list[tuple[str, str]] = []
     uploaded = SimpleNamespace(
@@ -1233,6 +1297,68 @@ def test_render_notebook_import_preview_hides_import_button_for_blocked_prefligh
     assert button_labels == ["Cancel import"]
     assert "idx__notebook_import_preview" not in fake_st.session_state
     assert ("error", "Notebook import blocked: Notebook import produced no runnable code cells.") in messages
+
+
+def test_render_notebook_import_preview_can_promote_selected_cell(monkeypatch, tmp_path):
+    uploaded = SimpleNamespace(
+        name="selected.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["# First\n"]},
+                    {"cell_type": "code", "source": ["print('first')\n"]},
+                    {"cell_type": "markdown", "source": ["# Second\n"]},
+                    {"cell_type": "code", "source": ["print('second')\n"]},
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, tmp_path / "demo_project")
+    options = pipeline_editor._notebook_import_stage_options(preview)
+    selected_label = options[1]["label"]
+    messages: list[tuple[str, str]] = []
+    selected: dict[str, object] = {}
+
+    def _selectbox(label, options, *args, **kwargs):
+        selected["selectbox"] = (label, list(options), kwargs)
+        return selected_label
+
+    def _button(label, *args, **kwargs):
+        messages.append(("button", label))
+        return label == "Promote selected cell"
+
+    def _confirm(module_dir, stages_file, index_page, **kwargs):
+        selected["confirm"] = (module_dir, stages_file, index_page, kwargs)
+        return 1
+
+    sidebar = SimpleNamespace(
+        caption=lambda message, *args, **kwargs: messages.append(("caption", message)),
+        selectbox=_selectbox,
+        button=_button,
+    )
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx__notebook_import_preview": preview}),
+        sidebar=sidebar,
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "confirm_notebook_import_preview", _confirm)
+
+    pipeline_editor.render_notebook_import_preview(
+        tmp_path / "demo_project",
+        tmp_path / "demo_project" / "lab_stages.toml",
+        "idx",
+    )
+
+    assert selected["selectbox"][0] == "Notebook cell to promote"
+    assert "All runnable cells" in selected["selectbox"][1]
+    assert selected["confirm"][3]["selected_stage_ids"] == [options[1]["id"]]
+    assert ("button", "Promote selected cell") in messages
+    assert any(
+        message.startswith("Selected cell 4;")
+        for kind, message in messages
+        if kind == "caption"
+    )
 
 
 def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_path):

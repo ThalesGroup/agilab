@@ -102,6 +102,7 @@ write_notebook_import_pipeline_view = _notebook_pipeline_import_module.write_not
 write_notebook_import_view_plan = _notebook_pipeline_import_module.write_notebook_import_view_plan
 
 logger = logging.getLogger(__name__)
+NOTEBOOK_IMPORT_ALL_STAGES = "__all__"
 
 
 def _emit_streamlit_message(level: str, *args: Any, **kwargs: Any) -> None:
@@ -187,6 +188,194 @@ def _notebook_import_module_name(module_dir: Path) -> str:
 def _notebook_import_preview_is_safe(preview: Dict[str, Any]) -> bool:
     preflight = preview.get("preflight", {})
     return isinstance(preflight, dict) and preflight.get("safe_to_import") is True
+
+
+def _notebook_import_stage_identity(stage: Dict[str, Any], index: int) -> str:
+    stage_id = str(stage.get("id", "") or "").strip()
+    return stage_id or f"stage-{index}"
+
+
+def _notebook_import_stages(preview: Dict[str, Any]) -> list[Dict[str, Any]]:
+    notebook_import = preview.get("notebook_import", {})
+    stages = notebook_import.get("pipeline_stages", []) if isinstance(notebook_import, dict) else []
+    if not isinstance(stages, list):
+        return []
+    return [stage for stage in stages if isinstance(stage, dict)]
+
+
+def _notebook_import_stage_label(stage: Dict[str, Any], index: int) -> str:
+    stage_id = _notebook_import_stage_identity(stage, index)
+    source_cell_index = int(stage.get("source_cell_index", 0) or 0)
+    description = str(stage.get("description", "") or "").strip()
+    question = str(stage.get("question", "") or "").strip()
+    summary = description or question or stage_id
+    if len(summary) > 64:
+        summary = f"{summary[:61]}..."
+    return f"Cell {source_cell_index} ({stage_id}): {summary}"
+
+
+def _notebook_import_stage_options(preview: Dict[str, Any]) -> list[Dict[str, Any]]:
+    return [
+        {
+            "id": _notebook_import_stage_identity(stage, index),
+            "label": _notebook_import_stage_label(stage, index),
+            "stage": stage,
+        }
+        for index, stage in enumerate(_notebook_import_stages(preview), start=1)
+    ]
+
+
+def _notebook_import_stage_detail(stage: Dict[str, Any]) -> str:
+    source_cell_index = int(stage.get("source_cell_index", 0) or 0)
+    artifacts = _artifact_paths_from_notebook_stage(stage)
+    env_hints = _stage_env_hints_from_notebook_stage(stage)
+    artifact_text = ", ".join(artifacts[:3]) if artifacts else "none"
+    if len(artifacts) > 3:
+        artifact_text = f"{artifact_text}, +{len(artifacts) - 3} more"
+    env_text = ", ".join(env_hints[:4]) if env_hints else "none"
+    if len(env_hints) > 4:
+        env_text = f"{env_text}, +{len(env_hints) - 4} more"
+    return (
+        f"Selected cell {source_cell_index}; "
+        f"artifacts: {artifact_text}; "
+        f"environment hints: {env_text}."
+    )
+
+
+def _stage_env_hints_from_notebook_stage(stage: Dict[str, Any]) -> list[str]:
+    hints = stage.get("env_hints", [])
+    if not isinstance(hints, list):
+        return []
+    return [str(hint) for hint in hints if str(hint)]
+
+
+def _artifact_paths_from_notebook_stage(stage: Dict[str, Any]) -> list[str]:
+    references = stage.get("artifact_references", [])
+    if not isinstance(references, list):
+        return []
+    paths: list[str] = []
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        path = str(reference.get("path", "") or "")
+        if path:
+            paths.append(path)
+    return paths
+
+
+def _filter_notebook_import_for_stage_ids(
+    notebook_import: Dict[str, Any],
+    selected_stage_ids: Iterable[str],
+) -> Dict[str, Any]:
+    selected_ids = list(dict.fromkeys(str(stage_id) for stage_id in selected_stage_ids if str(stage_id)))
+    selected_id_set = set(selected_ids)
+    stages = notebook_import.get("pipeline_stages", [])
+    stage_list = stages if isinstance(stages, list) else []
+    selected_stages = [
+        dict(stage)
+        for index, stage in enumerate(stage_list, start=1)
+        if isinstance(stage, dict) and _notebook_import_stage_identity(stage, index) in selected_id_set
+    ]
+
+    context_ids: list[str] = []
+    env_hints: list[str] = []
+    artifact_references: list[Dict[str, Any]] = []
+    execution_count_present = 0
+    for stage in selected_stages:
+        for context_id in stage.get("context_ids", []):
+            context_id_text = str(context_id)
+            if context_id_text and context_id_text not in context_ids:
+                context_ids.append(context_id_text)
+        env_hints.extend(_stage_env_hints_from_notebook_stage(stage))
+        references = stage.get("artifact_references", [])
+        if isinstance(references, list):
+            artifact_references.extend(reference for reference in references if isinstance(reference, dict))
+        if stage.get("execution_count") is not None:
+            execution_count_present += 1
+
+    context_blocks = notebook_import.get("context_blocks", [])
+    context_block_list = context_blocks if isinstance(context_blocks, list) else []
+    selected_context_blocks = [
+        dict(block)
+        for block in context_block_list
+        if isinstance(block, dict) and str(block.get("id", "") or "") in context_ids
+    ]
+    unique_env_hints = sorted(dict.fromkeys(env_hints))
+    summary = dict(notebook_import.get("summary", {}) if isinstance(notebook_import.get("summary", {}), dict) else {})
+    summary.update(
+        {
+            "pipeline_stage_count": len(selected_stages),
+            "code_cell_count": len(selected_stages),
+            "context_block_count": len(selected_context_blocks),
+            "env_hint_count": len(unique_env_hints),
+            "artifact_reference_count": len(artifact_references),
+            "execution_count_present_count": execution_count_present,
+            "stage_ids": [str(stage.get("id", "") or "") for stage in selected_stages],
+            "context_ids": context_ids,
+            "selected_stage_ids": selected_ids,
+        }
+    )
+
+    source = dict(notebook_import.get("source", {}) if isinstance(notebook_import.get("source", {}), dict) else {})
+    source["selection_mode"] = "selected_notebook_cells"
+    source["selected_stage_ids"] = selected_ids
+    provenance = dict(
+        notebook_import.get("provenance", {})
+        if isinstance(notebook_import.get("provenance", {}), dict)
+        else {}
+    )
+    provenance["selection_mode"] = "selected_notebook_cells"
+    provenance["selected_stage_ids"] = selected_ids
+
+    filtered = dict(notebook_import)
+    filtered.update(
+        {
+            "source": source,
+            "summary": summary,
+            "pipeline_stages": selected_stages,
+            "context_blocks": selected_context_blocks,
+            "env_hints": unique_env_hints,
+            "artifact_references": artifact_references,
+            "provenance": provenance,
+        }
+    )
+    return filtered
+
+
+def _selected_notebook_import_preview(
+    preview: Dict[str, Any],
+    selected_stage_ids: Iterable[str] | None,
+) -> Dict[str, Any]:
+    selected_ids = [str(stage_id) for stage_id in (selected_stage_ids or []) if str(stage_id)]
+    if not selected_ids or NOTEBOOK_IMPORT_ALL_STAGES in selected_ids:
+        return preview
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, dict):
+        return preview
+    selected_import = _filter_notebook_import_for_stage_ids(notebook_import, selected_ids)
+    module = str(preview.get("module", "") or "lab_stages")
+    preflight = build_notebook_import_preflight(selected_import)
+    selected_preview = dict(preview)
+    selected_preview.update(
+        {
+            "cell_count": int(
+                selected_import.get("summary", {}).get("pipeline_stage_count", 0)
+                if isinstance(selected_import.get("summary", {}), dict)
+                else 0
+            ),
+            "notebook_import": selected_import,
+            "preflight": preflight,
+            "toml_content": build_lab_stages_preview(selected_import, module_name=module),
+            "contract": build_notebook_import_contract(
+                selected_import,
+                preflight=preflight,
+                module_name=module,
+            ),
+            "selection_mode": "selected_notebook_cells",
+            "selected_stage_ids": selected_ids,
+        }
+    )
+    return selected_preview
 
 
 def _notebook_import_blocking_detail(preflight: Any) -> str:
@@ -1016,6 +1205,7 @@ def confirm_notebook_import_preview(
     index_page: str,
     *,
     view_manifest_dir: Path | None = None,
+    selected_stage_ids: Iterable[str] | None = None,
 ) -> int:
     """Persist the current notebook import preview and update editor state."""
     preview_key = _notebook_import_preview_key(index_page)
@@ -1023,13 +1213,18 @@ def confirm_notebook_import_preview(
     if not isinstance(preview, dict):
         _emit_streamlit_message("error", "No notebook import preview is available.")
         return 0
+    preview_to_write = _selected_notebook_import_preview(preview, selected_stage_ids)
     if not _notebook_import_preview_is_safe(preview):
         detail = _notebook_import_blocking_detail(preview.get("preflight", {}))
         _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
         return 0
+    if not _notebook_import_preview_is_safe(preview_to_write):
+        detail = _notebook_import_blocking_detail(preview_to_write.get("preflight", {}))
+        _emit_streamlit_message("error", f"Notebook cell promotion is blocked: {detail}")
+        return 0
     try:
         cell_count = write_notebook_import_preview(
-            preview,
+            preview_to_write,
             module_dir,
             stages_file,
             view_manifest_dir=view_manifest_dir,
@@ -1042,7 +1237,17 @@ def confirm_notebook_import_preview(
         )
         return 0
 
-    if cell_count > 0:
+    selected_ids = [
+        str(stage_id)
+        for stage_id in (selected_stage_ids or [])
+        if str(stage_id) and str(stage_id) != NOTEBOOK_IMPORT_ALL_STAGES
+    ]
+    if selected_ids and cell_count > 0:
+        _emit_streamlit_message(
+            "success",
+            f"Promoted notebook cell {', '.join(selected_ids)} to AGILAB stage.",
+        )
+    elif cell_count > 0:
         _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
     else:
         _emit_streamlit_message("warning", "Notebook imported, but no code cells were found.")
@@ -1090,8 +1295,38 @@ def render_notebook_import_preview(
     button = getattr(sidebar, "button", None)
     if not callable(button):
         return
+    selected_stage_ids: list[str] | None = None
+    if _notebook_import_preview_is_safe(preview):
+        stage_options = _notebook_import_stage_options(preview)
+        selectbox = getattr(sidebar, "selectbox", None)
+        if stage_options and callable(selectbox):
+            all_label = "All runnable cells"
+            labels = [all_label, *[str(option["label"]) for option in stage_options]]
+            selected_label = selectbox(
+                "Notebook cell to promote",
+                labels,
+                key=f"{index_page}__notebook_import_stage",
+                help=(
+                    "Choose one notebook cell when you want a focused AGILAB stage, "
+                    "or keep all cells for the full import."
+                ),
+            )
+            if selected_label != all_label:
+                selected_option = next(
+                    (
+                        option
+                        for option in stage_options
+                        if str(option.get("label", "")) == str(selected_label)
+                    ),
+                    None,
+                )
+                if selected_option is not None:
+                    selected_stage_ids = [str(selected_option["id"])]
+                    if callable(caption):
+                        caption(_notebook_import_stage_detail(selected_option["stage"]))
+    import_label = "Promote selected cell" if selected_stage_ids else "Import preview"
     if _notebook_import_preview_is_safe(preview) and button(
-        "Import preview",
+        import_label,
         key=f"{index_page}__confirm_notebook_import",
     ):
         confirm_notebook_import_preview(
@@ -1099,6 +1334,7 @@ def render_notebook_import_preview(
             stages_file,
             index_page,
             view_manifest_dir=view_manifest_dir,
+            selected_stage_ids=selected_stage_ids,
         )
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)

@@ -194,13 +194,17 @@ execution history. Use the history table to distinguish preview dispatch events
 from controlled real stage completions before promoting a DAG into a broader
 orchestration flow.
 
-Notebook export
-~~~~~~~~~~~~~~~
+Notebook import and export
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 The closed-by-default ``Notebook`` expander keeps notebook import and export
 near the pipeline definition instead of in the sidebar:
 
 * ``Import notebook`` uploads an ``.ipynb`` file and previews the stages that
   would be merged into ``lab_stages.toml``.
+* After preview, keep ``All runnable cells`` for the full import or pick one
+  notebook cell to promote only that cell into an AGILAB stage. Focused
+  promotion keeps the selected cell's detected artifact contract and environment
+  hints without importing unrelated exploratory cells.
 * ``Download pipeline notebook`` exports the current lab as ``lab_stages.ipynb``.
 
 WORKFLOW can export the current lab as a runnable supervisor notebook. This is
