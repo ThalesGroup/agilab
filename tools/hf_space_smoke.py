@@ -40,6 +40,7 @@ ALLOWED_PAGE_ENTRIES = {
     "view_forecast_analysis",
     "view_maps",
     "view_release_decision",
+    "view_scenario_cockpit",
 }
 ALLOWED_CORE_PAGE_ENTRIES = {
     ".DS_Store",

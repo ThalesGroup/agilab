@@ -1768,13 +1768,13 @@ launch_note = "Open this after the run."
     [
         (
             "uav_queue_project",
-            ("view_queue_resilience", "view_maps_network"),
-            "UAV Queue Analysis",
+            ("view_scenario_cockpit", "view_queue_resilience", "view_maps_network"),
+            "Scenario Cockpit",
         ),
         (
             "uav_relay_queue_project",
-            ("view_relay_resilience", "view_maps_network"),
-            "UAV Relay Queue Analysis",
+            ("view_scenario_cockpit", "view_relay_resilience", "view_maps_network"),
+            "Scenario Cockpit",
         ),
     ],
 )
@@ -1813,10 +1813,11 @@ def test_build_notebook_export_context_enriches_builtin_uav_pages_from_manifest(
     assert context.related_pages[0].launch_note
     assert context.related_pages[0].script_path.endswith(f"{expected_modules[0]}.py")
     assert not context.related_pages[0].inline_renderer
-    assert context.related_pages[1].label == "Maps Network"
-    assert "pipeline/topology.gml" in context.related_pages[1].artifacts
-    assert context.related_pages[1].script_path.endswith("view_maps_network.py")
-    assert context.related_pages[1].inline_renderer.endswith("notebook_inline.py:render_inline")
+    maps_page = next(page for page in context.related_pages if page.module == "view_maps_network")
+    assert maps_page.label == "Maps Network"
+    assert "pipeline/topology.gml" in maps_page.artifacts
+    assert maps_page.script_path.endswith("view_maps_network.py")
+    assert maps_page.inline_renderer.endswith("notebook_inline.py:render_inline")
 
 
 def test_build_notebook_export_context_prefers_valid_apps_repository_root_when_active_app_is_stale(tmp_path):

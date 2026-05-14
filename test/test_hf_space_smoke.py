@@ -67,6 +67,7 @@ def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:
             {"path": "src/agilab/apps-pages/view_maps"},
             {"path": "src/agilab/apps-pages/view_forecast_analysis"},
             {"path": "src/agilab/apps-pages/view_release_decision"},
+            {"path": "src/agilab/apps-pages/view_scenario_cockpit"},
             {"path": "src/agilab/apps-pages/view_maps_network"},
             {"path": "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"},
         ]

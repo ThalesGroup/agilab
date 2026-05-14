@@ -162,6 +162,11 @@ _ANALYSIS_VIEW_PROFILES = {
         "Review queue metrics, delivery, and overload symptoms.",
         "Use for failure-injection and queue-behavior examples.",
     ),
+    "view_scenario_cockpit": (
+        "Scenario cockpit",
+        "Compare scenario runs and export a hashed baseline/candidate evidence bundle.",
+        "Use before promoting or documenting a queue or relay scenario change.",
+    ),
     "view_relay_resilience": (
         "Relay queue resilience",
         "Compare relay queue behavior across runs and degraded conditions.",

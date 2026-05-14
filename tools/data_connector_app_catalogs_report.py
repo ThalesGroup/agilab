@@ -166,7 +166,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "Data connector app catalogs resolution",
             all(row.get("resolution_run_status") == "resolved" for row in app_rows)
             and all(row.get("missing_ref_count") == 0 for row in app_rows)
-            and summary.get("page_connector_ref_count") == 11,
+            and summary.get("page_connector_ref_count") == 15,
             "app-local connector references resolve for app and page settings",
             evidence=[str(row.get("settings_path", "")) for row in app_rows],
             details={"apps": app_rows},

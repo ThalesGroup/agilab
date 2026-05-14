@@ -6,7 +6,7 @@ digraph uav_relay_queue_pipeline {
 
   scenario [label="Scenario JSON\nsource + relays + sink"];
   simulate [label="UAV relay queue simulation\nshortest_path | queue_aware"];
-  analysis [label="AGILAB ANALYSIS\nview_relay_resilience\nview_maps_network"];
+  analysis [label="AGILAB ANALYSIS\nview_scenario_cockpit\nview_relay_resilience\nview_maps_network"];
 
   scenario -> simulate;
   simulate -> analysis;
