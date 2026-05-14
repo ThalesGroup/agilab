@@ -335,7 +335,9 @@ def test_packaged_example_catalog_is_documented() -> None:
     assert catalog.is_file()
     catalog_text = catalog.read_text(encoding="utf-8")
     assert "## Learning Path" in catalog_text
+    assert "## Execution Map" in catalog_text
     assert "## What To Notice" in catalog_text
+    assert "## Validate The Examples" in catalog_text
     assert "## How To Read An Example" in catalog_text
 
     for example_name, script_names in EXAMPLE_APPS.items():
@@ -369,6 +371,11 @@ def test_packaged_example_catalog_is_documented() -> None:
         for file_name in file_names:
             assert (example_dir / file_name).is_file()
             assert file_name in readme_text
+        assert "uv --preview-features extra-build-dependencies run python" in readme_text
+        assert not any(
+            line.startswith("python src/agilab/examples/")
+            for line in readme_text.splitlines()
+        )
         for heading in (
             "## Purpose",
             "## What You Learn",

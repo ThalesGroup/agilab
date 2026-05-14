@@ -27,7 +27,7 @@ packaged examples. The DAG contract is owned by the built-in
 From a source checkout:
 
 ```bash
-python src/agilab/examples/inter_project_dag/preview_inter_project_dag.py
+uv --preview-features extra-build-dependencies run python src/agilab/examples/inter_project_dag/preview_inter_project_dag.py
 ```
 
 From an installed AGILAB package, copy the example path shown by your

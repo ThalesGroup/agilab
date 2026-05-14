@@ -36,7 +36,7 @@ service run.
 From a source checkout:
 
 ```bash
-python src/agilab/examples/train_then_serve/preview_train_then_serve.py
+uv --preview-features extra-build-dependencies run python src/agilab/examples/train_then_serve/preview_train_then_serve.py
 ```
 
 From an installed AGILAB package, locate the packaged script:

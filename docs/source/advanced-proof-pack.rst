@@ -122,9 +122,17 @@ Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
   queue buildup, relay choice, drops, topology, and trajectories are visible
   from the same run artifacts.
 
-  The source-checkout proof can be regenerated without the UI by running the
-  real UAV queue worker twice and packaging the result through the same
-  Scenario Cockpit evidence helpers:
+  The source-checkout proof can be regenerated without the UI by running
+  ``uav_queue_project`` twice, once with the shortest-path policy and once with
+  the queue-aware policy, then packaging the result through the same Scenario
+  Cockpit evidence helpers:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python tools/scenario_cockpit_evidence.py --output-dir build/scenario-cockpit-proof --clean
+
+  Maintainers refresh the checked-in public sample only when intentionally
+  updating proof evidence:
 
   .. code-block:: bash
 

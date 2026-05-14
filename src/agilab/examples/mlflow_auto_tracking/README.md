@@ -40,7 +40,7 @@ marks tracking as skipped.
 From a source checkout:
 
 ```bash
-python src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py
+uv --preview-features extra-build-dependencies run python src/agilab/examples/mlflow_auto_tracking/preview_mlflow_auto_tracking.py
 ```
 
 From an installed AGILAB package, locate the packaged script:
