@@ -484,7 +484,7 @@ if (-not $SkipRepositoryPages -and (Test-Path -LiteralPath $PAGES_TARGET_BASE)) 
 }
 
 $DefaultAppsOrder = @(
-    'flight_project',
+    'flight_telemetry_project',
     'flight_trajectory_project',
     'flowsynth_project',
     'ilp_project',
@@ -530,7 +530,7 @@ function Order-ByPreference {
     return [string[]]$ordered.ToArray()
 }
 
-$builtinApps = @('mycode_project', 'flight_project', 'uav_relay_queue_project')
+$builtinApps = @('mycode_project', 'flight_telemetry_project', 'uav_relay_queue_project')
 $appsOverride = $env:BUILTIN_APPS_OVERRIDE
 $promptForApps = $true
 $forceAllApps = $false

@@ -16,7 +16,7 @@ Promote the next public release to beta when all of these are true:
 - All release-package classifiers are switched together from the previous
   ``Alpha`` classifier to ``Development Status :: 4 - Beta``.
 - The full PyPI release preflight passes locally.
-- The built-in ``flight_project`` first proof passes from a clean install path.
+- The built-in ``flight_telemetry_project`` first proof passes from a clean install path.
 - The public Hugging Face Space is public, running, and serves the same SHA as
   the uploaded Space repository.
 - The Space source tree contains only public app entries under

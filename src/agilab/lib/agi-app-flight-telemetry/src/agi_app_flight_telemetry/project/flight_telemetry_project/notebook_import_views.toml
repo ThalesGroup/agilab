@@ -1,0 +1,56 @@
+schema = "agilab.notebook_import_views.v1"
+app = "flight_telemetry_project"
+description = "App-owned notebook import view declarations for flight artifacts."
+
+[[views]]
+id = "flight_map_dataframe"
+module = "view_maps"
+label = "Flight map"
+description = "Inspect imported flight dataframe artifacts as latitude/longitude map layers."
+priority = 10
+required_artifacts_any = [
+  "flight/dataframe/*.parquet",
+  "flight/dataframe/*.csv",
+  "*/flight/dataframe/*.parquet",
+  "*/flight/dataframe/*.csv",
+]
+optional_artifacts = [
+  "flight/dataframe/*.json",
+  "*/flight/dataframe/*.json",
+  "reduce_summary_worker_*.json",
+  "*/reduce_summary_worker_*.json",
+]
+launch_note = "Open this first for the public flight demo dataframe map."
+
+[views.settings_hints]
+dataset_subpath = "flight/dataframe"
+default_view = "view_maps"
+
+[[views]]
+id = "flight_network_overlay"
+module = "view_maps_network"
+label = "Flight network overlay"
+description = "Reuse flight trajectory artifacts with optional topology and allocation overlays."
+priority = 20
+required_artifacts_any = [
+  "flight/dataframe/*.parquet",
+  "flight/dataframe/*.csv",
+  "*/flight/dataframe/*.parquet",
+  "*/flight/dataframe/*.csv",
+  "*trajectory*.parquet",
+  "*trajectory*.csv",
+]
+optional_artifacts = [
+  "pipeline/topology.*",
+  "*/pipeline/topology.*",
+  "pipeline/edges.*",
+  "*/pipeline/edges.*",
+  "pipeline/routing_edges.*",
+  "*/pipeline/routing_edges.*",
+  "pipeline/allocations*.*",
+  "*/pipeline/allocations*.*",
+]
+launch_note = "Use this when the imported notebook also produced topology, edge, allocation, or trajectory overlay files."
+
+[views.query_params]
+datadir_rel = "flight/dataframe"

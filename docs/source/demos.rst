@@ -33,7 +33,7 @@ What each route is for
 
 - **AGILAB demo**: use :doc:`agilab-demo` for the self-serve public Hugging Face
   Spaces route for the AGILAB web UI. It publishes the lightweight
-  ``flight_project`` and ``meteo_forecast_project`` paths, so use it as the
+  ``flight_telemetry_project`` and ``weather_forecast_project`` paths, so use it as the
   public first proof for ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` ->
   ``ANALYSIS``, including ``view_maps``, ``view_forecast_analysis``, and
   ``view_release_decision``.
@@ -42,9 +42,9 @@ What each route is for
 - **Notebook migration demo**: use :doc:`notebook-migration-skforecast-meteo`
   when you want the notebook-to-AGILAB story: source notebooks, migrated
   ``lab_stages.toml``, ``pipeline_view.dot``, exported forecast artifacts, and
-  the hosted ``meteo_forecast_project`` analysis route.
+  the hosted ``weather_forecast_project`` analysis route.
 - **Advanced Proof Pack**: use :doc:`advanced-proof-pack` after the first demo
-  when you want the deeper packaged proof routes: ``data_io_2026_project``,
+  when you want the deeper packaged proof routes: ``mission_decision_project``,
   ``execution_pandas_project`` / ``execution_polars_project``, UAV queue
   analysis with ``uav_relay_queue_project``, ``service_mode`` previews,
   ``inter_project_dag`` previews, ``mlflow_auto_tracking`` previews,
@@ -87,7 +87,7 @@ The static scenario contract is available as JSON:
   ``agilab[ui]`` and rerun with ``--with-ui`` when you also want to boot the
   packaged local pages and ``agi-pages`` analysis views.
   The same route is available in the UI by following ``PROJECT`` ->
-  ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_project``.
+  ``ORCHESTRATE`` -> ``ANALYSIS`` with ``flight_telemetry_project``.
 
 **Distributed worker route**
   Use the same public app, then switch ORCHESTRATE from the local path to the
@@ -150,7 +150,7 @@ The static scenario contract is available as JSON:
      uv --preview-features extra-build-dependencies run python src/agilab/examples/notebook_to_dask/preview_notebook_to_dask.py --output /tmp/notebook_to_dask_preview.json
 
   Then open :doc:`notebook-migration-skforecast-meteo` or switch the hosted UI
-  to ``meteo_forecast_project`` and open ``view_forecast_analysis``. Stop when
+  to ``weather_forecast_project`` and open ``view_forecast_analysis``. Stop when
   the notebook source, migrated pipeline shape, exported artifacts, and reusable
   analysis view are visible together.
 
@@ -159,18 +159,18 @@ Demo naming
 
 Keep the two public AGILAB demo lanes separate:
 
-- ``flight_project`` is the default hosted/newcomer demo. It is a lightweight
+- ``flight_telemetry_project`` is the default hosted/newcomer demo. It is a lightweight
   data-generation path used to prove the core UI and local execution flow
   quickly.
-- ``meteo_forecast_project`` is the second hosted demo. It is a lightweight
+- ``weather_forecast_project`` is the second hosted demo. It is a lightweight
   notebook-migration path with source notebooks, forecast artifacts, and
   release-decision views.
 - ``uav_relay_queue_project`` is the UAV Relay Queue RL demo. It is the
   advanced domain scenario and should not be described as the default hosted
   app.
-- ``data_io_2026_project`` and the execution playground apps are advanced proof
+- ``mission_decision_project`` and the execution playground apps are advanced proof
   routes. They are public built-in demos, but they should not replace
-  ``flight_project`` as the default hosted/newcomer app.
+  ``flight_telemetry_project`` as the default hosted/newcomer app.
 
 See also
 --------

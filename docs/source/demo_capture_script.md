@@ -13,7 +13,7 @@ The package has three complementary assets:
 
 Keep one app per video, but support two stable narrative packs:
 
-- `flight_project`
+- `flight_telemetry_project`
   - safest default
   - best for newcomer onboarding and first local proof
 - `UAV Relay Queue` (`uav_relay_queue_project`)
@@ -22,7 +22,7 @@ Keep one app per video, but support two stable narrative packs:
 
 Default recommendation:
 
-- use `flight_project` for newcomer onboarding clips and first-proof demos
+- use `flight_telemetry_project` for newcomer onboarding clips and first-proof demos
 - use `UAV Relay Queue` (`uav_relay_queue_project`) for the main full-tour
   product demo when you want a truthful
   `PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS` story
@@ -37,7 +37,7 @@ linking documentation to repo-local `artifacts/demo_media/...` files.
 
 Keep two stable public messages instead of forcing one app to carry both roles:
 
-- `flight_project`: `PROJECT -> ORCHESTRATE -> ANALYSIS`, with visible output files
+- `flight_telemetry_project`: `PROJECT -> ORCHESTRATE -> ANALYSIS`, with visible output files
   in between
 - `UAV Relay Queue`: `PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS`, ending on
   queue evidence
@@ -66,7 +66,7 @@ around the video:
 
 ## Fastest live workflow
 
-Concrete capture command for the default `flight_project` tutorial:
+Concrete capture command for the default `flight_telemetry_project` tutorial:
 
 ```bash
 tools/capture_demo_workflow.sh --name agilab-flight --duration 45 --trim 30
@@ -103,9 +103,9 @@ uv --preview-features extra-build-dependencies run --with imageio-ffmpeg \
   --duration 30
 ```
 
-### Data IO 2026 autonomous decision demo
+### Mission Decision autonomous decision demo
 
-`data_io_2026_project` is the first-class public demo for the Data IO 2026
+`mission_decision_project` is the first-class public demo for the Mission Decision
 story. Use it when the audience needs to see a complete AGILAB loop: mission
 data enters the system, AGILAB builds the runnable pipeline, worker execution
 produces evidence, a mission event changes the constraints, and the analysis
@@ -116,7 +116,7 @@ in the `70-75s` final range and end on measurable evidence.
 
 Primary run path:
 
-1. `PROJECT` -> select `src/agilab/apps/builtin/data_io_2026_project`.
+1. `PROJECT` -> select `src/agilab/apps/builtin/mission_decision_project`.
 2. `ORCHESTRATE` -> `INSTALL`, then `EXECUTE`.
 3. `ANALYSIS` -> open the default `view_data_io_decision` page.
 
@@ -127,13 +127,13 @@ Successful run indicators:
 - the adapted strategy is `relay_mesh`
 - the analysis view shows latency, cost, and reliability deltas versus the
   no-replan outcome
-- the artifact bundle is written under `export/data_io_2026/data_io_decision`
+- the artifact bundle is written under `export/mission_decision/data_io_decision`
 
 Tracked companion card:
 
-![Data IO 2026 AGILAB demo card](diagrams/agilab_data_io_2026_card.svg)
+![Mission Decision AGILAB demo card](diagrams/agilab_mission_decision_card.svg)
 
-Use `docs/source/diagrams/agilab_data_io_2026_card.svg` as the lightweight
+Use `docs/source/diagrams/agilab_mission_decision_card.svg` as the lightweight
 shareable poster or thumbnail. The MP4/GIF remain generated local artifacts
 under `artifacts/demo_media/` and are intentionally not tracked.
 
@@ -190,16 +190,16 @@ Optional composite capture:
 
 The legacy three-project capture remains useful when you want a broader montage
 across ingestion, prediction, and decision apps instead of the focused
-`data_io_2026_project` flow.
+`mission_decision_project` flow.
 
 ```bash
-tools/capture_three_project_demo.sh --name agilab-data-io-2026 --duration 82 --trim 74
+tools/capture_three_project_demo.sh --name agilab-mission-decision --duration 82 --trim 74
 ```
 
 If the capture is triggered from an automated or agent-driven shell, use:
 
 ```bash
-tools/capture_three_project_demo.sh --name agilab-data-io-2026 --duration 82 --trim 74 --via-terminal
+tools/capture_three_project_demo.sh --name agilab-mission-decision --duration 82 --trim 74 --via-terminal
 ```
 
 This wrapper:
@@ -212,14 +212,14 @@ This wrapper:
 Default sequence:
 
 1. `execution_pandas_project`
-2. `meteo_forecast_project`
+2. `weather_forecast_project`
 3. `uav_relay_queue_project`, or another routing / optimization project passed
    with `--rl-app-root`
 
 Important scope note:
 
 - the default sequence uses public built-ins from `agilab`
-- the first-class Data IO demo is `data_io_2026_project`; the three-project
+- the first-class Data IO demo is `mission_decision_project`; the three-project
   wrapper is only a composite media workflow
 - keep dynamic-pipeline claims grounded in visible AGILAB stages, generated
   snippets, worker activity, and replayable evidence
@@ -248,9 +248,9 @@ uv --preview-features extra-build-dependencies run --with imageio --with imageio
 
 Outputs:
 
-- `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic.mp4`
-- `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic.gif`
-- `artifacts/demo_media/agilab-data-io-2026/edited/agilab_data_io_2026_synthetic_poster.png`
+- `artifacts/demo_media/agilab-mission-decision/edited/agilab_mission_decision_synthetic.mp4`
+- `artifacts/demo_media/agilab-mission-decision/edited/agilab_mission_decision_synthetic.gif`
+- `artifacts/demo_media/agilab-mission-decision/edited/agilab_mission_decision_synthetic_poster.png`
 
 These files are generated for local review and publishing workflows. Keep them
 out of git unless a separate release channel explicitly needs a media upload.
@@ -272,7 +272,7 @@ into one mission-data story:
 
 - intro card
 - `execution_pandas_project`
-- `meteo_forecast_project`
+- `weather_forecast_project`
 - `uav_relay_queue_project`, or a configurable routing / optimization decision act
 - closing decision card
 
@@ -303,9 +303,9 @@ Treat those outputs as local build artifacts, not as stable tracked docs assets.
 Use this when you want a quick social/demo clip.
 
 1. Show the AGILAB home screen.
-2. Show `flight_project` selected in `PROJECT`.
+2. Show `flight_telemetry_project` selected in `PROJECT`.
 3. Jump to `ORCHESTRATE` and trigger the run path.
-4. Show the fresh output folder under `~/log/execute/flight/`.
+4. Show the fresh output folder under `~/log/execute/flight_telemetry/`.
 5. End in `ANALYSIS` on a visible result.
 
 Narration:
@@ -317,12 +317,12 @@ Narration:
 Use this as the default newcomer tutorial.
 
 1. Open AGILAB.
-2. Select `src/agilab/apps/builtin/flight_project` in `PROJECT`.
+2. Select `src/agilab/apps/builtin/flight_telemetry_project` in `PROJECT`.
 3. Briefly show app settings or source context.
 4. Move to `ORCHESTRATE`.
 5. Trigger install, distribute, and run.
 6. Show that the workflow is packaged and executed without ad-hoc shell glue.
-7. Show the fresh files under `~/log/execute/flight/`.
+7. Show the fresh files under `~/log/execute/flight_telemetry/`.
 8. Move to `ANALYSIS`.
 9. End on a built-in page over produced artifacts.
 
@@ -330,12 +330,12 @@ Narration:
 
 `Instead of hand-wiring environments, scripts, and checks, AGILAB gives the same app one controlled path from UI to workers to analysis.`
 
-### Meteo forecast 45-second version
+### Weather forecast 45-second version
 
 Use this when the audience expects an actual ML workflow, not only a product tour.
 
 1. Open AGILAB.
-2. Select `src/agilab/apps/builtin/meteo_forecast_project` in `PROJECT`.
+2. Select `src/agilab/apps/builtin/weather_forecast_project` in `PROJECT`.
 3. Briefly show the forecasting context:
    - weather dataset
    - target column
@@ -389,14 +389,14 @@ Suggested timeline:
    Open the AGILAB home screen and state the single message:
    `one app, one control path from project selection to visible evidence.`
 2. `0:20 -> 0:50`
-   Go to `PROJECT`, select `src/agilab/apps/builtin/flight_project`, and show
+   Go to `PROJECT`, select `src/agilab/apps/builtin/flight_telemetry_project`, and show
    that the app already carries its own arguments, pages, and outputs.
 3. `0:50 -> 1:35`
    Move to `ORCHESTRATE`, show the install / distribute / run areas, and
    explain that AGILAB generates the operational snippet instead of asking the
    user to hand-wire the workflow first.
 4. `1:35 -> 2:05`
-   Show the fresh output folder under `~/log/execute/flight/` and explain that
+   Show the fresh output folder under `~/log/execute/flight_telemetry/` and explain that
    the first proof leaves explicit files instead of only transient logs.
 5. `2:05 -> 2:40`
    Move to `ANALYSIS`, open a visible result page, and show that the run ends
@@ -417,7 +417,7 @@ Suggested click path:
 
 1. Home page
 2. `PROJECT`
-3. app selector -> `flight_project`
+3. app selector -> `flight_telemetry_project`
 4. one short pause on app context
 5. `ORCHESTRATE`
 6. one short pause on generated install / run area
@@ -460,7 +460,7 @@ visible analysis result.`
 
 Use this when you want the more memorable technical demo.
 
-Do not mix it with `flight_project` in the same video. The clarity rule still
+Do not mix it with `flight_telemetry_project` in the same video. The clarity rule still
 holds: one app, one path.
 
 Suggested timeline:
@@ -522,7 +522,7 @@ Suggested click path:
 ## Quality checklist
 
 - each tutorial uses one app only
-- `flight_project` clips show `PROJECT -> ORCHESTRATE -> ANALYSIS`, with fresh
+- `flight_telemetry_project` clips show `PROJECT -> ORCHESTRATE -> ANALYSIS`, with fresh
   output files in between
 - `UAV Relay Queue` clips show `PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS`
 - the ending frame shows a result, not infrastructure noise

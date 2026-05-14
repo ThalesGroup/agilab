@@ -1,8 +1,8 @@
 [project]
-name = "view-data-io-decision"
+name = "agi-page-decision-evidence"
 version = "0.1.0"
-description = "AGILAB page bundle for data I/O decision evidence."
-readme = { text = "AGILAB page bundle for data I/O decision evidence.", content-type = "text/markdown" }
+description = "AGILAB page bundle for decision evidence review."
+readme = { text = "AGILAB page bundle for decision evidence review.", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
     "agi-env>=2026.05.12.post3,<2027.0",

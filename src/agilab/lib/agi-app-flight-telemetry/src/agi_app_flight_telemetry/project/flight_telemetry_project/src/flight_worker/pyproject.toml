@@ -1,0 +1,52 @@
+[project]
+name = "flight_telemetry_project"
+version = "0.1.0"
+description = ""
+requires-python = ">=3.11,<3.14"
+readme = "README.md"
+dependencies = [
+    "cython",
+    "dask[distributed]",
+    "fastparquet",
+    "geopy",
+    "humanize",
+    "numpy",
+    "parso",
+    "polars",
+    "psutil",
+    "py7zr",
+    "python-dotenv",
+    "scipy==1.15.2",
+    "setuptools",
+]
+
+[[project.authors]]
+name = "Jean-Pierre Morard"
+email = "focus@thalesgroup.com"
+
+
+[project.license]
+text = "Thales SIX GTS France SAS"
+
+[project.optional-dependencies]
+dag-worker = []
+polars-worker = []
+
+
+
+
+
+
+
+
+
+
+
+
+[dependency-groups]
+dev = [
+    "black",
+    "pytest",
+    "pytest-asyncio",
+    "licensecheck",
+]

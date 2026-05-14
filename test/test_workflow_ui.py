@@ -118,7 +118,7 @@ def test_fake_streamlit_and_sidebar_helpers_are_exercised() -> None:
 
 def test_render_page_context_is_silent() -> None:
     fake_st = _FakeStreamlit()
-    env = SimpleNamespace(app="flight_project", target="flight_worker", mode="Run now")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_worker", mode="Run now")
 
     workflow_ui.render_page_context(fake_st, page_label="ORCHESTRATE", env=env)
 
@@ -144,21 +144,21 @@ def test_is_dag_based_app_uses_env_worker_base_and_identity_fallback() -> None:
         "global_dag_project",
     )
     assert not workflow_ui.is_dag_based_app(
-        SimpleNamespace(app="flight_project", target="flight", base_worker_cls="PolarsWorker"),
-        "flight_project",
+        SimpleNamespace(app="flight_telemetry_project", target="flight", base_worker_cls="PolarsWorker"),
+        "flight_telemetry_project",
     )
 
 
 def test_workflow_state_scope_target_variants() -> None:
     assert workflow_ui.workflow_state_scope(
         "WORKFLOW",
-        SimpleNamespace(app="flight_project", target="flight_worker"),
-    ) == "WORKFLOW::flight_project::flight_worker"
+        SimpleNamespace(app="flight_telemetry_project", target="flight_worker"),
+    ) == "WORKFLOW::flight_telemetry_project::flight_worker"
     assert workflow_ui.workflow_state_scope(
         "WORKFLOW",
-        SimpleNamespace(app="flight_project", target="flight_project"),
-    ) == "WORKFLOW::flight_project"
-    assert workflow_ui.workflow_state_scope("WORKFLOW", SimpleNamespace(app="flight_project")) == "WORKFLOW::flight_project"
+        SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project"),
+    ) == "WORKFLOW::flight_telemetry_project"
+    assert workflow_ui.workflow_state_scope("WORKFLOW", SimpleNamespace(app="flight_telemetry_project")) == "WORKFLOW::flight_telemetry_project"
 
 
 def test_is_dag_based_app_identity_fallback_without_worker_class() -> None:
@@ -219,7 +219,7 @@ def test_render_latest_outputs_summarizes_dataframe_and_downloads(tmp_path) -> N
 
 def test_project_ui_state_is_scoped_by_page_and_project() -> None:
     session_state = {}
-    env = SimpleNamespace(app="flight_project", target="flight_worker")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_worker")
 
     workflow_ui.remember_project_ui_state(
         session_state,
@@ -324,7 +324,7 @@ def test_render_command_bar_returns_clicked_command() -> None:
 
 def test_action_history_records_and_renders_project_scope() -> None:
     fake_st = _FakeStreamlit()
-    env = SimpleNamespace(app="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project")
 
     workflow_ui.record_action_history(
         fake_st.__dict__.setdefault("session_state", {}),

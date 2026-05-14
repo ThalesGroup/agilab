@@ -1,0 +1,107 @@
+[args]
+data_source = "file"
+data_in = "flight/dataset"
+data_out = "flight/dataframe"
+files = "*"
+nfile = 1
+nskip = 0
+nread = 0
+sampling_rate = 1.0
+datemin = "2020-01-01"
+datemax = "2021-01-01"
+output_format = "parquet"
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = true
+pool = true
+rapids = true
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 2
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
+[connector_catalog]
+path = "connectors/data_connectors.toml"
+
+[connector_refs]
+track_source = "flight_tracks_sql"
+operator_events = "flight_ops_opensearch"
+artifact_store = "flight_artifact_store"
+
+[page_connector_refs.view_maps]
+trajectory_store = "flight_artifact_store"
+
+[page_connector_refs.view_maps_network]
+network_evidence = "flight_ops_opensearch"
+trajectory_store = "flight_artifact_store"
+
+[legacy_paths]
+data_in = "flight/dataset"
+data_out = "flight/dataframe"
+
+[view_maps]
+datadir = ""
+file_ext_choice = "all"
+df_select_mode = "Multi-select"
+df_file_regex = ""
+df_file = ""
+df_files_selected = []
+discrete = "aircraft"
+lat = "lat"
+long = "long"
+coltype = "discrete"
+
+[pages]
+default_view = "view_maps"
+view_module = [
+    "view_maps",
+    "view_maps_network",
+]
+
+[pages.view_maps_network]
+dataset_base_choice = "AGI_CLUSTER_SHARE"
+dataset_custom_base = ""
+dataset_subpath = "flight/dataframe"
+default_traj_globs = [
+    "flight/dataframe/*.parquet",
+    "flight/dataframe/*.csv",
+]
+
+[view_maps_network]
+base_dir_choice = "AGI_CLUSTER_SHARE"
+input_datadir = ""
+datadir_rel = "flight/dataframe"
+file_ext_choice = "all"
+id_col = ""
+time_col = ""
+edges_file = ""
+allocations_file = ""
+baseline_allocations_file = ""
+traj_glob = ""
+link_multiselect = []
+show_map = true
+show_graph = true
+show_terrain = true
+show_cloud_heatmap = false
+cloud_heatmap_sat_path = ""
+cloud_heatmap_ivdl_path = ""
+cloud_heatmap_stride = 25
+cloud_heatmap_min_weight = 0.0
+jitter_overlap = false
+show_metrics = false
+map_marker_style = "Plane icons"
+df_file = ""
+df_select_mode = "Single file"
+df_file_regex = ""
+df_files = []
+layout_type_select = "spring"
+metric_type_select = ""

@@ -64,14 +64,14 @@ agi-core
     schema.
   - ``execution_pandas_project`` and ``execution_polars_project`` emit named
     benchmark reduce artefacts through that shared contract; the user-facing
-    ``flight_project`` emits trajectory-summary reduce artefacts;
-    ``meteo_forecast_project`` emits forecast-metrics reduce artefacts; and
+    ``flight_telemetry_project`` emits trajectory-summary reduce artefacts;
+    ``weather_forecast_project`` emits forecast-metrics reduce artefacts; and
     ``uav_queue_project`` plus ``uav_relay_queue_project`` emit the same
     ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics.
   - The Release Decision evidence view discovers those artefacts, validates
     their schema, and displays reducer name, partial count, artifact path,
     benchmark row/source/execution fields, flight row/aircraft/speed fields,
-    meteo forecast MAE/RMSE/MAPE fields, and UAV queue-family packet/PDR fields
+    weather forecast MAE/RMSE/MAPE fields, and UAV queue-family packet/PDR fields
     when present.
   - The public reducer benchmark validates 8 partials / 80,000 synthetic items
     in ``0.003s`` against a ``5.0s`` target.
@@ -242,12 +242,12 @@ single notebook but less ceremony than a production MLOps platform:
 - the Analysis page can generate minimal page bundles so a prototype can gain a
   shareable dashboard without becoming a full product
 - the landing page first-proof wizard now routes newcomers through one
-  validated ``flight_project`` source-checkout proof, reads
+  validated ``flight_telemetry_project`` source-checkout proof, reads
   ``run_manifest.json``, and shows a manifest-driven remediation checklist
   with exact evidence commands when the proof is missing, invalid, incomplete,
   or failing
 - ``tools/newcomer_first_proof.py --json`` writes
-  ``~/log/execute/flight/run_manifest.json`` so the first proof has one stable
+  ``~/log/execute/flight_telemetry/run_manifest.json`` so the first proof has one stable
   command/environment/timing/artifact/validation record that the release
   decision view can consume as promotion evidence
 - the revision traceability report validates
@@ -282,8 +282,8 @@ single notebook but less ceremony than a production MLOps platform:
 - the public proof scenario report validates
   ``tools/public_proof_scenarios.py --compact`` in
   ``agilab.public_proof_scenarios.v1`` mode; it records the three bounded
-  public proof routes: ``flight_project`` local first proof,
-  ``meteo_forecast_project`` hosted forecast proof, and the MLflow tracking
+  public proof routes: ``flight_telemetry_project`` local first proof,
+  ``weather_forecast_project`` hosted forecast proof, and the MLflow tracking
   contract, and can attach runtime JSON from
   ``--first-proof-json`` and ``--hf-smoke-json`` artifacts when CI or a release
   run provides them
@@ -340,7 +340,7 @@ to the same contract, artifact names, stable node IDs, and provenance.
   ``uav_queue_project`` to ``uav_relay_queue_project`` through an explicit
   ``queue_metrics`` handoff, and the supplemental
   ``docs/source/data/multi_app_dag_portfolio_sample.json`` broadens contract
-  coverage across ``flight_project``, ``meteo_forecast_project``,
+  coverage across ``flight_telemetry_project``, ``weather_forecast_project``,
   ``execution_pandas_project``, and ``execution_polars_project``
 - the global pipeline DAG report now assembles that cross-app contract with the
   app-local ``pipeline_view.dot`` files using
@@ -457,7 +457,7 @@ production platform:
   covers downloaded GitLab CI and generic provider ZIP archives without live
   provider API access
 - the same evidence view surfaces reducer artifacts from benchmark distributed
-  runs, meteo forecast results, and UAV queue-family results, including
+  runs, weather forecast results, and UAV queue-family results, including
   invalid-artifact diagnostics when JSON cannot be parsed
 - ``SECURITY.md`` provides the public vulnerability-reporting and deployment
   hardening baseline

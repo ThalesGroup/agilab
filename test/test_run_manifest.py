@@ -19,7 +19,7 @@ def _load_module():
 
 def test_run_manifest_round_trips_stable_schema(tmp_path: Path) -> None:
     module = _load_module()
-    active_app = tmp_path / "flight_project"
+    active_app = tmp_path / "flight_telemetry_project"
     active_app.mkdir()
     repo_root = tmp_path / "repo"
     repo_root.mkdir()

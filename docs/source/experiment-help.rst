@@ -159,7 +159,7 @@ The technical JSON contract still uses stable field names so plans remain
 portable:
 
 * ``nodes[].execution.entrypoint`` names the stable stage executor, for example
-  ``flight_project.flight_context``. WORKFLOW displays this value in the stage
+  ``flight_telemetry_project.flight_context``. WORKFLOW displays this value in the stage
   table and graph so users can see what will execute before pressing
   ``Run next stage``.
 * ``nodes[].execution.command`` is an optional command-list executor for

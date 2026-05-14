@@ -17,7 +17,7 @@ summarises the supported keys.
        Replace ``$AGILAB_CHECKOUT`` with the checkout you are actually running;
        AGILAB does not require the source tree directory to be named ``agilab``.
    * - ``APP_DEFAULT``
-     - ``flight_project``
+     - ``flight_telemetry_project``
      - App loaded when no explicit project is provided.
    * - ``AGI_PYTHON_VERSION``
      - ``3.13``

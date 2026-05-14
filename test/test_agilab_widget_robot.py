@@ -25,7 +25,7 @@ def test_public_builtin_apps_are_sorted_project_directories() -> None:
     apps = module.public_builtin_apps()
 
     assert apps == sorted(apps)
-    assert any(path.name == "flight_project" for path in apps)
+    assert any(path.name == "flight_telemetry_project" for path in apps)
     assert all(path.name.endswith("_project") for path in apps)
 
 
@@ -35,10 +35,10 @@ def test_resolve_apps_accepts_all_names_and_paths(tmp_path) -> None:
     custom.mkdir()
 
     all_apps = module.resolve_apps("all")
-    selected = module.resolve_apps(f"flight_project,uav_relay_queue,{custom}")
+    selected = module.resolve_apps(f"flight_telemetry_project,uav_relay_queue,{custom}")
 
     assert len(all_apps) >= 2
-    assert any(Path(app).name == "flight_project" for app in selected)
+    assert any(Path(app).name == "flight_telemetry_project" for app in selected)
     assert any(Path(app).name == "uav_relay_queue_project" for app in selected)
     assert custom.resolve() in selected
 
@@ -183,9 +183,14 @@ def test_configured_apps_pages_for_app_reads_app_settings() -> None:
 def test_active_app_route_matching_accepts_project_suffix_alias() -> None:
     module = _load_module()
 
-    assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
+    assert module.active_app_aliases("/tmp/flight_telemetry_project") == {
+        "flight_telemetry_project",
+        "flight_telemetry",
+        "flight",
+        "flight_project",
+    }
     assert module.active_app_aliases("uav_relay_queue") == {"uav_relay_queue", "uav_relay_queue_project"}
-    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_project")
+    assert module.active_app_route_matches("http://x/WORKFLOW?active_app=flight", "/tmp/flight_telemetry_project")
     assert module.active_app_route_matches("http://x/WORKFLOW?active_app=uav_relay_queue_project", "uav_relay_queue")
     assert module.app_target_name("uav_relay_queue_project") == "uav_relay_queue"
 
@@ -200,8 +205,8 @@ def test_normalize_remote_url_maps_huggingface_space_page_to_runtime() -> None:
     module = _load_module()
 
     assert (
-        module.normalize_remote_url("https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_project")
-        == "https://jpmorard-agilab.hf.space/?active_app=flight_project"
+        module.normalize_remote_url("https://huggingface.co/spaces/jpmorard/agilab?active_app=flight_telemetry_project")
+        == "https://jpmorard-agilab.hf.space/?active_app=flight_telemetry_project"
     )
     assert module.normalize_remote_url("jpmorard-agilab.hf.space") == "https://jpmorard-agilab.hf.space/"
 
@@ -243,7 +248,7 @@ def test_seed_public_demo_artifacts_creates_forecast_evidence(tmp_path) -> None:
     share_root = tmp_path / "share"
 
     module.seed_public_demo_artifacts(
-        "meteo_forecast_project",
+        "weather_forecast_project",
         export_root=export_root,
         share_root=share_root,
     )
@@ -264,7 +269,7 @@ def test_build_seeded_server_env_isolates_home_and_share_paths(tmp_path) -> None
 
     seeded = module.build_seeded_server_env(
         _WebRobot(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         runtime_root=tmp_path,
         seed_demo_artifacts=True,
     )
@@ -289,7 +294,7 @@ def test_build_seeded_server_env_can_use_current_home_runtime(tmp_path, monkeypa
 
     seeded = module.build_seeded_server_env(
         _WebRobot(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         runtime_root=tmp_path / "runtime",
         seed_demo_artifacts=False,
         runtime_isolation="current-home",
@@ -313,8 +318,8 @@ def test_build_orchestrate_artifact_context_uses_agilab_env_file(tmp_path) -> No
     )
 
     context = module.build_orchestrate_artifact_context(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=fake_home,
         server_env={},
     )
@@ -333,8 +338,8 @@ def test_build_workflow_artifact_context_uses_agilab_env_file(tmp_path) -> None:
     env_file.write_text("AGI_EXPORT_DIR=exports\n", encoding="utf-8")
 
     context = module.build_workflow_artifact_context(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=fake_home,
         server_env={},
     )
@@ -351,8 +356,8 @@ def test_build_workflow_artifact_context_prefers_robot_server_env(tmp_path) -> N
     env_file.write_text("AGI_EXPORT_DIR=stale-home-export\n", encoding="utf-8")
 
     context = module.build_workflow_artifact_context(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=fake_home,
         server_env={"AGI_EXPORT_DIR": str(tmp_path / "robot-export")},
     )
@@ -382,11 +387,11 @@ def test_workflow_page_artifact_validation_skips_apps_without_source_stages(tmp_
 
 def test_workflow_page_artifact_validation_fails_when_export_contract_missing(tmp_path) -> None:
     module = _load_module()
-    app_root = tmp_path / "flight_project"
+    app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
     (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         active_app_query=str(app_root),
         home_root=tmp_path,
         export_root=tmp_path / "export",
@@ -405,14 +410,14 @@ def test_workflow_page_artifact_validation_fails_when_export_contract_missing(tm
 
 def test_workflow_page_artifact_validation_requires_versioned_export_contract(tmp_path) -> None:
     module = _load_module()
-    app_root = tmp_path / "flight_project"
+    app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
     (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
     export_contract = tmp_path / "export" / "flight" / "lab_stages.toml"
     export_contract.parent.mkdir(parents=True)
     export_contract.write_text("[flight]\n", encoding="utf-8")
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         active_app_query=str(app_root),
         home_root=tmp_path,
         export_root=tmp_path / "export",
@@ -431,14 +436,14 @@ def test_workflow_page_artifact_validation_requires_versioned_export_contract(tm
 
 def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -> None:
     module = _load_module()
-    app_root = tmp_path / "flight_project"
+    app_root = tmp_path / "flight_telemetry_project"
     app_root.mkdir()
     (app_root / "lab_stages.toml").write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
     export_contract = tmp_path / "export" / "flight" / "lab_stages.toml"
     export_contract.parent.mkdir(parents=True)
     export_contract.write_text("[__meta__]\nschema = 'agilab.lab_stages.v1'\nversion = 1\n", encoding="utf-8")
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         active_app_query=str(app_root),
         home_root=tmp_path,
         export_root=tmp_path / "export",
@@ -458,8 +463,8 @@ def test_workflow_page_artifact_validation_accepts_restored_contract(tmp_path) -
 def test_workflow_action_artifact_validation_detects_missing_run_log(tmp_path) -> None:
     module = _load_module()
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
     )
@@ -480,8 +485,8 @@ def test_workflow_action_artifact_validation_detects_missing_run_log(tmp_path) -
 def test_workflow_action_artifact_validation_verifies_run_log_change(tmp_path) -> None:
     module = _load_module()
     context = module.WorkflowArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
     )
@@ -506,8 +511,8 @@ def test_workflow_action_artifact_validation_verifies_run_log_change(tmp_path) -
 def test_orchestrate_artifact_validation_fails_when_load_output_has_no_file(tmp_path) -> None:
     module = _load_module()
     context = module.OrchestrateArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
         share_root=tmp_path / "localshare",
@@ -533,8 +538,8 @@ def test_orchestrate_artifact_validation_verifies_export_change(tmp_path) -> Non
     module = _load_module()
     export_root = tmp_path / "export"
     context = module.OrchestrateArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=export_root,
         share_root=tmp_path / "localshare",
@@ -567,8 +572,8 @@ def test_orchestrate_artifact_validation_accepts_existing_manual_export(tmp_path
     export_file.parent.mkdir(parents=True)
     export_file.write_text("value\n1\n", encoding="utf-8")
     context = module.OrchestrateArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=export_root,
         share_root=tmp_path / "localshare",
@@ -595,8 +600,8 @@ def test_orchestrate_artifact_validation_verifies_delete_backup(tmp_path) -> Non
     module = _load_module()
     share_root = tmp_path / "localshare"
     context = module.OrchestrateArtifactContext(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         home_root=tmp_path,
         export_root=tmp_path / "export",
         share_root=share_root,
@@ -630,7 +635,7 @@ def test_orchestrate_artifact_validation_verifies_delete_backup(tmp_path) -> Non
 def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share(tmp_path) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
-    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True)
     app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
     env_file = fake_home / ".agilab" / ".env"
@@ -640,8 +645,8 @@ def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share
     )
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["Run -> Load -> Export"],
@@ -660,15 +665,15 @@ def test_current_home_action_preflight_blocks_enabled_cluster_with_missing_share
 def test_current_home_action_preflight_allows_disabled_cluster_with_missing_share(tmp_path) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
-    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True)
     app_settings.write_text("[cluster]\ncluster_enabled = false\n", encoding="utf-8")
     env_file = fake_home / ".agilab" / ".env"
     env_file.write_text("AGI_CLUSTER_SHARE=missing-clustershare\n", encoding="utf-8")
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["INSTALL"],
@@ -709,8 +714,8 @@ def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path
     monkeypatch.setattr(module.subprocess, "run", fake_run)
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="meteo_forecast_project",
-        active_app_query="meteo_forecast_project",
+        app_name="weather_forecast_project",
+        active_app_query="weather_forecast_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["Run -> Load -> Export"],
@@ -721,7 +726,7 @@ def test_current_home_action_preflight_blocks_missing_worker_dependency(tmp_path
 
     assert detail is not None
     assert "environment_blocked" in detail
-    assert "meteo_forecast_project" in detail
+    assert "weather_forecast_project" in detail
     assert "meteo_forecast_worker" in detail
     assert "skforecast" in detail
     assert "Run INSTALL" in detail
@@ -737,8 +742,8 @@ def test_current_home_action_preflight_does_not_block_install_when_worker_missin
     fake_home = tmp_path / "home"
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="meteo_forecast_project",
-        active_app_query="meteo_forecast_project",
+        app_name="weather_forecast_project",
+        active_app_query="weather_forecast_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["INSTALL"],
@@ -755,15 +760,15 @@ def test_current_home_action_preflight_blocks_same_cluster_and_local_share(tmp_p
     fake_home = tmp_path / "home"
     share = fake_home / "share"
     share.mkdir(parents=True)
-    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True)
     app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
     env_file = fake_home / ".agilab" / ".env"
     env_file.write_text(f"AGI_CLUSTER_SHARE={share}\nAGI_LOCAL_SHARE={share}\n", encoding="utf-8")
 
     detail = module.current_home_action_preflight_blocker(
-        app_name="flight_project",
-        active_app_query="flight_project",
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
         page_name="ORCHESTRATE",
         action_button_policy="click-selected",
         click_action_labels=["CHECK distribute"],
@@ -804,10 +809,10 @@ def test_wait_for_page_ready_returns_after_initialization_clears() -> None:
 
 def test_summarize_counts_interactions_and_failures() -> None:
     module = _load_module()
-    failure = module.WidgetProbe("flight_project", "PROJECT", "button", "Run", "failed", "blocked", "http://demo", "sidebar")
+    failure = module.WidgetProbe("flight_telemetry_project", "PROJECT", "button", "Run", "failed", "blocked", "http://demo", "sidebar")
     pages = [
         module.PageSweep(
-            app="flight_project",
+            app="flight_telemetry_project",
             page="PROJECT",
             success=False,
             duration_seconds=1.0,
@@ -846,7 +851,7 @@ def test_summarize_counts_interactions_and_failures() -> None:
 def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
     module = _load_module()
     passed = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="PROJECT",
         success=True,
         duration_seconds=1.0,
@@ -861,7 +866,7 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
         status="passed",
     )
     failed = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="WORKFLOW",
         success=False,
         duration_seconds=1.0,
@@ -871,7 +876,7 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
         skipped_count=0,
         failed_count=1,
         url="http://demo",
-        failures=[module.WidgetProbe("flight_project", "WORKFLOW", "page", "", "failed", "boom", "http://demo")],
+        failures=[module.WidgetProbe("flight_telemetry_project", "WORKFLOW", "page", "", "failed", "boom", "http://demo")],
         skips=[],
         status="failed",
     )
@@ -884,14 +889,14 @@ def test_progress_log_round_trips_passed_pages_only(tmp_path) -> None:
 
     resumed = module.load_completed_page_results(progress_log)
     assert reported == [passed, failed]
-    assert resumed[module.page_result_key("flight_project", "PROJECT")] == passed
-    assert module.page_result_key("flight_project", "WORKFLOW") not in resumed
+    assert resumed[module.page_result_key("flight_telemetry_project", "PROJECT")] == passed
+    assert module.page_result_key("flight_telemetry_project", "WORKFLOW") not in resumed
 
 
 def test_write_summary_json_includes_page_status(tmp_path) -> None:
     module = _load_module()
     page = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="PROJECT",
         success=True,
         duration_seconds=1.0,
@@ -990,7 +995,7 @@ def test_project_switching_selectbox_is_excluded_from_combination_controls() -> 
         {
             "id": "project",
             "kind": "selectbox",
-            "label": "Project flight_project",
+            "label": "Project flight_telemetry_project",
             "scope": "sidebar",
             "disabled": False,
         },
@@ -1007,7 +1012,7 @@ def test_project_switching_selectbox_is_excluded_from_combination_controls() -> 
     controls, probes = module.collect_widget_combination_controls(
         _Page(),
         widgets,
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         page_name="ORCHESTRATE",
         timeout_ms=1000,
         max_options_per_widget=8,
@@ -1047,7 +1052,7 @@ def test_dynamic_selectboxes_are_excluded_from_exhaustive_combinations() -> None
     controls, probes = module.collect_widget_combination_controls(
         _Page(),
         widgets,
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         page_name="WORKFLOW",
         timeout_ms=1000,
         max_options_per_widget=8,
@@ -1217,7 +1222,7 @@ def test_append_browser_issue_probes_uses_new_issue_checkpoint() -> None:
 
     appended = module._append_browser_issue_probes(
         probes,
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo",
         browser_issues=issues,
@@ -1235,7 +1240,7 @@ def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
     module = _load_module()
     probes = [
         module.WidgetProbe(
-            "flight_project",
+            "flight_telemetry_project",
             "ORCHESTRATE",
             "button",
             "Run -> Load -> Export",
@@ -1247,7 +1252,7 @@ def test_missing_selected_action_probe_fails_when_label_was_not_fired() -> None:
 
     module._append_missing_selected_action_probes(
         probes,
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo",
         click_action_labels=["Run -> Load -> Export"],
@@ -1278,7 +1283,7 @@ def test_missing_selected_action_probe_still_fails_found_unfired_label_when_abse
     module = _load_module()
     probes = [
         module.WidgetProbe(
-            "flight_project",
+            "flight_telemetry_project",
             "ORCHESTRATE",
             "button",
             "Run -> Load -> Export",
@@ -1290,7 +1295,7 @@ def test_missing_selected_action_probe_still_fails_found_unfired_label_when_abse
 
     module._append_missing_selected_action_probes(
         probes,
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         url="http://demo",
         click_action_labels=["Run -> Load -> Export"],
@@ -1370,7 +1375,7 @@ def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> 
     try:
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Run -> Load -> Export"],
@@ -1462,7 +1467,7 @@ def test_probe_selected_actions_first_recollects_between_stateful_actions(tmp_pa
     try:
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Run -> Load -> Export", "EXPORT dataframe"],
@@ -1516,7 +1521,7 @@ def test_probe_selected_actions_first_allows_idle_settle_for_already_ready_load(
         module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="data_io_2026_project",
+            app_name="mission_decision_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Load output", "EXPORT dataframe"],
@@ -1570,7 +1575,7 @@ def test_probe_selected_actions_first_stops_after_selected_action_failure(tmp_pa
         module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Run -> Load -> Export", "Load output"],
@@ -1677,7 +1682,7 @@ def test_probe_selected_actions_first_allows_idle_settle_for_confirm_delete(tmp_
         module.wait_for_widgets_ready = lambda page, page_name, timeout_ms: len(current_widgets)
         probes = module._probe_selected_actions_first(
             _Page(),
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             display="ORCHESTRATE",
             widget_timeout_ms=100,
             click_action_labels=["Confirm delete"],
@@ -1744,7 +1749,7 @@ def test_probe_selected_actions_first_fails_disabled_selected_action(tmp_path) -
 
     probes = module._probe_selected_actions_first(
         _Page(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         display="ORCHESTRATE",
         widget_timeout_ms=100,
         click_action_labels=["Delete output"],
@@ -1789,7 +1794,7 @@ def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction
             return None
 
     class _Page:
-        url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+        url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
 
         def evaluate(self, script):
             if script == module.OPEN_EXPANDERS_JS:
@@ -1817,7 +1822,7 @@ def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction
 
     probes = module._collect_and_probe_current_view(
         _Page(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         page_name="ORCHESTRATE",
         widget_timeout_ms=100,
         interaction_mode="full",
@@ -1893,8 +1898,8 @@ def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
             _Page(),
             web_robot=web_robot,
             base_url="http://127.0.0.1:8501",
-            active_app_query="flight_project",
-            app_name="flight_project",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
             page_name="PROJECT",
             timeout=module.DEFAULT_TIMEOUT_SECONDS,
             widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
@@ -1918,7 +1923,7 @@ def test_sweep_page_marks_active_app_mismatch_as_failed() -> None:
 def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_path) -> None:
     module = _load_module()
     fake_home = tmp_path / "home"
-    app_settings = fake_home / ".agilab" / "apps" / "flight_project" / "app_settings.toml"
+    app_settings = fake_home / ".agilab" / "apps" / "flight_telemetry_project" / "app_settings.toml"
     app_settings.parent.mkdir(parents=True)
     app_settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
     env_file = fake_home / ".agilab" / ".env"
@@ -1940,7 +1945,7 @@ def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_pat
 
     class _Page:
         def __init__(self) -> None:
-            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
 
         def goto(self, *_args, **_kwargs):
             return None
@@ -1984,8 +1989,8 @@ def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_pat
             _Page(),
             web_robot=web_robot,
             base_url="http://127.0.0.1:8501",
-            active_app_query="flight_project",
-            app_name="flight_project",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
             page_name="ORCHESTRATE",
             timeout=module.DEFAULT_TIMEOUT_SECONDS,
             widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
@@ -2032,7 +2037,7 @@ def test_sweep_page_marks_visible_error_message_as_failed() -> None:
 
     class _Page:
         def __init__(self) -> None:
-            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
 
         def goto(self, *_args, **_kwargs):
             return None
@@ -2073,8 +2078,8 @@ def test_sweep_page_marks_visible_error_message_as_failed() -> None:
             _Page(),
             web_robot=web_robot,
             base_url="http://127.0.0.1:8501",
-            active_app_query="flight_project",
-            app_name="flight_project",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
             page_name="ORCHESTRATE",
             timeout=module.DEFAULT_TIMEOUT_SECONDS,
             widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
@@ -2116,7 +2121,7 @@ def test_sweep_page_marks_browser_page_error_as_failed() -> None:
 
     class _Page:
         def __init__(self) -> None:
-            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_project"
+            self.url = "http://127.0.0.1:8501/ORCHESTRATE?active_app=flight_telemetry_project"
 
         def goto(self, *_args, **_kwargs):
             browser_issues.append({"kind": "pageerror", "detail": "TypeError: broken widget callback"})
@@ -2158,8 +2163,8 @@ def test_sweep_page_marks_browser_page_error_as_failed() -> None:
             _Page(),
             web_robot=web_robot,
             base_url="http://127.0.0.1:8501",
-            active_app_query="flight_project",
-            app_name="flight_project",
+            active_app_query="flight_telemetry_project",
+            app_name="flight_telemetry_project",
             page_name="ORCHESTRATE",
             timeout=module.DEFAULT_TIMEOUT_SECONDS,
             widget_timeout=module.DEFAULT_WIDGET_TIMEOUT_SECONDS,
@@ -2209,9 +2214,9 @@ def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
     module.normalize_remote_url = lambda _value: _value
     try:
         pages = module.sweep_remote_app(
-            app="flight_project",
+            app="flight_telemetry_project",
             base_url="http://remote",
-            active_app_query="flight_project",
+            active_app_query="flight_telemetry_project",
             pages=[],
             apps_pages=[],
             remote_app_root="/app",
@@ -2282,8 +2287,8 @@ def test_sweep_direct_apps_page_returns_failed_result_on_health_timeout() -> Non
     try:
         result = module.sweep_direct_apps_page(
             web_robot=_FakeWebRobot(),
-            app_name="flight_project",
-            active_app="flight_project",
+            app_name="flight_telemetry_project",
+            active_app="flight_telemetry_project",
             route=route,
             timeout=10.0,
             widget_timeout=1.0,
@@ -2309,7 +2314,7 @@ def test_sweep_direct_apps_page_returns_failed_result_on_health_timeout() -> Non
 def test_render_human_reports_sidebar_widget_counts() -> None:
     module = _load_module()
     page = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="PROJECT",
         success=True,
         duration_seconds=1.0,
@@ -2332,7 +2337,7 @@ def test_render_human_reports_sidebar_widget_counts() -> None:
 
     assert "widgets=3 main=2 sidebar=1" in report
     assert "combinations: space=2 executed=2" in report
-    assert "flight_project/PROJECT: OK status=passed widgets=3 main=2 sidebar=1" in report
+    assert "flight_telemetry_project/PROJECT: OK status=passed widgets=3 main=2 sidebar=1" in report
     assert "combinations=2/2" in report
 
 
@@ -2552,7 +2557,7 @@ def test_collect_current_view_repeats_discovery_after_safe_callback(tmp_path) ->
 
     probes = module._collect_and_probe_current_view(
         _Page(),
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         page_name="PROJECT",
         widget_timeout_ms=100,
         interaction_mode="full",
@@ -3329,8 +3334,8 @@ def test_file_uploader_uses_ipynb_fixture_for_notebook_upload(tmp_path) -> None:
 def test_parse_csv_splits_and_strips_values() -> None:
     module = _load_module()
 
-    assert module.parse_csv(" flight_project, ,uav_queue_project,,flight\n") == [
-        "flight_project",
+    assert module.parse_csv(" flight_telemetry_project, ,uav_queue_project,,flight\n") == [
+        "flight_telemetry_project",
         "uav_queue_project",
     ]
 
@@ -3359,10 +3364,15 @@ def test_resolve_apps_resolves_project_name_within_app_root(tmp_path) -> None:
 def test_active_app_slug_and_route_aliases() -> None:
     module = _load_module()
 
-    assert module.active_app_slug("/tmp%2Fflight_project") == "flight_project"
-    assert module.routed_active_app_slug("/foo?active_app=flight_project&x=1") == "flight_project"
+    assert module.active_app_slug("/tmp%2Fflight_telemetry_project") == "flight_telemetry_project"
+    assert module.routed_active_app_slug("/foo?active_app=flight_telemetry_project&x=1") == "flight_telemetry_project"
     assert module.routed_active_app_slug("/foo?x=1") is None
-    assert module.active_app_aliases("/tmp/flight_project") == {"flight_project", "flight"}
+    assert module.active_app_aliases("/tmp/flight_telemetry_project") == {
+        "flight_telemetry_project",
+        "flight_telemetry",
+        "flight",
+        "flight_project",
+    }
 
 
 def test_configured_apps_pages_for_app_with_invalid_settings_returns_empty(tmp_path) -> None:
@@ -3425,7 +3435,7 @@ def test_write_csv_and_json_helpers(tmp_path) -> None:
 def test_resume_page_if_available_returns_and_reports_match() -> None:
     module = _load_module()
     passed = module.PageSweep(
-        app="flight_project",
+        app="flight_telemetry_project",
         page="PROJECT",
         success=True,
         duration_seconds=1.0,
@@ -3447,9 +3457,9 @@ def test_resume_page_if_available_returns_and_reports_match() -> None:
     on_result: list[module.PageSweep] = []
 
     resumed = module._resume_page_if_available(
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         page_name="PROJECT",
-        resume_page_results={module.page_result_key("flight_project", "PROJECT"): passed},
+        resume_page_results={module.page_result_key("flight_telemetry_project", "PROJECT"): passed},
         progress=_Progress(),
         on_page_result=on_result.append,
     )

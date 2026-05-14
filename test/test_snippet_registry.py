@@ -42,7 +42,7 @@ def test_discover_pipeline_snippets_returns_typed_deterministic_registry(tmp_pat
 
     runenv = tmp_path / "runenv"
     runenv.mkdir()
-    runenv_snippet = runenv / "AGI_run_flight.py"
+    runenv_snippet = runenv / "AGI_run_flight_telemetry.py"
     runenv_snippet.write_text("print('runenv')\n", encoding="utf-8")
 
     app_settings = tmp_path / "app_settings.toml"
@@ -72,7 +72,7 @@ def test_discover_pipeline_snippets_returns_typed_deterministic_registry(tmp_pat
         "AGI_run.py": lab_snippet.resolve(),
         "AGI_run.py (snippets)": explicit.resolve(),
         "AGI_run.py (templates)": safe_template.resolve(),
-        "AGI_run_flight.py": runenv_snippet.resolve(),
+        "AGI_run_flight_telemetry.py": runenv_snippet.resolve(),
     }
     assert registry.as_rows()[0]["schema"] == SNIPPET_REGISTRY_SCHEMA
 
@@ -83,14 +83,14 @@ def test_discover_pipeline_snippets_filters_stale_and_wrong_app_runenv_snippets(
     runenv = tmp_path / "runenv"
     runenv.mkdir()
 
-    stale_snippet = runenv / "AGI_install_flight.py"
+    stale_snippet = runenv / "AGI_install_flight_telemetry.py"
     stale_snippet.write_text(
         "from agi_cluster.agi_distributor import AGI\n"
         "async def main():\n"
         "    await AGI.install(None)\n",
         encoding="utf-8",
     )
-    current_snippet = runenv / "AGI_run_flight.py"
+    current_snippet = runenv / "AGI_run_flight_telemetry.py"
     current_snippet.write_text(
         "from agi_cluster.agi_distributor import AGI\n"
         "from agi_env import AgiEnv\n"
@@ -118,7 +118,7 @@ def test_discover_pipeline_snippets_filters_stale_and_wrong_app_runenv_snippets(
         app_settings_file=app_settings,
     )
 
-    assert registry.as_option_map() == {"AGI_run_flight.py": current_snippet.resolve()}
+    assert registry.as_option_map() == {"AGI_run_flight_telemetry.py": current_snippet.resolve()}
     assert registry.stale_snippets == (stale_snippet.resolve(),)
 
 

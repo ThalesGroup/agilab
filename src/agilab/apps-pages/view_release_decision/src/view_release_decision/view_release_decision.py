@@ -67,10 +67,10 @@ FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 REQUIRED_FIRST_PROOF_VALIDATIONS = ("proof_steps", "target_seconds", "recommended_project")
 MANIFEST_SIGNATURE_SUFFIXES = (".sig", ".minisig", ".asc")
 APP_DEFAULT_METRICS_GLOBS = {
-    "meteo_forecast_project": "**/forecast_metrics.json",
+    "weather_forecast_project": "**/forecast_metrics.json",
 }
 APP_DEFAULT_REQUIRED_PATTERNS = {
-    "meteo_forecast_project": ("forecast_metrics.json", "forecast_predictions.csv"),
+    "weather_forecast_project": ("forecast_metrics.json", "forecast_predictions.csv"),
 }
 
 

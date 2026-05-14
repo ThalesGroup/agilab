@@ -10,18 +10,18 @@ GLOBAL_DAG_SAMPLE_RELATIVE_PATH = Path("docs/source/data/multi_app_dag_sample.js
 UAV_QUEUE_TEMPLATE_RELATIVE_PATH = Path(
     "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
 )
-FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH = Path(
-    "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH = Path(
+    "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
 )
 UAV_QUEUE_ADAPTER = "uav_queue_to_relay_controlled"
 CONTROLLED_CONTRACT_ADAPTER = "controlled_contract_dag"
-FLIGHT_TO_METEO_ADAPTER = CONTROLLED_CONTRACT_ADAPTER
+FLIGHT_TO_WEATHER_ADAPTER = CONTROLLED_CONTRACT_ADAPTER
 CONTROLLED_RUNNER_STATUS = "controlled_real_stage_execution"
 CONTROLLED_CONTRACT_RUNNER_STATUS = "controlled_contract_stage_execution"
 QUEUE_UNIT_ID = "queue_baseline"
 RELAY_UNIT_ID = "relay_followup"
 FLIGHT_CONTEXT_UNIT_ID = "flight_context"
-METEO_FORECAST_REVIEW_UNIT_ID = "meteo_forecast_review"
+WEATHER_FORECAST_REVIEW_UNIT_ID = "weather_forecast_review"
 FLIGHT_REDUCE_SUMMARY_ARTIFACT_ID = "flight_reduce_summary"
 FORECAST_METRICS_ARTIFACT_ID = "forecast_metrics"
 
@@ -64,22 +64,22 @@ UAV_QUEUE_TO_RELAY_ADAPTER = DagExecutionAdapter(
     wrong_app_message="This DAG does not map queue and relay stages to the expected built-in apps.",
 )
 
-FLIGHT_TO_METEO_DAG_ADAPTER = DagExecutionAdapter(
+FLIGHT_TO_WEATHER_DAG_ADAPTER = DagExecutionAdapter(
     adapter_id=CONTROLLED_CONTRACT_ADAPTER,
-    template_path=FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH,
+    template_path=FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH,
     runner_status=CONTROLLED_CONTRACT_RUNNER_STATUS,
     stage_requirements=(
-        DagStageRequirement(unit_id=FLIGHT_CONTEXT_UNIT_ID, app="flight_project"),
-        DagStageRequirement(unit_id=METEO_FORECAST_REVIEW_UNIT_ID, app="meteo_forecast_project"),
+        DagStageRequirement(unit_id=FLIGHT_CONTEXT_UNIT_ID, app="flight_telemetry_project"),
+        DagStageRequirement(unit_id=WEATHER_FORECAST_REVIEW_UNIT_ID, app="weather_forecast_project"),
     ),
     executable_message=(
         "Controlled contract DAG execution is enabled for this checked-in app-owned DAG."
     ),
-    missing_stage_message="This DAG does not contain the controlled flight and meteo stages.",
-    wrong_app_message="This DAG does not map flight and meteo stages to the expected built-in apps.",
+    missing_stage_message="This DAG does not contain the controlled flight and weather stages.",
+    wrong_app_message="This DAG does not map flight and weather stages to the expected built-in apps.",
 )
 
-REGISTERED_DAG_EXECUTION_ADAPTERS = (UAV_QUEUE_TO_RELAY_ADAPTER, FLIGHT_TO_METEO_DAG_ADAPTER)
+REGISTERED_DAG_EXECUTION_ADAPTERS = (UAV_QUEUE_TO_RELAY_ADAPTER, FLIGHT_TO_WEATHER_DAG_ADAPTER)
 LEGACY_EXECUTABLE_DAG_PATHS = (GLOBAL_DAG_SAMPLE_RELATIVE_PATH,)
 APP_OWNED_DAG_TEMPLATE_PREFIX = Path("src/agilab/apps/builtin")
 

@@ -74,7 +74,7 @@ Install the ``mycode`` example:
 
 Install the ``flight`` example:
 
-.. literalinclude:: examples/flight/AGI.install-flight.py
+.. literalinclude:: examples/flight_telemetry/AGI.install-flight-telemetry.py
    :language: python
 
 Distribute
@@ -87,7 +87,7 @@ Create the distribution bundle that will be sent to the workers:
 
 Equivalent example for ``flight``:
 
-.. literalinclude:: examples/flight/AGI.get_distrib-flight.py
+.. literalinclude:: examples/flight_telemetry/AGI.get_distrib-flight-telemetry.py
    :language: python
 
 Run
@@ -110,7 +110,7 @@ distributed hosts, and app-specific arguments:
 
 Equivalent example for ``flight``:
 
-.. literalinclude:: examples/flight/AGI.run-flight.py
+.. literalinclude:: examples/flight_telemetry/AGI.run-flight-telemetry.py
    :language: python
 
 Reference

@@ -93,19 +93,19 @@ def route_specs() -> list[RouteSpec]:
     return [
         RouteSpec("streamlit health", path="/_stcore/health"),
         RouteSpec("base app"),
-        RouteSpec("flight project", query={"active_app": "flight_project"}),
+        RouteSpec("flight project", query={"active_app": "flight_telemetry_project"}),
         RouteSpec(
             "flight view_maps",
             query={
-                "active_app": "flight_project",
+                "active_app": "flight_telemetry_project",
                 "current_page": "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
             },
         ),
-        RouteSpec("meteo forecast project", query={"active_app": "meteo_forecast_project"}),
+        RouteSpec("weather forecast project", query={"active_app": "weather_forecast_project"}),
         RouteSpec(
-            "meteo forecast view",
+            "weather forecast view",
             query={
-                "active_app": "meteo_forecast_project",
+                "active_app": "weather_forecast_project",
                 "current_page": "/app/src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py",
             },
         ),

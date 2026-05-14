@@ -24,7 +24,7 @@ def test_strip_packaged_core_uv_sources_removes_empty_source_section() -> None:
         "\n".join(
             [
                 "[project]",
-                'name = "flight_project"',
+                'name = "flight_telemetry_project"',
                 'dependencies = ["agi-env", "agi-node"]',
                 "",
                 "[tool.uv.sources]",
@@ -64,13 +64,13 @@ def test_strip_packaged_core_uv_sources_preserves_non_core_sources() -> None:
 
 def test_sanitize_packaged_builtin_app_pyprojects_updates_build_tree(tmp_path: Path) -> None:
     module = _load_module()
-    pyproject = tmp_path / "agilab/apps/builtin/flight_project/pyproject.toml"
+    pyproject = tmp_path / "agilab/apps/builtin/flight_telemetry_project/pyproject.toml"
     pyproject.parent.mkdir(parents=True)
     pyproject.write_text(
         "\n".join(
             [
                 "[project]",
-                'name = "flight_project"',
+                'name = "flight_telemetry_project"',
                 'dependencies = ["agi-env"]',
                 "",
                 "[tool.uv.sources]",
@@ -95,7 +95,7 @@ def test_sanitize_packaged_page_bundle_pyprojects_updates_build_tree(tmp_path: P
         "\n".join(
             [
                 "[project]",
-                'name = "view-maps"',
+                'name = "agi-page-geospatial-map"',
                 'dependencies = ["agi-gui"]',
                 "",
                 "[tool.uv.sources]",
@@ -115,7 +115,7 @@ def test_sanitize_packaged_page_bundle_pyprojects_updates_build_tree(tmp_path: P
 
 def test_purge_packaged_builtin_app_artifacts_removes_build_noise(tmp_path: Path) -> None:
     module = _load_module()
-    app_src = tmp_path / "agilab/apps/builtin/flight_project/src/flight"
+    app_src = tmp_path / "agilab/apps/builtin/flight_telemetry_project/src/flight"
     pycache = app_src / "__pycache__"
     egg_info = app_src / "flight.egg-info"
     pycache.mkdir(parents=True)

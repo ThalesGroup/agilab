@@ -206,13 +206,13 @@ def test_pypi_releases_uses_simple_index_when_json_is_stale(monkeypatch) -> None
 def test_sync_builtin_app_versions_lower_bounds_internal_runtime_deps(tmp_path, monkeypatch) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
-    pyproject = tmp_path / "src/agilab/apps/builtin/flight_project/pyproject.toml"
+    pyproject = tmp_path / "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml"
     pyproject.parent.mkdir(parents=True)
     pyproject.write_text(
         "\n".join(
             [
                 "[project]",
-                'name = "flight_project"',
+                'name = "flight_telemetry_project"',
                 'version = "2026.04.28.post3"',
                 'dependencies = ["agi-env", "agi-node>=2026.04.28.post3", "streamlit"]',
                 "",
@@ -1031,10 +1031,10 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
     public_demo_test.parent.mkdir(parents=True)
     public_demo_test.write_text("tests\n", encoding="utf-8")
 
-    builtin_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    builtin_dir = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
     builtin_dir.mkdir(parents=True)
     builtin_toml = builtin_dir / "pyproject.toml"
-    builtin_toml.write_text("[project]\nname='flight_project'\nversion='1.0.0'\n", encoding="utf-8")
+    builtin_toml.write_text("[project]\nname='flight_telemetry_project'\nversion='1.0.0'\n", encoding="utf-8")
 
     monkeypatch.setattr(module, "CORE", [("agi-env", core_toml, core_dir)])
     monkeypatch.setattr(module, "UMBRELLA", ("agilab", umbrella_toml, umbrella_dir))
@@ -1046,7 +1046,7 @@ def test_git_paths_to_commit_collects_expected_files_without_duplicates(tmp_path
         "core/agi-env/pyproject.toml",
         "core/agi-env/README.md",
         "pyproject.toml",
-        "src/agilab/apps/builtin/flight_project/pyproject.toml",
+        "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml",
         "README.md",
         "badges/pypi-version-agilab.svg",
         "CHANGELOG.md",

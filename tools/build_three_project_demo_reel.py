@@ -23,9 +23,9 @@ DATA = ImageColor.getrgb("#5ca0ff")
 ML = ImageColor.getrgb("#ff8e45")
 RL = ImageColor.getrgb("#6ad3a8")
 
-DEMO_SLUG = "agilab-data-io-2026"
-DEMO_FILE_STEM = "agilab_data_io_2026"
-MISSION_TITLE = "Data IO 2026: Mission Data -> Decision Engine."
+DEMO_SLUG = "agilab-mission-decision"
+DEMO_FILE_STEM = "agilab_mission_decision"
+MISSION_TITLE = "Mission Decision: Mission Data -> Decision Engine."
 MISSION_SUBTITLE = (
     "AGILAB ingests mission signals, distributes computation, adapts to constraints, "
     "and returns an executable routing decision."
@@ -238,7 +238,7 @@ def build_three_project_demo(mp4: Path, gif: Path, poster: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build the Data IO 2026 AGILAB autonomous decision demo reel.")
+    parser = argparse.ArgumentParser(description="Build the Mission Decision AGILAB autonomous decision demo reel.")
     parser.add_argument(
         "--gif",
         default=DEFAULT_GIF,

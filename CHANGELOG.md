@@ -468,7 +468,7 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 - Added `tools/production_readiness_report.py` evidence reporting for the
   bounded production-readiness pilot scope.
 - Added public Hugging Face Space smoke checks covering Streamlit health, base
-  app, `flight_project`, `view_maps`, `view_maps_network`, and public app-tree
+  app, `flight_telemetry_project`, `view_maps`, `view_maps_network`, and public app-tree
   guardrails.
 - Added public KPI evidence in README/docs for ease of adoption, research
   experimentation, engineering prototyping, strategic potential, and production

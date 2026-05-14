@@ -13,14 +13,14 @@ the command shape stable.
 
 | Order | Example | App | Main lesson |
 |---:|---|---|---|
-| 1 | `flight` | `flight_project` | First proof: install one app, run one file, inspect map-ready output. |
+| 1 | `flight_telemetry` | `flight_telemetry_project` | First proof: install one app, run one file, inspect map-ready output. |
 | 2 | `mycode` | `mycode_project` | Smallest worker template and execution smoke. |
-| 3 | `meteo_forecast` | `meteo_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
-| 4 | `notebook_migrations/skforecast_meteo_fr` | `meteo_forecast_project` | Packaged migration source: notebooks, artifacts, lab stages, and pipeline view. |
+| 3 | `weather_forecast` | `weather_forecast_project` | Turn a notebook-style forecast into a reproducible app run. |
+| 4 | `notebook_migrations/skforecast_meteo_fr` | `weather_forecast_project` | Packaged migration source: notebooks, artifacts, lab stages, and pipeline view. |
 | 5 | `notebook_to_dask` | notebook import -> Dask pipeline | Read-only migration preview: code cells, artifact contracts, and a Dask pipeline view. |
-| 6 | `data_io_2026` | `data_io_2026_project` | Deterministic mission-data decision run with richer artifacts. |
-| 7 | `global_dag_project` | `flight_project` -> `meteo_forecast_project` | Built-in app-owned global DAG contract: app nodes, artifact handoff, and runner-state preview. |
-| 8 | `inter_project_dag` | `flight_project` -> `meteo_forecast_project` | Standalone compatibility preview for the same cross-project DAG concept. |
+| 6 | `mission_decision` | `mission_decision_project` | Deterministic mission-data decision run with richer artifacts. |
+| 7 | `global_dag_project` | `flight_telemetry_project` -> `weather_forecast_project` | Built-in app-owned global DAG contract: app nodes, artifact handoff, and runner-state preview. |
+| 8 | `inter_project_dag` | `flight_telemetry_project` -> `weather_forecast_project` | Standalone compatibility preview for the same cross-project DAG concept. |
 | 9 | `service_mode` | `mycode_project` | Read-only service lifecycle preview: start, status, health, stop. |
 | 10 | `mlflow_auto_tracking` | any pipeline app | Optional tracking preview: local evidence first, MLflow as the memory backend. |
 | 11 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
@@ -47,7 +47,7 @@ the command shape stable.
   service template and explains persistent-worker operations without starting a
   service.
 - `mlflow_auto_tracking/preview_mlflow_auto_tracking.py` reads a
-  `meteo_forecast_project` built-in tracking template and shows the intended
+  `weather_forecast_project` built-in tracking template and shows the intended
   tracker abstraction without creating a parallel AGILAB model registry.
 - `resilience_failure_injection/preview_resilience_failure_injection.py` reads
   a `uav_queue_project` built-in scenario template and makes failure events
@@ -66,8 +66,8 @@ the command shape stable.
 ## Typical Use
 
 ```bash
-python ~/log/execute/flight/AGI_install_flight.py
-python ~/log/execute/flight/AGI_run_flight.py
+python ~/log/execute/flight_telemetry/AGI_install_flight_telemetry.py
+python ~/log/execute/flight_telemetry/AGI_run_flight_telemetry.py
 ```
 
 ## How To Read An Example

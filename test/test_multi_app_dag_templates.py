@@ -64,22 +64,22 @@ def test_app_dag_templates_can_fallback_to_all_templates_when_active_app_has_non
 
     paths = multi_app_dag_templates.app_dag_template_paths(
         repo_root,
-        app_name="meteo_forecast_project",
+        app_name="weather_forecast_project",
         include_all_when_empty=True,
     )
 
-    assert "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json" in paths
+    assert "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json" in paths
     assert "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json" in paths
     flight_payload = json.loads(
-        (repo_root / "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json").read_text(
+        (repo_root / "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json").read_text(
             encoding="utf-8"
         )
     )
     assert flight_payload["execution"]["runner_status"] == "controlled_contract_stage_execution"
     assert flight_payload["execution"]["adapter"] == "controlled_contract_dag"
-    assert flight_payload["nodes"][0]["execution"]["entrypoint"] == "flight_project.flight_context"
+    assert flight_payload["nodes"][0]["execution"]["entrypoint"] == "flight_telemetry_project.flight_context"
     assert flight_payload["nodes"][0]["execution"]["params"]["output_format"] == "parquet"
     assert flight_payload["nodes"][0]["execution"]["data_out"] == "flight/dataframe"
-    assert flight_payload["nodes"][1]["execution"]["entrypoint"] == "meteo_forecast_project.meteo_forecast_review"
+    assert flight_payload["nodes"][1]["execution"]["entrypoint"] == "weather_forecast_project.weather_forecast_review"
     assert flight_payload["nodes"][1]["execution"]["params"]["station"] == "Paris-Montsouris"
-    assert flight_payload["nodes"][1]["execution"]["data_in"] == "meteo_forecast/dataset"
+    assert flight_payload["nodes"][1]["execution"]["data_in"] == "weather_forecast/dataset"

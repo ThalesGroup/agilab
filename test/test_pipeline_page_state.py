@@ -299,7 +299,7 @@ def test_finish_pipeline_run_command_reports_session_state_write_errors() -> Non
 
 
 def test_pipeline_page_state_refuses_stale_legacy_snippets_before_runtime(tmp_path):
-    stale_ref = {"stage": 1, "line": 4, "summary": "legacy run", "project": "flight_project"}
+    stale_ref = {"stage": 1, "line": 4, "summary": "legacy run", "project": "flight_telemetry_project"}
 
     state = pipeline_page_state.build_pipeline_page_state(
         index_page="demo",

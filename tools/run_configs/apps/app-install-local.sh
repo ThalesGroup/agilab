@@ -10,4 +10,4 @@ export PYTHONUNBUFFERED="1"
 export UV_NO_SYNC="1"
 # Let uv select the run-config project .venv instead of a stale activated shell.
 unset VIRTUAL_ENV
-uv run python $REPO_ROOT/src/agilab/apps/install.py $Prompt:selected app:src/agilab/apps/builtin/flight_project$ --install-type "1" --verbose 1
+uv run python $REPO_ROOT/src/agilab/apps/install.py $Prompt:selected app:src/agilab/apps/builtin/flight_telemetry_project$ --install-type "1" --verbose 1

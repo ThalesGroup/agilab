@@ -67,6 +67,7 @@ from agi_env.app_settings_support import (
     resolve_user_app_settings_file as resolve_workspace_app_settings_file,
 )
 from agi_env.connector_registry import resolve_connector_root
+from agi_env.app_provider_registry import resolve_app_runtime_target
 from agi_env.env_config_support import (
     clean_envar_value as _clean_envar_value,
     load_dotenv_values as _load_dotenv_values,
@@ -472,7 +473,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             installed_app_projects=self.installed_app_project_paths,
             home_abs=home_abs,
             is_worker_env=self.is_worker_env,
-            default_app=str(envars.get("APP_DEFAULT", "flight_project") or "").strip(),
+            default_app=str(envars.get("APP_DEFAULT", "flight_telemetry_project") or "").strip(),
             path_cls=Path,
         )
         app = active_app_selection.app
@@ -492,7 +493,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             self.active_app = active_app
         self.apps_path = apps_path
 
-        target = app.replace("_project", "").replace("_worker","").replace("-", "_")
+        target = resolve_app_runtime_target(active_app, app)
         self.share_target_name = target
 
         self.verbose = verbose

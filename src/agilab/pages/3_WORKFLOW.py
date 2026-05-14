@@ -64,6 +64,7 @@ from agi_gui.pagelib import (
 )
 from agi_gui.file_picker import agi_file_picker
 from agi_env import AgiEnv, normalize_path
+from agi_env.app_provider_registry import app_name_aliases
 from agi_env.pagelib_selection_support import on_df_change as _on_df_change_impl
 import_agilab_symbols(
     globals(),
@@ -773,15 +774,9 @@ def _canonical_pipeline_project_name(raw_name: Any, project_catalog: List[str]) 
     name = Path(str(raw_name or "").strip()).name
     if not name or name == "apps":
         return ""
-    if name in project_catalog:
-        return name
-    suffixed = f"{name}_project"
-    if suffixed in project_catalog:
-        return suffixed
-    if name.endswith("_project"):
-        stem = name.removesuffix("_project")
-        if stem in project_catalog:
-            return stem
+    for alias in app_name_aliases(name):
+        if alias in project_catalog:
+            return alias
     return name
 
 

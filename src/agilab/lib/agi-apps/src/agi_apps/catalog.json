@@ -1,12 +1,11 @@
 [
-  {"project": "data_io_2026_project", "slug": "data_io_2026", "distribution": "agi-app-data-io-2026-project", "package": "agi_app_data_io_2026_project"},
-  {"project": "execution_pandas_project", "slug": "execution_pandas", "distribution": "agi-app-execution-pandas-project", "package": "agi_app_execution_pandas_project"},
-  {"project": "execution_polars_project", "slug": "execution_polars", "distribution": "agi-app-execution-polars-project", "package": "agi_app_execution_polars_project"},
-  {"project": "flight_project", "slug": "flight", "distribution": "agi-app-flight-project", "package": "agi_app_flight_project"},
-  {"project": "global_dag_project", "slug": "global_dag", "distribution": "agi-app-global-dag-project", "package": "agi_app_global_dag_project"},
-  {"project": "meteo_forecast_project", "slug": "meteo_forecast", "distribution": "agi-app-meteo-forecast-project", "package": "agi_app_meteo_forecast_project"},
-  {"project": "mycode_project", "slug": "mycode", "distribution": "agi-app-mycode-project", "package": "agi_app_mycode_project"},
+  {"project": "mission_decision_project", "slug": "mission_decision", "distribution": "agi-app-mission-decision", "package": "agi_app_mission_decision"},
+  {"project": "execution_pandas_project", "slug": "execution_pandas", "distribution": "agi-app-pandas-execution", "package": "agi_app_pandas_execution"},
+  {"project": "execution_polars_project", "slug": "execution_polars", "distribution": "agi-app-polars-execution", "package": "agi_app_polars_execution"},
+  {"project": "flight_telemetry_project", "slug": "flight_telemetry", "distribution": "agi-app-flight-telemetry", "package": "agi_app_flight_telemetry"},
+  {"project": "global_dag_project", "slug": "global_dag", "distribution": "agi-app-global-dag", "package": "agi_app_global_dag"},
+  {"project": "weather_forecast_project", "slug": "weather_forecast", "distribution": "agi-app-weather-forecast", "package": "agi_app_weather_forecast"},
   {"project": "tescia_diagnostic_project", "slug": "tescia_diagnostic", "distribution": "agi-app-tescia-diagnostic-project", "package": "agi_app_tescia_diagnostic_project"},
   {"project": "uav_queue_project", "slug": "uav_queue", "distribution": "agi-app-uav-queue-project", "package": "agi_app_uav_queue_project"},
-  {"project": "uav_relay_queue_project", "slug": "uav_relay_queue", "distribution": "agi-app-uav-relay-queue-project", "package": "agi_app_uav_relay_queue_project"}
+  {"project": "uav_relay_queue_project", "slug": "uav_relay_queue", "distribution": "agi-app-uav-relay-queue", "package": "agi_app_uav_relay_queue"}
 ]

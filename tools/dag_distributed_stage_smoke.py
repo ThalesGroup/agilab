@@ -14,7 +14,7 @@ from typing import Any, Mapping, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_DAG_RELATIVE_PATH = Path("src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json")
+DEFAULT_DAG_RELATIVE_PATH = Path("src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json")
 DEFAULT_OUTPUT = Path("test-results/dag-distributed-stage-smoke.json")
 SCHEMA = "agilab.distributed_dag_stage_smoke.v1"
 

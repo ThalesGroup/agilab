@@ -11,10 +11,18 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 try:
-    from package_split_contract import PACKAGE_CONTRACTS, PACKAGE_NAMES
+    from package_split_contract import (
+        PACKAGE_CONTRACTS,
+        PACKAGE_NAMES,
+        PROMOTED_APP_PROJECT_PACKAGE_NAMES,
+    )
     from release_plan import PYPI_PUBLISH_ROLES
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
-    from tools.package_split_contract import PACKAGE_CONTRACTS, PACKAGE_NAMES
+    from tools.package_split_contract import (
+        PACKAGE_CONTRACTS,
+        PACKAGE_NAMES,
+        PROMOTED_APP_PROJECT_PACKAGE_NAMES,
+    )
     from tools.release_plan import PYPI_PUBLISH_ROLES
 
 
@@ -22,7 +30,9 @@ DEFAULT_OWNER = "ThalesGroup"
 DEFAULT_REPOSITORY = "agilab"
 DEFAULT_WORKFLOW = "pypi-publish.yaml"
 PYPI_PUBLISH_PACKAGE_NAMES = tuple(
-    package.name for package in PACKAGE_CONTRACTS if package.role in PYPI_PUBLISH_ROLES
+    package.name
+    for package in PACKAGE_CONTRACTS
+    if package.role in PYPI_PUBLISH_ROLES or package.name in PROMOTED_APP_PROJECT_PACKAGE_NAMES
 )
 
 

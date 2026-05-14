@@ -187,7 +187,7 @@ def _sample_suite_check(
         and suite_summary["suite_app_count"] >= 6
         and suite_summary["suite_cross_app_edge_count"] >= 4
         and any(
-            result.get("dag_id") == "flight-meteo-execution-portfolio"
+            result.get("dag_id") == "flight-weather-execution-portfolio"
             for result in supplemental
         )
     )

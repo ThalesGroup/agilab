@@ -53,7 +53,7 @@ def _load_module():
 
 def test_safe_agent_tool_invocation_is_allowed_without_confirmation() -> None:
     module = _load_module()
-    decision = module.evaluate_tool_invocation("inspect_project", {"project": "flight_project"})
+    decision = module.evaluate_tool_invocation("inspect_project", {"project": "flight_telemetry_project"})
 
     assert decision.allowed is True
     assert decision.risk == "safe"

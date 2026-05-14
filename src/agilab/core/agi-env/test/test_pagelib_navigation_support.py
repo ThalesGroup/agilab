@@ -73,12 +73,12 @@ def test_normalize_query_param_value_and_active_app_candidates(tmp_path):
     candidates = nav_support.active_app_candidates(
         "flight",
         apps_root,
-        ["flight_project"],
+        ["flight_telemetry_project"],
         preferred_base=tmp_path / "preferred",
     )
 
     assert candidates[0] == Path("flight").expanduser()
-    assert builtin_root / "flight_project" in candidates
+    assert builtin_root / "flight_telemetry_project" in candidates
     assert len(candidates) == len(set(candidates))
 
 

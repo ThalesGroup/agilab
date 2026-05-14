@@ -25,7 +25,7 @@ commands with:
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --compact
-   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --manifest ~/log/execute/flight/run_manifest.json --compact
+   uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --manifest ~/log/execute/flight_telemetry/run_manifest.json --compact
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py --artifact-index artifact_index.json --compact
    uv --preview-features extra-build-dependencies run python tools/public_proof_scenarios.py --compact
    uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json
@@ -46,20 +46,20 @@ Current public matrix
    * - Source checkout first proof
      - validated
      - ``uv run python tools/newcomer_first_proof.py``
-     - Public built-in ``flight_project`` path, local execution, and the
+     - Public built-in ``flight_telemetry_project`` path, local execution, and the
        recommended newcomer workflow
      - No SSH, no private apps, no packaged install
    * - Web UI local first proof
      - validated
      - ``uv run streamlit run src/agilab/main_page.py``
      - ``PROJECT -> ORCHESTRATE -> ANALYSIS`` on the local built-in app path,
-       with fresh output under ``~/log/execute/flight/``
+       with fresh output under ``~/log/execute/flight_telemetry/``
      - Not a remote cluster proof
    * - AGILAB Hugging Face demo
      - validated
      - ``uv run python tools/hf_space_smoke.py --json``
      - Self-serve AGILAB web UI demo hosted on Hugging Face Spaces, including
-       flight and meteo route smoke plus a public app-tree guardrail
+       flight and weather route smoke plus a public app-tree guardrail
      - Hosted demo environment; availability depends on Hugging Face Spaces uptime; not a remote cluster proof
    * - Service-mode operator surface
      - validated
@@ -187,13 +187,13 @@ README summary alone. For normal maintenance, use the compact checks first:
    uv --preview-features extra-build-dependencies run python tools/data_connector_app_catalogs_report.py --compact
 
 For source-checkout first proof evidence, ``tools/newcomer_first_proof.py
---json`` writes ``~/log/execute/flight/run_manifest.json``. The compatibility
+--json`` writes ``~/log/execute/flight_telemetry/run_manifest.json``. The compatibility
 report can ingest that manifest directly:
 
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run python tools/compatibility_report.py \
-     --manifest ~/log/execute/flight/run_manifest.json \
+     --manifest ~/log/execute/flight_telemetry/run_manifest.json \
      --compact
 
 The broader evidence tooling covers release metadata, supply-chain metadata,
@@ -202,7 +202,7 @@ decision exports. Keep those details in tool help, tests, and maintainer
 runbooks; this public page should stay a readable support-status map.
 
 The in-product first-proof wizard uses the same boundary: it routes newcomers
-to the source-checkout ``flight_project`` proof first, reads
+to the source-checkout ``flight_telemetry_project`` proof first, reads
 ``run_manifest.json``, and turns missing or failing evidence into a recovery
 checklist.
 

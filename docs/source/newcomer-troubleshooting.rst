@@ -6,7 +6,7 @@ This page is intentionally narrow.
 Use it only for the first AGILAB proof path:
 
 - source checkout
-- built-in ``flight_project``
+- built-in ``flight_telemetry_project``
 - local run
 - web UI first
 
@@ -75,11 +75,11 @@ Symptom:
 
 The expected built-in path in a source checkout is::
 
-    src/agilab/apps/builtin/flight_project
+    src/agilab/apps/builtin/flight_telemetry_project
 
 Recovery::
 
-    test -d src/agilab/apps/builtin/flight_project && echo OK || echo MISSING
+    test -d src/agilab/apps/builtin/flight_telemetry_project && echo OK || echo MISSING
 
 If it is missing, you are likely not in the AGILAB source checkout you think
 you are, or the install did not finish cleanly. Return to the repo root and
@@ -110,19 +110,19 @@ If that fails, run the pages directly::
 
 Then verify the built-in app can be resolved by path::
 
-    uv --preview-features extra-build-dependencies run python tools/apps_pages_launcher.py --active-app src/agilab/apps/builtin/flight_project
+    uv --preview-features extra-build-dependencies run python tools/apps_pages_launcher.py --active-app src/agilab/apps/builtin/flight_telemetry_project
 
 If the failure mentions package import or missing environment setup, rerun::
 
     ./install.sh --install-apps
 
-Failure 5: no fresh output appears under ``~/log/execute/flight/``
-------------------------------------------------------------------
+Failure 5: no fresh output appears under ``~/log/execute/flight_telemetry/``
+----------------------------------------------------------------------------------------------------
 
 Symptom:
 
 - the UI starts, but your first proof does not end in visible evidence
-- ``~/log/execute/flight/`` has no fresh output
+- ``~/log/execute/flight_telemetry/`` has no fresh output
 - install may have seeded helper scripts but no useful run artifacts appeared
 
 First confirm the newcomer proof still passes::
@@ -131,18 +131,18 @@ First confirm the newcomer proof still passes::
 
 Then inspect the expected output directory::
 
-    ls -la ~/log/execute/flight
+    ls -la ~/log/execute/flight_telemetry
 
 If the helper scripts are missing, rerun the source installer for the built-in
 app::
 
-    uv --preview-features extra-build-dependencies run python src/agilab/apps/install.py src/agilab/apps/builtin/flight_project --verbose 1
+    uv --preview-features extra-build-dependencies run python src/agilab/apps/install.py src/agilab/apps/builtin/flight_telemetry_project --verbose 1
 
 Then relaunch the UI and follow the first-proof path again:
 
-1. ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
+1. ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_telemetry_project``
 2. ``ORCHESTRATE`` -> run the local install/distribute/run path
-3. confirm fresh output exists under ``~/log/execute/flight/``
+3. confirm fresh output exists under ``~/log/execute/flight_telemetry/``
 4. ``ANALYSIS`` -> confirm one visible result exists
 
 When you are past the newcomer hurdle
@@ -151,7 +151,7 @@ When you are past the newcomer hurdle
 You are done with this page when all of the following are true:
 
 - the newcomer proof command returns ``PASS``
-- AGILAB writes fresh output under ``~/log/execute/flight/``
+- AGILAB writes fresh output under ``~/log/execute/flight_telemetry/``
 - the first-proof path stays understandable as
   ``PROJECT -> ORCHESTRATE -> ANALYSIS``
 

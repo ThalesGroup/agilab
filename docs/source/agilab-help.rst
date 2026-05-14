@@ -66,7 +66,7 @@ Public navigation split
 
 Keep these two public paths separate:
 
-- newcomer proof: ``flight_project`` through
+- newcomer proof: ``flight_telemetry_project`` through
   ``PROJECT -> ORCHESTRATE -> ANALYSIS``
 - full tour demo: ``uav_relay_queue_project`` through
   ``PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS``

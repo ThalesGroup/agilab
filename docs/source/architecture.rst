@@ -106,7 +106,7 @@ Layers at a glance
       ``AGI.install`` orchestration.
     - Apps under ``src/agilab/apps`` stay isolated but consume the same base
       worker / dispatcher APIs. The repository includes example app templates
-      such as ``mycode_project``, ``flight_project``, and the lightweight
+      such as ``mycode_project``, ``flight_telemetry_project``, and the lightweight
       ``UAV Relay Queue`` demo (install id ``uav_relay_queue_project``); additional
       templates can follow the same contract.
     - AGILAB is intentionally a **two-runtime system**:

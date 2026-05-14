@@ -2840,7 +2840,7 @@ def handle_project_creation():
             "Create a new project from an existing template. "
             "Use a working clone for real development."
         )
-        # choose a template (relative project name, e.g. "flight_project")
+        # choose a template (relative project name, e.g. "flight_telemetry_project")
         compact_choice(
             st.sidebar,
             "Starting point",

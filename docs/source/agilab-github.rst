@@ -44,7 +44,7 @@ releases can install only the pieces they need. See
      - Umbrella for public app packages, app catalog metadata, and example assets.
      - Pulled by ``agilab[ui]`` or ``agilab[examples]``.
 
-Per-app packages such as ``agi-app-flight-project`` and page bundles such as
-``view-maps`` are payload packages behind the ``agi-apps`` and ``agi-pages``
+Per-app packages such as ``agi-app-flight-telemetry`` and page bundles such as
+``agi-page-geospatial-map`` are payload packages behind the ``agi-apps`` and ``agi-pages``
 umbrellas. They are published separately so app/page payloads can evolve
 without forcing every runtime component to carry those assets.

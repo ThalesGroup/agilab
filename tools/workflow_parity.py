@@ -251,7 +251,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 "test/test_multi_app_dag_draft.py",
                 "test/test_multi_app_dag_templates.py",
                 "test/test_tracking.py",
-                "test/test_flight_project_runtime_args.py",
+                "test/test_flight_telemetry_project_runtime_args.py",
             ],
         ),
         _agi_gui_coverage_chunk(

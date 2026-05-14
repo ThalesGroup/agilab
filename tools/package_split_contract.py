@@ -24,32 +24,38 @@ class PackageContract:
 
 
 APP_PROJECT_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
-    ("agi-app-data-io-2026-project", "src/agilab/lib/agi-app-data-io-2026-project"),
-    ("agi-app-execution-pandas-project", "src/agilab/lib/agi-app-execution-pandas-project"),
-    ("agi-app-execution-polars-project", "src/agilab/lib/agi-app-execution-polars-project"),
-    ("agi-app-flight-project", "src/agilab/lib/agi-app-flight-project"),
-    ("agi-app-global-dag-project", "src/agilab/lib/agi-app-global-dag-project"),
-    ("agi-app-meteo-forecast-project", "src/agilab/lib/agi-app-meteo-forecast-project"),
-    ("agi-app-mycode-project", "src/agilab/lib/agi-app-mycode-project"),
+    ("agi-app-mission-decision", "src/agilab/lib/agi-app-mission-decision"),
+    ("agi-app-pandas-execution", "src/agilab/lib/agi-app-pandas-execution"),
+    ("agi-app-polars-execution", "src/agilab/lib/agi-app-polars-execution"),
+    ("agi-app-flight-telemetry", "src/agilab/lib/agi-app-flight-telemetry"),
+    ("agi-app-global-dag", "src/agilab/lib/agi-app-global-dag"),
+    ("agi-app-weather-forecast", "src/agilab/lib/agi-app-weather-forecast"),
     ("agi-app-tescia-diagnostic-project", "src/agilab/lib/agi-app-tescia-diagnostic-project"),
     ("agi-app-uav-queue-project", "src/agilab/lib/agi-app-uav-queue-project"),
-    ("agi-app-uav-relay-queue-project", "src/agilab/lib/agi-app-uav-relay-queue-project"),
+    ("agi-app-uav-relay-queue", "src/agilab/lib/agi-app-uav-relay-queue"),
+)
+
+PROMOTED_APP_PROJECT_PACKAGE_NAMES: tuple[str, ...] = (
+    "agi-app-mission-decision",
+    "agi-app-flight-telemetry",
+    "agi-app-weather-forecast",
+    "agi-app-uav-relay-queue",
 )
 
 
 PAGE_BUNDLE_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
-    ("view-barycentric-graph", "src/agilab/apps-pages/view_barycentric"),
-    ("view-data-io-decision", "src/agilab/apps-pages/view_data_io_decision"),
-    ("view-forecast-analysis", "src/agilab/apps-pages/view_forecast_analysis"),
-    ("view-inference-analysis", "src/agilab/apps-pages/view_inference_analysis"),
-    ("view-maps", "src/agilab/apps-pages/view_maps"),
-    ("view-maps-3d", "src/agilab/apps-pages/view_maps_3d"),
-    ("view-maps-network", "src/agilab/apps-pages/view_maps_network"),
-    ("view-queue-resilience", "src/agilab/apps-pages/view_queue_resilience"),
-    ("view-relay-resilience", "src/agilab/apps-pages/view_relay_resilience"),
-    ("view-release-decision", "src/agilab/apps-pages/view_release_decision"),
-    ("view-shap-explanation", "src/agilab/apps-pages/view_shap_explanation"),
-    ("view-training-analysis", "src/agilab/apps-pages/view_training_analysis"),
+    ("agi-page-simplex-map", "src/agilab/apps-pages/view_barycentric"),
+    ("agi-page-decision-evidence", "src/agilab/apps-pages/view_data_io_decision"),
+    ("agi-page-timeseries-forecast", "src/agilab/apps-pages/view_forecast_analysis"),
+    ("agi-page-inference-report", "src/agilab/apps-pages/view_inference_analysis"),
+    ("agi-page-geospatial-map", "src/agilab/apps-pages/view_maps"),
+    ("agi-page-geospatial-3d", "src/agilab/apps-pages/view_maps_3d"),
+    ("agi-page-network-map", "src/agilab/apps-pages/view_maps_network"),
+    ("agi-page-queue-health", "src/agilab/apps-pages/view_queue_resilience"),
+    ("agi-page-relay-health", "src/agilab/apps-pages/view_relay_resilience"),
+    ("agi-page-promotion-gate", "src/agilab/apps-pages/view_release_decision"),
+    ("agi-page-feature-attribution", "src/agilab/apps-pages/view_shap_explanation"),
+    ("agi-page-training-report", "src/agilab/apps-pages/view_training_analysis"),
 )
 
 

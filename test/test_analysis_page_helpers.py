@@ -82,10 +82,10 @@ def test_analysis_sidebar_view_url_encodes_project_and_path(tmp_path: Path):
     module = _load_analysis_module()
     view_path = tmp_path / "view maps.py"
 
-    url = module._analysis_sidebar_view_url("flight_project", view_path)
+    url = module._analysis_sidebar_view_url("flight_telemetry_project", view_path)
 
     assert url.startswith("?")
-    assert "active_app=flight_project" in url
+    assert "active_app=flight_telemetry_project" in url
     assert "current_page=" in url
     assert "view+maps.py" in url or "view%20maps.py" in url
 
@@ -94,17 +94,17 @@ def test_analysis_sidebar_notebook_url_encodes_project_and_path(tmp_path: Path):
     module = _load_analysis_module()
     notebook_path = tmp_path / "flight notebook.ipynb"
 
-    url = module._analysis_sidebar_notebook_url("flight_project", notebook_path)
+    url = module._analysis_sidebar_notebook_url("flight_telemetry_project", notebook_path)
 
     assert url.startswith("?")
-    assert "active_app=flight_project" in url
+    assert "active_app=flight_telemetry_project" in url
     assert "current_notebook=" in url
     assert "flight+notebook.ipynb" in url or "flight%20notebook.ipynb" in url
 
 
 def test_discover_project_notebooks_skips_checkpoints_and_sorts(tmp_path: Path):
     module = _load_analysis_module()
-    project_root = tmp_path / "flight_project"
+    project_root = tmp_path / "flight_telemetry_project"
     notebooks_root = project_root / "notebooks"
     (notebooks_root / "extra").mkdir(parents=True)
     (notebooks_root / ".ipynb_checkpoints").mkdir()
@@ -236,7 +236,7 @@ def test_render_view_page_embeds_sidecar_with_streamlit_iframe(tmp_path: Path, m
 
 def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
-    project_root = tmp_path / "apps" / "flight_project"
+    project_root = tmp_path / "apps" / "flight_telemetry_project"
     notebook_path = project_root / "notebooks" / "lab_stages.ipynb"
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
@@ -253,14 +253,14 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
     fake_env = SimpleNamespace(
         apps_path=project_root.parent,
         target=None,
-        app="flight_project",
+        app="flight_telemetry_project",
         active_app="",
         AGILAB_LOG_ABS=tmp_path,
         logger=fake_logger,
     )
     fake_st = SimpleNamespace(
         session_state={"env": fake_env},
-        query_params={"current_notebook": str(notebook_path), "active_app": "flight_project"},
+        query_params={"current_notebook": str(notebook_path), "active_app": "flight_telemetry_project"},
         columns=lambda _spec: [_Column(), _Column(), _Column()],
         button=lambda *_args, **_kwargs: False,
         subheader=lambda *_args, **_kwargs: None,
@@ -277,7 +277,7 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
 
     assert calls == [
         (
-            "http://127.0.0.1:8766/lab/tree/notebooks/lab_stages.ipynb?active_app=flight_project&embed=true",
+            "http://127.0.0.1:8766/lab/tree/notebooks/lab_stages.ipynb?active_app=flight_telemetry_project&embed=true",
             {"height": 900},
         )
     ]
@@ -285,7 +285,7 @@ def test_render_notebook_page_embeds_project_jupyter_sidecar(tmp_path: Path, mon
 
 def test_ensure_notebook_sidecar_starts_lab_root_and_allows_iframe(tmp_path: Path, monkeypatch):
     module = _load_analysis_module()
-    project_root = tmp_path / "apps" / "flight_project"
+    project_root = tmp_path / "apps" / "flight_telemetry_project"
     notebook_path = project_root / "notebooks" / "lab_stages.ipynb"
     notebook_path.parent.mkdir(parents=True)
     notebook_path.write_text("{}", encoding="utf-8")
@@ -367,7 +367,7 @@ def test_migrate_legacy_flight_analysis_page_config_keeps_network_available():
         }
     }
 
-    changed = module._migrate_legacy_analysis_page_config("flight_project", cfg)
+    changed = module._migrate_legacy_analysis_page_config("flight_telemetry_project", cfg)
 
     assert changed is True
     assert cfg["pages"]["default_view"] == "view_maps"
@@ -389,7 +389,7 @@ def test_migrate_legacy_flight_analysis_page_config_unhides_network_page():
         }
     }
 
-    changed = module._migrate_legacy_analysis_page_config("flight_project", cfg)
+    changed = module._migrate_legacy_analysis_page_config("flight_telemetry_project", cfg)
 
     assert changed is True
     assert cfg["pages"]["default_view"] == "view_maps"
@@ -422,7 +422,7 @@ def test_migrate_legacy_analysis_page_config_preserves_custom_flight_defaults():
         }
     }
 
-    changed = module._migrate_legacy_analysis_page_config("flight_project", cfg)
+    changed = module._migrate_legacy_analysis_page_config("flight_telemetry_project", cfg)
 
     assert changed is False
     assert cfg["pages"] == {"default_view": "view_default", "view_module": []}
@@ -446,10 +446,10 @@ def test_analysis_sidebar_view_url_encodes_project_and_path(tmp_path: Path):
     module = _load_analysis_module()
     view_path = tmp_path / "view maps.py"
 
-    url = module._analysis_sidebar_view_url("flight_project", view_path)
+    url = module._analysis_sidebar_view_url("flight_telemetry_project", view_path)
 
     assert url.startswith("?")
-    assert "active_app=flight_project" in url
+    assert "active_app=flight_telemetry_project" in url
     assert "current_page=" in url
     assert "view+maps.py" in url or "view%20maps.py" in url
 
@@ -477,21 +477,21 @@ def test_page_apps_path_prefers_agilab_apps_over_legacy_src_apps(tmp_path: Path)
 def test_resolve_app_path_accepts_builtin_project_name(tmp_path: Path):
     module = _load_analysis_module()
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
 
-    assert module._resolve_app_path(apps_path, "flight_project") == flight_project.resolve()
+    assert module._resolve_app_path(apps_path, "flight_telemetry_project") == flight_telemetry_project.resolve()
 
 
-def test_default_app_path_prefers_builtin_flight_project(tmp_path: Path):
+def test_default_app_path_prefers_builtin_flight_telemetry_project(tmp_path: Path):
     module = _load_analysis_module()
     apps_path = tmp_path / "apps"
     generic_project = apps_path / "alpha_project"
-    flight_project = apps_path / "builtin" / "flight_project"
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     generic_project.mkdir(parents=True)
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project.mkdir(parents=True)
 
-    assert module._default_app_path(apps_path) == flight_project.resolve()
+    assert module._default_app_path(apps_path) == flight_telemetry_project.resolve()
 
 
 def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
@@ -500,8 +500,8 @@ def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
 ):
     module = _load_analysis_module()
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
     stored_apps: list[Path] = []
 
     class FakeAgiEnv:
@@ -525,23 +525,23 @@ def test_initialize_analysis_env_uses_builtin_flight_for_query_shorthand(
     monkeypatch.setattr(module, "load_last_active_app", lambda: None)
     monkeypatch.setattr(module, "store_last_active_app", stored_apps.append)
 
-    env = module._initialize_analysis_env("flight_project")
+    env = module._initialize_analysis_env("flight_telemetry_project")
 
     assert env.apps_path == apps_path.resolve()
-    assert env.app == "flight_project"
+    assert env.app == "flight_telemetry_project"
     assert fake_st.session_state["apps_path"] == str(apps_path.resolve())
-    assert fake_st.session_state["app"] == "flight_project"
-    assert stored_apps == [flight_project.resolve()]
+    assert fake_st.session_state["app"] == "flight_telemetry_project"
+    assert stored_apps == [flight_telemetry_project.resolve()]
 
 
-def test_initialize_analysis_env_defaults_to_builtin_flight_project(
+def test_initialize_analysis_env_defaults_to_builtin_flight_telemetry_project(
     tmp_path: Path,
     monkeypatch,
 ):
     module = _load_analysis_module()
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
 
     class FakeAgiEnv:
         def __init__(self, *, apps_path: Path, app: str, verbose: int):
@@ -567,11 +567,11 @@ def test_initialize_analysis_env_defaults_to_builtin_flight_project(
     env = module._initialize_analysis_env(None)
 
     assert env.apps_path == apps_path.resolve()
-    assert env.app == "flight_project"
+    assert env.app == "flight_telemetry_project"
 
 
-def test_builtin_flight_project_defaults_to_view_maps_and_enables_network_page():
-    settings_path = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
+def test_builtin_flight_telemetry_project_defaults_to_view_maps_and_enables_network_page():
+    settings_path = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml")
     cfg = _load_analysis_module()._read_config(settings_path)
 
     assert cfg["pages"]["default_view"] == "view_maps"
@@ -855,7 +855,7 @@ def test_render_view_page_inline_executes_page_main_with_active_app(tmp_path: Pa
     monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
     monkeypatch.setattr(module, "st", fake_streamlit)
 
-    active_app = tmp_path / "flight_project"
+    active_app = tmp_path / "flight_telemetry_project"
     active_app.mkdir()
     page_path = tmp_path / "demo_view.py"
     page_path.write_text(

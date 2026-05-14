@@ -93,7 +93,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-data-io-2026-project"
+    directory: "/src/agilab/lib/agi-app-mission-decision"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -104,7 +104,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-execution-pandas-project"
+    directory: "/src/agilab/lib/agi-app-pandas-execution"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -115,7 +115,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-execution-polars-project"
+    directory: "/src/agilab/lib/agi-app-polars-execution"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -126,7 +126,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-flight-project"
+    directory: "/src/agilab/lib/agi-app-flight-telemetry"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -137,7 +137,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-global-dag-project"
+    directory: "/src/agilab/lib/agi-app-global-dag"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -148,22 +148,11 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-meteo-forecast-project"
+    directory: "/src/agilab/lib/agi-app-weather-forecast"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "08:45"
-    open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "python"
-
-  - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-mycode-project"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "08:50"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -192,7 +181,7 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
-    directory: "/src/agilab/lib/agi-app-uav-relay-queue-project"
+    directory: "/src/agilab/lib/agi-app-uav-relay-queue"
     schedule:
       interval: "weekly"
       day: "monday"

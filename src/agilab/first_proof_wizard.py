@@ -11,7 +11,7 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-FIRST_PROOF_PROJECT = "flight_project"
+FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_RECOMMENDED_ENTRY_ID = "source-checkout-first-proof"
 FIRST_PROOF_RECOMMENDED_LABEL = "Source checkout first proof"
 FIRST_PROOF_HELPER_SCRIPT_PREFIXES = (
@@ -253,7 +253,7 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     tool_contract = first_proof_tool_contract(repo_root)
     compatibility = first_proof_compatibility(repo_root)
     content = FirstProofContent(
-        title="Start here: run flight_project first",
+        title="Start here: run flight_telemetry_project first",
         intro=(
             "Run the built-in flight demo locally before trying notebooks, "
             "cluster mode, service mode, or custom apps."
@@ -269,7 +269,7 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         cli_command=tool_contract.cli_command,
         run_manifest_filename=_load_run_manifest_module().RUN_MANIFEST_FILENAME,
         steps=(
-            ("PROJECT", "Open `PROJECT` and select `flight_project`."),
+            ("PROJECT", "Open `PROJECT` and select `flight_telemetry_project`."),
             (
                 "ORCHESTRATE",
                 "Open `ORCHESTRATE`. Keep cluster, benchmark, and service options off. "
@@ -278,15 +278,15 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             ("ANALYSIS", "Open `ANALYSIS` and keep the default built-in view."),
         ),
         success_criteria=(
-            "A visible `ANALYSIS` result opens for `flight_project`.",
-            "`flight_project` finishes without an error.",
-            "`run_manifest.json` and generated files appear under `~/log/execute/flight/`.",
+            "A visible `ANALYSIS` result opens for `flight_telemetry_project`.",
+            "`flight_telemetry_project` finishes without an error.",
+            "`run_manifest.json` and generated files appear under `~/log/execute/flight_telemetry/`.",
         ),
         links=(
             ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
             ("Newcomer guide", "https://thalesgroup.github.io/agilab/newcomer-guide.html"),
             ("Compatibility matrix", "https://thalesgroup.github.io/agilab/compatibility-matrix.html"),
-            ("Flight project guide", "https://thalesgroup.github.io/agilab/flight-project.html"),
+            ("Flight telemetry project guide", "https://thalesgroup.github.io/agilab/flight-telemetry-project.html"),
         ),
     )
     return content.as_dict()
@@ -428,7 +428,7 @@ def _first_proof_remediation(
                 "title": "Generated outputs exist, but the manifest is missing.",
                 "actions": (
                     "Rerun the first-proof JSON command to create the portable run manifest.",
-                    "Keep the active app on `flight_project`; do not switch routes yet.",
+                    "Keep the active app on `flight_telemetry_project`; do not switch routes yet.",
                     "Run the compatibility report command after the manifest appears.",
                 ),
                 "links": REMEDIATION_LINKS,
@@ -438,7 +438,7 @@ def _first_proof_remediation(
             "status": "missing",
             "title": "No first-proof run manifest yet.",
             "actions": (
-                "In the UI: PROJECT -> choose `flight_project`, then ORCHESTRATE -> INSTALL and EXECUTE.",
+                "In the UI: PROJECT -> choose `flight_telemetry_project`, then ORCHESTRATE -> INSTALL and EXECUTE.",
                 "Or run the first-proof JSON command from the repository root.",
                 "Run the compatibility report command after `run_manifest.json` appears.",
             ),
@@ -528,16 +528,16 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
     helper_scripts_present = all(
         (output_dir / script_name).exists()
         for script_name in (
-            "AGI_install_flight.py",
-            "AGI_run_flight.py",
+            "AGI_install_flight_telemetry.py",
+            "AGI_run_flight_telemetry.py",
         )
     )
     current_app_matches = active_app_name == FIRST_PROOF_PROJECT
 
     if project_path is None:
-        next_step = "Fix the app list first. `flight_project` is missing."
+        next_step = "Fix the app list first. `flight_telemetry_project` is missing."
     elif not current_app_matches:
-        next_step = "Go to `PROJECT`. Choose `flight_project`."
+        next_step = "Go to `PROJECT`. Choose `flight_telemetry_project`."
     elif not run_manifest_loaded and not visible_outputs:
         next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     elif not run_manifest_loaded:

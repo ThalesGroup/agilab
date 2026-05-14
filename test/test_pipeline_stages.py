@@ -35,21 +35,21 @@ pipeline_stages = _import_agilab_module("agilab.pipeline_stages")
 def test_normalize_runtime_path_prefers_existing_app(monkeypatch, tmp_path):
     apps_root = tmp_path / "apps"
     apps_root.mkdir()
-    app_dir = apps_root / "flight_project"
+    app_dir = apps_root / "flight_telemetry_project"
     app_dir.mkdir()
 
     fake_st = SimpleNamespace(session_state={})
     monkeypatch.setattr(pipeline_stages, "st", fake_st)
 
     env = SimpleNamespace(apps_path=apps_root)
-    normalized = pipeline_stages.normalize_runtime_path("flight_project", env=env)
+    normalized = pipeline_stages.normalize_runtime_path("flight_telemetry_project", env=env)
 
     assert normalized == str(app_dir)
 
 
 def test_module_key_normalization_and_sequence_roundtrip(monkeypatch, tmp_path):
     export_root = tmp_path / "export"
-    module_dir = export_root / "flight_project"
+    module_dir = export_root / "flight_telemetry_project"
     module_dir.mkdir(parents=True)
     stages_file = tmp_path / "lab_stages.toml"
     absolute_key = str(module_dir.resolve())
@@ -68,7 +68,7 @@ def test_module_key_normalization_and_sequence_roundtrip(monkeypatch, tmp_path):
     pipeline_stages.persist_sequence_preferences(module_dir, stages_file, [2, 0, 1], env=env)
 
     data = tomllib.loads(stages_file.read_text(encoding="utf-8"))
-    assert "flight_project" in data
+    assert "flight_telemetry_project" in data
     assert absolute_key not in data
     assert data["__meta__"]["schema"] == "agilab.lab_stages.v1"
     assert data["__meta__"]["version"] == 1
@@ -110,7 +110,7 @@ def test_restore_missing_export_stages_from_project_source(monkeypatch, tmp_path
 
 def test_restore_missing_export_stages_handles_empty_file(monkeypatch, tmp_path):
     apps_root = tmp_path / "apps"
-    source_app = apps_root / "flight_project"
+    source_app = apps_root / "flight_telemetry_project"
     source_app.mkdir(parents=True)
     source_stages = source_app / "lab_stages.toml"
     source_stages.write_text('flight = [{ Q = "Run", C = "print(1)" }]\n', encoding="utf-8")
@@ -126,8 +126,8 @@ def test_restore_missing_export_stages_handles_empty_file(monkeypatch, tmp_path)
         envars={},
         apps_path=apps_root,
         active_app=source_app,
-        target="flight_project",
-        app="flight_project",
+        target="flight_telemetry_project",
+        app="flight_telemetry_project",
     )
 
     restored = pipeline_stages.restore_missing_export_stages(Path("flight"), target_stages, env=env)
@@ -140,7 +140,7 @@ def test_restore_missing_export_stages_handles_empty_file(monkeypatch, tmp_path)
 
 def test_restore_missing_export_stages_does_not_overwrite_existing_export(monkeypatch, tmp_path):
     apps_root = tmp_path / "apps"
-    source_app = apps_root / "flight_project"
+    source_app = apps_root / "flight_telemetry_project"
     source_app.mkdir(parents=True)
     (source_app / "lab_stages.toml").write_text(
         'flight = [{ Q = "Source", C = "print(1)" }]\n',
@@ -159,8 +159,8 @@ def test_restore_missing_export_stages_does_not_overwrite_existing_export(monkey
         envars={},
         apps_path=apps_root,
         active_app=source_app,
-        target="flight_project",
-        app="flight_project",
+        target="flight_telemetry_project",
+        app="flight_telemetry_project",
     )
 
     restored = pipeline_stages.restore_missing_export_stages(Path("flight"), target_stages, env=env)
@@ -170,7 +170,7 @@ def test_restore_missing_export_stages_does_not_overwrite_existing_export(monkey
 
 
 def test_get_available_virtualenvs_discovers_direct_and_nested_envs(monkeypatch, tmp_path):
-    active_app = tmp_path / "apps" / "flight_project"
+    active_app = tmp_path / "apps" / "flight_telemetry_project"
     apps_path = tmp_path / "apps"
     runenv = tmp_path / "runenv"
     direct = active_app / ".venv"
@@ -419,7 +419,7 @@ def test_normalize_imported_orchestrate_snippet_infers_agi_runtime_without_rewri
 def test_normalize_runtime_path_handles_blank_fallback_and_dot_venv(monkeypatch, tmp_path):
     apps_root = tmp_path / "apps"
     apps_root.mkdir()
-    fallback_app = apps_root / "flight_project"
+    fallback_app = apps_root / "flight_telemetry_project"
     fallback_app.mkdir()
     venv_dir = fallback_app / ".venv"
     venv_dir.mkdir()
@@ -429,7 +429,7 @@ def test_normalize_runtime_path_handles_blank_fallback_and_dot_venv(monkeypatch,
     env = SimpleNamespace(apps_path=apps_root)
 
     assert pipeline_stages.normalize_runtime_path("   ", env=env) == ""
-    assert pipeline_stages.normalize_runtime_path("nested/flight_project", env=env) == str(fallback_app)
+    assert pipeline_stages.normalize_runtime_path("nested/flight_telemetry_project", env=env) == str(fallback_app)
     assert pipeline_stages.normalize_runtime_path(venv_dir, env=env) == str(fallback_app)
 
 
@@ -446,7 +446,7 @@ def test_stage_helpers_and_runtime_reference_edge_cases(monkeypatch):
     assert pipeline_stages.looks_like_runtime_reference(r"C:\work\demo") is True
     assert pipeline_stages.looks_like_runtime_reference("folder/sub") is True
     assert pipeline_stages.looks_like_runtime_reference(".venv") is True
-    assert pipeline_stages.looks_like_runtime_reference("flight_project") is True
+    assert pipeline_stages.looks_like_runtime_reference("flight_telemetry_project") is True
     assert pipeline_stages.is_runnable_stage({}) is False
     assert pipeline_stages.looks_like_stage("bad") is False
     assert pipeline_stages.is_orchestrate_locked_stage(None) is False
@@ -492,7 +492,7 @@ def test_pipeline_stages_cover_runtime_reference_false_and_path_parse_fallback(m
             raise RuntimeError("boom")
 
     monkeypatch.setattr(pipeline_stages, "Path", BrokenPath)
-    assert pipeline_stages.normalize_runtime_path("flight_project") == "flight_project"
+    assert pipeline_stages.normalize_runtime_path("flight_telemetry_project") == "flight_telemetry_project"
     monkeypatch.setattr(pipeline_stages, "Path", original_path)
     assert pipeline_stages.looks_like_runtime_reference("flight") is False
 
@@ -536,7 +536,7 @@ def test_upgrade_stages_file_and_virtualenv_helpers_cover_guard_paths(monkeypatc
 
 def test_pipeline_stages_cover_module_key_resolve_failures_and_meta_skip(monkeypatch, tmp_path):
     export_root = tmp_path / "export"
-    module_abs = export_root / "flight_project"
+    module_abs = export_root / "flight_telemetry_project"
     module_abs.mkdir(parents=True)
     env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
     fake_st = SimpleNamespace(session_state={"env": env})
@@ -550,7 +550,7 @@ def test_pipeline_stages_cover_module_key_resolve_failures_and_meta_skip(monkeyp
         return original_resolve(self, *args, **kwargs)
 
     monkeypatch.setattr(pipeline_stages.Path, "resolve", _raise_for_absolute_module, raising=False)
-    assert pipeline_stages.module_keys(module_abs, env=env)[0] == "flight_project"
+    assert pipeline_stages.module_keys(module_abs, env=env)[0] == "flight_telemetry_project"
 
     stages_file = tmp_path / "absolute-key.toml"
     stages_file.write_text(
@@ -558,7 +558,7 @@ def test_pipeline_stages_cover_module_key_resolve_failures_and_meta_skip(monkeyp
         encoding="utf-8",
     )
 
-    relative_module = pipeline_stages.Path("flight_project")
+    relative_module = pipeline_stages.Path("flight_telemetry_project")
 
     def _raise_for_relative_module(self, *args, **kwargs):
         if self == relative_module:
@@ -566,7 +566,7 @@ def test_pipeline_stages_cover_module_key_resolve_failures_and_meta_skip(monkeyp
         return original_resolve(self, *args, **kwargs)
 
     monkeypatch.setattr(pipeline_stages.Path, "resolve", _raise_for_relative_module, raising=False)
-    pipeline_stages.ensure_primary_module_key("flight_project", stages_file, env=env)
+    pipeline_stages.ensure_primary_module_key("flight_telemetry_project", stages_file, env=env)
 
     data = tomllib.loads(stages_file.read_text(encoding="utf-8"))
     assert "__meta__" in data
@@ -575,7 +575,7 @@ def test_pipeline_stages_cover_module_key_resolve_failures_and_meta_skip(monkeyp
 
 def test_ensure_primary_module_key_and_sequence_helpers_cover_guard_paths(monkeypatch, tmp_path):
     export_root = tmp_path / "export"
-    module_path = export_root / "flight_project"
+    module_path = export_root / "flight_telemetry_project"
     module_path.mkdir(parents=True)
     env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
     fake_st = SimpleNamespace(session_state={"env": env})
@@ -594,9 +594,9 @@ def test_ensure_primary_module_key_and_sequence_helpers_cover_guard_paths(monkey
     assert "other_project" in no_match_stages.read_text(encoding="utf-8")
 
     primary_stages = tmp_path / "primary.toml"
-    primary_stages.write_text('[[flight_project]]\nQ = "stage"\n', encoding="utf-8")
+    primary_stages.write_text('[[flight_telemetry_project]]\nQ = "stage"\n', encoding="utf-8")
     pipeline_stages.ensure_primary_module_key(module_path, primary_stages, env=env)
-    assert "flight_project" in primary_stages.read_text(encoding="utf-8")
+    assert "flight_telemetry_project" in primary_stages.read_text(encoding="utf-8")
 
     warnings: list[str] = []
     monkeypatch.setattr(pipeline_stages.logger, "warning", lambda message, *args: warnings.append(str(message)))
@@ -604,7 +604,7 @@ def test_ensure_primary_module_key_and_sequence_helpers_cover_guard_paths(monkey
 
     merge_stages = tmp_path / "merge.toml"
     merge_stages.write_text(
-        '[[flight_project]]\nQ = "best"\n'
+        '[[flight_telemetry_project]]\nQ = "best"\n'
         f'[["{module_path}"]]\nQ = "other"\n',
         encoding="utf-8",
     )
@@ -619,13 +619,13 @@ def test_ensure_primary_module_key_and_sequence_helpers_cover_guard_paths(monkey
     assert pipeline_stages.load_sequence_preferences(module_path, bad_seq, env=env) == []
 
     seq_stages = tmp_path / "seq.toml"
-    seq_stages.write_text('[__meta__]\nflight_project__sequence = "bad"\n', encoding="utf-8")
+    seq_stages.write_text('[__meta__]\nflight_telemetry_project__sequence = "bad"\n', encoding="utf-8")
     assert pipeline_stages.load_sequence_preferences(module_path, seq_stages, env=env) == []
 
 
 def test_ensure_primary_module_key_ignores_candidate_resolve_failures(monkeypatch, tmp_path):
     export_root = tmp_path / "export"
-    module_path = export_root / "flight_project"
+    module_path = export_root / "flight_telemetry_project"
     module_path.mkdir(parents=True)
     env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=export_root, envars={})
     fake_st = SimpleNamespace(session_state={"env": env})
@@ -653,12 +653,12 @@ def test_persist_sequence_preferences_and_venv_helpers_cover_failures(monkeypatc
 
     bad_stages = tmp_path / "bad-sequence-write.toml"
     bad_stages.write_text("[", encoding="utf-8")
-    pipeline_stages.persist_sequence_preferences(tmp_path / "flight_project", bad_stages, [1, 2, 3])
+    pipeline_stages.persist_sequence_preferences(tmp_path / "flight_telemetry_project", bad_stages, [1, 2, 3])
     assert any("Failed to load stages while saving sequence metadata" in message for message in errors)
 
     errors.clear()
     monkeypatch.setattr(pipeline_stages.tomli_w, "dump", lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("persist boom")))
-    pipeline_stages.persist_sequence_preferences(tmp_path / "flight_project", tmp_path / "new-sequence.toml", [1, 2, 3])
+    pipeline_stages.persist_sequence_preferences(tmp_path / "flight_telemetry_project", tmp_path / "new-sequence.toml", [1, 2, 3])
     assert any("Failed to persist execution sequence" in message for message in errors)
 
     original_iterdir = pipeline_stages.Path.iterdir
@@ -745,8 +745,8 @@ def test_pipeline_stages_virtualenv_helpers_and_guidance(tmp_path):
     assert env_root.resolve() in roots
     assert (child / ".venv").resolve() in roots
     assert pipeline_stages._normalize_venv_root(tmp_path / "missing") is None
-    assert "Run INSTALL" in pipeline_stages.snippet_source_guidance(False, "flight_project")
-    assert "Snippets are refreshed" in pipeline_stages.snippet_source_guidance(True, "flight_project")
+    assert "Run INSTALL" in pipeline_stages.snippet_source_guidance(False, "flight_telemetry_project")
+    assert "Snippets are refreshed" in pipeline_stages.snippet_source_guidance(True, "flight_telemetry_project")
 
 
 def test_normalize_imported_orchestrate_snippet_keeps_runpy_runtime():
@@ -832,6 +832,6 @@ def test_pipeline_stages_misc_helpers_cover_path_conversion_and_locked_source():
     converted = pipeline_stages._convert_paths_to_strings({"items": [Path("/tmp/demo"), {"path": Path("x")}]})
     assert converted == {"items": ["/tmp/demo", {"path": "x"}]}
 
-    assert pipeline_stages.extract_stage_app_name('APP = "flight_project"\nprint(1)\n') == "flight_project"
+    assert pipeline_stages.extract_stage_app_name('APP = "flight_telemetry_project"\nprint(1)\n') == "flight_telemetry_project"
     assert pipeline_stages.extract_stage_app_name("print(1)") == ""
     assert pipeline_stages.orchestrate_snippet_source({"Q": "Imported snippet: AGI_run_demo.py"}) == "AGI_run_demo.py"

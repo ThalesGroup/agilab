@@ -671,7 +671,7 @@ def initialize_app_settings(args_override: dict[str, Any] | None = None) -> None
     session_settings = st.session_state.get("app_settings")
     app_settings = merge_app_settings_sources(file_settings, session_settings)
 
-    if env.app == "flight_project":
+    if env.app == "flight_telemetry_project":
         try:
             from flight import apply_source_defaults, load_args_from_toml
 
@@ -1001,7 +1001,7 @@ def render_generic_ui() -> None:
     if is_args_reload_required:
         st.session_state["args_input"] = args_input
         app_settings_file = env.app_settings_file
-        if env.app == "flight_project":
+        if env.app == "flight_telemetry_project":
             try:
                 from flight import apply_source_defaults, dump_args_to_toml, FlightArgs
                 from pydantic import ValidationError

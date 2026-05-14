@@ -6,10 +6,10 @@ Pick an apps-page to launch and we’ll start Streamlit for you.
 
 Usage examples:
   uv run python tools/apps_pages_launcher.py \
-      --active-app src/agilab/apps/builtin/flight_project \
+      --active-app src/agilab/apps/builtin/flight_telemetry_project \
       --page view_maps
 
-  uv run python tools/apps_pages_launcher.py --active-app src/agilab/apps/builtin/flight_project
+  uv run python tools/apps_pages_launcher.py --active-app src/agilab/apps/builtin/flight_telemetry_project
   (then pick from the menu)
 """
 from __future__ import annotations
@@ -86,8 +86,8 @@ def main() -> int:
         "--active-app",
         dest="active_app",
         type=str,
-        default="src/agilab/apps/builtin/flight_project",
-        help="Path to an active app (e.g. src/agilab/apps/builtin/flight_project)",
+        default="src/agilab/apps/builtin/flight_telemetry_project",
+        help="Path to an active app (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
     )
     parser.add_argument(
         "--page",

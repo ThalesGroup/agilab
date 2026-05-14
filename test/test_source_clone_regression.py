@@ -41,7 +41,7 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
 
 
 def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
-    active_app = clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    active_app = clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
     env = {
         **os.environ,
         "HOME": str(clone_root / "home"),
@@ -132,7 +132,7 @@ def test_newcomer_first_proof_passes_from_fresh_source_clone(tmp_path: Path) -> 
     clone_root = _materialize_fresh_source_clone(tmp_path)
     proof_payload = _run_clone_newcomer_proof(clone_root)
 
-    assert proof_payload["active_app"] == str(clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_project")
+    assert proof_payload["active_app"] == str(clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project")
     assert proof_payload["with_install"] is True
     assert proof_payload["success"] is True
     assert proof_payload["passed_steps"] == proof_payload["expected_steps"] == 4

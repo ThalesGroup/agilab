@@ -8,13 +8,41 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Sequence
 
-from .app_provider_registry import resolve_installed_app_project
+from .app_provider_registry import resolve_app_runtime_target, resolve_installed_app_project
 
 
 @dataclass(frozen=True)
 class ActiveAppSelection:
     app: str
     active_app: Path
+
+
+def _app_root_score(path: Path, app: str) -> int:
+    """Score how likely ``path`` is a complete app root for ``app``."""
+
+    try:
+        if not path.is_dir():
+            return -1
+    except OSError:
+        return -1
+
+    score = 0
+    if (path / "pyproject.toml").is_file():
+        score += 1
+    if (path / "uv_config.toml").is_file():
+        score += 1
+    if (path / "src" / "app_settings.toml").is_file():
+        score += 1
+
+    target = resolve_app_runtime_target(path, app)
+    manager_path = path / "src" / target / f"{target}.py"
+    worker_target = f"{target}_worker"
+    worker_path = path / "src" / worker_target / f"{worker_target}.py"
+    if manager_path.is_file():
+        score += 4
+    if worker_path.is_file():
+        score += 3
+    return score
 
 
 def coerce_active_app_request(
@@ -185,10 +213,20 @@ def resolve_active_app_selection(
         return ActiveAppSelection(app=app, active_app=home_abs / "wenv" / app)
 
     if app is None:
-        app = str(default_app or "").strip() or "flight_project"
+        app = str(default_app or "").strip() or "flight_telemetry_project"
 
     if active_app_override is not None and path_cls(active_app_override).exists():
         active_app = path_cls(active_app_override)
+        if builtin_apps_path:
+            candidate_builtin = builtin_apps_path / app
+            try:
+                if candidate_builtin.exists() and _app_root_score(candidate_builtin, app) > _app_root_score(
+                    active_app,
+                    app,
+                ):
+                    active_app = candidate_builtin
+            except OSError:
+                pass
     else:
         base_dir = apps_path if apps_path is not None else path_cls()
         try:

@@ -17,7 +17,7 @@
     <option name="ADD_SOURCE_ROOTS" value="true" />
     <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
     <option name="SCRIPT_NAME" value="$PROJECT_DIR$/src/agilab/apps/install.py" />
-    <option name="PARAMETERS" value="$Prompt:selected app:src/agilab/apps/builtin/flight_project$ --install-type &quot;1&quot; --verbose 1" />
+    <option name="PARAMETERS" value="$Prompt:selected app:src/agilab/apps/builtin/flight_telemetry_project$ --install-type &quot;1&quot; --verbose 1" />
     <option name="SHOW_COMMAND_LINE" value="false" />
     <option name="EMULATE_TERMINAL" value="false" />
     <option name="MODULE_MODE" value="false" />

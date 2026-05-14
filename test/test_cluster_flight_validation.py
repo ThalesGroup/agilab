@@ -26,7 +26,7 @@ from agilab import cluster_flight_validation as cfv
 
 def _args(**overrides):
     values = {
-        "app": "flight_project",
+        "app": "flight_telemetry_project",
         "apps_path": "src/agilab/apps/builtin",
         "scheduler": "192.168.3.103",
         "workers": "jpm@192.168.3.35:2",

@@ -80,28 +80,28 @@ def test_build_url_preserves_existing_query_and_encodes_current_page() -> None:
 
     url = module.build_url(
         "http://127.0.0.1:8501/?foo=bar",
-        active_app="flight_project",
+        active_app="flight_telemetry_project",
         current_page="/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
     )
 
     assert url.startswith("http://127.0.0.1:8501/?")
     assert "foo=bar" in url
-    assert "active_app=flight_project" in url
+    assert "active_app=flight_telemetry_project" in url
     assert "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps%2Fsrc%2Fview_maps%2Fview_maps.py" in url
 
 
 def test_build_page_url_targets_streamlit_page_route() -> None:
     module = _load_module()
 
-    url = module.build_page_url("http://127.0.0.1:8501/", "ANALYSIS", active_app="flight_project")
+    url = module.build_page_url("http://127.0.0.1:8501/", "ANALYSIS", active_app="flight_telemetry_project")
 
-    assert url == "http://127.0.0.1:8501/ANALYSIS?active_app=flight_project"
+    assert url == "http://127.0.0.1:8501/ANALYSIS?active_app=flight_telemetry_project"
 
 
 def test_resolve_local_active_app_accepts_builtin_project_name() -> None:
     module = _load_module()
 
-    resolved = module.resolve_local_active_app("flight_project", str(module.DEFAULT_APPS_PATH))
+    resolved = module.resolve_local_active_app("flight_telemetry_project", str(module.DEFAULT_APPS_PATH))
 
     assert resolved == module.DEFAULT_ACTIVE_APP
 

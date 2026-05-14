@@ -4,7 +4,7 @@ Quick-Start
 If you are new to AGILab, this page owns one thing only: the exact commands for
 the recommended first proof.
 
-That first proof is the built-in ``flight_project`` run locally from the web
+That first proof is the built-in ``flight_telemetry_project`` run locally from the web
 UI. If it works once from end to end, then branch into notebooks, package mode,
 or cluster mode. If it fails, use :doc:`newcomer-troubleshooting`.
 
@@ -18,7 +18,7 @@ Fast adoption path:
      - Stop when
    * - 1. Preview
      - Open :doc:`agilab-demo` for the hosted public UI.
-     - The Space opens the lightweight ``flight_project`` path.
+     - The Space opens the lightweight ``flight_telemetry_project`` path.
    * - 2. Prove locally
      - Run the source-checkout commands below and stay on the built-in demo.
      - ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` works
@@ -27,7 +27,7 @@ Fast adoption path:
      - Start the app with ``agilab`` and verify the built-in flow.
        If startup fails, run ``agilab dry-run`` then
        ``uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui``.
-     - ``~/log/execute/flight/run_manifest.json`` reports ``status: pass``.
+     - ``~/log/execute/flight_telemetry/run_manifest.json`` reports ``status: pass``.
    * - 4. Expand
      - Choose notebook, package, private app, or cluster routes only after the
        local proof passes once.
@@ -70,7 +70,7 @@ If startup fails, run a local fallback first:
    agilab first-proof --json
 
 The ``examples`` extra installs the ``agi-apps`` umbrella, which depends on the
-per-app package that contains the public built-in ``flight_project`` used by
+per-app package that contains the public built-in ``flight_telemetry_project`` used by
 the proof.
 
 Use the UI profile when you want the local Streamlit pages from the
@@ -91,7 +91,7 @@ If you installed AGILAB inside an activated project environment instead of as a
    agilab first-proof --json
 
 The adoption checkpoint is always the same: ``run_manifest.json`` reports
-``status: pass`` and the default ``flight_project`` analysis view opens. If it
+``status: pass`` and the default ``flight_telemetry_project`` analysis view opens. If it
 does not pass, stay on this lane and use :doc:`newcomer-troubleshooting`
 before changing install route.
 
@@ -169,7 +169,7 @@ machine-readable proof record.
    The landing page first-proof wizard points to this same validated path. In
    the UI, use:
 
-   - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_project``
+   - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_telemetry_project``
    - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``
    - ``WORKFLOW`` -> inspect the packaged recipe context
    - ``ANALYSIS`` -> open the default built-in view and, when output exists,
@@ -179,9 +179,9 @@ machine-readable proof record.
 
    You are past the newcomer hurdle when these are true:
 
-   - ``~/log/execute/flight/run_manifest.json`` has ``status: pass``
-   - fresh output exists under ``~/log/execute/flight/``
-   - you can open the default ``ANALYSIS`` view for ``flight_project`` and see
+   - ``~/log/execute/flight_telemetry/run_manifest.json`` has ``status: pass``
+   - fresh output exists under ``~/log/execute/flight_telemetry/``
+   - you can open the default ``ANALYSIS`` view for ``flight_telemetry_project`` and see
      the bundled network view as an available route
 
 6. **Only after that, branch into alternative paths**
@@ -201,7 +201,7 @@ Why this path avoids common adoption friction
   under ``src/agilab/apps/builtin``.
 - **No mandatory test marathon**: installer-managed root, app/page, and core
   tests are available, but only run when you pass explicit test flags.
-- **One failure lane**: if it fails, stay on ``flight_project`` and use
+- **One failure lane**: if it fails, stay on ``flight_telemetry_project`` and use
   :doc:`newcomer-troubleshooting` before changing install route.
 
 If the first proof fails
@@ -230,7 +230,7 @@ The troubleshooting page covers the common first-run failures:
 - installer failure
 - built-in app path not found
 - Main page / ORCHESTRATE startup failure
-- no fresh output under ``~/log/execute/flight/``
+- no fresh output under ``~/log/execute/flight_telemetry/``
 
 If you want the current public support picture before branching into other
 routes, use :doc:`compatibility-matrix`. It makes the current validated slices
@@ -240,7 +240,7 @@ recommended newcomer proof.
 Alternative install routes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Use these only after the local ``flight_project`` proof works once.
+Use these only after the local ``flight_telemetry_project`` proof works once.
 
 .. _hosted-agilab-demo:
 .. _lightning-studio-ui-demo:
@@ -385,7 +385,7 @@ server::
     cd "$REPO_ROOT"
     AGILAB_RUN_FULL_UI_ROBOT=1 \
     AGILAB_WIDGET_ROBOT_URL=https://huggingface.co/spaces/jpmorard/agilab \
-    AGILAB_WIDGET_ROBOT_APPS=flight_project \
+    AGILAB_WIDGET_ROBOT_APPS=flight_telemetry_project \
     AGILAB_WIDGET_ROBOT_PAGES=HOME \
     AGILAB_WIDGET_ROBOT_APPS_PAGES=configured \
     uv --preview-features extra-build-dependencies run --with playwright pytest -q -o addopts='' -m ui_robot "$REPO_ROOT/test/test_agilab_widget_robot_full.py"

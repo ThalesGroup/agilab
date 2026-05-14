@@ -886,7 +886,7 @@ def main():
             "--active-app",
             dest="active_app",
             type=str,
-            help="Active app path (e.g. src/agilab/apps/builtin/flight_project)",
+            help="Active app path (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
             required=True,
         )
         args, _ = parser.parse_known_args()
@@ -899,7 +899,7 @@ def main():
         if "coltype" not in st.session_state:
             st.session_state["coltype"] = var[0]
 
-        # Derive the short app name (e.g., 'flight_project')
+        # Derive the short app name (e.g., 'flight_telemetry_project')
         app = active_app.name
         st.session_state["apps_path"] = str(active_app.parent)
         st.session_state["app"] = app

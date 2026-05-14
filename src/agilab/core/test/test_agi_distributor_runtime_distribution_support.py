@@ -583,9 +583,9 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
         envars={},
         debug=False,
         verbose=2,
-        app="flight_project",
+        app="flight_telemetry_project",
         apps_path=builtin_apps.parent,
-        active_app=builtin_apps / "flight_project",
+        active_app=builtin_apps / "flight_telemetry_project",
         target_worker="flight_worker",
         uv="uv",
         uv_worker="uv-worker",
@@ -601,7 +601,7 @@ async def test_run_local_covers_debug_and_script_execution_paths(tmp_path, monke
 
     assert (
         "AgiEnv(apps_path=Path('/tmp/repo/src/agilab/apps/builtin'), "
-        "app='flight_project', verbose=2)"
+        "app='flight_telemetry_project', verbose=2)"
     ) in calls["run_async"][0][0]
 
 

@@ -40,10 +40,10 @@ from agilab.data_connector_app_catalogs import (
 EXPECTED_APPS = [
     "execution_pandas_project",
     "execution_polars_project",
-    "flight_project",
-    "meteo_forecast_project",
+    "flight_telemetry_project",
     "uav_queue_project",
     "uav_relay_queue_project",
+    "weather_forecast_project",
 ]
 
 

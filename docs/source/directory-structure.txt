@@ -2,7 +2,7 @@ agilab/
 __pycache__/ [excluded]
 apps/
     builtin/
-        flight_project/
+        flight_telemetry_project/
             .venv/ [excluded]
             agilab/
                 core/
@@ -430,8 +430,8 @@ lib/
         README.md
 examples/
     flight/
-        AGI_install_flight.py
-        AGI_run_flight.py
+        AGI_install_flight_telemetry.py
+        AGI_run_flight_telemetry.py
     mycode/
         AGI_install_mycode.py
         AGI_run_mycode.py

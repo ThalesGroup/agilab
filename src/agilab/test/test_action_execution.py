@@ -108,12 +108,12 @@ def test_run_streamlit_action_calls_success_callback_after_rendering() -> None:
     result = run_streamlit_action(
         streamlit,
         ActionSpec(name="Install", start_message="Installing app..."),
-        lambda: ActionResult.success("Installed", data={"app": "flight_project"}),
+        lambda: ActionResult.success("Installed", data={"app": "flight_telemetry_project"}),
         on_success=successes.append,
     )
 
     assert result.status == "success"
-    assert result.data == {"app": "flight_project"}
+    assert result.data == {"app": "flight_telemetry_project"}
     assert successes == [result]
     assert streamlit.events == [
         ("spinner.enter", "Installing app..."),

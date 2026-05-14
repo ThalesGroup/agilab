@@ -1100,11 +1100,11 @@ def test_safe_service_start_template_preserves_builtin_apps_path(tmp_path):
     settings.write_text("[cluster]\ncluster_enabled = true\n", encoding="utf-8")
     apps_path = tmp_path / "apps"
     builtin_apps = apps_path / "builtin"
-    (builtin_apps / "flight_project").mkdir(parents=True)
+    (builtin_apps / "flight_telemetry_project").mkdir(parents=True)
     env = SimpleNamespace(
         app_settings_file=settings,
         apps_path=apps_path,
-        app="flight_project",
+        app="flight_telemetry_project",
     )
 
     snippet = pipeline_runtime.safe_service_start_template(env, "# AUTO")

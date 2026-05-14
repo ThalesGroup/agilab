@@ -49,18 +49,18 @@ artifacts. Each package carries one generic analysis page bundle and is
 uploaded to the GitHub Release distribution archive until its PyPI Trusted
 Publisher entry is configured:
 
-- ``view-barycentric-graph``
-- ``view-data-io-decision``
-- ``view-forecast-analysis``
-- ``view-inference-analysis``
-- ``view-maps``
-- ``view-maps-3d``
-- ``view-maps-network``
-- ``view-queue-resilience``
-- ``view-relay-resilience``
-- ``view-release-decision``
-- ``view-shap-explanation``
-- ``view-training-analysis``
+- ``agi-page-simplex-map``
+- ``agi-page-decision-evidence``
+- ``agi-page-timeseries-forecast``
+- ``agi-page-inference-report``
+- ``agi-page-geospatial-map``
+- ``agi-page-geospatial-3d``
+- ``agi-page-network-map``
+- ``agi-page-queue-health``
+- ``agi-page-relay-health``
+- ``agi-page-promotion-gate``
+- ``agi-page-feature-attribution``
+- ``agi-page-training-report``
 
 These packages are built as both wheels and source distributions. Their names
 stay app-agnostic because page bundles must be reusable by AGILAB apps and
@@ -77,30 +77,36 @@ installed page bundles without making base ``agilab`` depend on them.
 ``agilab[ui]`` pulls ``agi-pages`` for the local ANALYSIS page;
 ``agilab[pages]`` installs the page provider without the full UI profile.
 
-Archived app project packages
------------------------------
+App project packages
+--------------------
 
 The public built-in app projects are built as self-contained app project
 package artifacts. Each package carries one project payload and exposes it
 through the ``agilab.apps`` entry point group so ``agi-env`` can resolve
 installed apps without the monorepo checkout once that package is installed:
 
-- ``agi-app-data-io-2026-project``
-- ``agi-app-execution-pandas-project``
-- ``agi-app-execution-polars-project``
-- ``agi-app-flight-project``
-- ``agi-app-global-dag-project``
-- ``agi-app-meteo-forecast-project``
-- ``agi-app-mycode-project``
+- ``agi-app-mission-decision``
+- ``agi-app-pandas-execution``
+- ``agi-app-polars-execution``
+- ``agi-app-flight-telemetry``
+- ``agi-app-global-dag``
+- ``agi-app-weather-forecast``
 - ``agi-app-tescia-diagnostic-project``
 - ``agi-app-uav-queue-project``
-- ``agi-app-uav-relay-queue-project``
+- ``agi-app-uav-relay-queue``
 
-These packages are built as both wheels and source distributions and uploaded
-to the GitHub Release distribution archive until their PyPI Trusted Publisher
-entries are configured. The payload is staged during package build, with local
-virtual environments, compiled artifacts, locks, and generated build outputs
-excluded.
+Four app payload packages are promoted to PyPI in the current release plan:
+``agi-app-mission-decision``, ``agi-app-flight-telemetry``,
+``agi-app-weather-forecast``, and ``agi-app-uav-relay-queue``. The remaining
+app project payloads are also built as wheel and source-distribution artifacts
+and kept in the GitHub Release distribution archive until they are explicitly
+promoted. The payload is staged during package build, with local virtual
+environments, compiled artifacts, locks, and generated build outputs excluded.
+
+``mycode_project`` is not published as a separate ``agi-app-*`` distribution.
+It is the single base starter template bundled inside ``agi-apps`` so packaged
+users can inspect or copy a minimal app scaffold without treating it as a
+standalone demo package.
 
 Published app/example umbrella package
 --------------------------------------
@@ -108,10 +114,9 @@ Published app/example umbrella package
 ``agi-apps`` is published to PyPI from ``src/agilab/lib/agi-apps`` as both a
 wheel and source distribution. It is an umbrella/catalog package: it keeps the
 lightweight ``agilab.apps.install`` helper and ``agilab.examples`` learning
-assets while the per-app payload packages remain independently versioned
-release artifacts. The root ``agilab`` wheel stays lean; ``agilab[ui]`` and
-``agilab[examples]`` pull ``agi-apps`` when the packaged first-proof or demo
-assets are needed.
+assets, and it depends on the app payload packages already promoted to PyPI.
+The root ``agilab`` wheel stays lean; ``agilab[ui]`` and ``agilab[examples]``
+pull ``agi-apps`` when the packaged first-proof or demo assets are needed.
 
 Why keep them published
 -----------------------
@@ -123,10 +128,11 @@ Publishing these runtime packages keeps the release process reproducible:
 - ``pip install "agilab[ui]"`` installs the matching ``agi-gui`` package and
   Streamlit page dependencies for the local web interface, plus ``agi-apps``,
   its per-app project dependencies, and ``agi-pages`` so the UI opens with
-  public built-in projects and analysis views available.
+  the base ``mycode_project`` template, promoted app packages, and analysis
+  views available.
 - ``pip install "agilab[examples]"`` installs ``agi-apps`` and its per-app
-  project dependencies plus notebook/demo helper dependencies for public
-  packaged examples.
+  project dependencies plus the base ``mycode_project`` starter template and
+  notebook/demo helper dependencies for public packaged examples.
 - ``pip install "agilab[pages]"`` installs ``agi-pages`` for analysis page
   bundle discovery without also pulling public built-in apps.
 - ``agi-core`` can pin the matching ``agi-env``, ``agi-node``, and
@@ -148,9 +154,9 @@ dependency graph changed. AGILAB uses independent version tracks:
   ``agi-gui`` version the implementation they carry;
 - bundle packages such as ``agi-core``, ``agi-pages``, ``agi-apps``, and the
   root ``agilab`` version the curated dependency graph they expose;
-- payload packages such as ``view-*`` and ``agi-app-*-project`` version the
-  page or app payload they carry and are archived with release artifacts until
-  their PyPI publishers are configured.
+- payload packages such as ``agi-page-*`` and ``agi-app-*`` version the page or
+  app payload they carry and are archived with release artifacts until their
+  PyPI publishers are configured.
 
 Bundle packages should exact-pin the component versions they curate for
 reproducible installs. Payload packages should declare compatible AGILAB runtime
@@ -213,8 +219,9 @@ project did not have a matching publisher entry or one of the fields differed.
 
 Configure these entries in each PyPI project under
 ``Settings > Publishing > Trusted publishers > Add GitHub publisher``. Entries
-for archived payload packages are activation targets for future PyPI uploads;
-the current PyPI release path only requests OIDC tokens for packages marked
+for payload packages not yet marked ``publish_to_pypi=true`` are activation
+targets for future PyPI uploads; the current PyPI release path only requests
+OIDC tokens for packages marked
 ``publish_to_pypi=true`` in ``tools/release_plan.py``:
 
 .. list-table::
@@ -235,66 +242,66 @@ the current PyPI release path only requests OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-gui``
-   * - ``view-barycentric-graph``
+   * - ``agi-page-simplex-map``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-barycentric-graph``
-   * - ``view-data-io-decision``
+     - ``pypi-agi-page-simplex-map``
+   * - ``agi-page-decision-evidence``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-data-io-decision``
-   * - ``view-forecast-analysis``
+     - ``pypi-agi-page-decision-evidence``
+   * - ``agi-page-timeseries-forecast``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-forecast-analysis``
-   * - ``view-inference-analysis``
+     - ``pypi-agi-page-timeseries-forecast``
+   * - ``agi-page-inference-report``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-inference-analysis``
-   * - ``view-maps``
+     - ``pypi-agi-page-inference-report``
+   * - ``agi-page-geospatial-map``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-maps``
-   * - ``view-maps-3d``
+     - ``pypi-agi-page-geospatial-map``
+   * - ``agi-page-geospatial-3d``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-maps-3d``
-   * - ``view-maps-network``
+     - ``pypi-agi-page-geospatial-3d``
+   * - ``agi-page-network-map``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-maps-network``
-   * - ``view-queue-resilience``
+     - ``pypi-agi-page-network-map``
+   * - ``agi-page-queue-health``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-queue-resilience``
-   * - ``view-relay-resilience``
+     - ``pypi-agi-page-queue-health``
+   * - ``agi-page-relay-health``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-relay-resilience``
-   * - ``view-release-decision``
+     - ``pypi-agi-page-relay-health``
+   * - ``agi-page-promotion-gate``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-release-decision``
-   * - ``view-shap-explanation``
+     - ``pypi-agi-page-promotion-gate``
+   * - ``agi-page-feature-attribution``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-shap-explanation``
-   * - ``view-training-analysis``
+     - ``pypi-agi-page-feature-attribution``
+   * - ``agi-page-training-report``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-view-training-analysis``
+     - ``pypi-agi-page-training-report``
    * - ``agi-pages``
      - ``ThalesGroup``
      - ``agilab``
@@ -315,41 +322,36 @@ the current PyPI release path only requests OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-core``
-   * - ``agi-app-data-io-2026-project``
+   * - ``agi-app-mission-decision``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-data-io-2026-project``
-   * - ``agi-app-execution-pandas-project``
+     - ``pypi-agi-app-mission-decision``
+   * - ``agi-app-pandas-execution``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-execution-pandas-project``
-   * - ``agi-app-execution-polars-project``
+     - ``pypi-agi-app-pandas-execution``
+   * - ``agi-app-polars-execution``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-execution-polars-project``
-   * - ``agi-app-flight-project``
+     - ``pypi-agi-app-polars-execution``
+   * - ``agi-app-flight-telemetry``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-flight-project``
-   * - ``agi-app-global-dag-project``
+     - ``pypi-agi-app-flight-telemetry``
+   * - ``agi-app-global-dag``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-global-dag-project``
-   * - ``agi-app-meteo-forecast-project``
+     - ``pypi-agi-app-global-dag``
+   * - ``agi-app-weather-forecast``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-meteo-forecast-project``
-   * - ``agi-app-mycode-project``
-     - ``ThalesGroup``
-     - ``agilab``
-     - ``pypi-publish.yaml``
-     - ``pypi-agi-app-mycode-project``
+     - ``pypi-agi-app-weather-forecast``
    * - ``agi-app-tescia-diagnostic-project``
      - ``ThalesGroup``
      - ``agilab``
@@ -360,11 +362,11 @@ the current PyPI release path only requests OIDC tokens for packages marked
      - ``agilab``
      - ``pypi-publish.yaml``
      - ``pypi-agi-app-uav-queue-project``
-   * - ``agi-app-uav-relay-queue-project``
+   * - ``agi-app-uav-relay-queue``
      - ``ThalesGroup``
      - ``agilab``
      - ``pypi-publish.yaml``
-     - ``pypi-agi-app-uav-relay-queue-project``
+     - ``pypi-agi-app-uav-relay-queue``
    * - ``agi-apps``
      - ``ThalesGroup``
      - ``agilab``
@@ -402,29 +404,28 @@ so Trusted Publishing receives a project-specific OIDC claim:
 - ``pypi-agi-cluster``
 - ``pypi-agi-core``
 - ``pypi-agi-gui``
-- ``pypi-view-barycentric-graph``
-- ``pypi-view-data-io-decision``
-- ``pypi-view-forecast-analysis``
-- ``pypi-view-inference-analysis``
-- ``pypi-view-maps``
-- ``pypi-view-maps-3d``
-- ``pypi-view-maps-network``
-- ``pypi-view-queue-resilience``
-- ``pypi-view-relay-resilience``
-- ``pypi-view-release-decision``
-- ``pypi-view-shap-explanation``
-- ``pypi-view-training-analysis``
+- ``pypi-agi-page-simplex-map``
+- ``pypi-agi-page-decision-evidence``
+- ``pypi-agi-page-timeseries-forecast``
+- ``pypi-agi-page-inference-report``
+- ``pypi-agi-page-geospatial-map``
+- ``pypi-agi-page-geospatial-3d``
+- ``pypi-agi-page-network-map``
+- ``pypi-agi-page-queue-health``
+- ``pypi-agi-page-relay-health``
+- ``pypi-agi-page-promotion-gate``
+- ``pypi-agi-page-feature-attribution``
+- ``pypi-agi-page-training-report``
 - ``pypi-agi-pages``
-- ``pypi-agi-app-data-io-2026-project``
-- ``pypi-agi-app-execution-pandas-project``
-- ``pypi-agi-app-execution-polars-project``
-- ``pypi-agi-app-flight-project``
-- ``pypi-agi-app-global-dag-project``
-- ``pypi-agi-app-meteo-forecast-project``
-- ``pypi-agi-app-mycode-project``
+- ``pypi-agi-app-mission-decision``
+- ``pypi-agi-app-pandas-execution``
+- ``pypi-agi-app-polars-execution``
+- ``pypi-agi-app-flight-telemetry``
+- ``pypi-agi-app-global-dag``
+- ``pypi-agi-app-weather-forecast``
 - ``pypi-agi-app-tescia-diagnostic-project``
 - ``pypi-agi-app-uav-queue-project``
-- ``pypi-agi-app-uav-relay-queue-project``
+- ``pypi-agi-app-uav-relay-queue``
 - ``pypi-agi-apps``
 - ``pypi-agilab``
 

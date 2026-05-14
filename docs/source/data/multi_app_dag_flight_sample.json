@@ -1,7 +1,7 @@
 {
   "schema": "agilab.multi_app_dag.v1",
-  "dag_id": "flight-to-meteo-first-proof",
-  "label": "Flight to meteo first-proof handoff",
+  "dag_id": "flight-to-weather-first-proof",
+  "label": "Flight to weather first-proof handoff",
   "description": "Minimal two-app global DAG contract for validating the operator runner state on the public flight first-proof path.",
   "execution": {
     "mode": "sequential_dependency_order",
@@ -10,7 +10,7 @@
   "nodes": [
     {
       "id": "flight_context",
-      "app": "flight_project",
+      "app": "flight_telemetry_project",
       "purpose": "Run the flight scenario and produce trajectory summary context for downstream review.",
       "produces": [
         {
@@ -21,8 +21,8 @@
       ]
     },
     {
-      "id": "meteo_forecast_review",
-      "app": "meteo_forecast_project",
+      "id": "weather_forecast_review",
+      "app": "weather_forecast_project",
       "purpose": "Use flight summary context to produce forecast quality metrics for review.",
       "consumes": [
         {
@@ -43,7 +43,7 @@
   "edges": [
     {
       "from": "flight_context",
-      "to": "meteo_forecast_review",
+      "to": "weather_forecast_review",
       "artifact": "flight_reduce_summary",
       "handoff": "Use flight trajectory reduce summary as the forecast-review context."
     }

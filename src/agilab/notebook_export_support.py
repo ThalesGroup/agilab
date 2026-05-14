@@ -10,6 +10,8 @@ from typing import Any, Dict, Iterable, Sequence
 
 import tomllib
 
+from agi_env.app_provider_registry import app_name_aliases
+
 from .page_bundle_registry import discover_page_bundle
 
 
@@ -197,11 +199,8 @@ def _project_name_candidates(project_name: str | None) -> tuple[str, ...]:
         if candidate and candidate not in candidates:
             candidates.append(candidate)
 
-    _add(text)
-    if text.endswith("_project"):
-        _add(text.removesuffix("_project"))
-    else:
-        _add(f"{text}_project")
+    for alias in app_name_aliases(text):
+        _add(alias)
     return tuple(candidates)
 
 
@@ -836,6 +835,18 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 add(text.removesuffix("_project"))
             else:
                 add(f"{{text}}_project")
+            aliases = {{
+                "data_io_2026": ("mission_decision", "mission_decision_project"),
+                "flight": ("flight_telemetry", "flight_telemetry_project"),
+                "meteo_forecast": ("weather_forecast", "weather_forecast_project"),
+                "mission_decision": ("data_io_2026", "data_io_2026_project"),
+                "flight_telemetry": ("flight", "flight_project"),
+                "weather_forecast": ("meteo_forecast", "meteo_forecast_project"),
+            }}
+            for candidate in list(candidates):
+                base = candidate.removesuffix("_project") if candidate.endswith("_project") else candidate
+                for alias in aliases.get(base, ()):
+                    add(alias)
             return candidates
 
 

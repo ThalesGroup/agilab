@@ -33,7 +33,7 @@ def test_public_proof_scenarios_pass_static_contract(tmp_path: Path) -> None:
     assert report["summary"]["full_install_target_seconds"] == 120.0
     assert report["summary"]["scenario_ids"] == [
         "flight-local-first-proof",
-        "meteo-forecast-hosted-proof",
+        "weather-forecast-hosted-proof",
         "mlflow-tracking-proof",
     ]
     rows = {scenario["id"]: scenario for scenario in report["scenarios"]}
@@ -44,7 +44,7 @@ def test_public_proof_scenarios_pass_static_contract(tmp_path: Path) -> None:
         "flight-local-first-proof"
     ]["commands"]
     assert "tools/hf_space_smoke.py --json" in " ".join(
-        rows["meteo-forecast-hosted-proof"]["commands"]
+        rows["weather-forecast-hosted-proof"]["commands"]
     )
     assert "MLflow remains the tracking system" in " ".join(
         rows["mlflow-tracking-proof"]["limits"]
@@ -80,7 +80,7 @@ def test_public_proof_scenarios_attach_runtime_artifacts(tmp_path: Path) -> None
                 "total_duration_seconds": 12.5,
                 "target_seconds": 30.0,
                 "within_target": True,
-                "checks": [{"label": "meteo forecast project"}],
+                "checks": [{"label": "weather forecast project"}],
             }
         ),
         encoding="utf-8",
@@ -99,7 +99,7 @@ def test_public_proof_scenarios_attach_runtime_artifacts(tmp_path: Path) -> None
     assert rows["flight-local-first-proof"]["runtime_evidence"]["check_labels"] == [
         "package ui smoke"
     ]
-    assert rows["meteo-forecast-hosted-proof"]["runtime_evidence"][
+    assert rows["weather-forecast-hosted-proof"]["runtime_evidence"][
         "within_target"
     ] is True
 

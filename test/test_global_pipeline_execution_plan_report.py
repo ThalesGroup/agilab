@@ -100,18 +100,18 @@ def test_execution_plan_carries_app_template_execution_contracts() -> None:
 
     plan = module.build_execution_plan(
         repo_root=Path.cwd(),
-        dag_path=Path("src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"),
+        dag_path=Path("src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"),
     )
 
     assert plan.ok is True
     first, second = plan.runnable_units
-    assert first["execution_contract"]["entrypoint"] == "flight_project.flight_context"
+    assert first["execution_contract"]["entrypoint"] == "flight_telemetry_project.flight_context"
     assert first["execution_contract"]["params"]["output_format"] == "parquet"
     assert first["execution_contract"]["data_in"] == "flight/dataset"
     assert first["execution_contract"]["stages"] == []
-    assert second["execution_contract"]["entrypoint"] == "meteo_forecast_project.meteo_forecast_review"
+    assert second["execution_contract"]["entrypoint"] == "weather_forecast_project.weather_forecast_review"
     assert second["execution_contract"]["params"]["station"] == "Paris-Montsouris"
-    assert second["execution_contract"]["data_out"] == "meteo_forecast/results"
+    assert second["execution_contract"]["data_out"] == "weather_forecast/results"
 
 
 def test_execution_plan_report_handles_load_failure(tmp_path: Path) -> None:

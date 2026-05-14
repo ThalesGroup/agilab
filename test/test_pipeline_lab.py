@@ -319,7 +319,7 @@ def test_get_existing_snippets_deduplicates_and_disambiguates_labels(monkeypatch
 
     runenv_dir = tmp_path / "runenv"
     runenv_dir.mkdir()
-    runenv_snippet = runenv_dir / "AGI_run_flight.py"
+    runenv_snippet = runenv_dir / "AGI_run_flight_telemetry.py"
     runenv_snippet.write_text("print('runenv')\n", encoding="utf-8")
 
     app_settings = tmp_path / "app_settings.toml"
@@ -335,7 +335,7 @@ def test_get_existing_snippets_deduplicates_and_disambiguates_labels(monkeypatch
     env = SimpleNamespace(
         runenv=runenv_dir,
         app_settings_file=app_settings,
-        app="flight",
+        app="flight_telemetry_project",
     )
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: safe_template,
@@ -348,7 +348,7 @@ def test_get_existing_snippets_deduplicates_and_disambiguates_labels(monkeypatch
     labels = list(option_map.keys())
     assert "AGI_run.py" in labels
     assert "AGI_run.py (templates)" in labels
-    assert "AGI_run_flight.py" in labels
+    assert "AGI_run_flight_telemetry.py" in labels
     assert len(option_map) == 3
 
 
@@ -359,10 +359,10 @@ def test_get_existing_snippets_filters_stale_and_wrong_app_runenv_snippets(monke
     runenv_dir = tmp_path / "runenv"
     runenv_dir.mkdir()
 
-    stale_install = runenv_dir / "AGI_install_flight.py"
+    stale_install = runenv_dir / "AGI_install_flight_telemetry.py"
     stale_install.write_text("print('stale')\n", encoding="utf-8")
 
-    fresh_run = runenv_dir / "AGI_run_flight.py"
+    fresh_run = runenv_dir / "AGI_run_flight_telemetry.py"
     fresh_run.write_text("print('fresh')\n", encoding="utf-8")
 
     wrong_app_run = runenv_dir / "AGI_run_other.py"
@@ -383,7 +383,7 @@ def test_get_existing_snippets_filters_stale_and_wrong_app_runenv_snippets(monke
     env = SimpleNamespace(
         runenv=runenv_dir,
         app_settings_file=app_settings,
-        app="flight",
+        app="flight_telemetry_project",
     )
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: None,
@@ -393,7 +393,7 @@ def test_get_existing_snippets_filters_stale_and_wrong_app_runenv_snippets(monke
 
     option_map = pipeline_lab.get_existing_snippets(env, stages_file, deps)
 
-    assert option_map == {"AGI_run_flight.py": fresh_run}
+    assert option_map == {"AGI_run_flight_telemetry.py": fresh_run}
 
 
 def test_get_existing_snippets_warns_and_filters_stale_agi_api_snippets(monkeypatch, tmp_path):
@@ -402,20 +402,20 @@ def test_get_existing_snippets_warns_and_filters_stale_agi_api_snippets(monkeypa
     runenv_dir = tmp_path / "runenv"
     runenv_dir.mkdir()
 
-    stale_snippet = runenv_dir / "AGI_install_flight.py"
+    stale_snippet = runenv_dir / "AGI_install_flight_telemetry.py"
     stale_snippet.write_text(
         "from agi_cluster.agi_distributor import AGI\n"
         "async def main():\n"
         "    await AGI.install(None)\n",
         encoding="utf-8",
     )
-    current_snippet = runenv_dir / "AGI_run_flight.py"
+    current_snippet = runenv_dir / "AGI_run_flight_telemetry.py"
     current_snippet.write_text(
         "from agi_cluster.agi_distributor import AGI\n"
         "from agi_env import AgiEnv\n"
-        f"{snippet_contract_block(app='flight')}\n"
+        f"{snippet_contract_block(app='flight_telemetry_project')}\n"
         "async def main():\n"
-        "    await AGI.run(AgiEnv(apps_path='/tmp/apps', app='flight'))\n",
+        "    await AGI.run(AgiEnv(apps_path='/tmp/apps', app='flight_telemetry_project'))\n",
         encoding="utf-8",
     )
 
@@ -429,7 +429,7 @@ def test_get_existing_snippets_warns_and_filters_stale_agi_api_snippets(monkeypa
 
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight")
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight_telemetry_project")
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: None,
         safe_service_template_filename="unused.py",
@@ -438,7 +438,7 @@ def test_get_existing_snippets_warns_and_filters_stale_agi_api_snippets(monkeypa
 
     option_map = pipeline_lab.get_existing_snippets(env, stages_file, deps)
 
-    assert option_map == {"AGI_run_flight.py": current_snippet}
+    assert option_map == {"AGI_run_flight_telemetry.py": current_snippet}
     warning_messages = [message for kind, message in fake_st.messages if kind == "warning"]
     assert warning_messages
     assert "AGILAB core snippet API changed" in warning_messages[0]
@@ -450,7 +450,7 @@ def test_get_existing_snippets_cleanup_button_deletes_stale_generated_snippets(m
     stages_file.write_text("", encoding="utf-8")
     runenv_dir = tmp_path / "runenv"
     runenv_dir.mkdir()
-    stale_snippet = runenv_dir / "AGI_run_flight.py"
+    stale_snippet = runenv_dir / "AGI_run_flight_telemetry.py"
     stale_snippet.write_text(
         "from agi_cluster.agi_distributor import AGI\n"
         "async def main():\n"
@@ -465,11 +465,11 @@ def test_get_existing_snippets_cleanup_button_deletes_stale_generated_snippets(m
     os.utime(stale_snippet, (new_time, new_time))
 
     fake_st = _FakeStreamlit(
-        {"clean_stale_snippets_flight__armed": True},
-        buttons={"clean_stale_snippets_flight__confirm": True},
+        {"clean_stale_snippets_flight_telemetry_project__armed": True},
+        buttons={"clean_stale_snippets_flight_telemetry_project__confirm": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight")
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight_telemetry_project")
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: None,
         safe_service_template_filename="unused.py",
@@ -518,7 +518,7 @@ def test_get_existing_snippets_handles_candidate_path_edge_cases(monkeypatch, tm
     fake_st = SimpleNamespace(session_state={})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
 
-    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight")
+    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight_telemetry_project")
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: _BrokenCandidate(snippet),
         safe_service_template_filename="unused.py",
@@ -546,7 +546,7 @@ def test_get_existing_snippets_disambiguates_multiple_duplicate_labels(monkeypat
     for root in (root_a, root_b, root_c):
         (root / "AGI_run.py").write_text(f"print('{root.name}')\n", encoding="utf-8")
 
-    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight")
+    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight_telemetry_project")
     safe_templates = iter([root_b / "AGI_run.py"])
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: next(safe_templates),
@@ -573,7 +573,7 @@ def test_get_existing_snippets_skips_exact_duplicate_paths(monkeypatch, tmp_path
     fake_st = SimpleNamespace(session_state={"snippet_file": str(snippet)})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
 
-    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight")
+    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight_telemetry_project")
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: snippet,
         safe_service_template_filename="unused.py",
@@ -601,7 +601,7 @@ def test_get_existing_snippets_uses_incremented_label_for_same_parent_names(monk
     fake_st = SimpleNamespace(session_state={"snippet_file": str(shared_left / "AGI_run.py")})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
 
-    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight")
+    env = SimpleNamespace(runenv=None, app_settings_file=tmp_path / "missing.toml", app="flight_telemetry_project")
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: shared_right / "AGI_run.py",
         safe_service_template_filename="unused.py",
@@ -622,7 +622,7 @@ def test_get_existing_snippets_skips_runenv_files_with_unstatable_mtime(monkeypa
     stages_file.write_text("", encoding="utf-8")
     runenv_dir = tmp_path / "runenv"
     runenv_dir.mkdir()
-    bad_run = runenv_dir / "AGI_run_flight.py"
+    bad_run = runenv_dir / "AGI_run_flight_telemetry.py"
     bad_run.write_text("print('bad')\n", encoding="utf-8")
 
     app_settings = tmp_path / "app_settings.toml"
@@ -639,7 +639,7 @@ def test_get_existing_snippets_skips_runenv_files_with_unstatable_mtime(monkeypa
 
     monkeypatch.setattr(Path, "stat", _patched_stat)
 
-    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight")
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=app_settings, app="flight_telemetry_project")
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: None,
         safe_service_template_filename="unused.py",
@@ -666,7 +666,7 @@ def test_get_existing_snippets_ignores_runenv_glob_errors(monkeypatch, tmp_path)
 
     monkeypatch.setattr(Path, "glob", _patched_glob)
 
-    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=tmp_path / "missing.toml", app="flight")
+    env = SimpleNamespace(runenv=runenv_dir, app_settings_file=tmp_path / "missing.toml", app="flight_telemetry_project")
     deps = SimpleNamespace(
         ensure_safe_service_template=lambda *_args, **_kwargs: None,
         safe_service_template_filename="unused.py",
@@ -754,18 +754,18 @@ def test_global_dag_display_name_ignores_blank_payload_labels(tmp_path):
 def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
     state_path = tmp_path / ".agilab" / "runner_state.json"
     assert state_path.is_file()
     state = pipeline_lab.load_runner_state(state_path)
-    assert state["source"]["dag_path"] == "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    assert state["source"]["dag_path"] == "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
     assert fake_st.session_state["demo_pipeline_scope"] == pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
-    assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["blocked_unit_ids"] == ["weather_forecast_review"]
     assert ("expander", "True") in fake_st.messages
     assert ("metric", "Steps=2") in fake_st.messages
     assert ("metric", "Inputs=1") in fake_st.messages
@@ -775,7 +775,7 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     ) in fake_st.messages
     assert ("dataframe", "2") in fake_st.messages
     edit_token = pipeline_lab._global_dag_source_token(
-        "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+        "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
     )
     assert ("Edit plan", f"demo_global_runner_edit_contract_{edit_token}") in fake_st.checkbox_calls
     assert not fake_st.multiselect_calls
@@ -1289,14 +1289,14 @@ def test_global_runner_panel_renders_project_stages_synced_from_pipeline_logs(mo
 def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(buttons={"demo_global_runner_dispatch_next": True})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
     assert state["run_status"] == "running"
     assert state["summary"]["running_unit_ids"] == ["flight_context"]
-    assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["blocked_unit_ids"] == ["weather_forecast_review"]
     assert any(kind == "success" and "flight_context" in message for kind, message in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
 
@@ -1380,16 +1380,16 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
 def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
     assert state["source"]["dag_path"] == (
-        "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+        "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
     )
     assert state["summary"]["completed_unit_ids"] == ["flight_context"]
-    assert state["summary"]["runnable_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["runnable_unit_ids"] == ["weather_forecast_review"]
     assert state["summary"]["available_artifact_ids"] == ["flight_reduce_summary"]
     assert state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
     assert state["provenance"]["real_app_execution"] is False
@@ -1405,16 +1405,16 @@ def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path)
 def test_global_runner_panel_runs_ready_contract_batch(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_ready_stages": True})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
     state = pipeline_lab.load_runner_state(tmp_path / ".agilab" / "runner_state.json")
     assert state["source"]["dag_path"] == (
-        "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+        "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
     )
     assert state["summary"]["completed_unit_ids"] == ["flight_context"]
-    assert state["summary"]["runnable_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["runnable_unit_ids"] == ["weather_forecast_review"]
     assert state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
     assert state["provenance"]["controlled_execution"] is True
     assert any(kind == "success" and "flight_context" in message for kind, message in fake_st.messages)
@@ -1447,7 +1447,7 @@ def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypat
         }
 
     repo_root = Path.cwd()
-    dag_path = repo_root / "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"
+    dag_path = repo_root / "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
     engine = pipeline_lab.DagRunEngine(
         repo_root=repo_root,
         lab_dir=tmp_path,
@@ -1467,7 +1467,7 @@ def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypat
         distributed_request_preview_rows=[
             {
                 "Stage": "flight_context",
-                "App": "flight_project",
+                "App": "flight_telemetry_project",
                 "Status": "runnable",
                 "Backend": "distributed",
                 "Nodes": "2",
@@ -1534,7 +1534,7 @@ def test_global_runner_panel_wires_distributed_backend_from_orchestrate_settings
         return _submit_stage
 
     monkeypatch.setattr(pipeline_lab, "build_global_dag_distributed_stage_submitter", _build_submitter)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
@@ -1629,7 +1629,7 @@ def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp
         }
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
@@ -1710,7 +1710,7 @@ def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypat
         checkboxes={"demo_global_runner_show_graph": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     state_path = tmp_path / ".agilab" / "runner_state.json"
     state_path.parent.mkdir(parents=True)
@@ -1739,7 +1739,7 @@ def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypat
 def test_global_runner_panel_reset_rebuilds_matching_runner_state(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(buttons={"demo_global_runner_reset": True})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     state_path = tmp_path / ".agilab" / "runner_state.json"
     proof = pipeline_lab.persist_runner_state(
@@ -1773,7 +1773,7 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
         checkboxes={f"demo_global_runner_edit_contract_{token}": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
@@ -1802,12 +1802,12 @@ def test_global_runner_panel_saves_visual_editor_as_workspace_draft(monkeypatch,
     assert draft_payload["edges"] == [
         {
             "from": "flight_context",
-            "to": "meteo_forecast_review",
+            "to": "weather_forecast_review",
             "artifact": "flight_reduce_summary",
             "handoff": "Use flight trajectory reduce summary as the forecast-review context.",
         }
     ]
-    meteo_node = next(node for node in draft_payload["nodes"] if node["id"] == "meteo_forecast_review")
+    meteo_node = next(node for node in draft_payload["nodes"] if node["id"] == "weather_forecast_review")
     assert meteo_node["consumes"][0]["id"] == "flight_reduce_summary"
     assert not fake_st.data_editor_calls
 
@@ -1826,7 +1826,7 @@ def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, 
         checkboxes={f"demo_global_runner_edit_contract_{token}": True},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
@@ -2075,7 +2075,7 @@ def test_global_runner_error_diagnostic_renders_as_code(monkeypatch, tmp_path):
         "_load_or_create_global_runner_state",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("bad dag\nline 2")),
     )
-    env = SimpleNamespace(app="flight_project", target="flight_project")
+    env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
@@ -2090,10 +2090,10 @@ def test_display_lab_tab_empty_pipeline_renders_generator_form(monkeypatch, tmp_
     monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
     monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps()
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert ("info", "No stages recorded yet. Generate your first stage below.") in fake_st.messages
     assert fake_st.session_state["demo"][0] == 0
@@ -2128,7 +2128,7 @@ def test_display_lab_tab_loads_selected_dataframe_without_index_inference(monkey
         calls.append((path, with_index))
         return pipeline_lab.pd.DataFrame({"time_label": ["00:00:01"], "value": [10]})
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         load_all_stages=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('a')", "E": ""}],
         load_df_cached=_load_df_cached,
@@ -2137,7 +2137,7 @@ def test_display_lab_tab_loads_selected_dataframe_without_index_inference(monkey
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert calls == [(df_path, False)]
     assert list(fake_st.session_state["loaded_df"]["time_label"]) == ["00:00:01"]
@@ -2208,7 +2208,7 @@ def test_display_lab_tab_recovers_stages_from_toml_when_loader_returns_empty(mon
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
     monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
 
-    module_path = tmp_path / "flight_project"
+    module_path = tmp_path / "flight_telemetry_project"
     module_key = pipeline_lab._module_keys(module_path)[0]
     stages_file = tmp_path / "lab_stages.toml"
     stages_file.write_text(
@@ -2216,7 +2216,7 @@ def test_display_lab_tab_recovers_stages_from_toml_when_loader_returns_empty(mon
         encoding="utf-8",
     )
 
-    env = SimpleNamespace(active_app=module_path, envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=module_path, envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         load_all_stages=lambda *_args, **_kwargs: [],
         load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
@@ -2254,12 +2254,12 @@ def test_display_lab_tab_empty_pipeline_warns_when_first_snippet_cannot_be_read(
 
     monkeypatch.setattr(Path, "read_text", _patched_read_text)
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         ensure_safe_service_template=lambda *_args, **_kwargs: snippet_path,
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert any(
         level == "warning" and "Unable to read snippet" in message
@@ -2268,7 +2268,7 @@ def test_display_lab_tab_empty_pipeline_warns_when_first_snippet_cannot_be_read(
 
 
 def test_display_lab_tab_empty_pipeline_hides_stale_hf_snippet_runtime(monkeypatch, tmp_path):
-    stale_runtime = "/app/src/agilab/apps/builtin/flight_project"
+    stale_runtime = "/app/src/agilab/apps/builtin/flight_telemetry_project"
     snippet_path = tmp_path / "AGI_run_demo.py"
     snippet_path.write_text("print('snippet')\n", encoding="utf-8")
 
@@ -2289,16 +2289,16 @@ def test_display_lab_tab_empty_pipeline_hides_stale_hf_snippet_runtime(monkeypat
     )
     monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {snippet_path.name: snippet_path})
 
-    env = SimpleNamespace(active_app=stale_runtime, envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=stale_runtime, envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps()
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_first_snippet_venv_ro"] == "Use AGILAB environment"
 
 
 def test_display_lab_tab_existing_stage_prunes_invalid_runtime_selection(monkeypatch, tmp_path):
-    valid_runtime = tmp_path / "flight_project"
+    valid_runtime = tmp_path / "flight_telemetry_project"
     valid_runtime.mkdir()
     invalid_runtime = tmp_path / "exported_notebooks" / "lab_stages.ipynb"
     invalid_runtime.parent.mkdir()
@@ -2323,7 +2323,7 @@ def test_display_lab_tab_existing_stage_prunes_invalid_runtime_selection(monkeyp
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: str(raw) == str(valid_runtime))
     monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
 
-    env = SimpleNamespace(active_app=valid_runtime, envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=valid_runtime, envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         load_all_stages=lambda *_args, **_kwargs: [
             {"D": "", "Q": "q", "M": "m", "C": "print('seed')", "E": str(invalid_runtime)}
@@ -2355,12 +2355,12 @@ def test_display_lab_tab_empty_pipeline_warns_when_first_snippet_is_empty(monkey
     monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
     monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         ensure_safe_service_template=lambda *_args, **_kwargs: snippet_path,
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert ("warning", "Selected snippet is empty.") in fake_st.messages
 
@@ -2374,10 +2374,10 @@ def test_display_lab_tab_empty_pipeline_warns_when_prompt_missing(monkeypatch, t
     monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda _env: [])
     monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps()
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert ("warning", "Enter a prompt before generating code.") in fake_st.messages
 
@@ -2389,12 +2389,12 @@ def test_display_lab_tab_renders_assistant_engine_next_to_first_prompt(monkeypat
     monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
 
     calls: list[object] = []
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         configure_assistant_engine=lambda _env, *, container=None: calls.append(container),
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert calls == [fake_st]
     assert "Ask code generator:" in fake_st.text_area_labels
@@ -2418,7 +2418,7 @@ def test_display_lab_tab_empty_pipeline_generates_first_stage_with_runtime(monke
     monkeypatch.setattr(pipeline_lab, "normalize_runtime_path", lambda raw: str(raw) if raw else "")
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: str(raw) == str(runtime_root))
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={"OPENAI_MODEL": "demo"}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={"OPENAI_MODEL": "demo"}, app="flight_telemetry_project")
 
     def _save_stage(_module_path, answer, _current_stage, _nstages, _stages_file, **kwargs):
         saved.update(
@@ -2433,7 +2433,7 @@ def test_display_lab_tab_empty_pipeline_generates_first_stage_with_runtime(monke
         bump_history_revision=lambda: saved.setdefault("bumped", True),
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert saved["venv_map"] == {0: str(runtime_root)}
     assert saved["engine_map"] == {0: "agi.run"}
@@ -2463,7 +2463,7 @@ def test_display_lab_tab_existing_stage_defaults_to_runpy_without_runtime(monkey
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
     monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         load_all_stages=lambda *_args, **_kwargs: [
             {"D": "", "Q": "alpha", "M": "m", "C": "print('a')", "E": "", "R": ""}
@@ -2473,7 +2473,7 @@ def test_display_lab_tab_existing_stage_defaults_to_runpy_without_runtime(monkey
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo__engine_map"][0] == "runpy"
 
@@ -2500,7 +2500,7 @@ def test_display_lab_tab_empty_pipeline_imports_first_snippet(monkeypatch, tmp_p
         lambda code, default_runtime="": ("normalized", "agi.run", default_runtime),
     )
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         ensure_safe_service_template=lambda *_args, **_kwargs: snippet_path,
         save_stage=lambda module_path, answer, current_stage, nstages, stages_file, venv_map=None, engine_map=None, extra_fields=None: saved.update(
@@ -2512,7 +2512,7 @@ def test_display_lab_tab_empty_pipeline_imports_first_snippet(monkeypatch, tmp_p
         bump_history_revision=lambda: saved.setdefault("bumped", True),
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert saved["engine_map"] == {0: "agi.run"}
     assert saved["extra_fields"][pipeline_lab.ORCHESTRATE_LOCKED_STAGE_KEY] is True
@@ -2537,10 +2537,10 @@ def test_display_lab_tab_empty_pipeline_clears_stale_sequence_preferences(monkey
         lambda _module_path, _stages_file, seq: persisted.append(list(seq)),
     )
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps()
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo__run_sequence"] == []
     assert persisted == [[]]
@@ -2576,7 +2576,7 @@ def test_display_lab_tab_existing_stages_updates_sequence_and_runtime_selection(
     )
     monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         load_all_stages=lambda *_args, **_kwargs: [
             {"D": "", "Q": "alpha", "M": "m", "C": "print('a')", "E": ""},
@@ -2587,7 +2587,7 @@ def test_display_lab_tab_existing_stages_updates_sequence_and_runtime_selection(
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo__run_sequence"] == [1]
     assert fake_st.session_state["demo__venv_map"][1] == str(runtime_root)
@@ -2597,7 +2597,7 @@ def test_display_lab_tab_existing_stages_updates_sequence_and_runtime_selection(
 
 
 def test_display_lab_tab_existing_stages_drops_stale_hf_runtime_selection(monkeypatch, tmp_path):
-    stale_runtime = "/app/src/agilab/apps/builtin/flight_project"
+    stale_runtime = "/app/src/agilab/apps/builtin/flight_telemetry_project"
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
@@ -2621,7 +2621,7 @@ def test_display_lab_tab_existing_stages_drops_stale_hf_runtime_selection(monkey
     )
     monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
 
-    env = SimpleNamespace(active_app=stale_runtime, envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=stale_runtime, envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         load_all_stages=lambda *_args, **_kwargs: [
             {"D": "", "Q": "alpha", "M": "m", "C": "print('a')", "E": stale_runtime, "R": "agi.run"},
@@ -2631,7 +2631,7 @@ def test_display_lab_tab_existing_stages_drops_stale_hf_runtime_selection(monkey
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo__venv_map"] == {}
     assert fake_st.session_state["demo_venv_0"] == "Use AGILAB environment"
@@ -2655,7 +2655,7 @@ def test_display_lab_tab_renders_from_page_state_visible_stages(monkeypatch, tmp
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
     monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {})
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         load_all_stages=lambda *_args, **_kwargs: [
             {"D": "", "Q": "", "M": "", "C": "", "E": ""},
@@ -2666,7 +2666,7 @@ def test_display_lab_tab_renders_from_page_state_visible_stages(monkeypatch, tmp
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     rendered_stages = render_calls[-1][0][0]
     assert [stage["Q"] for stage in rendered_stages] == ["visible"]
@@ -2699,7 +2699,7 @@ def test_display_lab_tab_existing_stages_warns_for_empty_add_snippet(monkeypatch
     monkeypatch.setattr(pipeline_lab, "_is_valid_runtime_root", lambda raw: bool(raw))
     monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_args, **_kwargs: {snippet_path.name: snippet_path})
 
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
     deps = _make_lab_deps(
         load_all_stages=lambda *_args, **_kwargs: [
             {"D": "", "Q": "alpha", "M": "m", "C": "print('a')", "E": ""}
@@ -2709,7 +2709,7 @@ def test_display_lab_tab_existing_stages_warns_for_empty_add_snippet(monkeypatch
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert ("warning", "Selected snippet is empty.") in fake_st.messages
 
@@ -2756,9 +2756,9 @@ def test_display_lab_tab_locked_stage_run_and_remove_confirm(monkeypatch, tmp_pa
         capture_pipeline_snapshot=lambda *_args, **_kwargs: {"stages": 1},
         remove_stage=lambda *args, **kwargs: remove_calls.append((args, kwargs)),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert run_calls
     assert remove_calls
@@ -2803,9 +2803,9 @@ def test_display_lab_tab_nonlocked_save_persists_editor_changes(monkeypatch, tmp
         force_persist_stage=lambda *args, **kwargs: forced.append((args, kwargs)),
         rerun_fragment_or_app=lambda: reruns.append("fragment"),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert saved
     assert forced
@@ -2847,9 +2847,9 @@ def test_display_lab_tab_revert_restores_previous_snapshot(monkeypatch, tmp_path
         save_stage=lambda *args, **kwargs: saved.append((args, kwargs)),
         rerun_fragment_or_app=lambda: reruns.append("fragment"),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert saved
     args, kwargs = saved[-1]
@@ -2918,10 +2918,10 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
         remove_stage=lambda *args, **kwargs: remove_calls.append((args, kwargs)),
         bump_history_revision=lambda: bumped.append(True),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
     stages_file = tmp_path / "lab_stages.toml"
-    module_path = tmp_path / "flight_project"
+    module_path = tmp_path / "flight_telemetry_project"
     pipeline_lab.display_lab_tab(tmp_path, "demo", stages_file, module_path, env, deps)
 
     assert run_calls
@@ -2978,9 +2978,9 @@ def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monk
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         run_all_stages=lambda *args, **kwargs: run_calls.append((args, kwargs)),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert run_calls == []
     assert any(
@@ -3024,9 +3024,9 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
         maybe_autofix_generated_code=lambda **_kwargs: ("print('fixed')", "fixed-model", "fixed-detail"),
         save_stage=lambda *args, **kwargs: saved.append((args, kwargs)),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert saved
     args, kwargs = saved[-1]
@@ -3072,9 +3072,9 @@ def test_display_lab_tab_overlay_save_persists_editor_payload(monkeypatch, tmp_p
         force_persist_stage=lambda *args, **kwargs: forced.append((args, kwargs)),
         rerun_fragment_or_app=lambda: reruns.append("fragment"),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert saved
     assert forced
@@ -3152,9 +3152,9 @@ def test_display_lab_tab_overlay_run_streams_stage_and_logs_artifacts(monkeypatc
         stream_run_command=lambda *args, **kwargs: stream_calls.append((args, kwargs)) or "No such file or directory: missing.csv",
         rerun_fragment_or_app=lambda: pushed_logs.append("rerun"),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert stream_calls
     assert artifact_calls
@@ -3200,9 +3200,9 @@ def test_display_lab_tab_existing_stage_run_button_generates_and_autofixes(monke
         get_run_placeholder=lambda *_args, **_kwargs: None,
         rerun_fragment_or_app=lambda: reruns.append("fragment"),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert saved
     assert fake_st.session_state["demo_pending_q_0"] == "generated question"
@@ -3245,9 +3245,9 @@ def test_display_lab_tab_existing_stages_imports_additional_snippet(monkeypatch,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         save_stage=lambda *args, **kwargs: saved.append((args, kwargs)),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert saved
     args, kwargs = saved[-1]
@@ -3289,9 +3289,9 @@ def test_display_lab_tab_overlay_run_covers_fallback_runtime_and_missing_snippet
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         get_run_placeholder=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["lab_selected_venv"] == str(runtime_root)
     assert fake_st.session_state["demo_venv_0"] == str(runtime_root)
@@ -3327,9 +3327,9 @@ def test_display_lab_tab_applies_pending_updates_and_reruns_fragment(monkeypatch
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         rerun_fragment_or_app=lambda: fake_st.messages.append(("rerun-fragment", "called")),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_q_stage_0"] == "fresh prompt"
     assert fake_st.session_state["demo_code_stage_0"] == "print('fresh')"
@@ -3374,9 +3374,9 @@ def test_display_lab_tab_sequence_lock_cancel_and_undo_paths(monkeypatch, tmp_pa
         },
         restore_pipeline_snapshot=lambda *_args, **_kwargs: "restore boom",
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo__run_sequence"] == [0]
     assert "demo_confirm_force_run" not in fake_st.session_state
@@ -3416,9 +3416,9 @@ def test_display_lab_tab_stage_delete_and_undo_success_paths(monkeypatch, tmp_pa
         capture_pipeline_snapshot=lambda *_args, **_kwargs: {"stages": [{"Q": "q"}]},
         restore_pipeline_snapshot=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_confirm_delete_0"] is True
     assert any(kind == "success" and "Deleted stages restored." in message for kind, message in fake_st.messages)
@@ -3426,7 +3426,7 @@ def test_display_lab_tab_stage_delete_and_undo_success_paths(monkeypatch, tmp_pa
 
 
 def test_display_lab_tab_overlay_run_uses_active_app_when_agi_engine_has_no_runtime(monkeypatch, tmp_path):
-    active_app = tmp_path / "flight_project"
+    active_app = tmp_path / "flight_telemetry_project"
     active_app.mkdir()
     pushed_logs = []
     stream_calls = []
@@ -3479,7 +3479,7 @@ def test_display_lab_tab_overlay_run_uses_active_app_when_agi_engine_has_no_runt
         stream_run_command=lambda *args, **kwargs: stream_calls.append((args, kwargs)) or "",
         rerun_fragment_or_app=lambda: pushed_logs.append("rerun"),
     )
-    env = SimpleNamespace(active_app=active_app, envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=active_app, envars={}, app="flight_telemetry_project")
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", active_app, env, deps)
 
@@ -3509,9 +3509,9 @@ def test_display_lab_tab_renders_conceptual_view_when_available(monkeypatch, tmp
         render_pipeline_view=lambda *args, **kwargs: render_calls.append((args, kwargs)),
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert ("graphviz", "True") in fake_st.messages
     assert render_calls[-1][1]["title"] == "Execution view"
@@ -3539,9 +3539,9 @@ def test_display_lab_tab_existing_stages_warns_when_add_prompt_missing(monkeypat
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert ("warning", "Enter a prompt before generating code.") in fake_st.messages
 
@@ -3583,9 +3583,9 @@ def test_display_lab_tab_existing_stages_warns_when_add_snippet_cannot_be_read(m
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert any(kind == "warning" and "Unable to read snippet" in message for kind, message in fake_st.messages)
 
@@ -3612,9 +3612,9 @@ def test_display_lab_tab_arms_force_unlock_and_delete_all(monkeypatch, tmp_path)
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: {"owner_text": "owner-1", "is_stale": False},
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_confirm_force_run"] is True
     assert fake_st.session_state["demo_confirm_delete_all"] is True
@@ -3655,9 +3655,9 @@ def test_display_lab_tab_preview_and_logs_cover_clear_and_last_log(monkeypatch, 
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert preview_calls == [(1, "WORKFLOW preview limited")]
     assert fake_st.session_state["demo__run_logs"] == []
@@ -3704,16 +3704,16 @@ def test_display_lab_tab_can_pin_run_logs(monkeypatch, tmp_path):
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     panels = fake_st.session_state["agilab:pinned_expanders"]
     buttons = editor_calls[-1]["buttons"]
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
     assert editor_calls[-1]["theme"] == "dark"
-    assert panels["pipeline_run_logs:demo"]["title"] == "Workflow logs: flight_project"
+    assert panels["pipeline_run_logs:demo"]["title"] == "Workflow logs: flight_telemetry_project"
     assert panels["pipeline_run_logs:demo"]["body"] == "line 1\nline 2"
     assert panels["pipeline_run_logs:demo"]["source"] == f"WORKFLOW {log_file}"
     assert ("rerun", "called") in fake_st.messages
@@ -3750,7 +3750,7 @@ def test_display_lab_tab_locked_stage_delete_paths(monkeypatch, tmp_path):
         capture_pipeline_snapshot=lambda *_args, **_kwargs: {"stages": [entry.copy()]},
         remove_stage=lambda *args, **_kwargs: removed.append(tuple(str(arg) for arg in args[:4])),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
     arm_st = _FakeStreamlit(
         {"demo": [0, "", "", "", "", "", 0], "demo__run_sequence": [0]},
@@ -3758,7 +3758,7 @@ def test_display_lab_tab_locked_stage_delete_paths(monkeypatch, tmp_path):
         multiselects={"demo_run_sequence_widget": [0]},
     )
     _configure(arm_st)
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
     assert arm_st.session_state["demo_confirm_delete_0"] is True
 
     cancel_st = _FakeStreamlit(
@@ -3767,7 +3767,7 @@ def test_display_lab_tab_locked_stage_delete_paths(monkeypatch, tmp_path):
         multiselects={"demo_run_sequence_widget": [0]},
     )
     _configure(cancel_st)
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
     assert "demo_confirm_delete_0" not in cancel_st.session_state
 
     delete_st = _FakeStreamlit(
@@ -3776,7 +3776,7 @@ def test_display_lab_tab_locked_stage_delete_paths(monkeypatch, tmp_path):
         multiselects={"demo_run_sequence_widget": [0]},
     )
     _configure(delete_st)
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
     assert removed
     assert isinstance(delete_st.session_state["demo__undo_delete_snapshot"], dict)
     assert any(kind == "rerun" and message == "called" for kind, message in delete_st.messages)
@@ -3838,9 +3838,9 @@ def test_display_lab_tab_overlay_run_covers_runpy_and_missing_log_path(monkeypat
         get_run_placeholder=lambda *_args, **_kwargs: placeholder,
         rerun_fragment_or_app=lambda: pushed_logs.append("rerun"),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project", copilot_file=tmp_path / "copilot.py")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project", copilot_file=tmp_path / "copilot.py")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert placeholder_messages == ["Starting overlay run…"]
     assert run_lab_calls
@@ -3900,9 +3900,9 @@ def test_display_lab_tab_overlay_run_logs_missing_file_hint(monkeypatch, tmp_pat
         label_for_stage_runtime=lambda *_args, **_kwargs: "runtime",
         stream_run_command=lambda *_args, **_kwargs: "No such file or directory",
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert any("Output (stage 1):" in message for message in pushed_logs)
     assert any("Check whether the upstream stage created the expected file" in message for message in pushed_logs)
@@ -3946,9 +3946,9 @@ def test_display_lab_tab_import_snippet_without_runtime_resets_sequence(monkeypa
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo__run_sequence"] == [0]
     assert save_calls[-1][1]["venv_map"] == {}
@@ -3990,9 +3990,9 @@ def test_display_lab_tab_stale_lock_run_logs_without_file(monkeypatch, tmp_path)
         get_run_placeholder=lambda *_args, **_kwargs: None,
         run_all_stages=lambda *args, **kwargs: run_all_calls.append((args, kwargs)),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert run_all_calls and run_all_calls[-1][1]["force_lock_clear"] is True
     assert any("unable to prepare log file: no log" in message for message in pushed_logs)
@@ -4030,9 +4030,9 @@ def test_display_lab_tab_add_stage_without_selected_runtime_uses_runpy(monkeypat
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         bump_history_revision=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert save_calls[-1][1]["engine_map"][1] == "runpy"
 
@@ -4074,9 +4074,9 @@ def test_display_lab_tab_dirty_locked_source_and_experiment_reload_paths(monkeyp
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         rerun_fragment_or_app=lambda: fake_st.messages.append(("rerun-fragment", "called")),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert any(kind == "caption" and "Imported from ORCHESTRATE." in message for kind, message in fake_st.messages)
     assert any(kind == "rerun-fragment" for kind, _ in fake_st.messages)
@@ -4105,7 +4105,7 @@ def test_display_lab_tab_overlay_duplicate_guards_skip_repeat_save_and_run(monke
         save_stage=lambda *args, **kwargs: save_calls.append((args, kwargs)),
         stream_run_command=lambda *args, **kwargs: stream_calls.append((args, kwargs)) or "",
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
     save_st = _FakeStreamlit(
         {
@@ -4121,7 +4121,7 @@ def test_display_lab_tab_overlay_duplicate_guards_skip_repeat_save_and_run(monke
         "code_editor",
         lambda *_args, **_kwargs: {"text": "print('overlay save')", "type": "save"},
     )
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
     assert "demo_overlay_done_0" not in save_st.session_state
     assert save_calls == []
 
@@ -4140,7 +4140,7 @@ def test_display_lab_tab_overlay_duplicate_guards_skip_repeat_save_and_run(monke
         "code_editor",
         lambda *_args, **_kwargs: {"text": "print('overlay run')", "type": "run"},
     )
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
     assert "demo_overlay_done_0" not in run_st.session_state
     assert stream_calls == []
 
@@ -4178,9 +4178,9 @@ def test_display_lab_tab_run_button_reuses_existing_code_when_generation_returns
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         bump_history_revision=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     saved_answer = save_calls[-1][0][1]
     assert saved_answer[3] == "print('existing')"
@@ -4228,9 +4228,9 @@ def test_display_lab_tab_safe_generation_failure_keeps_existing_code(monkeypatch
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         bump_history_revision=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert save_calls == []
     assert any(
@@ -4261,7 +4261,7 @@ def test_display_lab_tab_nonlocked_delete_confirm_and_cancel_paths(monkeypatch, 
         capture_pipeline_snapshot=lambda *_args, **_kwargs: {"stages": [{"Q": "q"}]},
         remove_stage=lambda *args, **_kwargs: removed.append(tuple(str(arg) for arg in args[:4])),
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
     cancel_st = _FakeStreamlit(
         {"demo": [0, "", "", "", "", "", 0], "demo__run_sequence": [0], "demo_confirm_delete_0": True},
@@ -4269,7 +4269,7 @@ def test_display_lab_tab_nonlocked_delete_confirm_and_cancel_paths(monkeypatch, 
         multiselects={"demo_run_sequence_widget": [0]},
     )
     _configure(cancel_st)
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
     assert "demo_confirm_delete_0" not in cancel_st.session_state
 
     delete_st = _FakeStreamlit(
@@ -4278,7 +4278,7 @@ def test_display_lab_tab_nonlocked_delete_confirm_and_cancel_paths(monkeypatch, 
         multiselects={"demo_run_sequence_widget": [0]},
     )
     _configure(delete_st)
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
     assert removed
     assert any(kind == "rerun" and message == "called" for kind, message in delete_st.messages)
 
@@ -4305,7 +4305,7 @@ def test_display_lab_tab_overlay_paths_cover_same_sig_none_text_and_entry_runtim
         force_persist_stage=lambda *_args, **_kwargs: None,
         bump_history_revision=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
     repeat_st = _FakeStreamlit(
         {
@@ -4321,7 +4321,7 @@ def test_display_lab_tab_overlay_paths_cover_same_sig_none_text_and_entry_runtim
         "code_editor",
         lambda *_args, **_kwargs: {"text": "print('repeat')", "type": "save"},
     )
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
     assert save_calls == []
 
     none_text_st = _FakeStreamlit(
@@ -4346,7 +4346,7 @@ def test_display_lab_tab_overlay_paths_cover_same_sig_none_text_and_entry_runtim
         force_persist_stage=lambda *_args, **_kwargs: None,
         bump_history_revision=lambda *_args, **_kwargs: None,
     )
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, none_text_deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, none_text_deps)
     assert save_calls[-1][0][1][3] == "print('fallback')"
 
     runtime_root = tmp_path / "runtime"
@@ -4371,7 +4371,7 @@ def test_display_lab_tab_overlay_paths_cover_same_sig_none_text_and_entry_runtim
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         get_run_placeholder=lambda *_args, **_kwargs: None,
     )
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, run_deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, run_deps)
     assert run_st.session_state["demo__venv_map"][0] == str(runtime_root)
     assert run_st.session_state["demo__engine_map"][0] == "agi.run"
 
@@ -4394,9 +4394,9 @@ def test_display_lab_tab_ignores_invalid_stages_file_toml(monkeypatch, tmp_path)
         load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
         render_pipeline_view=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", stages_file, tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", stages_file, tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo"][-1] == 0
     assert any(kind == "info" and "No stages recorded yet" in message for kind, message in fake_st.messages)
@@ -4428,9 +4428,9 @@ def test_display_lab_tab_reseeds_missing_or_blank_editor_state(monkeypatch, tmp_
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_q_stage_0"] == "fresh q"
     assert fake_st.session_state["demo_code_stage_0"] == "print('seed')"
@@ -4464,9 +4464,9 @@ def test_display_lab_tab_reapplies_pending_code_over_existing_editor_state(monke
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_code_stage_0"] == "print('new')"
     assert fake_st.session_state["demo_editor_resync_sig_0"] == "print('new')"
@@ -4503,9 +4503,9 @@ def test_display_lab_tab_overlay_blank_editor_keeps_existing_code(monkeypatch, t
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_code_stage_0"] == "print('keep')"
     assert "demo_ignore_blank_editor_0" not in fake_st.session_state
@@ -4543,9 +4543,9 @@ def test_display_lab_tab_overlay_run_uses_entry_runtime_and_default_engine(monke
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         get_run_placeholder=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo__venv_map"][0] == str(runtime_root)
     assert fake_st.session_state["demo__engine_map"][0] == "agi.run"
@@ -4583,9 +4583,9 @@ def test_display_lab_tab_overlay_run_uses_active_app_for_agi_engine(monkeypatch,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         get_run_placeholder=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=active_runtime, envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=active_runtime, envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["lab_selected_venv"] == str(active_runtime)
     assert fake_st.session_state["demo__engine_map"][0] == "agi.custom"
@@ -4622,9 +4622,9 @@ def test_display_lab_tab_sequence_defaults_and_formats_labels(monkeypatch, tmp_p
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo__run_sequence"] == [0]
     assert any(kind == "formatted" and message.startswith("Stage 1") for kind, message in fake_st.messages)
@@ -4657,8 +4657,8 @@ def test_display_lab_tab_appends_custom_initial_runtime_label(monkeypatch, tmp_p
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
     )
-    env = SimpleNamespace(active_app=tmp_path / "flight_project", envars={}, app="flight_project")
+    env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_project", env, deps)
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert fake_st.session_state["demo_venv_0"] == custom_runtime

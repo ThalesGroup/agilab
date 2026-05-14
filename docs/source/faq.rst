@@ -7,7 +7,7 @@ Missing worker packages during `AGI.run_*`
 ------------------------------------------
 If a run fails with `ModuleNotFoundError` inside a worker virtual environment, rerun the
 matching installer script (for example ``uv run --project src/agilab/core/agi-cluster python
-src/agilab/examples/flight/AGI.install_flight.py``). The installer rebuilds the worker egg and
+src/agilab/examples/flight_telemetry/AGI_install_flight_telemetry.py``). The installer rebuilds the worker egg and
 provisions its environment so the next ``AGI.run_*`` picks up the dependencies.
 
 Why installers still build eggs
@@ -118,7 +118,7 @@ Do I need to run tests during install?
 No. The default installer path is intentionally fast and keeps tests opt-in.
 Use ``--test-root``, ``--test-apps``, or ``--test-core`` only when you want the
 installer to perform validation during setup. For a first proof, run the narrow
-``flight_project`` path first and add tests after it works once.
+``flight_telemetry_project`` path first and add tests after it works once.
 
 "VIRTUAL_ENV ... does not match the project environment" warning
 ----------------------------------------------------------------
@@ -154,7 +154,7 @@ in ``docs/source/`` from a clean checkout when the repository layout or surfaced
 `AGI.install_*` fails looking for ``pyproject.toml``
 ----------------------------------------------------
 Each worker must carry its own ``pyproject.toml`` (for example
-``src/agilab/apps/builtin/flight_project/src/flight_worker/pyproject.toml``). If the installer raises
+``src/agilab/apps/builtin/flight_telemetry_project/src/flight_worker/pyproject.toml``). If the installer raises
 ``FileNotFoundError`` for that path, add the file with the worker’s runtime
 dependencies—typically mirroring the manager’s requirements plus the appropriate
 ``dag-worker``/``polars-worker`` extra.
@@ -210,12 +210,12 @@ checks that:
 
 - the lightweight ``agi_env`` preinit smoke works
 - the main page boots
-- the ``ORCHESTRATE`` page boots against the built-in ``flight_project``
+- the ``ORCHESTRATE`` page boots against the built-in ``flight_telemetry_project``
 
 It does **not** replace the full first visible workflow proof. Passing
 ``tools/newcomer_first_proof.py`` means the source checkout and UI startup path
 are sane; you still need the normal first run in the web interface to produce
-fresh output under ``~/log/execute/flight/`` and complete the
+fresh output under ``~/log/execute/flight_telemetry/`` and complete the
 ``PROJECT -> ORCHESTRATE -> ANALYSIS`` story.
 
 It also does **not** prove the separate public full-tour demo
