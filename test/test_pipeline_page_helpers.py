@@ -295,44 +295,6 @@ def test_clear_dataframe_picker_selection_resets_page_and_picker_state(monkeypat
     assert session_state["df_file"] is None
 
 
-def test_filter_pipeline_dataframe_files_keeps_supported_sorted():
-    module = _load_pipeline_module()
-
-    files = [
-        Path("demo/notes.txt"),
-        Path("demo/b.JSONL"),
-        Path("demo/lab_steps.toml"),
-        Path("demo/a.csv"),
-        Path("demo/c.parquet"),
-    ]
-
-    assert module._filter_pipeline_dataframe_files(files) == [
-        Path("demo/a.csv"),
-        Path("demo/b.JSONL"),
-        Path("demo/c.parquet"),
-    ]
-    assert "*.csv" in module._PIPELINE_DATA_SOURCE_PATTERNS
-    assert "*" not in module._PIPELINE_DATA_SOURCE_PATTERNS
-
-
-def test_clear_dataframe_picker_selection_resets_page_and_picker_state(monkeypatch):
-    module = _load_pipeline_module()
-    session_state = {
-        "demodf": Path("demo/old.csv"),
-        "demodf_file": "/tmp/demo/old.csv",
-        "df_file": "/tmp/demo/old.csv",
-        "demo:dataframe_picker:selected_paths": ["/tmp/demo/old.csv"],
-    }
-    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=session_state))
-
-    module._clear_dataframe_picker_selection("demodf", picker_key="demo:dataframe_picker")
-
-    assert "demodf" not in session_state
-    assert "demodf_file" not in session_state
-    assert "demo:dataframe_picker:selected_paths" not in session_state
-    assert session_state["df_file"] is None
-
-
 def test_dataframe_picker_apply_hydrates_initial_picker_selection(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     session_state = {}

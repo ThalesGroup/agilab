@@ -5,8 +5,6 @@ import importlib.util
 from pathlib import Path
 import sys
 
-import pytest
-
 
 def _load_module():
     module_path = Path("src/agilab/pipeline_recipe_memory.py")

@@ -1386,7 +1386,7 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Data source")
-        base_choice = st.selectbox("Base directory", BASE_CHOICES, key=BASE_CHOICE_KEY)
+        st.selectbox("Base directory", BASE_CHOICES, key=BASE_CHOICE_KEY)
         st.text_input("Custom base directory", key=CUSTOM_BASE_KEY)
         st.text_input("Dataset subpath", key=SUBPATH_KEY)
         st.text_area(

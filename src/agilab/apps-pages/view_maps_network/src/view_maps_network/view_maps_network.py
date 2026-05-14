@@ -51,8 +51,6 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
             raise RuntimeError(
                 "Writing settings requires the 'tomli-w' or 'tomlkit' package"
             ) from _toml_exc
-from datetime import datetime
-import time
 from streamlit.runtime.scriptrunner import RerunException
 from typing import Any, Optional
 from agi_env.agi_logger import AgiLogger
@@ -88,7 +86,7 @@ _ensure_repo_on_path()
 
 from agi_env import AgiEnv
 import agi_gui.pagelib as pagelib
-from agi_gui.pagelib import find_files, render_logo
+from agi_gui.pagelib import render_logo
 
 
 def _resolve_active_app() -> Path:
@@ -2612,7 +2610,6 @@ def _selected_node_bearer_timeline(
         src = src_ids.get(idx, "")
         dst = dst_ids.get(idx, "")
         bearer_raw = bearer_raw_series.get(idx, "")
-        bearer_path = _bearer_path_label(bearer_raw)
         routed = bool(routed_series.get(idx, False))
         label = _canonical_bearer_state(bearer_raw, routed)
         if src in selected_nodes:
@@ -2954,8 +2951,6 @@ def create_network_graph(
             )
             legend_added = True
 
-    node_x = [pos[node][0] for node in G.nodes()]
-    node_y = [pos[node][1] for node in G.nodes()]
     unique_nodes = list(G.nodes())
     node_symbols: dict[Any, str] = {}
     for node in unique_nodes:
