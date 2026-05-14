@@ -68,6 +68,24 @@ The advanced profile installs every current built-in demo app, but it still
 avoids unrelated historical heavyweight pages that are not part of the current
 Advanced Proof Pack.
 
+## Profile Drift Guardrail
+
+Before every deploy, compare the profile app/page lists in
+`<apps-repo>/huggingface/hf_space_deploy.sh`, `README.md`,
+`README.advanced.md`, and `Dockerfile` with the actual public checkout:
+
+```bash
+find <agilab-checkout>/src/agilab/apps/builtin -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort
+find <agilab-checkout>/src/agilab/apps-pages -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort
+rg -n "flight_project|meteo_forecast_project|data_io_2026_project|view_uav_queue_analysis|view_uav_relay_queue_analysis" \
+  <apps-repo>/huggingface <agilab-checkout>/.claude/skills/agilab-huggingface-spaces <agilab-checkout>/.codex/skills/agilab-huggingface-spaces
+```
+
+If stale names appear, fix the sibling `huggingface` bundle first, then update
+this skill through `repo-skill-maintenance`. Do not deploy by adding aliases to
+paper over stale profile names; the Space profile should reference the current
+public app IDs directly.
+
 ## Runtime and Product Constraints
 
 Keep the skill aligned with the README contract:
@@ -153,6 +171,8 @@ Before touching the Space deployment, verify:
    - secret names
    - profile app/page lists
    - target repo content
+   - current public app IDs, especially `flight_telemetry_project` and
+     `weather_forecast_project`
 5. `src/agilab/apps` in the deploy source contains only public entries such as
    `builtin`, `templates`, `install.py`, and package metadata. If the working
    checkout has ignored private app symlinks, deploy from a temporary clean
@@ -228,6 +248,25 @@ raise SystemExit(1)
 PY
 ```
 
+After cutover, download the deployed files at the Space commit and verify that
+they match the intended release and profile:
+
+```bash
+space="<space-owner>/agilab"
+space_sha="<space-sha>"
+tmpdir=$(mktemp -d /tmp/agilab-hf-check.XXXXXX)
+hf download "$space" pyproject.toml README.md Dockerfile \
+  --repo-type space \
+  --revision "$space_sha" \
+  --local-dir "$tmpdir"
+rg -n '^version = |^name = ' "$tmpdir/pyproject.toml"
+rg -n 'flight_telemetry_project|weather_forecast_project|flight_project|meteo_forecast_project|AGILAB_HF_BUILTIN_APPS' \
+  "$tmpdir/README.md" "$tmpdir/Dockerfile"
+```
+
+Treat an old `pyproject.toml` version or old app IDs as a failed alignment, even
+if the live HTTP smoke passes.
+
 If the Space is stuck in `RUNNING_BUILDING` or `RUNNING_APP_STARTING`, inspect
 the relevant logs before making another upload:
 
@@ -267,9 +306,20 @@ uv --preview-features extra-build-dependencies run python tools/sync_docs_source
   --delete
 ```
 
+If the release tag changed, also refresh the canonical docs index release link
+before the mirror sync:
+
+```bash
+uv --preview-features extra-build-dependencies run python - <<'PY'
+from tools import pypi_publish
+pypi_publish.update_docs_index_release_link("v<release>")
+PY
+```
+
 Do not call the release fully synced until `runtime.stage` is `RUNNING`, the
 runtime SHA matches the uploaded Space SHA, `tools/hf_space_smoke.py --json`
-passes, and release proof records that Space SHA.
+passes, release proof records that Space SHA, the docs index points at the
+current release tag, and the published docs page contains the new Space commit.
 
 ## When Editing the Space Contract
 
