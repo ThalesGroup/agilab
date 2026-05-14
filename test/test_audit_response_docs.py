@@ -12,10 +12,12 @@ def _release_proof_manifest() -> dict:
 
 def test_architecture_five_minutes_page_exposes_layer_map() -> None:
     page = (DOCS_SOURCE / "architecture-five-minutes.rst").read_text(encoding="utf-8")
+    normalized_page = " ".join(page.split())
     index = (DOCS_SOURCE / "index.rst").read_text(encoding="utf-8")
 
     assert "Architecture in 5 minutes" in page
-    assert "reproducible AI/ML experimentation workbench for engineering teams" in page
+    assert "anti-lock-in reproducibility workbench" in page
+    assert "workflows can be exported back to runnable notebooks" in normalized_page
     assert "Streamlit UI, CLI wrappers, or notebook entry points" in page
     assert "AgiEnv: settings, project selection, app paths, logs, local workspace" in page
     assert "Dask back-plane and optional MLflow tracking" in page
@@ -156,7 +158,8 @@ def test_readme_uses_recommended_workbench_positioning() -> None:
         "For a zero-install browser preview", 1
     )[0]
 
-    assert "AGILAB is a reproducible AI/ML workbench for engineering teams." in readme
+    assert "AGILAB is an anti-lock-in reproducibility workbench" in readme
+    assert "you do not lose your work" in readme
     assert "AGILAB complements MLflow and production MLOps platforms." in readme
     assert "MLflow tracks experiments; AGILAB transforms notebooks and scripts" in readme
     assert "reproducible execution and analysis layer" in readme

@@ -3,6 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 
+def _compact(text: str) -> str:
+    return " ".join(text.split())
+
+
 def test_pipeline_docs_sell_runnable_supervisor_notebook_export() -> None:
     experiment_help = Path("docs/source/experiment-help.rst").read_text(encoding="utf-8")
 
@@ -27,6 +31,20 @@ def test_readme_leads_with_anti_lock_in_notebook_export_value() -> None:
     assert "exported back to a runnable notebook" in headline_window
     assert "you do not lose your work" in headline_window
     assert "runnable outside AGILAB as exported notebooks" in headline_window
+
+
+def test_docs_overview_leads_with_no_lock_in_notebook_export_value() -> None:
+    index = Path("docs/source/index.rst").read_text(encoding="utf-8")
+    architecture = Path("docs/source/architecture-five-minutes.rst").read_text(
+        encoding="utf-8"
+    )
+    compact_index = _compact(index)
+    compact_architecture = _compact(architecture)
+
+    assert "controlled AI/ML experimentation without lock-in" in compact_index
+    assert "export the work back to runnable notebooks" in compact_index
+    assert "anti-lock-in reproducibility workbench" in compact_architecture
+    assert "workflows can be exported back to runnable notebooks" in compact_architecture
 
 
 def test_agilab_help_mentions_pipeline_notebook_export() -> None:

@@ -1,6 +1,10 @@
 AGILab Documentation
 =====================
 
+AGILAB's core value is controlled AI/ML experimentation without lock-in:
+build workflows in the UI or API, keep reproducibility evidence, and export
+the work back to runnable notebooks when you need to reuse it outside AGILAB.
+
 If you are new to AGILab, choose one route first:
 
 - **See the UI now**: open :doc:`agilab-demo` for the public Hugging Face Space.
