@@ -23,6 +23,7 @@
 
 import sys
 import math
+import logging
 import numpy as np
 from pathlib import Path
 import pandas as pd
@@ -55,6 +56,8 @@ from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.pagelib import find_files, load_df, JumpToMain, update_datadir, _dump_toml_payload
 import tomllib as _toml
+
+logger = logging.getLogger(__name__)
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
@@ -432,7 +435,7 @@ def page(env):
     for file in st.session_state["csv_files"]:
         try:
             csv_files_rel.append(Path(file).relative_to(datadir).as_posix())
-        except Exception:
+        except (TypeError, ValueError):
             continue
     csv_files_rel = sorted(csv_files_rel)
     settings_file = st.session_state.get("df_file")
@@ -461,8 +464,8 @@ def page(env):
     cache_buster = None
     try:
         cache_buster = df_file_abs.stat().st_mtime_ns
-    except Exception:
-        pass
+    except OSError:
+        logger.debug("Unable to stat %s for dataframe cache busting", df_file_abs, exc_info=True)
     try:
         st.session_state["loaded_df"] = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
     except Exception as e:
@@ -496,7 +499,7 @@ def page(env):
             with open(settings_path, "wb") as fh:
                 _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
         except Exception:
-            pass
+            logger.warning("Unable to persist view_barycentric settings to %s", settings_path, exc_info=True)
 
 
     if "df_file" in st.session_state and st.session_state["df_file"]:
@@ -504,8 +507,8 @@ def page(env):
         cache_buster = None
         try:
             cache_buster = df_file_abs.stat().st_mtime_ns
-        except Exception:
-            pass
+        except OSError:
+            logger.debug("Unable to stat %s for dataframe cache busting", df_file_abs, exc_info=True)
         st.session_state["loaded_df"] = load_df(df_file_abs, cache_buster=cache_buster)
 
     if "loaded_df" in st.session_state:

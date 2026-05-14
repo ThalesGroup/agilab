@@ -111,7 +111,7 @@ class Polars(BaseWorker):
 
     def stop(self) -> None:
         if self.verbose > 0:
-            print("PolarsAppWorker All done!\n", end="")
+            logger.info("PolarsAppWorker finished")
         super().stop()
 
     def build_distribution(

@@ -47,10 +47,10 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
     except ImportError as _toml_exc:  # pragma: no cover - defensive guard
         _tomlkit_dumps = None  # type: ignore
 
-        def _dump_toml(data: dict, handle) -> None:
+        def _dump_toml(data: dict, handle, _exc: ImportError = _toml_exc) -> None:
             raise RuntimeError(
                 "Writing settings requires the 'tomli-w' or 'tomlkit' package"
-            ) from _toml_exc
+            ) from _exc
 from streamlit.runtime.scriptrunner import RerunException
 from typing import Any, Optional
 from agi_env.agi_logger import AgiLogger
@@ -269,6 +269,7 @@ _mapbox_secret = ""
 try:
     _mapbox_secret = st.secrets.get("MAPBOX_API_KEY", "")
 except Exception:
+    logger.debug("MAPBOX_API_KEY is not available from Streamlit secrets", exc_info=True)
     _mapbox_secret = ""
 MAPBOX_API_KEY = os.getenv("MAPBOX_API_KEY", "").strip() or str(_mapbox_secret).strip()
 TERRAIN_IMAGE = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
@@ -882,14 +883,14 @@ def _coerce_slider_value(options: list[Any], current: Any, *, prefer_last: bool 
         for value in options:
             try:
                 numeric_options.append((float(value), value))
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 numeric_options = []
                 break
         if numeric_options:
             _, nearest = min(numeric_options, key=lambda pair: abs(pair[0] - current_num))
             return nearest
-    except Exception:
-        pass
+    except (TypeError, ValueError, OverflowError):
+        logger.debug("Unable to coerce slider value %r as numeric", current, exc_info=True)
     # Fallback for datetime-like values.
     try:
         current_dt = pd.to_datetime(current, errors="coerce")
@@ -907,8 +908,8 @@ def _coerce_slider_value(options: list[Any], current: Any, *, prefer_last: bool 
                     key=lambda pair: abs((pair[0] - current_dt).total_seconds()),
                 )
                 return nearest
-    except Exception:
-        pass
+    except (TypeError, ValueError, OverflowError):
+        logger.debug("Unable to coerce slider value %r as datetime", current, exc_info=True)
     return default_value
 
 def _label_for_link(column: str) -> str:
@@ -996,7 +997,8 @@ def _quick_share_edges_paths(share_root: Path) -> list[Path]:
                 if entry.is_dir() and not entry.name.startswith(".")
             ]
         )
-    except Exception:
+    except (OSError, RuntimeError):
+        logger.debug("Unable to enumerate edge candidate roots under %s", share_root, exc_info=True)
         roots = [share_root]
     for root in roots:
         for rel in known_relative:
@@ -1004,7 +1006,8 @@ def _quick_share_edges_paths(share_root: Path) -> list[Path]:
             if p.exists() and p.is_file():
                 try:
                     resolved = p.resolve(strict=False)
-                except Exception:
+                except (OSError, RuntimeError):
+                    logger.debug("Unable to resolve edge candidate %s", p, exc_info=True)
                     resolved = p
                 if resolved in seen:
                     continue
@@ -1087,7 +1090,7 @@ def _choose_existing_declared_path(current_value: str, default_value: str, base_
         resolved = _resolve_declared_path(raw, base_dirs)
         try:
             path = Path(resolved).expanduser()
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             continue
         if path.exists():
             return str(path)
@@ -1109,7 +1112,7 @@ def _resolve_edges_file_path(value: str, base_dirs: list[Path]) -> Path | None:
     resolved = _resolve_declared_path(raw, base_dirs)
     try:
         return Path(resolved).expanduser()
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return None
 
 
@@ -1132,8 +1135,8 @@ def _candidate_cloudmap_paths(bases: list[Path], names: tuple[str, ...]) -> list
                 for entry in sorted(base.iterdir())
                 if entry.is_dir() and not entry.name.startswith(".")
             )
-        except Exception:
-            pass
+        except (OSError, RuntimeError):
+            logger.debug("Unable to enumerate cloud map candidates under %s", base, exc_info=True)
         for root in roots:
             for rel in relative_paths:
                 candidate = (root / rel).expanduser()
@@ -1141,7 +1144,8 @@ def _candidate_cloudmap_paths(bases: list[Path], names: tuple[str, ...]) -> list
                     continue
                 try:
                     resolved = candidate.resolve(strict=False)
-                except Exception:
+                except (OSError, RuntimeError):
+                    logger.debug("Unable to resolve cloud map candidate %s", candidate, exc_info=True)
                     resolved = candidate
                 if resolved in seen:
                     continue
@@ -1211,8 +1215,8 @@ def _normalize_node_id_value(value: Any) -> str:
         num = float(s)
         if np.isfinite(num) and np.isclose(num % 1, 0.0):
             return str(int(round(num)))
-    except Exception:
-        pass
+    except (TypeError, ValueError, OverflowError):
+        logger.debug("Node id %r is not an integer-like value", value, exc_info=True)
     return s
 
 
@@ -1459,7 +1463,7 @@ def _build_map_label_layers(
 def _coerce_numeric_float(value: Any) -> float | None:
     try:
         num = float(value)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return None
     if not np.isfinite(num):
         return None
@@ -1823,7 +1827,7 @@ def create_edges_geomap(df, link_column, current_positions, *, allowed_edge_pair
             if isinstance(val, str):
                 return ast.literal_eval(val)
             return val
-        except Exception:
+        except (ValueError, SyntaxError):
             return None
 
     df.loc[:, link_column] = df[link_column].apply(_parse_entry)
@@ -2024,7 +2028,7 @@ def parse_edges(column):
                 u = str(edge[0])
                 v = str(edge[1])
                 edges.append((u, v))
-            except Exception:
+            except (IndexError, TypeError, ValueError, RuntimeError):
                 continue
     return edges
 
@@ -2297,6 +2301,7 @@ def load_edges_file(path: Path) -> dict[str, list[tuple[int, int]]]:
             v = str(row[target_col])  # type: ignore[index]
             bearer_raw = str(row[bearer_col]).strip()  # type: ignore[index]
         except Exception:
+            logger.debug("Skipping malformed edge row in %s", path, exc_info=True)
             continue
         if not u or not v or not bearer_raw:
             continue
@@ -3134,7 +3139,7 @@ def extract_metrics(df: pd.DataFrame, metric_column: str) -> dict[str, list[floa
                 for val in values:
                     try:
                         fval = float(val)
-                    except Exception:
+                    except (TypeError, ValueError, OverflowError):
                         continue
                     if np.isfinite(fval):
                         cleaned.append(fval)
@@ -3143,7 +3148,7 @@ def extract_metrics(df: pd.DataFrame, metric_column: str) -> dict[str, list[floa
             else:
                 try:
                     fval = float(values)
-                except Exception:
+                except (TypeError, ValueError, OverflowError):
                     continue
                 if np.isfinite(fval):
                     metrics.setdefault(str(link_type), []).append(fval)
@@ -3516,8 +3521,8 @@ def page():
             cache_buster = None
             try:
                 cache_buster = abs_path.stat().st_mtime
-            except Exception:  # pragma: no cover - best-effort cache buster only
-                pass
+            except OSError:  # pragma: no cover - best-effort cache buster only
+                logger.debug("Unable to stat %s for dataframe cache busting", abs_path, exc_info=True)
             try:
                 loaded = pagelib.load_df(abs_path, with_index=True, cache_buster=cache_buster)
             except Exception as exc:

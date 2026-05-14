@@ -9,7 +9,7 @@ from polars_app import PolarsAppArgs as ArgsModel
 def _get_env():
     try:
         return st.session_state["_env"]
-    except Exception:
+    except KeyError:
         return None
 
 

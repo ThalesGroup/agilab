@@ -14,6 +14,7 @@
 import os
 import sys
 import importlib
+import logging
 from math import sqrt, cos, sin, ceil, pi
 import numpy as np
 from pathlib import Path
@@ -42,6 +43,8 @@ from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
 from agi_gui.pagelib import load_df, sidebar_views, initialize_csv_files, _dump_toml_payload
 import tomllib as _toml
+
+logger = logging.getLogger(__name__)
 
 var = ["discrete", "continuous", "lat", "long"]
 var_default = [0, None]
@@ -453,7 +456,8 @@ def page(env):
     try:
         with open(settings_path, "rb") as fh:
             persisted = _toml.load(fh)
-    except Exception:
+    except (OSError, _toml.TOMLDecodeError):
+        logger.debug("Unable to load view_autoencoder_latentspace settings from %s", settings_path, exc_info=True)
         persisted = {}
     raw_view_settings = persisted.get("view_autoencoder_latentspace", {}) if isinstance(persisted, dict) else {}
     view_settings = raw_view_settings if isinstance(raw_view_settings, dict) else {}
@@ -470,8 +474,8 @@ def page(env):
     cache_buster = None
     try:
         cache_buster = df_file_abs.stat().st_mtime_ns
-    except Exception:
-        pass
+    except OSError:
+        logger.debug("Unable to stat %s for dataframe cache busting", df_file_abs, exc_info=True)
     try:
         st.session_state["data"] = load_df(df_file_abs, cache_buster=cache_buster)
     except FileNotFoundError:
@@ -559,7 +563,11 @@ def page(env):
             with open(settings_path, "wb") as fh:
                 _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
         except Exception:
-            pass
+            logger.warning(
+                "Unable to persist view_autoencoder_latentspace settings to %s",
+                settings_path,
+                exc_info=True,
+            )
 
 
 # -------------------- Main Application Entry -------------------- #

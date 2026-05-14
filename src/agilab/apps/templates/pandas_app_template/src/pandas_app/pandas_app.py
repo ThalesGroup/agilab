@@ -112,7 +112,7 @@ class PandasApp(BaseWorker):
 
     def stop(self) -> None:
         if self.verbose > 0:
-            print("PandasAppWorker All done!\n", end="")
+            logger.info("PandasAppWorker finished")
         super().stop()
 
     def build_distribution(

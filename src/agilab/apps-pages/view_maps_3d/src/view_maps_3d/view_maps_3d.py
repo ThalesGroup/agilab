@@ -109,7 +109,7 @@ def _list_dataset_files(base_dir: Path, ext_choice: str = "all") -> list[Path]:
     def _relative_key(file: Path) -> str:
         try:
             return file.relative_to(base_dir).as_posix()
-        except Exception:
+        except (TypeError, ValueError):
             return file.as_posix()
 
     sort_key = (
@@ -124,7 +124,7 @@ def _list_dataset_files(base_dir: Path, ext_choice: str = "all") -> list[Path]:
     for _, file in sorted(candidates, key=sort_key):
         try:
             parts = file.relative_to(base_dir).parts
-        except Exception:
+        except (TypeError, ValueError):
             parts = file.parts
         if any(part.startswith(".") for part in parts):
             continue
@@ -181,6 +181,7 @@ def _bootstrap_env_from_active_app() -> bool:
                 verbose=1,
             )
         except Exception:
+            logger.debug("Unable to initialize fallback AGILAB environment from %s", candidate, exc_info=True)
             continue
         env.init_done = True
         st.session_state["env"] = env
@@ -246,7 +247,7 @@ def initialize_csv_files():
         for f in files:
             try:
                 parts = f.relative_to(datadir).parts
-            except Exception:
+            except (TypeError, ValueError):
                 parts = f.parts
             if any(part.startswith(".") for part in parts):
                 continue
@@ -273,7 +274,7 @@ def initialize_beam_files():
         for f in files:
             try:
                 parts = f.relative_to(st.session_state.beamdir).parts
-            except Exception:
+            except (TypeError, ValueError):
                 parts = f.parts
             if any(part.startswith(".") for part in parts):
                 continue
@@ -568,7 +569,8 @@ def page():
     try:
         with open(settings_path, "rb") as fh:
             persisted = _toml.load(fh)
-    except Exception:
+    except (OSError, _toml.TOMLDecodeError):
+        logger.debug("Unable to load view_maps_3d settings from %s", settings_path, exc_info=True)
         persisted = {}
     view_settings = persisted.get("view_maps_3d", {}) if isinstance(persisted, dict) else {}
     if not isinstance(view_settings, dict):
@@ -645,7 +647,7 @@ def page():
     for file in dataset_files:
         try:
             rel_path = Path(file).relative_to(datadir)
-        except Exception:
+        except (TypeError, ValueError):
             continue
         if any(part.startswith(".") for part in rel_path.parts):
             continue
@@ -794,7 +796,7 @@ def page():
             for f in files:
                 try:
                     parts = f.relative_to(beamdir).parts
-                except Exception:
+                except (TypeError, ValueError):
                     parts = f.parts
                 if any(part.startswith(".") for part in parts):
                     continue
@@ -842,8 +844,8 @@ def page():
             cache_buster = None
             try:
                 cache_buster = beam_file_abs.stat().st_mtime_ns
-            except Exception:
-                pass
+            except OSError:
+                logger.debug("Unable to stat %s for beam cache busting", beam_file_abs, exc_info=True)
             st.session_state["dfs_beams"][beam_file] = load_df(
                 beam_file_abs, with_index=False, cache_buster=cache_buster
             )
@@ -855,8 +857,8 @@ def page():
         cache_buster = None
         try:
             cache_buster = df_file_abs.stat().st_mtime_ns
-        except Exception:
-            pass
+        except OSError:
+            logger.debug("Unable to stat %s for dataframe cache busting", df_file_abs, exc_info=True)
         try:
             df_loaded = load_df(df_file_abs, with_index=True, cache_buster=cache_buster)
         except Exception as exc:
@@ -912,7 +914,7 @@ def page():
             with open(settings_path, "wb") as fh:
                 _dump_toml_payload(prepare_app_settings_for_write(persisted), fh)
         except Exception:
-            pass
+            logger.warning("Unable to persist view_maps_3d settings to %s", settings_path, exc_info=True)
 
     # Create a button styled link to open geojson.io with Streamlit-like customization
     st.sidebar.markdown(
@@ -998,7 +1000,7 @@ def page():
             line_limit_key = _vm3d_key("table_max_rows")
             try:
                 table_max_rows = int(st.session_state.TABLE_MAX_ROWS)
-            except Exception:
+            except (TypeError, ValueError, OverflowError):
                 table_max_rows = nrows
             default_line_limit = min(max(min_lines, table_max_rows), nrows)
             if st.session_state.get(line_limit_key) is None:
@@ -1006,7 +1008,7 @@ def page():
             else:
                 try:
                     current_limit = int(st.session_state[line_limit_key])
-                except Exception:
+                except (TypeError, ValueError, OverflowError):
                     current_limit = default_line_limit
                 st.session_state[line_limit_key] = min(max(min_lines, current_limit), nrows)
             lines = st.slider(
