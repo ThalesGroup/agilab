@@ -122,6 +122,19 @@ Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
   queue buildup, relay choice, drops, topology, and trajectories are visible
   from the same run artifacts.
 
+  The source-checkout proof can be regenerated without the UI by running the
+  real UAV queue worker twice and packaging the result through the same
+  Scenario Cockpit evidence helpers:
+
+  .. code-block:: bash
+
+     uv --preview-features extra-build-dependencies run python tools/scenario_cockpit_evidence.py --output-dir build/scenario-cockpit-proof --clean --write-doc-sample docs/source/data/scenario_cockpit_uav_queue_sample.json
+
+  The checked-in sample records a ``promotable`` queue-aware candidate against
+  the shortest-path baseline, 24 hashed artifacts, and zero missing peer
+  artifacts. It is source-checkout evidence for the proof route; it is not a
+  broader simulator certification.
+
 **Operator lane**
   ``service_mode`` preview and :doc:`service-health-schema`. Stop when the
   lifecycle and health thresholds are explicit. Do not claim production service

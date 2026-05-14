@@ -5,11 +5,8 @@
 from __future__ import annotations
 
 import argparse
-from datetime import UTC, datetime
-import hashlib
 import importlib.util
 import json
-import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -43,20 +40,6 @@ CANDIDATE_RUN_KEY = "scenario_cockpit_candidate_run"
 DATA_DIR_KEY = "scenario_cockpit_datadir"
 SUMMARY_GLOB_KEY = "scenario_cockpit_summary_glob"
 
-EVIDENCE_SCHEMA = "agilab.scenario_evidence_bundle.v1"
-PEER_ARTIFACT_SUFFIXES = (
-    "queue_timeseries",
-    "packet_events",
-    "node_positions",
-    "routing_summary",
-)
-PIPELINE_ARTIFACTS = (
-    "pipeline/topology.gml",
-    "pipeline/allocations_steps.csv",
-    "pipeline/_trajectory_summary.json",
-)
-
-
 def _load_page_meta() -> tuple[str, str]:
     if __package__:
         from .page_meta import PAGE_LOGO, PAGE_TITLE
@@ -70,6 +53,24 @@ def _load_page_meta() -> tuple[str, str]:
     _meta_module = importlib.util.module_from_spec(_meta_spec)
     _meta_spec.loader.exec_module(_meta_module)
     return _meta_module.PAGE_LOGO, _meta_module.PAGE_TITLE
+
+
+def _load_evidence_helpers():
+    if __package__:
+        from . import evidence
+
+        return evidence
+
+    _evidence_path = Path(__file__).with_name("evidence.py")
+    _evidence_spec = importlib.util.spec_from_file_location(
+        "view_scenario_cockpit_evidence",
+        _evidence_path,
+    )
+    if _evidence_spec is None or _evidence_spec.loader is None:  # pragma: no cover - defensive fallback
+        raise RuntimeError(f"Unable to load evidence helpers from {_evidence_path}")
+    _evidence_module = importlib.util.module_from_spec(_evidence_spec)
+    _evidence_spec.loader.exec_module(_evidence_module)
+    return _evidence_module
 
 
 PAGE_LOGO, PAGE_TITLE = _load_page_meta()
@@ -90,29 +91,6 @@ def _default_artifact_root(env: AgiEnv) -> Path:
     return Path(env.AGILAB_EXPORT_ABS) / env.target / "queue_analysis"
 
 
-def _discover_files(base: Path, pattern: str) -> list[Path]:
-    try:
-        return sorted([path for path in base.glob(pattern) if path.is_file()], key=lambda p: p.as_posix())
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return []
-
-
-def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _peer_file(path: Path, suffix: str) -> Path:
-    stem = path.name.removesuffix("_summary_metrics.json")
-    return path.with_name(f"{stem}_{suffix}.csv")
-
-
-def _relative_label(path: Path, artifact_root: Path) -> str:
-    try:
-        return str(path.relative_to(artifact_root))
-    except (RuntimeError, TypeError, ValueError):
-        return path.name
-
-
 def _coerce_selection(saved_value: Any, options: list[str], *, fallback: list[str] | None = None) -> list[str]:
     if isinstance(saved_value, str):
         candidates = [saved_value]
@@ -128,82 +106,6 @@ def _coerce_selection(saved_value: Any, options: list[str], *, fallback: list[st
     return options[-2:] if len(options) >= 2 else options[-1:]
 
 
-def _scenario_row(summary_path: Path, artifact_root: Path) -> dict[str, Any]:
-    summary = _load_json(summary_path)
-    return {
-        "run_label": _relative_label(summary_path, artifact_root),
-        "scenario": summary.get("scenario", ""),
-        "routing_policy": summary.get("routing_policy", ""),
-        "bond_mode": summary.get("bond_mode", "single"),
-        "source_rate_pps": summary.get("source_rate_pps"),
-        "random_seed": summary.get("random_seed"),
-        "pdr": summary.get("pdr"),
-        "mean_e2e_delay_ms": summary.get("mean_e2e_delay_ms"),
-        "mean_queue_wait_ms": summary.get("mean_queue_wait_ms"),
-        "max_queue_depth_pkts": summary.get("max_queue_depth_pkts"),
-        "bottleneck_relay": summary.get("bottleneck_relay", ""),
-        "summary_path": str(summary_path),
-    }
-
-
-def _build_comparison_frame(selected_paths: dict[str, Path], artifact_root: Path, baseline_label: str) -> pd.DataFrame:
-    rows = [_scenario_row(path, artifact_root) for path in selected_paths.values()]
-    if not rows:
-        return pd.DataFrame()
-    comparison_df = pd.DataFrame(rows)
-    numeric_columns = [
-        "source_rate_pps",
-        "random_seed",
-        "pdr",
-        "mean_e2e_delay_ms",
-        "mean_queue_wait_ms",
-        "max_queue_depth_pkts",
-    ]
-    for column in numeric_columns:
-        comparison_df[column] = pd.to_numeric(comparison_df[column], errors="coerce")
-    if baseline_label in comparison_df["run_label"].values:
-        baseline_row = comparison_df.loc[comparison_df["run_label"] == baseline_label].iloc[0]
-        comparison_df["delta_pdr_vs_baseline"] = comparison_df["pdr"] - baseline_row["pdr"]
-        comparison_df["delta_delay_ms_vs_baseline"] = (
-            comparison_df["mean_e2e_delay_ms"] - baseline_row["mean_e2e_delay_ms"]
-        )
-        comparison_df["delta_queue_wait_ms_vs_baseline"] = (
-            comparison_df["mean_queue_wait_ms"] - baseline_row["mean_queue_wait_ms"]
-        )
-        comparison_df["delta_max_queue_vs_baseline"] = (
-            comparison_df["max_queue_depth_pkts"] - baseline_row["max_queue_depth_pkts"]
-        )
-    ordered_columns = [
-        "run_label",
-        "scenario",
-        "routing_policy",
-        "bond_mode",
-        "source_rate_pps",
-        "random_seed",
-        "pdr",
-        "mean_e2e_delay_ms",
-        "mean_queue_wait_ms",
-        "max_queue_depth_pkts",
-        "bottleneck_relay",
-        "delta_pdr_vs_baseline",
-        "delta_delay_ms_vs_baseline",
-        "delta_queue_wait_ms_vs_baseline",
-        "delta_max_queue_vs_baseline",
-        "summary_path",
-    ]
-    return comparison_df[[column for column in ordered_columns if column in comparison_df.columns]]
-
-
-def _safe_float(value: Any) -> float | None:
-    try:
-        numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    if math.isnan(numeric) or math.isinf(numeric):
-        return None
-    return numeric
-
-
 def _safe_metric(value: Any) -> str:
     numeric = _safe_float(value)
     if numeric is None:
@@ -211,115 +113,23 @@ def _safe_metric(value: Any) -> str:
     return f"{numeric:.3f}"
 
 
-def _json_safe(value: Any) -> Any:
-    if isinstance(value, Path):
-        return str(value)
-    if isinstance(value, dict):
-        return {str(key): _json_safe(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_json_safe(item) for item in value]
-    if pd.isna(value):
-        return None
-    if isinstance(value, (bool, int, float, str)) or value is None:
-        return value
-    return str(value)
-
-
-def _hash_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _artifact_record(path: Path, artifact_root: Path) -> dict[str, Any]:
-    record: dict[str, Any] = {
-        "path": str(path),
-        "relative_path": _relative_label(path, artifact_root),
-        "exists": path.is_file(),
-    }
-    if path.is_file():
-        record["sha256"] = _hash_file(path)
-        record["bytes"] = path.stat().st_size
-    return record
-
-
-def _evidence_artifacts(summary_path: Path, artifact_root: Path) -> list[dict[str, Any]]:
-    run_dir = summary_path.parent
-    artifact_paths = [summary_path]
-    artifact_paths.extend(_peer_file(summary_path, suffix) for suffix in PEER_ARTIFACT_SUFFIXES)
-    artifact_paths.extend(run_dir / relative for relative in PIPELINE_ARTIFACTS)
-    for trajectory in _discover_files(run_dir / "pipeline", "*_trajectory*.csv"):
-        if trajectory not in artifact_paths:
-            artifact_paths.append(trajectory)
-    return [_artifact_record(path, artifact_root) for path in artifact_paths]
-
-
-def _candidate_gate(comparison_df: pd.DataFrame, candidate_label: str) -> dict[str, Any]:
-    if comparison_df.empty or candidate_label not in set(comparison_df.get("run_label", [])):
-        return {
-            "candidate": candidate_label,
-            "status": "missing-candidate",
-            "checks": [],
-        }
-    candidate = comparison_df.loc[comparison_df["run_label"] == candidate_label].iloc[0]
-    check_specs = [
-        ("pdr_not_lower", candidate.get("delta_pdr_vs_baseline"), "greater_or_equal"),
-        ("delay_not_higher", candidate.get("delta_delay_ms_vs_baseline"), "less_or_equal"),
-        ("queue_wait_not_higher", candidate.get("delta_queue_wait_ms_vs_baseline"), "less_or_equal"),
-        ("max_queue_not_higher", candidate.get("delta_max_queue_vs_baseline"), "less_or_equal"),
-    ]
-    checks: list[dict[str, Any]] = []
-    for name, raw_value, direction in check_specs:
-        value = _safe_float(raw_value)
-        if value is None:
-            passed = False
-        elif direction == "greater_or_equal":
-            passed = value >= 0
-        else:
-            passed = value <= 0
-        checks.append(
-            {
-                "name": name,
-                "delta": value,
-                "direction": direction,
-                "passed": passed,
-            }
-        )
-    status = "promotable" if checks and all(check["passed"] for check in checks) else "needs-review"
-    return {
-        "candidate": candidate_label,
-        "status": status,
-        "checks": checks,
-    }
-
-
-def _build_evidence_bundle(
-    *,
-    selected_paths: dict[str, Path],
-    artifact_root: Path,
-    comparison_df: pd.DataFrame,
-    baseline_label: str,
-    candidate_label: str,
-) -> dict[str, Any]:
-    artifacts: list[dict[str, Any]] = []
-    for path in selected_paths.values():
-        artifacts.extend(_evidence_artifacts(path, artifact_root))
-    selected_runs = comparison_df.drop(columns=["summary_path"], errors="ignore").to_dict(orient="records")
-    return _json_safe(
-        {
-            "schema": EVIDENCE_SCHEMA,
-            "generated_at": datetime.now(UTC).isoformat(),
-            "source_page": "view_scenario_cockpit",
-            "artifact_root": str(artifact_root),
-            "baseline_run": baseline_label,
-            "candidate_run": candidate_label,
-            "gate": _candidate_gate(comparison_df, candidate_label),
-            "selected_runs": selected_runs,
-            "artifacts": artifacts,
-        }
-    )
+_evidence_helpers = _load_evidence_helpers()
+EVIDENCE_SCHEMA = _evidence_helpers.EVIDENCE_SCHEMA
+PEER_ARTIFACT_SUFFIXES = _evidence_helpers.PEER_ARTIFACT_SUFFIXES
+PIPELINE_ARTIFACTS = _evidence_helpers.PIPELINE_ARTIFACTS
+_discover_files = _evidence_helpers.discover_files
+_load_json = _evidence_helpers.load_json
+_peer_file = _evidence_helpers.peer_file
+_relative_label = _evidence_helpers.relative_label
+_scenario_row = _evidence_helpers.scenario_row
+_build_comparison_frame = _evidence_helpers.build_comparison_frame
+_safe_float = _evidence_helpers.safe_float
+_json_safe = _evidence_helpers.json_safe
+_hash_file = _evidence_helpers.hash_file
+_artifact_record = _evidence_helpers.artifact_record
+_evidence_artifacts = _evidence_helpers.evidence_artifacts
+_candidate_gate = _evidence_helpers.candidate_gate
+_build_evidence_bundle = _evidence_helpers.build_evidence_bundle
 
 
 st.set_page_config(layout="wide")
