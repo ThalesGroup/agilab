@@ -75,18 +75,59 @@ def test_secret_and_vault_uri_resolution_use_explicit_resolvers() -> None:
 def test_secret_uri_helpers_fail_closed_for_plain_or_unsupported_values() -> None:
     module = _load_module()
     assert module.is_secret_uri("env://TOKEN")
+    assert not module.is_secret_uri(None)
     assert module.is_env_ref("env:TOKEN")
+    assert not module.is_env_ref(None)
     assert module.credential_env_name("env://TOKEN") == "TOKEN"
     assert module.credential_env_name("env:TOKEN") == "TOKEN"
+    assert module.credential_env_name("env://1INVALID") == ""
+    assert module.credential_env_name("env:1INVALID") == ""
     assert module.is_credential_ref("secret://agilab/token")
+    assert module.is_credential_ref("env:TOKEN")
+    assert not module.is_credential_ref("env://1INVALID")
     assert not module.is_credential_ref("TOKEN=abc")
 
     with pytest.raises(module.SecretUriError, match="secret reference must use"):
         module.resolve_secret_uri("plain-secret")
     with pytest.raises(module.SecretUriError, match="unsupported secret URI scheme"):
         module.resolve_secret_uri("aws-sm://prod/key")
+    with pytest.raises(module.SecretUriError, match="invalid environment secret reference"):
+        module.parse_secret_uri("env://1INVALID")
+    with pytest.raises(module.SecretUriError, match="secret:// references must use"):
+        module.parse_secret_uri("secret://agilab")
+    with pytest.raises(module.SecretUriError, match="vault:// references must include"):
+        module.parse_secret_uri("vault://")
     with pytest.raises(module.SecretUriError, match="vault:// requires"):
         module.resolve_secret_uri("vault://kv/agilab#token")
+
+
+def test_secret_uri_resolvers_fail_when_reference_is_unset() -> None:
+    module = _load_module()
+
+    with pytest.raises(module.SecretUriError) as secret_exc:
+        module.resolve_secret_uri(
+            "secret://agilab/openai",
+            keyring_getter=lambda _service, _account: None,
+        )
+    with pytest.raises(module.SecretUriError) as vault_exc:
+        module.resolve_secret_uri(
+            "vault://kv/agilab#OPENAI_API_KEY",
+            vault_resolver=lambda _name: None,
+        )
+
+    assert "secret://agilab/openai" in str(secret_exc.value)
+    assert "vault://kv/agilab#OPENAI_API_KEY" in str(vault_exc.value)
+
+
+def test_vault_uri_without_fragment_keeps_non_secret_display_metadata() -> None:
+    module = _load_module()
+
+    parsed = module.parse_secret_uri("vault://kv/agilab/openai")
+
+    assert parsed.scheme == "vault"
+    assert parsed.name == "kv/agilab/openai"
+    assert parsed.display == "vault://kv/agilab/openai"
+    assert "openai-secret-value" not in repr(parsed)
 
 
 def test_redaction_helpers_remove_secret_values_and_secret_refs() -> None:
