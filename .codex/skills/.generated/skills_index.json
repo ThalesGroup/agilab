@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-13T17:03:49Z",
+  "generated_at_utc": "2026-05-14T14:33:36Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -127,7 +127,7 @@
       "name": "notebook-to-agilab-project",
       "description": "Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-13",
+      "updated": "2026-05-14",
       "path": ".codex/skills/notebook-to-agilab-project/SKILL.md",
       "body_preview": "# Notebook To AGILAB Project\nUse this skill when the source material is a small set of local notebooks and the\ngoal is to turn them into an AGILAB-style workflow rather than keep a notebook-only\ndelivery."
     },
