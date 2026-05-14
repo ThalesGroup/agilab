@@ -63,9 +63,11 @@ Main Content Area
   ``benchmark.json``, which is summarised under ``Benchmark results``.
 - ``Notebook`` exports the current ORCHESTRATE recipe as ``<app>_orchestrate.ipynb``.
   It includes the generated ``INSTALL``, ``CHECK distribute``, and ``RUN``
-  snippets that are available for the active configuration. It is export-only:
-  notebook import remains in :doc:`experiment-help` because import changes
-  ``lab_stages.toml`` and therefore belongs to the pipeline definition workflow.
+  snippets that are available for the active configuration. Use it when you want
+  a review, handoff, or no-lock-in copy of the orchestration work that remains
+  useful outside the AGILAB UI. It is export-only: notebook import remains in
+  :doc:`experiment-help` because import changes ``lab_stages.toml`` and
+  therefore belongs to the pipeline definition workflow.
 - ``Service mode (persistent workers)`` keeps long-lived worker loops alive and
   lets you trigger ``START/STATUS/HEALTH gate/STOP`` without rebuilding the execution
   context every time.
@@ -222,7 +224,8 @@ For a first pass through the UI, follow this sequence exactly:
    confirm the work plan matches the selected workers.
 4. Open ``Run`` and copy or export the generated ``AGI.run`` snippet.
 5. Optionally open ``Notebook`` to download the current orchestration recipe as
-   a runnable notebook for review or handoff.
+   a runnable notebook for review, handoff, or reuse if AGILAB is no longer the
+   runtime you want to keep.
 6. In :doc:`experiment-help`, import or regenerate that snippet as a WORKFLOW
    stage instead of retyping it.
 
