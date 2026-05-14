@@ -106,6 +106,8 @@ def test_environment_docs_scope_local_secret_persistence() -> None:
     assert "$HOME/.agilab/.env" in environment
     assert "local plaintext developer convenience" in environment
     assert "not a shared secret manager" in environment
+    assert "AGILAB_GENERATED_CODE_PROCESS_LIMITS" in environment
+    assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in environment
 
 
 def test_security_policy_addresses_public_audit_adoption_boundaries() -> None:
@@ -120,8 +122,11 @@ def test_security_policy_addresses_public_audit_adoption_boundaries() -> None:
     assert "production ML serving" in security
     assert "APPS_REPOSITORY" in security
     assert "explicit allowlist" in security
+    assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in security
     assert "commit SHA or immutable tag" in security
     assert "reject floating branches" in security
+    assert "AGILAB_GENERATED_CODE_PROCESS_LIMITS=1" in security
+    assert "tools/pypi_provenance_check.py" in security
     assert "CycloneDX SBOM" in security
     assert "pip-audit" in security
     assert "actual install profile" in security
@@ -135,10 +140,13 @@ def test_quick_start_documents_security_adoption_checkpoint() -> None:
     beta_readiness = (DOCS_SOURCE / "beta-readiness.rst").read_text(encoding="utf-8")
 
     assert "Shared or team adoption check" in quick_start
-    assert "agilab security-check --json > security-check.json" in quick_start
+    assert "agilab security-check --profile shared --json > security-check.json" in quick_start
+    assert "shared``, ``cluster``, and ``public-ui``" in quick_start
+    assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in quick_start
     assert "workflow_parity.py --profile security-adoption" in quick_start
     assert "AGILAB_SECURITY_CHECK_STRICT=1" in quick_start
     assert "test-results/security-check.json" in beta_readiness
+    assert "using the ``shared`` adoption profile" in beta_readiness
     assert "AGILAB_SECURITY_CHECK_STRICT=1" in beta_readiness
 
 
@@ -197,6 +205,8 @@ def test_package_publishing_policy_addresses_common_audit_misreads() -> None:
     assert "It is not a\nleftover from an incomplete packaging migration." in policy
     assert "Real PyPI publication must use GitHub OIDC Trusted Publishing" in policy
     assert "Long-lived PyPI\nAPI tokens are not part of the normal release path" in policy
+    assert "tools/pypi_provenance_check.py" in policy
+    assert "Trusted\nPublishing attestation" in policy
     assert "package-publishing-policy.html" in readme
 
 

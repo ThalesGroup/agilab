@@ -313,15 +313,19 @@ Shared or team adoption check
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Before moving from a single-user proof to a shared team workstation, internal
-cluster, or external apps repository, archive an advisory security-check report::
+cluster, public UI, or external apps repository, archive a profile-specific
+security-check report::
 
-    uv --preview-features extra-build-dependencies run agilab security-check --json > security-check.json
+    uv --preview-features extra-build-dependencies run agilab security-check --profile shared --json > security-check.json
 
-The report checks local adoption risks such as floating ``APPS_REPOSITORY``
-checkouts, likely plaintext secrets in ``~/.agilab/.env``, public UI bind
-addresses, cluster-share isolation, optional local-model profiles, and missing
-SBOM / ``pip-audit`` evidence. It is advisory by default so first proof and
-local experimentation stay fast.
+The default ``local`` profile stays advisory so first proof and local
+experimentation stay fast. The ``shared``, ``cluster``, and ``public-ui``
+profiles promote deployment-boundary issues to failures so ``--strict`` can be
+used as a real gate. The report checks floating or unallowlisted
+``APPS_REPOSITORY`` checkouts, likely plaintext secrets in
+``~/.agilab/.env``, public UI bind addresses, cluster-share isolation,
+generated-code execution boundaries, optional local-model profiles, and missing
+SBOM / ``pip-audit`` evidence.
 
 To generate per-profile scan evidence instead of a single generic artifact::
 
@@ -341,6 +345,10 @@ fail the job::
 
     AGILAB_SECURITY_CHECK_STRICT=1 \
     uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile security-adoption
+
+External app repositories must be pinned and allowlisted before shared use.
+Set ``AGILAB_APPS_REPOSITORY_ALLOWLIST`` to the exact reviewed origin URL, or
+set ``AGILAB_APPS_REPOSITORY_ALLOWLIST_FILE`` to a newline-separated allowlist.
 
 Clean source-validation runs should keep their disposable checkout and fake
 ``HOME`` outside the normal home directory. Use a cache-backed workspace so

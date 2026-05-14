@@ -135,11 +135,46 @@ def test_apps_repository_check_reports_missing_file_nongit_and_pinned_checkout(t
     assert pinned_check.details["head_state"] == "detached"
 
 
+def test_shared_profile_requires_apps_repository_origin_allowlist(tmp_path: Path):
+    apps = tmp_path / "apps"
+    git_dir = apps / ".git"
+    git_dir.mkdir(parents=True)
+    origin = "https://github.com/ThalesGroup/agilab-apps"
+    (git_dir / "HEAD").write_text("0123456789abcdef0123456789abcdef01234567\n", encoding="utf-8")
+    (git_dir / "config").write_text(
+        f'[remote "origin"]\n    url = {origin}\n',
+        encoding="utf-8",
+    )
+
+    missing_allowlist = security_check._check_apps_repository(
+        {"APPS_REPOSITORY": str(apps)},
+        cwd=tmp_path,
+        profile="shared",
+    )
+    assert missing_allowlist.status == "fail"
+    assert "allowlist" in missing_allowlist.summary
+
+    allowlisted = security_check._check_apps_repository(
+        {
+            "APPS_REPOSITORY": str(apps),
+            "AGILAB_APPS_REPOSITORY_ALLOWLIST": origin,
+        },
+        cwd=tmp_path,
+        profile="shared",
+    )
+    assert allowlisted.status == "pass"
+    assert allowlisted.details["allowlist_configured"] is True
+
+
 def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
+    cluster_share = tmp_path / "clustershare"
+    local_share = tmp_path / "localshare"
+    cluster_share.mkdir()
+    local_share.mkdir()
     cluster_check = security_check._check_cluster_share(
         {
-            "AGI_CLUSTER_SHARE": "not-yet-mounted-share",
-            "AGI_LOCAL_SHARE": "localshare",
+            "AGI_CLUSTER_SHARE": str(cluster_share),
+            "AGI_LOCAL_SHARE": str(local_share),
             "AGI_SCHEDULER_IP": "192.168.20.111",
             "AGI_WORKERS": "192.168.20.15",
         },
@@ -147,14 +182,14 @@ def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
     )
 
     assert cluster_check.status == "pass"
-    assert cluster_check.details["cluster_share"].endswith("not-yet-mounted-share")
+    assert cluster_check.details["cluster_share"] == str(cluster_share)
 
     streamlit_config = tmp_path / ".streamlit" / "config.toml"
     streamlit_config.parent.mkdir()
     streamlit_config.write_text("[server]\naddress = '0.0.0.0'\n", encoding="utf-8")
 
     exposure_check = security_check._check_ui_exposure(
-        {"AGILAB_AUTH_REQUIRED": "yes"},
+        {"AGILAB_PUBLIC_BIND_OK": "1", "AGILAB_AUTH_REQUIRED": "yes"},
         home=tmp_path,
     )
 
@@ -188,7 +223,7 @@ def test_optional_profiles_ignore_nonlocal_provider_and_print_text_skips_bad_che
     )
 
     output = capsys.readouterr().out
-    assert "AGILAB security-check: WARN (1 warning(s))" in output
+    assert "AGILAB security-check: WARN (1 warning(s), 0 failure(s), profile=local)" in output
     assert "Synthetic warning" in output
     assert "not-a-check" not in output
 
@@ -338,6 +373,28 @@ def test_build_report_accepts_generated_code_sandbox_indicator(tmp_path: Path):
     check = next(item for item in report["checks"] if item["id"] == "generated_code_execution_boundary")
     assert check["status"] == "pass"
     assert check["details"]["sandbox"] == "container"
+
+
+def test_shared_profile_rejects_process_sandbox_without_limits(tmp_path: Path):
+    cwd = tmp_path / "repo"
+    home = tmp_path / "home"
+    cwd.mkdir()
+    home.mkdir()
+    _touch_now(cwd / "pip-audit.json")
+    _touch_now(cwd / "sbom-cyclonedx.json")
+
+    report = security_check.build_report(
+        profile="shared",
+        environ={"UOAIC_AUTOFIX": "1", "AGILAB_GENERATED_CODE_SANDBOX": "process"},
+        cwd=cwd,
+        home=home,
+        now=datetime.now(timezone.utc),
+    )
+
+    check = next(item for item in report["checks"] if item["id"] == "generated_code_execution_boundary")
+    assert report["status"] == "fail"
+    assert check["status"] == "fail"
+    assert "AGILAB_GENERATED_CODE_PROCESS_LIMITS" in check["remediation"]
 
 
 def test_script_entrypoint_exits_with_main_status(tmp_path: Path, monkeypatch, capsys):

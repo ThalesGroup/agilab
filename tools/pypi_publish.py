@@ -2567,12 +2567,12 @@ def main():
         # Twine
         twine_check(all_files)
         twine_upload(all_files, cfg.repo, cfg.skip_existing, cfg.retries)
+        if not cfg.dry_run and cfg.repo == "pypi" and UPLOAD_COLLISION_DETECTED:
+            raise SystemExit(
+                f"ERROR: PyPI upload reported a version collision for {chosen}. "
+                "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
+            )
         if not cfg.dry_run and UPLOAD_COLLISION_DETECTED and UPLOAD_SUCCESS_COUNT == 0:
-            if cfg.repo == "pypi":
-                raise SystemExit(
-                    f"ERROR: PyPI upload reported a version collision for {chosen}. "
-                    "Automatic .postN PyPI version bumps are disabled; choose an explicit new release version."
-                )
             print('[auto-bump] upload collision detected; bumping to next .postN and retrying upload...')
             package_versions2 = {
                 name: next_free_post_for_all([name], cfg.repo, normalize_base(version))

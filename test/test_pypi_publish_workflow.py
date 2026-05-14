@@ -67,6 +67,15 @@ def test_pypi_publish_release_tests_use_local_parity_profiles() -> None:
 def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
+    assert "release_tag:" in text
+    assert "github.event.inputs.release_tag" in text
+    assert "github.event.inputs.version" not in text
+    assert "packages:" in text
+    assert "roles:" in text
+    assert "RELEASE_PACKAGES" in text
+    assert "RELEASE_ROLES" in text
+    assert "--packages \"$RELEASE_PACKAGES\"" in text
+    assert "--roles \"$RELEASE_ROLES\"" in text
     assert "id-token: write" in text
     assert "name: ${{ matrix.pypi_environment }}" in text
     assert "name: pypi-agilab" in text
@@ -78,7 +87,14 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "Render release package plan" in text
     assert "tools/release_plan.py" in text
     assert "library_matrix: ${{ steps.release-plan.outputs.library_matrix }}" in text
+    assert "library_selected: ${{ steps.release-plan.outputs.library_selected }}" in text
+    assert "umbrella_selected: ${{ steps.release-plan.outputs.umbrella_selected }}" in text
+    assert "pypi_publish_selected: ${{ steps.release-plan.outputs.pypi_publish_selected }}" in text
+    assert "provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}" in text
     assert "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}" in text
+    assert "needs.release-plan.outputs.library_selected == 'true'" in text
+    assert "needs.release-plan.outputs.umbrella_selected == 'true'" in text
+    assert "needs.release-plan.outputs.pypi_publish_selected == 'true'" in text
     assert "Report trusted publisher claim for ${{ matrix.package }}" in text
     assert "Report trusted publisher claim for agilab" in text
     assert "uses: pypa/gh-action-pypi-publish@" in text
@@ -96,6 +112,9 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "--artifact-policy wheel+sdist" in text
     assert "--artifact-policy \"${{ matrix.artifact_policy }}\"" in text
     assert "release-dist-${{ matrix.package }}" in text
+    assert "workflow-dist-${{ matrix.package }}" in text
+    assert "Upload ${{ matrix.package }} public release distribution evidence" in text
+    assert "Upload ${{ matrix.package }} workflow-only distribution evidence" in text
     assert "release-dist-agilab" in text
     assert "packages-dir: dist-library/" not in text
     assert "packages-dir: ${{ matrix.dist }}" in text
@@ -133,6 +152,11 @@ def test_pypi_publish_uses_one_trusted_publish_call_per_pypi_project() -> None:
 def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
+    assert "pypi-provenance-evidence:" in text
+    assert "tools/pypi_provenance_check.py" in text
+    assert "PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
+    assert "for package in ${PROVENANCE_PACKAGES}; do" in text
+    assert "pypi-provenance-evidence" in text
     assert "publish-release-assets:" in text
     assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c" in text
     assert "actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26" in text
@@ -140,6 +164,7 @@ def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     assert "artifact-metadata: write" in text
     assert "subject-path: github-release-assets/**" in text
     assert "supply-chain-release-evidence.tar.gz" in text
+    assert "pypi-provenance-evidence.tar.gz" in text
     assert "release-distribution-evidence.tar.gz" in text
     assert "shasum -a 256 * > SHA256SUMS.txt" in text
     assert "gh release upload \"$release_tag\" github-release-assets/* --clobber" in text

@@ -185,6 +185,24 @@ summarises the supported keys.
        Supported acknowledgement values are ``process``, ``container``, or
        ``vm``. Leave unset unless generated-code execution is actually isolated
        from personal files, secrets, network, and unbounded CPU/RAM/time.
+       For shared use, prefer ``container`` or ``vm``. If ``process`` is used,
+       also enforce process resource/filesystem/network/secret limits and set
+       ``AGILAB_GENERATED_CODE_PROCESS_LIMITS=1`` so the adoption gate can
+       distinguish a bounded process runner from a same-process acknowledgement.
+   * - ``AGILAB_GENERATED_CODE_PROCESS_LIMITS``
+     - unset
+     - Explicit evidence flag for process-mode generated-code execution. Set to
+       ``1`` only when the operator has enforced CPU/RAM/time, filesystem,
+       network, and secret boundaries around the generated-code process.
+   * - ``AGILAB_APPS_REPOSITORY_ALLOWLIST``
+     - unset
+     - Comma-, semicolon-, or newline-separated list of exact reviewed
+       ``APPS_REPOSITORY`` origin URLs accepted by
+       ``agilab security-check --profile shared``.
+   * - ``AGILAB_APPS_REPOSITORY_ALLOWLIST_FILE``
+     - unset
+     - Optional newline-separated allowlist file for reviewed external apps
+       repository origins. ``#`` comments and blank lines are ignored.
    * - ``INSTALL_TYPE``
      - ``1``
      - Controls the installation mode passed to ``AgiEnv``/installers (1 = developer workflow).

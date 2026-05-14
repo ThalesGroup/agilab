@@ -218,6 +218,10 @@ matching the release workflow claims exactly. The workflow renders the same cont
 per-package claim to the GitHub step summary before each upload. A PyPI
 ``invalid-publisher`` error means the GitHub OIDC token was valid, but the PyPI
 project did not have a matching publisher entry or one of the fields differed.
+After publication, ``tools/pypi_provenance_check.py`` verifies the PyPI
+integrity endpoint for every selected published package and fails the workflow
+before GitHub release assets are published if any wheel or sdist lacks a Trusted
+Publishing attestation.
 
 Configure these entries in each PyPI project under
 ``Settings > Publishing > Trusted publishers > Add GitHub publisher``. Entries
@@ -389,6 +393,10 @@ default. Real PyPI files should come from ``.github/workflows/pypi-publish.yaml`
 so PyPI metadata shows Trusted Publishing/OIDC provenance. Any break-glass local
 twine upload requires ``AGILAB_ALLOW_LOCAL_PYPI_TWINE=1`` and a documented
 release exception.
+
+Release managers can run the same provenance gate locally after a publish run::
+
+   python tools/pypi_provenance_check.py --json
 
 Release evidence should continue to record the bounded nature of the public
 proof: package smoke tests, docs, and hosted demos are useful evidence, but they
