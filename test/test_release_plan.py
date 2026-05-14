@@ -56,7 +56,7 @@ def test_release_plan_library_matrix_matches_package_split_contract() -> None:
     assert module.umbrella_package() == _expected_entry(UMBRELLA_PACKAGE_CONTRACT, module)
 
 
-def test_release_plan_promotes_selected_app_payloads_and_archives_the_rest() -> None:
+def test_release_plan_publishes_page_payloads_and_promoted_app_payloads() -> None:
     module = _load_module()
     matrix = {entry["package"]: entry for entry in module.library_matrix()}
 
@@ -68,7 +68,7 @@ def test_release_plan_promotes_selected_app_payloads_and_archives_the_rest() -> 
         if package.name not in PROMOTED_APP_PROJECT_PACKAGE_NAMES:
             assert matrix[package.name]["publish_to_pypi"] == "false", package.name
     for package in PAGE_BUNDLE_PACKAGES:
-        assert matrix[package.name]["publish_to_pypi"] == "false", package.name
+        assert matrix[package.name]["publish_to_pypi"] == "true", package.name
     assert matrix["agi-pages"]["publish_to_pypi"] == "true"
     assert matrix["agi-apps"]["publish_to_pypi"] == "true"
 

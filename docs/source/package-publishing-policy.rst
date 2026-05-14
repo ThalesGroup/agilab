@@ -41,13 +41,12 @@ adds the Streamlit/UI dependencies used by AGILAB pages and page bundles.
 Worker environments should keep using ``agi-env`` unless they explicitly need
 to render UI.
 
-Archived page-bundle packages
------------------------------
+Published page-bundle packages
+------------------------------
 
 The public analysis pages are built as self-contained page-bundle package
 artifacts. Each package carries one generic analysis page bundle and is
-uploaded to the GitHub Release distribution archive until its PyPI Trusted
-Publisher entry is configured:
+published to PyPI once its PyPI Trusted Publisher entry is configured:
 
 - ``agi-page-simplex-map``
 - ``agi-page-decision-evidence``
@@ -157,16 +156,17 @@ dependency graph changed. AGILAB uses independent version tracks:
 - bundle packages such as ``agi-core``, ``agi-pages``, ``agi-apps``, and the
   root ``agilab`` version the curated dependency graph they expose;
 - payload packages such as ``agi-page-*`` and ``agi-app-*`` version the page or
-  app payload they carry and are archived with release artifacts until their
-  PyPI publishers are configured.
+  app payload they carry; ``agi-page-*`` payloads and explicitly promoted
+  ``agi-app-*`` payloads are published to PyPI, while unpromoted app payloads
+  remain release artifacts until their publishers are enabled.
 
 Bundle packages should exact-pin the component versions they curate for
 reproducible installs. Payload packages should declare compatible AGILAB runtime
 ranges instead of exact-pinning every AGILAB release, so a runtime patch does
 not force republishing unchanged pages or apps. Do not skip ``agi-node``,
-``agi-cluster``, ``agi-gui``, ``agi-pages``, ``agi-apps``, or the root
-``agilab`` package from the PyPI publish matrix when their own version or
-dependency graph changed. Keep page-bundle and app-project payload packages in
+``agi-cluster``, ``agi-gui``, ``agi-pages``, ``agi-apps``, ``agi-page-*``, or
+the root ``agilab`` package from the PyPI publish matrix when their own version
+or dependency graph changed. Keep unpromoted app-project payload packages in
 the release artifact matrix even when their PyPI upload flag is disabled.
 
 If AGILAB later embeds the ``agi_node`` and ``agi_cluster`` Python modules
