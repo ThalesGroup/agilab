@@ -1600,8 +1600,8 @@ def _stage_code_variable_name(stage: dict[str, Any]) -> str:
 
 def _stage_source_cell(stage: dict[str, Any]) -> str:
     variable_name = _stage_code_variable_name(stage)
-    code_text = str(stage.get("code", "") or "").replace('"""', '\\"""')
-    return f'{variable_name} = """{code_text}"""\nprint({variable_name})\n'
+    code_text = str(stage.get("code", "") or "")
+    return f"{variable_name} = {code_text!r}\nprint({variable_name})\n"
 
 
 def _stage_runner_cell(stage: dict[str, Any]) -> str:
