@@ -1,9 +1,10 @@
 Architecture in 5 minutes
 =========================
 
-AGILAB is a reproducible AI/ML experimentation workbench for engineering teams,
-bridging local interactive development, distributed execution, and result
-analysis.
+AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering
+teams. It bridges local interactive development, distributed execution, and
+result analysis while preserving an exit path: workflows can be exported back
+to runnable notebooks if AGILAB stops being the right runtime for a project.
 
 Use this page for the mental model before opening the detailed architecture
 reference.
