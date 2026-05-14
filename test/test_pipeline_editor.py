@@ -1554,6 +1554,24 @@ def test_toml_to_notebook_handles_meta_string_stages_and_blank_entries(tmp_path)
     assert notebook["metadata"]["agilab"]["export_mode"] == "plain"
 
 
+def test_stage_source_cell_preserves_escape_sensitive_code() -> None:
+    code_text = (
+        'path = r"C:\\tmp"\n'
+        'pattern = "\\\\d+"\n'
+        'continued = "abc" '
+        + "\\"
+        + "\n"
+        '    "def"\n'
+        'print("""triple quoted text""")\n'
+    )
+
+    source = notebook_export_support._stage_source_cell({"index": 7, "code": code_text})
+
+    namespace: dict[str, object] = {}
+    exec(source, namespace)
+    assert namespace["STAGE_007_CODE"] == code_text
+
+
 def test_pycharm_notebook_mirror_path_targets_source_checkout_for_external_exports(tmp_path):
     repo_root = tmp_path / "repo"
     (repo_root / "src" / "agilab").mkdir(parents=True, exist_ok=True)
@@ -1961,6 +1979,16 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     app_root = tmp_path / "apps" / "demo_project"
     (app_root / "src").mkdir(parents=True, exist_ok=True)
     (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    stage_code = (
+        "print('stage-0')\n"
+        'path = r"C:\\tmp"\n'
+        'pattern = "\\\\d+"\n'
+        'continued = "abc" '
+        + "\\"
+        + "\n"
+        '    "def"\n'
+        'print("""triple quoted text""")\n'
+    )
     context = notebook_export_support.NotebookExportContext(
         project_name="demo_project",
         module_path="demo_project",
@@ -1989,7 +2017,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
                     "D": "Prepare data",
                     "Q": "load and clean",
                     "M": "gpt-demo",
-                    "C": "print('stage-0')\n",
+                    "C": stage_code,
                     "E": str(tmp_path / "venv-demo"),
                     "R": "agi.run",
                 }
@@ -2032,9 +2060,10 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "_build_shorthand_agi_script" in helper_source
     assert "_find_free_streamlit_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
-    assert stage_source_cell.startswith('STAGE_000_CODE = """print(\'stage-0\')\n"""')
+    stage_namespace: dict[str, object] = {}
+    exec(stage_source_cell, stage_namespace)
+    assert stage_namespace["STAGE_000_CODE"] == stage_code
     assert "\nprint(STAGE_000_CODE)\n" in stage_source_cell
-    exec(stage_source_cell, {})
     assert "run_agilab_stage(0, code_override=STAGE_000_CODE)" in stage_runner_cell
     assert "Demo Analysis" in page_markdown
     assert "`demo.json`" in page_markdown
