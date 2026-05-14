@@ -95,13 +95,15 @@ installed apps without the monorepo checkout once that package is installed:
 - ``agi-app-uav-queue-project``
 - ``agi-app-uav-relay-queue``
 
-Four app payload packages are promoted to PyPI in the current release plan:
-``agi-app-mission-decision``, ``agi-app-flight-telemetry``,
-``agi-app-weather-forecast``, and ``agi-app-uav-relay-queue``. The remaining
-app project payloads are also built as wheel and source-distribution artifacts
-and kept in the GitHub Release distribution archive until they are explicitly
-promoted. The payload is staged during package build, with local virtual
-environments, compiled artifacts, locks, and generated build outputs excluded.
+Seven app payload packages are promoted to PyPI in the current release plan:
+``agi-app-mission-decision``, ``agi-app-pandas-execution``,
+``agi-app-polars-execution``, ``agi-app-flight-telemetry``,
+``agi-app-global-dag``, ``agi-app-weather-forecast``, and
+``agi-app-uav-relay-queue``. The remaining app project payloads are also built
+as wheel and source-distribution artifacts and kept in the GitHub Release
+distribution archive until they are explicitly promoted. The payload is staged
+during package build, with local virtual environments, compiled artifacts,
+locks, and generated build outputs excluded.
 
 ``mycode_project`` is not published as a separate ``agi-app-*`` distribution.
 It is the single base starter template bundled inside ``agi-apps`` so packaged
