@@ -647,7 +647,7 @@ def build_report(
     home = (home or Path.home()).resolve()
     env_file = (env_file or home / ".agilab" / ".env").expanduser()
     env_file_values = _parse_env_file(env_file)
-    config = _merged_config(environ or os.environ, env_file_values)
+    config = _merged_config(os.environ if environ is None else environ, env_file_values)
     now = now or _utc_now()
     checks = [
         _check_apps_repository(config, cwd=cwd, profile=profile),
