@@ -209,6 +209,15 @@ not just a static dump of code cells.
 * The notebook is written beside ``lab_stages.toml`` as ``lab_stages.ipynb``.
 * You can open it outside the AGILAB UI in Jupyter-compatible tools such as
   JupyterLab or PyCharm.
+* For a project-owned notebook layout, keep the same supervisor notebook at
+  ``<app-project>/notebooks/lab_stages.ipynb`` so it travels with the app:
+
+  .. code-block:: bash
+
+     APP_PROJECT="${APP_PROJECT:-/path/to/<app-project>}"
+     uv --project "$APP_PROJECT" run --with jupyterlab jupyter lab notebooks/lab_stages.ipynb
+     uv --project "$APP_PROJECT" run --with nbconvert python -m jupyter nbconvert --to notebook --execute --inplace notebooks/lab_stages.ipynb
+
 * For a source checkout, prefer the mirror under
   ``exported_notebooks/<module>/lab_stages.ipynb`` and launch it from the AGILAB
   root project explicitly, for example:

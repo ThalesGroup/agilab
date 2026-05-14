@@ -42,6 +42,7 @@ Each run exports:
 - packet events
 - relay routing summary
 - node positions
+- hashed baseline/candidate evidence bundles from `view_scenario_cockpit`
 - `pipeline/topology.gml`
 - `pipeline/allocations_steps.csv`
 - trajectory CSVs for `view_maps_network`
@@ -50,8 +51,9 @@ Each run exports:
 
 1. Select `uav_relay_queue_project` in `PROJECT`.
 2. Run it from `ORCHESTRATE`.
-3. Inspect queue artifacts in `view_relay_resilience`.
-4. Inspect topology and trajectories in `view_maps_network`.
+3. Compare baseline/candidate runs in `view_scenario_cockpit`.
+4. Inspect queue artifacts in `view_relay_resilience`.
+5. Inspect topology and trajectories in `view_maps_network`.
 
 ## What this teases in AGILAB
 

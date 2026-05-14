@@ -138,7 +138,11 @@ else:
         app_settings.setdefault("cluster", {})
         app_settings["args"] = validated_payload
         app_settings.setdefault("pages", {})
-        app_settings["pages"]["view_module"] = ["view_relay_resilience", "view_maps_network"]
+        app_settings["pages"]["view_module"] = [
+            "view_scenario_cockpit",
+            "view_relay_resilience",
+            "view_maps_network",
+        ]
         st.session_state["app_settings"] = app_settings
         st.session_state["is_args_from_ui"] = True
         st.success(f"Saved to `{settings_path}`.")
@@ -158,6 +162,6 @@ else:
         "`shortest_path`, then improve when you switch to `queue_aware`."
     )
     st.caption(
-        "Each run also exports `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, and "
-        "per-node trajectory CSVs so `view_maps_network` can reuse the same scenario."
+        "Each run also exports comparison, topology, and trajectory evidence so "
+        "`view_scenario_cockpit` and `view_maps_network` can reuse the same scenario."
     )

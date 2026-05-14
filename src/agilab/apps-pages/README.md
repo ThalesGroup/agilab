@@ -39,6 +39,10 @@ Quick start (dev checkout):
   - uv run streamlit run src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/view_queue_resilience.py -- --active-app src/agilab/apps/builtin/uav_queue_project
   - Generic queue telemetry analysis page. Reads `*_summary_metrics.json`, `*_queue_timeseries.csv`, `*_packet_events.csv`, `*_node_positions.csv`, and `*_routing_summary.csv`.
 
+- view_scenario_cockpit
+  - uv run streamlit run src/agilab/apps-pages/view_scenario_cockpit/src/view_scenario_cockpit/view_scenario_cockpit.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
+  - Baseline/candidate scenario evidence page. Compares exported queue-analysis runs and downloads a hashed JSON evidence bundle.
+
 - view_relay_resilience
   - uv run streamlit run src/agilab/apps-pages/view_relay_resilience/src/view_relay_resilience/view_relay_resilience.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
   - Generic relay queue comparison page. Reads `*_summary_metrics.json`, `*_queue_timeseries.csv`, `*_packet_events.csv`, `*_node_positions.csv`, and `*_routing_summary.csv`.

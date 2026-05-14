@@ -32,7 +32,7 @@ def test_data_connector_app_catalogs_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["execution_mode"] == "app_catalog_validation_only"
     assert report["summary"]["app_catalog_count"] == 6
     assert report["summary"]["connector_count"] == 18
-    assert report["summary"]["page_connector_ref_count"] == 11
+    assert report["summary"]["page_connector_ref_count"] == 15
     assert report["summary"]["legacy_path_count"] == 12
     assert report["summary"]["missing_ref_count"] == 0
     assert report["summary"]["network_probe_count"] == 0

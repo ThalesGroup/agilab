@@ -72,7 +72,7 @@ the per-user workspace copy of ``app_settings.toml``:
 .. code-block:: toml
 
    [pages]
-   view_module = ["view_relay_resilience", "view_maps_network"]
+   view_module = ["view_scenario_cockpit", "view_relay_resilience", "view_maps_network"]
 
 The file lives at ``~/.agilab/apps/<project>/app_settings.toml`` and is seeded
 from the app's versioned ``app_settings.toml`` source file (for example
@@ -138,6 +138,19 @@ Queue telemetry page for producer-agnostic queue-analysis artifacts.
   ``~/export/<app_target>/queue_analysis/<artifact_stem>/``.
 - Output: queue occupancy charts, per-packet delay and drop summaries, route
   usage, and run metadata for reproducibility checks.
+
+view_scenario_cockpit
+^^^^^^^^^^^^^^^^^^^^^
+
+Scenario evidence cockpit for producer-agnostic queue-analysis artifacts.
+
+- Input: one or more run directories under
+  ``~/export/<app_target>/queue_analysis/<artifact_stem>/``.
+- Output: baseline/candidate deltas, a deterministic promotion gate, and a
+  downloadable JSON evidence bundle with hashes for the selected summaries and
+  peer artifacts.
+- Use this first when you need a compact review artifact before opening the
+  detailed queue or network maps.
 
 view_relay_resilience
 ^^^^^^^^^^^^^^^^^^^^^

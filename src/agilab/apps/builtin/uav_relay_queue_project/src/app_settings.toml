@@ -40,6 +40,10 @@ artifact_store = "uav_relay_queue_artifact_store"
 relay_metrics = "uav_relay_queue_artifact_store"
 operator_events = "uav_relay_queue_ops_opensearch"
 
+[page_connector_refs.view_scenario_cockpit]
+scenario_evidence = "uav_relay_queue_artifact_store"
+operator_events = "uav_relay_queue_ops_opensearch"
+
 [page_connector_refs.view_maps_network]
 network_evidence = "uav_relay_queue_ops_opensearch"
 
@@ -49,6 +53,7 @@ data_out = "uav_relay_queue/results"
 
 [pages]
 view_module = [
+    "view_scenario_cockpit",
     "view_relay_resilience",
     "view_maps_network",
 ]
