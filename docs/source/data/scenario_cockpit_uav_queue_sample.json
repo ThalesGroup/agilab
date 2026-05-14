@@ -1,0 +1,238 @@
+{
+  "app_project": "uav_queue_project",
+  "artifact_summary": {
+    "artifact_count": 24,
+    "hashed_artifact_count": 24,
+    "missing_artifact_count": 0,
+    "total_bytes": 219067
+  },
+  "artifacts": [
+    {
+      "bytes": 336,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/_trajectory_summary.json",
+      "sha256": "99fafeaff4a39933fb0251e5175bbe8a19c25f2bd8d9b11c2489ab9f88abddcb"
+    },
+    {
+      "bytes": 17837,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/allocations_steps.csv",
+      "sha256": "5ce8ae3da7f414d972c736c0c4cdf2106dd39ceb6f919373ed10dbebce9d9b21"
+    },
+    {
+      "bytes": 3448,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/ground_sink_trajectory.csv",
+      "sha256": "6f3e27a6a8cfedf543e33068b46baf47582e3b87e03350af9edb2a55fa10a65f"
+    },
+    {
+      "bytes": 3193,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/relay_a_trajectory.csv",
+      "sha256": "e0ffb3df5fcfca486e0b89f73daf10ddfce49d44cb063e188aba75c23583b4ff"
+    },
+    {
+      "bytes": 3192,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/relay_b_trajectory.csv",
+      "sha256": "5aa2ba69c19028db5889cb0547747786e7e4739f745ab0c5ea16481f124e7d43"
+    },
+    {
+      "bytes": 983,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/topology.gml",
+      "sha256": "f48e160477ad0fe49e7535d29bfcb9ba6c7b70c4000d5d12c089eddb8915a742"
+    },
+    {
+      "bytes": 3448,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/pipeline/uav_source_trajectory.csv",
+      "sha256": "145232071709c664884ad520012e8e654d93f53f502991c3ce5b44089f09eebd"
+    },
+    {
+      "bytes": 13621,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_node_positions.csv",
+      "sha256": "442b8989094f2f7fe5ab62edb5585b84917c2295080bcddf6380991fce207505"
+    },
+    {
+      "bytes": 59327,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_packet_events.csv",
+      "sha256": "029e9c74202b0fdd60c35856fa23e36519e3f74c8e558916a0691b4db7b7f445"
+    },
+    {
+      "bytes": 2448,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_queue_timeseries.csv",
+      "sha256": "0056f4747efa6d81d39cd5800dcf01c03ce7a63b215807db97ce7f58e28108c2"
+    },
+    {
+      "bytes": 259,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_routing_summary.csv",
+      "sha256": "b2923e9c26efa7b3d39e2b7852a12853cb3afa5bec79ae5501f8c8960f9d74a9"
+    },
+    {
+      "bytes": 635,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_summary_metrics.json",
+      "sha256": "57ee3861acce9583aaf80edc3de26af59af1e913740a245799f3a4bff50e22ec"
+    },
+    {
+      "bytes": 336,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/_trajectory_summary.json",
+      "sha256": "99fafeaff4a39933fb0251e5175bbe8a19c25f2bd8d9b11c2489ab9f88abddcb"
+    },
+    {
+      "bytes": 17501,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/allocations_steps.csv",
+      "sha256": "edf3268d7c4ef927801122d72aa5068c1065e4892ad75a80968633854bb36df1"
+    },
+    {
+      "bytes": 3448,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/ground_sink_trajectory.csv",
+      "sha256": "6f3e27a6a8cfedf543e33068b46baf47582e3b87e03350af9edb2a55fa10a65f"
+    },
+    {
+      "bytes": 3193,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/relay_a_trajectory.csv",
+      "sha256": "e0ffb3df5fcfca486e0b89f73daf10ddfce49d44cb063e188aba75c23583b4ff"
+    },
+    {
+      "bytes": 3192,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/relay_b_trajectory.csv",
+      "sha256": "5aa2ba69c19028db5889cb0547747786e7e4739f745ab0c5ea16481f124e7d43"
+    },
+    {
+      "bytes": 983,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/topology.gml",
+      "sha256": "f48e160477ad0fe49e7535d29bfcb9ba6c7b70c4000d5d12c089eddb8915a742"
+    },
+    {
+      "bytes": 3448,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/pipeline/uav_source_trajectory.csv",
+      "sha256": "145232071709c664884ad520012e8e654d93f53f502991c3ce5b44089f09eebd"
+    },
+    {
+      "bytes": 13621,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_node_positions.csv",
+      "sha256": "442b8989094f2f7fe5ab62edb5585b84917c2295080bcddf6380991fce207505"
+    },
+    {
+      "bytes": 61278,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_packet_events.csv",
+      "sha256": "76cc6efeed686cb827cabab4c402ce973a302456bfd765ee43ed31c222c2de19"
+    },
+    {
+      "bytes": 2506,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_queue_timeseries.csv",
+      "sha256": "e7fc75ead8c8ec01b316e8a71d38b3fcb1e1ea0a8c45cb064b52ed9b145111e2"
+    },
+    {
+      "bytes": 188,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_routing_summary.csv",
+      "sha256": "0192c5dafc9945f04f1d9e67f1f740ca0a0ca57c3cc1d8200c9f8f6b6ea569f4"
+    },
+    {
+      "bytes": 646,
+      "exists": true,
+      "relative_path": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_summary_metrics.json",
+      "sha256": "510a374d3e5d8d245f7c262c648b407cf9ae8bdc603cd4f8526cc3d4d9cdffd5"
+    }
+  ],
+  "baseline_run": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_summary_metrics.json",
+  "candidate_run": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_summary_metrics.json",
+  "execution": {
+    "artifact_root": "$OUTPUT_DIR/export/uav_queue/queue_analysis",
+    "mode": "real_uav_queue_worker_execution",
+    "policies": [
+      "shortest_path",
+      "queue_aware"
+    ],
+    "random_seed": 2026,
+    "source_scenario": "src/agilab/apps/builtin/uav_queue_project/src/uav_queue/sample_data/uav_queue_hotspot.json"
+  },
+  "gate": {
+    "candidate": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_summary_metrics.json",
+    "checks": [
+      {
+        "delta": 0.489,
+        "direction": "greater_or_equal",
+        "name": "pdr_not_lower",
+        "passed": true
+      },
+      {
+        "delta": -1105.291,
+        "direction": "less_or_equal",
+        "name": "delay_not_higher",
+        "passed": true
+      },
+      {
+        "delta": -1082.902,
+        "direction": "less_or_equal",
+        "name": "queue_wait_not_higher",
+        "passed": true
+      },
+      {
+        "delta": -4.0,
+        "direction": "less_or_equal",
+        "name": "max_queue_not_higher",
+        "passed": true
+      }
+    ],
+    "status": "promotable"
+  },
+  "normalized_bundle_sha256": "6b16f7692a15eb2042bb7ba4dca6434eb3f62b24270334e51d5569b9ba6e1b36",
+  "page_bundle": "view_scenario_cockpit",
+  "producer": "tools/scenario_cockpit_evidence.py",
+  "rerun_command": "uv --preview-features extra-build-dependencies run python tools/scenario_cockpit_evidence.py --output-dir build/scenario-cockpit-proof --clean --write-doc-sample docs/source/data/scenario_cockpit_uav_queue_sample.json",
+  "schema": "agilab.scenario_cockpit_source_proof.v1",
+  "selected_runs": [
+    {
+      "bond_mode": "single",
+      "bottleneck_relay": "relay_a",
+      "delta_delay_ms_vs_baseline": 0.0,
+      "delta_max_queue_vs_baseline": 0,
+      "delta_pdr_vs_baseline": 0.0,
+      "delta_queue_wait_ms_vs_baseline": 0.0,
+      "max_queue_depth_pkts": 14,
+      "mean_e2e_delay_ms": 1311.051,
+      "mean_queue_wait_ms": 1209.521,
+      "pdr": 0.511,
+      "random_seed": 2026,
+      "routing_policy": "shortest_path",
+      "run_label": "uav_queue_hotspot_shortest_path_seed2026/uav_queue_hotspot_shortest_path_seed2026_summary_metrics.json",
+      "scenario": "uav_queue_hotspot",
+      "source_rate_pps": 14.0
+    },
+    {
+      "bond_mode": "single",
+      "bottleneck_relay": "relay_b",
+      "delta_delay_ms_vs_baseline": -1105.291,
+      "delta_max_queue_vs_baseline": -4,
+      "delta_pdr_vs_baseline": 0.489,
+      "delta_queue_wait_ms_vs_baseline": -1082.902,
+      "max_queue_depth_pkts": 10,
+      "mean_e2e_delay_ms": 205.76,
+      "mean_queue_wait_ms": 126.619,
+      "pdr": 1.0,
+      "random_seed": 2026,
+      "routing_policy": "queue_aware",
+      "run_label": "uav_queue_hotspot_queue_aware_seed2026/uav_queue_hotspot_queue_aware_seed2026_summary_metrics.json",
+      "scenario": "uav_queue_hotspot",
+      "source_rate_pps": 14.0
+    }
+  ]
+}

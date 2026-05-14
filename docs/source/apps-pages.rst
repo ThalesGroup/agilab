@@ -151,6 +151,10 @@ Scenario evidence cockpit for producer-agnostic queue-analysis artifacts.
   peer artifacts.
 - Use this first when you need a compact review artifact before opening the
   detailed queue or network maps.
+- Maintainer dogfooding is repeatable with
+  ``tools/scenario_cockpit_evidence.py``. The checked-in public sample at
+  ``docs/source/data/scenario_cockpit_uav_queue_sample.json`` is generated from
+  two real ``uav_queue_project`` worker runs, not hand-written fixtures.
 
 view_relay_resilience
 ^^^^^^^^^^^^^^^^^^^^^
