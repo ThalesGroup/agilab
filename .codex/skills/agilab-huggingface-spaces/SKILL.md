@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-05-14
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -52,15 +52,17 @@ This is not a raw repo push and not a generic Space scaffold. The deploy script 
 
 Profile app/page sets:
 - `first-proof`
-  - apps: `flight_project`, `meteo_forecast_project`
+  - apps: `flight_telemetry_project`, `weather_forecast_project`
   - pages: `view_maps`, `view_forecast_analysis`, `view_release_decision`
 - `advanced`
-  - apps: `data_io_2026_project`, `execution_pandas_project`,
-    `execution_polars_project`, `flight_project`, `meteo_forecast_project`,
-    `mycode_project`, `uav_queue_project`, `uav_relay_queue_project`
+  - apps: `execution_pandas_project`, `execution_polars_project`,
+    `flight_telemetry_project`, `global_dag_project`,
+    `mission_decision_project`, `mycode_project`, `tescia_diagnostic_project`,
+    `uav_queue_project`, `uav_relay_queue_project`,
+    `weather_forecast_project`
   - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,
-    `view_maps_network`, `view_release_decision`, `view_queue_resilience`,
-    `view_relay_resilience`
+    `view_maps_network`, `view_queue_resilience`, `view_relay_resilience`,
+    `view_release_decision`
 
 The advanced profile installs every current built-in demo app, but it still
 avoids unrelated historical heavyweight pages that are not part of the current

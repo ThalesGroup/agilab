@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-14T14:33:36Z",
+  "generated_at_utc": "2026-05-14T14:36:20Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -39,7 +39,7 @@
       "name": "agilab-huggingface-spaces",
       "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-06",
+      "updated": "2026-05-14",
       "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
       "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is the sibling apps/docs checkout, normally\n`../thales_agilab` relative to the public `agilab` checkout:"
     },
