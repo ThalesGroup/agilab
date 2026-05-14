@@ -292,6 +292,26 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     return content.as_dict()
 
 
+def _resolve_installed_first_proof_project() -> Path | None:
+    try:
+        from agi_env.app_provider_registry import resolve_installed_app_project
+    except Exception:
+        return None
+
+    try:
+        project = resolve_installed_app_project(FIRST_PROOF_PROJECT)
+    except Exception:
+        return None
+    if project is None:
+        return None
+
+    try:
+        resolved = Path(project).expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    return resolved if (resolved / "pyproject.toml").is_file() else None
+
+
 def newcomer_first_proof_project_path(env: Any, repo_root: Path = REPO_ROOT) -> Path | None:
     candidates: list[Path] = []
     try:
@@ -307,6 +327,9 @@ def newcomer_first_proof_project_path(env: Any, repo_root: Path = REPO_ROOT) -> 
         )
 
     candidates.append(repo_root / "src" / "agilab" / "apps" / "builtin" / FIRST_PROOF_PROJECT)
+    installed_project = _resolve_installed_first_proof_project()
+    if installed_project is not None:
+        candidates.append(installed_project)
     candidates.append(Path(__file__).resolve().parent / "apps" / "builtin" / FIRST_PROOF_PROJECT)
 
     seen: set[Path] = set()

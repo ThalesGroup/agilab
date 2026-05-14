@@ -22,6 +22,7 @@ from agilab import run_manifest
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
 FIRST_PROOF_PROJECT = "flight_telemetry_project"
+FIRST_PROOF_APP_DISTRIBUTION = "agi-app-flight-telemetry"
 FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 DEFAULT_MAX_SECONDS = 10 * 60
 IGNORED_OUTPUT_PATTERNS = (
@@ -36,6 +37,10 @@ RUNTIME_DISTRIBUTIONS = (
     "agi-gui",
     "agi-apps",
     "agi-pages",
+    "agi-app-mission-decision",
+    FIRST_PROOF_APP_DISTRIBUTION,
+    "agi-app-weather-forecast",
+    "agi-app-uav-relay-queue",
 )
 ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 DIAGNOSTIC_TAIL_LINES = 20
@@ -114,12 +119,37 @@ def write_agilab_path_marker() -> Path:
     return marker_path
 
 
+def _resolve_installed_first_proof_project() -> Path | None:
+    """Return the PyPI app-payload project when it is installed."""
+
+    try:
+        from agi_env.app_provider_registry import resolve_installed_app_project
+    except Exception:
+        return None
+
+    try:
+        project = resolve_installed_app_project(FIRST_PROOF_PROJECT)
+    except Exception:
+        return None
+    if project is None:
+        return None
+
+    try:
+        candidate = Path(project).expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+    return candidate if (candidate / "pyproject.toml").is_file() else None
+
+
 def default_active_app() -> Path:
     candidates: list[Path] = []
     repo_root = _detect_repo_root()
     if repo_root is not None:
         candidates.append(repo_root / "src" / "agilab" / "apps" / "builtin" / FIRST_PROOF_PROJECT)
     candidates.append(PACKAGE_ROOT / "apps" / "builtin" / FIRST_PROOF_PROJECT)
+    installed_project = _resolve_installed_first_proof_project()
+    if installed_project is not None:
+        candidates.append(installed_project)
     for candidate in candidates:
         if (candidate / "pyproject.toml").is_file():
             return candidate.resolve()
@@ -139,8 +169,8 @@ def resolve_active_app(path_value: str | None) -> Path:
             raise FileNotFoundError(
                 "Default first-proof app not found: "
                 f"{active_app}. Install the public app payload with "
-                '`python -m pip install "agilab[examples]"` or '
-                '`python -m pip install "agilab[ui]"`, then rerun this command. '
+                f"`python -m pip install {FIRST_PROOF_APP_DISTRIBUTION}` "
+                'or `python -m pip install "agilab[examples]"`, then rerun this command. '
                 "Alternatively pass --active-app /path/to/<app>_project."
             )
         raise FileNotFoundError(f"Active app path not found: {active_app}")
@@ -201,7 +231,7 @@ def _preinit_smoke_code(active_app: Path) -> str:
 def _preinit_smoke_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="package preinit smoke",
-        description="Import AGILAB packages and verify the built-in flight_telemetry_project path.",
+        description="Import AGILAB packages and verify the active app path.",
         argv=(sys.executable, "-c", _preinit_smoke_code(active_app)),
     )
 
@@ -280,7 +310,7 @@ def _ui_smoke_code(active_app: Path) -> str:
 def _ui_smoke_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="package ui smoke",
-        description="Boot the packaged main page and ORCHESTRATE page against flight_telemetry_project.",
+        description="Boot the packaged main page and ORCHESTRATE page against the active app.",
         argv=(sys.executable, "-c", _ui_smoke_code(active_app)),
         env={
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
@@ -537,6 +567,7 @@ def build_run_manifest(
 ) -> run_manifest.RunManifest:
     failed_step = summary.get("failed_step")
     identity = runtime_identity()
+    recommended_project = dry_run or active_app.name == FIRST_PROOF_PROJECT
     validations = [
         run_manifest.RunManifestValidation(
             label="proof_steps",
@@ -569,11 +600,15 @@ def build_run_manifest(
         ),
         run_manifest.RunManifestValidation(
             label="recommended_project",
-            status="pass" if dry_run or active_app.name == FIRST_PROOF_PROJECT else "fail",
+            status="pass" if recommended_project else "fail",
             summary=(
                 "core-only dry-run does not require a public app payload"
                 if dry_run
-                else "active app is the recommended public flight_telemetry_project"
+                else (
+                    "active app is the recommended public flight_telemetry_project"
+                    if recommended_project
+                    else f"active app is {active_app.name}; recommended public app is {FIRST_PROOF_PROJECT}"
+                )
             ),
             details={"active_app": str(active_app), "app_name": active_app.name, "dry_run": dry_run},
         ),
