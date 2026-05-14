@@ -111,7 +111,7 @@ class FireducksApp(BaseWorker):
 
     def stop(self) -> None:
         if self.verbose > 0:
-            print("FireducksAppWorker All done!\n", end="")
+            logger.info("FireducksAppWorker finished")
         super().stop()
 
     def build_distribution(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import glob
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,8 @@ import networkx as nx
 import pandas as pd
 import plotly.graph_objects as go
 from IPython.display import Markdown
+
+logger = logging.getLogger(__name__)
 
 
 def _coerce_str_list(value: Any) -> list[str]:
@@ -198,10 +201,11 @@ def _load_graph(path: Path | None) -> nx.Graph | None:
     try:
         return nx.read_gml(path)
     except Exception:
-        pass
+        logger.debug("Unable to load %s as GML graph", path, exc_info=True)
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
+        logger.debug("Unable to load %s as JSON graph", path, exc_info=True)
         return None
     graph = nx.Graph()
     if isinstance(payload, dict):
@@ -268,6 +272,7 @@ def _load_positions(paths: list[Path]) -> pd.DataFrame:
         try:
             df = _load_frame(path)
         except Exception:
+            logger.debug("Skipping unreadable trajectory artifact %s", path, exc_info=True)
             continue
         lowered = {column.lower(): column for column in df.columns}
         time_col = _first_column(lowered, "time_s", "t_now_s", "time", "t", "time_index")

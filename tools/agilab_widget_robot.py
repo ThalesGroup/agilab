@@ -8,6 +8,7 @@ import csv
 import itertools
 import importlib.util
 import json
+import logging
 import os
 import re
 import shutil
@@ -43,6 +44,8 @@ from agilab.page_bundle_registry import (  # noqa: E402
     resolve_page_bundles,
 )
 from agi_env.app_provider_registry import aliased_app_runtime_target, app_name_aliases  # noqa: E402
+
+logger = logging.getLogger(__name__)
 
 WEB_ROBOT_PATH = REPO_ROOT / "tools/agilab_web_robot.py"
 DEFAULT_APPS_ROOT = REPO_ROOT / "src/agilab/apps/builtin"
@@ -1528,7 +1531,7 @@ def _selectbox_option_labels(
         try:
             page.keyboard.press("Escape")
         except Exception:
-            pass
+            logger.debug("Unable to close selectbox options after enumeration failure", exc_info=True)
         return [], _short_detail(f"could not enumerate selectbox options: {exc}")
 
 
@@ -2401,11 +2404,11 @@ def _attach_browser_issue_capture(page: Any) -> list[dict[str, str]]:
     try:
         page.on("console", _on_console)
     except Exception:
-        pass
+        logger.debug("Unable to attach console issue capture", exc_info=True)
     try:
         page.on("pageerror", _on_page_error)
     except Exception:
-        pass
+        logger.debug("Unable to attach pageerror issue capture", exc_info=True)
     return issues
 
 
@@ -2471,12 +2474,15 @@ def _button_locator_by_label(page: Any, label: str) -> Any | None:
         try:
             locator = page.get_by_role("button", name=label)
         except Exception:
+            logger.debug("Unable to locate button by exact label %r", label, exc_info=True)
             return None
     except Exception:
+        logger.debug("Unable to locate button by regex label %r", label, exc_info=True)
         return None
     try:
         count = locator.count()
     except Exception:
+        logger.debug("Unable to count button candidates for label %r", label, exc_info=True)
         return getattr(locator, "first", locator)
     if count <= 0:
         return None
@@ -2486,6 +2492,7 @@ def _button_locator_by_label(page: Any, label: str) -> Any | None:
             if candidate.is_visible(timeout=500):
                 return candidate
         except Exception:
+            logger.debug("Unable to inspect button candidate %s for label %r", index, label, exc_info=True)
             continue
     return locator.first
     return None
@@ -2514,6 +2521,7 @@ def _scroll_to(page: Any, y: int) -> None:
     except TypeError:
         page.evaluate(f"() => window.scrollTo(0, {int(y)})")
     except Exception:
+        logger.debug("Unable to scroll page to %s", y, exc_info=True)
         return
 
 
@@ -2521,6 +2529,7 @@ def _visible_streamlit_issue_detail(page: Any) -> str | None:
     try:
         issues = page.evaluate(VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS)
     except Exception:
+        logger.debug("Unable to evaluate visible Streamlit issue collector", exc_info=True)
         return None
     if not isinstance(issues, list) or not issues:
         return None
@@ -2540,6 +2549,7 @@ def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) 
         try:
             feedback = page.evaluate(script)
         except Exception:
+            logger.debug("Unable to evaluate visible Streamlit feedback collector", exc_info=True)
             continue
         if isinstance(feedback, list):
             feedback_items.extend(feedback)
@@ -2586,7 +2596,7 @@ def _visible_exception_detail(page: Any) -> str | None:
         if exceptions.count() > 0 and exceptions.first.is_visible(timeout=500):
             return _short_detail(exceptions.first.inner_text(timeout=500) or "Streamlit exception rendered")
     except Exception:
-        pass
+        logger.debug("Unable to inspect rendered Streamlit exception", exc_info=True)
     return _visible_streamlit_issue_detail(page)
 
 
@@ -2710,7 +2720,7 @@ def _close_all_expanders(page: Any) -> None:
         page.evaluate(CLOSE_EXPANDERS_JS)
         _wait_for_timeout(page, 150)
     except Exception:
-        pass
+        logger.debug("Unable to close Streamlit expanders", exc_info=True)
 
 
 def _open_all_expanders(page: Any) -> None:
@@ -2718,7 +2728,7 @@ def _open_all_expanders(page: Any) -> None:
         page.evaluate(OPEN_EXPANDERS_JS)
         _wait_for_timeout(page, 250)
     except Exception:
-        pass
+        logger.debug("Unable to open Streamlit expanders", exc_info=True)
 
 
 def _selected_action_matches(
@@ -2973,7 +2983,7 @@ def _close_expanders_except_widget(page: Any, widget: dict[str, Any]) -> None:
         page.evaluate(CLOSE_EXPANDERS_EXCEPT_WIDGET_JS, str(widget.get("id") or ""))
         _wait_for_timeout(page, 150)
     except Exception:
-        pass
+        logger.debug("Unable to close non-target expanders for widget %s", widget.get("id"), exc_info=True)
 
 
 def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:
@@ -2981,7 +2991,7 @@ def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:
         page.evaluate(SCROLL_WIDGET_TO_CENTER_JS, str(widget.get("id") or ""))
         _wait_for_timeout(page, 100)
     except Exception:
-        pass
+        logger.debug("Unable to center widget %s", widget.get("id"), exc_info=True)
 
 
 def _visible_spinner_count(page: Any) -> int:
@@ -3012,7 +3022,7 @@ def _wait_for_action_outcome(
         try:
             page.evaluate(OPEN_EXPANDERS_JS)
         except Exception:
-            pass
+            logger.debug("Unable to keep expanders open while waiting for action outcome", exc_info=True)
         issue = _visible_streamlit_issue_detail(page)
         if issue:
             return issue, True
@@ -3077,10 +3087,11 @@ def _locator_checked(locator: Any, *, timeout_ms: float) -> bool | None:
     try:
         return bool(locator.is_checked(timeout=timeout_ms))
     except Exception:
-        pass
+        logger.debug("Unable to read locator checked state directly", exc_info=True)
     try:
         aria_checked = locator.get_attribute("aria-checked", timeout=timeout_ms)
     except Exception:
+        logger.debug("Unable to read locator aria-checked state", exc_info=True)
         return None
     if aria_checked == "true":
         return True
@@ -3218,7 +3229,7 @@ def _probe_widget(
                 try:
                     locator.click(timeout=timeout_ms, trial=True)
                 except Exception:
-                    pass
+                    logger.debug("Actionability trial click failed for %s", widget.get("label"), exc_info=True)
             return "probed", f"visible/enabled ok ({kind})"
         if kind in ACTION_BUTTON_KINDS:
             safe_click_reason = safe_action_click_reason(widget)

@@ -9,6 +9,7 @@ import ast
 import fnmatch
 import html
 import json
+import logging
 import sys
 import tomllib
 from pathlib import Path
@@ -19,6 +20,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 
 def _ensure_repo_on_path() -> None:
@@ -148,7 +151,8 @@ def _load_app_settings(env: AgiEnv) -> dict[str, Any]:
     try:
         with path.open("rb") as handle:
             payload = tomllib.load(handle)
-    except Exception:
+    except (OSError, tomllib.TOMLDecodeError):
+        logger.debug("Unable to load view_inference_analysis settings from %s", path, exc_info=True)
         return {}
     return payload if isinstance(payload, dict) else {}
 
@@ -300,7 +304,7 @@ def _parse_structured_value(value: Any) -> Any:
     for loader in (json.loads, ast.literal_eval):
         try:
             return loader(stripped)
-        except Exception:
+        except (json.JSONDecodeError, ValueError, SyntaxError):
             continue
     return value
 
@@ -469,6 +473,7 @@ def load_allocations(path: Path) -> pd.DataFrame:
         if isinstance(data, list):
             return _normalize_allocations_frame(pd.DataFrame(data))
     except Exception:
+        logger.debug("Unable to load allocations from %s", path, exc_info=True)
         return pd.DataFrame()
     return pd.DataFrame()
 
