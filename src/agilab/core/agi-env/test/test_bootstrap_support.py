@@ -202,7 +202,7 @@ def test_resolve_builtin_default_and_active_app_selection(tmp_path):
         builtin_apps_path=builtin_app.parent,
         home_abs=tmp_path / "home",
         is_worker_env=False,
-        default_app="flight_project",
+        default_app="flight_telemetry_project",
     )
     assert selection.app == "demo_project"
     assert selection.active_app == builtin_app
@@ -296,7 +296,7 @@ def test_resolve_active_app_selection_covers_worker_defaults_override_and_builti
         is_worker_env=False,
         default_app="",
     )
-    assert selected.app == "flight_project"
+    assert selected.app == "flight_telemetry_project"
     assert selected.active_app == override
 
     builtin_root = tmp_path / "apps" / "builtin"
@@ -366,12 +366,12 @@ def test_resolve_active_app_selection_covers_no_builtin_path_and_builtin_exists_
 def test_resolve_active_app_selection_uses_installed_app_project_provider(tmp_path):
     apps_root = tmp_path / "apps"
     apps_root.mkdir()
-    installed_project = tmp_path / "site-packages" / "agi_app_flight_project" / "project" / "flight_project"
+    installed_project = tmp_path / "site-packages" / "agi_app_flight_telemetry" / "project" / "flight_telemetry_project"
     installed_project.mkdir(parents=True)
-    (installed_project / "pyproject.toml").write_text("[project]\nname='flight_project'\n", encoding="utf-8")
+    (installed_project / "pyproject.toml").write_text("[project]\nname='flight_telemetry_project'\n", encoding="utf-8")
 
     selected = resolve_active_app_selection(
-        app="flight_project",
+        app="flight_telemetry_project",
         active_app_override=None,
         apps_path=apps_root,
         builtin_apps_path=None,

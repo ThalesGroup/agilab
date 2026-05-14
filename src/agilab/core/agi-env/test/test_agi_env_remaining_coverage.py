@@ -168,7 +168,7 @@ def test_agi_env_remaining_wrappers_delegate_support_helpers(monkeypatch, tmp_pa
     located = AgiEnv.locate_agilab_installation()
     located_alias = AgiEnv.locate_agi_installation()
     env.copy_existing_projects(tmp_path / "src_apps", tmp_path / "dst_apps")
-    env.clone_project(Path("flight_project"), Path("demo_project"))
+    env.clone_project(Path("flight_telemetry_project"), Path("demo_project"))
     env.clone_directory(Path("src"), Path("dst"), {"old": "new"}, "spec", Path("root"))
     gitignore = env.read_gitignore(tmp_path / ".gitignore")
     env.unzip_data(tmp_path / "dataset.7z", "dataset/demo")
@@ -182,7 +182,7 @@ def test_agi_env_remaining_wrappers_delegate_support_helpers(monkeypatch, tmp_pa
     assert captured["copy_existing_projects"][0] == tmp_path / "src_apps"
     assert captured["copy_existing_projects"][1] == tmp_path / "dst_apps"
     clone_args, clone_kwargs = captured["clone_project"]
-    assert clone_args[:2] == (Path("flight_project"), Path("demo_project"))
+    assert clone_args[:2] == (Path("flight_telemetry_project"), Path("demo_project"))
     assert clone_kwargs["apps_path"] == env.apps_path
     dir_args, dir_kwargs = captured["clone_directory"]
     assert dir_args[:5] == (Path("src"), Path("dst"), {"old": "new"}, "spec", Path("root"))

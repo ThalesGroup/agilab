@@ -171,20 +171,20 @@ def test_home_relative_share_text_strips_host_specific_home_prefix(tmp_path):
 def test_resolve_project_change_args_override_only_preserves_matching_ui_args():
     assert orchestrate_page_support.resolve_project_change_args_override(
         is_args_from_ui=True,
-        args_project="flight_project",
-        previous_project="flight_project",
+        args_project="flight_telemetry_project",
+        previous_project="flight_telemetry_project",
         app_settings_snapshot={"args": {"foo": 1}},
     ) == {"foo": 1}
     assert orchestrate_page_support.resolve_project_change_args_override(
         is_args_from_ui=True,
         args_project="other_project",
-        previous_project="flight_project",
+        previous_project="flight_telemetry_project",
         app_settings_snapshot={"args": {"foo": 1}},
     ) is None
     assert orchestrate_page_support.resolve_project_change_args_override(
         is_args_from_ui=False,
-        args_project="flight_project",
-        previous_project="flight_project",
+        args_project="flight_telemetry_project",
+        previous_project="flight_telemetry_project",
         app_settings_snapshot={"args": {"foo": 1}},
     ) is None
 

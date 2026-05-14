@@ -84,7 +84,7 @@ def test_build_proof_commands_with_install_adds_seed_checks() -> None:
         "seeded script check",
     ]
     assert "apps/install.py" in commands[1].argv[1]
-    assert "AGI_install_flight.py" in commands[2].argv[-1]
+    assert "AGI_install_flight_telemetry.py" in commands[2].argv[-1]
 
 
 def test_main_print_only_json_emits_first_proof_contract(capsys) -> None:
@@ -101,7 +101,7 @@ def test_main_print_only_json_emits_first_proof_contract(capsys) -> None:
     assert payload["runtime_identity"]["python_executable"] == sys.executable
     assert "agilab" in payload["runtime_identity"]["distributions"]
     assert payload["run_manifest_filename"] == "run_manifest.json"
-    assert payload["run_manifest_path"].endswith("/log/execute/flight/run_manifest.json")
+    assert payload["run_manifest_path"].endswith("/log/execute/flight_telemetry/run_manifest.json")
     assert payload["commands"][0]["label"] == "package preinit smoke"
     assert payload["commands"][-1]["label"] == "seeded script check"
     serialized = json.dumps(payload)
@@ -494,7 +494,7 @@ def test_build_run_manifest_records_cli_command(tmp_path: Path) -> None:
     assert encoded["command"]["argv"][:3] == ["agilab", "first-proof", "--json"]
     assert encoded["command"]["label"] == "agilab first-proof"
     assert "OPENAI_API_KEY" not in encoded["command"]["env_overrides"]
-    assert encoded["environment"]["app_name"] == "flight_project"
+    assert encoded["environment"]["app_name"] == "flight_telemetry_project"
     proof_details = encoded["validations"][0]["details"]
     assert "runtime_identity" in proof_details
     assert proof_details["runtime_identity"]["python_executable"] == sys.executable
@@ -510,7 +510,7 @@ def test_collect_existing_artifacts_skips_internal_helpers(tmp_path: Path) -> No
     manifest_path = tmp_path / "run_manifest.json"
     manifest_path.write_text("{}", encoding="utf-8")
     (tmp_path / ".hidden").write_text("hidden", encoding="utf-8")
-    (tmp_path / "AGI_install_flight.py").write_text("helper", encoding="utf-8")
+    (tmp_path / "AGI_install_flight_telemetry.py").write_text("helper", encoding="utf-8")
     artifact = tmp_path / "metrics.json"
     artifact.write_text("{}", encoding="utf-8")
 
@@ -519,7 +519,7 @@ def test_collect_existing_artifacts_skips_internal_helpers(tmp_path: Path) -> No
     artifact_names = {item.name for item in artifacts}
     assert {"run_manifest", "metrics.json"} <= artifact_names
     assert ".hidden" not in artifact_names
-    assert "AGI_install_flight.py" not in artifact_names
+    assert "AGI_install_flight_telemetry.py" not in artifact_names
 
 
 def test_collect_existing_artifacts_handles_missing_output_dir(tmp_path: Path) -> None:
@@ -662,20 +662,26 @@ def test_agi_apps_umbrella_keeps_installer_without_payload_dependencies() -> Non
     dependencies = pyproject["project"]["dependencies"]
 
     assert "install.py" in package_data
-    assert not any(pattern.startswith("builtin/") for pattern in package_data)
+    builtin_patterns = [pattern for pattern in package_data if pattern.startswith("builtin/")]
+    assert builtin_patterns == ["builtin/mycode_project/**/*"]
     assert any(dependency.startswith("agi-core==") for dependency in dependencies)
-    assert not any(dependency.startswith("agi-app-") for dependency in dependencies)
+    assert {
+        "agi-app-mission-decision==0.1.0",
+        "agi-app-flight-telemetry==0.1.0",
+        "agi-app-weather-forecast==0.1.0",
+        "agi-app-uav-relay-queue==0.1.0",
+    } <= set(dependencies)
 
 
-def test_flight_project_package_data_includes_payload_for_execute() -> None:
+def test_flight_telemetry_project_package_data_includes_payload_for_execute() -> None:
     pyproject = tomllib.loads(
-        (ROOT / "src/agilab/lib/agi-app-flight-project/pyproject.toml").read_text(encoding="utf-8")
+        (ROOT / "src/agilab/lib/agi-app-flight-telemetry/pyproject.toml").read_text(encoding="utf-8")
     )
 
-    package_data = pyproject["tool"]["setuptools"]["package-data"]["agi_app_flight_project"]
-    excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agi_app_flight_project", [])
+    package_data = pyproject["tool"]["setuptools"]["package-data"]["agi_app_flight_telemetry"]
+    excluded_data = pyproject["tool"]["setuptools"].get("exclude-package-data", {}).get("agi_app_flight_telemetry", [])
 
-    assert (ROOT / "src/agilab/apps/builtin/flight_project/src/flight_worker/dataset.7z").is_file()
+    assert (ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/flight_worker/dataset.7z").is_file()
     assert "project/**/*" in package_data
     assert "project/**/.venv/**" in excluded_data
 

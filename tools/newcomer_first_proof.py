@@ -19,7 +19,7 @@ from typing import Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ACTIVE_APP = REPO_ROOT / "src/agilab/apps/builtin/flight_project"
+DEFAULT_ACTIVE_APP = REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project"
 DEFAULT_MAX_SECONDS = 10 * 60
 RUN_MANIFEST_RELATIVE_PATH = Path("src/agilab/run_manifest.py")
 UV_RUN_PYTHON = (
@@ -72,13 +72,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Run the recommended AGILAB newcomer proof smoke for the built-in "
-            "flight_project and print an explicit pass/fail verdict."
+            "flight_telemetry_project and print an explicit pass/fail verdict."
         )
     )
     parser.add_argument(
         "--active-app",
         default=str(DEFAULT_ACTIVE_APP),
-        help="Path to the app project to validate. Defaults to the built-in flight_project.",
+        help="Path to the app project to validate. Defaults to the built-in flight_telemetry_project.",
     )
     parser.add_argument(
         "--with-install",
@@ -233,8 +233,8 @@ def _install_command(active_app: Path) -> ProofCommand:
 
 def _seeded_script_check_code(app_slug: str) -> str:
     required = [
-        "AGI_install_flight.py",
-        "AGI_run_flight.py",
+        "AGI_install_flight_telemetry.py",
+        "AGI_run_flight_telemetry.py",
     ]
     return textwrap.dedent(
         f"""
@@ -476,8 +476,8 @@ def build_run_manifest(
         ),
         run_manifest.RunManifestValidation(
             label="recommended_project",
-            status="pass" if active_app.name == "flight_project" else "fail",
-            summary="active app is the recommended public flight_project",
+            status="pass" if active_app.name == "flight_telemetry_project" else "fail",
+            summary="active app is the recommended public flight_telemetry_project",
             details={"active_app": str(active_app), "app_name": active_app.name},
         ),
     ]
@@ -558,7 +558,7 @@ def render_human(
         lines.append(
             "  uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py"
         )
-        lines.append("  then follow PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS with flight_project")
+        lines.append("  then follow PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS with flight_telemetry_project")
     else:
         lines.append("recovery:")
         lines.append("  inspect the failing step output above")

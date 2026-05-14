@@ -42,6 +42,7 @@ from agilab.page_bundle_registry import (  # noqa: E402
     discover_page_bundles,
     resolve_page_bundles,
 )
+from agi_env.app_provider_registry import aliased_app_runtime_target, app_name_aliases  # noqa: E402
 
 WEB_ROBOT_PATH = REPO_ROOT / "tools/agilab_web_robot.py"
 DEFAULT_APPS_ROOT = REPO_ROOT / "src/agilab/apps/builtin"
@@ -896,17 +897,13 @@ def public_apps_pages(pages_root: Path = DEFAULT_APPS_PAGES_ROOT) -> list[AppsPa
 
 
 def parse_csv(value: str) -> list[str]:
-    aliases: tuple[str, ...] = ("_project", "_worker")
     items: list[str] = []
     seen: set[str] = set()
     for item in value.split(","):
         cleaned = item.strip()
         if not cleaned:
             continue
-        variants = {cleaned}
-        for suffix in aliases:
-            if cleaned.endswith(suffix):
-                variants.add(cleaned[: -len(suffix)])
+        variants = set(app_name_aliases(cleaned)) or {cleaned}
         if any(variant in seen for variant in variants):
             continue
         items.append(cleaned)
@@ -982,6 +979,10 @@ def active_app_slug(active_app: str) -> str:
     return Path(decoded).name if "/" in decoded else decoded
 
 
+def active_app_runtime_target_name(active_app: str) -> str:
+    return aliased_app_runtime_target(active_app_slug(active_app))
+
+
 def normalize_remote_url(url: str) -> str:
     """Map public HF Space pages to the Streamlit runtime URL."""
     candidate = url.strip()
@@ -1012,12 +1013,7 @@ def routed_active_app_slug(url: str) -> str | None:
 
 def active_app_aliases(active_app: str) -> set[str]:
     slug = active_app_slug(active_app)
-    aliases = {slug}
-    if slug.endswith("_project"):
-        aliases.add(slug[: -len("_project")])
-    else:
-        aliases.add(f"{slug}_project")
-    return aliases
+    return set(app_name_aliases(slug))
 
 
 def active_app_route_matches(url: str, expected_active_app: str) -> bool:
@@ -1231,7 +1227,7 @@ def _seed_forecast_artifacts(export_root: Path) -> None:
 
 
 def seed_public_demo_artifacts(app_name: str, *, export_root: Path, share_root: Path) -> None:
-    target = app_target_name(app_name)
+    target = active_app_runtime_target_name(app_name)
     if target not in PUBLIC_APP_TARGETS_WITH_SEEDED_ARTIFACTS:
         return
     export_root.mkdir(parents=True, exist_ok=True)
@@ -1762,7 +1758,7 @@ def _current_home_worker_import_issue(
     app_name: str,
     home_root: Path,
 ) -> str | None:
-    target = app_target_name(app_name)
+    target = active_app_runtime_target_name(app_name)
     worker_package = f"{target}_worker"
     worker_root = home_root / "wenv" / worker_package
     if not worker_root.is_dir():
@@ -1958,7 +1954,7 @@ def _unique_paths(paths: Sequence[Path]) -> list[Path]:
 
 
 def _orchestrate_output_roots(context: OrchestrateArtifactContext) -> list[Path]:
-    target = app_target_name(context.app_name)
+    target = active_app_runtime_target_name(context.app_name)
     share_roots = [context.share_root, context.cluster_share_root]
     args = _load_app_settings_args_for_artifact_context(context)
     candidates: list[Path] = []
@@ -1970,7 +1966,7 @@ def _orchestrate_output_roots(context: OrchestrateArtifactContext) -> list[Path]
 
 
 def _orchestrate_export_roots(context: OrchestrateArtifactContext) -> list[Path]:
-    target = app_target_name(context.app_name)
+    target = active_app_runtime_target_name(context.app_name)
     return _unique_paths([context.export_root / target])
 
 
@@ -2081,8 +2077,9 @@ def _workflow_source_stage_contract_path(context: WorkflowArtifactContext) -> Pa
 
 
 def _workflow_export_stage_contract_paths(context: WorkflowArtifactContext, *, url: str = "") -> list[Path]:
+    target = active_app_runtime_target_name(context.app_name)
     candidates = [
-        context.export_root / app_target_name(context.app_name) / WORKFLOW_STAGE_CONTRACT_FILENAME,
+        context.export_root / target / WORKFLOW_STAGE_CONTRACT_FILENAME,
         context.export_root / active_app_slug(context.app_name) / WORKFLOW_STAGE_CONTRACT_FILENAME,
     ]
     try:
@@ -2099,7 +2096,7 @@ def _workflow_export_stage_contract_paths(context: WorkflowArtifactContext, *, u
 
 
 def _workflow_run_log_roots(context: WorkflowArtifactContext) -> list[Path]:
-    target = app_target_name(context.app_name)
+    target = active_app_runtime_target_name(context.app_name)
     return _unique_paths(
         [
             context.home_root / "log" / "execute" / target,

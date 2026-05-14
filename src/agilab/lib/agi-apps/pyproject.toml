@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.13.post3"
+version = "2026.05.13.post4"
 name = "agi-apps"
 description = "AGILAB public app package umbrella and example assets"
 requires-python = ">=3.11"
@@ -33,6 +33,10 @@ keywords = [
 
 dependencies = [
     "agi-core==2026.05.13.post3",
+    "agi-app-mission-decision==0.1.0",
+    "agi-app-flight-telemetry==0.1.0",
+    "agi-app-weather-forecast==0.1.0",
+    "agi-app-uav-relay-queue==0.1.0",
 ]
 
 [project.urls]
@@ -53,32 +57,28 @@ dev = [
     path = "../../core/agi-core"
     editable = true
 
-[tool.uv.sources.agi-app-data-io-2026-project]
-    path = "../agi-app-data-io-2026-project"
+[tool.uv.sources.agi-app-mission-decision]
+    path = "../agi-app-mission-decision"
     editable = true
 
-[tool.uv.sources.agi-app-execution-pandas-project]
-    path = "../agi-app-execution-pandas-project"
+[tool.uv.sources.agi-app-pandas-execution]
+    path = "../agi-app-pandas-execution"
     editable = true
 
-[tool.uv.sources.agi-app-execution-polars-project]
-    path = "../agi-app-execution-polars-project"
+[tool.uv.sources.agi-app-polars-execution]
+    path = "../agi-app-polars-execution"
     editable = true
 
-[tool.uv.sources.agi-app-flight-project]
-    path = "../agi-app-flight-project"
+[tool.uv.sources.agi-app-flight-telemetry]
+    path = "../agi-app-flight-telemetry"
     editable = true
 
-[tool.uv.sources.agi-app-global-dag-project]
-    path = "../agi-app-global-dag-project"
+[tool.uv.sources.agi-app-global-dag]
+    path = "../agi-app-global-dag"
     editable = true
 
-[tool.uv.sources.agi-app-meteo-forecast-project]
-    path = "../agi-app-meteo-forecast-project"
-    editable = true
-
-[tool.uv.sources.agi-app-mycode-project]
-    path = "../agi-app-mycode-project"
+[tool.uv.sources.agi-app-weather-forecast]
+    path = "../agi-app-weather-forecast"
     editable = true
 
 [tool.uv.sources.agi-app-tescia-diagnostic-project]
@@ -89,8 +89,8 @@ dev = [
     path = "../agi-app-uav-queue-project"
     editable = true
 
-[tool.uv.sources.agi-app-uav-relay-queue-project]
-    path = "../agi-app-uav-relay-queue-project"
+[tool.uv.sources.agi-app-uav-relay-queue]
+    path = "../agi-app-uav-relay-queue"
     editable = true
 
 [build-system]
@@ -113,6 +113,7 @@ packages = [
 "agilab.apps" = [
     "README.md",
     "install.py",
+    "builtin/mycode_project/**/*",
 ]
 "agilab.examples" = [
     "README.md",
@@ -139,8 +140,15 @@ packages = [
 
 [tool.setuptools.exclude-package-data]
 "agilab.apps" = [
-    "builtin/**",
     "templates/**",
+    "builtin/**/.venv/**",
+    "builtin/**/__pycache__/**",
+    "builtin/**/*.egg-info/**",
+    "builtin/**/*.pyc",
+    "builtin/**/*.pyo",
+    "builtin/**/*.pyx",
+    "builtin/**/*.c",
+    "builtin/**/uv.lock",
     "**/__pycache__/**",
     "**/*.pyc",
     "**/*.pyo",

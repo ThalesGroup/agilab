@@ -47,7 +47,7 @@ def test_docs_conf_skips_generated_root_project_workspaces() -> None:
     assert conf._is_generated_root_project_src(ROOT / "temporary_demo_project" / "src") is True
     assert (
         conf._is_generated_root_project_src(
-            ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_project" / "src"
+            ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project" / "src"
         )
         is False
     )

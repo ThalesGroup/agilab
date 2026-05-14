@@ -6,6 +6,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from agi_env.app_provider_registry import app_name_aliases
 from agi_env.snippet_contract import is_generated_agi_snippet, is_supported_snippet_api
 
 
@@ -160,9 +161,11 @@ def _runenv_snippet_candidates(
     try:
         runenv_path = Path(runenv_root).expanduser()
         app_settings_mtime = _mtime(app_settings_file)
-        expected_suffix = f"_{app_name}.py"
+        expected_suffixes = tuple(f"_{name}.py" for name in _snippet_app_names(app_name))
+        if not expected_suffixes:
+            return
         for py_file in sorted(runenv_path.glob("AGI_*.py")):
-            if not py_file.name.endswith(expected_suffix):
+            if not py_file.name.endswith(expected_suffixes):
                 continue
             if app_settings_mtime is not None:
                 try:
@@ -173,6 +176,23 @@ def _runenv_snippet_candidates(
             yield py_file
     except (OSError, RuntimeError, TypeError, ValueError):
         return
+
+
+def _snippet_app_names(app_name: str) -> tuple[str, ...]:
+    """Return project and slug forms used by generated AGI snippet filenames."""
+
+    normalized = Path(str(app_name or "").strip()).name.replace("-", "_")
+    if not normalized:
+        return ()
+    names: list[str] = []
+
+    def add(name: str) -> None:
+        if name and name not in names:
+            names.append(name)
+
+    for alias in app_name_aliases(normalized):
+        add(alias)
+    return tuple(names)
 
 
 def _usable_python_file(candidate: str | Path | None) -> Path | None:

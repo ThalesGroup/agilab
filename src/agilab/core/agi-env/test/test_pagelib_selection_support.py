@@ -257,7 +257,7 @@ def test_on_df_change_support_uses_explicit_df_file_when_no_selection(tmp_path):
 def test_resolve_active_app_support_prefers_query_param_and_fallback_last_app(tmp_path):
     apps_root = tmp_path / "apps"
     builtin_root = apps_root / "builtin"
-    target = builtin_root / "flight_project"
+    target = builtin_root / "flight_telemetry_project"
     target.mkdir(parents=True)
     changed_to: list[Path] = []
     stored: list[Path] = []
@@ -265,7 +265,7 @@ def test_resolve_active_app_support_prefers_query_param_and_fallback_last_app(tm
     env = SimpleNamespace(
         apps_path=apps_root,
         app="mycode_project",
-        projects=["flight_project"],
+        projects=["flight_telemetry_project"],
         active_app=apps_root / "mycode_project",
         change_app=lambda path: changed_to.append(path)
         or setattr(env, "active_app", path)
@@ -282,13 +282,13 @@ def test_resolve_active_app_support_prefers_query_param_and_fallback_last_app(tm
     )
 
     assert changed is True
-    assert app_name == "flight_project"
+    assert app_name == "flight_telemetry_project"
     assert changed_to == [target]
     assert stored == [target]
 
     last_app = apps_root / "demo_project"
     last_app.mkdir(parents=True)
-    env.app = "flight_project"
+    env.app = "flight_telemetry_project"
     env.active_app = target
     changed_to.clear()
     app_name, changed = resolve_active_app(

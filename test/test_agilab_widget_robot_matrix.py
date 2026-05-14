@@ -53,7 +53,7 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     module = _load_module()
     scenario = module.DEFAULT_SCENARIOS["current-home-actions"]
     options = module.MatrixOptions(
-        apps="flight_project",
+        apps="flight_telemetry_project",
         output_dir=tmp_path,
         screenshot_dir=tmp_path / "screenshots",
         timeout_seconds=12.0,
@@ -67,7 +67,7 @@ def test_build_robot_command_contains_scenario_controls(tmp_path) -> None:
     argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
 
     assert Path(argv[1]).name == "agilab_widget_robot.py"
-    assert argv[argv.index("--apps") + 1] == "flight_project"
+    assert argv[argv.index("--apps") + 1] == "flight_telemetry_project"
     assert argv[argv.index("--pages") + 1] == "ORCHESTRATE"
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--runtime-isolation") + 1] == "current-home"
@@ -89,7 +89,7 @@ def test_build_robot_command_enables_artifact_assertions_for_stateful_journey(tm
     module = _load_module()
     scenario = module.DEFAULT_SCENARIOS["current-home-orchestrate-journey"]
     options = module.MatrixOptions(
-        apps="flight_project",
+        apps="flight_telemetry_project",
         output_dir=tmp_path,
         screenshot_dir=None,
         timeout_seconds=12.0,
@@ -107,7 +107,7 @@ def test_build_robot_command_enables_workflow_artifact_assertions_for_core_sweep
     module = _load_module()
     scenario = module.DEFAULT_SCENARIOS["isolated-core-pages"]
     options = module.MatrixOptions(
-        apps="flight_project",
+        apps="flight_telemetry_project",
         output_dir=tmp_path,
         screenshot_dir=None,
         timeout_seconds=12.0,
@@ -142,7 +142,7 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
     module = _load_module()
     scenarios = module.resolve_scenarios(["all"])
     options = module.MatrixOptions(
-        apps="flight_project",
+        apps="flight_telemetry_project",
         output_dir=tmp_path,
         screenshot_dir=None,
         timeout_seconds=10.0,
@@ -196,7 +196,7 @@ def test_run_matrix_fail_fast_stops_on_first_failed_scenario(tmp_path) -> None:
     module = _load_module()
     scenarios = module.resolve_scenarios(["all"])
     options = module.MatrixOptions(
-        apps="flight_project",
+        apps="flight_telemetry_project",
         output_dir=tmp_path,
         screenshot_dir=None,
         timeout_seconds=10.0,
@@ -255,7 +255,7 @@ def test_summarize_matrix_reports_failure_samples(tmp_path) -> None:
             "failed_count": 1,
             "pages": [
                 {
-                    "app": "flight_project",
+                    "app": "flight_telemetry_project",
                     "page": "ORCHESTRATE",
                     "failures": [
                         {
@@ -277,7 +277,7 @@ def test_summarize_matrix_reports_failure_samples(tmp_path) -> None:
     assert summary["failure_samples"] == [
         {
             "scenario": "current-home-orchestrate-journey",
-            "app": "flight_project",
+            "app": "flight_telemetry_project",
             "page": "ORCHESTRATE",
             "kind": "button",
             "label": "Run -> Load -> Export",
@@ -294,7 +294,7 @@ def test_main_print_only_json_lists_commands(tmp_path, capsys) -> None:
             "--scenario",
             "current-home-actions",
             "--apps",
-            "flight_project",
+            "flight_telemetry_project",
             "--output-dir",
             str(tmp_path),
             "--print-only",
@@ -309,4 +309,4 @@ def test_main_print_only_json_lists_commands(tmp_path, capsys) -> None:
     command = payload["commands"][0]
     assert command["scenario"]["name"] == "current-home-actions"
     assert command["summary_path"] == str(tmp_path / "current-home-actions.json")
-    assert command["argv"][command["argv"].index("--apps") + 1] == "flight_project"
+    assert command["argv"][command["argv"].index("--apps") + 1] == "flight_telemetry_project"

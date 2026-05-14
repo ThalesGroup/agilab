@@ -16,7 +16,7 @@ from typing import Any, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ABOUT_PAGE = REPO_ROOT / "src" / "agilab" / "main_page.py"
-DEFAULT_ACTIVE_APP = REPO_ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+DEFAULT_ACTIVE_APP = REPO_ROOT / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
 DEFAULT_APPS_PATH = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 SCHEMA = "agilab.first_launch_robot.v1"
 DEFAULT_TARGET_SECONDS = 45.0
@@ -142,7 +142,7 @@ def build_report(
         _check_result(
             "first_launch_first_proof_signal",
             "First launch exposes first-proof action",
-            _contains_any(markdown, ["Start here: run flight_project first"]),
+            _contains_any(markdown, ["Start here: run flight_telemetry_project first"]),
             "Landing page tells newcomers where to start",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),

@@ -21,21 +21,21 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
     {
         "id": "flight-local-first-proof",
         "label": "Local package proof",
-        "route": "packaged examples-profile first-proof for flight_project",
+        "route": "packaged examples-profile first-proof for flight_telemetry_project",
         "target_seconds": FIRST_PROOF_TARGET_SECONDS,
         "commands": [
             'python -m pip install "agilab[examples]"',
             "python -m agilab.lab_run first-proof --json --max-seconds 60",
         ],
         "evidence_files": [
-            "src/agilab/apps/builtin/flight_project/pyproject.toml",
-            "src/agilab/apps/builtin/flight_project/src/app_settings.toml",
-            "src/agilab/apps/builtin/flight_project/pipeline_view.dot",
+            "src/agilab/apps/builtin/flight_telemetry_project/pyproject.toml",
+            "src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/flight_telemetry_project/pipeline_view.dot",
             "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
         ],
         "expected_artifacts": [
-            "~/log/execute/flight/run_manifest.json",
-            "~/log/execute/flight",
+            "~/log/execute/flight_telemetry/run_manifest.json",
+            "~/log/execute/flight_telemetry",
         ],
         "scope": "Clean local package proof with the `agi-apps` public app umbrella and per-app payloads; install `agilab[ui]` for the visible flight analysis route and the `agi-pages` analysis views.",
         "limits": [
@@ -45,17 +45,17 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
         ],
     },
     {
-        "id": "meteo-forecast-hosted-proof",
+        "id": "weather-forecast-hosted-proof",
         "label": "Second public app proof",
-        "route": "Hosted or local meteo_forecast_project forecast analysis",
+        "route": "Hosted or local weather_forecast_project forecast analysis",
         "target_seconds": FIRST_PROOF_TARGET_SECONDS,
         "commands": [
             "uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json",
         ],
         "evidence_files": [
-            "src/agilab/apps/builtin/meteo_forecast_project/pyproject.toml",
-            "src/agilab/apps/builtin/meteo_forecast_project/lab_stages.toml",
-            "src/agilab/apps/builtin/meteo_forecast_project/pipeline_view.dot",
+            "src/agilab/apps/builtin/weather_forecast_project/pyproject.toml",
+            "src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml",
+            "src/agilab/apps/builtin/weather_forecast_project/pipeline_view.dot",
             "src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py",
             "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py",
             "tools/hf_space_smoke.py",
@@ -212,7 +212,7 @@ def build_report(
         )
     hf_smoke_payload = _load_runtime_json(hf_smoke_json)
     if hf_smoke_payload is not None and hf_smoke_json is not None:
-        runtime_payloads["meteo-forecast-hosted-proof"] = (
+        runtime_payloads["weather-forecast-hosted-proof"] = (
             hf_smoke_json,
             hf_smoke_payload,
         )

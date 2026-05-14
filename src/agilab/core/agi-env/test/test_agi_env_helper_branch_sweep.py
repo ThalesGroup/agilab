@@ -68,9 +68,9 @@ def test_worker_runtime_support_covers_remaining_builtin_and_copy_fallbacks(tmp_
         logger=logger,
     )
 
-    env_builtin = _dummy_worker_env(tmp_path, app_name="flight_project")
+    env_builtin = _dummy_worker_env(tmp_path, app_name="flight_telemetry_project")
     builtin_root = tmp_path / "apps" / "builtin"
-    candidate_app = builtin_root / "flight_project"
+    candidate_app = builtin_root / "flight_telemetry_project"
     (candidate_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
     (candidate_app / "src" / "flight_worker" / "flight_worker.py").write_text(
         "class FlightWorker:\n    pass\n",

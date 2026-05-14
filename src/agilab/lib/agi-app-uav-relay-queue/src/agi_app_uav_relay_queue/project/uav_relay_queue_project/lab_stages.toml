@@ -1,0 +1,4 @@
+uav_relay_queue = [
+  { D = "Seed the UAV relay queue scenario", Q = "Load or seed the compact UAV relay queue scenario and expose two relay paths toward one sink.", M = "", C = "APP = 'uav_relay_queue_project'\nscenario = 'uav_queue_hotspot'\nrouting_policy = 'shortest_path'", R = "runpy" },
+  { D = "Run the relay queue policy", Q = "Execute the chosen relay policy and export packet, queue, and trajectory artifacts for analysis.", M = "", C = "APP = 'uav_relay_queue_project'\nrouting_policy = 'queue_aware'\ndata_in = 'uav_relay_queue/scenarios'\ndata_out = 'uav_relay_queue/results'", R = "runpy" },
+]

@@ -101,8 +101,8 @@ if "env" not in st.session_state:
 else:
     env = st.session_state["env"]
 
-render_logo("Data IO 2026 Decision")
-st.title("Data IO 2026 decision engine")
+render_logo("Mission Decision")
+st.title("Mission Decision engine")
 st.caption(
     "Inspect the public autonomous mission-data demo: pipeline generation, failure injection, "
     "re-planning, and final decision evidence."

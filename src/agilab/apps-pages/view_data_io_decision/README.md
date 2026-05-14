@@ -1,14 +1,14 @@
-# Data IO Decision View
+# Mission Decision View
 
-Streamlit analysis page for the public Data IO 2026 built-in demo.
+Streamlit analysis page for the public Mission Decision built-in demo.
 
-Use this page after running `data_io_2026_project` from AGILAB:
+Use this page after running `mission_decision_project` from AGILAB:
 
-1. `PROJECT` -> select `src/agilab/apps/builtin/data_io_2026_project`.
+1. `PROJECT` -> select `src/agilab/apps/builtin/mission_decision_project`.
 2. `ORCHESTRATE` -> `INSTALL`, then `EXECUTE`.
 3. `ANALYSIS` -> open `view_data_io_decision`.
 
-The page reads the artifacts exported by `data_io_2026_project` and displays:
+The page reads the artifacts exported by `mission_decision_project` and displays:
 
 - selected strategy
 - latency, cost, and reliability deltas versus no re-plan
@@ -20,7 +20,7 @@ The page reads the artifacts exported by `data_io_2026_project` and displays:
 
 Expected artifact root:
 
-- `export/data_io_2026/data_io_decision`
+- `export/mission_decision/data_io_decision`
 
 Expected successful result:
 

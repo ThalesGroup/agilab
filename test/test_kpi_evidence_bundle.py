@@ -894,8 +894,8 @@ def test_data_connector_app_catalogs_report_contract_validates_builtin_apps() ->
     assert check["details"]["summary"]["apps"] == [
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_project",
-        "meteo_forecast_project",
+        "flight_telemetry_project",
+        "weather_forecast_project",
         "uav_queue_project",
         "uav_relay_queue_project",
     ]

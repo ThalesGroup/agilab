@@ -87,7 +87,7 @@ def test_multi_app_dag_report_validates_portfolio_sample() -> None:
     assert report["summary"]["cross_app_edge_count"] == 3
     assert report["summary"]["execution_order"] == [
         "flight_context",
-        "meteo_forecast_review",
+        "weather_forecast_review",
         "pandas_benchmark_review",
         "polars_benchmark_review",
     ]

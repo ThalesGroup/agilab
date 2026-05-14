@@ -1,8 +1,8 @@
 [project]
-name = "view-maps-3d"
+name = "agi-page-geospatial-3d"
 version = "0.1.0"
-description = "AGILAB page bundle for 3D map analysis."
-readme = { text = "AGILAB page bundle for 3D map analysis.", content-type = "text/markdown" }
+description = "AGILAB page bundle for 3D geospatial exploration."
+readme = { text = "AGILAB page bundle for 3D geospatial exploration.", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
     "agi-gui>=2026.05.12.post3,<2027.0",

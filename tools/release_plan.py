@@ -10,9 +10,17 @@ from pathlib import Path
 from typing import Any, Sequence
 
 try:
-    from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, UMBRELLA_PACKAGE_CONTRACT
+    from package_split_contract import (
+        LIBRARY_PACKAGE_CONTRACTS,
+        PROMOTED_APP_PROJECT_PACKAGE_NAMES,
+        UMBRELLA_PACKAGE_CONTRACT,
+    )
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
-    from tools.package_split_contract import LIBRARY_PACKAGE_CONTRACTS, UMBRELLA_PACKAGE_CONTRACT
+    from tools.package_split_contract import (
+        LIBRARY_PACKAGE_CONTRACTS,
+        PROMOTED_APP_PROJECT_PACKAGE_NAMES,
+        UMBRELLA_PACKAGE_CONTRACT,
+    )
 
 
 SCHEMA_VERSION = "agilab.release_plan.v1"
@@ -27,6 +35,7 @@ PYPI_PUBLISH_ROLES = {
 
 
 def _package_entry(package: Any) -> dict[str, str]:
+    publish_to_pypi = package.role in PYPI_PUBLISH_ROLES or package.name in PROMOTED_APP_PROJECT_PACKAGE_NAMES
     return {
         "package": package.name,
         "project": package.project,
@@ -34,7 +43,7 @@ def _package_entry(package: Any) -> dict[str, str]:
         "pypi_project": package.name,
         "pypi_environment": package.pypi_environment,
         "artifact_policy": package.artifact_policy,
-        "publish_to_pypi": "true" if package.role in PYPI_PUBLISH_ROLES else "false",
+        "publish_to_pypi": "true" if publish_to_pypi else "false",
     }
 
 

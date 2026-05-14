@@ -6,6 +6,7 @@ from typing import Any, List, Optional
 import streamlit as st
 
 from agi_env import AgiEnv
+from agi_env.app_provider_registry import aliased_app_runtime_target, app_name_aliases
 from agi_gui.pagelib import scan_dir
 from agi_gui.ui_support import load_last_active_app, store_last_active_app
 
@@ -21,10 +22,9 @@ def load_last_active_app_name(modules: List[str]) -> Optional[str]:
     candidates = [last_path.name, str(last_path)]
 
     def _normalize(candidate: str) -> Optional[str]:
-        if candidate in modules:
-            return candidate
-        if candidate.endswith("_project") and candidate.removesuffix("_project") in modules:
-            return candidate.removesuffix("_project")
+        for alias in app_name_aliases(candidate):
+            if alias in modules:
+                return alias
         return None
 
     for name in candidates:
@@ -51,15 +51,15 @@ def on_lab_change(new_index_page: str) -> None:
     try:
         base = Path(env.apps_path)  # type: ignore[attr-defined]
         builtin_base = base / "builtin"
-        for cand in (
-            base / new_index_page,
-            builtin_base / new_index_page,
-            base / f"{new_index_page}_project",
-            builtin_base / f"{new_index_page}_project",
-        ):
-            if cand.exists():
+        for alias in app_name_aliases(new_index_page):
+            for cand in (
+                base / alias,
+                builtin_base / alias,
+            ):
+                if not cand.exists():
+                    continue
                 store_last_active_app(cand)
-                break
+                return
     except (AttributeError, TypeError, OSError):
         pass
 
@@ -94,10 +94,13 @@ def normalize_lab_choice(raw_value: Any, modules: List[str]) -> str:
     text = str(raw_value or "").strip()
     if not text:
         return ""
-    candidates = [text]
+    candidates = list(app_name_aliases(text)) or [text]
     path_name = Path(text).name
     if path_name not in candidates:
         candidates.append(path_name)
+    for alias in app_name_aliases(path_name):
+        if alias not in candidates:
+            candidates.append(alias)
     if text.endswith("_project"):
         stem = text.removesuffix("_project")
         candidates.append(stem)
@@ -120,16 +123,16 @@ def resolve_lab_export_dir(export_root: Path, lab_choice: str) -> Path:
     choice = str(lab_choice or "").strip()
     if not choice:
         return export_root.resolve()
-    candidates = [choice]
-    if choice.endswith("_project"):
-        candidates.append(choice.removesuffix("_project"))
-    else:
-        candidates.append(f"{choice}_project")
+    target = aliased_app_runtime_target(Path(choice).name)
+    candidates = [target]
+    for alias in app_name_aliases(choice):
+        if alias not in candidates:
+            candidates.append(alias)
     for candidate in candidates:
         resolved = (export_root / candidate).resolve()
         if resolved.exists():
             return resolved
-    return (export_root / choice.removesuffix("_project")).resolve()
+    return (export_root / target).resolve()
 
 
 def open_notebook_in_browser() -> None:

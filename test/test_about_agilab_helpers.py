@@ -197,14 +197,14 @@ def test_page_bootstrap_realigns_stale_session_env_to_page_root(tmp_path):
     source_root = tmp_path / "agilab-src" / "src" / "agilab"
     source_apps = source_root / "apps"
     page_file = source_root / "pages" / "2_ORCHESTRATE.py"
-    source_project = source_apps / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
     stale_apps = tmp_path / "agi-space" / "apps" / "builtin"
     page_file.parent.mkdir(parents=True)
     source_project.mkdir(parents=True)
     stale_apps.mkdir(parents=True)
 
     class FakeEnv:
-        def __init__(self, *, apps_path: Path, app: str = "flight_project", verbose: int | None = 1):
+        def __init__(self, *, apps_path: Path, app: str = "flight_telemetry_project", verbose: int | None = 1):
             self.apps_path = apps_path
             self.app = app
             self.verbose = verbose
@@ -228,14 +228,14 @@ def test_page_bootstrap_realigns_stale_agi_space_recorded_root(tmp_path):
     source_root = tmp_path / "agilab-src" / "src" / "agilab"
     source_apps = source_root / "apps"
     page_file = source_root / "pages" / "2_ORCHESTRATE.py"
-    source_project = source_apps / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
     stale_apps = tmp_path / "agi-space" / "apps"
     page_file.parent.mkdir(parents=True)
     source_project.mkdir(parents=True)
-    (stale_apps / "builtin" / "flight_project").mkdir(parents=True)
+    (stale_apps / "builtin" / "flight_telemetry_project").mkdir(parents=True)
 
     class FakeEnv:
-        def __init__(self, *, apps_path: Path, app: str = "flight_project", verbose: int | None = 1):
+        def __init__(self, *, apps_path: Path, app: str = "flight_telemetry_project", verbose: int | None = 1):
             self.apps_path = apps_path
             self.app = app
             self.verbose = verbose
@@ -258,14 +258,14 @@ def test_page_bootstrap_realigns_stale_agi_space_active_app_with_current_source_
     source_root = tmp_path / "agilab-src" / "src" / "agilab"
     source_apps = source_root / "apps"
     page_file = source_root / "pages" / "2_ORCHESTRATE.py"
-    source_project = source_apps / "builtin" / "flight_project"
-    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
     page_file.parent.mkdir(parents=True)
     source_project.mkdir(parents=True)
     stale_project.mkdir(parents=True)
 
     class FakeEnv:
-        def __init__(self, *, apps_path: Path, app: str = "flight_project", verbose: int | None = 1):
+        def __init__(self, *, apps_path: Path, app: str = "flight_telemetry_project", verbose: int | None = 1):
             self.apps_path = apps_path
             self.app = app
             self.verbose = verbose
@@ -293,7 +293,7 @@ def test_page_bootstrap_keeps_session_env_when_recorded_root_differs(tmp_path):
     page_file.parent.mkdir(parents=True)
     source_apps.mkdir(parents=True)
     other_apps.mkdir(parents=True)
-    env = SimpleNamespace(apps_path=other_apps, app="flight_project", init_done=True)
+    env = SimpleNamespace(apps_path=other_apps, app="flight_telemetry_project", init_done=True)
     session_state = {
         "env": env,
         "apps_path": str(other_apps),
@@ -709,7 +709,7 @@ def test_bootstrap_default_agilab_path_file_uses_platform_locations(tmp_path):
 def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
-    project_path = apps_path / "flight_project"
+    project_path = apps_path / "flight_telemetry_project"
     project_path.mkdir(parents=True)
     warnings: list[str] = []
 
@@ -717,7 +717,7 @@ def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
         def __init__(self):
             self.apps_path = apps_path
             self.app = "default"
-            self.projects = {"flight_project"}
+            self.projects = {"flight_telemetry_project"}
 
         def change_app(self, path: Path) -> None:
             assert path == project_path.resolve()
@@ -726,9 +726,9 @@ def test_bootstrap_active_app_helpers_resolve_and_switch_project(tmp_path):
     fake_st = SimpleNamespace(warning=warnings.append)
     env = FakeEnv()
 
-    assert bootstrap.normalize_active_app_input(env, "flight_project") == project_path.resolve()
-    assert bootstrap.apply_active_app_request(env, "flight_project", streamlit=fake_st) is True
-    assert env.app == "flight_project"
+    assert bootstrap.normalize_active_app_input(env, "flight_telemetry_project") == project_path.resolve()
+    assert bootstrap.apply_active_app_request(env, "flight_telemetry_project", streamlit=fake_st) is True
+    assert env.app == "flight_telemetry_project"
     assert warnings == []
 
 
@@ -736,19 +736,19 @@ def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_p
     bootstrap = about_agilab._about_bootstrap
     old_root = tmp_path / "agi-space" / "apps" / "builtin"
     new_root = tmp_path / "agilab-src" / "src" / "agilab" / "apps" / "builtin"
-    old_project = old_root / "flight_project"
-    new_project = new_root / "flight_project"
+    old_project = old_root / "flight_telemetry_project"
+    new_project = new_root / "flight_telemetry_project"
     old_project.mkdir(parents=True)
     new_project.mkdir(parents=True)
     warnings: list[str] = []
 
     class FakeEnv:
-        def __init__(self, *, apps_path: Path = old_root, app: str = "flight_project", verbose: int | None = 1):
+        def __init__(self, *, apps_path: Path = old_root, app: str = "flight_telemetry_project", verbose: int | None = 1):
             self.apps_path = apps_path
             self.app = app
             self.verbose = verbose
             self.active_app = apps_path / app
-            self.projects = {"flight_project"}
+            self.projects = {"flight_telemetry_project"}
             self.init_done = True
 
         def change_app(self, _path: Path) -> None:
@@ -758,7 +758,7 @@ def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_p
     env = FakeEnv()
 
     assert bootstrap.apply_active_app_request(env, str(new_project), streamlit=fake_st) is True
-    assert env.app == "flight_project"
+    assert env.app == "flight_telemetry_project"
     assert env.apps_path == new_root
     assert env.active_app == new_project
     assert env.init_done is True
@@ -768,8 +768,8 @@ def test_bootstrap_active_app_request_switches_same_name_when_root_changes(tmp_p
 def test_bootstrap_active_app_store_path_prefers_real_active_app(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "src" / "agilab" / "apps"
-    active_app = apps_path / "builtin" / "flight_project"
-    env = SimpleNamespace(apps_path=apps_path, app="flight_project", active_app=active_app)
+    active_app = apps_path / "builtin" / "flight_telemetry_project"
+    env = SimpleNamespace(apps_path=apps_path, app="flight_telemetry_project", active_app=active_app)
 
     assert bootstrap.active_app_store_path(env) == active_app
 
@@ -778,37 +778,37 @@ def test_bootstrap_normalize_active_app_input_finds_builtin_project_name(tmp_pat
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "src" / "agilab" / "apps"
     builtin_path = apps_path / "builtin"
-    active_app = builtin_path / "flight_project"
+    active_app = builtin_path / "flight_telemetry_project"
     active_app.mkdir(parents=True)
     env = SimpleNamespace(
         apps_path=apps_path,
         builtin_apps_path=builtin_path,
         apps_repository_root=None,
-        projects={"flight_project"},
+        projects={"flight_telemetry_project"},
     )
 
-    assert bootstrap.normalize_active_app_input(env, "flight_project") == active_app.resolve()
+    assert bootstrap.normalize_active_app_input(env, "flight_telemetry_project") == active_app.resolve()
 
 
 def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
     source_builtin = source_apps / "builtin"
-    source_project = source_builtin / "flight_project"
-    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    source_project = source_builtin / "flight_telemetry_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
     source_project.mkdir(parents=True)
     stale_project.mkdir(parents=True)
     requested_apps: list[str | None] = []
 
     class FakeAgiEnv:
-        def __init__(self, *, apps_path: Path, app: str = "flight_project", verbose: int = 1):
+        def __init__(self, *, apps_path: Path, app: str = "flight_telemetry_project", verbose: int = 1):
             self.apps_path = apps_path
             self.builtin_apps_path = apps_path / "builtin"
             self.apps_repository_root = None
             self.verbose = verbose
             self.app = app
             self.active_app = self.builtin_apps_path / app
-            self.projects = {"flight_project"}
+            self.projects = {"flight_telemetry_project"}
             self.is_source_env = True
             self.is_worker_env = False
             self.OPENAI_API_KEY = ""
@@ -848,15 +848,15 @@ def test_bootstrap_page_environment_keeps_source_root_when_last_app_is_agi_space
 
     assert result.env.active_app == source_project
     assert result.env.apps_path == source_apps
-    assert requested_apps == ["flight_project"]
+    assert requested_apps == ["flight_telemetry_project"]
     assert port_calls.stored == [source_project]
-    assert fake_st.query_params["active_app"] == "flight_project"
+    assert fake_st.query_params["active_app"] == "flight_telemetry_project"
 
 
 def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_init(tmp_path, monkeypatch):
     bootstrap = about_agilab._about_bootstrap
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
-    source_project = source_apps / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
     stale_apps = tmp_path / "agi-space" / "apps"
     source_project.mkdir(parents=True)
     stale_apps.mkdir(parents=True)
@@ -881,9 +881,9 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
             self.builtin_apps_path = apps_path / "builtin"
             self.apps_repository_root = None
             self.verbose = verbose
-            self.app = "flight_project"
+            self.app = "flight_telemetry_project"
             self.active_app = self.builtin_apps_path / self.app
-            self.projects = {"flight_project"}
+            self.projects = {"flight_telemetry_project"}
             self.is_source_env = self.persisted.get("IS_SOURCE_ENV") == "1"
             self.is_worker_env = self.persisted.get("IS_WORKER_ENV") == "1"
             self.OPENAI_API_KEY = ""
@@ -895,7 +895,7 @@ def test_bootstrap_page_environment_repairs_enduser_env_before_source_agi_env_in
     ports, _port_calls = _make_bootstrap_ports(
         FakeAgiEnv,
         services_enabled=False,
-        last_app=stale_apps / "builtin" / "flight_project",
+        last_app=stale_apps / "builtin" / "flight_telemetry_project",
         environ=fake_environ,
     )
     monkeypatch.setattr(bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: source_apps)
@@ -1067,7 +1067,7 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(monkeypa
     monkeypatch.setattr(bootstrap, "resolve_apps_path", lambda *_args, **_kwargs: tmp_path / "apps")
     ports, _port_calls = _make_bootstrap_ports(FailingAgiEnv)
     fake_st = _FakeStreamlit()
-    fake_st.query_params["active_app"] = "flight_project"
+    fake_st.query_params["active_app"] = "flight_telemetry_project"
 
     result = bootstrap.bootstrap_page_environment(
         streamlit=fake_st,
@@ -1092,7 +1092,7 @@ def test_bootstrap_page_environment_handles_cluster_share_startup_error(monkeypa
 
 def test_bootstrap_cluster_share_startup_error_can_disable_stale_app_setting(tmp_path):
     bootstrap = about_agilab._about_bootstrap
-    settings_path = tmp_path / ".agilab/apps/flight_project/app_settings.toml"
+    settings_path = tmp_path / ".agilab/apps/flight_telemetry_project/app_settings.toml"
     settings_path.parent.mkdir(parents=True)
     settings_path.write_text(
         """
@@ -1108,7 +1108,7 @@ user = "agi"
     class ClickStreamlit(_FakeStreamlit):
         def __init__(self):
             super().__init__()
-            self.query_params["active_app"] = "flight_project"
+            self.query_params["active_app"] = "flight_telemetry_project"
 
         def button(self, label: str, **_kwargs):
             self.events.append(("button", label))
@@ -1182,7 +1182,7 @@ def test_bootstrap_sync_active_app_from_query_keeps_matching_query(tmp_path):
 def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
     bootstrap = about_agilab._about_bootstrap
     apps_path = tmp_path / "apps"
-    app_path = apps_path / "flight_project"
+    app_path = apps_path / "flight_telemetry_project"
     app_path.mkdir(parents=True)
     fake_environ: dict[str, str] = {}
     set_env_calls: list[tuple[str, str]] = []
@@ -1198,7 +1198,7 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
             self.apps_path = apps_path
             self.verbose = verbose
             self.app = "default"
-            self.projects = {"flight_project"}
+            self.projects = {"flight_telemetry_project"}
             self.is_source_env = True
             self.is_worker_env = False
             self.OPENAI_API_KEY = ""
@@ -1208,7 +1208,7 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
 
     def fake_apply_active_app_request(env, request_value):
         assert request_value == str(app_path)
-        env.app = "flight_project"
+        env.app = "flight_telemetry_project"
         return True
 
     fake_st = SimpleNamespace(
@@ -1256,8 +1256,8 @@ def test_bootstrap_page_environment_success_path(tmp_path, monkeypatch):
     assert result.handled_recovery is False
     assert result.env.init_done is True
     assert fake_st.session_state["first_run"] is False
-    assert fake_st.query_params["active_app"] == "flight_project"
-    assert remembered_apps == [apps_path / "flight_project"]
+    assert fake_st.query_params["active_app"] == "flight_telemetry_project"
+    assert remembered_apps == [apps_path / "flight_telemetry_project"]
     assert port_calls.activated == []
     assert refreshed_envs == [result.env]
     assert ("APPS_PATH", str(apps_path)) not in set_env_calls
@@ -1333,7 +1333,7 @@ def test_bootstrap_persisted_active_app_ignores_cross_root_absolute_path(tmp_pat
         apps_path=source_apps,
         builtin_apps_path=source_apps / "builtin",
         apps_repository_root=None,
-        projects={"flight_project"},
+        projects={"flight_telemetry_project"},
     )
 
     assert bootstrap.persisted_active_app_request(env, stale_project) is None
@@ -1342,8 +1342,8 @@ def test_bootstrap_persisted_active_app_ignores_cross_root_absolute_path(tmp_pat
 def test_bootstrap_persisted_active_app_maps_cross_root_absolute_path_to_local_project(tmp_path):
     bootstrap = about_agilab._about_bootstrap
     source_apps = tmp_path / "agilab-src" / "src" / "agilab" / "apps"
-    source_project = source_apps / "builtin" / "flight_project"
-    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
     source_project.mkdir(parents=True)
     stale_project.mkdir(parents=True)
     env = SimpleNamespace(
@@ -1353,7 +1353,7 @@ def test_bootstrap_persisted_active_app_maps_cross_root_absolute_path_to_local_p
         projects=set(),
     )
 
-    assert bootstrap.persisted_active_app_request(env, stale_project) == "flight_project"
+    assert bootstrap.persisted_active_app_request(env, stale_project) == "flight_telemetry_project"
 
 
 def test_bootstrap_active_app_helpers_handle_empty_same_and_failed_switch(tmp_path):
@@ -1829,7 +1829,7 @@ def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides(
 def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
-    assert content["title"] == "Start here: run flight_project first"
+    assert content["title"] == "Start here: run flight_telemetry_project first"
     assert "built-in flight demo locally" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
@@ -1839,7 +1839,7 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
         "ORCHESTRATE",
         "ANALYSIS",
     ]
-    assert any("flight_project" in detail for _, detail in content["steps"])
+    assert any("flight_telemetry_project" in detail for _, detail in content["steps"])
     assert any("generated files" in item for item in content["success_criteria"])
     assert any("cluster, benchmark, and service options off" in detail for _, detail in content["steps"])
     assert content["compatibility_status"] == "validated"
@@ -2044,7 +2044,7 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
             "workers_data_path": "/mnt/agilab",
         }
     }
-    about_agilab._about_layout.render_execution_context_panel(SimpleNamespace(app="flight_project"))
+    about_agilab._about_layout.render_execution_context_panel(SimpleNamespace(app="flight_telemetry_project"))
     about_agilab._about_layout.render_footer()
 
     assert about_agilab._clean_openai_key("sk-" + "a" * 16) == "sk-" + "a" * 16
@@ -2112,7 +2112,7 @@ def test_main_page_sidebar_keeps_docs_link_without_execution_context(monkeypatch
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
     monkeypatch.setattr(about_agilab, "_render_env_editor", lambda _env: None)
     env = SimpleNamespace(
-        app="flight_project",
+        app="flight_telemetry_project",
         apps_path=Path("/tmp/agilab/apps"),
         agi_share_path_abs=Path("/tmp/agilab/localshare"),
         AGILAB_LOG_ABS=Path("/tmp/agilab/log"),
@@ -2200,11 +2200,11 @@ workers_data_path = "/fresh/share"
 
     lines = dict(
         about_agilab._about_layout.active_app_cluster_information_lines(
-            SimpleNamespace(app="flight_project", app_settings_file=settings_file)
+            SimpleNamespace(app="flight_telemetry_project", app_settings_file=settings_file)
         )
     )
 
-    assert lines["Active project"] == "flight_project"
+    assert lines["Active project"] == "flight_telemetry_project"
     assert lines["Scheduler"] == "fresh.scheduler:8786"
     assert lines["Mode"] == "enabled (dask, cython)"
     assert lines["Share"] == "/fresh/share"
@@ -2241,7 +2241,7 @@ def test_active_app_cluster_information_hides_cluster_share_when_cluster_disable
     lines = dict(
         layout.active_app_cluster_information_lines(
             SimpleNamespace(
-                app="flight_project",
+                app="flight_telemetry_project",
                 AGI_CLUSTER_SHARE="/home/user/clustershare",
                 AGI_LOCAL_SHARE="/home/user/localshare",
             )
@@ -2281,7 +2281,7 @@ def test_active_app_cluster_information_counts_duplicate_scheduler_once(monkeypa
 
     lines = dict(
         about_agilab._about_layout.active_app_cluster_information_lines(
-            SimpleNamespace(app="flight_project")
+            SimpleNamespace(app="flight_telemetry_project")
         )
     )
 
@@ -2347,7 +2347,7 @@ def test_active_app_cluster_information_uses_local_alias_and_cached_remote_gpu(m
     monkeypatch.setattr(layout, "_remote_hardware_probe", fake_remote_probe)
     layout._lan_discovery_hardware_inventory.cache_clear()
 
-    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
 
     assert lines["CPU"] == "52 cores"
     assert lines["RAM"] == "299 GB"
@@ -2385,7 +2385,7 @@ def test_active_app_cluster_information_marks_unreachable_worker_hardware_unknow
 
     lines = dict(
         about_agilab._about_layout.active_app_cluster_information_lines(
-            SimpleNamespace(app="flight_project")
+            SimpleNamespace(app="flight_telemetry_project")
         )
     )
 
@@ -2444,7 +2444,7 @@ def test_active_app_cluster_information_reports_worker_ssh_auth_needed(monkeypat
     layout._lan_discovery_hardware_inventory.cache_clear()
     layout._remote_hardware_probe.cache_clear()
 
-    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
 
     assert lines["CPU"] == "16 cores + 1 worker SSH auth needed"
     assert lines["RAM"] == "48 GB + 1 worker SSH auth needed"
@@ -2501,7 +2501,7 @@ def test_active_app_cluster_information_does_not_overstate_stale_no_ssh_port_cac
     layout._lan_discovery_hardware_inventory.cache_clear()
     layout._remote_hardware_probe.cache_clear()
 
-    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+    lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
 
     assert lines["CPU"] == "16 cores + 1 worker unreachable"
     assert lines["RAM"] == "48 GB + 1 worker unreachable"
@@ -2563,7 +2563,7 @@ def test_active_app_cluster_information_uses_cached_hardware_for_unreachable_wor
 
     lines = dict(
         about_agilab._about_layout.active_app_cluster_information_lines(
-            SimpleNamespace(app="flight_project")
+            SimpleNamespace(app="flight_telemetry_project")
         )
     )
 
@@ -2629,7 +2629,7 @@ def test_active_app_cluster_information_reads_lan_inventory_from_env_home(monkey
 
     lines = dict(
         layout.active_app_cluster_information_lines(
-            SimpleNamespace(app="flight_project", home_abs=env_home)
+            SimpleNamespace(app="flight_telemetry_project", home_abs=env_home)
         )
     )
 
@@ -2698,7 +2698,7 @@ def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypa
     layout._lan_discovery_hardware_inventory.cache_clear()
     layout._remote_hardware_probe.cache_clear()
 
-    first_lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+    first_lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
 
     write_lan_cache(
         cpu="AMD EPYC; cores: 64",
@@ -2706,7 +2706,7 @@ def test_active_app_cluster_information_refreshes_changed_lan_inventory(monkeypa
         gpu="NVIDIA B200 (132 SMs)",
         npu="Not detected",
     )
-    second_lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_project")))
+    second_lines = dict(layout.active_app_cluster_information_lines(SimpleNamespace(app="flight_telemetry_project")))
 
     assert first_lines["CPU"] == "48 cores"
     assert first_lines["RAM"] == "176 GB"
@@ -2725,10 +2725,10 @@ def test_render_execution_context_panel_is_legacy_noop(monkeypatch):
     monkeypatch.setattr(
         layout,
         "active_app_cluster_information_lines",
-        lambda _env: [("Active project", "flight_project")],
+        lambda _env: [("Active project", "flight_telemetry_project")],
     )
 
-    layout.render_execution_context_panel(SimpleNamespace(app="flight_project"))
+    layout.render_execution_context_panel(SimpleNamespace(app="flight_telemetry_project"))
 
     assert cleared == []
     assert fake_st.events == []
@@ -2800,10 +2800,10 @@ def test_about_hero_target_svg_data_uri_keeps_svg_encoded():
     assert "simulate, run, diagnose, then tune the real workflow" in decoded
 
 
-def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
+def test_newcomer_first_proof_state_prefers_built_in_flight_telemetry_project(tmp_path):
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
 
     env = SimpleNamespace(
         apps_path=apps_path,
@@ -2813,7 +2813,7 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
 
     state = about_agilab._newcomer_first_proof_state(env)
 
-    assert state["project_path"] == flight_project.resolve()
+    assert state["project_path"] == flight_telemetry_project.resolve()
     assert state["project_available"] is True
     assert state["current_app_matches"] is False
     assert state["compatibility_slice"] == "Source checkout first proof"
@@ -2825,13 +2825,13 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_project(tmp_path):
     assert state["run_manifest_status"] == "missing"
     assert state["remediation_status"] == "missing"
     assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
-    assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
+    assert state["next_step"] == "Go to `PROJECT`. Choose `flight_telemetry_project`."
 
 
 def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
 
     env = SimpleNamespace(
         apps_path=apps_path,
@@ -2852,8 +2852,8 @@ def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
 
 def test_first_proof_next_action_model_guides_first_click(tmp_path):
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
 
     select_state = about_agilab._newcomer_first_proof_state(
         SimpleNamespace(
@@ -2867,14 +2867,14 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
 
     assert select_action["phase"] == "Stage 1"
     assert select_action["tone"] == "next"
-    assert select_action["title"] == "Select `flight_project`"
-    assert select_action["cta_label"] == "Use `flight_project`"
+    assert select_action["title"] == "Select `flight_telemetry_project`"
+    assert select_action["cta_label"] == "Use `flight_telemetry_project`"
     assert "mycode_project" in select_action["detail"]
 
     run_state = about_agilab._newcomer_first_proof_state(
         SimpleNamespace(
             apps_path=apps_path,
-            app="flight_project",
+            app="flight_telemetry_project",
             AGILAB_LOG_ABS=tmp_path / "log",
         )
     )
@@ -2888,17 +2888,17 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
 
 def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
     output_dir = tmp_path / "log" / "execute" / "flight"
     output_dir.mkdir(parents=True)
-    (output_dir / "AGI_install_flight.py").write_text("# helper", encoding="utf-8")
-    (output_dir / "AGI_run_flight.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "AGI_install_flight_telemetry.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "AGI_run_flight_telemetry.py").write_text("# helper", encoding="utf-8")
     (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
 
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="flight_project",
+        app="flight_telemetry_project",
         AGILAB_LOG_ABS=tmp_path / "log",
     )
 
@@ -2914,15 +2914,15 @@ def test_newcomer_first_proof_state_detects_generated_outputs(tmp_path):
 
 def test_first_proof_progress_rows_show_incomplete_manifest_attention(tmp_path):
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
     output_dir = tmp_path / "log" / "execute" / "flight"
     output_dir.mkdir(parents=True)
     (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
 
     env = SimpleNamespace(
         apps_path=apps_path,
-        app="flight_project",
+        app="flight_telemetry_project",
         AGILAB_LOG_ABS=tmp_path / "log",
     )
 
@@ -2939,7 +2939,7 @@ def test_first_proof_progress_rows_show_incomplete_manifest_attention(tmp_path):
 
 def test_first_proof_progress_rows_cover_missing_and_passed_states():
     base_state = {
-        "active_app_name": "flight_project",
+        "active_app_name": "flight_telemetry_project",
         "output_dir": "/tmp/out",
         "project_available": True,
         "current_app_matches": True,
@@ -3022,8 +3022,8 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
     monkeypatch,
 ):
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
     fake_st = _FakeStreamlit()
     env = SimpleNamespace(
         apps_path=apps_path,
@@ -3040,7 +3040,7 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
     start_here = _event_index(
         fake_st.events,
         "expander",
-        "Start here: run flight_project first:False",
+        "Start here: run flight_telemetry_project first:False",
     )
     overview = _event_index(fake_st.events, "markdown", "agilab-proof")
     action_strip = _event_index(fake_st.events, "markdown", "agilab-proof__action")
@@ -3056,8 +3056,8 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
     overview_markup = _event_body(fake_st.events, "markdown", "agilab-proof__action")
 
-    assert "Select `flight_project`" in overview_markup
-    assert "Use `flight_project`" in overview_markup
+    assert "Select `flight_telemetry_project`" in overview_markup
+    assert "Use `flight_telemetry_project`" in overview_markup
     assert "This keeps the first proof on the documented, supportable route." in overview_markup
     assert start_here < overview <= action_strip < next_action < do_this_now < done_when < proof_details < progress < validated_path
 
@@ -3079,7 +3079,7 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
     assert "PROJECT" in body
     assert "ORCHESTRATE" in body
     assert "ANALYSIS" in body
-    assert "flight_project" in body
+    assert "flight_telemetry_project" in body
     assert "run_manifest.json" in body
     assert "Do this now" in body
     assert "Done when" in body

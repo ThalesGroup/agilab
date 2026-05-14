@@ -19,9 +19,9 @@ PAGE_PATH = (
 def _create_forecast_project(tmp_path: Path) -> Path:
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
-    project_dir = apps_dir / "meteo_forecast_project"
+    project_dir = apps_dir / "weather_forecast_project"
     (project_dir / "src" / "meteo_forecast").mkdir(parents=True)
-    (project_dir / "pyproject.toml").write_text("[project]\nname='meteo-forecast-project'\n", encoding="utf-8")
+    (project_dir / "pyproject.toml").write_text("[project]\nname='weather-forecast-project'\n", encoding="utf-8")
     (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
     (project_dir / "src" / "meteo_forecast" / "__init__.py").write_text("", encoding="utf-8")
     return project_dir
@@ -91,8 +91,8 @@ def _write_first_proof_manifest(
                     "python_executable": sys.executable,
                     "platform": "test",
                     "repo_root": str(runtime_root),
-                    "active_app": str(runtime_root / "flight_project"),
-                    "app_name": "flight_project",
+                    "active_app": str(runtime_root / "flight_telemetry_project"),
+                    "app_name": "flight_telemetry_project",
                 },
                 "timing": {
                     "started_at": "2026-04-25T00:00:00Z",
@@ -277,10 +277,10 @@ def _write_forecast_reduce_artifact(path: Path) -> None:
         json.dumps(
             {
                 "schema_version": 1,
-                "name": "meteo_forecast_reduce_summary",
-                "reducer": "meteo_forecast.forecast-metrics.v1",
+                "name": "weather_forecast_reduce_summary",
+                "reducer": "weather_forecast.forecast-metrics.v1",
                 "partial_count": 1,
-                "partial_ids": ["meteo_forecast_worker_0"],
+                "partial_ids": ["weather_forecast_worker_0"],
                 "payload": {
                     "forecast_run_count": 1,
                     "stations": ["Paris-Montsouris"],
@@ -298,7 +298,7 @@ def _write_forecast_reduce_artifact(path: Path) -> None:
                     "rmse": 0.97,
                     "mape": 5.42,
                 },
-                "metadata": {"app": "meteo_forecast_project"},
+                "metadata": {"app": "weather_forecast_project"},
             }
         ),
         encoding="utf-8",
@@ -331,7 +331,7 @@ def _write_flight_reduce_artifact(path: Path) -> None:
                     "time_start": "2021-01-01T00:00:00",
                     "time_end": "2021-01-01T00:02:00",
                 },
-                "metadata": {"app": "flight_project"},
+                "metadata": {"app": "flight_telemetry_project"},
             }
         ),
         encoding="utf-8",
@@ -932,7 +932,7 @@ def test_view_release_decision_discovers_reduce_artifacts_and_invalid_payloads(t
     valid = next(row for row in rows if row["status"] == "pass")
     uav = next(row for row in rows if row["reducer"] == "uav_queue.queue-metrics.v1")
     relay = next(row for row in rows if row["reducer"] == "uav_relay_queue.queue-metrics.v1")
-    forecast = next(row for row in rows if row["reducer"] == "meteo_forecast.forecast-metrics.v1")
+    forecast = next(row for row in rows if row["reducer"] == "weather_forecast.forecast-metrics.v1")
     flight = next(row for row in rows if row["reducer"] == "flight.trajectory-metrics.v1")
     invalid = next(row for row in rows if row["status"] == "invalid")
     assert valid["artifact"] == "run_a/reduce_summary_worker_0.json"
@@ -1031,7 +1031,7 @@ def test_view_release_decision_reuses_existing_session_env(tmp_path, monkeypatch
     _write_first_proof_manifest(tmp_path)
 
     env = SimpleNamespace(
-        app="meteo_forecast_project",
+        app="weather_forecast_project",
         target="meteo_forecast",
         AGILAB_EXPORT_ABS=str(tmp_path / "export"),
         AGILAB_LOG_ABS=tmp_path / "log",

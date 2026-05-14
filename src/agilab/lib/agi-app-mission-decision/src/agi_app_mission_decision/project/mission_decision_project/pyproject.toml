@@ -1,0 +1,16 @@
+[project]
+name = "mission_decision_project"
+version = "0.1.0"
+description = "Built-in AGILAB Mission Decision autonomous demo"
+requires-python = ">=3.13"
+dependencies = ["agi-env>=2026.05.13.post3,<2027.0", "agi-node>=2026.05.13.post3,<2027.0", "agi-cluster>=2026.05.13.post3,<2027.0", "pandas>=2.3.0", "pydantic", "streamlit>=1.56.0"]
+
+[tool.agilab]
+runtime_target = "data_io_2026"
+
+[tool.setuptools.package-data]
+data_io_2026 = ["sample_data/*.json"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

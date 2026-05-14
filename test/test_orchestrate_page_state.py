@@ -183,7 +183,7 @@ def test_orchestrate_page_state_blocks_cluster_share_warning():
 
 
 def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
-    active_app = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_project"
+    active_app = tmp_path / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
     cmd = "asyncio.run(main())"
 
     state = orchestrate_page_state.build_orchestrate_install_workflow_state(
@@ -194,7 +194,7 @@ def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="await main()",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -214,7 +214,7 @@ def test_orchestrate_install_workflow_state_uses_app_runtime_root(tmp_path):
 
 
 def test_orchestrate_install_workflow_state_uses_core_runtime_root_for_source_env(tmp_path):
-    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_project"
+    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_telemetry_project"
     agi_cluster = tmp_path / "src" / "agilab" / "core" / "agi-cluster"
 
     state = orchestrate_page_state.build_orchestrate_install_workflow_state(
@@ -225,7 +225,7 @@ def test_orchestrate_install_workflow_state_uses_core_runtime_root_for_source_en
         is_source_env=True,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=True,
         verbose=2,
         mode=15,
@@ -250,7 +250,7 @@ def test_orchestrate_install_workflow_state_blocks_missing_runtime_root():
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -265,7 +265,7 @@ def test_orchestrate_install_workflow_state_blocks_missing_runtime_root():
 
 
 def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp_path):
-    active_app = tmp_path / "apps" / "flight_project"
+    active_app = tmp_path / "apps" / "flight_telemetry_project"
 
     hidden = orchestrate_page_state.build_orchestrate_install_workflow_state(
         show_install=False,
@@ -275,7 +275,7 @@ def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -291,7 +291,7 @@ def test_orchestrate_install_workflow_state_blocks_hidden_or_missing_command(tmp
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,
@@ -507,7 +507,7 @@ def test_orchestrate_run_artifact_state_allows_graph_delete_but_not_export():
 
 
 def _install_state(tmp_path, *, show_install=True, cmd="asyncio.run(main())"):
-    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_project"
+    active_app = tmp_path / "src" / "agilab" / "apps" / "flight_telemetry_project"
     return orchestrate_page_state.build_orchestrate_install_workflow_state(
         show_install=show_install,
         cmd=cmd,
@@ -516,7 +516,7 @@ def _install_state(tmp_path, *, show_install=True, cmd="asyncio.run(main())"):
         is_source_env=False,
         is_worker_env=False,
         snippet_tail="asyncio.run(main())",
-        app="flight_project",
+        app="flight_telemetry_project",
         cluster_enabled=False,
         verbose=1,
         mode=1,

@@ -20,7 +20,7 @@ What belongs here
    * - Proof route
      - What it proves
      - Where to start
-   * - ``data_io_2026_project``
+   * - ``mission_decision_project``
      - Deterministic mission-data decision loop: ingest evidence, score routes,
        inject an event, re-plan, and export a decision bundle.
      - Select the built-in app, run ``ORCHESTRATE``, then open
@@ -77,7 +77,7 @@ Recommended order
 
 Run these in this order when you need a compact but convincing evaluation pass:
 
-1. **Mission decision**: ``data_io_2026_project``. This is the best product
+1. **Mission decision**: ``mission_decision_project``. This is the best product
    story because it shows an input-to-decision workflow, not only a data
    transform.
 2. **Execution credibility**: :doc:`execution-playground`. This is the best
@@ -106,7 +106,7 @@ How to demo it
 Keep the story bounded. Do not switch apps randomly. Use one of these lanes:
 
 **Decision lane**
-  ``data_io_2026_project`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` ->
+  ``mission_decision_project`` -> ``ORCHESTRATE`` -> ``ANALYSIS`` ->
   ``view_data_io_decision``. Stop when the selected strategy, re-plan event,
   decision deltas, and exported artifacts are visible.
 

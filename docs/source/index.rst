@@ -5,7 +5,7 @@ If you are new to AGILab, choose one route first:
 
 - **See the UI now**: open :doc:`agilab-demo` for the public Hugging Face Space.
 - **Prove it locally**: follow :doc:`quick-start` with the built-in
-  ``flight_project``. Target: pass the first proof in 10 minutes.
+  ``flight_telemetry_project``. Target: pass the first proof in 10 minutes.
 - **Use the API/notebook**: follow :doc:`notebook-quickstart` for the smaller
   ``AgiEnv`` / ``AGI.run(...)`` surface.
 
@@ -96,7 +96,7 @@ references, and example projects.
    notebook-migration-skforecast-meteo
    mycode-project
 
-   flight-project
+   flight-telemetry-project
 
 .. toctree::
    :maxdepth: 2

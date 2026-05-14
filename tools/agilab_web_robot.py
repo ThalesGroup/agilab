@@ -63,7 +63,7 @@ def _load_screenshot_manifest_helpers():
 
 build_page_shots_manifest, screenshot_manifest_path, write_screenshot_manifest = _load_screenshot_manifest_helpers()
 
-DEFAULT_ACTIVE_APP = REPO_ROOT / "src/agilab/apps/builtin/flight_project"
+DEFAULT_ACTIVE_APP = REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project"
 DEFAULT_APPS_PATH = REPO_ROOT / "src/agilab/apps"
 DEFAULT_TIMEOUT_SECONDS = 90.0
 DEFAULT_TARGET_SECONDS = 120.0
@@ -191,7 +191,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=str(DEFAULT_ACTIVE_APP),
         help=(
             "Active app path/name used for the local launch and active_app query. "
-            "Defaults to the built-in flight_project path."
+            "Defaults to the built-in flight_telemetry_project path."
         ),
     )
     parser.add_argument(

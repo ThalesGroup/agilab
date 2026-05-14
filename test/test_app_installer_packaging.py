@@ -17,9 +17,14 @@ ROOT = Path(__file__).resolve().parents[1]
 TOOLS_ROOT = ROOT / "tools"
 sys.path.insert(0, str(TOOLS_ROOT))
 
-from package_split_contract import APP_PROJECT_PACKAGE_SPECS
+from package_split_contract import (
+    APP_PROJECT_PACKAGE_SPECS,
+    PAGE_BUNDLE_PACKAGE_SPECS,
+    PROMOTED_APP_PROJECT_PACKAGE_NAMES,
+)
 
 MODULE_PATH = ROOT / "src/agilab/apps/install.py"
+APP_PROJECT_BUILD_SUPPORT = ROOT / "src/agilab/lib/app_project_build_support.py"
 ROOT_PYPROJECT = ROOT / "pyproject.toml"
 AGI_APPS_PYPROJECT = ROOT / "src/agilab/lib/agi-apps/pyproject.toml"
 AGI_PAGES_PYPROJECT = ROOT / "src/agilab/lib/agi-pages/pyproject.toml"
@@ -29,9 +34,9 @@ APP_TEMPLATES_ROOT = ROOT / "src/agilab/apps/templates"
 EXAMPLES_ROOT = ROOT / "src/agilab/examples"
 APPS_PAGES_ROOT = ROOT / "src/agilab/apps-pages"
 EXAMPLE_APPS = {
-    "data_io_2026": ("AGI_install_data_io_2026.py", "AGI_run_data_io_2026.py"),
-    "flight": ("AGI_install_flight.py", "AGI_run_flight.py"),
-    "meteo_forecast": ("AGI_install_meteo_forecast.py", "AGI_run_meteo_forecast.py"),
+    "mission_decision": ("AGI_install_mission_decision.py", "AGI_run_mission_decision.py"),
+    "flight_telemetry": ("AGI_install_flight_telemetry.py", "AGI_run_flight_telemetry.py"),
+    "weather_forecast": ("AGI_install_weather_forecast.py", "AGI_run_weather_forecast.py"),
     "mycode": ("AGI_install_mycode.py", "AGI_run_mycode.py"),
 }
 EXAMPLE_PREVIEWS = {
@@ -54,11 +59,11 @@ BUILTIN_EXAMPLE_PAYLOADS = {
         BUILTIN_APPS_ROOT
         / "global_dag_project"
         / "dag_templates"
-        / "flight_to_meteo_global_dag.json"
+        / "flight_to_weather_global_dag.json"
     ),
     "mlflow_auto_tracking": (
         BUILTIN_APPS_ROOT
-        / "meteo_forecast_project"
+        / "weather_forecast_project"
         / "tracking_templates"
         / "mlflow_auto_tracking_run_config.json"
     ),
@@ -104,16 +109,15 @@ APP_GENERATED_DIRS = {
 }
 APP_GENERATED_SUFFIXES = {".c", ".pyc", ".pyo", ".pyx", ".so"}
 APP_PROJECT_BY_DISTRIBUTION = {
-    "agi-app-data-io-2026-project": "data_io_2026_project",
-    "agi-app-execution-pandas-project": "execution_pandas_project",
-    "agi-app-execution-polars-project": "execution_polars_project",
-    "agi-app-flight-project": "flight_project",
-    "agi-app-global-dag-project": "global_dag_project",
-    "agi-app-meteo-forecast-project": "meteo_forecast_project",
-    "agi-app-mycode-project": "mycode_project",
+    "agi-app-mission-decision": "mission_decision_project",
+    "agi-app-pandas-execution": "execution_pandas_project",
+    "agi-app-polars-execution": "execution_polars_project",
+    "agi-app-flight-telemetry": "flight_telemetry_project",
+    "agi-app-global-dag": "global_dag_project",
+    "agi-app-weather-forecast": "weather_forecast_project",
     "agi-app-tescia-diagnostic-project": "tescia_diagnostic_project",
     "agi-app-uav-queue-project": "uav_queue_project",
-    "agi-app-uav-relay-queue-project": "uav_relay_queue_project",
+    "agi-app-uav-relay-queue": "uav_relay_queue_project",
 }
 
 
@@ -136,6 +140,25 @@ def _load_installer(monkeypatch, tmp_path: Path):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _load_app_project_build_support():
+    sys.modules.pop("agilab_app_project_build_support_test_module", None)
+    spec = importlib.util.spec_from_file_location(
+        "agilab_app_project_build_support_test_module",
+        APP_PROJECT_BUILD_SUPPORT,
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_app_project_payload_build_helper_ignores_generated_app_dirs() -> None:
+    support = _load_app_project_build_support()
+
+    assert APP_GENERATED_DIRS <= support._EXCLUDED_PAYLOAD_DIRS
 
 
 def _builtin_app_dirs() -> list[Path]:
@@ -235,18 +258,18 @@ def test_packaged_app_source_assets_are_tracked_or_git_visible() -> None:
 def test_seed_example_scripts_uses_packaged_examples_dir(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer(monkeypatch, tmp_path)
     package_root = tmp_path / "site-packages" / "agilab"
-    examples_dir = package_root / "examples" / "flight"
+    examples_dir = package_root / "examples" / "flight_telemetry"
     examples_dir.mkdir(parents=True)
-    (examples_dir / "AGI_install_flight.py").write_text("# install\n", encoding="utf-8")
-    (examples_dir / "AGI_run_flight.py").write_text("# run\n", encoding="utf-8")
+    (examples_dir / "AGI_install_flight_telemetry.py").write_text("# install\n", encoding="utf-8")
+    (examples_dir / "AGI_run_flight_telemetry.py").write_text("# run\n", encoding="utf-8")
     monkeypatch.setattr(module, "_package_root", lambda: package_root)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
-    module._seed_example_scripts("flight")
+    module._seed_example_scripts("flight_telemetry")
 
-    execute_dir = tmp_path / "home" / "log" / "execute" / "flight"
-    assert (execute_dir / "AGI_install_flight.py").read_text(encoding="utf-8") == "# install\n"
-    assert (execute_dir / "AGI_run_flight.py").read_text(encoding="utf-8") == "# run\n"
+    execute_dir = tmp_path / "home" / "log" / "execute" / "flight_telemetry"
+    assert (execute_dir / "AGI_install_flight_telemetry.py").read_text(encoding="utf-8") == "# install\n"
+    assert (execute_dir / "AGI_run_flight_telemetry.py").read_text(encoding="utf-8") == "# run\n"
 
 
 def test_app_dir_candidates_prefer_packaged_builtin_apps(tmp_path: Path, monkeypatch) -> None:
@@ -255,16 +278,16 @@ def test_app_dir_candidates_prefer_packaged_builtin_apps(tmp_path: Path, monkeyp
     monkeypatch.setattr(module, "_package_root", lambda: package_root)
     monkeypatch.setattr(module, "_installed_app_dir_candidates", lambda app_slug: [])
 
-    assert module._app_dir_candidates("flight") == [
-        package_root / "apps" / "builtin" / "flight_project",
-        package_root / "apps" / "flight_project",
+    assert module._app_dir_candidates("flight_telemetry") == [
+        package_root / "apps" / "builtin" / "flight_telemetry_project",
+        package_root / "apps" / "flight_telemetry_project",
     ]
 
 
 def test_app_dir_candidates_include_installed_app_project_packages(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer(monkeypatch, tmp_path)
     package_root = tmp_path / "site-packages" / "agilab"
-    installed_root = tmp_path / "site-packages" / "agi_app_flight_project" / "project" / "flight_project"
+    installed_root = tmp_path / "site-packages" / "agi_app_flight_telemetry" / "project" / "flight_telemetry_project"
     monkeypatch.setattr(module, "_package_root", lambda: package_root)
     monkeypatch.setattr(module, "_installed_app_dir_candidates", lambda app_slug: [installed_root])
 
@@ -408,6 +431,7 @@ def test_agi_pages_package_exposes_analysis_page_provider_and_umbrella_dependenc
     package_data = _agi_pages_package_data()
     pyproject = tomllib.loads(AGI_PAGES_PYPROJECT.read_text(encoding="utf-8"))
     dependencies = set(pyproject["project"]["dependencies"])
+    dependency_text = " ".join(dependencies)
 
     assert (APPS_PAGES_ROOT / "README.md").is_file()
     assert (APPS_PAGES_ROOT / "__init__.py").is_file()
@@ -419,19 +443,11 @@ def test_agi_pages_package_exposes_analysis_page_provider_and_umbrella_dependenc
     assert "PAGE_BUNDLE_ENTRYPOINT_GROUP" in source_text
     assert "PUBLIC_PAGE_MODULES" in source_text
     assert "view_maps" in source_text
-    assert {
-        "view-barycentric-graph==0.1.0",
-        "view-data-io-decision==0.1.0",
-        "view-forecast-analysis==0.1.0",
-        "view-inference-analysis==0.1.0",
-        "view-maps==0.1.0",
-        "view-maps-3d==0.1.0",
-        "view-maps-network==0.1.0",
-        "view-queue-resilience==0.1.0",
-        "view-relay-resilience==0.1.0",
-        "view-release-decision==0.1.0",
-        "view-training-analysis==0.1.0",
-    } <= dependencies
+    assert any(dependency.startswith("agi-gui==") for dependency in dependencies)
+    assert all(
+        f"{distribution}==" not in dependency_text
+        for distribution, _ in PAGE_BUNDLE_PACKAGE_SPECS
+    )
     assert pyproject["tool"]["setuptools"]["package-dir"] == {"": "src"}
     assert pyproject["tool"]["setuptools"]["packages"] == ["agi_pages"]
 
@@ -454,14 +470,23 @@ def test_per_app_project_packages_expose_self_contained_project_payloads() -> No
     assert not missing_entry_points
 
 
-def test_agi_apps_is_umbrella_not_builtin_app_payload_package() -> None:
+def test_agi_apps_umbrella_bundles_only_the_base_mycode_template() -> None:
     pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
     package_data = pyproject["tool"]["setuptools"]["package-data"]
     dependencies = pyproject["project"]["dependencies"]
 
     assert "install.py" in package_data["agilab.apps"]
-    assert not any(pattern.startswith("builtin/") for pattern in package_data["agilab.apps"])
-    assert all(f"{distribution}==" in " ".join(dependencies) for distribution, _ in APP_PROJECT_PACKAGE_SPECS)
+    builtin_patterns = [
+        pattern for pattern in package_data["agilab.apps"] if pattern.startswith("builtin/")
+    ]
+    assert builtin_patterns == ["builtin/mycode_project/**/*"]
+    dependency_text = " ".join(dependencies)
+    assert all(f"{distribution}==" in dependency_text for distribution in PROMOTED_APP_PROJECT_PACKAGE_NAMES)
+    assert all(
+        f"{distribution}==" not in dependency_text
+        for distribution, _ in APP_PROJECT_PACKAGE_SPECS
+        if distribution not in PROMOTED_APP_PROJECT_PACKAGE_NAMES
+    )
 
 
 def test_agi_apps_catalog_matches_per_app_packages() -> None:
@@ -469,6 +494,42 @@ def test_agi_apps_catalog_matches_per_app_packages() -> None:
     catalog_distributions = [item["distribution"] for item in catalog]
 
     assert catalog_distributions == [distribution for distribution, _ in APP_PROJECT_PACKAGE_SPECS]
+
+
+def test_agi_apps_umbrella_copy_keeps_only_mycode_builtin_payload(tmp_path: Path) -> None:
+    support = _load_app_project_build_support()
+
+    support.copy_agi_apps_umbrella_payload(tmp_path)
+
+    builtin_root = tmp_path / "agilab" / "apps" / "builtin"
+    assert (builtin_root / "mycode_project" / "pyproject.toml").is_file()
+    assert not (builtin_root / "flight_telemetry_project").exists()
+    assert not (builtin_root / "mycode_project" / ".venv").exists()
+    assert not (builtin_root / "mycode_project" / "uv.lock").exists()
+    assert not list((builtin_root / "mycode_project").rglob("*.pyx"))
+    assert not list((builtin_root / "mycode_project").rglob("*.c"))
+
+
+def test_agilab_apps_init_exposes_builtin_namespace_without_stale_docstring_code() -> None:
+    module_path = ROOT / "src/agilab/apps/__init__.py"
+    module_name = "agilab_apps_init_contract_test"
+    spec = importlib.util.spec_from_file_location(
+        module_name,
+        module_path,
+        submodule_search_locations=[str(module_path.parent)],
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(module_name, None)
+
+    doc = module.__doc__ or ""
+    assert "from __future__" not in doc
+    assert "if _BUILTIN_DIR.is_dir()" not in doc
+    assert list(module.__path__).count(str(BUILTIN_APPS_ROOT)) == 1
 
 
 def test_preview_example_payloads_live_with_builtin_apps() -> None:
@@ -499,20 +560,20 @@ def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path)
 
     assert summary["example"] == "inter_project_dag"
     assert summary["dag"]["ok"] is True
-    assert summary["dag"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert summary["dag"]["execution_order"] == ["flight_context", "weather_forecast_review"]
     assert summary["units"] == [
         {
-            "app": "flight_project",
+            "app": "flight_telemetry_project",
             "depends_on": [],
             "dispatch_status": "runnable",
             "id": "flight_context",
             "produces": ["flight_reduce_summary"],
         },
         {
-            "app": "meteo_forecast_project",
+            "app": "weather_forecast_project",
             "depends_on": ["flight_context"],
             "dispatch_status": "blocked",
-            "id": "meteo_forecast_review",
+            "id": "weather_forecast_review",
             "produces": ["forecast_metrics"],
         },
     ]
@@ -520,17 +581,17 @@ def test_inter_project_dag_preview_builds_read_only_runner_state(tmp_path: Path)
         {
             "artifact": "flight_reduce_summary",
             "from": "flight_context",
-            "from_app": "flight_project",
+            "from_app": "flight_telemetry_project",
             "handoff": "Use flight trajectory reduce summary as the forecast-review context.",
             "producer_status": "runnable",
             "source_path": "flight_analysis/reduce_summary_worker_0.json",
-            "to": "meteo_forecast_review",
-            "to_app": "meteo_forecast_project",
+            "to": "weather_forecast_review",
+            "to_app": "weather_forecast_project",
         }
     ]
     assert summary["runner_state"]["round_trip_ok"] is True
     assert summary["runner_state"]["summary"]["runnable_unit_ids"] == ["flight_context"]
-    assert summary["runner_state"]["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert summary["runner_state"]["summary"]["blocked_unit_ids"] == ["weather_forecast_review"]
     assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
     assert summary["after_first_dispatch"]["run_status"] == "running"
     assert summary["real_app_execution"] is False
@@ -550,14 +611,14 @@ def test_global_dag_preview_alias_builds_read_only_runner_state(tmp_path: Path) 
 
     summary = module.build_preview(
         repo_root=ROOT,
-        dag_path=app_root / "dag_templates" / "flight_to_meteo_global_dag.json",
+        dag_path=app_root / "dag_templates" / "flight_to_weather_global_dag.json",
         output_path=tmp_path / "runner_state.json",
         now="2026-04-29T00:00:00Z",
     )
 
     assert summary["example"] == "global_dag_project"
     assert summary["dag"]["ok"] is True
-    assert summary["dag"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert summary["dag"]["execution_order"] == ["flight_context", "weather_forecast_review"]
     assert summary["after_first_dispatch"]["dispatched_unit_id"] == "flight_context"
     assert summary["real_app_execution"] is False
     assert (tmp_path / "runner_state.json").is_file()
@@ -631,7 +692,7 @@ def test_mlflow_auto_tracking_preview_writes_local_evidence_without_mlflow(tmp_p
     run_summary = Path(summary["local_evidence"]["run_summary"])
     assert run_summary.is_file()
     artifact = json.loads(run_summary.read_text(encoding="utf-8"))
-    assert artifact["app"] == "meteo_forecast_project"
+    assert artifact["app"] == "weather_forecast_project"
     assert artifact["pipeline"] == "notebook_migration_forecast"
     assert (tmp_path / "mlflow_auto_tracking" / "mlflow_tracking_preview.json").is_file()
 
@@ -876,7 +937,7 @@ def test_packaged_builtin_examples_resolve_builtin_apps_root() -> None:
 def test_seed_example_scripts_refreshes_stale_builtin_helper(tmp_path: Path, monkeypatch) -> None:
     module = _load_installer(monkeypatch, tmp_path)
     monkeypatch.setenv("HOME", str(tmp_path))
-    destination = tmp_path / "log" / "execute" / "flight" / "AGI_run_flight.py"
+    destination = tmp_path / "log" / "execute" / "flight_telemetry" / "AGI_run_flight_telemetry.py"
     destination.parent.mkdir(parents=True)
     destination.write_text(
         "\n".join(
@@ -892,11 +953,11 @@ def test_seed_example_scripts_refreshes_stale_builtin_helper(tmp_path: Path, mon
         encoding="utf-8",
     )
 
-    module._seed_example_scripts("flight")
+    module._seed_example_scripts("flight_telemetry")
 
     text = destination.read_text(encoding="utf-8")
     assert ' / "apps" / "builtin"' in text
-    assert text == (EXAMPLES_ROOT / "flight" / "AGI_run_flight.py").read_text(encoding="utf-8")
+    assert text == (EXAMPLES_ROOT / "flight_telemetry" / "AGI_run_flight_telemetry.py").read_text(encoding="utf-8")
 
 
 def test_packaged_run_and_install_examples_import_with_fake_home(tmp_path: Path, monkeypatch) -> None:

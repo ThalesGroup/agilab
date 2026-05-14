@@ -25,7 +25,7 @@ def test_distributed_stage_smoke_dry_run_writes_two_node_request_preview(tmp_pat
 
     report = module.build_smoke_report(
         repo_root=Path.cwd(),
-        dag_path=Path("src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"),
+        dag_path=Path("src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"),
         output_path=output,
         settings={
             "cluster": {
@@ -52,7 +52,7 @@ def test_distributed_stage_smoke_dry_run_writes_two_node_request_preview(tmp_pat
     assert report["cluster"]["worker_nodes"] == 2
     assert [row["Stage"] for row in report["distributed_request_preview"]] == [
         "flight_context",
-        "meteo_forecast_review",
+        "weather_forecast_review",
     ]
     first_request = json.loads(report["distributed_request_preview"][0]["Request"])
     assert first_request["params"]["output_format"] == "parquet"
@@ -66,7 +66,7 @@ def test_distributed_stage_smoke_execute_requires_complete_cluster_settings(tmp_
 
     report = module.build_smoke_report(
         repo_root=Path.cwd(),
-        dag_path=Path("src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"),
+        dag_path=Path("src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"),
         output_path=output,
         settings={},
         execute=True,
@@ -83,7 +83,7 @@ def test_distributed_stage_smoke_execute_requires_two_nodes_by_default(tmp_path:
 
     report = module.build_smoke_report(
         repo_root=Path.cwd(),
-        dag_path=Path("src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"),
+        dag_path=Path("src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"),
         output_path=tmp_path / "dag-smoke.json",
         settings={
             "cluster": {
@@ -119,7 +119,7 @@ def test_distributed_stage_smoke_execute_can_use_single_node_when_allowed(monkey
 
     report = module.build_smoke_report(
         repo_root=Path.cwd(),
-        dag_path=Path("src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json"),
+        dag_path=Path("src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"),
         output_path=tmp_path / "dag-smoke.json",
         settings={
             "cluster": {
@@ -215,7 +215,7 @@ def test_distributed_stage_smoke_main_supports_settings_json_and_files(tmp_path:
             "--repo-root",
             str(Path.cwd()),
             "--dag",
-            "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json",
+            "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json",
             "--output",
             str(output),
             "--settings-json",
@@ -236,7 +236,7 @@ def test_distributed_stage_smoke_main_supports_settings_json_and_files(tmp_path:
             "--repo-root",
             str(Path.cwd()),
             "--dag",
-            "src/agilab/apps/builtin/flight_project/dag_templates/flight_to_meteo.json",
+            "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json",
             "--output",
             str(tmp_path / "dag-smoke-from-file.json"),
             "--settings-file",

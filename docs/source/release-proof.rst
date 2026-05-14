@@ -52,8 +52,8 @@ What was proved
 - The checked-in ``docs/source/data/ui_robot_evidence.json`` records the latest
   successful all-built-in UI robot matrix sweep, including app/page/widget
   counts and zero detected UI failures.
-- The public demo scope includes the lightweight ``flight_project`` and
-  ``meteo_forecast_project`` routes documented in :doc:`agilab-demo`.
+- The public demo scope includes the lightweight ``flight_telemetry_project``
+  and ``weather_forecast_project`` routes documented in :doc:`agilab-demo`.
 - The release tag, PyPI package, public documentation, and hosted demo point to
   the same public product story: browser preview, local first proof, then
   source-checkout expansion.

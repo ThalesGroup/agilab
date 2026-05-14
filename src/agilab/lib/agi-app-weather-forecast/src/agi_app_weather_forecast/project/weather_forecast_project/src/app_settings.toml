@@ -1,0 +1,52 @@
+[args]
+data_in = "weather_forecast/dataset"
+data_out = "weather_forecast/results"
+files = "*.csv"
+nfile = 1
+station = "Paris-Montsouris"
+target_column = "tmax_c"
+lags = 7
+horizon_days = 7
+validation_days = 9
+n_estimators = 100
+random_state = 42
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 2
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
+[connector_catalog]
+path = "connectors/data_connectors.toml"
+
+[connector_refs]
+training_sql = "meteo_training_sql"
+operator_events = "meteo_ops_opensearch"
+artifact_store = "meteo_artifact_store"
+
+[page_connector_refs.release_decision]
+evidence_index = "meteo_ops_opensearch"
+artifact_store = "meteo_artifact_store"
+
+[legacy_paths]
+data_in = "weather_forecast/dataset"
+data_out = "weather_forecast/results"
+
+[pages]
+view_module = [
+    "view_forecast_analysis",
+    "view_release_decision",
+]

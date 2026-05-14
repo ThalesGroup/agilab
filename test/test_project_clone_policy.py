@@ -52,20 +52,20 @@ def test_finalize_cloned_project_environment_detaches_shared_venv(tmp_path: Path
 
 def test_project_software_metric_summary_counts_repository_tests_for_builtin_flight():
     module = _load_project_module()
-    project_root = Path("src/agilab/apps/builtin/flight_project")
+    project_root = Path("src/agilab/apps/builtin/flight_telemetry_project")
 
     repo_test_names = {path.name for path in module._iter_repo_project_test_files(project_root)}
     summary = module._project_software_metric_summary(project_root)
 
     assert "test_cluster_flight_validation.py" in repo_test_names
-    assert "test_flight_project_runtime_args.py" in repo_test_names
+    assert "test_flight_telemetry_project_runtime_args.py" in repo_test_names
     assert "test_notebook_import_preflight.py" not in repo_test_names
     assert summary["test_files"] >= len(repo_test_names) > 0
 
 
 def test_project_worker_class_summary_detects_builtin_flight_worker_class():
     module = _load_project_module()
-    project_root = Path("src/agilab/apps/builtin/flight_project")
+    project_root = Path("src/agilab/apps/builtin/flight_telemetry_project")
 
     worker_class, worker_caption = module._project_worker_class_summary(project_root)
 

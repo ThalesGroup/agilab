@@ -2,7 +2,7 @@ Newcomer Guide
 ==============
 
 If you are new to AGILab, optimize for one outcome only: one successful local
-run of the built-in ``flight_project`` from the web UI, including the core
+run of the built-in ``flight_telemetry_project`` from the web UI, including the core
 ``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` route.
 
 This page gives the mental model only. :doc:`quick-start` owns the exact
@@ -23,10 +23,10 @@ Use this order when you need the quickest route to confidence:
      - Open :doc:`agilab-demo`.
      - Confirms the public UI shape before you install anything.
    * - Local first proof
-     - Follow :doc:`quick-start` with the built-in ``flight_project``.
+     - Follow :doc:`quick-start` with the built-in ``flight_telemetry_project``.
      - Exercises the real source-checkout install, run, and analysis path.
    * - Evidence record
-     - Keep ``~/log/execute/flight/run_manifest.json`` from
+     - Keep ``~/log/execute/flight_telemetry/run_manifest.json`` from
        ``agilab first-proof --json``.
      - Gives support, contributors, and future runs the same baseline.
    * - Expansion
@@ -49,7 +49,7 @@ Choose one route
        anything.
    * - Prove it locally
      - :doc:`quick-start`
-     - You want the real source-checkout path with ``flight_project``. Target:
+     - You want the real source-checkout path with ``flight_telemetry_project``. Target:
        pass the first proof in 10 minutes.
    * - Use the API/notebook
      - :doc:`notebook-quickstart`
@@ -57,9 +57,9 @@ Choose one route
        full UI.
 
 The first proof is deliberately narrow:
-use a source checkout, run the built-in ``flight_project`` locally from the
+use a source checkout, run the built-in ``flight_telemetry_project`` locally from the
 web UI, inspect the pipeline recipe, and confirm a visible result under
-``~/log/execute/flight/``.
+``~/log/execute/flight_telemetry/``.
 The landing page first-proof wizard now enforces that same single actionable
 route, reads ``run_manifest.json``, and shows a recovery checklist with exact
 evidence commands before you branch out.
@@ -85,7 +85,7 @@ On April 27, 2026, the packaged first-proof CLI passed locally in ``7.04s``:
 
    uv --preview-features extra-build-dependencies run agilab first-proof --json
 
-The JSON proof writes ``~/log/execute/flight/run_manifest.json``. That manifest
+The JSON proof writes ``~/log/execute/flight_telemetry/run_manifest.json``. That manifest
 is the portable first-proof run record: command, Python/platform context, active
 app, timing, artifact references, and validation status.
 
@@ -101,7 +101,7 @@ After day 1: cluster proof
 --------------------------
 
 Cluster validation is a second milestone, not part of the newcomer proof.
-Use it only after the local ``flight_project`` path has passed once.
+Use it only after the local ``flight_telemetry_project`` path has passed once.
 
 For the repeatable two-node check, go to :doc:`cluster`. That page owns:
 
@@ -113,7 +113,7 @@ For the repeatable two-node check, go to :doc:`cluster`. That page owns:
 What to ignore on day 1
 -----------------------
 
-Skip these until the local ``flight_project`` proof works once:
+Skip these until the local ``flight_telemetry_project`` proof works once:
 
 - cluster and SSH setup
 - published-package mode
@@ -153,7 +153,7 @@ Where to go next
 ----------------
 
 - :doc:`quick-start` for the exact first-proof commands.
-- :doc:`newcomer-troubleshooting` if the local ``flight_project`` proof fails.
+- :doc:`newcomer-troubleshooting` if the local ``flight_telemetry_project`` proof fails.
 - :doc:`agilab-demo` if you want the public hosted web UI instead of a local
   install.
 - :doc:`demos` if you want the public demo chooser.

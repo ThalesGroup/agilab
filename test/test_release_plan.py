@@ -10,7 +10,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools" / "release_plan.py"
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
-from package_split_contract import LIBRARY_PACKAGE_CONTRACTS, UMBRELLA_PACKAGE_CONTRACT
+from package_split_contract import (
+    LIBRARY_PACKAGE_CONTRACTS,
+    PROMOTED_APP_PROJECT_PACKAGE_NAMES,
+    UMBRELLA_PACKAGE_CONTRACT,
+)
 
 
 APP_PROJECT_PACKAGES = tuple(
@@ -31,6 +35,7 @@ def _load_module():
 
 
 def _expected_entry(package, module) -> dict[str, str]:
+    publish_to_pypi = package.role in module.PYPI_PUBLISH_ROLES or package.name in PROMOTED_APP_PROJECT_PACKAGE_NAMES
     return {
         "package": package.name,
         "project": package.project,
@@ -38,7 +43,7 @@ def _expected_entry(package, module) -> dict[str, str]:
         "pypi_project": package.name,
         "pypi_environment": package.pypi_environment,
         "artifact_policy": package.artifact_policy,
-        "publish_to_pypi": "true" if package.role in module.PYPI_PUBLISH_ROLES else "false",
+        "publish_to_pypi": "true" if publish_to_pypi else "false",
     }
 
 
@@ -51,14 +56,18 @@ def test_release_plan_library_matrix_matches_package_split_contract() -> None:
     assert module.umbrella_package() == _expected_entry(UMBRELLA_PACKAGE_CONTRACT, module)
 
 
-def test_release_plan_archives_decoupled_payload_packages_without_pypi_upload() -> None:
+def test_release_plan_promotes_selected_app_payloads_and_archives_the_rest() -> None:
     module = _load_module()
     matrix = {entry["package"]: entry for entry in module.library_matrix()}
 
     assert APP_PROJECT_PACKAGES
     assert PAGE_BUNDLE_PACKAGES
-    assert matrix["agi-app-flight-project"]["publish_to_pypi"] == "false"
-    for package in (*APP_PROJECT_PACKAGES, *PAGE_BUNDLE_PACKAGES):
+    for package_name in PROMOTED_APP_PROJECT_PACKAGE_NAMES:
+        assert matrix[package_name]["publish_to_pypi"] == "true", package_name
+    for package in APP_PROJECT_PACKAGES:
+        if package.name not in PROMOTED_APP_PROJECT_PACKAGE_NAMES:
+            assert matrix[package.name]["publish_to_pypi"] == "false", package.name
+    for package in PAGE_BUNDLE_PACKAGES:
         assert matrix[package.name]["publish_to_pypi"] == "false", package.name
     assert matrix["agi-pages"]["publish_to_pypi"] == "true"
     assert matrix["agi-apps"]["publish_to_pypi"] == "true"

@@ -18,7 +18,7 @@ from agi_env import AgiEnv
 import agi_env.credential_store_support as credential_store_support
 from pydantic import BaseModel, ValidationError, model_validator
 
-APP_ARGS_FORM = "src/agilab/apps/builtin/flight_project/src/app_args_form.py"
+APP_ARGS_FORM = "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"
 DEFAULT_APPTEST_TIMEOUT = 20
 ENV_TEMPLATE_PATH = Path("src/agilab/core/agi-env/src/agi_env/resources/.agilab/.env")
 
@@ -151,7 +151,7 @@ def _load_flight_form_module(
         @model_validator(mode="after")
         def _validate_public_file_source(self):
             if self.data_source != "file":
-                raise ValueError("flight_project public demo supports only file-based input")
+                raise ValueError("flight_telemetry_project public demo supports only file-based input")
             if self.files == "[":
                 raise ValueError("invalid files filter")
             return self
@@ -315,7 +315,7 @@ def _assert_docs_actions_absent(at: AppTest) -> None:
     assert "Open Local Documentation" not in labels
 
 
-def _write_minimal_run_manifest(manifest_path: Path, *, app_name: str = "flight_project") -> None:
+def _write_minimal_run_manifest(manifest_path: Path, *, app_name: str = "flight_telemetry_project") -> None:
     run_manifest = _import_agilab_module("agilab.run_manifest")
     manifest = run_manifest.build_run_manifest(
         path_id=f"{app_name}-apptest",
@@ -382,7 +382,7 @@ def mock_ui_env(tmp_path, monkeypatch):
     cluster_share_dir.mkdir()
     
     # Create a dummy project structure
-    project_dir = apps_dir / "flight_project"
+    project_dir = apps_dir / "flight_telemetry_project"
     project_dir.mkdir()
     
     # Create src dir and app_settings.toml
@@ -434,7 +434,7 @@ def load_args_from_toml(path):
 
 
     # Mock CLI argv for AGILAB main page
-    test_argv = ["main_page.py", "--apps-path", str(apps_dir), "--active-app", "flight_project"]
+    test_argv = ["main_page.py", "--apps-path", str(apps_dir), "--active-app", "flight_telemetry_project"]
     monkeypatch.setattr(
         credential_store_support,
         "_load_keyring_module",
@@ -444,7 +444,7 @@ def load_args_from_toml(path):
     # Patch sys.argv and env variables
     with patch("sys.argv", test_argv):
         with patch.dict(os.environ, {
-            "APP_DEFAULT": "flight_project",
+            "APP_DEFAULT": "flight_telemetry_project",
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
             "AGI_CLUSTER_SHARE": str(tmp_path),
             "AGI_EXPORT_DIR": str(export_dir),
@@ -642,7 +642,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     
     # Pre-inject environment into session state
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     data_share = Path(env.app_data_rel)
@@ -743,12 +743,12 @@ def test_execute_page_realigns_stale_agi_space_session_env(mock_ui_env, tmp_path
     """Source ORCHESTRATE must not keep an old installed agi-space active app."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     source_apps = (Path(__file__).resolve().parents[1] / "src/agilab/apps").resolve()
-    source_project = source_apps / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
     stale_apps = tmp_path / "agi-space" / "apps"
-    stale_project = stale_apps / "builtin" / "flight_project"
+    stale_project = stale_apps / "builtin" / "flight_telemetry_project"
     stale_project.mkdir(parents=True)
 
-    env = AgiEnv(apps_path=source_apps, app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=source_apps, app="flight_telemetry_project", verbose=0)
     env.apps_path = stale_apps
     env.active_app = stale_project
     env.init_done = True
@@ -771,11 +771,11 @@ def test_execute_page_realigns_stale_active_app_only_for_source_root(mock_ui_env
     """ORCHESTRATE header must not use an old agi-space active app when apps_path is already source."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     source_apps = (Path(__file__).resolve().parents[1] / "src/agilab/apps").resolve()
-    source_project = source_apps / "builtin" / "flight_project"
-    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_project"
+    source_project = source_apps / "builtin" / "flight_telemetry_project"
+    stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
     stale_project.mkdir(parents=True)
 
-    env = AgiEnv(apps_path=source_apps, app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=source_apps, app="flight_telemetry_project", verbose=0)
     env.active_app = stale_project
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
@@ -798,7 +798,7 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
     """Robot-style INSTALL regression for handled remote uv self-update warnings."""
 
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py", default_timeout=30)
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     cluster_share = mock_ui_env["apps_dir"].parent / "clustershare"
@@ -869,7 +869,7 @@ def test_execute_page_install_robot_allows_benign_uv_self_update_warning(mock_ui
 def test_execute_page_cluster_toggle_off_persists_false_to_workspace(mock_ui_env):
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
 
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     at.session_state["env"] = env
@@ -895,13 +895,13 @@ def test_execute_page_cluster_toggle_off_persists_false_to_workspace(mock_ui_env
     assert payload["cluster"]["cluster_enabled"] is False
 
 
-def test_flight_project_app_args_form_render(mock_ui_env):
-    """Test that the flight_project UI data source form renders without errors."""
+def test_flight_telemetry_project_app_args_form_render(mock_ui_env):
+    """Test that the flight_telemetry_project UI data source form renders without errors."""
     project_src = str(mock_ui_env["project_dir"] / "src")
     sys.path.insert(0, project_src)
     try:
         at = _app_test(APP_ARGS_FORM)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
 
         at.session_state["env"] = env
         at.run()
@@ -911,13 +911,13 @@ def test_flight_project_app_args_form_render(mock_ui_env):
         if project_src in sys.path:
             sys.path.remove(project_src)
 
-def test_flight_project_app_args_form(mock_ui_env):
-    """Test the flight_project file-based public UI data source form interactions."""
+def test_flight_telemetry_project_app_args_form(mock_ui_env):
+    """Test the flight_telemetry_project file-based public UI data source form interactions."""
     project_src = str(mock_ui_env["project_dir"] / "src")
     sys.path.insert(0, project_src)
     try:
         at = _app_test(APP_ARGS_FORM)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
 
         # To avoid the 'not initialised' error
         at.session_state["env"] = env
@@ -925,18 +925,18 @@ def test_flight_project_app_args_form(mock_ui_env):
         at.run()
         assert not at.exception
 
-        source_select = at.selectbox(key="flight_project:app_args_form:data_source")
+        source_select = at.selectbox(key="flight_telemetry_project:app_args_form:data_source")
         assert source_select.options == ["file"]
 
-        data_in_input = at.text_input(key="flight_project:app_args_form:data_in")
+        data_in_input = at.text_input(key="flight_telemetry_project:app_args_form:data_in")
         assert data_in_input.label == "Data directory"
 
-        files_input = at.text_input(key="flight_project:app_args_form:files")
+        files_input = at.text_input(key="flight_telemetry_project:app_args_form:files")
         assert files_input.label == "Files filter"
 
         data_in_input.set_value("flight/custom_dataset")
         files_input.set_value("*.csv")
-        at.number_input(key="flight_project:app_args_form:nfile").set_value(5)
+        at.number_input(key="flight_telemetry_project:app_args_form:nfile").set_value(5)
 
         at.run()
 
@@ -971,7 +971,7 @@ def test_flight_app_args_form_import_helpers_cover_missing_env_and_parse_edges(m
     module, _fake_st, _calls = _load_flight_form_module(
         monkeypatch,
         tmp_path,
-        session_state={"flight_project:app_args_form:data_in": "dataset/input"},
+        session_state={"flight_telemetry_project:app_args_form:data_in": "dataset/input"},
         share_root_error=True,
         load_error=RuntimeError("broken settings"),
         defaults_error_source="hawk",
@@ -991,8 +991,8 @@ def test_flight_app_args_form_import_validation_branches(monkeypatch, tmp_path):
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_project:app_args_form:data_source": "file",
-            "flight_project:app_args_form:files": "[",
+            "flight_telemetry_project:app_args_form:data_source": "file",
+            "flight_telemetry_project:app_args_form:files": "[",
         },
         with_humanized_errors=True,
     )
@@ -1004,8 +1004,8 @@ def test_flight_app_args_form_import_validation_branches(monkeypatch, tmp_path):
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_project:app_args_form:data_source": "file",
-            "flight_project:app_args_form:files": "[",
+            "flight_telemetry_project:app_args_form:data_source": "file",
+            "flight_telemetry_project:app_args_form:files": "[",
         },
         with_humanized_errors=False,
     )
@@ -1021,8 +1021,8 @@ def test_flight_app_args_form_import_warns_for_missing_input_and_persists_data_o
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_project:app_args_form:data_in": "missing/input",
-            "flight_project:app_args_form:data_out": "custom/output",
+            "flight_telemetry_project:app_args_form:data_in": "missing/input",
+            "flight_telemetry_project:app_args_form:data_out": "custom/output",
         },
         share_root_error=True,
         load_error=RuntimeError("broken settings"),
@@ -1040,8 +1040,8 @@ def test_flight_app_args_form_hf_seed_dataset_missing_is_informational(monkeypat
         monkeypatch,
         tmp_path,
         session_state={
-            "flight_project:app_args_form:data_in": "flight/dataset",
-            "flight_project:app_args_form:data_out": "flight/dataframe",
+            "flight_telemetry_project:app_args_form:data_in": "flight/dataset",
+            "flight_telemetry_project:app_args_form:data_out": "flight/dataframe",
         },
         share_root_error=True,
         load_error=RuntimeError("broken settings"),
@@ -1059,11 +1059,11 @@ def test_explore_page_multiselect(mock_ui_env):
 
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.projects = ["flight_project"]
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     at.session_state["env"] = env
     at.run()
     assert not at.exception
@@ -1102,14 +1102,14 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "lab_stages.ipynb" in sidebar_markdown
     sidebar_buttons = [button.label for button in at.sidebar.button]
     assert "view_maps" not in sidebar_buttons
-    assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "analysis_sidebar_view__flight_project"]
+    assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "analysis_sidebar_view__flight_telemetry_project"]
     
     # Check that 'dummy_view' is an option in the multiselect
-    selection_key = f"view_selection__flight_project"
+    selection_key = f"view_selection__flight_telemetry_project"
     ms = at.multiselect(key=selection_key)
     
     assert "view_maps" in ms.options
-    notebook_ms = at.multiselect(key="notebook_selection__flight_project")
+    notebook_ms = at.multiselect(key="notebook_selection__flight_telemetry_project")
     assert "lab_stages.ipynb" in notebook_ms.options
     
     # Select it
@@ -1145,14 +1145,14 @@ def test_explore_page_default_view_does_not_mutate_widget_state_after_render(moc
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     home_root = mock_ui_env["apps_dir"].parent
     with patch.dict(os.environ, {"HOME": str(home_root), "SPACE_ID": "test/agilab"}, clear=False):
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     env.AGILAB_PAGES_ABS = str(mock_ui_env["pages_dir"])
-    env.projects = ["flight_project"]
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     env.envars["SPACE_ID"] = "test/agilab"
-    env.resolve_user_app_settings_file("flight_project").write_text(
+    env.resolve_user_app_settings_file("flight_telemetry_project").write_text(
         settings_payload,
         encoding="utf-8",
     )
@@ -1161,7 +1161,7 @@ def test_explore_page_default_view_does_not_mutate_widget_state_after_render(moc
     at.run()
 
     assert not at.exception
-    assert at.session_state["view_selection__flight_project"] == ["view_default"]
+    assert at.session_state["view_selection__flight_telemetry_project"] == ["view_default"]
     assert at.query_params.get("current_page") in (None, "", "main")
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Views selected" in markdown_text
@@ -1169,15 +1169,15 @@ def test_explore_page_default_view_does_not_mutate_widget_state_after_render(moc
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "view_default" in sidebar_markdown
     assert "current_page=" in sidebar_markdown
-    assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "analysis_sidebar_view__flight_project"]
+    assert not [selectbox for selectbox in at.sidebar.selectbox if selectbox.key == "analysis_sidebar_view__flight_telemetry_project"]
 
 
 def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     """ANALYSIS persists the selected sidebar view launcher links."""
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    env.resolve_user_app_settings_file("flight_project").write_text(
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.resolve_user_app_settings_file("flight_telemetry_project").write_text(
         "[pages]\nview_module = []\n",
         encoding="utf-8",
     )
@@ -1186,11 +1186,11 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     at.run()
 
     assert not at.exception
-    selection_key = "view_selection__flight_project"
+    selection_key = "view_selection__flight_telemetry_project"
     at.multiselect(key=selection_key).select("view_maps").select("view_barycentric").run()
 
     assert not at.exception
-    settings_file = env.resolve_user_app_settings_file("flight_project")
+    settings_file = env.resolve_user_app_settings_file("flight_telemetry_project")
     with settings_file.open("rb") as f:
         settings_payload = tomllib.load(f)
     pages_payload = settings_payload["pages"]
@@ -1199,7 +1199,7 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     assert "default_view" not in pages_payload
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Views selected" in markdown_text
-    assert "2 linked to flight_project" in markdown_text
+    assert "2 linked to flight_telemetry_project" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>2/" in markdown_text
     assert "Available views" not in markdown_text
     assert "selected / available" not in markdown_text
@@ -1224,10 +1224,10 @@ def test_explore_page_sidebar_view_selection_persists(mock_ui_env):
     reloaded.run()
 
     assert not reloaded.exception
-    assert reloaded.session_state["view_selection__flight_project"] == ["view_barycentric"]
+    assert reloaded.session_state["view_selection__flight_telemetry_project"] == ["view_barycentric"]
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
     assert "Views selected" in reloaded_markdown
-    assert "1 linked to flight_project" in reloaded_markdown
+    assert "1 linked to flight_telemetry_project" in reloaded_markdown
     assert "agilab-header-value agilab-header-value--ready'>1/" in reloaded_markdown
     assert "Available views" not in reloaded_markdown
     reloaded_sidebar_markdown = "\n".join(str(item.value) for item in reloaded.sidebar.markdown)
@@ -1245,8 +1245,8 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
 
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    settings_file = env.resolve_user_app_settings_file("flight_project")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    settings_file = env.resolve_user_app_settings_file("flight_telemetry_project")
     settings_file.write_text(
         "[pages]\nview_module = []\n[notebooks]\nselected = []\n",
         encoding="utf-8",
@@ -1256,7 +1256,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     at.run()
 
     assert not at.exception
-    selection_key = "notebook_selection__flight_project"
+    selection_key = "notebook_selection__flight_telemetry_project"
     at.multiselect(key=selection_key).select("extra/demo.ipynb").run()
 
     assert not at.exception
@@ -1265,7 +1265,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     assert settings_payload["notebooks"]["selected"] == ["extra/demo.ipynb"]
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "Notebooks selected" in markdown_text
-    assert "1 linked to flight_project" in markdown_text
+    assert "1 linked to flight_telemetry_project" in markdown_text
     assert "agilab-header-value agilab-header-value--ready'>1/2</div>" in markdown_text
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
     assert "### Notebooks" in sidebar_markdown
@@ -1282,7 +1282,7 @@ def test_explore_page_sidebar_notebook_selection_persists(mock_ui_env):
     assert reloaded.session_state[selection_key] == ["extra/demo.ipynb"]
     reloaded_markdown = "\n".join(str(item.value) for item in reloaded.markdown)
     assert "Notebooks selected" in reloaded_markdown
-    assert "1 linked to flight_project" in reloaded_markdown
+    assert "1 linked to flight_telemetry_project" in reloaded_markdown
     assert "agilab-header-value agilab-header-value--ready'>1/2</div>" in reloaded_markdown
     reloaded_sidebar_markdown = "\n".join(str(item.value) for item in reloaded.sidebar.markdown)
     assert "extra/demo.ipynb" in reloaded_sidebar_markdown
@@ -1294,8 +1294,8 @@ def test_explore_page_sidebar_links_initialize_from_view_module(mock_ui_env):
     """Selected analysis views render in the sidebar even when another view was previously default."""
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    settings_file = env.resolve_user_app_settings_file("flight_project")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    settings_file = env.resolve_user_app_settings_file("flight_telemetry_project")
     settings_file.write_text(
         (
             "[pages]\n"
@@ -1325,16 +1325,16 @@ def test_explore_page_sidebar_links_initialize_from_view_module(mock_ui_env):
 def test_experiment_page_load(mock_ui_env):
     """Test that the EXPERIMENT page loads without exceptions."""
     at = _app_test("src/agilab/pages/3_WORKFLOW.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     # We must ensure there is a lab_stages file to not throw exceptions, or handling it safely
     # In mock env we just pass env
     at.session_state["env"] = env
     # Mock some expected session_states for the page
-    at.session_state["flight_project"] = [0, "", "", "", "", ""]
-    at.session_state["flight_project__venv_map"] = {}
+    at.session_state["flight_telemetry_project"] = [0, "", "", "", "", ""]
+    at.session_state["flight_telemetry_project__venv_map"] = {}
     
     at.run()
     assert not at.exception
@@ -1355,19 +1355,19 @@ def test_experiment_page_load(mock_ui_env):
 def test_workflow_page_surfaces_existing_run_log_contract(mock_ui_env):
     """WORKFLOW should reference the existing log/execute run evidence, not a parallel history."""
     at = _app_test("src/agilab/pages/3_WORKFLOW.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     runenv = Path(env.runenv)
     runenv.mkdir(parents=True, exist_ok=True)
     latest_log = runenv / "run_20260512_100000.log"
     latest_log.write_text("workflow run finished\n", encoding="utf-8")
-    _write_minimal_run_manifest(runenv / "run_manifest.json", app_name="flight_project")
+    _write_minimal_run_manifest(runenv / "run_manifest.json", app_name="flight_telemetry_project")
 
     at.session_state["env"] = env
-    at.session_state["flight_project"] = [0, "", "", "", "", ""]
-    at.session_state["flight_project__venv_map"] = {}
+    at.session_state["flight_telemetry_project"] = [0, "", "", "", "", ""]
+    at.session_state["flight_telemetry_project__venv_map"] = {}
 
     at.run()
 
@@ -1448,17 +1448,17 @@ def test_workflow_notebook_manifest_dir_prefers_selected_project(tmp_path):
 def test_pipeline_page_restores_missing_export_stages_from_project_source(mock_ui_env):
     source_stages = mock_ui_env["project_dir"] / "lab_stages.toml"
     source_stages.write_text(
-        'flight_project = [{ Q = "Recover pipeline", C = "print(1)" }]\n',
+        'flight_telemetry_project = [{ Q = "Recover pipeline", C = "print(1)" }]\n',
         encoding="utf-8",
     )
     target_stages = mock_ui_env["export_dir"] / "flight" / "lab_stages.toml"
     assert not target_stages.exists()
 
     at = _app_test("src/agilab/pages/3_WORKFLOW.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     at.session_state["env"] = env
 
     at.run()
@@ -1466,17 +1466,17 @@ def test_pipeline_page_restores_missing_export_stages_from_project_source(mock_u
     assert not at.exception
     data = tomllib.loads(target_stages.read_text(encoding="utf-8"))
     assert data["flight"][0]["Q"] == "Recover pipeline"
-    assert "flight_project" not in data
+    assert "flight_telemetry_project" not in data
 
 
 def test_edit_page_load(mock_ui_env):
     """Test that the EDIT page loads without exceptions."""
     at = _app_test("src/agilab/pages/1_PROJECT.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.projects = ["flight_project"]
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     at.session_state["env"] = env
     
     at.run()
@@ -1549,7 +1549,7 @@ def test_project_sidebar_orders_active_project_before_actions():
 def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
     """Test that the EXECUTE page hydrates the Cython checkbox from app settings."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     Path(env.app_settings_file).write_text("[cluster]\ncython = true\n", encoding="utf-8")
@@ -1570,7 +1570,7 @@ def test_execute_page_cython_setting_hydrates_from_app_settings(mock_ui_env):
 def test_execute_page_workers_data_path(mock_ui_env):
     """Test setting the workers data path when cluster is enabled."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
     at.session_state["env"] = env
@@ -1623,12 +1623,12 @@ def test_explore_page_multiple_views_selected(mock_ui_env):
     """Selecting multiple views renders sidebar launch links without duplicate card buttons."""
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     at.session_state["env"] = env
     at.run()
     assert not at.exception
 
-    selection_key = "view_selection__flight_project"
+    selection_key = "view_selection__flight_telemetry_project"
     ms = at.multiselect(key=selection_key)
 
     # Select two views
@@ -1649,8 +1649,8 @@ def test_explore_page_deselect_view(mock_ui_env):
     """Selecting then deselecting a view removes it from sidebar launch links."""
     at = _app_test("src/agilab/pages/4_ANALYSIS.py")
     at.query_params["current_page"] = "main"
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
-    env.resolve_user_app_settings_file("flight_project").write_text(
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.resolve_user_app_settings_file("flight_telemetry_project").write_text(
         "[pages]\nview_module = []\n",
         encoding="utf-8",
     )
@@ -1658,7 +1658,7 @@ def test_explore_page_deselect_view(mock_ui_env):
     at.run()
     assert not at.exception
 
-    selection_key = "view_selection__flight_project"
+    selection_key = "view_selection__flight_telemetry_project"
     ms = at.multiselect(key=selection_key)
 
     # Select two views
@@ -1687,7 +1687,7 @@ def test_app_args_form_no_changes(mock_ui_env):
     sys.path.insert(0, project_src)
     try:
         at = _app_test(APP_ARGS_FORM)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         at.session_state["env"] = env
 
         at.run()
@@ -1710,15 +1710,15 @@ def test_app_args_form_exposes_only_file_source(mock_ui_env):
     sys.path.insert(0, project_src)
     try:
         at = _app_test(APP_ARGS_FORM)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         at.session_state["env"] = env
         at.run()
         assert not at.exception
 
-        source_select = at.selectbox(key="flight_project:app_args_form:data_source")
+        source_select = at.selectbox(key="flight_telemetry_project:app_args_form:data_source")
         assert source_select.options == ["file"]
-        assert at.text_input(key="flight_project:app_args_form:data_in").label == "Data directory"
-        assert at.text_input(key="flight_project:app_args_form:files").label == "Files filter"
+        assert at.text_input(key="flight_telemetry_project:app_args_form:data_in").label == "Data directory"
+        assert at.text_input(key="flight_telemetry_project:app_args_form:files").label == "Files filter"
     finally:
         if project_src in sys.path:
             sys.path.remove(project_src)
@@ -1753,11 +1753,11 @@ def test_agilab_main_page_missing_openai_key_stays_silent_on_first_launch(mock_u
 def test_experiment_page_missing_openai_key(mock_ui_env):
     """Test that EXPERIMENT page handles a missing OpenAI API key gracefully."""
     at = _app_test("src/agilab/pages/3_WORKFLOW.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
 
     at.session_state["env"] = env
-    at.session_state["flight_project"] = [0, "", "", "", "", ""]
-    at.session_state["flight_project__venv_map"] = {}
+    at.session_state["flight_telemetry_project"] = [0, "", "", "", "", ""]
+    at.session_state["flight_telemetry_project__venv_map"] = {}
 
     # Remove the API key from the environment
     with patch.dict(os.environ, {"OPENAI_API_KEY": ""}, clear=False):
@@ -1776,30 +1776,30 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
         '[[flight]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
-    flight_project_lab_dir = export_root / "flight_project"
-    flight_project_lab_dir.mkdir(parents=True, exist_ok=True)
-    (flight_project_lab_dir / "lab_stages.toml").write_text(
-        '[[flight_project]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+    flight_telemetry_project_lab_dir = export_root / "flight_telemetry_project"
+    flight_telemetry_project_lab_dir.mkdir(parents=True, exist_ok=True)
+    (flight_telemetry_project_lab_dir / "lab_stages.toml").write_text(
+        '[[flight_telemetry_project]]\nD = ""\nQ = "demo prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
         at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
-        env.target = "flight_project"
+        env.target = "flight_telemetry_project"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
 
-        at.query_params["lab_dir_selectbox"] = "flight_project"
+        at.query_params["lab_dir_selectbox"] = "flight_telemetry_project"
         at.session_state["env"] = env
         at.session_state["flight"] = [0, "", "", "", "", "", 1]
-        at.session_state["flight_project"] = [0, "", "", "", "", "", 1]
-        at.session_state["flight_project__venv_map"] = {}
-        at.session_state["_requested_lab_dir"] = "flight_project"
-        at.session_state["lab_dir_selectbox"] = "flight_project"
-        at.session_state["lab_dir"] = "flight_project"
+        at.session_state["flight_telemetry_project"] = [0, "", "", "", "", "", 1]
+        at.session_state["flight_telemetry_project__venv_map"] = {}
+        at.session_state["_requested_lab_dir"] = "flight_telemetry_project"
+        at.session_state["lab_dir_selectbox"] = "flight_telemetry_project"
+        at.session_state["lab_dir"] = "flight_telemetry_project"
         at.run()
         assert not at.exception
 
@@ -1824,12 +1824,12 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
 def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp_path):
     """Switching labs on first use should immediately load the selected lab."""
     export_root = tmp_path / "export"
-    flight_lab = export_root / "flight_project"
+    flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
-        '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        '[[flight_telemetry_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
     (trainer_lab / "lab_stages.toml").write_text(
@@ -1839,13 +1839,13 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
         at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
-        env.target = "flight_project"
+        env.target = "flight_telemetry_project"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-        env.get_projects = MagicMock(return_value=["flight_project", "sb3_trainer_project"])
+        env.get_projects = MagicMock(return_value=["flight_telemetry_project", "sb3_trainer_project"])
 
         at.session_state["env"] = env
         at.run()
@@ -1864,7 +1864,7 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         assert "Inspect experiment runs separately from workflow execution." not in sidebar_caption
         assert "Start it from Edit." not in sidebar_caption
         assert "MLflow" not in sidebar_markdown
-        assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
+        assert list(project_select.options) == ["flight_telemetry_project", "sb3_trainer_project"]
         assert at.session_state["lab_dir_selectbox"] == project_select.value
         markdown_text = "\n".join(str(item.value) for item in at.markdown)
         assert "Workflow stages" in markdown_text
@@ -1876,7 +1876,7 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
         target_lab = (
             "sb3_trainer_project"
             if initial_lab != "sb3_trainer_project"
-            else "flight_project"
+            else "flight_telemetry_project"
         )
         expected_prompt = "trainer prompt" if target_lab == "sb3_trainer_project" else "flight prompt"
 
@@ -1892,12 +1892,12 @@ def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp
 
 def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
-    flight_lab = export_root / "flight_project"
+    flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
-        '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        '[[flight_telemetry_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
     (trainer_lab / "lab_stages.toml").write_text(
@@ -1907,13 +1907,13 @@ def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(m
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
         at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
-        env.target = "flight_project"
+        env.target = "flight_telemetry_project"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-        env.get_projects = MagicMock(return_value=["flight_project", "sb3_trainer_project"])
+        env.get_projects = MagicMock(return_value=["flight_telemetry_project", "sb3_trainer_project"])
 
         at.session_state["env"] = env
         at.run()
@@ -1922,7 +1922,7 @@ def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(m
         assert all(text_input.key != "project_filter" for text_input in at.sidebar.text_input)
         project_select = at.sidebar.selectbox(key="project_selectbox")
         assert project_select.label == "Project"
-        assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
+        assert list(project_select.options) == ["flight_telemetry_project", "sb3_trainer_project"]
 
         project_select.set_value("sb3_trainer_project").run()
 
@@ -1934,12 +1934,12 @@ def test_pipeline_page_project_selectbox_replaces_filter_and_switches_projects(m
 
 def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
-    flight_lab = export_root / "flight_project"
+    flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
-        '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        '[[flight_telemetry_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
     (trainer_lab / "lab_stages.toml").write_text(
@@ -1949,33 +1949,33 @@ def test_pipeline_page_project_selectbox_uses_canonical_project_names(mock_ui_en
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
         at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
         env.target = "flight"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-        env.get_projects = MagicMock(return_value=["flight_project", "sb3_trainer_project"])
+        env.get_projects = MagicMock(return_value=["flight_telemetry_project", "sb3_trainer_project"])
 
         at.session_state["env"] = env
         at.run()
         assert not at.exception
 
         project_select = at.sidebar.selectbox(key="project_selectbox")
-        assert list(project_select.options) == ["flight_project", "sb3_trainer_project"]
+        assert list(project_select.options) == ["flight_telemetry_project", "sb3_trainer_project"]
         assert "flight" not in project_select.options
-        assert at.session_state["lab_dir_selectbox"] == "flight_project"
-        assert Path(at.session_state["stages_file"]).parent.name == "flight_project"
+        assert at.session_state["lab_dir_selectbox"] == "flight_telemetry_project"
+        assert Path(at.session_state["stages_file"]).parent.name == "flight_telemetry_project"
 
 
 def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
-    flight_lab = export_root / "flight_project"
+    flight_lab = export_root / "flight_telemetry_project"
     trainer_lab = export_root / "sb3_trainer_project"
     flight_lab.mkdir(parents=True, exist_ok=True)
     trainer_lab.mkdir(parents=True, exist_ok=True)
     (flight_lab / "lab_stages.toml").write_text(
-        '[[flight_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        '[[flight_telemetry_project]]\nD = ""\nQ = "flight prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
     (trainer_lab / "lab_stages.toml").write_text(
@@ -1985,13 +1985,13 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
         at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
-        env.target = "flight_project"
+        env.target = "flight_telemetry_project"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-        env.get_projects = MagicMock(return_value=["flight_project", "sb3_trainer_project"])
+        env.get_projects = MagicMock(return_value=["flight_telemetry_project", "sb3_trainer_project"])
 
         at.session_state["env"] = env
         at.session_state["project_selectbox"] = "sb3_trainer_project"
@@ -2006,52 +2006,52 @@ def test_pipeline_page_reuses_cross_page_project_selectbox_state(mock_ui_env, tm
 
 def test_experiment_page_save_stage_persists_prompt(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
-    lab_dir = export_root / "flight_project"
+    lab_dir = export_root / "flight_telemetry_project"
     lab_dir.mkdir(parents=True, exist_ok=True)
     stages_file = lab_dir / "lab_stages.toml"
     stages_file.write_text(
-        '[[flight_project]]\nD = ""\nQ = "original prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
+        '[[flight_telemetry_project]]\nD = ""\nQ = "original prompt"\nM = "dummy-model"\nC = "print(1)"\nR = "runpy"\n',
         encoding="utf-8",
     )
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
         at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
-        env.target = "flight_project"
+        env.target = "flight_telemetry_project"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-        env.get_projects = MagicMock(return_value=["flight_project"])
+        env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
 
         at.session_state["env"] = env
         at.run()
         assert not at.exception
 
         updated_prompt = "updated prompt from AppTest"
-        at.session_state["flight_project_lab_stages.toml_q_stage_0"] = updated_prompt
+        at.session_state["flight_telemetry_project_lab_stages.toml_q_stage_0"] = updated_prompt
         at.run()
-        at.button(key="flight_project_lab_stages.toml_save_0").click().run()
+        at.button(key="flight_telemetry_project_lab_stages.toml_save_0").click().run()
 
         assert not at.exception
         assert updated_prompt in stages_file.read_text(encoding="utf-8")
-        assert at.text_area(key="flight_project_lab_stages.toml_q_stage_0").value == updated_prompt
+        assert at.text_area(key="flight_telemetry_project_lab_stages.toml_q_stage_0").value == updated_prompt
 
 
 def test_experiment_page_confirm_remove_updates_stages_file(mock_ui_env, tmp_path):
     export_root = tmp_path / "export"
-    lab_dir = export_root / "flight_project"
+    lab_dir = export_root / "flight_telemetry_project"
     lab_dir.mkdir(parents=True, exist_ok=True)
     stages_file = lab_dir / "lab_stages.toml"
     stages_file.write_text(
         """
-[[flight_project]]
+[[flight_telemetry_project]]
 D = ""
 Q = "first prompt"
 M = "dummy-model"
 C = "print(1)"
 R = "runpy"
-[[flight_project]]
+[[flight_telemetry_project]]
 D = ""
 Q = "second prompt"
 M = "dummy-model"
@@ -2064,23 +2064,23 @@ R = "runpy"
 
     with patch.dict(os.environ, {"AGI_EXPORT_DIR": str(export_root)}, clear=False):
         at = _app_test("src/agilab/pages/3_WORKFLOW.py", default_timeout=20)
-        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+        env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
         env.init_done = True
         env.AGILAB_EXPORT_ABS = export_root
         env.envars["AGI_EXPORT_DIR"] = str(export_root)
-        env.target = "flight_project"
+        env.target = "flight_telemetry_project"
         env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-        env.get_projects = MagicMock(return_value=["flight_project"])
+        env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
 
         at.session_state["env"] = env
         at.run()
         assert not at.exception
 
-        at.button(key="flight_project_lab_stages.toml_delete_0").click().run()
+        at.button(key="flight_telemetry_project_lab_stages.toml_delete_0").click().run()
         assert not at.exception
-        assert any(button.key == "flight_project_lab_stages.toml_delete_confirm_0" for button in at.button)
+        assert any(button.key == "flight_telemetry_project_lab_stages.toml_delete_confirm_0" for button in at.button)
 
-        at.button(key="flight_project_lab_stages.toml_delete_confirm_0").click().run()
+        at.button(key="flight_telemetry_project_lab_stages.toml_delete_confirm_0").click().run()
         assert not at.exception
 
         stored = stages_file.read_text(encoding="utf-8")
@@ -2091,11 +2091,11 @@ R = "runpy"
 def test_edit_page_project_selectbox(mock_ui_env):
     """Test that the EDIT page has a project selectbox with available projects."""
     at = _app_test("src/agilab/pages/1_PROJECT.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.projects = ["flight_project"]
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     at.session_state["env"] = env
     at.session_state["sidebar_selection"] = "Edit"
 
@@ -2117,11 +2117,11 @@ def test_edit_page_project_selectbox(mock_ui_env):
 
 def test_create_page_exposes_environment_strategy(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.projects = ["flight_project"]
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     at.session_state["env"] = env
     at.session_state["sidebar_selection"] = "Create"
 
@@ -2137,11 +2137,11 @@ def test_create_page_exposes_environment_strategy(mock_ui_env):
 
 def test_project_page_maps_legacy_clone_action_to_create(mock_ui_env):
     at = _app_test("src/agilab/pages/1_PROJECT.py")
-    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_project", verbose=0)
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
     env.init_done = True
     env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
-    env.projects = ["flight_project"]
-    env.get_projects = MagicMock(return_value=["flight_project"])
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
     at.session_state["env"] = env
     at.session_state["sidebar_selection"] = "Clone"
 

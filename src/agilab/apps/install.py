@@ -308,7 +308,7 @@ async def main():
         parser.add_argument(
             "active_app",
             type=str,
-            help="Path to the app project (e.g. src/agilab/apps/builtin/flight_project)",
+            help="Path to the app project (e.g. src/agilab/apps/builtin/flight_telemetry_project)",
         )
 
         parser.add_argument(

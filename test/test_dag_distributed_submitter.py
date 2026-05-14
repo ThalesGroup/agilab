@@ -162,7 +162,7 @@ workers_data_path = "clustershare/agi"
 
 def test_build_global_submitter_runs_configured_runner(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
-    _write_app(repo_root, "src/agilab/apps/builtin", "flight_project")
+    _write_app(repo_root, "src/agilab/apps/builtin", "flight_telemetry_project")
     env = SimpleNamespace(app_settings_file=None)
     calls: list[dict[str, object]] = []
 
@@ -189,7 +189,7 @@ def test_build_global_submitter_runs_configured_runner(tmp_path: Path) -> None:
         repo_root=repo_root,
         lab_dir=tmp_path / "lab",
         run_root=tmp_path / "run",
-        unit={"id": "flight_context", "app": "flight_project"},
+        unit={"id": "flight_context", "app": "flight_telemetry_project"},
         artifact={"artifact": "stage_result"},
         execution_contract={"params": {}, "stages": []},
         timestamp="2026-05-07T00:00:00Z",
@@ -210,7 +210,7 @@ def test_build_global_submitter_returns_none_without_cluster() -> None:
 
 def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
-    _write_app(repo_root, "src/agilab/apps/builtin", "flight_project")
+    _write_app(repo_root, "src/agilab/apps/builtin", "flight_telemetry_project")
     config = dag_distributed_submitter.DagDistributedStageConfig(
         scheduler="192.168.20.111:8786",
         workers={"192.168.20.111": 1, "192.168.20.15": 2},
@@ -230,10 +230,10 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
         repo_root=repo_root,
         lab_dir=tmp_path / "lab",
         run_root=tmp_path / "lab/.agilab/global_dag_real_runs/flight_context",
-        unit={"id": "flight_context", "app": "flight_project"},
+        unit={"id": "flight_context", "app": "flight_telemetry_project"},
         artifact={"artifact": "flight_reduce_summary", "kind": "reduce_summary", "path": "flight/reduce.json"},
         execution_contract={
-            "entrypoint": "flight_project.flight_context",
+            "entrypoint": "flight_telemetry_project.flight_context",
             "params": {"scenario": "demo"},
             "stages": [{"name": "prepare", "args": {"n": 2}}],
         },
@@ -242,13 +242,13 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
 
     assert len(calls) == 1
     assert calls[0]["apps_path"] == repo_root / "src/agilab/apps/builtin"
-    assert calls[0]["app_name"] == "flight_project"
+    assert calls[0]["app_name"] == "flight_telemetry_project"
     assert calls[0]["request_payload"]["params"] == {"scenario": "demo"}
     assert calls[0]["request_payload"]["stages"] == [{"name": "prepare", "args": {"n": 2}}]
     evidence_path = Path(result["submission_evidence_path"])
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert evidence["schema"] == "agilab.distributed_dag_stage_submission.v1"
-    assert evidence["app"] == "flight_project"
+    assert evidence["app"] == "flight_telemetry_project"
     assert evidence["cluster"]["worker_nodes"] == 2
     assert result["reduce_artifact_path"] == str(evidence_path)
     assert result["summary_metrics"]["worker_slots"] == 3
@@ -260,7 +260,7 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
         repo_root=repo_root,
         lab_dir=tmp_path / "lab",
         run_root=tmp_path / "lab/.agilab/global_dag_real_runs/default_metrics",
-        unit={"id": "flight_context", "app": "flight_project"},
+        unit={"id": "flight_context", "app": "flight_telemetry_project"},
         artifact={"artifact": "default_metrics"},
         execution_contract={},
         timestamp="2026-05-07T00:00:01Z",
@@ -275,7 +275,7 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
 
 def test_build_distributed_request_preview_rows_shows_exact_stage_request(tmp_path: Path) -> None:
     repo_root = tmp_path / "repo"
-    _write_app(repo_root, "src/agilab/apps/builtin", "flight_project")
+    _write_app(repo_root, "src/agilab/apps/builtin", "flight_telemetry_project")
     config = dag_distributed_submitter.DagDistributedStageConfig(
         scheduler="192.168.20.111:8786",
         workers={"192.168.20.111": 1, "192.168.20.15": 1},
@@ -289,10 +289,10 @@ def test_build_distributed_request_preview_rows_shows_exact_stage_request(tmp_pa
             "units": [
                 {
                     "id": "flight_context",
-                    "app": "flight_project",
+                    "app": "flight_telemetry_project",
                     "dispatch_status": "runnable",
                     "execution_contract": {
-                        "entrypoint": "flight_project.flight_context",
+                        "entrypoint": "flight_telemetry_project.flight_context",
                         "params": {"scenario": "demo"},
                         "stages": [{"name": "prepare", "args": {"n": 2}}],
                         "data_in": "flight/dataset",
@@ -309,7 +309,7 @@ def test_build_distributed_request_preview_rows_shows_exact_stage_request(tmp_pa
     assert rows == [
         {
             "Stage": "flight_context",
-            "App": "flight_project",
+            "App": "flight_telemetry_project",
             "Status": "runnable",
             "Backend": "distributed",
             "Nodes": "2",
@@ -477,7 +477,7 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
         repo_root=tmp_path,
         run_root=tmp_path / "run",
         apps_path=tmp_path / "src/agilab/apps/builtin",
-        app_name="flight_project",
+        app_name="flight_telemetry_project",
         request_payload={"params": {}, "stages": []},
         timestamp="2026-05-07T00:00:00Z",
     )
@@ -516,11 +516,11 @@ def test_stage_subprocess_runner_raises_with_trimmed_failure(monkeypatch, tmp_pa
             repo_root=tmp_path,
             run_root=tmp_path / "run",
             apps_path=tmp_path / "src/agilab/apps/builtin",
-            app_name="flight_project",
+            app_name="flight_telemetry_project",
             request_payload={},
             timestamp="2026-05-07T00:00:00Z",
         )
 
     message = str(err.value)
-    assert "Distributed DAG stage `flight_project` failed" in message
+    assert "Distributed DAG stage `flight_telemetry_project` failed" in message
     assert len(message) < 4100

@@ -49,7 +49,7 @@ def _template_path(repo_root: Path) -> Path:
 
 
 def _flight_template_path(repo_root: Path) -> Path:
-    return repo_root / dag_execution_registry.FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH
+    return repo_root / dag_execution_registry.FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH
 
 
 def _uav_units() -> list[dict[str, str]]:
@@ -63,8 +63,8 @@ def _flight_units() -> list[dict[str, object]]:
     return [
         {
             "id": "flight_context",
-            "app": "flight_project",
-            "execution_contract": {"entrypoint": "flight_project.flight_context"},
+            "app": "flight_telemetry_project",
+            "execution_contract": {"entrypoint": "flight_telemetry_project.flight_context"},
             "produces": [
                 {
                     "artifact": "flight_reduce_summary",
@@ -73,9 +73,9 @@ def _flight_units() -> list[dict[str, object]]:
             ],
         },
         {
-            "id": "meteo_forecast_review",
-            "app": "meteo_forecast_project",
-            "execution_contract": {"entrypoint": "meteo_forecast_project.meteo_forecast_review"},
+            "id": "weather_forecast_review",
+            "app": "weather_forecast_project",
+            "execution_contract": {"entrypoint": "weather_forecast_project.weather_forecast_review"},
             "produces": [
                 {
                     "artifact": "forecast_metrics",
@@ -113,7 +113,7 @@ def test_registry_supports_checked_in_flight_template():
         repo_root=repo_root,
     )
 
-    assert adapter == dag_execution_registry.FLIGHT_TO_METEO_DAG_ADAPTER
+    assert adapter == dag_execution_registry.FLIGHT_TO_WEATHER_DAG_ADAPTER
     assert support.supported
     assert support.status == "Executable"
     assert support.adapter == "controlled_contract_dag"
@@ -273,7 +273,7 @@ def test_registry_rejects_required_stage_shape_mismatch():
     )
     wrong_app = dag_execution_registry.resolve_real_run_support(
         units=[
-            {"id": "queue_baseline", "app": "flight_project"},
+            {"id": "queue_baseline", "app": "flight_telemetry_project"},
             {"id": "relay_followup", "app": "uav_relay_queue_project"},
         ],
         dag_path=_template_path(repo_root),

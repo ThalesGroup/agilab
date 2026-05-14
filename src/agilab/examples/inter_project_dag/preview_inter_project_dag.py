@@ -29,7 +29,7 @@ DAG_PATH = (
     / "builtin"
     / "global_dag_project"
     / "dag_templates"
-    / "flight_to_meteo_global_dag.json"
+    / "flight_to_weather_global_dag.json"
 )
 DEFAULT_OUTPUT_PATH = Path.home() / "log" / "execute" / "inter_project_dag" / "runner_state.json"
 RUN_ID = "inter-project-dag-preview"

@@ -1,8 +1,8 @@
 [project]
-name = "view-forecast-analysis"
+name = "agi-page-timeseries-forecast"
 version = "0.1.0"
-description = "AGILAB page bundle for forecast analysis."
-readme = { text = "AGILAB page bundle for forecast analysis.", content-type = "text/markdown" }
+description = "AGILAB page bundle for time-series forecast review."
+readme = { text = "AGILAB page bundle for time-series forecast review.", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
     "agi-gui>=2026.05.12.post3,<2027.0",

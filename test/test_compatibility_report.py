@@ -46,8 +46,8 @@ def _write_manifest(
                     "python_executable": sys.executable,
                     "platform": "test",
                     "repo_root": str(path.parent),
-                    "active_app": str(path.parent / "flight_project"),
-                    "app_name": "flight_project",
+                    "active_app": str(path.parent / "flight_telemetry_project"),
+                    "app_name": "flight_telemetry_project",
                 },
                 "timing": {
                     "started_at": "2026-04-25T00:00:00Z",

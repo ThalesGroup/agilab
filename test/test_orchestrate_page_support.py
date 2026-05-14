@@ -245,8 +245,8 @@ def test_build_distribution_snippet_omits_blank_args_payload():
 def test_orchestrate_snippets_preserve_builtin_apps_path(tmp_path: Path):
     apps_path = tmp_path / "apps"
     builtin_apps = apps_path / "builtin"
-    (builtin_apps / "flight_project").mkdir(parents=True)
-    env = SimpleNamespace(apps_path=apps_path, app="flight_project", is_source_env=True)
+    (builtin_apps / "flight_telemetry_project").mkdir(parents=True)
+    env = SimpleNamespace(apps_path=apps_path, app="flight_telemetry_project", is_source_env=True)
 
     run_snippet = orchestrate_page_support.build_run_snippet(
         env=env,
@@ -620,7 +620,7 @@ def test_log_indicates_install_failure():
 
 
 def test_app_install_status_rejects_stale_worker_venv_missing_core_import(tmp_path: Path) -> None:
-    active_app = tmp_path / "data_io_2026_project"
+    active_app = tmp_path / "mission_decision_project"
     worker_root = tmp_path / "wenv" / "data_io_2026_worker"
     manager_venv = active_app / ".venv"
     worker_venv = worker_root / ".venv"
@@ -639,7 +639,7 @@ def test_app_install_status_rejects_stale_worker_venv_missing_core_import(tmp_pa
 
 
 def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) -> None:
-    active_app = tmp_path / "data_io_2026_project"
+    active_app = tmp_path / "mission_decision_project"
     worker_root = tmp_path / "wenv" / "data_io_2026_worker"
     manager_venv = active_app / ".venv"
     worker_venv = worker_root / ".venv"
@@ -656,7 +656,7 @@ def test_app_install_status_requires_manager_agi_cluster_import(tmp_path: Path) 
 
 
 def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path: Path) -> None:
-    active_app = tmp_path / "meteo_forecast_project"
+    active_app = tmp_path / "weather_forecast_project"
     worker_root = tmp_path / "wenv" / "meteo_forecast_worker"
     manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_env", "agi_node", "agi_cluster")
     worker_site = _seed_fake_venv_modules(worker_root / ".venv", "agi_env", "agi_node")
@@ -675,7 +675,7 @@ def test_app_install_status_rejects_stale_manager_missing_stage_request(tmp_path
 
 
 def test_app_install_status_detects_editable_pth_import_roots(tmp_path: Path) -> None:
-    active_app = tmp_path / "data_io_2026_project"
+    active_app = tmp_path / "mission_decision_project"
     worker_root = tmp_path / "wenv" / "data_io_2026_worker"
     manager_site = _seed_fake_venv_modules(active_app / ".venv", "agi_cluster")
     worker_site = _seed_fake_venv_modules(worker_root / ".venv")

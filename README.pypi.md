@@ -47,9 +47,9 @@ agilab
 
 For a zero-install browser preview, open the public
 [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab). It opens the
-lightweight `flight_project` path by default and exposes the
-`meteo_forecast_project` notebook-migration demo with forecast analysis views.
-Advanced scenarios such as `data_io_2026_project`,
+lightweight `flight_telemetry_project` path by default and exposes the
+`weather_forecast_project` notebook-migration demo with forecast analysis views.
+Advanced scenarios such as `mission_decision_project`,
 `execution_pandas_project`, `execution_polars_project`, and
 `uav_relay_queue_project` are collected in the
 [Advanced Proof Pack](https://thalesgroup.github.io/agilab/advanced-proof-pack.html).
@@ -105,7 +105,7 @@ what they need:
 | Base package | `agilab` plus `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster`. This includes the core local/distributed runtime dependencies but not the built-in app or page-bundle payload. | CLI/core tooling, source-checkout validation, and worker-runtime development. |
 | `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. App/page payload packages are archived as release artifacts until their PyPI publishers are configured. | Running the local product UI with the packaged runtime and optional public demo assets. |
 | `examples` extra | `agi-apps` app catalog/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
-| `pages` extra | `agi-pages` public analysis page bundles without the full UI profile. | Installing or validating sidecar page bundles separately from built-in app projects. |
+| `pages` extra | `agi-pages` page-provider helpers without the full UI profile. | Installing or validating sidecar page-bundle discovery separately from built-in app projects. |
 | `agents` extra | API client dependency boundary for packaged agent workflow helpers. | Reproducible coding-agent and assistant-backed workflows. |
 | `mlflow` extra | MLflow tracking integration. | Recording runs, metrics, artifacts, or model registry handoff evidence. |
 | `ai` and `viz` extras | API LLM clients and optional plotting packages. | Assistant-backed workflows or richer visual analysis. |
@@ -152,7 +152,7 @@ can validate one coherent tree. Their stability differs:
 |---|---|---|
 | `src/agilab/core/*` | Runtime packages and compact API. | Stable where documented. |
 | `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI. | Beta product surface. |
-| `src/agilab/lib/agi-apps` | PyPI umbrella carrying app catalog/example assets. Per-app packages are built as release artifacts until their PyPI publishers are configured. | Packaged asset surface for the `ui` and `examples` extras. |
+| `src/agilab/lib/agi-apps` | PyPI umbrella carrying app catalog/example assets and the app payload packages already promoted to PyPI. Deferred app payloads remain release artifacts until publication is enabled. | Packaged asset surface for the `ui` and `examples` extras. |
 | `src/agilab/lib/agi-pages` | PyPI provider package for public analysis page discovery. Page payload packages are built as release artifacts until their PyPI publishers are configured. | Packaged page-provider surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | First-proof and demo apps. | Packaged examples, not deployment templates. |
 | `src/agilab/examples` | Learning scripts and notebooks. | Educational examples with optional dependencies. |
@@ -192,7 +192,7 @@ release tag or the PyPI package version recorded in the release proof.
 
 ## Source Checkout
 
-Run the installable product path with the built-in `flight_project`:
+Run the installable product path with the built-in `flight_telemetry_project`:
 
 ```bash
 CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
@@ -209,7 +209,7 @@ Follow the in-app pages from `PROJECT` to `ORCHESTRATE`, `WORKFLOW`, and
 uv --preview-features extra-build-dependencies run agilab first-proof --json
 ```
 
-The JSON proof writes `run_manifest.json` under `~/log/execute/flight/`. For
+The JSON proof writes `run_manifest.json` under `~/log/execute/flight_telemetry/`. For
 installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
 
 ## Published Package
@@ -271,6 +271,6 @@ The overall score is the rounded category average, not a strategic score.
 - [Adoption guide](https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md)
 - [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
-- [Flight project guide](https://thalesgroup.github.io/agilab/flight-project.html)
+- [Flight telemetry project guide](https://thalesgroup.github.io/agilab/flight-telemetry-project.html)
 - [Source repository](https://github.com/ThalesGroup/agilab)
 - [Issues](https://github.com/ThalesGroup/agilab/issues)

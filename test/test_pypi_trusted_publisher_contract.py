@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools" / "pypi_trusted_publisher_contract.py"
 sys.path.insert(0, str(REPO_ROOT / "tools"))
 
-from package_split_contract import PACKAGE_CONTRACTS
+from package_split_contract import PACKAGE_CONTRACTS, PROMOTED_APP_PROJECT_PACKAGE_NAMES
 
 
 def _load_module():
@@ -26,7 +26,10 @@ def test_trusted_publisher_claims_match_package_split_contract() -> None:
     module = _load_module()
     claims = module.trusted_publisher_claims()
     expected_packages = [
-        package for package in PACKAGE_CONTRACTS if package.role in module.PYPI_PUBLISH_ROLES
+        package
+        for package in PACKAGE_CONTRACTS
+        if package.role in module.PYPI_PUBLISH_ROLES
+        or package.name in PROMOTED_APP_PROJECT_PACKAGE_NAMES
     ]
 
     assert [claim.project for claim in claims] == [package.name for package in expected_packages]

@@ -53,16 +53,16 @@ def test_revision_traceability_fingerprints_builtin_apps() -> None:
 
     assert state["run_status"] == "validated"
     assert state["summary"]["builtin_apps"] == [
-        "data_io_2026_project",
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_project",
+        "flight_telemetry_project",
         "global_dag_project",
-        "meteo_forecast_project",
+        "mission_decision_project",
         "mycode_project",
         "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",
+        "weather_forecast_project",
     ]
     assert {row["name"] for row in state["core_components"]} == {
         "agilab",

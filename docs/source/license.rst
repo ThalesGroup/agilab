@@ -19,4 +19,4 @@ because it includes runtime dependencies, not only vendored source files.
    agi-env-licenses
    agi-core-licenses
    mycode-project-licenses
-   flight-project-licenses
+   flight-telemetry-project-licenses

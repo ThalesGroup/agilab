@@ -154,7 +154,7 @@ def test_page_discovery_keeps_only_installable_entrypoint_projects(tmp_path: Pat
 @pytest.mark.parametrize(
     ("name", "direct_child", "nested_child"),
     [
-        ("apps", "flight_project", "network_sim_project"),
+        ("apps", "flight_telemetry_project", "network_sim_project"),
         ("apps-pages", "home", "legacy"),
     ],
 )

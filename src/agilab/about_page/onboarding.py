@@ -29,7 +29,7 @@ _first_proof_wizard_module = import_agilab_module(
     fallback_name="agilab_first_proof_wizard_onboarding_fallback",
 )
 
-FIRST_PROOF_PROJECT = "flight_project"
+FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
 FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _first_proof_wizard_module.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
 
@@ -119,13 +119,13 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
 
     if not state["project_available"]:
         project_status = "Blocked"
-        project_detail = "`flight_project` is missing from the app list."
+        project_detail = "`flight_telemetry_project` is missing from the app list."
     elif state["current_app_matches"]:
         project_status = "Done"
-        project_detail = "Active project is `flight_project`."
+        project_detail = "Active project is `flight_telemetry_project`."
     else:
         project_status = "Next"
-        project_detail = f"Active project is `{active_app}`; choose `flight_project`."
+        project_detail = f"Active project is `{active_app}`; choose `flight_telemetry_project`."
 
     if state["run_manifest_loaded"] or state["run_output_detected"]:
         run_status = "Done"
@@ -135,7 +135,7 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
         run_detail = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     else:
         run_status = "Waiting"
-        run_detail = "Select `flight_project` before running."
+        run_detail = "Select `flight_telemetry_project` before running."
 
     if state["run_manifest_passed"]:
         manifest_status = "Done"
@@ -194,17 +194,17 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
             "tone": "attention",
             "phase": "Fix setup",
             "title": "Restore the built-in flight demo",
-            "detail": next_step or "`flight_project` is missing from the app list.",
+            "detail": next_step or "`flight_telemetry_project` is missing from the app list.",
             "cta_label": "Open troubleshooting",
-            "proof_hint": "`flight_project` must exist before the first proof can run.",
+            "proof_hint": "`flight_telemetry_project` must exist before the first proof can run.",
         }
     if not state["current_app_matches"]:
         return {
             "tone": "next",
             "phase": "Stage 1",
-            "title": "Select `flight_project`",
+            "title": "Select `flight_telemetry_project`",
             "detail": f"You are on `{active_app}`. Switch to the guided demo before running anything.",
-            "cta_label": "Use `flight_project`",
+            "cta_label": "Use `flight_telemetry_project`",
             "proof_hint": "This keeps the first proof on the documented, supportable route.",
         }
     if state["run_manifest_passed"]:
@@ -506,7 +506,7 @@ def _render_first_proof_next_action(
             width="stretch",
         ):
             if activate_project is not None and activate_project(env, state["project_path"]):
-                st.session_state["first_proof_feedback"] = "`flight_project` selected."
+                st.session_state["first_proof_feedback"] = "`flight_telemetry_project` selected."
                 st.rerun()
     elif state["run_manifest_passed"]:
         st.success(f"Next action: {action['title']} - {action['detail']}")

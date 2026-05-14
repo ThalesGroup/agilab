@@ -1,0 +1,51 @@
+{
+  "schema": "agilab.multi_app_dag.v1",
+  "dag_id": "flight-to-weather-global-dag-example",
+  "label": "Flight to weather global DAG handoff",
+  "description": "Two public AGILAB projects connected through an explicit global DAG artifact contract. The preview plans the DAG and runner state; it does not execute either app.",
+  "execution": {
+    "mode": "sequential_dependency_order",
+    "runner_status": "contract_only"
+  },
+  "nodes": [
+    {
+      "id": "flight_context",
+      "app": "flight_telemetry_project",
+      "purpose": "Run the flight scenario and produce trajectory summary context for downstream review.",
+      "produces": [
+        {
+          "id": "flight_reduce_summary",
+          "kind": "reduce_summary",
+          "path": "flight_analysis/reduce_summary_worker_0.json"
+        }
+      ]
+    },
+    {
+      "id": "weather_forecast_review",
+      "app": "weather_forecast_project",
+      "purpose": "Consume the flight summary context and produce forecast quality metrics.",
+      "consumes": [
+        {
+          "id": "flight_reduce_summary",
+          "kind": "reduce_summary",
+          "path": "flight_analysis/reduce_summary_worker_0.json"
+        }
+      ],
+      "produces": [
+        {
+          "id": "forecast_metrics",
+          "kind": "summary_metrics",
+          "path": "forecast_analysis/forecast_metrics.json"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "flight_context",
+      "to": "weather_forecast_review",
+      "artifact": "flight_reduce_summary",
+      "handoff": "Use flight trajectory reduce summary as the forecast-review context."
+    }
+  ]
+}

@@ -5,9 +5,12 @@ import shlex
 import shutil
 import sys
 import subprocess
+import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional, Iterable, Dict, List
+
+_RUNTIME_TARGET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class Config:
@@ -1614,11 +1617,38 @@ def ensure_modules_xml(cfg: Config) -> None:
     write_xml(ET.ElementTree(project), cfg.MODULES)
 
 
+def default_app_runtime_target(app_name: str) -> str:
+    target = app_name.strip().replace("-", "_")
+    if target.endswith("_project"):
+        target = target.removesuffix("_project")
+    if target.endswith("_worker"):
+        target = target.removesuffix("_worker")
+    return target
+
+
+def app_runtime_target(app: Path) -> str:
+    fallback = default_app_runtime_target(app.name)
+    pyproject = app / "pyproject.toml"
+    if not pyproject.is_file():
+        return fallback
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    raw_target = data.get("tool", {}).get("agilab", {}).get("runtime_target")
+    if raw_target is None:
+        return fallback
+    target = default_app_runtime_target(str(raw_target))
+    if not _RUNTIME_TARGET_RE.fullmatch(target):
+        raise ValueError(
+            "[tool.agilab].runtime_target must be a Python identifier-like name "
+            f"without path separators, got {raw_target!r}"
+        )
+    return target
+
+
 def build_keep_sdks(cfg: Config) -> List[str]:
     keep_sdks = [cfg.PROJECT_SDK]
 
     keep_sdks += [f"uv ({app.name})" for app in cfg.eligible_apps]
-    keep_sdks += [f"uv ({app.name[:-8]}_worker)" for app in cfg.eligible_apps]
+    keep_sdks += [f"uv ({app_runtime_target(app)}_worker)" for app in cfg.eligible_apps]
     keep_sdks += [f"uv ({core.name})" for core in cfg.eligible_core]
     keep_sdks += [f"uv ({page.name})" for page in cfg.eligible_apps_pages]
 
@@ -1745,7 +1775,7 @@ def main() -> int:
         jdk_table.add_jdk(sdk_app, app_py)
         model.set_module_sdk(target, sdk_app)
 
-        project = app.name[:-8]
+        project = app_runtime_target(app)
         seed_example_scripts(cfg, project)
 
         worker_path = Path.home() / "wenv" / f"{project}_worker"

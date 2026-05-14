@@ -25,7 +25,7 @@ def test_build_space_url_encodes_current_page_query() -> None:
     url = module.build_space_url("https://demo.hf.space/", spec)
 
     assert url.startswith("https://demo.hf.space?")
-    assert "active_app=flight_project" in url
+    assert "active_app=flight_telemetry_project" in url
     assert "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps%2Fsrc%2Fview_maps%2Fview_maps.py" in url
 
 
@@ -36,7 +36,7 @@ def test_build_space_url_encodes_meteo_view_query() -> None:
     url = module.build_space_url("https://demo.hf.space/", spec)
 
     assert url.startswith("https://demo.hf.space?")
-    assert "active_app=meteo_forecast_project" in url
+    assert "active_app=weather_forecast_project" in url
     assert (
         "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_forecast_analysis"
         "%2Fsrc%2Fview_forecast_analysis%2Fview_forecast_analysis.py"
@@ -51,7 +51,7 @@ def test_private_app_entries_flags_only_direct_non_public_apps() -> None:
             {"path": "src/agilab/apps/builtin"},
             {"path": "src/agilab/apps/install.py"},
             {"path": "src/agilab/apps/uav_graph_routing_project"},
-            {"path": "src/agilab/apps/builtin/flight_project"},
+            {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
         ]
     )
 

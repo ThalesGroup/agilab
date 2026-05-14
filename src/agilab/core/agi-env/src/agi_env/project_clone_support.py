@@ -12,6 +12,8 @@ import astor
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 
+from .app_provider_registry import aliased_app_runtime_target
+
 try:
     from pathlib import UnsupportedOperation
 except ImportError:
@@ -43,8 +45,8 @@ def create_rename_map(target_project: Path, dest_project: Path) -> dict[str, str
                 return name[: -len(suffix)]
         return name
 
-    tp = strip_suffix(name_tp)
-    dp = strip_suffix(name_dp)
+    tp = aliased_app_runtime_target(strip_suffix(name_tp))
+    dp = aliased_app_runtime_target(strip_suffix(name_dp))
 
     tm = tp.replace("-", "_")
     dm = dp.replace("-", "_")

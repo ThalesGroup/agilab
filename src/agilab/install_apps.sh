@@ -11,14 +11,14 @@ BUILTIN_APPS_ENV="${BUILTIN_APPS:-}"
 unset BUILTIN_APPS
 declare -a BUILTIN_APPS=(
   mycode_project
-  flight_project
+  flight_telemetry_project
   uav_relay_queue_project
 )
 declare -a REPOSITORY_APPS=()
 declare -a INVALID_REPOSITORY_APPS=()
 
 declare -a DEFAULT_APPS_ORDER=(
-  flight_project
+  flight_telemetry_project
   flight_trajectory_project
   flowsynth_project
   ilp_project
@@ -33,7 +33,7 @@ declare -a DEFAULT_APPS_ORDER=(
 )
 
 declare -a DEFAULT_SELECTED_APPS=(
-  flight_project
+  flight_telemetry_project
   mycode_project
   sat_trajectory_project
   flight_trajectory_project

@@ -27,16 +27,15 @@ def test_dependabot_visibility_covers_python_and_github_actions() -> None:
     assert 'directory: "/src/agilab/lib/agi-gui"' in text
     assert 'directory: "/src/agilab/lib/agi-apps"' in text
     for package in (
-        "agi-app-data-io-2026-project",
-        "agi-app-execution-pandas-project",
-        "agi-app-execution-polars-project",
-        "agi-app-flight-project",
-        "agi-app-global-dag-project",
-        "agi-app-meteo-forecast-project",
-        "agi-app-mycode-project",
+        "agi-app-mission-decision",
+        "agi-app-pandas-execution",
+        "agi-app-polars-execution",
+        "agi-app-flight-telemetry",
+        "agi-app-global-dag",
+        "agi-app-weather-forecast",
         "agi-app-tescia-diagnostic-project",
         "agi-app-uav-queue-project",
-        "agi-app-uav-relay-queue-project",
+        "agi-app-uav-relay-queue",
     ):
         assert f'directory: "/src/agilab/lib/{package}"' in text
     assert 'directory: "/src/agilab/lib/agi-pages"' in text
@@ -142,8 +141,13 @@ def test_pyproject_keeps_local_artifacts_out_of_package_surface() -> None:
     assert not any(pattern.startswith("apps-pages/") for pattern in package_data)
     assert not any(pattern.startswith("apps/builtin/") for pattern in exclude_data)
     assert "install.py" in agi_apps_package_data
-    assert not any(pattern.startswith("builtin/") for pattern in agi_apps_package_data)
-    assert "builtin/**" in agi_apps_exclude_data
+    assert [pattern for pattern in agi_apps_package_data if pattern.startswith("builtin/")] == [
+        "builtin/mycode_project/**/*"
+    ]
+    assert "builtin/**/.venv/**" in agi_apps_exclude_data
+    assert "builtin/**/uv.lock" in agi_apps_exclude_data
+    assert "builtin/**/*.pyx" in agi_apps_exclude_data
+    assert "builtin/**/*.c" in agi_apps_exclude_data
     assert "*/pyproject.toml" not in agi_pages_package_data
     assert "*/src/**/*.py" not in agi_pages_package_data
     assert "*/uv.lock" not in agi_pages_exclude_data

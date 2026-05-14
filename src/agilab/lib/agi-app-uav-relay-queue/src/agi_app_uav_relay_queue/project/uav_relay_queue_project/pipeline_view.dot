@@ -1,0 +1,13 @@
+digraph uav_relay_queue_pipeline {
+  rankdir=LR;
+  graph [fontname="Helvetica", fontsize=10];
+  node [shape=box, style="rounded,filled", fillcolor="#F5F7FA", color="#2F4B7C", fontname="Helvetica", fontsize=10];
+  edge [color="#4C78A8", arrowsize=0.8];
+
+  scenario [label="Scenario JSON\nsource + relays + sink"];
+  simulate [label="UAV relay queue simulation\nshortest_path | queue_aware"];
+  analysis [label="AGILAB ANALYSIS\nview_relay_resilience\nview_maps_network"];
+
+  scenario -> simulate;
+  simulate -> analysis;
+}

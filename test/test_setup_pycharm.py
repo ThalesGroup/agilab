@@ -318,7 +318,7 @@ def test_clean_stale_module_files_removes_root_and_numbered_copies(tmp_path: Pat
     allowed = cfg.MODULES_DIR / "agilab.iml"
     unknown = cfg.MODULES_DIR / "custom_project.iml"
     stale_root = cfg.IDEA_DIR / "agilab@1.iml"
-    stale_numbered = cfg.MODULES_DIR / "view-maps@2.iml"
+    stale_numbered = cfg.MODULES_DIR / "agi-page-geospatial-map@2.iml"
     stale_previous = cfg.MODULES_DIR / "view_maps.previous.20260501222857.iml"
 
     for path in (allowed, unknown, stale_root, stale_numbered, stale_previous):
@@ -342,7 +342,7 @@ def test_select_run_config_apps_skips_local_private_folders(tmp_path: Path) -> N
     folders_xml.write_text(
         """<?xml version="1.0" encoding="UTF-8"?>
 <component name="RunManager">
-  <folder name="flight_project" />
+  <folder name="flight_telemetry_project" />
   <folder name="builtin/mycode_project" />
 </component>
 """,
@@ -352,13 +352,13 @@ def test_select_run_config_apps_skips_local_private_folders(tmp_path: Path) -> N
     selected = setup_pycharm.select_run_config_apps(
         project,
         [
-            Path("flight_project"),
+            Path("flight_telemetry_project"),
             Path("flowsynth_project"),
             Path("builtin/mycode_project"),
         ],
     )
 
-    assert selected == [Path("flight_project"), Path("builtin/mycode_project")]
+    assert selected == [Path("flight_telemetry_project"), Path("builtin/mycode_project")]
 
 
 def test_disable_pyproject_auto_import_turns_off_pyproject_module_sync(tmp_path: Path) -> None:
@@ -424,9 +424,9 @@ def test_rebinds_root_run_configs_to_checkout_sdk(tmp_path: Path) -> None:
     app_config.write_text(
         """<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="builtin flight run" type="PythonConfigurationType" factoryName="Python">
-    <module name="flight_project" />
+    <module name="flight_telemetry_project" />
     <option name="SDK_HOME" value="" />
-    <option name="SDK_NAME" value="uv (flight_project)" />
+    <option name="SDK_NAME" value="uv (flight_telemetry_project)" />
     <option name="IS_MODULE_SDK" value="false" />
   </configuration>
 </component>
@@ -447,8 +447,8 @@ def test_rebinds_root_run_configs_to_checkout_sdk(tmp_path: Path) -> None:
     assert _option(publish, "IS_MODULE_SDK") == "false"
 
     app = _read_generated_config(root, "builtin_flight_run.xml")
-    assert app.find("module").get("name") == "flight_project"
-    assert _option(app, "SDK_NAME") == "uv (flight_project)"
+    assert app.find("module").get("name") == "flight_telemetry_project"
+    assert _option(app, "SDK_NAME") == "uv (flight_telemetry_project)"
 
 
 def test_ensure_project_ui_environment_syncs_missing_dev_ui_extra(tmp_path: Path, monkeypatch) -> None:
@@ -557,40 +557,40 @@ def test_gen_app_script_preserves_builtin_app_venv_bindings(tmp_path: Path) -> N
     script = Path.cwd() / "pycharm" / "gen_app_script.py"
 
     subprocess.run(
-        [sys.executable, str(script), "builtin/flight_project"],
+        [sys.executable, str(script), "builtin/flight_telemetry_project"],
         cwd=tmp_path,
         check=True,
         capture_output=True,
         text=True,
     )
 
-    run_config = _read_generated_config(tmp_path, "_flight_run.xml")
+    run_config = _read_generated_config(tmp_path, "_flight_telemetry_run.xml")
     run_module = run_config.find("module")
     assert run_module is not None
-    assert run_module.get("name") == "flight_project"
-    assert _option(run_config, "SDK_NAME") == "uv (flight_project)"
+    assert run_module.get("name") == "flight_telemetry_project"
+    assert _option(run_config, "SDK_NAME") == "uv (flight_telemetry_project)"
     assert _option(run_config, "IS_MODULE_SDK") == "false"
-    assert _option(run_config, "WORKING_DIRECTORY") == "$ProjectFileDir$/src/agilab/apps/builtin/flight_project"
+    assert _option(run_config, "WORKING_DIRECTORY") == "$ProjectFileDir$/src/agilab/apps/builtin/flight_telemetry_project"
 
-    worker_config = _read_generated_config(tmp_path, "_flight_lib_worker.xml")
+    worker_config = _read_generated_config(tmp_path, "_flight_telemetry_lib_worker.xml")
     assert _option(worker_config, "SDK_NAME") == "uv (flight_worker)"
     assert _option(worker_config, "WORKING_DIRECTORY") == "$USER_HOME$/wenv/flight_worker"
     assert "$USER_HOME$/wenv/flight_worker" in _option(worker_config, "PARAMETERS")
     assert "wenv/builtin" not in _option(worker_config, "PARAMETERS")
 
-    install_config = _read_generated_config(tmp_path, "_flight_install.xml")
+    install_config = _read_generated_config(tmp_path, "_flight_telemetry_install.xml")
     install_module = install_config.find("module")
     assert install_module is not None
     assert install_module.get("name") == "agi-cluster"
     assert _option(install_config, "SDK_NAME") == "uv (agi-cluster)"
 
-    preinstall_config = _read_generated_config(tmp_path, "_flight_preinstall_manager.xml")
+    preinstall_config = _read_generated_config(tmp_path, "_flight_telemetry_preinstall_manager.xml")
     assert "$USER_HOME$/wenv/flight_worker/src/flight_worker/flight_worker.py" in _option(
         preinstall_config,
         "PARAMETERS",
     )
 
-    manager_test = _read_generated_config(tmp_path, "_flight_test_manager.xml")
+    manager_test = _read_generated_config(tmp_path, "_flight_telemetry_test_manager.xml")
     assert _option(manager_test, "SCRIPT_NAME").endswith("/test/test_flight_manager.py")
 
 
@@ -602,6 +602,13 @@ def test_tracked_run_configs_use_valid_uv_sdk_bindings() -> None:
             capture_output=True,
             text=True,
         ).stdout.splitlines()
+        tracked = [rel_path for rel_path in tracked if Path(rel_path).exists()]
+        seen = set(tracked)
+        for path in sorted(Path(".idea/runConfigurations").glob("*.xml")):
+            rel_path = path.as_posix()
+            if rel_path not in seen and not path.name.startswith("_"):
+                tracked.append(rel_path)
+                seen.add(rel_path)
     else:
         tracked = [
             str(path)

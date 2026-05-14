@@ -4,7 +4,7 @@
 
 Shows how two AGILAB projects can be connected by a DAG contract without
 inventing a second tracking or orchestration model. The example plans a
-`flight_project` to `meteo_forecast_project` handoff and writes a read-only
+`flight_telemetry_project` to `weather_forecast_project` handoff and writes a read-only
 runner-state preview.
 
 ## What You Learn
@@ -46,12 +46,12 @@ python -c "from pathlib import Path; import agilab; print(Path(agilab.__file__).
 ## Expected Input
 
 The script reads the built-in
-`global_dag_project/dag_templates/flight_to_meteo_global_dag.json` template.
+`global_dag_project/dag_templates/flight_to_weather_global_dag.json` template.
 The contract says:
 
-- `flight_context` runs `flight_project` and produces
+- `flight_context` runs `flight_telemetry_project` and produces
   `flight_reduce_summary`.
-- `meteo_forecast_review` runs `meteo_forecast_project` and consumes
+- `weather_forecast_review` runs `weather_forecast_project` and consumes
   `flight_reduce_summary`.
 
 ## Expected Output
@@ -67,13 +67,13 @@ Read the output as a planning table:
 
 | Project node | App | Status before dispatch | Why |
 |---|---|---|---|
-| `flight_context` | `flight_project` | `runnable` | It has no upstream artifact dependency. |
-| `meteo_forecast_review` | `meteo_forecast_project` | `blocked` | It waits for `flight_reduce_summary` from `flight_context`. |
+| `flight_context` | `flight_telemetry_project` | `runnable` | It has no upstream artifact dependency. |
+| `weather_forecast_review` | `weather_forecast_project` | `blocked` | It waits for `flight_reduce_summary` from `flight_context`. |
 
 The important handoff is:
 
 ```text
-flight_project -> flight_reduce_summary -> meteo_forecast_project
+flight_telemetry_project -> flight_reduce_summary -> weather_forecast_project
 ```
 
 After the preview dispatches the first runnable unit, the runner state changes
@@ -110,7 +110,7 @@ Open `preview_inter_project_dag.py` and look for these functions first:
 ## Change One Thing
 
 After the preview works, copy
-`src/agilab/apps/builtin/global_dag_project/dag_templates/flight_to_meteo_global_dag.json`
+`src/agilab/apps/builtin/global_dag_project/dag_templates/flight_to_weather_global_dag.json`
 to a scratch file, change only the artifact id, and rerun with
 `--dag-path /path/to/scratch.json`. The validation should fail because the edge
 no longer matches what the first node produces. Restore the id before adapting

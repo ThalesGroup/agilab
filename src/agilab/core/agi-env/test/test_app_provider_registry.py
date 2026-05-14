@@ -7,6 +7,7 @@ from agi_env.app_provider_registry import (
     InstalledAppProject,
     app_name_aliases,
     discover_installed_app_projects,
+    resolve_app_runtime_target,
     installed_app_project_paths,
     resolve_installed_app_project,
 )
@@ -29,21 +30,43 @@ class _EntryPoints(tuple):
 
 
 def test_app_name_aliases_cover_slug_and_project_suffix() -> None:
-    assert app_name_aliases("flight") == ("flight", "flight_project")
-    assert app_name_aliases("flight-project") == ("flight_project", "flight")
+    assert app_name_aliases("flight_telemetry") == (
+        "flight_telemetry",
+        "flight_telemetry_project",
+        "flight",
+        "flight_project",
+    )
+    assert app_name_aliases("flight-telemetry-project") == (
+        "flight_telemetry_project",
+        "flight_telemetry",
+        "flight",
+        "flight_project",
+    )
+
+
+def test_resolve_app_runtime_target_uses_explicit_project_metadata(tmp_path: Path) -> None:
+    project = tmp_path / "flight_telemetry_project"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        "[project]\nname='flight_telemetry_project'\n\n[tool.agilab]\nruntime_target='flight'\n",
+        encoding="utf-8",
+    )
+
+    assert resolve_app_runtime_target(project, "flight_telemetry_project") == "flight"
+    assert resolve_app_runtime_target(None, "weather_forecast_project") == "weather_forecast"
 
 
 def test_discover_installed_app_projects_loads_valid_entry_points(tmp_path: Path) -> None:
-    flight_project = tmp_path / "flight_project"
-    flight_project.mkdir()
-    (flight_project / "pyproject.toml").write_text("[project]\nname='flight_project'\n", encoding="utf-8")
+    flight_telemetry_project = tmp_path / "flight_telemetry_project"
+    flight_telemetry_project.mkdir()
+    (flight_telemetry_project / "pyproject.toml").write_text("[project]\nname='flight_telemetry_project'\n", encoding="utf-8")
     broken_project = tmp_path / "broken_project"
     broken_project.mkdir()
 
     def entry_points_fn():
         return _EntryPoints(
             [
-                _EntryPoint("flight", lambda: flight_project),
+                _EntryPoint("flight", lambda: flight_telemetry_project),
                 _EntryPoint("broken", lambda: broken_project),
             ]
         )
@@ -51,9 +74,9 @@ def test_discover_installed_app_projects_loads_valid_entry_points(tmp_path: Path
     projects = discover_installed_app_projects(entry_points_fn=entry_points_fn)
 
     assert projects == (
-        InstalledAppProject(name="flight_project", project_root=flight_project.resolve(), provider="flight"),
+        InstalledAppProject(name="flight_telemetry_project", project_root=flight_telemetry_project.resolve(), provider="flight"),
     )
-    assert installed_app_project_paths(entry_points_fn=entry_points_fn) == (flight_project.resolve(),)
+    assert installed_app_project_paths(entry_points_fn=entry_points_fn) == (flight_telemetry_project.resolve(),)
 
 
 def test_resolve_installed_app_project_accepts_slug_provider_and_project_name(tmp_path: Path) -> None:

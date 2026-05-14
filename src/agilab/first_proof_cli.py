@@ -21,7 +21,7 @@ from agilab import run_manifest
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parent
-FIRST_PROOF_PROJECT = "flight_project"
+FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 DEFAULT_MAX_SECONDS = 10 * 60
 IGNORED_OUTPUT_PATTERNS = (
@@ -201,7 +201,7 @@ def _preinit_smoke_code(active_app: Path) -> str:
 def _preinit_smoke_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="package preinit smoke",
-        description="Import AGILAB packages and verify the built-in flight_project path.",
+        description="Import AGILAB packages and verify the built-in flight_telemetry_project path.",
         argv=(sys.executable, "-c", _preinit_smoke_code(active_app)),
     )
 
@@ -280,7 +280,7 @@ def _ui_smoke_code(active_app: Path) -> str:
 def _ui_smoke_command(active_app: Path) -> ProofCommand:
     return ProofCommand(
         label="package ui smoke",
-        description="Boot the packaged main page and ORCHESTRATE page against flight_project.",
+        description="Boot the packaged main page and ORCHESTRATE page against flight_telemetry_project.",
         argv=(sys.executable, "-c", _ui_smoke_code(active_app)),
         env={
             "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
@@ -308,7 +308,7 @@ def _install_command(active_app: Path) -> ProofCommand:
 
 def _seeded_script_check_code(active_app: Path) -> str:
     app_slug = active_app.name.replace("_project", "")
-    required = ["AGI_install_flight.py", "AGI_run_flight.py"]
+    required = ["AGI_install_flight_telemetry.py", "AGI_run_flight_telemetry.py"]
     return textwrap.dedent(
         f"""
         from pathlib import Path
@@ -573,7 +573,7 @@ def build_run_manifest(
             summary=(
                 "core-only dry-run does not require a public app payload"
                 if dry_run
-                else "active app is the recommended public flight_project"
+                else "active app is the recommended public flight_telemetry_project"
             ),
             details={"active_app": str(active_app), "app_name": active_app.name, "dry_run": dry_run},
         ),
@@ -670,7 +670,7 @@ def render_human(
     if success:
         lines.append("next:")
         lines.append("  run `agilab`")
-        lines.append("  then follow PROJECT -> ORCHESTRATE -> ANALYSIS with flight_project")
+        lines.append("  then follow PROJECT -> ORCHESTRATE -> ANALYSIS with flight_telemetry_project")
     else:
         lines.append("recovery:")
         lines.append("  inspect the failing step output above")
@@ -692,7 +692,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--active-app",
         default=None,
-        help="Path to the app project to validate. Defaults to the packaged built-in flight_project.",
+        help="Path to the app project to validate. Defaults to the packaged built-in flight_telemetry_project.",
     )
     parser.add_argument(
         "--with-install",

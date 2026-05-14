@@ -1,18 +1,25 @@
 # Apps
 
-This directory contains AGILAB app projects. Keep the public first proof on a
-built-in app, then add external or custom apps after the local baseline works.
+This directory contains AGILAB app project sources. Keep the packaged base
+install small: `mycode_project` is the only project bundled directly in the
+`agi-apps` umbrella as a starter template. Public demos are distributed through
+focused `agi-app-*` packages.
 
-## Built-in apps
+## Source app projects
 
-Built-in apps live under `src/agilab/apps/builtin/` and follow the `<name>_project` convention.
-Each app usually contains:
+Repository-maintained app sources live under `src/agilab/apps/builtin/` and
+follow the `<name>_project` convention. The `builtin/` directory is a source
+staging namespace for maintained apps, not the package contract for base
+installs.
 
 - an app manager (`*_project`)
 - a worker package under `src/<name>_worker/`
-- optional `test/` scripts
+- optional service/template payloads
 
-Use `src/agilab/apps/builtin/flight_project` for the newcomer first proof.
+Use `mycode_project` when you need the smallest app scaffold. Install
+`agilab[examples]` or individual `agi-app-*` packages when you need complete
+domain demos such as mission decision, flight telemetry, weather forecast, or
+queue resilience.
 
 ## Templates
 

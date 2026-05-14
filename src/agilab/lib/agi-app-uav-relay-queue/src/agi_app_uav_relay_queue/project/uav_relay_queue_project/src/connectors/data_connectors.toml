@@ -1,0 +1,27 @@
+[[connectors]]
+id = "uav_relay_queue_scenarios_sql"
+kind = "sql"
+label = "UAV Relay Queue Scenarios SQL"
+description = "Read-only relay scenario and topology metadata source."
+uri = "postgresql://uav.example.invalid/relay_queue"
+driver = "postgresql"
+query_mode = "read_only"
+
+[[connectors]]
+id = "uav_relay_queue_ops_opensearch"
+kind = "opensearch"
+label = "UAV Relay Queue Operations OpenSearch"
+description = "Relay simulation run and operator evidence index."
+url = "https://opensearch.example.invalid"
+index = "agilab-uav-relay-queue-*"
+auth_ref = "env:OPENSEARCH_TOKEN"
+
+[[connectors]]
+id = "uav_relay_queue_artifact_store"
+kind = "object_storage"
+label = "UAV Relay Queue Artifact Store"
+description = "Object-storage prefix for relay simulation artifacts."
+provider = "s3"
+bucket = "agilab-artifacts"
+prefix = "uav_relay_queue/"
+auth_ref = "env:AWS_PROFILE"

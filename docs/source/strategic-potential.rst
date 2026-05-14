@@ -36,7 +36,7 @@ What supports the score
      - Evidence
      - Limit
    * - Adoption path
-     - Public Hugging Face demo, local ``flight_project`` first proof,
+     - Public Hugging Face demo, local ``flight_telemetry_project`` first proof,
        ``run_manifest.json``, and newcomer troubleshooting.
      - Broader fresh-install validation still needs to run across more external
        machines.
@@ -78,15 +78,15 @@ Two vertical stories should carry most public evaluation:
    * - Story
      - Why it matters
      - Evidence to keep fresh
-   * - Flight + meteo first proof
+   * - Flight + weather first proof
      - Demonstrates public onboarding, reproducible file input, generated
        artifacts, and analysis pages without private repositories.
-     - ``agilab first-proof --json``, ``flight_project``,
-       ``meteo_forecast_project``, compatibility matrix, and packaged examples.
-   * - Data IO 2026 decision workflow
+     - ``agilab first-proof --json``, ``flight_telemetry_project``,
+       ``weather_forecast_project``, compatibility matrix, and packaged examples.
+   * - Mission Decision workflow
      - Demonstrates mission-style decision evidence, richer artifacts,
        connector-aware provenance, and the future DAG/release-decision path.
-     - ``data_io_2026_project``, Release Decision evidence, connector reports,
+     - ``mission_decision_project``, Release Decision evidence, connector reports,
        run-diff evidence, and promotion-decision exports.
 
 Elasticity opportunity

@@ -127,12 +127,12 @@ interactive exploration into a replayable, inspectable workflow:
   inputs, reducer merge semantics, and a standard reduce artefact schema
 - ``execution_pandas_project`` and ``execution_polars_project`` emit named
   benchmark reduce artefacts through that shared contract,
-  ``flight_project`` emits trajectory-summary reduce artefacts,
-  ``meteo_forecast_project`` emits forecast-metrics reduce artefacts, and
+  ``flight_telemetry_project`` emits trajectory-summary reduce artefacts,
+  ``weather_forecast_project`` emits forecast-metrics reduce artefacts, and
   ``uav_queue_project`` plus ``uav_relay_queue_project`` emit the same
   ``reduce_summary_worker_<id>.json`` artifact shape for queue metrics
 - the Release Decision evidence view surfaces those reducer artefacts,
-  including flight row/aircraft/speed fields, meteo forecast MAE/RMSE/MAPE
+  including flight row/aircraft/speed fields, weather forecast MAE/RMSE/MAPE
   fields, and UAV queue-family packet/PDR fields, and flags invalid reduce JSON
   without hiding the rest of the evidence page
 - a repository guardrail requires every non-template built-in app to expose a
@@ -190,7 +190,7 @@ history:
   definitions next to their ``app_settings.toml`` files
 - conceptual ``pipeline_view`` files make the workflow readable outside the code
 - analysis-page templates turn produced artifacts into a reusable operator view
-- the in-product first-proof wizard now guides one validated ``flight_project``
+- the in-product first-proof wizard now guides one validated ``flight_telemetry_project``
   source-checkout path, reads ``run_manifest.json``, and shows
   manifest-driven remediation with exact evidence commands
 - the run-diff evidence report compares static baseline/candidate KPI checks,
@@ -207,7 +207,7 @@ history:
   ``tools/multi_app_dag_report.py --compact`` and the checked-in
   ``multi_app_dag_sample.json``
 - the supplemental ``multi_app_dag_portfolio_sample.json`` expands the contract
-  sample suite across flight, meteo forecast, pandas execution, and polars
+  sample suite across flight, weather forecast, pandas execution, and polars
   execution apps without changing the executable UAV smoke baseline
 - the global pipeline DAG report combines that handoff with each app-local
   ``pipeline_view.dot`` so reviewers can inspect one read-only product graph

@@ -10,10 +10,10 @@ id = "source-checkout-first-proof"
 label = "Source checkout first proof"
 status = "validated"
 surface = "local source checkout"
-primary_proof = "uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json (writes ~/log/execute/flight/run_manifest.json)"
+primary_proof = "uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json (writes ~/log/execute/flight_telemetry/run_manifest.json)"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "Public built-in flight_project, local execution, newcomer proof contract"
+scope = "Public built-in flight_telemetry_project, local execution, newcomer proof contract"
 limits = ["No SSH", "No private apps", "No packaged install"]
 
 [[entries]]
@@ -24,7 +24,7 @@ surface = "streamlit web UI"
 primary_proof = "uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "PROJECT -> ORCHESTRATE -> ANALYSIS on a public built-in app, with fresh output under ~/log/execute/flight/"
+scope = "PROJECT -> ORCHESTRATE -> ANALYSIS on a public built-in app, with fresh output under ~/log/execute/flight_telemetry/"
 limits = ["Local path only", "Not a remote cluster proof"]
 
 [[entries]]
@@ -35,7 +35,7 @@ surface = "public hosted demo"
 primary_proof = "uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "Self-serve AGILAB web UI demo hosted on Hugging Face Spaces, including flight and meteo route smoke plus public app-tree guardrail"
+scope = "Self-serve AGILAB web UI demo hosted on Hugging Face Spaces, including flight and weather route smoke plus public app-tree guardrail"
 limits = ["Hosted demo environment", "Not a remote cluster proof", "Availability depends on Hugging Face Spaces uptime"]
 
 [[entries]]

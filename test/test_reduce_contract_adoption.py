@@ -9,6 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BUILTIN_APPS_ROOT = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 TEMPLATE_ONLY_BUILTIN_APPS = {
+    "global_dag_project": "cross-app DAG template preview with no concrete worker merge output",
     "mycode_project": "starter template with placeholder worker hooks and no concrete merge output",
 }
 
@@ -38,21 +39,21 @@ def test_non_template_builtin_apps_expose_reduce_contracts() -> None:
 
     assert check["status"] == "pass", "\n".join(check["details"].get("failures", []))
     assert check["id"] == "reduce_contract_adoption_guardrail"
-    assert check["details"]["checked_apps"] == [
-        "data_io_2026_project",
+    assert check["details"]["checked_apps"] == sorted([
+        "mission_decision_project",
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_project",
-        "meteo_forecast_project",
+        "flight_telemetry_project",
+        "weather_forecast_project",
         "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",
-    ]
+    ])
     assert check["details"]["template_only_exemptions"] == TEMPLATE_ONLY_BUILTIN_APPS
 
 
 def test_data_io_2026_reduce_contract_merges_decision_summaries(monkeypatch) -> None:
-    app_src = BUILTIN_APPS_ROOT / "data_io_2026_project" / "src"
+    app_src = BUILTIN_APPS_ROOT / "mission_decision_project" / "src"
     monkeypatch.syspath_prepend(str(app_src))
     from data_io_2026.reduction import (
         REDUCE_ARTIFACT_NAME,
@@ -62,7 +63,7 @@ def test_data_io_2026_reduce_contract_merges_decision_summaries(monkeypatch) -> 
     )
 
     base_summary = {
-        "schema": "agilab.data_io_2026.summary.v1",
+        "schema": "agilab.mission_decision.summary.v1",
         "scenario": "mission_alpha",
         "artifact_stem": "mission_alpha",
         "status": "pass",

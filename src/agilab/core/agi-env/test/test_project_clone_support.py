@@ -16,8 +16,8 @@ from agi_env.project_clone_support import (
 
 
 def test_create_rename_map_covers_core_aliases():
-    mapping = create_rename_map(Path("flight_project"), Path("demo_project"))
-    assert mapping["flight_project"] == "demo_project"
+    mapping = create_rename_map(Path("flight_telemetry_project"), Path("demo_project"))
+    assert mapping["flight_telemetry_project"] == "demo_project"
     assert mapping["src/flight_worker"] == "src/demo_worker"
     assert mapping["FlightWorker"] == "DemoWorker"
     assert mapping["flight_args"] == "demo_args"
@@ -353,7 +353,7 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     source_root = tmp_path / "source"
     source_root.mkdir()
     dest_root = tmp_path / "dest"
-    rename_map = {"flight": "demo", "flight_project": "demo_project"}
+    rename_map = {"flight": "demo", "flight_telemetry_project": "demo_project"}
     spec = PathSpec.from_lines(GitWildMatchPattern, [])
 
     link_target = source_root / "target.txt"
@@ -393,7 +393,7 @@ def test_clone_directory_and_cleanup_rename_cover_symlink_archive_syntax_and_tex
     cleanup_root = tmp_path / "cleanup"
     cleanup_root.mkdir()
     (cleanup_root / "flight").write_text("flight", encoding="utf-8")
-    (cleanup_root / "flight_project").write_text("flight project", encoding="utf-8")
+    (cleanup_root / "flight_telemetry_project").write_text("flight project", encoding="utf-8")
     (cleanup_root / "flight.txt").write_text("flight text", encoding="utf-8")
 
     cleanup_rename(

@@ -86,15 +86,15 @@ def test_notebook_pipeline_import_reads_fixture_and_round_trips(tmp_path: Path) 
     }
     preview = core_module.build_lab_stages_preview(
         imported,
-        module_name="flight_project",
+        module_name="flight_telemetry_project",
     )
-    assert [stage["NB_CELL_ID"] for stage in preview["flight_project"]] == [
+    assert [stage["NB_CELL_ID"] for stage in preview["flight_telemetry_project"]] == [
         "cell-2",
         "cell-4",
     ]
-    assert preview["flight_project"][0]["D"] == "Flight import context"
-    assert preview["flight_project"][0]["NB_ENV_HINTS"] == ["pandas", "pathlib"]
-    assert preview["flight_project"][1]["NB_ARTIFACT_REFERENCES"] == [
+    assert preview["flight_telemetry_project"][0]["D"] == "Flight import context"
+    assert preview["flight_telemetry_project"][0]["NB_ENV_HINTS"] == ["pandas", "pathlib"]
+    assert preview["flight_telemetry_project"][1]["NB_ARTIFACT_REFERENCES"] == [
         "artifacts/summary.json",
         "artifacts/trajectory.png",
     ]

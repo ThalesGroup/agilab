@@ -25,7 +25,7 @@ from agilab.cluster_lan_discovery import (
 )
 
 
-DEFAULT_APP = "flight_project"
+DEFAULT_APP = "flight_telemetry_project"
 DEFAULT_DATASET_REL = Path("localshare/flight_cluster_validation/dataset/csv")
 DEFAULT_OUTPUT_REL = Path("flight_cluster_validation/dataframe_cluster_validation")
 DEFAULT_AIRCRAFT = tuple(range(60, 76))

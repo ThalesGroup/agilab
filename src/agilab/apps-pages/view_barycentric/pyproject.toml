@@ -1,8 +1,8 @@
 [project]
-name = "view-barycentric-graph"
+name = "agi-page-simplex-map"
 version = "0.1.0"
-description = "AGILAB page bundle for barycentric graph analysis."
-readme = { text = "AGILAB page bundle for barycentric graph analysis.", content-type = "text/markdown" }
+description = "AGILAB page bundle for simplex projection and barycentric analysis."
+readme = { text = "AGILAB page bundle for simplex projection and barycentric analysis.", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
     "agi-gui>=2026.05.12.post3,<2027.0",

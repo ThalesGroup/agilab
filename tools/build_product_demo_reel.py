@@ -55,7 +55,7 @@ class Scene:
     zoom_end: float
     highlight: tuple[float, float, float, float] | None = None
     highlight_label: str | None = None
-    footer: str = "flight_project"
+    footer: str = "flight_telemetry_project"
     overlay: str | None = None
 
 
@@ -235,7 +235,7 @@ METEO_FORECAST_SCENES: tuple[Scene, ...] = (
         zoom_end=1.05,
         highlight=None,
         highlight_label=None,
-        footer="meteo_forecast_project",
+        footer="weather_forecast_project",
     ),
     Scene(
         name="project",
@@ -251,7 +251,7 @@ METEO_FORECAST_SCENES: tuple[Scene, ...] = (
         highlight=(0.01, 0.43, 0.18, 0.67),
         highlight_label="Forecast setup",
         overlay="meteo_project_context",
-        footer="meteo_forecast_project",
+        footer="weather_forecast_project",
     ),
     Scene(
         name="orchestrate",
@@ -267,7 +267,7 @@ METEO_FORECAST_SCENES: tuple[Scene, ...] = (
         highlight=(0.23, 0.20, 0.95, 0.77),
         highlight_label="Forecast run snippet",
         overlay="meteo_orchestrate_forecast",
-        footer="meteo_forecast_project",
+        footer="weather_forecast_project",
     ),
     Scene(
         name="pipeline",
@@ -283,7 +283,7 @@ METEO_FORECAST_SCENES: tuple[Scene, ...] = (
         highlight=(0.22, 0.39, 0.95, 0.80),
         highlight_label="Backtest + export steps",
         overlay="meteo_pipeline_snippet",
-        footer="meteo_forecast_project",
+        footer="weather_forecast_project",
     ),
     Scene(
         name="finale",
@@ -299,7 +299,7 @@ METEO_FORECAST_SCENES: tuple[Scene, ...] = (
         highlight=(0.22, 0.30, 0.95, 0.93),
         highlight_label="view_forecast_analysis",
         overlay="meteo_analysis",
-        footer="meteo_forecast_project",
+        footer="weather_forecast_project",
     ),
 )
 
@@ -945,7 +945,7 @@ def draw_pipeline_snippet_overlay(canvas: Image.Image, scene: Scene, slide_x: in
         "from agi_cluster.agi_distributor import AGI, RunRequest",
         "from agi_env import AgiEnv",
         "",
-        "APP = \"flight_project\"",
+        "APP = \"flight_telemetry_project\"",
         "app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose=1)",
         "request = RunRequest(mode=15, data_in=\"flight/dataset\")",
         "res = await AGI.run(app_env, request=request)",
@@ -1245,7 +1245,7 @@ def draw_meteo_project_context_overlay(canvas: Image.Image, scene: Scene, slide_
     draw.text((34, 24), "Forecast context", font=FONT_HIGHLIGHT, fill=WHITE)
 
     specs = [
-        ("App", "meteo_forecast_project"),
+        ("App", "weather_forecast_project"),
         ("Station", "Paris-Montsouris"),
         ("Target", "tmax_c"),
         ("Lags / horizon", "7 / 7 days"),
@@ -1285,7 +1285,7 @@ def draw_meteo_orchestrate_forecast_overlay(canvas: Image.Image, scene: Scene, s
         "from agi_cluster.agi_distributor import AGI, RunRequest",
         "from agi_env import AgiEnv",
         "",
-        "APP = \"meteo_forecast_project\"",
+        "APP = \"weather_forecast_project\"",
         "env = AgiEnv(app=APP, verbose=1)",
         "request = RunRequest(mode=15, data_in=\"meteo_forecast/dataset\")",
         "await AGI.run(env, request=request)",

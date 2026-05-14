@@ -9,7 +9,7 @@ from agi_env import AgiEnv
 def env():
     agipath = AgiEnv.locate_agilab_installation(verbose=False)
     apps_path = agipath / 'apps'
-    return AgiEnv(apps_path=apps_path, app='flight_project', verbose=1)
+    return AgiEnv(apps_path=apps_path, app='flight_telemetry_project', verbose=1)
 
 def test_replace_content_replaces_whole_words(env):
     txt = 'foo foo_bar barfoo bar Foo foo.'
@@ -23,7 +23,7 @@ def test_change_app_reinitializes_on_change(monkeypatch, env):
         called['count'] += 1
         called['kwargs'] = k
     apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
-    flight_path = apps_path / 'flight_project'
+    flight_path = apps_path / 'flight_telemetry_project'
     env.app = flight_path
     mycode_name = "mycode_path"
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
@@ -38,10 +38,10 @@ def test_change_app_noop_when_same_app(monkeypatch, env):
     def fake_init(self, *a, **k):
         called['count'] += 1
     apps_path = AgiEnv.locate_agilab_installation(verbose=False) / "apps"
-    flight_path = apps_path / 'flight_project'
+    flight_path = apps_path / 'flight_telemetry_project'
     env.app = flight_path
     with mock.patch.object(AgiEnv, '__init__', fake_init, create=True):
-        env.change_app('flight_project')
+        env.change_app('flight_telemetry_project')
     assert called['count'] == 0
 
 def test_humanize_validation_errors(env):
@@ -54,11 +54,11 @@ def test_humanize_validation_errors(env):
     assert any('name' in e for e in errors)
 
 def test_create_rename_map_basic(env, tmp_path: Path):
-    src = tmp_path / 'flight_project'
+    src = tmp_path / 'flight_telemetry_project'
     dst = tmp_path / 'tata_project'
     src.mkdir(); dst.mkdir()
     mapping = env.create_rename_map(src, dst)
-    assert mapping.get('flight_project') == 'tata_project'
+    assert mapping.get('flight_telemetry_project') == 'tata_project'
     assert mapping.get('flight') == 'tata'
     assert mapping.get('Flight') == 'Tata'
     assert mapping.get('FlightWorker') == 'TataWorker'

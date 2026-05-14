@@ -127,16 +127,16 @@ def test_supply_chain_attestation_records_core_and_app_manifests(supply_chain_at
         "agi-apps",
     }
     assert [row["app"] for row in state["builtin_app_pyprojects"]] == [
-        "data_io_2026_project",
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_project",
+        "flight_telemetry_project",
         "global_dag_project",
-        "meteo_forecast_project",
+        "mission_decision_project",
         "mycode_project",
         "tescia_diagnostic_project",
         "uav_queue_project",
         "uav_relay_queue_project",
+        "weather_forecast_project",
     ]
     assert all(row["sha256"] for row in state["root_files"])
     assert state["provenance"]["executes_commands"] is False

@@ -79,7 +79,7 @@ data_in = "in.csv"
     env = SimpleNamespace(
         app_settings_file=settings_path,
         apps_path=tmp_path / "apps",
-        app="flight_project",
+        app="flight_telemetry_project",
     )
 
     content = module.safe_service_start_template(
@@ -105,7 +105,7 @@ def test_ensure_safe_service_template_preserves_manual_file(tmp_path):
     env = SimpleNamespace(
         app_settings_file=tmp_path / "app_settings.toml",
         apps_path=tmp_path / "apps",
-        app="flight_project",
+        app="flight_telemetry_project",
     )
     env.app_settings_file.write_text("", encoding="utf-8")
 
@@ -128,7 +128,7 @@ def test_pipeline_lock_rejects_parallel_and_recycles_stale(tmp_path, monkeypatch
     monkeypatch.setenv("AGILAB_PIPELINE_LOCK_TTL_SEC", "60")
 
     class DummyEnv:
-        app = "flight_project"
+        app = "flight_telemetry_project"
         target = "flight"
         home_abs = tmp_path
 

@@ -59,51 +59,51 @@ dev = [
     path = "../agi-gui"
     editable = true
 
-[tool.uv.sources.view-barycentric-graph]
+[tool.uv.sources.agi-page-simplex-map]
     path = "../../apps-pages/view_barycentric"
     editable = true
 
-[tool.uv.sources.view-data-io-decision]
+[tool.uv.sources.agi-page-decision-evidence]
     path = "../../apps-pages/view_data_io_decision"
     editable = true
 
-[tool.uv.sources.view-forecast-analysis]
+[tool.uv.sources.agi-page-timeseries-forecast]
     path = "../../apps-pages/view_forecast_analysis"
     editable = true
 
-[tool.uv.sources.view-inference-analysis]
+[tool.uv.sources.agi-page-inference-report]
     path = "../../apps-pages/view_inference_analysis"
     editable = true
 
-[tool.uv.sources.view-maps]
+[tool.uv.sources.agi-page-geospatial-map]
     path = "../../apps-pages/view_maps"
     editable = true
 
-[tool.uv.sources.view-maps-3d]
+[tool.uv.sources.agi-page-geospatial-3d]
     path = "../../apps-pages/view_maps_3d"
     editable = true
 
-[tool.uv.sources.view-maps-network]
+[tool.uv.sources.agi-page-network-map]
     path = "../../apps-pages/view_maps_network"
     editable = true
 
-[tool.uv.sources.view-queue-resilience]
+[tool.uv.sources.agi-page-queue-health]
     path = "../../apps-pages/view_queue_resilience"
     editable = true
 
-[tool.uv.sources.view-relay-resilience]
+[tool.uv.sources.agi-page-relay-health]
     path = "../../apps-pages/view_relay_resilience"
     editable = true
 
-[tool.uv.sources.view-release-decision]
+[tool.uv.sources.agi-page-promotion-gate]
     path = "../../apps-pages/view_release_decision"
     editable = true
 
-[tool.uv.sources.view-shap-explanation]
+[tool.uv.sources.agi-page-feature-attribution]
     path = "../../apps-pages/view_shap_explanation"
     editable = true
 
-[tool.uv.sources.view-training-analysis]
+[tool.uv.sources.agi-page-training-report]
     path = "../../apps-pages/view_training_analysis"
     editable = true
 

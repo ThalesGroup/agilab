@@ -66,13 +66,13 @@ def _app_template_dag_path(repo_root: Path) -> Path:
 
 
 def _flight_template_dag_path(repo_root: Path) -> Path:
-    return repo_root / dag_run_engine.GLOBAL_DAG_FLIGHT_TO_METEO_TEMPLATE_RELATIVE_PATH
+    return repo_root / dag_run_engine.GLOBAL_DAG_FLIGHT_TO_WEATHER_TEMPLATE_RELATIVE_PATH
 
 
 def _write_parallel_contract_repo(tmp_path: Path) -> Path:
     repo_root = tmp_path / "repo"
     apps_root = repo_root / "src" / "agilab" / "apps" / "builtin"
-    for app_name in ("uav_queue_project", "flight_project", "meteo_forecast_project"):
+    for app_name in ("uav_queue_project", "flight_telemetry_project", "weather_forecast_project"):
         app_root = apps_root / app_name
         app_root.mkdir(parents=True, exist_ok=True)
         (app_root / "pyproject.toml").write_text(
@@ -98,8 +98,8 @@ def _write_parallel_contract_repo(tmp_path: Path) -> Path:
                     "adapter": "controlled_contract_dag",
                     "stage_bindings": {
                         "queue_context": "uav_queue_project.queue_context",
-                        "flight_context": "flight_project.flight_context",
-                        "joined_review": "meteo_forecast_project.joined_review",
+                        "flight_context": "flight_telemetry_project.flight_context",
+                        "joined_review": "weather_forecast_project.joined_review",
                     },
                 },
                 "nodes": [
@@ -114,8 +114,8 @@ def _write_parallel_contract_repo(tmp_path: Path) -> Path:
                     },
                     {
                         "id": "flight_context",
-                        "app": "flight_project",
-                        "execution": {"entrypoint": "flight_project.flight_context"},
+                        "app": "flight_telemetry_project",
+                        "execution": {"entrypoint": "flight_telemetry_project.flight_context"},
                         "purpose": "Produce flight context.",
                         "produces": [
                             {"id": "flight_metrics", "kind": "summary_metrics", "path": "flight/metrics.json"}
@@ -123,8 +123,8 @@ def _write_parallel_contract_repo(tmp_path: Path) -> Path:
                     },
                     {
                         "id": "joined_review",
-                        "app": "meteo_forecast_project",
-                        "execution": {"entrypoint": "meteo_forecast_project.joined_review"},
+                        "app": "weather_forecast_project",
+                        "execution": {"entrypoint": "weather_forecast_project.joined_review"},
                         "purpose": "Review both contexts.",
                         "consumes": [
                             {"id": "queue_metrics", "kind": "summary_metrics", "path": "queue/metrics.json"},
@@ -298,7 +298,7 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
         repo_root=repo_root,
         lab_dir=tmp_path,
         dag_path=_flight_template_dag_path(repo_root),
-        stage_run_fns={"flight_project.flight_context": _fake_flight_contract},
+        stage_run_fns={"flight_telemetry_project.flight_context": _fake_flight_contract},
         now_fn=lambda: "2026-05-07T00:00:00Z",
     )
     state, _state_path, _dag_path = engine.load_or_create_state()
@@ -313,14 +313,14 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     assert result.executed_unit_id == dag_run_engine.GLOBAL_DAG_FLIGHT_CONTEXT_UNIT_ID
     assert calls == [tmp_path / ".agilab" / "global_dag_real_runs" / "flight_context"]
     assert result.state["summary"]["completed_unit_ids"] == ["flight_context"]
-    assert result.state["summary"]["runnable_unit_ids"] == ["meteo_forecast_review"]
+    assert result.state["summary"]["runnable_unit_ids"] == ["weather_forecast_review"]
     assert result.state["summary"]["available_artifact_ids"] == ["flight_reduce_summary"]
     assert result.state["summary"]["controlled_executed_unit_ids"] == ["flight_context"]
     assert result.state["provenance"]["real_app_execution"] is False
     assert result.state["provenance"]["controlled_execution"] is True
     assert result.state["provenance"]["controlled_execution_scope"] == "controlled_contract_dag_stage"
     flight = next(unit for unit in result.state["units"] if unit["id"] == "flight_context")
-    assert flight["execution_contract"]["entrypoint"] == "flight_project.flight_context"
+    assert flight["execution_contract"]["entrypoint"] == "flight_telemetry_project.flight_context"
     assert flight["execution_contract"]["data_in"] == "flight/dataset"
     assert flight["execution_contract"]["data_out"] == "flight/dataframe"
     assert flight["execution_mode"] == "contract_adapter"
@@ -356,7 +356,7 @@ def test_dag_run_engine_runs_ready_contract_stages_as_parallel_batch(tmp_path):
         dag_path=dag_path,
         stage_run_fns={
             "uav_queue_project.queue_context": _stage("queue_context"),
-            "flight_project.flight_context": _stage("flight_context"),
+            "flight_telemetry_project.flight_context": _stage("flight_context"),
         },
         now_fn=lambda: "2026-05-07T00:00:00Z",
     )
@@ -453,7 +453,7 @@ def test_dag_run_engine_run_ready_contract_batch_reports_partial_failure(tmp_pat
         dag_path=dag_path,
         stage_run_fns={
             "uav_queue_project.queue_context": _pass_stage,
-            "flight_project.flight_context": _fail_stage,
+            "flight_telemetry_project.flight_context": _fail_stage,
         },
         now_fn=lambda: "2026-05-07T00:00:00Z",
     )

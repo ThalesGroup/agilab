@@ -20,6 +20,7 @@ from package_split_contract import (
     LIBRARY_PACKAGE_CONTRACTS,
     PACKAGE_CONTRACTS,
     PACKAGE_NAMES,
+    PROMOTED_APP_PROJECT_PACKAGE_NAMES,
     ROOT_EXTRA_INTERNAL_REQUIREMENTS,
     UMBRELLA_PACKAGE_CONTRACT,
     WHEEL_ONLY_PACKAGE_NAMES,
@@ -203,7 +204,12 @@ def test_workflow_and_docs_cover_the_same_package_split() -> None:
             "pypi_project": package.name,
             "pypi_environment": package.pypi_environment,
             "artifact_policy": package.artifact_policy,
-            "publish_to_pypi": "true" if package.role in release_plan.PYPI_PUBLISH_ROLES else "false",
+            "publish_to_pypi": (
+                "true"
+                if package.role in release_plan.PYPI_PUBLISH_ROLES
+                or package.name in PROMOTED_APP_PROJECT_PACKAGE_NAMES
+                else "false"
+            ),
         }
         for package in LIBRARY_PACKAGE_CONTRACTS
     ]

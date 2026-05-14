@@ -221,7 +221,7 @@ def _counterfactuals(
                 "expected_effect": (
                     "The candidate would keep the queue-to-relay handoff but "
                     "lose the supplemental portfolio coverage across flight, "
-                    "meteo forecast, pandas, and polars apps."
+                    "weather forecast, pandas, and polars apps."
                 ),
                 "affects_checks": ["multi_app_dag_report_contract"],
                 "affects_artifacts": sorted(

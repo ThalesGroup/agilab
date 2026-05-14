@@ -1,8 +1,8 @@
 [project]
-name = "view-relay-resilience"
+name = "agi-page-relay-health"
 version = "0.1.0"
-description = "AGILAB page bundle for relay resilience analysis."
-readme = { text = "AGILAB page bundle for relay resilience analysis.", content-type = "text/markdown" }
+description = "AGILAB page bundle for relay health and resilience evidence."
+readme = { text = "AGILAB page bundle for relay health and resilience evidence.", content-type = "text/markdown" }
 requires-python = ">=3.11"
 dependencies = [
     "agi-gui>=2026.05.12.post3,<2027.0",

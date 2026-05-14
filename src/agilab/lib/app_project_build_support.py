@@ -10,46 +10,40 @@ from pathlib import Path
 
 APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
     {
-        "project": "data_io_2026_project",
-        "slug": "data_io_2026",
-        "distribution": "agi-app-data-io-2026-project",
-        "package": "agi_app_data_io_2026_project",
+        "project": "mission_decision_project",
+        "slug": "mission_decision",
+        "distribution": "agi-app-mission-decision",
+        "package": "agi_app_mission_decision",
     },
     {
         "project": "execution_pandas_project",
         "slug": "execution_pandas",
-        "distribution": "agi-app-execution-pandas-project",
-        "package": "agi_app_execution_pandas_project",
+        "distribution": "agi-app-pandas-execution",
+        "package": "agi_app_pandas_execution",
     },
     {
         "project": "execution_polars_project",
         "slug": "execution_polars",
-        "distribution": "agi-app-execution-polars-project",
-        "package": "agi_app_execution_polars_project",
+        "distribution": "agi-app-polars-execution",
+        "package": "agi_app_polars_execution",
     },
     {
-        "project": "flight_project",
-        "slug": "flight",
-        "distribution": "agi-app-flight-project",
-        "package": "agi_app_flight_project",
+        "project": "flight_telemetry_project",
+        "slug": "flight_telemetry",
+        "distribution": "agi-app-flight-telemetry",
+        "package": "agi_app_flight_telemetry",
     },
     {
         "project": "global_dag_project",
         "slug": "global_dag",
-        "distribution": "agi-app-global-dag-project",
-        "package": "agi_app_global_dag_project",
+        "distribution": "agi-app-global-dag",
+        "package": "agi_app_global_dag",
     },
     {
-        "project": "meteo_forecast_project",
-        "slug": "meteo_forecast",
-        "distribution": "agi-app-meteo-forecast-project",
-        "package": "agi_app_meteo_forecast_project",
-    },
-    {
-        "project": "mycode_project",
-        "slug": "mycode",
-        "distribution": "agi-app-mycode-project",
-        "package": "agi_app_mycode_project",
+        "project": "weather_forecast_project",
+        "slug": "weather_forecast",
+        "distribution": "agi-app-weather-forecast",
+        "package": "agi_app_weather_forecast",
     },
     {
         "project": "tescia_diagnostic_project",
@@ -66,10 +60,12 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
     {
         "project": "uav_relay_queue_project",
         "slug": "uav_relay_queue",
-        "distribution": "agi-app-uav-relay-queue-project",
-        "package": "agi_app_uav_relay_queue_project",
+        "distribution": "agi-app-uav-relay-queue",
+        "package": "agi_app_uav_relay_queue",
     },
 )
+
+BASE_BUILTIN_TEMPLATE_PROJECTS: tuple[str, ...] = ("mycode_project",)
 
 _EXCLUDED_PAYLOAD_DIRS = {
     ".mypy_cache",
@@ -78,6 +74,7 @@ _EXCLUDED_PAYLOAD_DIRS = {
     ".venv",
     "__pycache__",
     "Modules",
+    "agilab",
     "build",
     "dist",
     "notebooks",
@@ -176,6 +173,17 @@ def copy_agi_apps_umbrella_payload(target_root: Path) -> None:
         source = apps_source_root / file_name
         if source.exists():
             shutil.copy2(source, apps_target_root / file_name)
+
+    builtin_target_root = apps_target_root / "builtin"
+    for project_name in BASE_BUILTIN_TEMPLATE_PROJECTS:
+        source = apps_source_root / "builtin" / project_name
+        if not source.exists():
+            continue
+        destination = builtin_target_root / project_name
+        if destination.exists():
+            shutil.rmtree(destination)
+        shutil.copytree(source, destination, ignore=_ignore_payload_artifacts)
+        _sanitize_pyprojects(destination)
 
     if examples_source_root.exists():
         if examples_target_root.exists():

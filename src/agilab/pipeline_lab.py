@@ -345,7 +345,7 @@ def _global_runner_dag_path(env: AgiEnv, repo_root: Path) -> Path | None:
             return template_path
     preferred = (
         GLOBAL_DAG_FLIGHT_SAMPLE_RELATIVE_PATH
-        if app_name in {"flight", "flight_project"}
+        if app_name in {"flight", "flight_telemetry_project"}
         else GLOBAL_DAG_SAMPLE_RELATIVE_PATH
     )
     preferred_path = repo_root / preferred

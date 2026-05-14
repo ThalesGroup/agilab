@@ -1,5 +1,5 @@
 [args]
-dag_path = "dag_templates/flight_to_meteo_global_dag.json"
+dag_path = "dag_templates/flight_to_weather_global_dag.json"
 output_path = "~/log/execute/global_dag/runner_state.json"
 reset_target = false
 

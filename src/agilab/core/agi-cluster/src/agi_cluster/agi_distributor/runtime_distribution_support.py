@@ -154,7 +154,7 @@ def _manager_app_name(env: Any) -> str:
     target_worker = getattr(env, "target_worker", None)
     if isinstance(target_worker, str) and target_worker.endswith("_worker"):
         return target_worker.removesuffix("_worker") + "_project"
-    return "flight_project"
+    return "flight_telemetry_project"
 
 
 async def _maybe_await(result: Any) -> Any:

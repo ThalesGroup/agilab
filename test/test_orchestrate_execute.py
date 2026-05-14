@@ -510,7 +510,7 @@ def test_orchestrate_execute_import_survives_missing_networkx():
         ("global_dag_project", "global_dag_project", "global_dag", "PolarsWorker", True),
         ("custom_dag_project", "custom_dag_project", "custom_dag", None, True),
         ("dag_app_template", "your_dag_project", "dag_app", None, True),
-        ("flight_project", "flight_project", "flight", "PolarsWorker", False),
+        ("flight_telemetry_project", "flight_telemetry_project", "flight", "PolarsWorker", False),
         ("tescia_diagnostic_project", "tescia_diagnostic_project", "tescia_diagnostic", "PandasWorker", False),
     ],
 )
@@ -710,7 +710,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
         dataframe_path=data_root,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
     deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
@@ -718,7 +718,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -740,7 +740,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -782,7 +782,7 @@ async def test_render_execute_section_delete_and_undo_restores_file(monkeypatch,
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
     deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
@@ -790,7 +790,7 @@ async def test_render_execute_section_delete_and_undo_restores_file(monkeypatch,
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -806,7 +806,7 @@ async def test_render_execute_section_delete_and_undo_restores_file(monkeypatch,
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd=None,
@@ -835,7 +835,7 @@ async def test_render_execute_section_run_requires_installed_venvs(monkeypatch, 
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
     deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
@@ -843,7 +843,7 @@ async def test_render_execute_section_run_requires_installed_venvs(monkeypatch, 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -888,7 +888,7 @@ async def test_render_execute_section_loads_json_graph_payload(monkeypatch, tmp_
         dataframe_path=graph_file,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
     deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
@@ -896,7 +896,7 @@ async def test_render_execute_section_loads_json_graph_payload(monkeypatch, tmp_
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -936,7 +936,7 @@ async def test_render_execute_section_run_executes_and_records_logs(monkeypatch,
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
         snippet_tail="pass",
         run_agi=_run_agi,
@@ -946,7 +946,7 @@ async def test_render_execute_section_run_executes_and_records_logs(monkeypatch,
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="asyncio.run(main())",
@@ -989,7 +989,7 @@ async def test_render_execute_section_run_failure_keeps_logs_visible(monkeypatch
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
         snippet_tail="pass",
         run_agi=_run_agi,
@@ -999,7 +999,7 @@ async def test_render_execute_section_run_failure_keeps_logs_visible(monkeypatch
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="asyncio.run(main())",
@@ -1042,7 +1042,7 @@ async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
         snippet_tail="pass",
     )
@@ -1051,7 +1051,7 @@ async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="asyncio.run(main())",
@@ -1063,7 +1063,7 @@ async def test_render_execute_section_can_pin_existing_run_logs(monkeypatch, tmp
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
     assert editor_calls[-1]["theme"] == "dark"
-    assert panels["orchestrate_run_logs"]["title"] == "Run logs: flight_project"
+    assert panels["orchestrate_run_logs"]["title"] == "Run logs: flight_telemetry_project"
     assert panels["orchestrate_run_logs"]["body"] == "existing log"
     assert panels["orchestrate_run_logs"]["source"] == f"ORCHESTRATE {tmp_path / 'run.log'}"
     assert ("rerun", "called") in fake_st.messages
@@ -1094,7 +1094,7 @@ async def test_render_execute_section_skips_log_pin_editor_without_run_logs(monk
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
         snippet_tail="pass",
     )
@@ -1103,7 +1103,7 @@ async def test_render_execute_section_skips_log_pin_editor_without_run_logs(monk
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="asyncio.run(main())",
@@ -1149,7 +1149,7 @@ async def test_render_execute_section_source_env_uses_app_runtime(monkeypatch, t
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
         snippet_tail="pass",
         run_agi=_run_agi,
@@ -1162,7 +1162,7 @@ async def test_render_execute_section_source_env_uses_app_runtime(monkeypatch, t
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="asyncio.run(main())",
@@ -1275,7 +1275,7 @@ async def test_render_execute_section_handles_json_table_and_invalid_json(monkey
         dataframe_path=tabular_json,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
     deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
@@ -1283,7 +1283,7 @@ async def test_render_execute_section_handles_json_table_and_invalid_json(monkey
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1309,7 +1309,7 @@ async def test_render_execute_section_handles_json_table_and_invalid_json(monkey
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1333,7 +1333,7 @@ async def test_render_execute_section_handles_existing_logs_graph_errors_and_sta
             "profile_report_file": profile_path,
             "selected_cols": [],
             "df_cols": ["", "value"],
-            "export_tab_previous_project": "flight_project",
+            "export_tab_previous_project": "flight_telemetry_project",
             "check_all": False,
             "export_col_0": False,
             "export_col_1": False,
@@ -1368,14 +1368,14 @@ async def test_render_execute_section_handles_existing_logs_graph_errors_and_sta
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1403,7 +1403,7 @@ async def test_render_execute_section_handles_existing_logs_graph_errors_and_sta
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=False,
         cmd=None,
@@ -1430,14 +1430,14 @@ async def test_render_execute_section_load_deleted_and_combo_without_cmd(monkeyp
         dataframe_path=tmp_path / "missing",
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1459,7 +1459,7 @@ async def test_render_execute_section_load_deleted_and_combo_without_cmd(monkeyp
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd=None,
@@ -1488,14 +1488,14 @@ async def test_render_execute_section_uses_artifact_state_for_load_and_delete_bu
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1523,7 +1523,7 @@ async def test_render_execute_section_uses_artifact_state_for_load_and_delete_bu
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1554,14 +1554,14 @@ async def test_render_execute_section_combo_button_queues_action(monkeypatch, tm
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1658,14 +1658,14 @@ async def test_render_execute_section_load_warns_when_no_preview_or_empty_batch(
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1706,7 +1706,7 @@ async def test_render_execute_section_load_warns_when_no_preview_or_empty_batch(
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1722,7 +1722,7 @@ async def test_render_execute_section_handles_gml_and_unsupported_previews(monke
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
     monkeypatch.setattr(orchestrate_execute, "collect_candidate_roots", lambda *_args, **_kwargs: [])
@@ -1746,7 +1746,7 @@ async def test_render_execute_section_handles_gml_and_unsupported_previews(monke
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1771,7 +1771,7 @@ async def test_render_execute_section_handles_gml_and_unsupported_previews(monke
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1795,7 +1795,7 @@ async def test_render_execute_section_handles_gml_and_unsupported_previews(monke
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1820,7 +1820,7 @@ async def test_render_execute_section_handles_gml_and_unsupported_previews(monke
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1857,14 +1857,14 @@ async def test_render_execute_section_handles_delete_and_undo_edge_cases(monkeyp
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1893,7 +1893,7 @@ async def test_render_execute_section_handles_delete_and_undo_edge_cases(monkeyp
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1923,7 +1923,7 @@ async def test_render_execute_section_handles_delete_and_undo_edge_cases(monkeyp
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1949,14 +1949,14 @@ async def test_render_execute_section_handles_combo_install_gaps_and_export_rese
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -1972,7 +1972,7 @@ async def test_render_execute_section_handles_combo_install_gaps_and_export_rese
             "df_export_file": str(tmp_path / "export.csv"),
             "profile_report_file": tmp_path / "profile.html",
             "_reset_export_checkboxes": True,
-            "export_tab_previous_project": "flight_project",
+            "export_tab_previous_project": "flight_telemetry_project",
             "df_cols": ["a", "b"],
             "selected_cols": [],
             "check_all": True,
@@ -1987,7 +1987,7 @@ async def test_render_execute_section_handles_combo_install_gaps_and_export_rese
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2027,14 +2027,14 @@ async def test_render_execute_section_load_and_delete_cover_generic_error_paths(
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2058,7 +2058,7 @@ async def test_render_execute_section_load_and_delete_cover_generic_error_paths(
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2075,7 +2075,7 @@ async def test_render_execute_section_export_warns_for_missing_selection_and_fil
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
     monkeypatch.setattr(orchestrate_execute, "render_dataframe_preview", lambda *_args, **_kwargs: None)
@@ -2086,7 +2086,7 @@ async def test_render_execute_section_export_warns_for_missing_selection_and_fil
             "loaded_df": pd.DataFrame({"a": [1]}),
             "df_export_file": str(tmp_path / "export.csv"),
             "profile_report_file": tmp_path / "profile.html",
-            "export_tab_previous_project": "flight_project",
+            "export_tab_previous_project": "flight_telemetry_project",
             "df_cols": ["a"],
             "selected_cols": [],
             "check_all": False,
@@ -2098,7 +2098,7 @@ async def test_render_execute_section_export_warns_for_missing_selection_and_fil
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2114,7 +2114,7 @@ async def test_render_execute_section_export_warns_for_missing_selection_and_fil
             "df_export_file": "",
             "input_df_export_file_main": "",
             "profile_report_file": tmp_path / "profile.html",
-            "export_tab_previous_project": "flight_project",
+            "export_tab_previous_project": "flight_telemetry_project",
             "df_cols": ["a"],
             "selected_cols": ["a"],
             "check_all": True,
@@ -2127,7 +2127,7 @@ async def test_render_execute_section_export_warns_for_missing_selection_and_fil
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2152,7 +2152,7 @@ async def test_render_execute_section_reruns_when_delete_confirm_state_changes(m
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
     deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
@@ -2161,7 +2161,7 @@ async def test_render_execute_section_reruns_when_delete_confirm_state_changes(m
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2199,14 +2199,14 @@ async def test_render_execute_section_loads_single_file_and_combo_install_gap(mo
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2228,7 +2228,7 @@ async def test_render_execute_section_loads_single_file_and_combo_install_gap(mo
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2265,7 +2265,7 @@ async def test_render_execute_section_combo_runs_when_installation_exists(monkey
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
         run_agi=_run_agi,
         snippet_tail="pass",
@@ -2274,7 +2274,7 @@ async def test_render_execute_section_combo_runs_when_installation_exists(monkey
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=project_path,
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="asyncio.run(main())",
@@ -2310,14 +2310,14 @@ async def test_render_execute_section_export_checkbox_callbacks_update_selection
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",
@@ -2355,14 +2355,14 @@ async def test_render_execute_section_delete_reports_disk_failure(monkeypatch, t
         dataframe_path=tmp_path,
         app_data_rel=None,
         runenv=tmp_path / "runenv",
-        app="flight_project",
+        app="flight_telemetry_project",
         wenv_abs=tmp_path / "wenv",
     )
 
     await orchestrate_execute.render_execute_section(
         env=env,
         project_path=tmp_path / "project",
-        app_state_name="flight_project",
+        app_state_name="flight_telemetry_project",
         controls_visible=True,
         show_run_panel=True,
         cmd="print('run')",

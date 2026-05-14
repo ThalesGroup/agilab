@@ -19,9 +19,9 @@ PAGE_PATH = (
 def _create_forecast_project(tmp_path: Path) -> Path:
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
-    project_dir = apps_dir / "meteo_forecast_project"
+    project_dir = apps_dir / "weather_forecast_project"
     (project_dir / "src" / "meteo_forecast").mkdir(parents=True)
-    (project_dir / "pyproject.toml").write_text("[project]\nname='meteo-forecast-project'\n", encoding="utf-8")
+    (project_dir / "pyproject.toml").write_text("[project]\nname='weather-forecast-project'\n", encoding="utf-8")
     (project_dir / "src" / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
     (project_dir / "src" / "meteo_forecast" / "__init__.py").write_text("", encoding="utf-8")
     return project_dir
@@ -159,7 +159,7 @@ def test_view_forecast_analysis_covers_discover_exception_and_existing_env(
 
     project_dir = _create_forecast_project(tmp_path)
     env = SimpleNamespace(
-        app="meteo_forecast_project",
+        app="weather_forecast_project",
         target="meteo_forecast",
         AGILAB_EXPORT_ABS=str(tmp_path / "export"),
         st_resources=tmp_path,

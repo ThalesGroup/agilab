@@ -23,7 +23,7 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
 
     content = module.newcomer_first_proof_content()
 
-    assert content["title"] == "Start here: run flight_project first"
+    assert content["title"] == "Start here: run flight_telemetry_project first"
     assert "built-in flight demo locally" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["recommended_path_label"] == "Source checkout first proof"
@@ -44,17 +44,17 @@ def test_first_proof_tool_contract_uses_newcomer_smoke_defaults() -> None:
 
     contract = module.first_proof_tool_contract()
 
-    assert contract.active_app.name == "flight_project"
+    assert contract.active_app.name == "flight_telemetry_project"
     assert contract.command_labels == ("preinit smoke", "source ui smoke")
     assert contract.target_seconds == 600.0
     assert contract.source == "tools/newcomer_first_proof.py"
 
 
-def test_first_proof_state_routes_only_to_flight_project(tmp_path: Path) -> None:
+def test_first_proof_state_routes_only_to_flight_telemetry_project(tmp_path: Path) -> None:
     module = _load_module()
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "builtin" / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
 
     env = SimpleNamespace(
         apps_path=apps_path,
@@ -64,7 +64,7 @@ def test_first_proof_state_routes_only_to_flight_project(tmp_path: Path) -> None
 
     state = module.newcomer_first_proof_state(env)
 
-    assert state["project_path"] == flight_project.resolve()
+    assert state["project_path"] == flight_telemetry_project.resolve()
     assert state["current_app_matches"] is False
     assert state["recommended_path_id"] == "source-checkout-first-proof"
     assert state["actionable_route_ids"] == ["source-checkout-first-proof"]
@@ -75,23 +75,23 @@ def test_first_proof_state_routes_only_to_flight_project(tmp_path: Path) -> None
     assert state["remediation_status"] == "missing"
     assert "tools/newcomer_first_proof.py --json" in state["evidence_commands"][0]
     assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
-    assert state["next_step"] == "Go to `PROJECT`. Choose `flight_project`."
+    assert state["next_step"] == "Go to `PROJECT`. Choose `flight_telemetry_project`."
 
 
 def test_first_proof_state_detects_completion_outputs(tmp_path: Path) -> None:
     module = _load_module()
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
     output_dir = tmp_path / "log" / "execute" / "flight"
     output_dir.mkdir(parents=True)
-    (output_dir / "AGI_install_flight.py").write_text("# helper", encoding="utf-8")
-    (output_dir / "AGI_run_flight.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "AGI_install_flight_telemetry.py").write_text("# helper", encoding="utf-8")
+    (output_dir / "AGI_run_flight_telemetry.py").write_text("# helper", encoding="utf-8")
     (output_dir / "trajectory_summary.json").write_text("{}", encoding="utf-8")
 
     env = SimpleNamespace(
         apps_path=apps_path,
-        app=str(flight_project),
+        app=str(flight_telemetry_project),
         AGILAB_LOG_ABS=tmp_path / "log",
     )
 
@@ -109,8 +109,8 @@ def test_first_proof_state_prefers_passing_run_manifest(tmp_path: Path) -> None:
     module = _load_module()
     run_manifest = module._load_run_manifest_module()
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
     output_dir = tmp_path / "log" / "execute" / "flight"
     output_dir.mkdir(parents=True)
     manifest = run_manifest.build_run_manifest(
@@ -124,7 +124,7 @@ def test_first_proof_state_prefers_passing_run_manifest(tmp_path: Path) -> None:
         ),
         environment=run_manifest.RunManifestEnvironment.from_paths(
             repo_root=tmp_path,
-            active_app=flight_project,
+            active_app=flight_telemetry_project,
         ),
         timing=run_manifest.RunManifestTiming(
             started_at="2026-04-25T00:00:00Z",
@@ -148,7 +148,7 @@ def test_first_proof_state_prefers_passing_run_manifest(tmp_path: Path) -> None:
 
     env = SimpleNamespace(
         apps_path=apps_path,
-        app=str(flight_project),
+        app=str(flight_telemetry_project),
         AGILAB_LOG_ABS=tmp_path / "log",
     )
 
@@ -173,8 +173,8 @@ def test_first_proof_state_explains_failing_run_manifest(tmp_path: Path) -> None
     module = _load_module()
     run_manifest = module._load_run_manifest_module()
     apps_path = tmp_path / "apps"
-    flight_project = apps_path / "flight_project"
-    flight_project.mkdir(parents=True)
+    flight_telemetry_project = apps_path / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
     output_dir = tmp_path / "log" / "execute" / "flight"
     output_dir.mkdir(parents=True)
     manifest = run_manifest.build_run_manifest(
@@ -188,7 +188,7 @@ def test_first_proof_state_explains_failing_run_manifest(tmp_path: Path) -> None
         ),
         environment=run_manifest.RunManifestEnvironment.from_paths(
             repo_root=tmp_path,
-            active_app=flight_project,
+            active_app=flight_telemetry_project,
         ),
         timing=run_manifest.RunManifestTiming(
             started_at="2026-04-25T00:00:00Z",
@@ -216,7 +216,7 @@ def test_first_proof_state_explains_failing_run_manifest(tmp_path: Path) -> None
 
     env = SimpleNamespace(
         apps_path=apps_path,
-        app=str(flight_project),
+        app=str(flight_telemetry_project),
         AGILAB_LOG_ABS=tmp_path / "log",
     )
 

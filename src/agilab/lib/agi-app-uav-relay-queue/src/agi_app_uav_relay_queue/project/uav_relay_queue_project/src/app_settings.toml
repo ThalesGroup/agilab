@@ -1,0 +1,54 @@
+[args]
+data_in = "uav_relay_queue/scenarios"
+data_out = "uav_relay_queue/results"
+files = "*.json"
+nfile = 1
+routing_policy = "shortest_path"
+sim_time_s = 30.0
+sampling_interval_s = 0.5
+source_rate_pps = 14.0
+queue_weight = 2.5
+random_seed = 2026
+reset_target = false
+
+[cluster]
+verbose = 1
+cython = false
+pool = false
+rapids = false
+cluster_enabled = false
+scheduler = "127.0.0.1:8786"
+workers_data_path = ""
+
+[cluster.workers]
+"127.0.0.1" = 2
+
+[cluster.service_health]
+allow_idle = false
+max_unhealthy = 0
+max_restart_rate = 0.25
+
+[connector_catalog]
+path = "connectors/data_connectors.toml"
+
+[connector_refs]
+scenario_sql = "uav_relay_queue_scenarios_sql"
+operator_events = "uav_relay_queue_ops_opensearch"
+artifact_store = "uav_relay_queue_artifact_store"
+
+[page_connector_refs.view_relay_resilience]
+relay_metrics = "uav_relay_queue_artifact_store"
+operator_events = "uav_relay_queue_ops_opensearch"
+
+[page_connector_refs.view_maps_network]
+network_evidence = "uav_relay_queue_ops_opensearch"
+
+[legacy_paths]
+data_in = "uav_relay_queue/scenarios"
+data_out = "uav_relay_queue/results"
+
+[pages]
+view_module = [
+    "view_relay_resilience",
+    "view_maps_network",
+]

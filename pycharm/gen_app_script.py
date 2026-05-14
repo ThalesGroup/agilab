@@ -1,8 +1,10 @@
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 import filecmp
 import tempfile
+import tomllib
 from pathlib import Path
 
 
@@ -95,28 +97,84 @@ def _normalize_module_name(raw_module: str, app_dir: str, module_name: str) -> s
     return raw_module
 
 
-def _normalize_sdk_name(raw_sdk_name: str, module_name: str, app_name: str) -> str:
+_RUNTIME_TARGET_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _default_runtime_target(app_name: str) -> str:
+    target = app_name.strip().replace("-", "_")
+    if target.endswith("_project"):
+        target = target.removesuffix("_project")
+    if target.endswith("_worker"):
+        target = target.removesuffix("_worker")
+    return target
+
+
+def _runtime_target_from_pyproject(pyproject: Path, fallback: str) -> str:
+    if not pyproject.is_file():
+        return fallback
+    data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    raw_target = data.get("tool", {}).get("agilab", {}).get("runtime_target")
+    if raw_target is None:
+        return fallback
+    target = _default_runtime_target(str(raw_target))
+    if not _RUNTIME_TARGET_RE.fullmatch(target):
+        raise ValueError(
+            "[tool.agilab].runtime_target must be a Python identifier-like name "
+            f"without path separators, got {raw_target!r}"
+        )
+    return target
+
+
+def _resolve_runtime_target(raw_arg: str, module_name: str, script_root: Path) -> str:
+    fallback = _default_runtime_target(module_name)
+    app_path = Path(raw_arg)
+    candidates: list[Path] = []
+    if app_path.is_absolute():
+        candidates.append(app_path / "pyproject.toml")
+    else:
+        repo_root = script_root.parent
+        candidates.extend(
+            [
+                Path.cwd() / app_path / "pyproject.toml",
+                repo_root / "src" / "agilab" / "apps" / app_path / "pyproject.toml",
+                repo_root / "src" / "agilab" / "apps" / "builtin" / app_path / "pyproject.toml",
+            ]
+        )
+    for candidate in candidates:
+        if candidate.is_file():
+            return _runtime_target_from_pyproject(candidate, fallback)
+    return fallback
+
+
+def _normalize_sdk_name(raw_sdk_name: str, module_name: str, worker_target: str) -> str:
     """Map SDK names back to the venv names created by setup_pycharm.py."""
     if not raw_sdk_name.startswith("uv (") or not raw_sdk_name.endswith(")"):
         return raw_sdk_name
     if raw_sdk_name.endswith("_project)"):
         return f"uv ({module_name})"
     if raw_sdk_name.endswith("_worker)"):
-        return f"uv ({app_name}_worker)"
+        return f"uv ({worker_target}_worker)"
     return raw_sdk_name
 
 
-def _normalize_builtin_worker_references(raw_value: str, app_dir: str, app_name: str) -> str:
+def _normalize_builtin_worker_references(raw_value: str, app_dir: str, app_name: str, worker_target: str) -> str:
     """Built-in apps live under apps/builtin, but worker venvs do not."""
     if app_dir != app_name:
-        return raw_value.replace(f"{app_dir}_worker", f"{app_name}_worker")
+        raw_value = raw_value.replace(f"{app_dir}_worker", f"{worker_target}_worker")
+    if worker_target != app_name:
+        raw_value = raw_value.replace(f"{app_name}_worker", f"{worker_target}_worker")
     return raw_value
 
 
-def _normalize_test_script_name(raw_value: str, app_dir: str, app_name: str) -> str:
+def _normalize_test_script_name(raw_value: str, app_dir: str, app_name: str, runtime_target: str) -> str:
     if app_dir == app_name:
+        if runtime_target != app_name:
+            return raw_value.replace(f"/test/test_{app_name}_", f"/test/test_{runtime_target}_")
         return raw_value
-    return raw_value.replace(f"/test/test_{app_dir}_", f"/test/test_{app_name}_")
+    raw_value = raw_value.replace(f"/test/test_{app_dir}_", f"/test/test_{runtime_target}_")
+    if runtime_target != app_name:
+        raw_value = raw_value.replace(f"/test/test_{app_name}_", f"/test/test_{runtime_target}_")
+    return raw_value
 
 
 if __name__ == "__main__":
@@ -126,14 +184,14 @@ if __name__ == "__main__":
 
     # Example values:
     #   raw_arg = "example_app_project"
-    #   raw_arg = "builtin/flight_project"
+    #   raw_arg = "builtin/flight_telemetry_project"
     raw_arg = sys.argv[1]
     app_path = Path(raw_arg)
 
-    # module name is always last segment, e.g. "flight_project"
+    # module name is always last segment, e.g. "flight_telemetry_project"
     module_name = app_path.name
 
-    # app name without "_project" suffix, e.g. "flight"
+    # app name without "_project" suffix, e.g. "flight_telemetry"
     if module_name.endswith("_project"):
         app_name = module_name[:-8]
     else:
@@ -141,7 +199,7 @@ if __name__ == "__main__":
 
     # app_dir = what we substitute into {APP} in the templates:
     #   for "example_app_project"          -> "example_app"
-    #   for "builtin/flight_project"       -> "builtin/flight"
+    #   for "builtin/flight_telemetry_project"       -> "builtin/flight_telemetry"
     if app_path.parent == Path("."):
         app_dir = app_name
     else:
@@ -149,15 +207,17 @@ if __name__ == "__main__":
 
     # folder name in workspace/folders is the full project name:
     #   "example_app_project"
-    #   "builtin/flight_project"
+    #   "builtin/flight_telemetry_project"
     folder_name = raw_arg
 
-    # setup_pycharm creates SDKs like: uv (flight_project), uv (mycode_project), ...
+    # setup_pycharm creates SDKs like: uv (flight_telemetry_project), uv (mycode_project), ...
     sdk_name_for_app = f"uv ({module_name})"
+    runtime_target = _resolve_runtime_target(raw_arg, module_name, Path(__file__).resolve().parent)
 
     print(f"CLI arg      : {raw_arg}")
     print(f"App dir      : {app_dir}")
     print(f"App name     : {app_name}")
+    print(f"Runtime target: {runtime_target}")
     print(f"Folder name  : {folder_name}")
     print(f"SDK name     : {sdk_name_for_app}")
 
@@ -221,6 +281,7 @@ if __name__ == "__main__":
                     opt.attrib["value"],
                     app_dir,
                     app_name,
+                    runtime_target,
                 )
 
             if name == "SCRIPT_NAME":
@@ -238,13 +299,22 @@ if __name__ == "__main__":
                         if underscore_idx != -1:
                             action = after_agi[:underscore_idx]  # install, run, get_distrib, ...
 
-                            # e.g. $USER_HOME$/log/execute/flight/AGI_install_flight.py
+                            # e.g. $USER_HOME$/log/execute/flight_telemetry/AGI_install_flight_telemetry.py
                             opt.attrib["value"] = f"{base_prefix}{app_name}/AGI_{action}_{app_name}.py"
 
-                opt.attrib["value"] = _normalize_test_script_name(opt.attrib["value"], app_dir, app_name)
+                opt.attrib["value"] = _normalize_test_script_name(
+                    opt.attrib["value"],
+                    app_dir,
+                    app_name,
+                    runtime_target,
+                )
 
             elif name == "SDK_NAME":
-                opt.attrib["value"] = _normalize_sdk_name(opt.attrib.get("value", ""), module_name, app_name)
+                opt.attrib["value"] = _normalize_sdk_name(
+                    opt.attrib.get("value", ""),
+                    module_name,
+                    runtime_target,
+                )
 
             elif name == "IS_MODULE_SDK":
                 opt.attrib["value"] = "false"

@@ -280,7 +280,7 @@ def _sample_run_manifest() -> dict[str, Any]:
         "path_id": "source-checkout-first-proof",
         "status": "pass",
         "environment": {
-            "app_name": "flight_project",
+            "app_name": "flight_telemetry_project",
             "source_machine": "github-actions:macos-14-arm64",
         },
         "artifacts": [{"id": "first_proof_log", "path": "run_manifest.json"}],

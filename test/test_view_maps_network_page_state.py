@@ -729,7 +729,7 @@ def test_view_maps_network_page_recovers_stale_sidebar_state_and_hidden_files(
         "demo_stale_view_maps_network_project",
         package_name="demo_stale_view_maps_network",
         app_settings_text=app_settings_text,
-        pyproject_name="demo-stale-view-maps-network-project",
+        pyproject_name="demo-stale-agi-page-network-map-project",
     )
 
     at = run_page_app_test(PAGE_PATH, project_dir, export_root=tmp_path / "export", timeout=30)

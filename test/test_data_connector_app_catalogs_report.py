@@ -39,10 +39,10 @@ def test_data_connector_app_catalogs_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["apps"] == [
         "execution_pandas_project",
         "execution_polars_project",
-        "flight_project",
-        "meteo_forecast_project",
+        "flight_telemetry_project",
         "uav_queue_project",
         "uav_relay_queue_project",
+        "weather_forecast_project",
     ]
     assert report["summary"]["round_trip_ok"] is True
     assert {check["id"] for check in report["checks"]} == {
@@ -76,9 +76,9 @@ def test_data_connector_app_catalogs_resolve_relative_to_app_settings(tmp_path: 
     assert paths["execution_polars_project"].endswith(
         "execution_polars_project/src/connectors/data_connectors.toml"
     )
-    assert paths["flight_project"].endswith("flight_project/src/connectors/data_connectors.toml")
-    assert paths["meteo_forecast_project"].endswith(
-        "meteo_forecast_project/src/connectors/data_connectors.toml"
+    assert paths["flight_telemetry_project"].endswith("flight_telemetry_project/src/connectors/data_connectors.toml")
+    assert paths["weather_forecast_project"].endswith(
+        "weather_forecast_project/src/connectors/data_connectors.toml"
     )
     assert paths["uav_queue_project"].endswith("uav_queue_project/src/connectors/data_connectors.toml")
     assert paths["uav_relay_queue_project"].endswith(

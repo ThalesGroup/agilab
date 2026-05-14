@@ -1,0 +1,50 @@
+{
+  "scenario": "uav_queue_hotspot",
+  "sim_time_s": 30.0,
+  "sampling_interval_s": 0.5,
+  "source_rate_pps": 14.0,
+  "packet_size_bytes": 1200,
+  "geo_origin": {
+    "latitude": 48.8566,
+    "longitude": 2.3522,
+    "alt_m": 900.0
+  },
+  "source_node": {
+    "node_id": "uav_source",
+    "x_m": 0.0,
+    "y_m": 0.0,
+    "alt_m": 1120.0
+  },
+  "sink_node": {
+    "node_id": "ground_sink",
+    "x_m": 1000.0,
+    "y_m": 0.0,
+    "alt_m": 35.0
+  },
+  "relays": [
+    {
+      "relay_id": "relay_a",
+      "base_x_m": 330.0,
+      "base_y_m": 120.0,
+      "alt_m": 920.0,
+      "amplitude_m": 28.0,
+      "period_s": 18.0,
+      "service_rate_pps": 11.0,
+      "queue_capacity_pkts": 14,
+      "background_rate_pps": 6.0,
+      "bias_ms": 0.0
+    },
+    {
+      "relay_id": "relay_b",
+      "base_x_m": 360.0,
+      "base_y_m": -170.0,
+      "alt_m": 890.0,
+      "amplitude_m": 18.0,
+      "period_s": 22.0,
+      "service_rate_pps": 18.0,
+      "queue_capacity_pkts": 18,
+      "background_rate_pps": 1.0,
+      "bias_ms": 6.0
+    }
+  ]
+}

@@ -52,14 +52,14 @@ use this order:
      items in `0.003s` against a `5.0s` target
    - `execution_pandas_project` and `execution_polars_project` now emit named
      benchmark reduce artefacts through that contract
-   - `flight_project` now emits trajectory-summary reduce artefacts through
+   - `flight_telemetry_project` now emits trajectory-summary reduce artefacts through
      that contract
    - `uav_queue_project` now emits the same `reduce_summary_worker_<id>.json`
      artifact shape for queue metrics
    - `uav_relay_queue_project` now emits that shared queue-metrics reduce
      artifact shape too
-   - `meteo_forecast_project` now emits forecast-metrics reduce artefacts
-   - Release Decision now surfaces benchmark, flight, meteo forecast, and UAV
+   - `weather_forecast_project` now emits forecast-metrics reduce artefacts
+   - Release Decision now surfaces benchmark, flight, weather forecast, and UAV
      queue-family reduce artefacts as evidence
    - a repository guardrail now requires every non-template built-in app to
      expose a reducer contract
@@ -272,8 +272,8 @@ Current shipped baseline:
 - `docs/source/data/multi_app_dag_sample.json` links `uav_queue_project` to
   `uav_relay_queue_project` through the explicit `queue_metrics` handoff
 - `docs/source/data/multi_app_dag_portfolio_sample.json` broadens the
-  contract-only sample suite across `flight_project`,
-  `meteo_forecast_project`, `execution_pandas_project`, and
+  contract-only sample suite across `flight_telemetry_project`,
+  `weather_forecast_project`, `execution_pandas_project`, and
   `execution_polars_project`
 - `tools/multi_app_dag_report.py --compact` validates schema, checked-in app
   nodes, acyclic dependencies, docs references, artifact handoffs, and the
@@ -647,15 +647,15 @@ Current state:
   merge semantics, validation hooks, and a standard reduce artefact schema
 - `tools/reduce_contract_benchmark.py --json` validates 8 partials / 80,000
   synthetic items in `0.003s` against a `5.0s` target
-- `execution_pandas_project`, `execution_polars_project`, `flight_project`,
-  `meteo_forecast_project`, `uav_queue_project`, and
+- `execution_pandas_project`, `execution_polars_project`, `flight_telemetry_project`,
+  `weather_forecast_project`, `uav_queue_project`, and
   `uav_relay_queue_project` write worker-scoped
   `reduce_summary_worker_<id>.json` artefacts through the shared contract
 - Release Decision surfaces those reduce artefacts with schema validation,
   reducer name, partial count, artifact path, benchmark row/source/execution
-  fields, flight row/aircraft/speed fields, meteo forecast MAE/RMSE/MAPE
+  fields, flight row/aircraft/speed fields, weather forecast MAE/RMSE/MAPE
   fields, and UAV queue-family packet/PDR fields when present
-- aggregation outside the migrated benchmark, flight, meteo, and UAV
+- aggregation outside the migrated benchmark, flight, weather, and UAV
   queue-family apps is still mostly app-specific
 
 Current guardrail:
@@ -697,7 +697,7 @@ Completed slices:
 
 - `execution_pandas_project` and `execution_polars_project` now emit named
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files from worker results
-- `flight_project` now emits worker-scoped
+- `flight_telemetry_project` now emits worker-scoped
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files for trajectory
   summary metrics
 - `uav_queue_project` now emits worker-scoped
@@ -706,7 +706,7 @@ Completed slices:
 - `uav_relay_queue_project` now emits worker-scoped
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files for relay queue
   summary metrics
-- `meteo_forecast_project` now emits worker-scoped
+- `weather_forecast_project` now emits worker-scoped
   `reduce_summary_worker_<id>.json` `ReduceArtifact` files for forecast
   quality metrics
 - Release Decision now discovers `reduce_summary_worker_*.json`, parses it with

@@ -106,8 +106,8 @@ Target horizon: `1-3 months`
 - `pipeline-ai-import`
 - `runtime-distribution-import`
 - `base-worker-import`
-- `view-maps-network-import`
-- `view-maps-3d-import`
+- `agi-page-network-map-import`
+- `agi-page-geospatial-3d-import`
 
 - Add page-level UX budgets for heavy views:
 - first visible progress state should appear immediately

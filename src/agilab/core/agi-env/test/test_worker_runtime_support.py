@@ -36,10 +36,10 @@ def _dummy_env(tmp_path: Path, *, app_name: str = "demo_project") -> SimpleNames
 
 
 def test_configure_worker_runtime_resolves_builtin_worker_copy(tmp_path: Path):
-    env = _dummy_env(tmp_path, app_name="flight_project")
+    env = _dummy_env(tmp_path, app_name="flight_telemetry_project")
     builtin_root = tmp_path / "apps" / "builtin"
     env.builtin_apps_path = builtin_root
-    builtin_app = builtin_root / "flight_project"
+    builtin_app = builtin_root / "flight_telemetry_project"
     (builtin_app / "src" / "flight").mkdir(parents=True, exist_ok=True)
     (builtin_app / "src" / "flight_worker").mkdir(parents=True, exist_ok=True)
     (builtin_app / "src" / "flight_worker" / "flight_worker.py").write_text("class FlightWorker:\n    pass\n", encoding="utf-8")

@@ -48,7 +48,7 @@ st.caption(
 )
 
 for key, default in (
-    ("dag_path", str(current_payload.get("dag_path", "dag_templates/flight_to_meteo_global_dag.json"))),
+    ("dag_path", str(current_payload.get("dag_path", "dag_templates/flight_to_weather_global_dag.json"))),
     ("output_path", str(current_payload.get("output_path", "~/log/execute/global_dag/runner_state.json"))),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):

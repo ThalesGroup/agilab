@@ -1,7 +1,7 @@
 {
   "schema": "agilab.multi_app_dag.v1",
-  "dag_id": "flight-meteo-execution-portfolio",
-  "label": "Flight, meteo, and execution portfolio handoff",
+  "dag_id": "flight-weather-execution-portfolio",
+  "label": "Flight, weather, and execution portfolio handoff",
   "description": "Supplemental cross-app DAG contract that broadens sample coverage beyond the UAV queue family without changing the executable global-DAG smoke baseline.",
   "execution": {
     "mode": "sequential_dependency_order",
@@ -10,7 +10,7 @@
   "nodes": [
     {
       "id": "flight_context",
-      "app": "flight_project",
+      "app": "flight_telemetry_project",
       "purpose": "Run the flight scenario and produce trajectory summary context for downstream analysis.",
       "produces": [
         {
@@ -21,8 +21,8 @@
       ]
     },
     {
-      "id": "meteo_forecast_review",
-      "app": "meteo_forecast_project",
+      "id": "weather_forecast_review",
+      "app": "weather_forecast_project",
       "purpose": "Use flight summary context to produce forecast quality metrics for portfolio review.",
       "consumes": [
         {
@@ -81,18 +81,18 @@
   "edges": [
     {
       "from": "flight_context",
-      "to": "meteo_forecast_review",
+      "to": "weather_forecast_review",
       "artifact": "flight_reduce_summary",
       "handoff": "Use flight trajectory reduce summary as the forecast-review context."
     },
     {
-      "from": "meteo_forecast_review",
+      "from": "weather_forecast_review",
       "to": "pandas_benchmark_review",
       "artifact": "forecast_metrics",
       "handoff": "Use forecast metrics as an execution benchmark context row."
     },
     {
-      "from": "meteo_forecast_review",
+      "from": "weather_forecast_review",
       "to": "polars_benchmark_review",
       "artifact": "forecast_metrics",
       "handoff": "Use forecast metrics as an execution benchmark context row."

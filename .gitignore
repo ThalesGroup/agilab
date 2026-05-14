@@ -97,6 +97,8 @@ distribution.json
 docs/html/
 
 apps/
+!tools/run_configs/apps/
+!tools/run_configs/apps/**
 !src/agilab/apps/
 !src/agilab/apps/builtin/
 src/agilab/apps/builtin/*
@@ -107,6 +109,7 @@ src/agilab/apps/builtin/*/*
 !src/agilab/apps/builtin/*/pyproject.toml
 !src/agilab/apps/builtin/*/uv_config.toml
 !src/agilab/apps/builtin/*/lab_steps.toml
+!src/agilab/apps/builtin/*/lab_stages.toml
 !src/agilab/apps/builtin/*/pipeline_view.dot
 !src/agilab/apps/builtin/*/notebook_export.toml
 !src/agilab/apps/builtin/*/notebook_import_views.toml

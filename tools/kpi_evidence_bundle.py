@@ -170,7 +170,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
         wizard_state = first_proof_wizard.newcomer_first_proof_state(
             SimpleNamespace(
                 apps_path=repo_root / "src" / "agilab" / "apps" / "builtin",
-                app="flight_project",
+                app="flight_telemetry_project",
                 AGILAB_LOG_ABS=repo_root / ".missing-first-proof-log",
             ),
             repo_root=repo_root,
@@ -178,7 +178,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
         ok = (
             labels == ["preinit smoke", "source ui smoke"]
             and float(newcomer_first_proof.DEFAULT_MAX_SECONDS) == 600.0
-            and active_app.name == "flight_project"
+            and active_app.name == "flight_telemetry_project"
             and wizard_content["recommended_path_id"] == "source-checkout-first-proof"
             and wizard_content["actionable_route_ids"] == ["source-checkout-first-proof"]
             and wizard_content["documented_route_ids"] == ["notebook-quickstart"]
@@ -281,7 +281,7 @@ def _check_run_manifest_contract(repo_root: Path) -> dict[str, Any]:
             and encoded["path_id"] == "source-checkout-first-proof"
             and encoded["status"] == "pass"
             and encoded["command"]["argv"] == ["tools/newcomer_first_proof.py", "--json"]
-            and encoded["environment"]["app_name"] == "flight_project"
+            and encoded["environment"]["app_name"] == "flight_telemetry_project"
             and encoded["timing"]["target_seconds"] == 600.0
             and validation_labels == ["proof_steps", "target_seconds", "recommended_project"]
             and run_manifest.manifest_passed(manifest)
@@ -2139,8 +2139,8 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             == [
                 "execution_pandas_project",
                 "execution_polars_project",
-                "flight_project",
-                "meteo_forecast_project",
+                "flight_telemetry_project",
+                "weather_forecast_project",
                 "uav_queue_project",
                 "uav_relay_queue_project",
             ]
@@ -2167,8 +2167,8 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
         evidence=[
             "tools/data_connector_app_catalogs_report.py",
             "src/agilab/data_connector_app_catalogs.py",
-            "src/agilab/apps/builtin/flight_project/src/app_settings.toml",
-            "src/agilab/apps/builtin/meteo_forecast_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml",
+            "src/agilab/apps/builtin/weather_forecast_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_queue_project/src/app_settings.toml",
             "src/agilab/apps/builtin/uav_relay_queue_project/src/app_settings.toml",
         ],
@@ -2223,7 +2223,7 @@ def _check_web_robot_contract(repo_root: Path) -> dict[str, Any]:
         analysis_url = web_robot.build_page_url(
             "https://jpmorard-agilab.hf.space",
             "ANALYSIS",
-            active_app="flight_project",
+            active_app="flight_telemetry_project",
             current_page=remote_view,
         )
         ok = (

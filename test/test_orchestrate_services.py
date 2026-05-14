@@ -169,10 +169,10 @@ def test_build_service_snippet_embeds_core_parameters():
 def test_build_service_snippet_preserves_builtin_apps_path(tmp_path):
     apps_path = tmp_path / "apps"
     builtin_apps = apps_path / "builtin"
-    (builtin_apps / "flight_project").mkdir(parents=True)
+    (builtin_apps / "flight_telemetry_project").mkdir(parents=True)
 
     snippet = orchestrate_services.build_service_snippet(
-        env=SimpleNamespace(apps_path=apps_path, app="flight_project", is_source_env=True),
+        env=SimpleNamespace(apps_path=apps_path, app="flight_telemetry_project", is_source_env=True),
         verbose=2,
         service_action="status",
         service_mode=7,

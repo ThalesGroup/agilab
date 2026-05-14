@@ -115,7 +115,7 @@ _ANALYSIS_VIEW_PROFILES = {
     "view_maps": (
         "Map evidence",
         "Inspect trajectories, positions, and geographic consistency after a flight run.",
-        "Start here for flight_project outputs.",
+        "Start here for flight_telemetry_project outputs.",
     ),
     "view_maps_3d": (
         "3D cartography",
@@ -590,7 +590,7 @@ def _apps_path_for_active_app(active_app_path: Path) -> Path:
 
 
 def _default_app_path(apps_path: Path | None) -> Path | None:
-    """Return a deterministic default *_project, preferring bundled flight_project."""
+    """Return a deterministic default *_project, preferring bundled flight_telemetry_project."""
     root = _safe_existing_dir(Path(apps_path).expanduser() if apps_path else None)
     if root is None:
         return None
@@ -601,7 +601,7 @@ def _default_app_path(apps_path: Path | None) -> Path | None:
             search_roots.append(builtin_root)
 
     for search_root in search_roots:
-        preferred = _safe_existing_dir(search_root / "flight_project")
+        preferred = _safe_existing_dir(search_root / "flight_telemetry_project")
         if preferred is not None:
             return preferred
 
@@ -1204,7 +1204,7 @@ def _dedupe_preserve_order(values: list[str]) -> list[str]:
 
 def _migrate_legacy_analysis_page_config(project: str | None, cfg: dict) -> bool:
     """Migrate stale per-user analysis settings after app defaults change."""
-    if project not in {"flight", "flight_project"}:
+    if project not in {"flight", "flight_telemetry_project"}:
         return False
     pages = cfg.setdefault("pages", {})
     if not isinstance(pages, dict):

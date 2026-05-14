@@ -31,10 +31,10 @@ pipeline view instead of only the runnable app scripts.
 
 The repo now also ships the same idea as a real built-in project:
 
-- ``src/agilab/apps/builtin/meteo_forecast_project``
-- ``src/agilab/apps/builtin/meteo_forecast_project/lab_stages.toml``
-- ``src/agilab/apps/builtin/meteo_forecast_project/pipeline_view.dot``
-- ``src/agilab/apps/builtin/meteo_forecast_project/notebook_import_views.toml``
+- ``src/agilab/apps/builtin/weather_forecast_project``
+- ``src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml``
+- ``src/agilab/apps/builtin/weather_forecast_project/pipeline_view.dot``
+- ``src/agilab/apps/builtin/weather_forecast_project/notebook_import_views.toml``
 
 Why migrate
 -----------
@@ -72,14 +72,14 @@ Real built-in project
 ---------------------
 
 The migration no longer stops at a conceptual skeleton. The repo now includes
-``meteo_forecast_project`` as a built-in AGILAB app.
+``weather_forecast_project`` as a built-in AGILAB app.
 
 What it adds beyond the pilot folder:
 
-- an app manager and a worker under ``src/agilab/apps/builtin/meteo_forecast_project/src``
+- an app manager and a worker under ``src/agilab/apps/builtin/weather_forecast_project/src``
 - a real ``PROJECT`` form for station, target, lag, and horizon settings
 - seeded local sample data for the first run
-- stable artifacts exported to ``~/export/meteo_forecast/forecast_analysis``
+- stable artifacts exported to ``~/export/weather_forecast/forecast_analysis``
 - a default ``ANALYSIS`` page selection through ``view_forecast_analysis``
 - app-owned notebook import view declarations for ``view_forecast_analysis``
   and ``view_release_decision``

@@ -265,7 +265,7 @@ def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> No
     args = SimpleNamespace(
         components=None,
         skills=None,
-        app_path="src/agilab/apps/builtin/flight_project",
+        app_path="src/agilab/apps/builtin/flight_telemetry_project",
         worker_copy="~/wenv/builtin/flight_worker",
     )
 
@@ -277,7 +277,7 @@ def test_installer_profile_adds_contract_check_when_app_path_is_provided() -> No
     assert contract.label == "installer contract check"
     assert contract.argv[-4:] == [
         "--app-path",
-        "src/agilab/apps/builtin/flight_project",
+        "src/agilab/apps/builtin/flight_telemetry_project",
         "--worker-copy",
         "~/wenv/builtin/flight_worker",
     ]

@@ -190,13 +190,13 @@ def test_persisted_runner_state_validates_flight_plus_meteo_dag(tmp_path: Path) 
     assert proof.ok is True
     state = proof.runner_state
     assert state["source"]["dag_path"] == str(dag_path)
-    assert state["source"]["execution_order"] == ["flight_context", "meteo_forecast_review"]
+    assert state["source"]["execution_order"] == ["flight_context", "weather_forecast_review"]
     assert state["summary"]["unit_count"] == 2
     assert state["summary"]["runnable_unit_ids"] == ["flight_context"]
-    assert state["summary"]["blocked_unit_ids"] == ["meteo_forecast_review"]
+    assert state["summary"]["blocked_unit_ids"] == ["weather_forecast_review"]
     assert [unit["app"] for unit in state["units"]] == [
-        "flight_project",
-        "meteo_forecast_project",
+        "flight_telemetry_project",
+        "weather_forecast_project",
     ]
     assert all(unit["provenance"]["pipeline_view"] for unit in state["units"])
 

@@ -20,7 +20,7 @@ import pandas as pd
 MODULE_PATH = Path(
     "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py"
 )
-APP_SETTINGS_PATH = Path("src/agilab/apps/builtin/flight_project/src/app_settings.toml")
+APP_SETTINGS_PATH = Path("src/agilab/apps/builtin/flight_telemetry_project/src/app_settings.toml")
 
 
 def _suppress_page_import_warnings() -> None:
@@ -60,7 +60,7 @@ def _load_view_maps_network_module(monkeypatch, tmp_path: Path):
     spec = importlib.util.spec_from_file_location("view_maps_network_test_module", MODULE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    active_app = Path("src/agilab/apps/builtin/flight_project").resolve()
+    active_app = Path("src/agilab/apps/builtin/flight_telemetry_project").resolve()
     argv = [MODULE_PATH.name, "--active-app", str(active_app)]
     AgiEnv.reset()
     with warnings.catch_warnings():
