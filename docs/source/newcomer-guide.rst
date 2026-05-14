@@ -73,6 +73,45 @@ PyCharm run configurations for developers who want IDE debugging, but the
 newcomer route is shell + browser first. The same install, execute, and
 analysis path can be driven from commands, the web UI, or checked-in wrappers.
 
+Which example should I start with?
+----------------------------------
+
+Use this decision guide before opening the full packaged example catalog in
+``src/agilab/examples/README.md``. It picks one first step and avoids mixing
+runtime goals.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Goal
+     - Start with
+     - Why
+   * - Prove AGILAB works locally
+     - ``flight_telemetry_project``
+     - This is the recommended first proof: install one public built-in app,
+       run it, inspect visible output, and keep ``run_manifest.json``.
+   * - Modify the smallest app
+     - ``mycode_project``
+     - It is the minimal built-in app/template to adapt after the first proof
+       passes.
+   * - Explore richer app behavior
+     - ``weather_forecast_project`` or ``mission_decision_project``
+     - Use these after the first proof when you want more domain behavior than
+       the template app.
+   * - Understand a contract before running a full app
+     - Read-only preview examples such as ``service_mode`` or
+       ``mlflow_auto_tracking``
+     - They write deterministic JSON evidence and do not launch hidden
+       long-lived services or multi-app runs.
+   * - Learn notebook migration
+     - ``notebook_migrations/skforecast_meteo_fr``
+     - These are source assets to inspect or import; reading them does not
+       start a service or cluster run.
+
+Rule of thumb: run ``flight_telemetry_project`` first, modify
+``mycode_project`` second, then use previews and notebook assets to understand
+specific contracts before expanding to richer apps or cluster work.
+
 Adoption evidence
 -----------------
 
