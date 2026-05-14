@@ -1294,7 +1294,7 @@ def test_toml_and_notebook_exports_report_errors(monkeypatch, tmp_path):
     )
     count = pipeline_editor.notebook_to_toml(uploaded, "lab_stages.toml", tmp_path / "demo_project")
 
-    assert count == 1
+    assert count is None
     assert errors == [
         "Failed to save notebook: nb boom",
         "Failed to save TOML file: toml boom",
@@ -1374,14 +1374,14 @@ def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_pat
         ),
     )
 
-    assert pipeline_editor.notebook_to_toml(None, "lab_stages.toml", tmp_path / "demo_project") == 0
+    assert pipeline_editor.notebook_to_toml(None, "lab_stages.toml", tmp_path / "demo_project") is None
     assert (
         pipeline_editor.notebook_to_toml(
             SimpleNamespace(name="demo.txt", type="text/plain", read=lambda: b"{}"),
             "lab_stages.toml",
             tmp_path / "demo_project",
         )
-        == 0
+        is None
     )
     assert (
         pipeline_editor.notebook_to_toml(
@@ -1389,7 +1389,7 @@ def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_pat
             "lab_stages.toml",
             tmp_path / "demo_project",
         )
-        == 0
+        is None
     )
     assert (
         pipeline_editor.notebook_to_toml(
@@ -1397,7 +1397,19 @@ def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_pat
             "lab_stages.toml",
             tmp_path / "demo_project",
         )
-        == 0
+        is None
+    )
+    assert (
+        pipeline_editor.notebook_to_toml(
+            SimpleNamespace(
+                name="demo.ipynb",
+                type="application/x-ipynb+json",
+                read=lambda: b'{"cells": {}}',
+            ),
+            "lab_stages.toml",
+            tmp_path / "demo_project",
+        )
+        is None
     )
 
     broken_stages = tmp_path / "broken.toml"
@@ -1410,11 +1422,12 @@ def test_notebook_to_toml_and_refresh_cover_import_failures(monkeypatch, tmp_pat
         ("error", "Please upload a .ipynb file."),
         ("error", "Unable to parse notebook: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"),
         ("error", "Invalid notebook format: expected a JSON object."),
+        ("error", "Invalid notebook format: notebook format is invalid: cells must be a list"),
         ("error", f"Unable to export notebook: failed to load {broken_stages}: Expected ']]' at the end of an array declaration (at line 1, column 15)"),
     ]
 
 
-def test_on_import_notebook_reports_missing_upload_and_empty_code_cells(monkeypatch, tmp_path):
+def test_on_import_notebook_does_not_mark_page_broken_when_import_fails(monkeypatch, tmp_path):
     messages: list[tuple[str, str]] = []
     fake_st = SimpleNamespace(
         session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
@@ -1427,14 +1440,79 @@ def test_on_import_notebook_reports_missing_upload_and_empty_code_cells(monkeypa
     pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
     fake_st.session_state["upload"] = SimpleNamespace(type="application/x-ipynb+json")
-    monkeypatch.setattr(pipeline_editor, "notebook_to_toml", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(pipeline_editor, "notebook_to_toml", lambda *_args, **_kwargs: None)
     pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
 
     assert messages == [
         ("error", "No notebook file was uploaded."),
-        ("warning", "Notebook imported, but no code cells were found."),
     ]
+    assert "page_broken" not in fake_st.session_state
+    assert fake_st.session_state["idx"][-1] == 0
+
+
+def test_on_import_notebook_warns_when_successful_import_has_no_code_cells(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    fake_st = SimpleNamespace(
+        session_state=_State(
+            {
+                "upload": SimpleNamespace(
+                    name="demo.ipynb",
+                    type="application/x-ipynb+json",
+                ),
+                "idx": [0, "", "", "", "", "", 9],
+            }
+        ),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "notebook_to_toml", lambda *_args, **_kwargs: 0)
+
+    pipeline_editor.on_import_notebook("upload", tmp_path, tmp_path / "lab_stages.toml", "idx")
+
+    assert messages == [("warning", "Notebook imported, but no code cells were found.")]
     assert fake_st.session_state["page_broken"] is True
+    assert fake_st.session_state["idx"][-1] == 0
+
+
+def test_on_import_notebook_does_not_report_success_after_write_failure(monkeypatch, tmp_path):
+    messages: list[tuple[str, str]] = []
+    fake_st = SimpleNamespace(
+        session_state=_State(
+            {
+                "upload": SimpleNamespace(
+                    name="demo.ipynb",
+                    type="application/x-ipynb+json",
+                    read=lambda: json.dumps(
+                        {"cells": [{"cell_type": "code", "source": ["print(1)\n"]}]}
+                    ).encode("utf-8"),
+                ),
+                "idx": [0, "", "", "", "", "", 0],
+            }
+        ),
+        error=lambda message, *args, **kwargs: messages.append(("error", message)),
+        warning=lambda message, *args, **kwargs: messages.append(("warning", message)),
+        success=lambda message, *args, **kwargs: messages.append(("success", message)),
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(
+        pipeline_editor,
+        "tomli_w",
+        SimpleNamespace(dump=lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("toml boom"))),
+    )
+
+    pipeline_editor.on_import_notebook(
+        "upload",
+        tmp_path / "demo_project",
+        tmp_path / "demo_project" / "lab_stages.toml",
+        "idx",
+    )
+
+    assert messages == [("error", "Failed to save TOML file: toml boom")]
+    assert "page_broken" not in fake_st.session_state
+    assert fake_st.session_state["idx"][-1] == 0
+    assert not (tmp_path / "demo_project" / "lab_stages.toml").exists()
 
 
 def test_display_history_tab_covers_missing_file_and_save_error(monkeypatch, tmp_path):

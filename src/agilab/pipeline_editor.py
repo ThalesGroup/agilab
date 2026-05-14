@@ -229,17 +229,21 @@ def build_notebook_import_preview(
 
     module = _notebook_import_module_name(module_dir)
     source_name = str(getattr(uploaded_file, "name", "") or "uploaded.ipynb")
-    notebook_import = build_notebook_pipeline_import(
-        notebook=notebook_content,
-        source_notebook=source_name,
-    )
-    preflight = build_notebook_import_preflight(notebook_import)
-    toml_content = build_lab_stages_preview(notebook_import, module_name=module)
-    contract = build_notebook_import_contract(
-        notebook_import,
-        preflight=preflight,
-        module_name=module,
-    )
+    try:
+        notebook_import = build_notebook_pipeline_import(
+            notebook=notebook_content,
+            source_notebook=source_name,
+        )
+        preflight = build_notebook_import_preflight(notebook_import)
+        toml_content = build_lab_stages_preview(notebook_import, module_name=module)
+        contract = build_notebook_import_contract(
+            notebook_import,
+            preflight=preflight,
+            module_name=module,
+        )
+    except (TypeError, ValueError) as exc:
+        _emit_streamlit_message("error", f"Invalid notebook format: {exc}")
+        return None
     return {
         "source_name": source_name,
         "module": module,
@@ -268,8 +272,17 @@ def write_notebook_import_preview(
     cell_count = int(preview.get("cell_count", 0) or 0)
 
     stages_file.parent.mkdir(parents=True, exist_ok=True)
-    with open(stages_file, "wb") as toml_file:
-        tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(toml_content)), toml_file)
+    temp_stages_file = stages_file.with_name(f".{stages_file.name}.{os.getpid()}.tmp")
+    try:
+        with open(temp_stages_file, "wb") as toml_file:
+            tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(toml_content)), toml_file)
+        temp_stages_file.replace(stages_file)
+    except (OSError, TypeError, ValueError):
+        try:
+            temp_stages_file.unlink()
+        except OSError:
+            pass
+        raise
 
     contract_path = module_dir / "notebook_import_contract.json"
     pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
@@ -936,15 +949,15 @@ def notebook_to_toml(
     module_dir: Path,
     *,
     view_manifest_dir: Path | None = None,
-) -> int:
+) -> int | None:
     """Convert uploaded Jupyter notebook file to a TOML file."""
     preview = build_notebook_import_preview(uploaded_file, module_dir)
     if preview is None:
-        return 0
+        return None
     if not _notebook_import_preview_is_safe(preview):
         detail = _notebook_import_blocking_detail(preview.get("preflight", {}))
         _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
-        return 0
+        return None
     try:
         stages_file = Path(module_dir) / toml_file_name
         return write_notebook_import_preview(
@@ -959,7 +972,7 @@ def notebook_to_toml(
             "Error writing TOML in notebook_to_toml: %s",
             bound_log_value(e, LOG_DETAIL_LIMIT),
         )
-        return int(preview.get("cell_count", 0) or 0)
+        return None
 
 
 def on_preview_notebook_import(
@@ -1027,7 +1040,7 @@ def confirm_notebook_import_preview(
             "Error writing notebook import preview: %s",
             bound_log_value(exc, LOG_DETAIL_LIMIT),
         )
-        return int(preview.get("cell_count", 0) or 0)
+        return 0
 
     if cell_count > 0:
         _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
@@ -1131,9 +1144,11 @@ def on_import_notebook(
         stages_file.name,
         module_dir,
     )
+    if cell_count is None:
+        return
     if cell_count > 0:
         _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
-    elif cell_count == 0:
+    else:
         _emit_streamlit_message("warning", "Notebook imported, but no code cells were found.")
 
     if index_page in st.session_state and isinstance(st.session_state[index_page], list):
