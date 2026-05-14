@@ -1656,7 +1656,10 @@ def test_main_refreshes_badges_before_collision_rebuild(tmp_path, monkeypatch) -
     assert order[:4] == ["badge", "build", "badge", "build"]
 
 
-def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize("upload_success_count", [0, 1])
+def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(
+    tmp_path, monkeypatch, upload_success_count
+) -> None:
     module = _load_pypi_publish()
 
     project_dir = tmp_path / "agi-env"
@@ -1704,7 +1707,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(tmp_path, monk
 
     def _twine_upload(*_args, **_kwargs):
         module.UPLOAD_COLLISION_DETECTED = True
-        module.UPLOAD_SUCCESS_COUNT = 0
+        module.UPLOAD_SUCCESS_COUNT = upload_success_count
 
     monkeypatch.setattr(module, "parse_args", lambda: object())
     monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)

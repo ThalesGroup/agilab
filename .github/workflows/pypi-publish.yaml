@@ -3,9 +3,15 @@ name: pypi-publish
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version tag for the release (e.g. v0.3.66 or 0.3.66)"
+      release_tag:
+        description: "GitHub Release tag only; distribution versions are read from pyproject.toml."
         required: true
+      packages:
+        description: "Optional comma- or space-separated package names to publish. Default: all."
+        required: false
+      roles:
+        description: "Optional comma- or space-separated package roles to publish. Default: all."
+        required: false
   push:
     tags:
       - "v*.*.*"
@@ -175,6 +181,10 @@ jobs:
     outputs:
       library_matrix: ${{ steps.release-plan.outputs.library_matrix }}
       umbrella_package: ${{ steps.release-plan.outputs.umbrella_package }}
+      library_selected: ${{ steps.release-plan.outputs.library_selected }}
+      umbrella_selected: ${{ steps.release-plan.outputs.umbrella_selected }}
+      pypi_publish_selected: ${{ steps.release-plan.outputs.pypi_publish_selected }}
+      provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -186,12 +196,23 @@ jobs:
 
       - name: Render release package plan
         id: release-plan
+        env:
+          RELEASE_PACKAGES: ${{ github.event.inputs.packages || '' }}
+          RELEASE_ROLES: ${{ github.event.inputs.roles || '' }}
         run: |
           set -euxo pipefail
-          python tools/release_plan.py \
-            --github-output "$GITHUB_OUTPUT" \
-            --github-step-summary "$GITHUB_STEP_SUMMARY" \
+          args=(
+            --github-output "$GITHUB_OUTPUT"
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
             --check-workflow .github/workflows/pypi-publish.yaml
+          )
+          if [ -n "${RELEASE_PACKAGES:-}" ]; then
+            args+=(--packages "$RELEASE_PACKAGES")
+          fi
+          if [ -n "${RELEASE_ROLES:-}" ]; then
+            args+=(--roles "$RELEASE_ROLES")
+          fi
+          python tools/release_plan.py "${args[@]}"
 
       - name: Render PyPI trusted publisher contract
         run: |
@@ -206,6 +227,7 @@ jobs:
       - release-evidence
       - supply-chain-evidence
       - release-plan
+    if: ${{ needs.release-plan.outputs.library_selected == 'true' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -218,7 +240,6 @@ jobs:
       contents: read
       id-token: write
     env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
       PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
     steps:
       - name: Checkout repository
@@ -268,10 +289,22 @@ jobs:
             --dist-dir "${{ matrix.dist }}" \
             --github-output "$GITHUB_OUTPUT"
 
-      - name: Upload ${{ matrix.package }} release distribution evidence
+      - name: Upload ${{ matrix.package }} public release distribution evidence
+        if: matrix.publish_to_pypi == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: release-dist-${{ matrix.package }}
+          path: |
+            ${{ matrix.dist }}/*
+            test-results/release-artifacts/${{ matrix.package }}/*
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload ${{ matrix.package }} workflow-only distribution evidence
+        if: matrix.publish_to_pypi != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: workflow-dist-${{ matrix.package }}
           path: |
             ${{ matrix.dist }}/*
             test-results/release-artifacts/${{ matrix.package }}/*
@@ -306,7 +339,10 @@ jobs:
           packages-dir: ${{ matrix.dist }}
           skip-existing: true
   publish-agilab:
-    needs: publish-library-packages
+    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
+    needs:
+      - release-plan
+      - publish-library-packages
     runs-on: ubuntu-latest
     environment:
       name: pypi-agilab
@@ -315,7 +351,6 @@ jobs:
       contents: read
       id-token: write
     env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
       PYPI_TRUSTED_PUBLISHING: ${{ vars.PYPI_TRUSTED_PUBLISHING || secrets.PYPI_TRUSTED_PUBLISHING }}
     steps:
       - name: Checkout repository
@@ -401,10 +436,55 @@ jobs:
           packages-dir: dist/
           skip-existing: true
 
-  publish-release-assets:
+  pypi-provenance-evidence:
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
     needs:
+      - release-plan
       - publish-library-packages
       - publish-agilab
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify published PyPI provenance
+        run: |
+          set -euxo pipefail
+          mkdir -p test-results/pypi-provenance
+          args=(
+            --json
+            --github-step-summary "$GITHUB_STEP_SUMMARY"
+          )
+          for package in ${PROVENANCE_PACKAGES}; do
+            args+=(--package "$package")
+          done
+          python tools/pypi_provenance_check.py "${args[@]}" > test-results/pypi-provenance/pypi-provenance.json
+
+      - name: Upload PyPI provenance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: pypi-provenance-evidence
+          path: test-results/pypi-provenance
+          if-no-files-found: warn
+          retention-days: 90
+
+  publish-release-assets:
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    needs:
+      - release-plan
+      - publish-library-packages
+      - publish-agilab
+      - pypi-provenance-evidence
       - supply-chain-evidence
     runs-on: ubuntu-latest
     permissions:
@@ -413,7 +493,7 @@ jobs:
       attestations: write
       artifact-metadata: write
     env:
-      VERSION: ${{ github.event.inputs.version || github.ref_name }}
+      RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -430,6 +510,12 @@ jobs:
           name: supply-chain-release-evidence
           path: release-assets/supply-chain
 
+      - name: Download PyPI provenance evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pypi-provenance-evidence
+          path: release-assets/pypi-provenance
+
       - name: Assemble GitHub Release supply-chain assets
         run: |
           set -euxo pipefail
@@ -442,6 +528,8 @@ jobs:
           \) -print -exec cp {} github-release-assets/ \;
           tar -czf github-release-assets/supply-chain-release-evidence.tar.gz \
             -C release-assets/supply-chain .
+          tar -czf github-release-assets/pypi-provenance-evidence.tar.gz \
+            -C release-assets/pypi-provenance .
           tar -czf github-release-assets/release-distribution-evidence.tar.gz \
             -C release-assets/distributions .
           (cd github-release-assets && shasum -a 256 * > SHA256SUMS.txt)
@@ -456,7 +544,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euxo pipefail
-          release_tag="${VERSION#refs/tags/}"
+          release_tag="${RELEASE_TAG#refs/tags/}"
           if [[ "$release_tag" != v* ]]; then
             release_tag="v${release_tag}"
           fi

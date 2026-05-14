@@ -35,6 +35,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="JSON artifact path to write.",
     )
     parser.add_argument(
+        "--profile",
+        choices=security_check.PROFILES,
+        default="shared",
+        help="Security adoption profile to evaluate.",
+    )
+    parser.add_argument(
         "--strict",
         action="store_true",
         help="Return non-zero when security-check reports advisory warnings.",
@@ -60,6 +66,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _build_parser().parse_args(list(argv) if argv is not None else None)
     strict = args.strict or _truthy(os.environ.get(STRICT_ENV_VAR))
     report = security_check.build_report(
+        profile=args.profile,
         env_file=args.env_file,
         now=datetime.now(timezone.utc),
         pip_audit_json=args.pip_audit_json,
@@ -78,7 +85,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         mode = "strict" if strict else "advisory"
         print(
             f"security-check artifact: {output} "
-            f"status={report['status']} warnings={warnings} mode={mode}"
+            f"profile={args.profile} status={report['status']} warnings={warnings} mode={mode}"
         )
 
     return 1 if strict and report["status"] != "pass" else 0

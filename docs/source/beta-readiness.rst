@@ -65,8 +65,10 @@ publishing a beta-classified package:
    uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
 
 The ``security-adoption`` profile writes ``test-results/security-check.json``
-as an advisory artifact. Use ``AGILAB_SECURITY_CHECK_STRICT=1`` only when the
-release manager wants adoption warnings to fail the gate.
+using the ``shared`` adoption profile. It remains non-blocking unless
+``AGILAB_SECURITY_CHECK_STRICT=1`` is set; with that variable enabled, missing
+shared-deployment controls such as SBOM evidence, app-repository allowlists, or
+public-bind controls fail the gate.
 
 If any command fails, keep the public classifier at alpha and fix the underlying
 reproducibility, install, demo, or publication issue first.

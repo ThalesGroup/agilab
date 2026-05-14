@@ -95,6 +95,12 @@ Use this boundary before deploying it in sensitive environments:
 | Conditional use only | Shared team workspaces, SSH/Dask clusters, external apps, LLM connectors, or sensitive datasets. | Per-user isolation, explicit secrets management, TLS/auth for exposed services, SBOM plus vulnerability scan evidence, and a deployment threat model. |
 | Not safe as-is | Sole production MLOps control plane, public Streamlit exposure, regulated production model serving, enterprise governance, online monitoring, drift detection, or audit-trail ownership. | Pair AGILAB with a hardened production stack such as MLflow/Kubeflow/SageMaker/Dagster/Airflow or an internal platform. |
 
+For shared adoption, run `agilab security-check --profile shared --json` and
+use `--strict` or `AGILAB_SECURITY_CHECK_STRICT=1` when missing controls should
+block the gate. The stricter profiles check app-repository allowlists, public UI
+bind controls, cluster-share isolation, generated-code execution boundaries,
+plaintext local secrets, and profile-specific SBOM / `pip-audit` evidence.
+
 ## Dependency And Supply-Chain Boundaries
 
 The public package is intentionally profile-based so operators can install only
@@ -128,7 +134,9 @@ Release and adoption supply-chain evidence is explicit: Dependabot watches
 Python and GitHub Actions manifests, release workflows publish per-profile
 `pip-audit` JSON and CycloneDX SBOM artifacts, and
 `tools/profile_supply_chain_scan.py` can regenerate the same profile evidence
-locally.
+locally. PyPI publication uses Trusted Publishing/OIDC and the release workflow
+runs `tools/pypi_provenance_check.py` after upload so missing PyPI attestations
+fail before GitHub release assets are published.
 
 ## Evidence Taxonomy
 
