@@ -37,7 +37,10 @@ APP_PROJECT_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
 
 PROMOTED_APP_PROJECT_PACKAGE_NAMES: tuple[str, ...] = (
     "agi-app-mission-decision",
+    "agi-app-pandas-execution",
+    "agi-app-polars-execution",
     "agi-app-flight-telemetry",
+    "agi-app-global-dag",
     "agi-app-weather-forecast",
     "agi-app-uav-relay-queue",
 )

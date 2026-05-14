@@ -208,10 +208,10 @@ Current packaging policy is conservative:
 - Base `agilab` keeps CLI/core proof dependencies separate from UI, page bundles,
   examples, agents, MLflow, visualization, local-LLM, offline, and dev profiles.
 - Promoted app payloads live in per-app packages such as
-  `agi-app-mission-decision`, `agi-app-flight-telemetry`,
-  `agi-app-weather-forecast`, and `agi-app-uav-relay-queue`; `agi-apps` is
-  the umbrella catalog/example package pulled in by the `ui` and `examples`
-  extras.
+  `agi-app-mission-decision`, `agi-app-pandas-execution`,
+  `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`,
+  `agi-app-weather-forecast`, and `agi-app-uav-relay-queue`; `agi-apps` is the
+  umbrella catalog/example package pulled in by the `ui` and `examples` extras.
 - Public analysis page bundles use decoupled `agi-page-*` package names such
   as `agi-page-feature-attribution`; `agi-pages` is the provider package pulled
   in by the `ui` and `pages` extras.
