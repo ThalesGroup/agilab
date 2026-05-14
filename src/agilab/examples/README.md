@@ -26,6 +26,22 @@ the command shape stable.
 | 11 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
 | 12 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, and health gate. |
 
+## Execution Map
+
+Use this table before choosing a command. The examples intentionally split real
+app execution from read-only contract previews.
+
+| Class | Examples | What actually runs | Primary output |
+|---|---|---|---|
+| Installed `AGI_*.py` helpers | `flight_telemetry`, `mycode`, `weather_forecast`, `mission_decision` | Real `AGI.install` / `AGI.run` calls from `~/log/execute/<app>/` after the app installer seeds the scripts. | App artifacts in AGILAB share/export paths plus execution logs. |
+| Source/package read-only previews | `notebook_to_dask`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve` | Deterministic Python preview scripts. They write JSON evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON under `~/log/execute/<example>/` or the `--output` path. |
+| Notebook migration assets | `notebook_migrations/skforecast_meteo_fr` | Packaged notebooks, artifacts, `lab_stages.toml`, and pipeline view used as migration source material. | Files to inspect or import; no service or cluster run is started by reading them. |
+
+Source-checkout commands use `uv --preview-features extra-build-dependencies run python ...`
+so dependencies resolve through the checkout environment. Commands under
+`~/log/execute/<app>/` are installed helper scripts and are normally run after
+AGILAB has initialized the target app environment.
+
 ## What To Notice
 
 - `AGI_install_*.py` prepares the app environment and worker runtime.
@@ -68,6 +84,16 @@ the command shape stable.
 ```bash
 python ~/log/execute/flight_telemetry/AGI_install_flight_telemetry.py
 python ~/log/execute/flight_telemetry/AGI_run_flight_telemetry.py
+```
+
+## Validate The Examples
+
+From a source checkout, run the documentation and packaging guardrails that
+keep examples copy/paste-safe:
+
+```bash
+uv --preview-features extra-build-dependencies run python -m py_compile $(find src/agilab/examples -name '*.py' -print)
+uv --preview-features extra-build-dependencies run pytest -q test/test_app_installer_packaging.py::test_packaged_example_catalog_is_documented test/test_app_installer_packaging.py::test_packaged_example_readmes_teach_safe_adaptation test/test_app_installer_packaging.py::test_packaged_preview_example_scripts_are_compile_safe
 ```
 
 ## How To Read An Example

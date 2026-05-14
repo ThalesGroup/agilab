@@ -35,7 +35,7 @@ smallest real service target.
 From a source checkout:
 
 ```bash
-python src/agilab/examples/service_mode/preview_service_mode.py
+uv --preview-features extra-build-dependencies run python src/agilab/examples/service_mode/preview_service_mode.py
 ```
 
 From an installed AGILAB package, locate the packaged script:

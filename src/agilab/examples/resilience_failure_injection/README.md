@@ -35,7 +35,7 @@ Use the optional `sb3_trainer_project` later when you want a real trainer run.
 From a source checkout:
 
 ```bash
-python src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py
+uv --preview-features extra-build-dependencies run python src/agilab/examples/resilience_failure_injection/preview_resilience_failure_injection.py
 ```
 
 From an installed AGILAB package, locate the packaged script:

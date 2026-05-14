@@ -155,6 +155,9 @@ Scenario evidence cockpit for producer-agnostic queue-analysis artifacts.
   ``tools/scenario_cockpit_evidence.py``. The checked-in public sample at
   ``docs/source/data/scenario_cockpit_uav_queue_sample.json`` is generated from
   two real ``uav_queue_project`` worker runs, not hand-written fixtures.
+- Use ``uav_queue_project`` for the compact two-policy proof generator. Use
+  ``uav_relay_queue_project`` when you want the same queue-analysis artifact
+  contract inside the relay-focused built-in app and UI story.
 
 view_relay_resilience
 ^^^^^^^^^^^^^^^^^^^^^
