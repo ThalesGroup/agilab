@@ -716,6 +716,25 @@ def test_public_docs_expose_three_clear_adoption_routes() -> None:
         assert "10 minutes" in text
 
 
+def test_newcomer_docs_choose_first_example_without_deprecation_confusion() -> None:
+    text = Path("docs/source/newcomer-guide.rst").read_text(encoding="utf-8")
+    decision_section = text.split("Which example should I start with?", 1)[1].split(
+        "Adoption evidence",
+        1,
+    )[0]
+
+    for phrase in (
+        "``flight_telemetry_project``",
+        "``mycode_project``",
+        "``weather_forecast_project`` or ``mission_decision_project``",
+        "Read-only preview examples",
+        "``notebook_migrations/skforecast_meteo_fr``",
+    ):
+        assert phrase in decision_section
+    assert "deprecated" not in decision_section.lower()
+    assert "deprecation" not in decision_section.lower()
+
+
 def test_newcomer_docs_capture_adoption_evidence() -> None:
     text = Path("docs/source/newcomer-guide.rst").read_text(encoding="utf-8")
 
