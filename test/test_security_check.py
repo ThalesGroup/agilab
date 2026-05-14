@@ -308,6 +308,44 @@ def test_build_report_warns_on_adoption_risks_without_leaking_secret_values(tmp_
     assert "sk-real-secret-should-not-print" not in serialized
 
 
+def test_build_report_respects_explicit_empty_environ(tmp_path: Path, monkeypatch):
+    cwd = tmp_path / "repo"
+    home = tmp_path / "home"
+    cluster_share = tmp_path / "clustershare"
+    polluted_local_share = tmp_path / "polluted-localshare"
+    env_file = home / ".agilab" / ".env"
+    cwd.mkdir()
+    home.mkdir()
+    cluster_share.mkdir()
+    polluted_local_share.mkdir()
+    env_file.parent.mkdir(parents=True)
+    env_file.write_text(
+        "\n".join(
+            [
+                f"AGI_CLUSTER_SHARE={cluster_share}",
+                f"AGI_LOCAL_SHARE={cluster_share}",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("AGI_LOCAL_SHARE", str(polluted_local_share))
+
+    report = security_check.build_report(
+        env_file=env_file,
+        environ={},
+        cwd=cwd,
+        home=home,
+        now=datetime.now(timezone.utc),
+    )
+
+    cluster_check = next(
+        check for check in report["checks"] if check["id"] == "cluster_share_isolation"
+    )
+    assert cluster_check["status"] == "warn"
+    assert cluster_check["details"]["local_share"] == str(cluster_share)
+    assert cluster_check["details"]["same_as_local_share"] is True
+
+
 def test_cli_json_strict_returns_nonzero_on_warnings(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     env_file = tmp_path / ".env"
