@@ -5,8 +5,9 @@
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-apps)](https://opensource.org/licenses/BSD-3-Clause)
 
 `agi-apps` is the umbrella package for public AGILAB app project
-distributions. Promoted app payloads now live in focused PyPI packages such as
-`agi-app-mission-decision`, `agi-app-flight-telemetry`,
+distributions. Promoted app payloads now live in focused PyPI packages:
+`agi-app-mission-decision`, `agi-app-pandas-execution`,
+`agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`,
 `agi-app-weather-forecast`, and `agi-app-uav-relay-queue`.
 
 The umbrella keeps the lightweight `agilab.apps.install` helper and
