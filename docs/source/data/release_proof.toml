@@ -20,13 +20,13 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.05.12.post3"
+package_version = "2026.05.14"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.05.12-6"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.12-6"
+github_release_tag = "v2026.05.14"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.14"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
 hf_space_commit = "9f1dbbdd91ca7dda5416db0ca982017c6d818ca4"
@@ -35,41 +35,41 @@ hf_space_commit = "9f1dbbdd91ca7dda5416db0ca982017c6d818ca4"
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "25761463607"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25761463607"
+run_id = "25864838455"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25864838455"
 summary = "passed repository guardrails and clean package first-proof jobs"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "25760790372"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25760790372"
+run_id = "25856345228"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25856345228"
 summary = "passed docs mirror and release-proof consistency checks"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "25760790376"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25760790376"
+run_id = "25856345229"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25856345229"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
 id = "coverage"
 label = "Coverage"
 workflow = "coverage"
-run_id = "25761463615"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25761463615"
+run_id = "25864838468"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25864838468"
 summary = "passed component coverage and badge freshness checks"
 
 [[ci_runs]]
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "25760807169"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25760807169"
-summary = "published the release PyPI distribution set with Trusted Publishing/OIDC"
+run_id = "25864840946"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25864840946"
+summary = "passed the public release proof workflow gate"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"
