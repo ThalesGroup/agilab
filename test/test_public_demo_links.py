@@ -208,12 +208,16 @@ def test_source_package_version_contract_is_explicit_and_current() -> None:
         dependency for dependency in pyproject["project"]["dependencies"] if dependency.startswith("agi-core==")
     )
     core_version = core_dependency.removeprefix("agi-core==").split(";", 1)[0]
+    agi_apps_pyproject = tomllib.loads(
+        Path("src/agilab/lib/agi-apps/pyproject.toml").read_text(encoding="utf-8")
+    )
+    agi_apps_version = agi_apps_pyproject["project"]["version"]
     optional_dependencies = pyproject["project"]["optional-dependencies"]
 
     assert Version(source_version) >= Version(package_version)
     assert Version(source_version) >= Version(core_version) >= Version(package_version)
-    assert f"agi-apps=={source_version}" in optional_dependencies["ui"]
-    assert f"agi-apps=={source_version}" in optional_dependencies["examples"]
+    assert f"agi-apps=={agi_apps_version}" in optional_dependencies["ui"]
+    assert f"agi-apps=={agi_apps_version}" in optional_dependencies["examples"]
     assert "version%20alignment-release%20proof" in readme
     assert "version%20alignment-release%20proof" in pypi_readme
     assert "main` branch and root `pyproject.toml" in readme

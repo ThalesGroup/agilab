@@ -18,6 +18,12 @@ AGI_APPS_PYPROJECT = ROOT / "src/agilab/lib/agi-apps/pyproject.toml"
 sys.path.insert(0, str(ROOT / "src"))
 
 
+def _project_dependency_pin(project_name: str) -> str:
+    pyproject = ROOT / f"src/agilab/lib/{project_name}/pyproject.toml"
+    metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
+    return f"{metadata['name']}=={metadata['version']}"
+
+
 def _load_module():
     previous_package = sys.modules.get("agilab")
     sys.modules.pop("agilab.first_proof_cli", None)
@@ -666,10 +672,10 @@ def test_agi_apps_umbrella_keeps_installer_without_payload_dependencies() -> Non
     assert builtin_patterns == ["builtin/mycode_project/**/*"]
     assert any(dependency.startswith("agi-core==") for dependency in dependencies)
     assert {
-        "agi-app-mission-decision==0.1.0",
-        "agi-app-flight-telemetry==0.1.0",
-        "agi-app-weather-forecast==0.1.0",
-        "agi-app-uav-relay-queue==0.1.0",
+        _project_dependency_pin("agi-app-mission-decision"),
+        _project_dependency_pin("agi-app-flight-telemetry"),
+        _project_dependency_pin("agi-app-weather-forecast"),
+        _project_dependency_pin("agi-app-uav-relay-queue"),
     } <= set(dependencies)
 
 

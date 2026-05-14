@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.13.post4"
+version = "2026.05.14"
 name = "agi-apps"
 description = "AGILAB public app package umbrella and example assets"
 requires-python = ">=3.11"
@@ -33,13 +33,13 @@ keywords = [
 
 dependencies = [
     "agi-core==2026.05.13.post3",
-    "agi-app-mission-decision==0.1.0",
+    "agi-app-mission-decision==0.1.1",
     "agi-app-pandas-execution==0.1.0",
     "agi-app-polars-execution==0.1.0",
-    "agi-app-flight-telemetry==0.1.0",
+    "agi-app-flight-telemetry==0.1.1",
     "agi-app-global-dag==0.1.0",
-    "agi-app-weather-forecast==0.1.0",
-    "agi-app-uav-relay-queue==0.1.0",
+    "agi-app-weather-forecast==0.1.1",
+    "agi-app-uav-relay-queue==0.1.1",
 ]
 
 [project.urls]
