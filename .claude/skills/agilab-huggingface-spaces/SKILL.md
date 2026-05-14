@@ -89,6 +89,10 @@ public app IDs directly.
 ## Runtime and Product Constraints
 
 Keep the skill aligned with the README contract:
+- the Space README presents AGILAB as an anti-lock-in reproducibility workbench,
+  not as a generic AI platform
+- the default and advanced Space cards both mention runnable notebook export as
+  the user exit path: review, handoff, and reuse outside AGILAB
 - the Space exposes the AGILAB Streamlit interface
 - Space mode is single-container only
 - local Dask multi-worker execution may be demonstrated inside that container
@@ -169,6 +173,7 @@ Before touching the Space deployment, verify:
    - SDK type
    - exposed port
    - secret names
+   - anti-lock-in / runnable-notebook-export positioning
    - profile app/page lists
    - target repo content
    - current public app IDs, especially `flight_telemetry_project` and
@@ -190,7 +195,6 @@ tmpdir=$(mktemp -d /tmp/agilab-hf-public.XXXXXX)
 apps_repo="../thales_agilab"
 space_owner="<space-owner>"
 git worktree add --detach "$tmpdir" origin/main
-git -C "$tmpdir" lfs install --local
 git -C "$tmpdir" lfs pull
 find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | sort
 "$apps_repo/huggingface/hf_space_deploy.sh" \
@@ -198,6 +202,11 @@ find "$tmpdir/src/agilab/apps" -maxdepth 1 -mindepth 1 -exec basename {} \; | so
   --agilab-path "$tmpdir" \
   --space "$space_owner/agilab"
 ```
+
+Do not force-install Git LFS hooks in the temporary worktree. If
+`git lfs install --local` reports an existing repo pre-push hook, keep the hook
+untouched and run `git -C "$tmpdir" lfs pull` directly; deployment only needs
+the LFS-backed assets materialized, not a rewritten hook.
 
 Use `--profile advanced --space "$space_owner/agilab-advanced"` for the heavier
 Advanced Proof Pack companion Space.
@@ -260,12 +269,13 @@ hf download "$space" pyproject.toml README.md Dockerfile \
   --revision "$space_sha" \
   --local-dir "$tmpdir"
 rg -n '^version = |^name = ' "$tmpdir/pyproject.toml"
-rg -n 'flight_telemetry_project|weather_forecast_project|flight_project|meteo_forecast_project|AGILAB_HF_BUILTIN_APPS' \
+rg -n 'Anti-lock-in|anti-lock-in|runnable notebooks|Notebook export exit path|flight_telemetry_project|weather_forecast_project|flight_project|meteo_forecast_project|AGILAB_HF_BUILTIN_APPS' \
   "$tmpdir/README.md" "$tmpdir/Dockerfile"
 ```
 
 Treat an old `pyproject.toml` version or old app IDs as a failed alignment, even
-if the live HTTP smoke passes.
+if the live HTTP smoke passes. Treat missing anti-lock-in / notebook-export copy
+as a Space-card alignment failure, even when the runtime itself is healthy.
 
 If the Space is stuck in `RUNNING_BUILDING` or `RUNNING_APP_STARTING`, inspect
 the relevant logs before making another upload:
@@ -286,6 +296,15 @@ After runtime cutover, run the public smoke:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+```
+
+If the deployed Space README or deploy contract changed, also run the sibling
+apps/docs guardrail before committing the bundle:
+
+```bash
+cd <apps-repo>
+uv run pytest -q apps/test/test_hf_space_deploy_contract.py
+bash -n huggingface/hf_space_deploy.sh
 ```
 
 If this deployment is part of a release, update release proof with the live
@@ -320,6 +339,12 @@ Do not call the release fully synced until `runtime.stage` is `RUNNING`, the
 runtime SHA matches the uploaded Space SHA, `tools/hf_space_smoke.py --json`
 passes, release proof records that Space SHA, the docs index points at the
 current release tag, and the published docs page contains the new Space commit.
+Verify the last point against the published page, not only raw GitHub content:
+
+```bash
+curl -fsSL https://thalesgroup.github.io/agilab/release-proof.html | \
+  rg '<space-sha>'
+```
 
 ## When Editing the Space Contract
 
