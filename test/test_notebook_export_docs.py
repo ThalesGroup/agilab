@@ -19,6 +19,16 @@ def test_pipeline_docs_sell_runnable_supervisor_notebook_export() -> None:
     )
 
 
+def test_readme_leads_with_anti_lock_in_notebook_export_value() -> None:
+    readme = Path("README.md").read_text(encoding="utf-8")
+    headline_window = readme[readme.index("# AGILAB") : readme.index("## Core Flow")]
+
+    assert "anti-lock-in reproducibility workbench" in headline_window
+    assert "exported back to a runnable notebook" in headline_window
+    assert "you do not lose your work" in headline_window
+    assert "runnable outside AGILAB as exported notebooks" in headline_window
+
+
 def test_agilab_help_mentions_pipeline_notebook_export() -> None:
     agilab_help = Path("docs/source/agilab-help.rst").read_text(encoding="utf-8")
 
