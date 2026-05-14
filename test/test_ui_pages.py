@@ -1083,6 +1083,15 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "Latest output" in markdown_text
     assert "Views selected" in markdown_text
     assert "Notebooks selected" in markdown_text
+    assert "Choose the analysis surface" in markdown_text
+    assert "AGI page" in markdown_text
+    assert "Notebook / AGI snippets" in markdown_text
+    assert "Use both" in markdown_text
+    assert "app contract" in markdown_text
+    assert "agi-page-*" in markdown_text
+    assert "code-centric" in markdown_text
+    assert "snippet/notebook contract" in markdown_text
+    assert "ANALYSIS Jupyter sidecar" in markdown_text
     assert "Available views" not in markdown_text
     assert "selected / available" not in markdown_text
     assert "agilab-header-value--incomplete" in markdown_text

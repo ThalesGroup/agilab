@@ -1607,6 +1607,44 @@ def _render_analysis_workspace_overview(
             st.info("No output files detected yet.")
 
 
+def _render_analysis_surface_guide() -> None:
+    with st.container(border=True):
+        st.markdown("### Choose the analysis surface")
+        st.caption(
+            "AGI pages and notebooks can both inspect the same project outputs, "
+            "but they serve different jobs."
+        )
+        cols = st.columns(3)
+        with cols[0]:
+            st.markdown("**AGI page**")
+            st.markdown(
+                "Use when the analysis becomes part of the app contract: repeatable "
+                "dashboards, reviews, demos, validation evidence, and `agi-page-*` "
+                "packaging."
+            )
+            st.markdown(
+                "_Consequence: maintain a page bundle, declared dependencies, and stable exported artifacts._"
+            )
+        with cols[1]:
+            st.markdown("**Notebook / AGI snippets**")
+            st.markdown(
+                "Use when the analysis is still code-centric: exploration, debugging, "
+                "cell reruns, migration, snippets, or technical handoff."
+            )
+            st.markdown(
+                "_Consequence: reuse depends on the snippet/notebook contract, runtime, "
+                "and dependencies; the ANALYSIS Jupyter sidecar is the local interactive "
+                "launch path._"
+            )
+        with cols[2]:
+            st.markdown("**Use both**")
+            st.markdown(
+                "Keep an AGI page as the stable result surface and link a notebook for "
+                "the investigation trail or AGI snippets behind the result."
+            )
+            st.markdown("_Consequence: page state and notebook selections are saved separately._")
+
+
 def _analysis_sidebar_view_url(project: str | None, view_path: Path) -> str:
     params = {"current_page": str(view_path.resolve())}
     if project:
@@ -2122,6 +2160,7 @@ async def main():
         selected_notebook_count=len(selected_notebooks),
         available_notebook_count=len(notebook_names),
     )
+    _render_analysis_surface_guide()
 
     with st.expander("Choose analysis views", expanded=False):
         st.caption("Select which views appear in the sidebar launcher for this project.")

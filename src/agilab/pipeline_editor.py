@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import copy
+import difflib
+import importlib.util
 import json
 import logging
 import os
@@ -13,8 +16,6 @@ import tomllib
 from code_editor import code_editor
 
 from agi_gui.pagelib import export_df, get_css_text, get_custom_buttons, get_info_bar
-
-import importlib.util
 
 _import_guard_path = Path(__file__).resolve().parent / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -376,6 +377,100 @@ def _selected_notebook_import_preview(
         }
     )
     return selected_preview
+
+
+def _notebook_import_string_list(value: Any, limit: int = 5) -> str:
+    if not isinstance(value, list):
+        return "none"
+    items = [str(item) for item in value if str(item)]
+    if not items:
+        return "none"
+    visible = items[:limit]
+    suffix = f", +{len(items) - limit} more" if len(items) > limit else ""
+    return ", ".join(visible) + suffix
+
+
+def _notebook_import_toml_preview_text(preview: Dict[str, Any]) -> str:
+    toml_content = preview.get("toml_content", {})
+    if not isinstance(toml_content, dict):
+        return ""
+    prepared = _prepare_lab_stages_for_write(copy.deepcopy(toml_content))
+    return tomli_w.dumps(convert_paths_to_strings(prepared))
+
+
+def _notebook_import_write_preview_text(
+    preview: Dict[str, Any],
+    stages_file: Path,
+    *,
+    max_diff_lines: int = 80,
+) -> str:
+    """Return a compact, read-only preview of files changed by notebook import."""
+    preflight = preview.get("preflight", {})
+    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
+    contract = preview.get("contract", {})
+    artifact_contract = (
+        contract.get("artifact_contract", {}) if isinstance(contract, dict) else {}
+    )
+    stage_ids = [
+        _notebook_import_stage_identity(stage, index)
+        for index, stage in enumerate(_notebook_import_stages(preview), start=1)
+    ]
+    proposed_text = _notebook_import_toml_preview_text(preview)
+    try:
+        current_text = Path(stages_file).read_text(encoding="utf-8")
+    except OSError:
+        current_text = ""
+    diff_lines = list(
+        difflib.unified_diff(
+            current_text.splitlines(),
+            proposed_text.splitlines(),
+            fromfile=f"{Path(stages_file).name} (current)",
+            tofile=f"{Path(stages_file).name} (after import)",
+            lineterm="",
+        )
+    )
+    truncated = len(diff_lines) > max_diff_lines
+    if truncated:
+        diff_lines = diff_lines[:max_diff_lines] + [
+            f"... diff truncated, {len(diff_lines) - max_diff_lines} more line(s)"
+        ]
+
+    input_paths = artifact_contract.get("inputs", []) if isinstance(artifact_contract, dict) else []
+    output_paths = artifact_contract.get("outputs", []) if isinstance(artifact_contract, dict) else []
+    unknown_paths = artifact_contract.get("unknown", []) if isinstance(artifact_contract, dict) else []
+    lines = [
+        f"Stages to write: {int(summary.get('pipeline_stage_count', preview.get('cell_count', 0)) or 0)}",
+        f"Stage IDs: {_notebook_import_string_list(stage_ids)}",
+        f"Inputs: {_notebook_import_string_list(input_paths)}",
+        f"Outputs: {_notebook_import_string_list(output_paths)}",
+        f"Unclassified artifacts: {_notebook_import_string_list(unknown_paths)}",
+        (
+            "Sidecars: notebook_import_contract.json, "
+            "notebook_import_pipeline_view.json, "
+            "notebook_import_view_plan.json when a matching view manifest exists"
+        ),
+        "",
+        "lab_stages.toml diff:",
+    ]
+    lines.extend(diff_lines or ["No lab_stages.toml diff."])
+    return "\n".join(lines)
+
+
+def _render_notebook_import_write_preview(
+    sidebar: Any,
+    preview: Dict[str, Any],
+    stages_file: Path,
+) -> None:
+    expander = getattr(sidebar, "expander", None)
+    target = expander("What will be written", expanded=False) if callable(expander) else sidebar
+    preview_text = _notebook_import_write_preview_text(preview, stages_file)
+    code = getattr(target, "code", None)
+    if callable(code):
+        code(preview_text, language="diff")
+        return
+    caption = getattr(target, "caption", None)
+    if callable(caption):
+        caption(preview_text)
 
 
 def _notebook_import_blocking_detail(preflight: Any) -> str:
@@ -1325,6 +1420,8 @@ def render_notebook_import_preview(
                     selected_stage_ids = [str(selected_option["id"])]
                     if callable(caption):
                         caption(_notebook_import_stage_detail(selected_option["stage"]))
+        preview_to_write = _selected_notebook_import_preview(preview, selected_stage_ids)
+        _render_notebook_import_write_preview(sidebar, preview_to_write, stages_file)
     import_label = "Promote selected cell" if selected_stage_ids else "Import all runnable cells"
     if _notebook_import_preview_is_safe(preview) and button(
         import_label,

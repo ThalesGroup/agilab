@@ -969,7 +969,7 @@ def test_on_import_notebook_imports_ipynb_and_marks_page_broken(monkeypatch, tmp
 
 
 def test_on_preview_notebook_import_stores_preview_without_writing(monkeypatch, tmp_path):
-    messages: list[tuple[str, str]] = []
+    messages: list[tuple] = []
     uploaded = SimpleNamespace(
         name="demo.ipynb",
         type="application/x-ipynb+json",
@@ -1001,7 +1001,7 @@ def test_on_preview_notebook_import_stores_preview_without_writing(monkeypatch, 
 
 
 def test_confirm_notebook_import_preview_writes_stages_contract_and_marks_page_broken(monkeypatch, tmp_path):
-    messages: list[tuple[str, str]] = []
+    messages: list[tuple] = []
     uploaded = SimpleNamespace(
         name="demo.ipynb",
         type="application/x-ipynb+json",
@@ -1079,7 +1079,7 @@ optional_artifacts = ["data/*.csv"]
 
 
 def test_confirm_notebook_import_preview_uses_app_manifest_without_writing_to_app(monkeypatch, tmp_path):
-    messages: list[tuple[str, str]] = []
+    messages: list[tuple] = []
     uploaded = SimpleNamespace(
         name="flight.ipynb",
         type="application/x-ipynb+json",
@@ -1215,6 +1215,54 @@ def test_confirm_notebook_import_preview_promotes_selected_cell_only(monkeypatch
     assert ("revision", "bump") in messages
 
 
+def test_notebook_import_write_preview_text_shows_selected_scope_diff(tmp_path):
+    uploaded = SimpleNamespace(
+        name="selected.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(
+            {
+                "cells": [
+                    {"cell_type": "markdown", "source": ["# Load orders\n"]},
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "import pandas as pd\n",
+                            "df = pd.read_csv('data/orders.csv')\n",
+                            "df.to_parquet('outputs/orders.parquet')\n",
+                        ],
+                    },
+                    {"cell_type": "markdown", "source": ["# Summarise orders\n"]},
+                    {
+                        "cell_type": "code",
+                        "source": [
+                            "from pathlib import Path\n",
+                            "summary = Path('inputs/orders.parquet').read_text()\n",
+                            "Path('results/summary.json').write_text(summary)\n",
+                        ],
+                    },
+                ]
+            }
+        ).encode("utf-8"),
+    )
+    stages_file = tmp_path / "demo_project" / "lab_stages.toml"
+    stages_file.parent.mkdir()
+    stages_file.write_text("[[demo_project]]\nQ = 'old'\nC = 'print(0)'\n", encoding="utf-8")
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, stages_file.parent)
+    selected_preview = pipeline_editor._selected_notebook_import_preview(preview, ["cell-4"])
+
+    text = pipeline_editor._notebook_import_write_preview_text(selected_preview, stages_file)
+
+    assert "Stages to write: 1" in text
+    assert "Stage IDs: cell-4" in text
+    assert "Inputs: inputs/orders.parquet" in text
+    assert "Outputs: results/summary.json" in text
+    assert "Sidecars: notebook_import_contract.json" in text
+    assert "--- lab_stages.toml (current)" in text
+    assert "+++ lab_stages.toml (after import)" in text
+    assert '+NB_CELL_ID = "cell-4"' in text
+    assert "cell-2" not in text
+
+
 def test_confirm_notebook_import_preview_blocks_unsafe_preflight(monkeypatch, tmp_path):
     messages: list[tuple[str, str]] = []
     uploaded = SimpleNamespace(
@@ -1332,8 +1380,12 @@ def test_render_notebook_import_preview_can_promote_selected_cell(monkeypatch, t
         selected["confirm"] = (module_dir, stages_file, index_page, kwargs)
         return 1
 
+    preview_box = SimpleNamespace(
+        code=lambda text, *args, **kwargs: messages.append(("code", kwargs.get("language"), text)),
+    )
     sidebar = SimpleNamespace(
         caption=lambda message, *args, **kwargs: messages.append(("caption", message)),
+        expander=lambda label, *args, **kwargs: messages.append(("expander", label)) or preview_box,
         selectbox=_selectbox,
         button=_button,
     )
@@ -1354,10 +1406,14 @@ def test_render_notebook_import_preview_can_promote_selected_cell(monkeypatch, t
     assert "All runnable cells" in selected["selectbox"][1]
     assert selected["confirm"][3]["selected_stage_ids"] == [options[1]["id"]]
     assert ("button", "Promote selected cell") in messages
+    assert ("expander", "What will be written") in messages
     assert any(
-        message.startswith("Selected cell 4;")
-        for kind, message in messages
-        if kind == "caption"
+        item[0] == "code" and item[1] == "diff" and "Stage IDs: cell-4" in item[2]
+        for item in messages
+    )
+    assert any(
+        item[0] == "caption" and item[1].startswith("Selected cell 4;")
+        for item in messages
     )
 
 

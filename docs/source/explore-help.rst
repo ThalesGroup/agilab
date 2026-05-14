@@ -6,10 +6,37 @@ ANALYSIS
 
 Introduction
 ------------
-The **Analysis** page is the catalog and launcher for installed analysis views.
+The **Analysis** page is the catalog and launcher for installed analysis views
+and project notebooks.
 
-It lets you choose which views belong to the active project and launch them in
-isolated sidecar sessions.
+It lets you choose which AGI pages and notebooks belong to the active project
+and launch them from one place.
+
+Choose the right surface
+------------------------
+
+Use an **AGI page** when the analysis is becoming part of the application
+contract: a repeatable dashboard, review screen, demo, validation evidence, or
+shared result surface. A page reads exported artifacts from the project and the
+selected page links are persisted in the project workspace settings under
+``[pages].view_module``. This is the route that enables non-notebook users,
+stable demos, CI-backed artifact contracts, and reusable ``agi-page-*``
+packaging. The consequence is that you must maintain a page bundle, declared
+dependencies, and stable exported artifacts for the page to read.
+
+Use a **notebook or AGI snippet** when the analysis is still code-centric:
+exploration, debugging, cell-by-cell reruns, migration from an existing
+notebook, reusable snippets, or handoff to a technical user. In ANALYSIS, a
+selected notebook opens through a project-rooted JupyterLab sidecar. Outside the
+page, exported notebooks and AGI snippets can also be reused wherever the AGI
+runtime and dependencies are available. The consequence is that reuse depends on
+the snippet/notebook contract, runtime environment, and declared dependencies;
+it is excellent for evolving logic but less direct for end users than an AGI
+page.
+
+Use both when needed: keep an AGI page as the stable result surface and link a
+notebook or AGI snippets as the investigation trail behind that result. AGI page
+selections and notebook selections are stored separately.
 
 Page snapshot
 -------------
@@ -30,6 +57,9 @@ Sidebar
 - ``Analysis views`` lists compact launch links for the selected views. If no
   view has been selected yet, it lists every discovered view so you can launch
   one without first editing the project configuration.
+- ``Notebooks`` lists compact launch links for selected project notebooks. If
+  notebooks exist but none are selected yet, you can add them from the main page
+  selector.
 - The currently selected project determines which views are stored inside its
   workspace ``app_settings.toml`` file under ``~/.agilab/apps/<project>/``
   in the ``[pages]`` section.
@@ -62,6 +92,11 @@ Main Content Area
       customized. Use **Starting point** when you want to begin from a blank
       template or duplicate an existing app page before clicking **Create**.
 
+      Use **Choose notebooks** to choose which ``.ipynb`` files are shown as
+      sidebar shortcuts for the selected project. The selection is written to
+      ``~/.agilab/apps/<project>/app_settings.toml`` in the ``[notebooks]``
+      section under ``selected``.
+
    .. tab-item:: Launch
 
       Each selected view appears as a compact sidebar link. Opening it launches
@@ -70,6 +105,13 @@ Main Content Area
       directories pointed to ``${AGILAB_VENVS_ABS}`` and
       ``${AGILAB_PAGES_VENVS_ABS}``). The child app is then embedded via iframe
       and a ``Back to Analysis`` control keeps navigation lightweight.
+
+      Each selected notebook appears as a compact sidebar link. Opening it from
+      ANALYSIS starts a project-rooted JupyterLab sidecar and embeds the
+      notebook. Exported notebooks and AGI snippets remain reusable outside this
+      embedded route when the AGI runtime and dependencies are available. Hosted
+      end-user deployments should normally use AGI pages for the primary
+      analysis surface because they avoid exposing an editable notebook runtime.
 
 Tips & Notes
 ------------
