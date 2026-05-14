@@ -78,6 +78,26 @@ def test_first_proof_state_routes_only_to_flight_telemetry_project(tmp_path: Pat
     assert state["next_step"] == "Go to `PROJECT`. Choose `flight_telemetry_project`."
 
 
+def test_first_proof_state_detects_installed_payload_provider(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    installed_project = tmp_path / "site-packages" / "agi_app_flight_telemetry" / "project" / "flight_telemetry_project"
+    installed_project.mkdir(parents=True)
+    (installed_project / "pyproject.toml").write_text("[project]\nname='flight-telemetry'\n", encoding="utf-8")
+    monkeypatch.setattr(module, "_resolve_installed_first_proof_project", lambda: installed_project.resolve())
+
+    env = SimpleNamespace(
+        apps_path=tmp_path / "missing-apps",
+        app="flight_telemetry_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+    )
+
+    state = module.newcomer_first_proof_state(env, repo_root=tmp_path / "not-a-source-checkout")
+
+    assert state["project_path"] == installed_project.resolve()
+    assert state["project_available"] is True
+    assert state["current_app_matches"] is True
+
+
 def test_first_proof_state_detects_completion_outputs(tmp_path: Path) -> None:
     module = _load_module()
     apps_path = tmp_path / "apps"

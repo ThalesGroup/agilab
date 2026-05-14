@@ -170,6 +170,10 @@ def test_runtime_identity_tracks_public_app_payload_distribution() -> None:
 
     assert "agi-apps" in module.RUNTIME_DISTRIBUTIONS
     assert "agi-pages" in module.RUNTIME_DISTRIBUTIONS
+    assert "agi-app-mission-decision" in module.RUNTIME_DISTRIBUTIONS
+    assert "agi-app-flight-telemetry" in module.RUNTIME_DISTRIBUTIONS
+    assert "agi-app-weather-forecast" in module.RUNTIME_DISTRIBUTIONS
+    assert "agi-app-uav-relay-queue" in module.RUNTIME_DISTRIBUTIONS
 
 
 def test_repo_root_and_marker_root_fall_back_outside_source_checkout(monkeypatch, tmp_path: Path) -> None:
@@ -187,10 +191,26 @@ def test_default_active_app_falls_back_to_packaged_path(monkeypatch, tmp_path: P
     package_root = tmp_path / "package" / "agilab"
     monkeypatch.setattr(module, "PACKAGE_ROOT", package_root)
     monkeypatch.setattr(module, "_detect_repo_root", lambda start=package_root: None)
+    monkeypatch.setattr(module, "_resolve_installed_first_proof_project", lambda: None)
 
     active_app = module.default_active_app()
 
     assert active_app == (package_root / "apps" / "builtin" / module.FIRST_PROOF_PROJECT).resolve()
+
+
+def test_default_active_app_uses_installed_payload_provider(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    package_root = tmp_path / "package" / "agilab"
+    installed_project = tmp_path / "site-packages" / "agi_app_flight_telemetry" / "project" / "flight_telemetry_project"
+    installed_project.mkdir(parents=True)
+    (installed_project / "pyproject.toml").write_text("[project]\nname='flight-telemetry'\n", encoding="utf-8")
+    monkeypatch.setattr(module, "PACKAGE_ROOT", package_root)
+    monkeypatch.setattr(module, "_detect_repo_root", lambda start=package_root: None)
+    monkeypatch.setattr(module, "_resolve_installed_first_proof_project", lambda: installed_project.resolve())
+
+    active_app = module.default_active_app()
+
+    assert active_app == installed_project.resolve()
 
 
 def test_main_rejects_non_positive_kpi_target() -> None:
@@ -599,8 +619,9 @@ def test_resolve_active_app_explains_missing_packaged_app_payload(monkeypatch, t
     package_root = tmp_path / "package" / "agilab"
     monkeypatch.setattr(module, "PACKAGE_ROOT", package_root)
     monkeypatch.setattr(module, "_detect_repo_root", lambda start=package_root: None)
+    monkeypatch.setattr(module, "_resolve_installed_first_proof_project", lambda: None)
 
-    with pytest.raises(FileNotFoundError, match=r"agilab\[examples\].*agilab\[ui\]"):
+    with pytest.raises(FileNotFoundError, match=r"agi-app-flight-telemetry.*agilab\[examples\]"):
         module.resolve_active_app(None)
 
 
@@ -610,6 +631,7 @@ def test_dry_run_does_not_require_public_asset_packages(monkeypatch, tmp_path: P
     package_root.mkdir(parents=True)
     monkeypatch.setattr(module, "PACKAGE_ROOT", package_root)
     monkeypatch.setattr(module, "_detect_repo_root", lambda start=package_root: None)
+    monkeypatch.setattr(module, "_resolve_installed_first_proof_project", lambda: None)
 
     captured_commands = []
 
