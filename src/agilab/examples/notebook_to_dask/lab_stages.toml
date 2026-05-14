@@ -1,6 +1,6 @@
 [[notebook_to_dask_project]]
 D = "Load notebook dataset"
-Q = "Imported notebook cell cell-2"
+Q = "Imported cell-2 from notebook"
 C = """import pandas as pd
 from pathlib import Path
 
@@ -19,7 +19,7 @@ NB_SOURCE_NOTEBOOK = "notebook_to_dask_sample.ipynb"
 
 [[notebook_to_dask_project]]
 D = "Scale feature engineering with Dask"
-Q = "Imported notebook cell cell-4"
+Q = "Imported cell-4 from notebook"
 C = """import dask.dataframe as dd
 
 orders = dd.read_csv("data/orders.csv", blocksize="64MB")
@@ -38,7 +38,7 @@ NB_SOURCE_NOTEBOOK = "notebook_to_dask_sample.ipynb"
 
 [[notebook_to_dask_project]]
 D = "Export analysis summary"
-Q = "Imported notebook cell cell-6"
+Q = "Imported cell-6 from notebook"
 C = """import json
 import dask.dataframe as dd
 from pathlib import Path

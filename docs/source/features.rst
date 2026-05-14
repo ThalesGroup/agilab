@@ -167,8 +167,9 @@ single notebook but less ceremony than a production MLOps platform:
   ``notebook_import_view_plan.json`` sidecar that matches declared views to
   artifact paths without inferring UI intent from notebook cells; the
   ``WORKFLOW`` upload path now prepares that preview first, lets the operator
-  import all runnable cells or promote one selected cell as a focused AGILAB
-  stage, and only replaces ``lab_stages.toml`` after explicit confirmation
+  choose an import scope of all runnable cells or one focused cell promoted as
+  an AGILAB stage, and only replaces ``lab_stages.toml`` after explicit
+  confirmation
 - the notebook round-trip report validates
   ``tools/notebook_roundtrip_report.py --compact`` across
   ``lab_stages.toml -> supervisor notebook -> import -> lab_stages preview`` so

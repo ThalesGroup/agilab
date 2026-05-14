@@ -102,7 +102,7 @@ write_notebook_import_pipeline_view = _notebook_pipeline_import_module.write_not
 write_notebook_import_view_plan = _notebook_pipeline_import_module.write_notebook_import_view_plan
 
 logger = logging.getLogger(__name__)
-NOTEBOOK_IMPORT_ALL_STAGES = "__all__"
+NOTEBOOK_IMPORT_ALL_CELLS = "__all__"
 
 
 def _emit_streamlit_message(level: str, *args: Any, **kwargs: Any) -> None:
@@ -347,7 +347,7 @@ def _selected_notebook_import_preview(
     selected_stage_ids: Iterable[str] | None,
 ) -> Dict[str, Any]:
     selected_ids = [str(stage_id) for stage_id in (selected_stage_ids or []) if str(stage_id)]
-    if not selected_ids or NOTEBOOK_IMPORT_ALL_STAGES in selected_ids:
+    if not selected_ids or NOTEBOOK_IMPORT_ALL_CELLS in selected_ids:
         return preview
     notebook_import = preview.get("notebook_import", {})
     if not isinstance(notebook_import, dict):
@@ -1240,12 +1240,13 @@ def confirm_notebook_import_preview(
     selected_ids = [
         str(stage_id)
         for stage_id in (selected_stage_ids or [])
-        if str(stage_id) and str(stage_id) != NOTEBOOK_IMPORT_ALL_STAGES
+        if str(stage_id) and str(stage_id) != NOTEBOOK_IMPORT_ALL_CELLS
     ]
     if selected_ids and cell_count > 0:
+        target = "an AGILAB stage" if cell_count == 1 else "AGILAB stages"
         _emit_streamlit_message(
             "success",
-            f"Promoted notebook cell {', '.join(selected_ids)} to AGILAB stage.",
+            f"Promoted {', '.join(selected_ids)} to {target}.",
         )
     elif cell_count > 0:
         _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
@@ -1303,12 +1304,12 @@ def render_notebook_import_preview(
             all_label = "All runnable cells"
             labels = [all_label, *[str(option["label"]) for option in stage_options]]
             selected_label = selectbox(
-                "Notebook cell to promote",
+                "Notebook import scope",
                 labels,
                 key=f"{index_page}__notebook_import_stage",
                 help=(
-                    "Choose one notebook cell when you want a focused AGILAB stage, "
-                    "or keep all cells for the full import."
+                    "Choose one cell for a focused AGILAB stage, or keep all cells "
+                    "for the full notebook import."
                 ),
             )
             if selected_label != all_label:
@@ -1324,7 +1325,7 @@ def render_notebook_import_preview(
                     selected_stage_ids = [str(selected_option["id"])]
                     if callable(caption):
                         caption(_notebook_import_stage_detail(selected_option["stage"]))
-    import_label = "Promote selected cell" if selected_stage_ids else "Import preview"
+    import_label = "Promote selected cell" if selected_stage_ids else "Import all runnable cells"
     if _notebook_import_preview_is_safe(preview) and button(
         import_label,
         key=f"{index_page}__confirm_notebook_import",
