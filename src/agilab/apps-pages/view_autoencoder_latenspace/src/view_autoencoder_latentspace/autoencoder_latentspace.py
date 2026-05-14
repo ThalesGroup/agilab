@@ -40,7 +40,7 @@ _ensure_repo_on_path()
 
 from agi_env import AgiEnv
 from agi_env.app_settings_support import prepare_app_settings_for_write
-from agi_gui.pagelib import render_logo, find_files, load_df, sidebar_views, on_df_change, initialize_csv_files, _dump_toml_payload
+from agi_gui.pagelib import load_df, sidebar_views, initialize_csv_files, _dump_toml_payload
 import tomllib as _toml
 
 var = ["discrete", "continuous", "lat", "long"]
@@ -531,9 +531,7 @@ def page(env):
         )
         aek = build_AE(X_train, ndim, ndim_inter, ndim_middle)
         aeke = Sequential(aek.layers[: -(ceil(ndim_middle / 2) + 1)])
-        X_train_reduit_keras, X_test_reduit_keras = aeke.predict(
-            X_train, verbose=0
-        ), aeke.predict(X_test, verbose=0)
+        X_train_reduit_keras = aeke.predict(X_train, verbose=0)
         lr_df = pd.DataFrame(data=X_train_reduit_keras)
         __bary_visualisation(
             lr_df,

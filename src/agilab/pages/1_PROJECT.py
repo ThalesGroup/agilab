@@ -44,7 +44,7 @@ _page_docs_module = import_agilab_module(
 )
 get_docs_menu_items = _page_docs_module.get_docs_menu_items
 
-from agi_gui.pagelib import render_logo, inject_theme
+from agi_gui.pagelib import inject_theme
 from agi_gui.pagelib import (
     background_services_enabled,
     get_classes_name,
@@ -60,7 +60,7 @@ from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
 from streamlit_modal import Modal
 from code_editor import code_editor
-from agi_env import AgiEnv, normalize_path
+from agi_env import AgiEnv
 
 _code_editor_support_module = import_agilab_module(
     "agilab.code_editor_support",

@@ -16,7 +16,7 @@ from streamlit.testing.v1 import AppTest
 
 from agi_env import AgiEnv
 import agi_env.credential_store_support as credential_store_support
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, model_validator
 
 APP_ARGS_FORM = "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"
 DEFAULT_APPTEST_TIMEOUT = 20

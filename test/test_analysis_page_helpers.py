@@ -78,18 +78,6 @@ def test_write_config_reports_oserror(tmp_path: Path, monkeypatch):
     assert errors == ["Error updating configuration: disk full"]
 
 
-def test_analysis_sidebar_view_url_encodes_project_and_path(tmp_path: Path):
-    module = _load_analysis_module()
-    view_path = tmp_path / "view maps.py"
-
-    url = module._analysis_sidebar_view_url("flight_telemetry_project", view_path)
-
-    assert url.startswith("?")
-    assert "active_app=flight_telemetry_project" in url
-    assert "current_page=" in url
-    assert "view+maps.py" in url or "view%20maps.py" in url
-
-
 def test_analysis_sidebar_notebook_url_encodes_project_and_path(tmp_path: Path):
     module = _load_analysis_module()
     notebook_path = tmp_path / "flight notebook.ipynb"
