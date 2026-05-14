@@ -103,7 +103,7 @@ what they need:
 | Profile | Dependency scope | Use when |
 |---|---|---|
 | Base package | `agilab` plus `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster`. This includes the core local/distributed runtime dependencies but not the built-in app or page-bundle payload. | CLI/core tooling, source-checkout validation, and worker-runtime development. |
-| `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. App/page payload packages are archived as release artifacts until their PyPI publishers are configured. | Running the local product UI with the packaged runtime and optional public demo assets. |
+| `ui` extra | Streamlit UI, page helpers, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. Promoted app payload packages are on PyPI; page bundles and unpromoted payloads remain release artifacts until their publishers are configured. | Running the local product UI with the packaged runtime and optional public demo assets. |
 | `examples` extra | `agi-apps` app catalog/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
 | `pages` extra | `agi-pages` page-provider helpers without the full UI profile. | Installing or validating sidecar page-bundle discovery separately from built-in app projects. |
 | `agents` extra | API client dependency boundary for packaged agent workflow helpers. | Reproducible coding-agent and assistant-backed workflows. |
@@ -152,7 +152,7 @@ can validate one coherent tree. Their stability differs:
 |---|---|---|
 | `src/agilab/core/*` | Runtime packages and compact API. | Stable where documented. |
 | `src/agilab/lib/agi-gui`, `src/agilab/pages` | Streamlit UI. | Beta product surface. |
-| `src/agilab/lib/agi-apps` | PyPI umbrella carrying app catalog/example assets and the app payload packages already promoted to PyPI. Deferred app payloads remain release artifacts until publication is enabled. | Packaged asset surface for the `ui` and `examples` extras. |
+| `src/agilab/lib/agi-apps` | PyPI umbrella carrying app catalog/example assets and exact-pinning the app payload packages already promoted to PyPI. Deferred app payloads remain release artifacts until publication is enabled. | Packaged asset surface for the `ui` and `examples` extras. |
 | `src/agilab/lib/agi-pages` | PyPI provider package for public analysis page discovery. Page payload packages are built as release artifacts until their PyPI publishers are configured. | Packaged page-provider surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | First-proof and demo apps. | Packaged examples, not deployment templates. |
 | `src/agilab/examples` | Learning scripts and notebooks. | Educational examples with optional dependencies. |
