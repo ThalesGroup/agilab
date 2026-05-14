@@ -54,6 +54,11 @@ into reproducible executable AI applications.
 Notebook/script → AGILAB app → execution (local/distributed) → MLflow →
 Streamlit UI
 
+The flow is reversible where it matters for long-term reuse: WORKFLOW can export
+the saved pipeline as a runnable supervisor notebook, so the code, stage order,
+runtime hints, and review context remain usable in Jupyter-compatible tools even
+if you later decide AGILAB is no longer the right runtime for that work.
+
 Start with the public browser preview or the demo chooser:
 
 - [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab)

@@ -561,7 +561,8 @@ def _render_notebook_actions(
     with st.expander("Notebook", expanded=False):
         st.caption(
             f"Active stages file: `{stages_file.name}`. "
-            "Import a notebook into this pipeline or download the current pipeline as `.ipynb`."
+            "Import a notebook into this pipeline or export the current pipeline as a runnable "
+            "`.ipynb` so the work remains reusable outside AGILAB."
         )
 
         key = index_page_str + "import_notebook"

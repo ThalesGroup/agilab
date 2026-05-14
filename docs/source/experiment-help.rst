@@ -208,7 +208,11 @@ near the pipeline definition instead of in the sidebar:
 * ``Download pipeline notebook`` exports the current lab as ``lab_stages.ipynb``.
 
 WORKFLOW can export the current lab as a runnable supervisor notebook. This is
-not just a static dump of code cells.
+not just a static dump of code cells. Its purpose is to avoid lock-in: if you
+later decide AGILAB is no longer needed for a project, the workflow you built is
+still available as a normal notebook that can be opened, reviewed, adapted, and
+executed in Jupyter-compatible tools. In short, you do not lose the work because
+you stop using the AGILAB UI.
 
 * The notebook is written beside ``lab_stages.toml`` as ``lab_stages.ipynb``.
 * You can open it outside the AGILAB UI in Jupyter-compatible tools such as
@@ -251,6 +255,12 @@ This is the accurate mental model: AGILAB can export a runnable version of your
 pipeline outside the UI, but for mixed-runtime or multi-venv flows it does so as
 a supervisor notebook rather than pretending every stage belongs to one notebook
 kernel.
+
+Use notebook export when you want a durable exit path, an audit/review artifact,
+or a handoff to a team that prefers notebooks. Use project export/import when
+you want to move an AGILAB project snapshot between AGILAB workspaces. Use
+packaged ``agi-app-*`` or ``agi-page-*`` artifacts when you want long-term app or
+dashboard distribution.
 
 MLflow tracking
 ~~~~~~~~~~~~~~~
