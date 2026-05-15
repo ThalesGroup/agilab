@@ -605,7 +605,7 @@ def build_run_manifest(
                 "core-only dry-run does not require a public app payload"
                 if dry_run
                 else (
-                    "active app is the recommended public flight_telemetry_project"
+                    "active app is the recommended public flight-telemetry project (`flight_telemetry_project`)"
                     if recommended_project
                     else f"active app is {active_app.name}; recommended public app is {FIRST_PROOF_PROJECT}"
                 )
@@ -705,7 +705,7 @@ def render_human(
     if success:
         lines.append("next:")
         lines.append("  run `agilab`")
-        lines.append("  then follow PROJECT -> ORCHESTRATE -> ANALYSIS with flight_telemetry_project")
+        lines.append("  then follow PROJECT -> ORCHESTRATE -> ANALYSIS with the flight-telemetry project (`flight_telemetry_project`)")
     else:
         lines.append("recovery:")
         lines.append("  inspect the failing step output above")
@@ -727,7 +727,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--active-app",
         default=None,
-        help="Path to the app project to validate. Defaults to the packaged built-in flight_telemetry_project.",
+        help="Path to the app project to validate. Defaults to the packaged built-in flight-telemetry project (`flight_telemetry_project`).",
     )
     parser.add_argument(
         "--with-install",

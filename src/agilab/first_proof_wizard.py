@@ -253,7 +253,7 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     tool_contract = first_proof_tool_contract(repo_root)
     compatibility = first_proof_compatibility(repo_root)
     content = FirstProofContent(
-        title="First run: use the built-in flight demo",
+        title="First run: use the built-in flight-telemetry project",
         intro=(
             "This demo ships with sample data and expected outputs, so it is the "
             "safest way to prove AGILAB works before trying notebooks, cluster "
@@ -272,7 +272,7 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         steps=(
             (
                 "PROJECT",
-                "Open `PROJECT` and select the built-in demo named `flight_telemetry_project`.",
+                "Open `PROJECT` and select the built-in flight-telemetry project named `flight_telemetry_project`.",
             ),
             (
                 "ORCHESTRATE",
@@ -282,15 +282,15 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             ("ANALYSIS", "Open `ANALYSIS` and keep the default built-in view."),
         ),
         success_criteria=(
-            "A visible `ANALYSIS` result opens for the built-in flight demo.",
-            "The built-in flight demo finishes without an error.",
+            "A visible `ANALYSIS` result opens for the built-in flight-telemetry project.",
+            "The built-in flight-telemetry project finishes without an error.",
             "`run_manifest.json` and generated files appear under `~/log/execute/flight_telemetry/`.",
         ),
         links=(
             ("Quick start", "https://thalesgroup.github.io/agilab/quick-start.html"),
             ("Newcomer guide", "https://thalesgroup.github.io/agilab/newcomer-guide.html"),
             ("Compatibility matrix", "https://thalesgroup.github.io/agilab/compatibility-matrix.html"),
-            ("Flight telemetry project guide", "https://thalesgroup.github.io/agilab/flight-telemetry-project.html"),
+            ("Flight-telemetry project guide", "https://thalesgroup.github.io/agilab/flight-telemetry-project.html"),
         ),
     )
     return content.as_dict()
@@ -563,11 +563,11 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
 
     if project_path is None:
         next_step = (
-            "Fix the app list first. The built-in flight demo "
+            "Fix the app list first. The built-in flight-telemetry project "
             "(`flight_telemetry_project`) is missing."
         )
     elif not current_app_matches:
-        next_step = "Go to `PROJECT`. Choose the built-in flight demo (`flight_telemetry_project`)."
+        next_step = "Go to `PROJECT`. Choose the built-in flight-telemetry project (`flight_telemetry_project`)."
     elif not run_manifest_loaded and not visible_outputs:
         next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     elif not run_manifest_loaded:

@@ -164,7 +164,7 @@ machine-readable proof record.
    indicator such as ``AGILAB_TLS_TERMINATED=1`` before using
    ``--server.address 0.0.0.0``.
 
-4. **Keep the first run local and use the built-in flight demo**
+4. **Keep the first run local and use the built-in flight-telemetry project**
 
    The landing page first-proof wizard points to this same validated path. In
    the UI, use:

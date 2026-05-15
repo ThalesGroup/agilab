@@ -145,7 +145,7 @@ def build_report(
             _contains_any(
                 [*markdown, *buttons],
                 [
-                    "First run: use the built-in flight demo",
+                    "First run: use the built-in flight-telemetry project",
                     "Wizard pipeline",
                     "1. Select demo",
                     "1. Open PROJECT",

@@ -120,7 +120,7 @@ def _default_apps_path() -> Path:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Validate the built-in Flight app on a small AGILAB cluster using "
+            "Validate the built-in flight-telemetry project on a small AGILAB cluster using "
             "synthetic CSV inputs and explicit local/remote path reporting."
         )
     )

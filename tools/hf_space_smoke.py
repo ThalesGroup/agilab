@@ -94,7 +94,7 @@ def route_specs() -> list[RouteSpec]:
     return [
         RouteSpec("streamlit health", path="/_stcore/health"),
         RouteSpec("base app"),
-        RouteSpec("flight project", query={"active_app": "flight_telemetry_project"}),
+        RouteSpec("flight-telemetry project", query={"active_app": "flight_telemetry_project"}),
         RouteSpec(
             "flight view_maps",
             query={

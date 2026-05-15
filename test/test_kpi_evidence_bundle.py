@@ -887,7 +887,7 @@ def test_data_connector_app_catalogs_report_contract_validates_builtin_apps() ->
     assert check["details"]["summary"]["execution_mode"] == "app_catalog_validation_only"
     assert check["details"]["summary"]["app_catalog_count"] == 6
     assert check["details"]["summary"]["connector_count"] == 18
-    assert check["details"]["summary"]["page_connector_ref_count"] == 11
+    assert check["details"]["summary"]["page_connector_ref_count"] == 15
     assert check["details"]["summary"]["legacy_path_count"] == 12
     assert check["details"]["summary"]["missing_ref_count"] == 0
     assert check["details"]["summary"]["network_probe_count"] == 0
@@ -895,9 +895,9 @@ def test_data_connector_app_catalogs_report_contract_validates_builtin_apps() ->
         "execution_pandas_project",
         "execution_polars_project",
         "flight_telemetry_project",
-        "weather_forecast_project",
         "uav_queue_project",
         "uav_relay_queue_project",
+        "weather_forecast_project",
     ]
     assert "data_connector_app_catalogs_discovery" in check["details"]["check_ids"]
     assert "data_connector_app_catalogs_no_network" in check["details"]["check_ids"]
@@ -951,7 +951,7 @@ def test_optional_hf_smoke_run_is_explicit(monkeypatch) -> None:
                 for label in (
                     "streamlit health",
                     "base app",
-                    "flight project",
+                    "flight-telemetry project",
                     "flight view_maps",
                 )
             ]

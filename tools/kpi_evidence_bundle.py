@@ -2131,7 +2131,7 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
             and summary.get("execution_mode") == "app_catalog_validation_only"
             and summary.get("app_catalog_count") == 6
             and summary.get("connector_count") == 18
-            and summary.get("page_connector_ref_count") == 11
+            and summary.get("page_connector_ref_count") == 15
             and summary.get("legacy_path_count") == 12
             and summary.get("missing_ref_count") == 0
             and summary.get("network_probe_count") == 0
@@ -2140,9 +2140,9 @@ def _check_data_connector_app_catalogs_report(repo_root: Path) -> dict[str, Any]
                 "execution_pandas_project",
                 "execution_polars_project",
                 "flight_telemetry_project",
-                "weather_forecast_project",
                 "uav_queue_project",
                 "uav_relay_queue_project",
+                "weather_forecast_project",
             ]
             and summary.get("round_trip_ok") is True
         )
@@ -2184,7 +2184,7 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
         required_labels = {
             "streamlit health",
             "base app",
-            "flight project",
+            "flight-telemetry project",
             "flight view_maps",
         }
         ok = (

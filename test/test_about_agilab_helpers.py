@@ -1844,7 +1844,7 @@ def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides(
 def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
-    assert content["title"] == "First run: use the built-in flight demo"
+    assert content["title"] == "First run: use the built-in flight-telemetry project"
     assert "sample data and expected outputs" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
@@ -2865,7 +2865,7 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_telemetry_project(tm
     assert state["run_manifest_status"] == "missing"
     assert state["remediation_status"] == "missing"
     assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
-    assert state["next_step"] == "Go to `PROJECT`. Choose the built-in flight demo (`flight_telemetry_project`)."
+    assert state["next_step"] == "Go to `PROJECT`. Choose the built-in flight-telemetry project (`flight_telemetry_project`)."
 
 
 def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
@@ -2907,8 +2907,8 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
 
     assert select_action["phase"] == "Stage 1"
     assert select_action["tone"] == "next"
-    assert select_action["title"] == "Select the built-in flight demo"
-    assert select_action["cta_label"] == "Use built-in demo"
+    assert select_action["title"] == "Select the built-in flight-telemetry project"
+    assert select_action["cta_label"] == "Use flight-telemetry project"
     assert "mycode_project" in select_action["detail"]
     assert "flight_telemetry_project" in select_action["detail"]
 
@@ -3099,8 +3099,8 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert [body for kind, body in fake_st.events if kind == "expander"] == [
         "If it fails / proof details:False",
     ]
-    assert "Select the built-in flight demo" in overview_markup
-    assert "Use built-in demo" in overview_markup
+    assert "Select the built-in flight-telemetry project" in overview_markup
+    assert "Use flight-telemetry project" in overview_markup
     assert "This keeps the first proof on the documented, supportable route." in overview_markup
     assert overview <= action_strip < wizard < select_demo < open_orchestrate < run_first
     assert run_first < notebook_start < do_this_now < done_when < proof_details < progress < validated_path
@@ -3276,7 +3276,7 @@ def test_first_proof_wizard_analysis_click_routes_to_orchestrate_until_run_exist
     assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert (
         fake_st.session_state["first_proof_feedback"]
-        == "Run the built-in flight demo from ORCHESTRATE before opening ANALYSIS."
+        == "Run the built-in flight-telemetry project from ORCHESTRATE before opening ANALYSIS."
     )
 
 
@@ -3324,7 +3324,7 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
 
     assert captured["unsafe_allow_html"] is True
     body = str(captured["body"])
-    assert "First run: use the built-in flight demo" in body
+    assert "First run: use the built-in flight-telemetry project" in body
     assert "Start here" not in body
     assert "PROJECT" in body
     assert "ORCHESTRATE" in body

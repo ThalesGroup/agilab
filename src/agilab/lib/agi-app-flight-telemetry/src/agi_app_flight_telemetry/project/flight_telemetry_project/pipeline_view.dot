@@ -4,7 +4,7 @@ digraph flight_pipeline {
   node [shape=box, style="rounded,filled", fillcolor="#EEF7F2", color="#3F6B57", fontname="Helvetica", fontsize=10];
   edge [color="#4F8068", arrowsize=0.8];
 
-  dataset [label="Flight telemetry input\nCSV trajectories"];
+  dataset [label="Flight-telemetry input\nCSV trajectories"];
   decode [label="Trajectory parsing\nlat/lon/time normalization"];
   enrich [label="Route enrichment\nsegment distance + timing"];
   reduce [label="Reduce summary\nworker trajectory metrics"];

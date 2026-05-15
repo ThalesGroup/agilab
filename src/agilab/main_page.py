@@ -336,7 +336,7 @@ def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
 
 
 def _activate_newcomer_first_proof_project(env: Any, project_path: Path) -> bool:
-    """Switch the current app to the built-in flight project and persist the choice."""
+    """Switch the current app to the built-in flight-telemetry project and persist the choice."""
     changed = _apply_active_app_request(env, str(project_path))
     try:
         st.query_params["active_app"] = env.app

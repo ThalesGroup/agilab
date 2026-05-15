@@ -1,6 +1,6 @@
-# Flight Telemetry Project
+# Flight-Telemetry Project
 
-`flight_telemetry_project` is the AGILAB install id for this built-in public flight example.
+`flight_telemetry_project` is the AGILAB install id for this built-in public flight-telemetry example.
 
 The project focuses on a simple but useful workflow:
 - ingest flight data from files under shared storage
