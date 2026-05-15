@@ -28,9 +28,15 @@ Core pages
 Core page tour
 --------------
 
-Every built-in page now exposes direct documentation access from the sidebar,
-so you can reopen the relevant guide without navigating back to the landing
-page first.
+The workflow navigation stays focused on **PROJECT**, **ORCHESTRATE**,
+**WORKFLOW**, and **ANALYSIS**. These pages expose direct documentation access
+from their sidebars, so you can reopen the relevant guide without navigating
+back to the landing page first.
+
+Operational controls are kept out of the workflow page list. Use the landing
+sidebar **Settings** link to edit persisted environment variables and runtime
+diagnostics. The general AGILAB documentation link remains available from
+Streamlit's system menu under **Get help**.
 
 .. figure:: _static/page-shots/core-pages-overview.png
    :alt: Overview screenshot montage of the PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS Streamlit pages.

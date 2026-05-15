@@ -588,20 +588,25 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
     assert not at.exception
     assert not any(str(caption.value).startswith("AGILAB version: v") for caption in at.sidebar.caption)
     sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    assert "Documentation" in sidebar_markdown
-    assert "agilab-help.html" in sidebar_markdown
+    assert "[Settings](/SETTINGS)" in sidebar_markdown
+    assert "Documentation" not in sidebar_markdown
 
 
-def test_agilab_navigation_shows_about_then_settings_before_work_pages():
+def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
     source = Path("src/agilab/main_page.py").read_text(encoding="utf-8")
     selector_source = Path("src/agilab/page_project_selector.py").read_text(encoding="utf-8")
     pipeline_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
+    about_block = source.split("main_page = st.Page(", 1)[1].split("settings_nav_page", 1)[0]
+    settings_block = source.split("settings_nav_page = st.Page(", 1)[1].split("project_page", 1)[0]
 
     assert "st.navigation(_navigation_pages()).run()" in source
-    assert 'title="ABOUT"' in source
-    assert 'title="SETTINGS"' in source
-    assert 'url_path="SETTINGS"' in source
+    assert 'title="ABOUT"' in about_block
+    assert 'default=True' in about_block
+    assert 'visibility="hidden"' in about_block
+    assert 'title="SETTINGS"' in settings_block
+    assert 'url_path="SETTINGS"' in settings_block
     assert 'pages_root / "0_SETTINGS.py"' in source
+    assert 'visibility="hidden"' in settings_block
     assert 'page_label="ABOUT"' not in source
     assert 'page_label="MAIN_PAGE"' in source
     assert 'page_label="SETTINGS"' in source

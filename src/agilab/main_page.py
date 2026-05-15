@@ -194,7 +194,6 @@ _page_docs_module = _import_agilab_module_or_stop(
     fallback_name="agilab_page_docs_fallback",
 )
 get_docs_menu_items = _page_docs_module.get_docs_menu_items
-docs_menu_url = _page_docs_module.docs_menu_url
 
 _pinned_expander_module = _import_agilab_module_or_stop(
     "agilab.pinned_expander",
@@ -293,16 +292,16 @@ def render_sidebar_version(version: str) -> None:
     st.sidebar.caption(version_label)
 
 
-def render_sidebar_documentation_link() -> None:
-    """Keep the Main Page sidebar useful without mixing in execution state."""
-    docs_url = docs_menu_url("agilab-help.html")
+def render_sidebar_settings_link() -> None:
+    """Keep persistent runtime controls reachable without exposing a Settings nav item."""
+    settings_url = "/SETTINGS"
     markdown_fn = getattr(st.sidebar, "markdown", None)
     if callable(markdown_fn):
-        markdown_fn(f"[Documentation]({docs_url})")
+        markdown_fn(f"[Settings]({settings_url})")
         return
     caption_fn = getattr(st.sidebar, "caption", None)
     if callable(caption_fn):
-        caption_fn(f"Documentation: {docs_url}")
+        caption_fn(f"Settings: {settings_url}")
 
 
 def _sync_onboarding_module() -> None:
@@ -582,7 +581,7 @@ def _render_navigation_context(env: Any, *, page_label: str) -> None:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
-    render_sidebar_documentation_link()
+    render_sidebar_settings_link()
     render_pinned_expanders(st)
     render_page_context(st, page_label=page_label, env=env)
 
@@ -712,11 +711,13 @@ def _navigation_pages() -> list[Any]:
         title="ABOUT",
         url_path="",
         default=True,
+        visibility="hidden",
     )
     settings_nav_page = st.Page(
         pages_root / "0_SETTINGS.py",
         title="SETTINGS",
         url_path="SETTINGS",
+        visibility="hidden",
     )
     project_page = st.Page(
         pages_root / "1_PROJECT.py",
