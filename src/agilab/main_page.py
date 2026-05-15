@@ -717,7 +717,6 @@ def _navigation_pages() -> list[Any]:
         pages_root / "0_SETTINGS.py",
         title="SETTINGS",
         url_path="SETTINGS",
-        visibility="hidden",
     )
     project_page = st.Page(
         pages_root / "1_PROJECT.py",

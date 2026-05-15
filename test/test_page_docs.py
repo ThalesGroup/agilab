@@ -53,8 +53,7 @@ def test_docs_menu_items_merge_about_content_and_page_help():
         base_items={"About": "AGILAB"},
     )
 
-    assert "[Open AGILAB Settings](/SETTINGS)" in menu_items["About"]
-    assert "AGILAB" in menu_items["About"]
+    assert menu_items["About"] == "AGILAB"
     assert menu_items["Get help"] == "https://thalesgroup.github.io/agilab/execute-help.html#cluster"
 
 
