@@ -33,7 +33,7 @@ def _load_current_args(settings_path: Path) -> ExecutionPandasArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load Execution Pandas args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load Pandas Execution args from `{settings_path}`: {exc}")
         return ExecutionPandasArgs()
 
 
@@ -49,7 +49,7 @@ current_args = _load_current_args(settings_path)
 current_payload = current_args.model_dump(mode="json")
 
 st.caption(
-    "Execution Pandas generates a synthetic CSV dataset and runs the distributed Pandas worker path. "
+    "Pandas Execution generates a synthetic CSV dataset and runs the distributed Pandas worker path. "
     "Use this form to size the playground workload before EXECUTE."
 )
 
@@ -124,7 +124,7 @@ candidate: dict[str, Any] = {
 try:
     validated = ExecutionPandasArgs(**candidate)
 except ValidationError as exc:
-    st.error("Invalid Execution Pandas parameters:")
+    st.error("Invalid Pandas Execution parameters:")
     if hasattr(env, "humanize_validation_errors"):
         for msg in env.humanize_validation_errors(exc):
             st.markdown(msg)

@@ -1,4 +1,4 @@
-"""SimPy-based worker for the built-in UAV relay queue project."""
+"""SimPy-based worker for the built-in UAV queue project."""
 
 from __future__ import annotations
 
@@ -154,7 +154,7 @@ def _build_topology_graph(
 
 
 class UavQueueWorker(PandasWorker):
-    """Run one lightweight UAV relay queue scenario and export queue telemetry."""
+    """Run one lightweight UAV queue scenario and export queue telemetry."""
 
     pool_vars: dict[str, object] = {}
 
@@ -523,7 +523,7 @@ class UavQueueWorker(PandasWorker):
             "max_queue_depth_pkts": int(queue_df["queue_depth_pkts"].max()) if not queue_df.empty else 0,
             "bottleneck_relay": bottleneck_relay,
             "notes": (
-                "Built-in AGILAB UAV relay queue demo inspired by the SimPy buffer-based queueing "
+                "Built-in AGILAB UAV queue demo inspired by the SimPy buffer-based queueing "
                 "pattern described in UavNetSim."
             ),
         }
@@ -706,4 +706,4 @@ class UavQueueWorker(PandasWorker):
                 payload_df = df if isinstance(df, pd.DataFrame) else pd.DataFrame(df)
                 payload_df.to_csv(pipeline_dir / file_name, index=False)
 
-        logger.info("Saved UAV relay queue artifacts to %s and %s", self.data_out, self.artifact_dir)
+        logger.info("Saved UAV queue artifacts to %s and %s", self.data_out, self.artifact_dir)

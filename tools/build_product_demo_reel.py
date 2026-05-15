@@ -475,12 +475,12 @@ VARIANTS: dict[str, Variant] = {
     "uav_queue": Variant(key="uav_queue", app_badge="UAV RELAY QUEUE", scenes=UAV_QUEUE_SCENES),
     "execution_pandas": Variant(
         key="execution_pandas",
-        app_badge="EXECUTION PANDAS",
+        app_badge="PANDAS EXECUTION",
         scenes=EXECUTION_PANDAS_SCENES,
     ),
     "meteo_forecast": Variant(
         key="meteo_forecast",
-        app_badge="METEO FORECAST",
+        app_badge="WEATHER FORECAST",
         scenes=METEO_FORECAST_SCENES,
     ),
     "sb3_routing": Variant(

@@ -33,7 +33,7 @@ def _load_current_args(settings_path: Path) -> UavQueueArgs:
     try:
         return load_args(settings_path)
     except Exception as exc:
-        st.warning(f"Unable to load UAV relay queue args from `{settings_path}`: {exc}")
+        st.warning(f"Unable to load UAV queue args from `{settings_path}`: {exc}")
         return UavQueueArgs()
 
 
@@ -50,7 +50,7 @@ except Exception:
 artifact_root = Path(getattr(env, "AGILAB_EXPORT_ABS", Path.home() / "export")) / env.target / "queue_analysis"
 
 st.caption(
-    "This built-in app runs a lightweight UAV relay queue simulation with explicit "
+    "This built-in app runs a lightweight UAV queue simulation with explicit "
     f"packet and queue telemetry. Analysis artifacts are exported to `{artifact_root}`."
 )
 if share_root:
@@ -122,7 +122,7 @@ if data_out_raw:
 try:
     validated = UavQueueArgs(**candidate)
 except ValidationError as exc:
-    st.error("Invalid UAV relay queue parameters:")
+    st.error("Invalid UAV queue parameters:")
     if hasattr(env, "humanize_validation_errors"):
         for msg in env.humanize_validation_errors(exc):
             st.markdown(msg)
