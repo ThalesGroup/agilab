@@ -67,8 +67,8 @@ summary = "passed component coverage and badge freshness checks"
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "25864840946"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25864840946"
+run_id = "25931605796"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25931605796"
 summary = "passed the public release proof workflow gate"
 
 [proof_command]
