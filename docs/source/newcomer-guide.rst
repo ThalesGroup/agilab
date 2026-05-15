@@ -2,8 +2,11 @@ Newcomer Guide
 ==============
 
 If you are new to AGILab, optimize for one outcome only: one successful local
-run of the built-in ``flight_telemetry_project`` from the web UI, including the core
-``PROJECT`` -> ``ORCHESTRATE`` -> ``WORKFLOW`` -> ``ANALYSIS`` route.
+proof from the web UI. The default lane is the built-in
+``flight_telemetry_project`` through ABOUT -> ``INSTALL`` -> ``RUN`` ->
+``ANALYSIS``. If you already have a notebook, use the ABOUT wizard's
+``Import notebook`` lane instead and prove that imported project before
+expanding.
 
 This page gives the mental model only. :doc:`quick-start` owns the exact
 commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
@@ -23,8 +26,11 @@ Use this order when you need the quickest route to confidence:
      - Open :doc:`agilab-demo`.
      - Confirms the public UI shape before you install anything.
    * - Local first proof
-     - Follow :doc:`quick-start` with the built-in ``flight_telemetry_project``.
-     - Exercises the real source-checkout install, run, and analysis path.
+     - Follow :doc:`quick-start` with the built-in
+       ``flight_telemetry_project``, or use the wizard's notebook-import lane
+       when your first asset is already a notebook.
+     - Exercises the real source-checkout install, run, analysis, or notebook
+       import path.
    * - Evidence record
      - Keep ``~/log/execute/flight_telemetry/run_manifest.json`` from
        ``agilab first-proof --json``.
@@ -49,24 +55,27 @@ Choose one route
        anything.
    * - Prove it locally
      - :doc:`quick-start`
-     - You want the real source-checkout path with ``flight_telemetry_project``. Target:
-       pass the first proof in 10 minutes.
+     - You want the real source-checkout path. Default target: pass the
+       ``flight_telemetry_project`` proof in 10 minutes. Alternative: import
+       your own notebook from the ABOUT wizard.
    * - Use the API/notebook
      - :doc:`notebook-quickstart`
      - You want the smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the
        full UI.
 
-The first proof is deliberately narrow:
-use a source checkout, run the built-in ``flight_telemetry_project`` locally from the
-web UI, inspect the pipeline recipe, and confirm a visible result under
-``~/log/execute/flight_telemetry/``.
-The landing page first-proof wizard now enforces that same single actionable
-route, reads ``run_manifest.json``, and shows a recovery checklist with exact
-evidence commands before you branch out.
+The first proof is deliberately narrow. Use a source checkout and choose one
+lane from the landing page:
 
-That is enough for day 1. Do not widen the problem to notebooks, package mode,
-private apps, or cluster setup until this path works once and the manifest gives
-you a passing baseline.
+- built-in lane: run ``flight_telemetry_project`` locally, inspect the visible
+  result under ``~/log/execute/flight_telemetry/``, and keep the passing
+  ``run_manifest.json``
+- notebook lane: upload one notebook through ``Import notebook`` / ``Upload``,
+  create the project, then prove that imported project before adding
+  infrastructure variables
+
+That is enough for day 1. Do not widen the problem to package mode, private
+apps, or cluster setup until one lane works once and gives you a clear
+baseline.
 
 This also means PyCharm is not part of the day-1 contract. AGILAB keeps
 PyCharm run configurations for developers who want IDE debugging, but the
@@ -152,11 +161,11 @@ For the repeatable two-node check, go to :doc:`cluster`. That page owns:
 What to ignore on day 1
 -----------------------
 
-Skip these until the local ``flight_telemetry_project`` proof works once:
+Skip these until either the local ``flight_telemetry_project`` proof or one
+notebook-import proof works once:
 
 - cluster and SSH setup
 - published-package mode
-- notebook-first route
 - private or optional app repositories
 - IDE convenience flows
 - full installer test suites unless you explicitly want validation instead of
