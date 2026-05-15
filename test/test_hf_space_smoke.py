@@ -81,6 +81,7 @@ def test_unexpected_core_page_entries_flags_stale_renamed_pages() -> None:
 
     offenders = module.unexpected_core_page_entries(
         [
+            {"path": "src/agilab/pages/0_SETTINGS.py"},
             {"path": "src/agilab/pages/1_PROJECT.py"},
             {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
             {"path": "src/agilab/pages/3_WORKFLOW.py"},
@@ -163,6 +164,7 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
             return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
         if _url.endswith("src/agilab/pages"):
             return [
+                {"path": "src/agilab/pages/0_SETTINGS.py"},
                 {"path": "src/agilab/pages/1_PROJECT.py"},
                 {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
                 {"path": "src/agilab/pages/3_WORKFLOW.py"},
@@ -203,6 +205,7 @@ def test_run_tree_checks_uses_only_repository_tree_checks() -> None:
             return [{"path": "src/agilab/apps/builtin"}, {"path": "src/agilab/apps/install.py"}]
         if _url.endswith("src/agilab/pages"):
             return [
+                {"path": "src/agilab/pages/0_SETTINGS.py"},
                 {"path": "src/agilab/pages/1_PROJECT.py"},
                 {"path": "src/agilab/pages/2_ORCHESTRATE.py"},
                 {"path": "src/agilab/pages/3_WORKFLOW.py"},

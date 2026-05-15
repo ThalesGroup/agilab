@@ -45,6 +45,7 @@ ALLOWED_PAGE_ENTRIES = {
 ALLOWED_CORE_PAGE_ENTRIES = {
     ".DS_Store",
     "__pycache__",
+    "0_SETTINGS.py",
     "1_PROJECT.py",
     "2_ORCHESTRATE.py",
     "3_WORKFLOW.py",
