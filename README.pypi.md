@@ -7,13 +7,18 @@
 
 # AGILAB
 
-AGILAB is a reproducible AI/ML workbench for engineering teams.
-It turns notebooks and scripts into controlled, executable apps with:
+AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.
+It turns notebooks and scripts into controlled, executable apps while preserving
+an exit path: the same workflow can be exported back to a runnable notebook, so
+you do not lose your work if AGILAB is no longer the right runtime.
+
+Use it to keep experimental AI work:
 
 - **one-command setup**
 - **controlled environments**
 - **local or distributed execution**
 - **visible experiment evidence**
+- **runnable outside AGILAB as exported notebooks**
 - **optional MLflow integration**
 
 AGILAB complements MLflow and production MLOps platforms. It owns the
@@ -25,6 +30,12 @@ into reproducible executable AI applications.
 
 Notebook/script -> AGILAB app -> execution (local/distributed) -> MLflow ->
 Streamlit UI
+
+The flow is reversible where it matters for long-term reuse: WORKFLOW can
+export the saved pipeline as a runnable supervisor notebook, so the code, stage
+order, runtime hints, and review context remain usable in Jupyter-compatible
+tools even if you later decide AGILAB is no longer the right runtime for that
+work.
 
 Start with the public browser preview or the demo chooser:
 
@@ -100,6 +111,19 @@ use `--strict` or `AGILAB_SECURITY_CHECK_STRICT=1` when missing controls should
 block the gate. The stricter profiles check app-repository allowlists, public UI
 bind controls, cluster-share isolation, generated-code execution boundaries,
 plaintext local secrets, and profile-specific SBOM / `pip-audit` evidence.
+
+## Security Reporting
+
+Do not use public GitHub issues, discussions, pull requests, or comments for
+suspected vulnerabilities. Use the private reporting path in
+[SECURITY.md](https://github.com/ThalesGroup/agilab/blob/main/SECURITY.md);
+if GitHub Private Vulnerability Reporting is not available to you, request a
+private AGILAB security intake through your usual Thales contact or the Thales
+contact form. The public issue tracker is only for non-sensitive bugs, support
+questions, and post-fix follow-up.
+
+For adoption boundaries and the shared-use hardening checklist, see
+[Security and adoption](https://thalesgroup.github.io/agilab/security-adoption.html).
 
 ## Dependency And Supply-Chain Boundaries
 

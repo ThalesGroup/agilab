@@ -137,11 +137,47 @@ def test_security_policy_addresses_public_audit_adoption_boundaries() -> None:
     assert "republish the documentation" in security
 
 
+def test_security_disclosure_channel_is_private_across_public_docs() -> None:
+    paths = [
+        Path("SECURITY.md"),
+        Path("README.md"),
+        Path("README.pypi.md"),
+        Path("ADOPTION.md"),
+        DOCS_SOURCE / "security-adoption.rst",
+    ]
+    combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+    security_adoption = (DOCS_SOURCE / "security-adoption.rst").read_text(
+        encoding="utf-8"
+    )
+    index = (DOCS_SOURCE / "index.rst").read_text(encoding="utf-8")
+
+    assert "Do not use public GitHub issues" in combined
+    assert "GitHub Private Vulnerability Reporting" in combined
+    assert "private AGILAB security intake" in combined
+    assert "Open a GitHub issue with the title" not in combined
+    assert "[SECURITY]" not in combined
+    assert "Public GitHub issues are for non-sensitive product bugs" in security_adoption
+    assert "security-adoption" in index
+
+
+def test_adoption_guide_uses_current_first_proof_wizard() -> None:
+    adoption = Path("ADOPTION.md").read_text(encoding="utf-8")
+
+    assert "landing-page first-proof wizard" in adoption
+    assert "`1. INSTALL`" in adoption
+    assert "`2. RUN`" in adoption
+    assert "`3. ANALYSIS`" in adoption
+    assert "`Import notebook`" in adoption
+    assert "You do not need to open\nthe project manually" in adoption
+    assert "Select `src/agilab/apps/builtin/flight_telemetry_project`" not in adoption
+
+
 def test_quick_start_documents_security_adoption_checkpoint() -> None:
     quick_start = (DOCS_SOURCE / "quick-start.rst").read_text(encoding="utf-8")
     beta_readiness = (DOCS_SOURCE / "beta-readiness.rst").read_text(encoding="utf-8")
 
     assert "Shared or team adoption check" in quick_start
+    assert ":doc:`security-adoption`" in quick_start
     assert "agilab security-check --profile shared --json > security-check.json" in quick_start
     assert "shared``, ``cluster``, and ``public-ui``" in quick_start
     assert "AGILAB_APPS_REPOSITORY_ALLOWLIST" in quick_start

@@ -19,6 +19,9 @@ please upgrade to the latest release before requesting a patch.
 - Do **not** open a public GitHub issue for suspected vulnerabilities.
 - Preferred channel: use GitHub Private Vulnerability Reporting when it is available for the
   repository.
+- GitHub Issues, Discussions, pull requests, and README issue links are only for non-sensitive
+  product bugs, support questions, and post-fix follow-up. They are not vulnerability intake
+  channels.
 - If private reporting is not available to you, contact your usual Thales representative or submit
   a request via <https://cpl.thalesgroup.com/fr/contact-us> and ask for a private AGILAB security
   intake.

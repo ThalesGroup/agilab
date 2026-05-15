@@ -9,7 +9,7 @@ external apps, or cluster work after the local proof succeeds once.
 | Stage | Action | Stop when |
 |---|---|---|
 | Preview | Open the public [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab). | The hosted UI opens the lightweight `flight_telemetry_project` path. |
-| Prove locally | Clone the source checkout and run the built-in `flight_telemetry_project`. | `PROJECT` -> `ORCHESTRATE` -> `ANALYSIS` works locally. |
+| Prove locally | Clone the source checkout and use the landing-page first-proof wizard. | The wizard installs, runs, and opens `ANALYSIS` for `flight_telemetry_project`. |
 | Record evidence | Run `agilab first-proof --json`. | `~/log/execute/flight_telemetry/run_manifest.json` reports `status: pass`. |
 | Expand | Move to notebooks, PyPI package checks, external apps, or cluster work. | You have one known-good baseline to compare against. |
 
@@ -32,16 +32,18 @@ Run this source-checkout path before trying private apps or cluster mode:
 git clone https://github.com/ThalesGroup/agilab.git
 cd agilab
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py
+uv --preview-features extra-build-dependencies run agilab
 ```
 
-In the web UI, stay on the built-in `flight_telemetry_project`:
+In the web UI, use the landing-page first-proof wizard. You do not need to open
+the project manually for the built-in proof:
 
-| Page | Action |
+| Wizard action | What it does |
 |---|---|
-| `PROJECT` | Select `src/agilab/apps/builtin/flight_telemetry_project`. |
-| `ORCHESTRATE` | Click `INSTALL`, then `EXECUTE`. |
-| `ANALYSIS` | Open the default analysis view. |
+| `1. INSTALL` | Selects `flight_telemetry_project` and launches the ORCHESTRATE install. |
+| `2. RUN` | Runs the project locally with cluster, benchmark, and service mode off. |
+| `3. ANALYSIS` | Opens the default analysis route after evidence exists. |
+| `Import notebook` | Starts the alternative notebook lane and exposes the notebook upload control. |
 
 For a machine-readable proof:
 
@@ -51,6 +53,29 @@ uv --preview-features extra-build-dependencies run agilab first-proof --json
 
 You are past the newcomer hurdle when the proof exits 0, fresh output exists
 under `~/log/execute/flight_telemetry/`, and `run_manifest.json` is present.
+
+## Shared Or Security-Sensitive Adoption
+
+Do not use public GitHub issues, discussions, pull requests, or comments for
+suspected vulnerabilities. Follow `SECURITY.md` and use GitHub Private
+Vulnerability Reporting when available. If private reporting is unavailable,
+request a private AGILAB security intake through your usual Thales contact.
+
+Before moving from a single-user proof to a shared workstation, internal
+cluster, public UI, external apps repository, or sensitive data, archive a
+profile-specific security report:
+
+```bash
+uv --preview-features extra-build-dependencies run agilab security-check --profile shared --json > security-check.json
+uv --preview-features extra-build-dependencies run python tools/profile_supply_chain_scan.py --profile all --run
+```
+
+Use strict mode only when missing controls must block the gate:
+
+```bash
+AGILAB_SECURITY_CHECK_STRICT=1 \
+uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile security-adoption
+```
 
 ## Avoid On Day 1
 

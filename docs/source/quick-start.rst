@@ -334,6 +334,10 @@ used as a real gate. The report checks floating or unallowlisted
 generated-code execution boundaries, optional local-model profiles, and missing
 SBOM / ``pip-audit`` evidence.
 
+For the private vulnerability-reporting channel, go/no-go adoption boundary,
+and shared-use hardening checklist, see :doc:`security-adoption`. Public GitHub
+issues are not a vulnerability intake channel.
+
 To generate per-profile scan evidence instead of a single generic artifact::
 
     uv --preview-features extra-build-dependencies run python tools/profile_supply_chain_scan.py --profile all --run

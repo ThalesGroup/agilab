@@ -143,6 +143,18 @@ block the gate. The stricter profiles check app-repository allowlists, public UI
 bind controls, cluster-share isolation, generated-code execution boundaries,
 plaintext local secrets, and profile-specific SBOM / `pip-audit` evidence.
 
+## Security Reporting
+
+Do not use public GitHub issues, discussions, pull requests, or comments for
+suspected vulnerabilities. Use the private reporting path in
+[SECURITY.md](SECURITY.md); if GitHub Private Vulnerability Reporting is not
+available to you, request a private AGILAB security intake through your usual
+Thales contact or the Thales contact form. The public issue tracker is only for
+non-sensitive bugs, support questions, and post-fix follow-up.
+
+For adoption boundaries and the shared-use hardening checklist, see
+[Security and adoption](https://thalesgroup.github.io/agilab/security-adoption.html).
+
 ## Dependency And Supply-Chain Boundaries
 
 The public package is intentionally profile-based so operators can install only

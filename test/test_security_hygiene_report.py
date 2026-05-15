@@ -62,6 +62,10 @@ def test_security_hygiene_report_passes_static_contract(tmp_path: Path) -> None:
     assert checks["local_secret_storage_is_developer_only"]["status"] == "pass"
     assert checks["release_evidence_scope_is_bounded"]["status"] == "pass"
     assert checks["adoption_profile_go_no_go_documented"]["status"] == "pass"
+    assert checks["security_disclosure_channel_consistency"]["status"] == "pass"
+    assert checks["security_disclosure_channel_consistency"]["details"][
+        "stale_public_issue_tokens"
+    ] == []
     assert checks["external_apps_repository_trust_boundary"]["status"] == "pass"
     assert checks["supply_chain_profile_evidence_documented"]["status"] == "pass"
     assert checks["release_proof_freshness_policy_documented"]["status"] == "pass"
@@ -173,6 +177,13 @@ def test_security_hygiene_static_checks_report_missing_or_unsafe_files(tmp_path:
     assert pin_check["details"]["unpinned_actions"] == [
         ".github/workflows/unpinned.yml:2:actions/checkout@v4"
     ]
+
+    disclosure_check = module._security_disclosure_channel_check(
+        tmp_path,
+        "Open a GitHub issue with the title [SECURITY]",
+    )
+    assert disclosure_check["status"] == "fail"
+    assert disclosure_check["details"]["stale_public_issue_tokens"]
 
 
 def test_security_hygiene_report_accepts_scan_artifacts(tmp_path: Path) -> None:

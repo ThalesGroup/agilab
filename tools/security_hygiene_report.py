@@ -319,6 +319,57 @@ def _adoption_profile_check(security_text: str) -> dict[str, Any]:
     )
 
 
+def _security_disclosure_channel_check(repo_root: Path, security_text: str) -> dict[str, Any]:
+    documents = {
+        "SECURITY.md": security_text,
+        "README.md": _read_text(repo_root / "README.md"),
+        "README.pypi.md": _read_text(repo_root / "README.pypi.md"),
+        "ADOPTION.md": _read_text(repo_root / "ADOPTION.md"),
+        "docs/source/security-adoption.rst": _read_text(
+            repo_root / "docs" / "source" / "security-adoption.rst"
+        ),
+    }
+    forbidden_tokens = [
+        "Open a GitHub issue with the title",
+        "open a GitHub issue with the title",
+        "[SECURITY]",
+    ]
+    stale_hits = [
+        f"{path}: {token}"
+        for path, text in documents.items()
+        for token in forbidden_tokens
+        if token in text
+    ]
+    required = {
+        "SECURITY.md": [
+            "Do **not** open a public GitHub issue",
+            "GitHub Private Vulnerability Reporting",
+        ],
+        "README.md": ["Do not use public GitHub issues", "SECURITY.md"],
+        "README.pypi.md": ["Do not use public GitHub issues", "SECURITY.md"],
+        "ADOPTION.md": ["Do not use public GitHub issues", "SECURITY.md"],
+        "docs/source/security-adoption.rst": [
+            "Do not use public GitHub issues",
+            "GitHub Private Vulnerability Reporting",
+            "Public GitHub issues are for non-sensitive product bugs",
+        ],
+    }
+    missing = [
+        f"{path}: {token}"
+        for path, tokens in required.items()
+        for token in tokens
+        if token not in documents.get(path, "")
+    ]
+    return _check_result(
+        "security_disclosure_channel_consistency",
+        "Security disclosure channel is private and consistent",
+        not stale_hits and not missing,
+        "Public docs and package READMEs route suspected vulnerabilities to private reporting, not public issues",
+        evidence=list(documents),
+        details={"stale_public_issue_tokens": stale_hits, "missing_tokens": missing},
+    )
+
+
 def _external_apps_repository_policy_check(repo_root: Path, security_text: str) -> dict[str, Any]:
     service_paths = _read_text(repo_root / "docs" / "source" / "service_mode_and_paths.md")
     quick_start = _read_text(repo_root / "docs" / "source" / "quick-start.rst")
@@ -687,6 +738,7 @@ def build_report(
         _local_secret_storage_policy_check(repo_root, security_text),
         _release_evidence_scope_check(repo_root, security_text),
         _adoption_profile_check(security_text),
+        _security_disclosure_channel_check(repo_root, security_text),
         _external_apps_repository_policy_check(repo_root, security_text),
         _supply_chain_profile_evidence_check(security_text),
         _release_proof_freshness_check(repo_root, security_text),
