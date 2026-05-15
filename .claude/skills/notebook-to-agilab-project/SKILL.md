@@ -26,6 +26,24 @@ delivery.
 - cloud-first tutorials whose main value is vendor services
 - notebooks that depend on interactive widgets as the primary UX
 
+## Surface choice contract
+
+- Choose an AGI page when the analysis is becoming part of the app contract:
+  repeatable dashboard, review screen, demo, validation evidence, or
+  `agi-page-*` package. This enables non-notebook users, stable demos,
+  CI-backed artifact checks, and releaseable page packaging. The cost is that
+  the page bundle, dependencies, and exported artifact contract must be
+  maintained.
+- Choose notebooks or AGI snippets when the work is still code-centric:
+  exploration, debugging, cell reruns, migration from an existing notebook,
+  reusable snippets, or technical handoff. Reuse depends on the
+  snippet/notebook contract, runtime environment, and declared dependencies.
+  The ANALYSIS Jupyter sidecar is only the local interactive launch path; it is
+  not the only way notebooks or snippets can be reused.
+- Use both when the product surface and investigation trail both matter: keep
+  the AGI page as the stable result surface and keep notebooks or snippets as
+  the technical trail behind that result.
+
 ## Required workflow
 
 1. Identify the notebook sequence.
@@ -39,8 +57,11 @@ delivery.
 3. Map the sequence into AGILAB.
    - `PROJECT`: args and dataset location
    - `WORKFLOW`: explicit ordered stages in `lab_stages.toml`
-   - `ANALYSIS`: one page that reads the exported artifacts
+   - `ANALYSIS`: one page that reads the exported artifacts when the result
+     should be productized
    - project notebooks: reusable `.ipynb` files under `<app_project>/notebooks/`
+   - AGI snippets: reusable code contracts when a notebook cell should become a
+     smaller execution unit
 
 4. Make the migration value explicit.
    - Show what was implicit in notebooks.
@@ -57,7 +78,9 @@ delivery.
 - a sample `lab_stages.toml`
 - a `pipeline_view.dot` or `pipeline_view.json`
 - exported sample artifacts for ANALYSIS
-- one analysis page bundle or a concrete plan to create it
+- one explicit surface decision: AGI page, notebook/AGI snippets, or both
+- one analysis page bundle or a concrete plan to create it when the result is
+  productized
 
 ## Notebook Import And Launch Guardrails
 
@@ -97,6 +120,10 @@ ANALYSIS notebook launcher:
   from the right source code.
 - ANALYSIS should discover launchable notebooks from the app project notebooks
   directory and persist notebook selection alongside view selection.
+- Do not describe notebooks or AGI snippets as local-runtime-only. Only the
+  embedded ANALYSIS Jupyter sidecar is local interactive UI; exported notebooks
+  and snippets can be reused wherever their runtime and dependencies are
+  available.
 
 ## References
 
