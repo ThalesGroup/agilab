@@ -9,6 +9,11 @@ from agi_gui.ui_support import open_docs_url, open_local_docs, with_anchor
 
 DOCS_BASE_URL = "https://thalesgroup.github.io/agilab"
 DOCS_MENU_LABEL = "Get help"
+SETTINGS_MENU_URL = "/SETTINGS"
+SETTINGS_MENU_TEXT = (
+    f"**Settings:** [Open AGILAB Settings]({SETTINGS_MENU_URL}) for environment variables "
+    "and runtime diagnostics."
+)
 _DOCS_LOCAL_ALIASES: dict[str, tuple[str, ...]] = {
     "agilab-help.html": ("index.html",),
     "edit-help.html": ("edit_help.html",),
@@ -44,6 +49,9 @@ def docs_menu_items(
 ) -> dict[str, str]:
     """Merge AGILAB menu content with the page-specific documentation entry."""
     items = dict(base_items or {})
+    about_text = items.get("About")
+    if about_text and "Open AGILAB Settings" not in about_text:
+        items["About"] = f"{SETTINGS_MENU_TEXT}\n\n{about_text}"
     items[DOCS_MENU_LABEL] = docs_menu_url(html_file, anchor)
     return items
 
