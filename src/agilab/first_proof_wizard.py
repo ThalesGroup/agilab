@@ -253,10 +253,11 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     tool_contract = first_proof_tool_contract(repo_root)
     compatibility = first_proof_compatibility(repo_root)
     content = FirstProofContent(
-        title="Start here: run flight_telemetry_project first",
+        title="First run: use the built-in flight demo",
         intro=(
-            "Run the built-in flight demo locally before trying notebooks, "
-            "cluster mode, service mode, or custom apps."
+            "This demo ships with sample data and expected outputs, so it is the "
+            "safest way to prove AGILAB works before trying notebooks, cluster "
+            "mode, service mode, or custom apps."
         ),
         recommended_path_id=FIRST_PROOF_RECOMMENDED_ENTRY_ID,
         recommended_path_label=FIRST_PROOF_RECOMMENDED_LABEL,
@@ -269,7 +270,10 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         cli_command=tool_contract.cli_command,
         run_manifest_filename=_load_run_manifest_module().RUN_MANIFEST_FILENAME,
         steps=(
-            ("PROJECT", "Open `PROJECT` and select `flight_telemetry_project`."),
+            (
+                "PROJECT",
+                "Open `PROJECT` and select the built-in demo named `flight_telemetry_project`.",
+            ),
             (
                 "ORCHESTRATE",
                 "Open `ORCHESTRATE`. Keep cluster, benchmark, and service options off. "
@@ -278,8 +282,8 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             ("ANALYSIS", "Open `ANALYSIS` and keep the default built-in view."),
         ),
         success_criteria=(
-            "A visible `ANALYSIS` result opens for `flight_telemetry_project`.",
-            "`flight_telemetry_project` finishes without an error.",
+            "A visible `ANALYSIS` result opens for the built-in flight demo.",
+            "The built-in flight demo finishes without an error.",
             "`run_manifest.json` and generated files appear under `~/log/execute/flight_telemetry/`.",
         ),
         links=(
@@ -558,9 +562,12 @@ def newcomer_first_proof_state(env: Any, repo_root: Path = REPO_ROOT) -> dict[st
     current_app_matches = active_app_name == FIRST_PROOF_PROJECT
 
     if project_path is None:
-        next_step = "Fix the app list first. `flight_telemetry_project` is missing."
+        next_step = (
+            "Fix the app list first. The built-in flight demo "
+            "(`flight_telemetry_project`) is missing."
+        )
     elif not current_app_matches:
-        next_step = "Go to `PROJECT`. Choose `flight_telemetry_project`."
+        next_step = "Go to `PROJECT`. Choose the built-in flight demo (`flight_telemetry_project`)."
     elif not run_manifest_loaded and not visible_outputs:
         next_step = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     elif not run_manifest_loaded:

@@ -1829,8 +1829,8 @@ def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides(
 def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
-    assert content["title"] == "Start here: run flight_telemetry_project first"
-    assert "built-in flight demo locally" in content["intro"]
+    assert content["title"] == "First run: use the built-in flight demo"
+    assert "sample data and expected outputs" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
     assert content["documented_route_ids"] == ["notebook-quickstart"]
@@ -2825,7 +2825,7 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_telemetry_project(tm
     assert state["run_manifest_status"] == "missing"
     assert state["remediation_status"] == "missing"
     assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
-    assert state["next_step"] == "Go to `PROJECT`. Choose `flight_telemetry_project`."
+    assert state["next_step"] == "Go to `PROJECT`. Choose the built-in flight demo (`flight_telemetry_project`)."
 
 
 def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
@@ -2867,9 +2867,10 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
 
     assert select_action["phase"] == "Stage 1"
     assert select_action["tone"] == "next"
-    assert select_action["title"] == "Select `flight_telemetry_project`"
-    assert select_action["cta_label"] == "Use `flight_telemetry_project`"
+    assert select_action["title"] == "Select the built-in flight demo"
+    assert select_action["cta_label"] == "Use built-in demo"
     assert "mycode_project" in select_action["detail"]
+    assert "flight_telemetry_project" in select_action["detail"]
 
     run_state = about_agilab._newcomer_first_proof_state(
         SimpleNamespace(
@@ -3037,11 +3038,6 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
 
     about_agilab.render_newcomer_first_proof(env)
 
-    start_here = _event_index(
-        fake_st.events,
-        "expander",
-        "Start here: run flight_telemetry_project first:False",
-    )
     overview = _event_index(fake_st.events, "markdown", "agilab-proof")
     action_strip = _event_index(fake_st.events, "markdown", "agilab-proof__action")
     next_action = _event_index(fake_st.events, "warning", "Next action:")
@@ -3056,10 +3052,13 @@ def test_render_newcomer_first_proof_places_next_action_before_diagnostics(
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
     overview_markup = _event_body(fake_st.events, "markdown", "agilab-proof__action")
 
-    assert "Select `flight_telemetry_project`" in overview_markup
-    assert "Use `flight_telemetry_project`" in overview_markup
+    assert [body for kind, body in fake_st.events if kind == "expander"] == [
+        "If it fails / proof details:False",
+    ]
+    assert "Select the built-in flight demo" in overview_markup
+    assert "Use built-in demo" in overview_markup
     assert "This keeps the first proof on the documented, supportable route." in overview_markup
-    assert start_here < overview <= action_strip < next_action < do_this_now < done_when < proof_details < progress < validated_path
+    assert overview <= action_strip < next_action < do_this_now < done_when < proof_details < progress < validated_path
 
 
 def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
@@ -3075,7 +3074,8 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
 
     assert captured["unsafe_allow_html"] is True
     body = str(captured["body"])
-    assert "Start here" in body
+    assert "First run: use the built-in flight demo" in body
+    assert "Start here" not in body
     assert "PROJECT" in body
     assert "ORCHESTRATE" in body
     assert "ANALYSIS" in body
