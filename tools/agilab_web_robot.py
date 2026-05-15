@@ -524,11 +524,122 @@ def run_browser_robot(
                     assert_page_healthy(
                         page,
                         label="landing page",
-                        expect_any=("AGILAB", "Start here"),
+                        expect_any=("First proof", "Upload"),
                         timeout_ms=timeout_ms,
                         screenshot_dir=screenshot_dir,
                     ),
                 ):
+                    return steps
+
+                robot_notebook_path = Path(tempfile.gettempdir()) / "agilab-web-robot-upload.ipynb"
+                robot_notebook_path.write_text(
+                    json.dumps(
+                        {
+                            "cells": [
+                                {
+                                    "cell_type": "code",
+                                    "execution_count": None,
+                                    "metadata": {},
+                                    "outputs": [],
+                                    "source": ["print('hello from AGILAB web robot')"],
+                                }
+                            ],
+                            "metadata": {},
+                            "nbformat": 4,
+                            "nbformat_minor": 5,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                start = time.perf_counter()
+                try:
+                    with page.expect_file_chooser(timeout=timeout_ms) as file_chooser_info:
+                        page.locator("[data-testid='stFileUploaderDropzone'] button").click(
+                            timeout=timeout_ms
+                        )
+                    file_chooser_info.value.set_files(str(robot_notebook_path))
+                    steps.append(
+                        RobotStep(
+                            "about upload button",
+                            True,
+                            time.perf_counter() - start,
+                            "file chooser opened and notebook selected",
+                            page.url,
+                        )
+                    )
+                except (Error, TimeoutError) as exc:
+                    screenshot = _screenshot(page, screenshot_dir, "about upload button")
+                    detail = f"could not open file chooser from ABOUT Upload button: {exc}"
+                    if screenshot:
+                        detail += f"; screenshot={screenshot}"
+                    steps.append(
+                        RobotStep(
+                            "about upload button",
+                            False,
+                            time.perf_counter() - start,
+                            detail,
+                            page.url,
+                        )
+                    )
+                    return steps
+
+                start = time.perf_counter()
+                try:
+                    page.wait_for_url(re.compile(r".*/PROJECT(?:\?.*)?$"), timeout=timeout_ms)
+                    steps.append(
+                        RobotStep(
+                            "notebook upload handoff",
+                            True,
+                            time.perf_counter() - start,
+                            "PROJECT opened",
+                            page.url,
+                        )
+                    )
+                except (Error, TimeoutError) as exc:
+                    screenshot = _screenshot(page, screenshot_dir, "notebook upload handoff")
+                    detail = f"PROJECT did not open after notebook upload: {exc}"
+                    if screenshot:
+                        detail += f"; screenshot={screenshot}"
+                    steps.append(
+                        RobotStep(
+                            "notebook upload handoff",
+                            False,
+                            time.perf_counter() - start,
+                            detail,
+                            page.url,
+                        )
+                    )
+                    return steps
+
+                start = time.perf_counter()
+                try:
+                    page.wait_for_selector(
+                        "[data-testid='stFileUploader'], [data-testid='stFileUploaderDropzone']",
+                        timeout=timeout_ms,
+                    )
+                    steps.append(
+                        RobotStep(
+                            "project notebook uploader",
+                            True,
+                            time.perf_counter() - start,
+                            "visible",
+                            page.url,
+                        )
+                    )
+                except (Error, TimeoutError) as exc:
+                    screenshot = _screenshot(page, screenshot_dir, "project notebook uploader")
+                    detail = f"PROJECT notebook uploader not visible after upload handoff: {exc}"
+                    if screenshot:
+                        detail += f"; screenshot={screenshot}"
+                    steps.append(
+                        RobotStep(
+                            "project notebook uploader",
+                            False,
+                            time.perf_counter() - start,
+                            detail,
+                            page.url,
+                        )
+                    )
                     return steps
 
                 start = time.perf_counter()
@@ -639,7 +750,7 @@ def render_human(
         lines.append("$ " + " ".join(shlex.quote(part) for part in launch_command))
     if print_only:
         lines.append("mode: print-only")
-        lines.append("route: landing -> ORCHESTRATE -> ANALYSIS")
+        lines.append("route: landing Upload chooser -> PROJECT notebook handoff -> ORCHESTRATE -> ANALYSIS")
         return "\n".join(lines)
 
     assert summary is not None
@@ -682,7 +793,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = {
             "base_url": base_url,
             "launch_command": launch_command,
-            "route": ["landing", "ORCHESTRATE", "ANALYSIS"],
+            "route": [
+                "landing Upload chooser",
+                "PROJECT notebook handoff",
+                "ORCHESTRATE",
+                "ANALYSIS",
+            ],
             "analysis_view": args.analysis_view,
             "analysis_view_path": (
                 resolve_analysis_view_path(

@@ -255,6 +255,16 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.orchestrate_pending_actions",
+    {
+        "consume_pending_install_action": "consume_pending_install_action",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_pending_actions.py",
+    fallback_name="agilab_orchestrate_pending_actions_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.orchestrate_support",
     {
         "coerce_bool_setting": "_coerce_bool_setting",
@@ -1527,6 +1537,8 @@ async def _render_deployment_panel(
         verbose = cluster_params.get('verbose', 1)
 
         if not show_install:
+            if consume_pending_install_action(st.session_state):
+                st.info("INSTALL is hidden. Re-enable Resources and install, then retry INSTALL.")
             return verbose
 
         enabled = cluster_params.get("cluster_enabled", False)
@@ -1573,7 +1585,15 @@ async def _render_deployment_panel(
             existing_log = st.session_state.get("log_text", "").strip()
             if existing_log:
                 log_placeholder.code(existing_log, language="python")
-        if st.button("INSTALL", key="install_btn", type="primary", disabled=not install_state.action.enabled):
+        pending_install_requested = consume_pending_install_action(st.session_state)
+        install_requested = st.button(
+            "INSTALL",
+            key="install_btn",
+            type="primary",
+            disabled=not install_state.action.enabled,
+        )
+        install_requested = install_requested or pending_install_requested
+        if install_requested:
             if install_state.runtime_root is None or install_state.install_command is None:
                 st.warning(install_state.action.disabled_reason)
                 return verbose

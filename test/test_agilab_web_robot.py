@@ -209,7 +209,12 @@ def test_main_print_only_json_has_no_playwright_requirement(capsys) -> None:
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["base_url"] == "http://127.0.0.1:9999"
-    assert payload["route"] == ["landing", "ORCHESTRATE", "ANALYSIS"]
+    assert payload["route"] == [
+        "landing Upload chooser",
+        "PROJECT notebook handoff",
+        "ORCHESTRATE",
+        "ANALYSIS",
+    ]
     assert payload["analysis_view"] == "view_maps"
     assert payload["analysis_view_path"] == str(module.ANALYSIS_VIEW_PATHS["view_maps"].resolve())
     assert payload["launch_command"][0] == "uv"

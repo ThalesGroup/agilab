@@ -98,7 +98,14 @@ render_latest_run_card = _workflow_ui.render_latest_run_card
 render_log_actions = _workflow_ui.render_log_actions
 render_workflow_timeline = _workflow_ui.render_workflow_timeline
 
-PENDING_EXECUTE_ACTION_KEY = "_orchestrate_pending_action"
+_pending_actions = import_agilab_module(
+    "agilab.orchestrate_pending_actions",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "orchestrate_pending_actions.py",
+    fallback_name="agilab_orchestrate_pending_actions_fallback",
+)
+
+PENDING_EXECUTE_ACTION_KEY = _pending_actions.PENDING_EXECUTE_ACTION_KEY
 EXECUTE_NOTICE_KEY = "_orchestrate_execute_notice"
 RUN_LOGS_PIN_ID = "orchestrate_run_logs"
 PREVIEW_FILE_PATTERNS = ("*.parquet", "*.csv", "*.json", "*.gml")
@@ -270,11 +277,11 @@ def find_preview_target(candidate_roots: list[Path]) -> tuple[Optional[Path], li
 
 
 def queue_pending_execute_action(session_state, action: str) -> None:
-    session_state[PENDING_EXECUTE_ACTION_KEY] = action
+    _pending_actions.queue_pending_execute_action(session_state, action)
 
 
 def consume_pending_execute_action(session_state) -> Optional[str]:
-    return session_state.pop(PENDING_EXECUTE_ACTION_KEY, None)
+    return _pending_actions.consume_pending_execute_action(session_state)
 
 
 def queue_execute_notice(session_state, *, kind: str, message: str) -> None:
@@ -665,7 +672,9 @@ async def render_execute_section(
             st.caption("Run the configured command, load the latest previewable output, and export tabular data when available.")
         _render_run_panel_controls()
     else:
-        consume_pending_execute_action(st.session_state)
+        pending_hidden_action = consume_pending_execute_action(st.session_state)
+        if pending_hidden_action:
+            st.error("RUN is not available yet. Run INSTALL first, then retry RUN.")
 
     pending_action = consume_pending_execute_action(st.session_state)
     run_clicked = pending_action == "run"

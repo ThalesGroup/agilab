@@ -103,6 +103,7 @@ def build_report(
     duration = time.perf_counter() - start
     exceptions = [str(item) for item in list(app.exception)]
     markdown = _widget_values(app.markdown, "value")
+    captions = _widget_values(app.caption, "value")
     buttons = _widget_values(app.button, "label")
     docs_menu = _docs_menu_items()
 
@@ -143,11 +144,16 @@ def build_report(
             "first_launch_first_proof_signal",
             "First launch exposes first-proof action",
             _contains_any(
-                [*markdown, *buttons],
+                [*markdown, *captions, *buttons],
                 [
+                    "First proof: verify AGILAB end-to-end",
                     "First run: use the built-in flight-telemetry project",
+                    "First proof",
                     "Wizard pipeline",
                     "1. Select demo",
+                    "1. ORCHESTRATE",
+                    "2. ANALYSIS",
+                    "1. Open run page",
                     "1. Open PROJECT",
                 ],
             ),
@@ -157,9 +163,20 @@ def build_report(
         _check_result(
             "first_launch_workflow_signal",
             "First launch exposes workflow path",
-            _contains_any(markdown, ["PROJECT / ORCHESTRATE / ANALYSIS"])
+            _contains_any(
+                [*markdown, *captions],
+                ["DEMO / ORCHESTRATE / ANALYSIS", "PROJECT / ORCHESTRATE / ANALYSIS"],
+            )
+            or (
+                _contains_any(buttons, ["1. ORCHESTRATE", "1. Open run page", "2. Open run page"])
+                and _contains_any(buttons, ["2. ANALYSIS", "2. Run first proof", "3. Run first proof"])
+            )
             or all(
-                _contains_any(markdown, [token])
+                _contains_any([*markdown, *captions, *buttons], [token])
+                for token in ("DEMO", "ORCHESTRATE", "ANALYSIS")
+            )
+            or all(
+                _contains_any([*markdown, *captions, *buttons], [token])
                 for token in ("Project", "Run", "Analyse")
             ),
             "Landing page shows the product journey from project to results",
@@ -215,6 +232,7 @@ def build_report(
             "passed": len(checks) - len(failed),
             "failed": len(failed),
             "markdown_count": len(markdown),
+            "caption_count": len(captions),
             "button_count": len(buttons),
         },
         "checks": checks,

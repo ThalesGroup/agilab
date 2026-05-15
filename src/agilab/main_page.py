@@ -194,6 +194,7 @@ _page_docs_module = _import_agilab_module_or_stop(
     fallback_name="agilab_page_docs_fallback",
 )
 get_docs_menu_items = _page_docs_module.get_docs_menu_items
+docs_menu_url = _page_docs_module.docs_menu_url
 
 _pinned_expander_module = _import_agilab_module_or_stop(
     "agilab.pinned_expander",
@@ -293,15 +294,18 @@ def render_sidebar_version(version: str) -> None:
 
 
 def render_sidebar_settings_link() -> None:
-    """Keep persistent runtime controls reachable without exposing a Settings nav item."""
+    """Keep persistent runtime controls and docs reachable from the sidebar."""
     settings_url = "/SETTINGS"
+    docs_url = docs_menu_url("agilab-help.html")
     markdown_fn = getattr(st.sidebar, "markdown", None)
     if callable(markdown_fn):
         markdown_fn(f"[Settings]({settings_url})")
+        markdown_fn(f"[Documentation]({docs_url})")
         return
     caption_fn = getattr(st.sidebar, "caption", None)
     if callable(caption_fn):
         caption_fn(f"Settings: {settings_url}")
+        caption_fn(f"Documentation: {docs_url}")
 
 
 def _sync_onboarding_module() -> None:
@@ -379,7 +383,6 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
     _about_onboarding.render_newcomer_first_proof(
         env,
         activate_project=_activate_newcomer_first_proof_project,
-        display_landing_page=display_landing_page,
         page_routes=_NAVIGATION_PAGE_ROUTES,
     )
 
