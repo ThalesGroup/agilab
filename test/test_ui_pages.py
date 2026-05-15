@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import importlib
+import json
 import os
 import shutil
 import sys
@@ -61,6 +62,18 @@ def _widget_or_none(collections, key: str):
 
 def _app_test(path: str, *, default_timeout: int = DEFAULT_APPTEST_TIMEOUT):
     return AppTest.from_file(path, default_timeout=default_timeout)
+
+
+def _load_project_page_module():
+    module_path = Path(__file__).resolve().parents[1] / "src" / "agilab" / "pages" / "1_PROJECT.py"
+    module_name = "agilab_project_page_for_tests"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ModuleNotFoundError(f"Unable to load PROJECT page from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 class _SimpleColumn:
@@ -587,9 +600,12 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
 
     assert not at.exception
     assert not any(str(caption.value).startswith("AGILAB version: v") for caption in at.sidebar.caption)
-    sidebar_markdown = "\n".join(str(item.value) for item in at.sidebar.markdown)
-    assert "[Settings](/SETTINGS)" in sidebar_markdown
-    assert "Documentation" not in sidebar_markdown
+    sidebar_markdowns = [str(item.value) for item in at.sidebar.markdown]
+    assert "[Settings](/SETTINGS)" in sidebar_markdowns
+    assert (
+        "[Documentation](https://thalesgroup.github.io/agilab/agilab-help.html)"
+        in sidebar_markdowns
+    )
 
 
 def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
@@ -2153,6 +2169,126 @@ def test_create_page_exposes_environment_strategy(mock_ui_env):
     sidebar_captions = "\n".join(str(item.value) for item in at.sidebar.caption)
     assert "Fast and lightweight." not in sidebar_captions
     assert "Safer for real development." not in sidebar_captions
+
+
+def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
+    at = _app_test("src/agilab/pages/1_PROJECT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
+    at.session_state["env"] = env
+    at.query_params["start"] = "notebook-import"
+
+    at.run()
+    assert not at.exception
+
+    assert at.session_state["sidebar_selection"] == "Create"
+    assert at.session_state["create_mode"] == "From notebook"
+    uploader = _widget_or_none(
+        [
+            getattr(at.sidebar, "file_uploader", []),
+            getattr(at, "file_uploader", []),
+        ],
+        "create_notebook_upload",
+    )
+    assert uploader is not None
+    assert "start" not in at.query_params
+
+    notebook_payload = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": ["print('hello from notebook')"],
+            }
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    uploader.upload(
+        "demo.ipynb",
+        json.dumps(notebook_payload).encode("utf-8"),
+        "application/x-ipynb+json",
+    ).run()
+    assert not at.exception
+    assert at.session_state["create_notebook_upload"] is not None
+    assert at.session_state["create_notebook_upload"].name == "demo.ipynb"
+
+
+def test_project_page_notebook_import_query_is_consumed_before_upload_render():
+    project_page = _load_project_page_module()
+
+    class QueryParams(dict):
+        def to_dict(self):
+            return dict(self)
+
+        def from_dict(self, values):
+            self.clear()
+            self.update(values)
+
+    rerun_calls = []
+    session_state = {}
+    query_params = QueryParams(
+        {
+            "active_app": "flight_telemetry_project",
+            "start": "notebook-import",
+            "sidebar_selection": "Create",
+        }
+    )
+
+    assert project_page._consume_notebook_import_query_seed(
+        session_state,
+        query_params,
+        rerun=lambda: rerun_calls.append("rerun"),
+    )
+
+    assert session_state["sidebar_selection"] == "Create"
+    assert session_state["create_mode"] == "From notebook"
+    assert query_params == {"active_app": "flight_telemetry_project"}
+    assert rerun_calls == ["rerun"]
+
+
+def test_project_page_notebook_import_query_cleanup_failure_does_not_recurse():
+    project_page = _load_project_page_module()
+
+    class MutationRecursingQueryParams(dict):
+        def to_dict(self):
+            return dict(self)
+
+        def from_dict(self, values):
+            raise RecursionError("query params must not be mutated during render")
+
+        def pop(self, *_args, **_kwargs):
+            raise RecursionError("pop should not be used for Streamlit query params")
+
+    session_state = {}
+    query_params = MutationRecursingQueryParams(
+        {
+            "active_app": "flight_telemetry_project",
+            "start": "notebook-import",
+        }
+    )
+
+    assert project_page._consume_notebook_import_query_seed(session_state, query_params)
+
+    assert session_state["sidebar_selection"] == "Create"
+    assert session_state["create_mode"] == "From notebook"
+    assert query_params == {
+        "active_app": "flight_telemetry_project",
+        "start": "notebook-import",
+    }
+
+    session_state["sidebar_selection"] = "Edit"
+    session_state["create_mode"] = "Template clone"
+
+    assert not project_page._consume_notebook_import_query_seed(session_state, query_params)
+    assert session_state["sidebar_selection"] == "Edit"
+    assert session_state["create_mode"] == "Template clone"
 
 
 def test_project_page_maps_legacy_clone_action_to_create(mock_ui_env):

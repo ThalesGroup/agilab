@@ -138,6 +138,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 CREATE_MODE_TEMPLATE = "Template clone"
 CREATE_MODE_NOTEBOOK = "From notebook"
+PROJECT_NOTEBOOK_IMPORT_START = "notebook-import"
+PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY = "_project_notebook_import_query_seed_consumed"
+PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = ("start", "create_mode", "sidebar_selection")
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
 NOTEBOOK_STEPS_FILE = "lab_stages.toml"
@@ -165,6 +168,82 @@ CLONE_ENV_STRATEGY_HELP = (
 )
 EDITOR_PIN_RESPONSE = "editor_pin"
 EDITOR_UNPIN_RESPONSE = "editor_unpin"
+
+
+def _project_query_param_value(query_params, key: str) -> str:
+    """Return a scalar query parameter value from Streamlit's query-param API."""
+    raw_value = query_params.get(key, "")
+    if isinstance(raw_value, list):
+        raw_value = raw_value[0] if raw_value else ""
+    return str(raw_value or "").strip()
+
+
+def _query_params_as_dict(query_params) -> dict:
+    to_dict = getattr(query_params, "to_dict", None)
+    if callable(to_dict):
+        value = to_dict()
+        return dict(value or {})
+    return dict(query_params)
+
+
+def _remove_notebook_import_query_seed(query_params) -> bool:
+    """Remove one-shot notebook-import route parameters without touching app context."""
+    try:
+        current = _query_params_as_dict(query_params)
+        cleaned = {
+            key: value
+            for key, value in current.items()
+            if key not in PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS
+        }
+        if cleaned == current:
+            return False
+
+        from_dict = getattr(query_params, "from_dict", None)
+        if callable(from_dict):
+            from_dict(cleaned)
+            return True
+
+        changed = False
+        for key in PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS:
+            if key in query_params:
+                del query_params[key]
+                changed = True
+        return changed
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError, RecursionError):
+        return False
+
+
+def _consume_notebook_import_query_seed(session_state, query_params, *, rerun=None) -> bool:
+    """Open PROJECT directly on the notebook file selector when requested by URL."""
+    start = _project_query_param_value(query_params, "start").lower()
+    requested_create_mode = _project_query_param_value(query_params, "create_mode")
+    requested_sidebar = _project_query_param_value(query_params, "sidebar_selection")
+    notebook_requested = (
+        start in {PROJECT_NOTEBOOK_IMPORT_START, "notebook"}
+        or requested_create_mode == CREATE_MODE_NOTEBOOK
+        or (
+            requested_sidebar == "Create"
+            and requested_create_mode in {"", CREATE_MODE_NOTEBOOK}
+        )
+    )
+    if not notebook_requested:
+        try:
+            if PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY in session_state:
+                del session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY]
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            pass
+        return False
+
+    seed_signature = "|".join((start, requested_create_mode, requested_sidebar))
+    if session_state.get(PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY) == seed_signature:
+        return False
+
+    session_state["sidebar_selection"] = "Create"
+    session_state["create_mode"] = CREATE_MODE_NOTEBOOK
+    session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY] = seed_signature
+    if _remove_notebook_import_query_seed(query_params) and callable(rerun):
+        rerun()
+    return True
 
 
 # -------------------- Source Extractor Class -------------------- #
@@ -3212,6 +3291,7 @@ def page():
 
     if st.session_state.get("sidebar_selection") == "Clone":
         st.session_state["sidebar_selection"] = "Create"
+    _consume_notebook_import_query_seed(st.session_state, st.query_params, rerun=st.rerun)
 
     _render_active_project_sidebar(env)
     env = st.session_state["env"]
