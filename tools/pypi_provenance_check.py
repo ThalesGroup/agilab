@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 import sys
+import time
 import tomllib
 from typing import Any, Callable, Iterable, Sequence
 import urllib.error
@@ -198,15 +199,69 @@ def check_target(
     }
 
 
+def _is_transient_failure(check: dict[str, Any]) -> bool:
+    reason = str(check.get("reason", ""))
+    return reason in {"release_missing", "missing_attestation"} or reason.startswith(
+        "pypi_json_http_5"
+    )
+
+
+def check_target_with_retries(
+    target: ReleaseTarget,
+    *,
+    attempts: int = 1,
+    retry_delay: float = 0.0,
+    timeout: float = 20.0,
+    sleep: Callable[[float], Any] = time.sleep,
+    urlopen: Callable[..., Any] = urllib.request.urlopen,
+) -> dict[str, Any]:
+    max_attempts = max(1, attempts)
+    previous_failures: list[dict[str, Any]] = []
+    for attempt in range(1, max_attempts + 1):
+        check = check_target(target, timeout=timeout, urlopen=urlopen)
+        check["attempt"] = attempt
+        if (
+            check["status"] == "pass"
+            or attempt == max_attempts
+            or not _is_transient_failure(check)
+        ):
+            if previous_failures:
+                check["previous_failures"] = previous_failures
+            return check
+        previous_failures.append(
+            {
+                "attempt": attempt,
+                "reason": check.get("reason"),
+                "status": check.get("status"),
+            }
+        )
+        if retry_delay > 0:
+            sleep(retry_delay)
+    raise AssertionError("unreachable")
+
+
 def build_report(
     *,
     repo_root: Path,
     package_names: Iterable[str] | None = None,
+    attempts: int = 1,
+    retry_delay: float = 0.0,
     timeout: float = 20.0,
+    sleep: Callable[[float], Any] = time.sleep,
     urlopen: Callable[..., Any] = urllib.request.urlopen,
 ) -> dict[str, Any]:
     targets = release_targets(repo_root=repo_root, package_names=package_names)
-    checks = [check_target(target, timeout=timeout, urlopen=urlopen) for target in targets]
+    checks = [
+        check_target_with_retries(
+            target,
+            attempts=attempts,
+            retry_delay=retry_delay,
+            timeout=timeout,
+            sleep=sleep,
+            urlopen=urlopen,
+        )
+        for target in targets
+    ]
     failures = sum(1 for check in checks if check["status"] != "pass")
     return {
         "schema": SCHEMA,
@@ -214,6 +269,7 @@ def build_report(
         "summary": {
             "package_count": len(checks),
             "failures": failures,
+            "attempts": max(1, attempts),
         },
         "checks": checks,
     }
@@ -252,6 +308,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Limit the check to one package. May be passed more than once.",
     )
     parser.add_argument("--timeout", type=float, default=20.0)
+    parser.add_argument(
+        "--attempts",
+        type=int,
+        default=1,
+        help=(
+            "Maximum attempts per package. Use after a fresh upload to tolerate "
+            "PyPI propagation lag."
+        ),
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=float,
+        default=5.0,
+        help="Seconds to wait between transient PyPI provenance checks.",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON instead of text.")
     parser.add_argument(
         "--github-step-summary",
@@ -266,6 +337,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = build_report(
         repo_root=args.repo_root,
         package_names=args.packages,
+        attempts=args.attempts,
+        retry_delay=args.retry_delay,
         timeout=args.timeout,
     )
     if args.json:

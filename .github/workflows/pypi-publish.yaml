@@ -462,6 +462,8 @@ jobs:
           mkdir -p test-results/pypi-provenance
           args=(
             --json
+            --attempts 12
+            --retry-delay 10
             --github-step-summary "$GITHUB_STEP_SUMMARY"
           )
           for package in ${PROVENANCE_PACKAGES}; do
