@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-14
+  updated: 2026-05-15
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -211,7 +211,11 @@ the LFS-backed assets materialized, not a rewritten hook.
 Use `--profile advanced --space "$space_owner/agilab-advanced"` for the heavier
 Advanced Proof Pack companion Space.
 
-After upload, verify the Space cutover separately from the file upload:
+After upload, verify the Space cutover separately from the file upload. Hugging
+Face may report `No files have been modified since last commit` and return the
+previous Space commit when the staged runtime payload is already current; treat
+that as a valid no-op redeploy only if the deploy script verifier, public
+visibility check, runtime SHA check, and public smoke all pass.
 
 ```bash
 space_owner="<space-owner>"
@@ -296,6 +300,17 @@ After runtime cutover, run the public smoke:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --json
+```
+
+The Space source-tree verifier is an intentional deployment contract, not a
+generic linter. If it fails on an expected public core page such as
+`0_SETTINGS.py`, update `tools/hf_space_smoke.py` and
+`test/test_hf_space_smoke.py` first, run the targeted test, commit that
+guardrail fix, then rerun the deploy script:
+
+```bash
+uv --preview-features extra-build-dependencies run pytest -q test/test_hf_space_smoke.py
+uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.py --space <space-owner>/agilab --tree-only --json
 ```
 
 If the deployed Space README or deploy contract changed, also run the sibling
