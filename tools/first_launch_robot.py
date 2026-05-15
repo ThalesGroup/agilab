@@ -142,7 +142,15 @@ def build_report(
         _check_result(
             "first_launch_first_proof_signal",
             "First launch exposes first-proof action",
-            _contains_any(markdown, ["Start here: run flight_telemetry_project first"]),
+            _contains_any(
+                [*markdown, *buttons],
+                [
+                    "First run: use the built-in flight demo",
+                    "Wizard pipeline",
+                    "1. Select demo",
+                    "1. Open PROJECT",
+                ],
+            ),
             "Landing page tells newcomers where to start",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),

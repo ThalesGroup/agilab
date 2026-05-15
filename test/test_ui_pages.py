@@ -602,7 +602,9 @@ def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
     assert 'visibility="hidden"' in source
     assert 'page_label="ABOUT"' not in source
     assert 'page_label="MAIN_PAGE"' in source
-    assert 'title="PROJECT", url_path="PROJECT", visibility="hidden"' in source
+    assert 'title="PROJECT"' in source
+    assert 'url_path="PROJECT"' in source
+    assert 'visibility="hidden"' in source
     assert 'title="ORCHESTRATE"' in source
     assert 'title="WORKFLOW"' in source
     assert 'title="ANALYSIS"' in source

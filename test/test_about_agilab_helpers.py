@@ -119,7 +119,10 @@ class _FakeStreamlit:
         key = _kwargs.get("key")
         return bool(self.button_values.get(label, self.button_values.get(key, False)))
 
-    def switch_page(self, page: object):
+    def switch_page(self, page: object, **kwargs):
+        query_params = kwargs.get("query_params")
+        if query_params is not None:
+            self.query_params = dict(query_params)
         self.events.append(("switch_page", str(page)))
 
     def rerun(self):  # pragma: no cover - button is false in these tests
@@ -3048,6 +3051,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     select_demo = _event_index(fake_st.events, "button", "1. Select demo")
     open_orchestrate = _event_index(fake_st.events, "button", "2. Open ORCHESTRATE")
     run_first = _event_index(fake_st.events, "button", "3. Run first")
+    notebook_start = _event_index(fake_st.events, "button", "Start from notebook")
     do_this_now = _event_index(fake_st.events, "markdown", "**2. Do this now**")
     done_when = _event_index(fake_st.events, "markdown", "**3. Done when**")
     proof_details = _event_index(
@@ -3066,7 +3070,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "Use built-in demo" in overview_markup
     assert "This keeps the first proof on the documented, supportable route." in overview_markup
     assert overview <= action_strip < wizard < select_demo < open_orchestrate < run_first
-    assert run_first < do_this_now < done_when < proof_details < progress < validated_path
+    assert run_first < notebook_start < do_this_now < done_when < proof_details < progress < validated_path
 
 
 def test_first_proof_wizard_project_click_selects_demo_and_opens_project(
@@ -3134,6 +3138,80 @@ def test_first_proof_wizard_orchestrate_click_selects_demo_and_opens_orchestrate
 
     assert activated == [flight_telemetry_project.resolve()]
     assert ("switch_page", "pages/2_ORCHESTRATE.py") in fake_st.events
+
+
+def test_first_proof_wizard_uses_registered_navigation_page_object(
+    tmp_path,
+    monkeypatch,
+):
+    class PageRoute:
+        def __init__(self, name: str):
+            self.name = name
+
+        def __str__(self) -> str:
+            return self.name
+
+    apps_path = tmp_path / "apps"
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
+    fake_st = _FakeStreamlit(button_values={"2. Open ORCHESTRATE": True})
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="flight_telemetry_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+        st_resources=tmp_path / "resources",
+    )
+
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(about_agilab, "display_landing_page", lambda _path: None)
+    monkeypatch.setattr(
+        about_agilab,
+        "_NAVIGATION_PAGE_ROUTES",
+        {
+            "project": PageRoute("PROJECT_PAGE_OBJECT"),
+            "orchestrate": PageRoute("ORCHESTRATE_PAGE_OBJECT"),
+            "analysis": PageRoute("ANALYSIS_PAGE_OBJECT"),
+        },
+    )
+
+    about_agilab.render_newcomer_first_proof(env)
+
+    assert ("switch_page", "ORCHESTRATE_PAGE_OBJECT") in fake_st.events
+    assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
+    assert fake_st.query_params["active_app"] == "flight_telemetry_project"
+
+
+def test_first_proof_wizard_notebook_start_opens_project_without_forcing_demo(
+    tmp_path,
+    monkeypatch,
+):
+    class PageRoute:
+        def __str__(self) -> str:
+            return "PROJECT_PAGE_OBJECT"
+
+    apps_path = tmp_path / "apps"
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
+    fake_st = _FakeStreamlit(button_values={"Start from notebook": True})
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="mycode_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+        st_resources=tmp_path / "resources",
+    )
+
+    monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
+
+    about_agilab._about_onboarding.render_newcomer_first_proof(
+        env,
+        activate_project=lambda _env, _path: pytest.fail("notebook start should not select demo"),
+        display_landing_page=lambda _path: None,
+        page_routes={"project": PageRoute()},
+    )
+
+    assert fake_st.session_state["create_mode"] == "From notebook"
+    assert fake_st.query_params["active_app"] == "mycode_project"
+    assert ("switch_page", "PROJECT_PAGE_OBJECT") in fake_st.events
 
 
 def test_first_proof_wizard_analysis_click_routes_to_orchestrate_until_run_exists(

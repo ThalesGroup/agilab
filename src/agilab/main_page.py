@@ -232,6 +232,7 @@ from agi_gui.ux_widgets import compact_choice
 FIRST_PROOF_PROJECT = _about_onboarding.FIRST_PROOF_PROJECT
 FIRST_PROOF_COMPATIBILITY_SLICE = _about_onboarding.FIRST_PROOF_COMPATIBILITY_SLICE
 FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _about_onboarding.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
+_NAVIGATION_PAGE_ROUTES: Dict[str, Any] = {}
 
 
 def get_about_content() -> dict[str, str]:
@@ -380,6 +381,7 @@ def render_newcomer_first_proof(env: Any | None = None) -> None:
         env,
         activate_project=_activate_newcomer_first_proof_project,
         display_landing_page=display_landing_page,
+        page_routes=_NAVIGATION_PAGE_ROUTES,
     )
 
 
@@ -665,19 +667,44 @@ def _navigation_pages() -> list[Any]:
     """Return the supported visible pages while keeping the main page hidden from the page list."""
     root = Path(__file__).resolve().parent
     pages_root = root / "pages"
-    return [
-        st.Page(
-            _render_about_page_entry,
-            title="Main Page",
-            url_path="",
-            default=True,
-            visibility="hidden",
-        ),
-        st.Page(pages_root / "1_PROJECT.py", title="PROJECT", url_path="PROJECT", visibility="hidden"),
-        st.Page(_page_file_runner(pages_root / "2_ORCHESTRATE.py"), title="ORCHESTRATE", url_path="ORCHESTRATE"),
-        st.Page(_page_file_runner(pages_root / "3_WORKFLOW.py"), title="WORKFLOW", url_path="WORKFLOW"),
-        st.Page(_page_file_runner(pages_root / "4_ANALYSIS.py"), title="ANALYSIS", url_path="ANALYSIS"),
-    ]
+    main_page = st.Page(
+        _render_about_page_entry,
+        title="Main Page",
+        url_path="",
+        default=True,
+        visibility="hidden",
+    )
+    project_page = st.Page(
+        pages_root / "1_PROJECT.py",
+        title="PROJECT",
+        url_path="PROJECT",
+        visibility="hidden",
+    )
+    orchestrate_page = st.Page(
+        _page_file_runner(pages_root / "2_ORCHESTRATE.py"),
+        title="ORCHESTRATE",
+        url_path="ORCHESTRATE",
+    )
+    workflow_page = st.Page(
+        _page_file_runner(pages_root / "3_WORKFLOW.py"),
+        title="WORKFLOW",
+        url_path="WORKFLOW",
+    )
+    analysis_page = st.Page(
+        _page_file_runner(pages_root / "4_ANALYSIS.py"),
+        title="ANALYSIS",
+        url_path="ANALYSIS",
+    )
+    _NAVIGATION_PAGE_ROUTES.clear()
+    _NAVIGATION_PAGE_ROUTES.update(
+        {
+            "project": project_page,
+            "orchestrate": orchestrate_page,
+            "workflow": workflow_page,
+            "analysis": analysis_page,
+        }
+    )
+    return [main_page, project_page, orchestrate_page, workflow_page, analysis_page]
 
 
 def _page_file_runner(page_file: Path) -> Callable[[], None]:
