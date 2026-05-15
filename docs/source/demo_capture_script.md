@@ -219,7 +219,7 @@ Default sequence:
 Important scope note:
 
 - the default sequence uses public built-ins from `agilab`
-- the first-class Data IO demo is `mission_decision_project`; the three-project
+- the first-class Mission Decision demo is `mission_decision_project`; the three-project
   wrapper is only a composite media workflow
 - keep dynamic-pipeline claims grounded in visible AGILAB stages, generated
   snippets, worker activity, and replayable evidence

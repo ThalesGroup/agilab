@@ -5,6 +5,11 @@ AGILab reads its configuration from environment variables. You can set them glob
 ``$HOME/.agilab/.env`` or per-session before launching the web interface / AGI installers. The table below
 summarises the supported keys.
 
+In the web interface, open **Settings** from the landing sidebar to edit the
+persisted ``$HOME/.agilab/.env`` values and choose the global runtime
+diagnostics level. Settings is intentionally reachable as a utility route
+rather than shown as one of the workflow pages.
+
 .. list-table:: Runtime configuration
    :header-rows: 1
 

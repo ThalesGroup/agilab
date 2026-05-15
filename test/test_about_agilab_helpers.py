@@ -2100,7 +2100,7 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
     assert about_menu["Get help"] == "https://thalesgroup.github.io/agilab/agilab-help.html"
 
 
-def test_main_page_sidebar_keeps_docs_link_without_execution_context(monkeypatch):
+def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeypatch):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(
@@ -2144,7 +2144,8 @@ def test_main_page_sidebar_keeps_docs_link_without_execution_context(monkeypatch
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
     sidebar_markup = "\n".join(body for kind, body in fake_st.events if kind == "sidebar.markdown")
-    assert "[Documentation](https://thalesgroup.github.io/agilab/agilab-help.html)" in sidebar_markup
+    assert "[Settings](/SETTINGS)" in sidebar_markup
+    assert "Documentation" not in sidebar_markup
     assert "agilab-sidebar-system" not in sidebar_markup
     assert "Active project" not in sidebar_markup
     assert "Scheduler" not in sidebar_markup
