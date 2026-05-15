@@ -213,7 +213,7 @@ def _remove_notebook_import_query_seed(query_params) -> bool:
         return False
 
 
-def _consume_notebook_import_query_seed(session_state, query_params, *, rerun=None) -> bool:
+def _consume_notebook_import_query_seed(session_state, query_params) -> bool:
     """Open PROJECT directly on the notebook file selector when requested by URL."""
     start = _project_query_param_value(query_params, "start").lower()
     requested_create_mode = _project_query_param_value(query_params, "create_mode")
@@ -241,8 +241,6 @@ def _consume_notebook_import_query_seed(session_state, query_params, *, rerun=No
     session_state["sidebar_selection"] = "Create"
     session_state["create_mode"] = CREATE_MODE_NOTEBOOK
     session_state[PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY] = seed_signature
-    if _remove_notebook_import_query_seed(query_params) and callable(rerun):
-        rerun()
     return True
 
 
@@ -3291,7 +3289,7 @@ def page():
 
     if st.session_state.get("sidebar_selection") == "Clone":
         st.session_state["sidebar_selection"] = "Create"
-    _consume_notebook_import_query_seed(st.session_state, st.query_params, rerun=st.rerun)
+    _consume_notebook_import_query_seed(st.session_state, st.query_params)
 
     _render_active_project_sidebar(env)
     env = st.session_state["env"]

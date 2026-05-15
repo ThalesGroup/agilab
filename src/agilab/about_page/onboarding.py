@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
-from html import escape
+import re
 from pathlib import Path
 from typing import Any, Callable, Dict, List
+from urllib.parse import urlencode
 
 import streamlit as st
 from streamlit.errors import StreamlitAPIException
@@ -29,6 +30,12 @@ _first_proof_wizard_module = import_agilab_module(
     fallback_path=_AGILAB_ROOT / "first_proof_wizard.py",
     fallback_name="agilab_first_proof_wizard_onboarding_fallback",
 )
+_pending_actions_module = import_agilab_module(
+    "agilab.orchestrate_pending_actions",
+    current_file=__file__,
+    fallback_path=_AGILAB_ROOT / "orchestrate_pending_actions.py",
+    fallback_name="agilab_orchestrate_pending_actions_onboarding_fallback",
+)
 
 FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
@@ -39,6 +46,24 @@ FIRST_PROOF_PAGE_ROUTES = {
     "orchestrate": Path("pages/2_ORCHESTRATE.py"),
     "analysis": Path("pages/4_ANALYSIS.py"),
 }
+FIRST_PROOF_NOTEBOOK_HINT = (
+    "Path: `ORCHESTRATE` -> `EDIT` -> `Create` -> `From notebook`."
+)
+FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
+FIRST_PROOF_VIEW_MAPS_PATH = (
+    _AGILAB_ROOT
+    / "apps-pages"
+    / "view_maps"
+    / "src"
+    / "view_maps"
+    / "view_maps.py"
+)
+_FIRST_PROOF_ACTION_CHAR_WIDTH_PX = 7
+_FIRST_PROOF_ACTION_TEXT_PADDING_PX = 28
+_FIRST_PROOF_ACTION_MIN_COLUMN_WIDTH_PX = 128
+_FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX = 20
+_FIRST_PROOF_ACTION_COLUMN_GAP_PX = 16
+_MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\([^)]+\)")
 
 
 def _newcomer_first_proof_content() -> Dict[str, Any]:
@@ -67,59 +92,32 @@ def _newcomer_first_proof_state(env: Any) -> Dict[str, Any]:
 
 
 def _render_newcomer_first_proof_static() -> None:
-    """Render the legacy concise newcomer checklist used by helper tests."""
+    """Render the concise newcomer checklist used by helper tests."""
     content = _newcomer_first_proof_content()
-    steps_html = "".join(
-        f"<li><strong>{escape(str(label))}</strong>: {escape(str(detail))}</li>"
-        for label, detail in content["steps"]
+    steps_markdown = "\n".join(
+        f"{index}. **{label}**: {detail}"
+        for index, (label, detail) in enumerate(content["steps"], start=1)
     )
-    success_html = "".join(
-        f"<li>{escape(str(item))}</li>"
-        for item in content["success_criteria"]
-    )
+    success_markdown = "\n".join(f"- {item}" for item in content["success_criteria"])
     st.markdown(
         f"""
-        <style>
-          .agilab-proof-static {{
-            margin: 1rem 0 1.25rem;
-            padding: 1.15rem 1.25rem;
-            border: 1px solid rgba(10, 31, 51, 0.12);
-            border-radius: 20px;
-            background:
-              radial-gradient(circle at 100% 0%, rgba(255, 190, 94, 0.20), transparent 34%),
-              linear-gradient(135deg, #ffffff 0%, #f5f8f4 100%);
-            box-shadow: 0 14px 40px rgba(12, 27, 42, 0.08);
-            font-family: "Aptos", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
-          }}
-          .agilab-proof-static h3 {{
-            margin: 0 0 0.45rem;
-            color: #0a1f33;
-            letter-spacing: -0.02em;
-          }}
-          .agilab-proof-static p,
-          .agilab-proof-static li {{
-            color: #4b6258;
-            line-height: 1.5;
-          }}
-          .agilab-proof-static strong {{
-            color: #0a1f33;
-          }}
-        </style>
-        <div class="agilab-proof-static">
-          <h3>{escape(str(content["title"]))}</h3>
-          <p style="margin-bottom: 0.75rem;">{escape(str(content["intro"]))}</p>
-          <p style="margin-bottom: 0.35rem;"><strong>Do this now</strong></p>
-          <ol style="margin-top: 0.1rem; margin-bottom: 0.75rem;">{steps_html}</ol>
-          <p style="margin-bottom: 0.35rem;"><strong>Done when</strong></p>
-          <ul style="margin-top: 0.1rem; margin-bottom: 0.5rem;">{success_html}</ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
+**{content["title"]}**
+
+{content["intro"]}
+
+**Follow these steps**
+
+{steps_markdown}
+
+**Success criteria**
+
+{success_markdown}
+        """
     )
 
 
 def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
-    """Return compact first-proof progress rows for the onboarding card."""
+    """Return compact first-proof progress rows for the diagnostics expander."""
     active_app = str(state.get("active_app_name") or "none")
     manifest_path = str(state.get("run_manifest_path") or "")
     output_dir = str(state.get("output_dir") or "")
@@ -182,20 +180,8 @@ def _first_proof_progress_markdown(rows: List[Dict[str, str]]) -> str:
     return "\n".join(table)
 
 
-def _first_proof_status_tone(status: str) -> str:
-    """Return a stable CSS tone for a first-proof status label."""
-    normalized = status.strip().lower()
-    if normalized == "done":
-        return "done"
-    if normalized == "next":
-        return "next"
-    if normalized in {"attention", "blocked"}:
-        return "attention"
-    return "waiting"
-
-
 def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
-    """Return first-run microcopy for the next visible user action."""
+    """Return first-proof microcopy for the next visible user action."""
     active_app = str(state.get("active_app_name") or "none")
     next_step = str(state.get("next_step") or "").strip()
     if not state["project_available"]:
@@ -213,19 +199,19 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
     if not state["current_app_matches"]:
         return {
             "tone": "next",
-            "phase": "Stage 1",
-            "title": "Select the built-in flight-telemetry project",
+            "phase": "Next action",
+            "title": "Start with the known demo project",
             "detail": (
-                f"You are on `{active_app}`. Switch to `flight_telemetry_project`, "
-                "the guided demo with sample data, before running anything."
+                f"You are on `{active_app}`. Select `flight_telemetry_project` first, "
+                "so any failure is an AGILAB setup issue rather than custom app code."
             ),
-            "cta_label": "Use flight-telemetry project",
-            "proof_hint": "This keeps the first proof on the documented, supportable route.",
+            "cta_label": "Select demo",
+            "proof_hint": "Known data, known path, no cluster or service mode.",
         }
     if state["run_manifest_passed"]:
         return {
             "tone": "done",
-            "phase": "Complete",
+            "phase": "Proof complete",
             "title": "First proof is green",
             "detail": "The manifest passes. Keep it as evidence before trying another demo.",
             "cta_label": "Try another demo",
@@ -234,70 +220,103 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
     if state["run_manifest_loaded"] or state["run_output_detected"]:
         return {
             "tone": "attention",
-            "phase": "Stage 3",
-            "title": "Finish the evidence",
+            "phase": "Needs evidence",
+            "title": "Finish or inspect the evidence",
             "detail": next_step or "Generate or repair `run_manifest.json` before moving on.",
-            "cta_label": "Show proof details",
+            "cta_label": "Check proof details",
             "proof_hint": "Done when `run_manifest.json` passes the compatibility checks.",
         }
     return {
         "tone": "next",
-        "phase": "Stage 2",
-        "title": "Install, then execute",
-        "detail": "Open `ORCHESTRATE`; click `INSTALL`, then `EXECUTE` with cluster and service mode off.",
-        "cta_label": "Go to `ORCHESTRATE`",
-        "proof_hint": "Done when ANALYSIS opens and `run_manifest.json` appears.",
+        "phase": "Next action",
+        "title": "Run the demo once",
+        "detail": "Open `ORCHESTRATE`; keep cluster, benchmark, and service mode off; click `INSTALL`, then `EXECUTE`.",
+        "cta_label": "Open run page",
+        "proof_hint": "Done when ANALYSIS opens and `run_manifest.json` is written.",
     }
 
 
 def _first_proof_wizard_steps(state: Dict[str, Any]) -> List[Dict[str, str]]:
     """Return clickable wizard steps for the newcomer proof path."""
-    project_label = "1. Open PROJECT" if state["current_app_matches"] else "1. Select demo"
-    project_detail = (
-        "The built-in flight-telemetry project is already selected."
-        if state["current_app_matches"]
-        else "Select the demo project and keep later steps on the validated path."
-    )
-    analysis_ready = (
-        state["run_manifest_passed"]
-        or state["run_manifest_loaded"]
-        or state["run_output_detected"]
-    )
-    analysis_label = "3. Open ANALYSIS" if analysis_ready else "3. Run first"
-    analysis_detail = (
-        "Open the generated results."
-        if analysis_ready
-        else "No run evidence yet; this takes you to ORCHESTRATE first."
-    )
     return [
         {
-            "id": "project",
-            "title": "PROJECT",
-            "button": project_label,
-            "detail": project_detail,
+            "id": "install",
+            "button": "1. INSTALL",
+            "hint": "Runs the ORCHESTRATE install.",
         },
         {
-            "id": "orchestrate",
-            "title": "ORCHESTRATE",
-            "button": "2. Open ORCHESTRATE",
-            "detail": "Install and execute the demo with cluster and service mode off.",
+            "id": "run",
+            "button": "2. RUN",
+            "hint": "Starts the ORCHESTRATE run.",
         },
         {
             "id": "analysis",
-            "title": "ANALYSIS",
-            "button": analysis_label,
-            "detail": analysis_detail,
+            "button": "3. ANALYSIS",
+            "hint": (
+                "`view_maps`: "
+                f"[Open]({_first_proof_analysis_view_maps_url()})."
+            ),
         },
     ]
 
 
+def _first_proof_page_url(page_name: str, query_params: Dict[str, str] | None = None) -> str:
+    """Build a relative Streamlit navigation URL for first-proof links."""
+    query = urlencode(query_params or {})
+    suffix = f"?{query}" if query else ""
+    return f"/{page_name}{suffix}"
+
+
+def _first_proof_analysis_view_maps_url() -> str:
+    """Return an ANALYSIS URL that opens the built-in view_maps page directly."""
+    return _first_proof_page_url(
+        "ANALYSIS",
+        {
+            "active_app": FIRST_PROOF_PROJECT,
+            "current_page": str(FIRST_PROOF_VIEW_MAPS_PATH.resolve(strict=False)),
+        },
+    )
+
+
+def _first_proof_visible_text_length(text: str) -> int:
+    """Return the approximate visible character count for compact layout sizing."""
+    visible_text = _MARKDOWN_LINK_PATTERN.sub(r"\1", text)
+    return len(visible_text.replace("`", ""))
+
+
+def _first_proof_text_column_width_px(texts: List[str]) -> int:
+    """Estimate the minimum readable pixel width for a column of short labels."""
+    max_chars = max((_first_proof_visible_text_length(text) for text in texts), default=0)
+    return max(
+        _FIRST_PROOF_ACTION_MIN_COLUMN_WIDTH_PX,
+        (max_chars * _FIRST_PROOF_ACTION_CHAR_WIDTH_PX)
+        + _FIRST_PROOF_ACTION_TEXT_PADDING_PX,
+    )
+
+
+def _first_proof_action_columns_layout(
+    proof_actions: List[Dict[str, str]],
+    *,
+    notebook_hint: str = FIRST_PROOF_NOTEBOOK_HINT,
+) -> tuple[List[int], int]:
+    """Return content-sized Streamlit column weights and total pixel width."""
+    proof_texts = [
+        text
+        for action in proof_actions
+        for text in (str(action["button"]), str(action["hint"]))
+    ]
+    proof_width = _first_proof_text_column_width_px(proof_texts)
+    notebook_width = _first_proof_text_column_width_px(["Import notebook", notebook_hint])
+    spec = [proof_width, _FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX, notebook_width]
+    total_width = sum(spec) + (_FIRST_PROOF_ACTION_COLUMN_GAP_PX * (len(spec) - 1))
+    return spec, total_width
+
+
 def _first_proof_next_wizard_step_id(state: Dict[str, Any]) -> str:
     """Return the wizard step that should be visually promoted."""
-    if not state["project_available"] or not state["current_app_matches"]:
-        return "project"
     if state["run_manifest_passed"] or state["run_manifest_loaded"] or state["run_output_detected"]:
         return "analysis"
-    return "orchestrate"
+    return "install"
 
 
 def _first_proof_page_route(action_id: str, page_routes: Dict[str, Any] | None) -> Any:
@@ -305,6 +324,43 @@ def _first_proof_page_route(action_id: str, page_routes: Dict[str, Any] | None) 
     if page_routes and action_id in page_routes:
         return page_routes[action_id]
     return FIRST_PROOF_PAGE_ROUTES[action_id]
+
+
+def _first_proof_notebook_query_params(env: Any, state: Dict[str, Any]) -> Dict[str, str]:
+    """Return query params that open PROJECT on the notebook-import create path."""
+    query_params = dict(FIRST_PROOF_NOTEBOOK_QUERY_PARAMS)
+    active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "").strip()
+    if active_app:
+        query_params["active_app"] = active_app
+    return query_params
+
+
+def _render_first_proof_notebook_upload_control(
+    env: Any,
+    state: Dict[str, Any],
+    page_routes: Dict[str, Any] | None,
+) -> None:
+    """Render a direct notebook upload control for the first-proof alternative."""
+    query_params = _first_proof_notebook_query_params(env, state)
+    uploaded_notebook = st.file_uploader(
+        "Upload",
+        type="ipynb",
+        key="create_notebook_upload",
+        label_visibility="collapsed",
+    )
+    if uploaded_notebook is None:
+        return
+
+    st.session_state["sidebar_selection"] = "Create"
+    st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
+    st.session_state["first_proof_feedback"] = (
+        "Notebook selected. PROJECT is open in Create mode; complete the project name and create it."
+    )
+    _first_proof_open_page(
+        _first_proof_page_route("project", page_routes),
+        "PROJECT",
+        query_params=query_params,
+    )
 
 
 def _first_proof_open_page(
@@ -361,14 +417,27 @@ def _handle_first_proof_wizard_action(
     query_params = {"active_app": FIRST_PROOF_PROJECT}
     if action_id == "project":
         if _first_proof_prepare_project(env, state, activate_project):
+            st.session_state["first_proof_feedback"] = (
+                "`flight_telemetry_project` selected. Next: open the run page."
+            )
+            rerun = getattr(st, "rerun", None)
+            if callable(rerun):
+                rerun()
+        return
+    if action_id == "install":
+        if _first_proof_prepare_project(env, state, activate_project):
+            _pending_actions_module.queue_pending_install_action(st.session_state)
+            st.session_state["show_install"] = True
             _first_proof_open_page(
-                _first_proof_page_route("project", page_routes),
-                "PROJECT",
+                _first_proof_page_route("orchestrate", page_routes),
+                "ORCHESTRATE",
                 query_params=query_params,
             )
         return
-    if action_id == "orchestrate":
+    if action_id == "run":
         if _first_proof_prepare_project(env, state, activate_project):
+            _pending_actions_module.queue_pending_execute_action(st.session_state, "run")
+            st.session_state["show_run"] = True
             _first_proof_open_page(
                 _first_proof_page_route("orchestrate", page_routes),
                 "ORCHESTRATE",
@@ -378,19 +447,9 @@ def _handle_first_proof_wizard_action(
     if action_id == "analysis":
         if not _first_proof_prepare_project(env, state, activate_project):
             return
-        if state["run_manifest_passed"] or state["run_manifest_loaded"] or state["run_output_detected"]:
-            _first_proof_open_page(
-                _first_proof_page_route("analysis", page_routes),
-                "ANALYSIS",
-                query_params=query_params,
-            )
-            return
-        st.session_state["first_proof_feedback"] = (
-            "Run the built-in flight-telemetry project from ORCHESTRATE before opening ANALYSIS."
-        )
         _first_proof_open_page(
-            _first_proof_page_route("orchestrate", page_routes),
-            "ORCHESTRATE",
+            _first_proof_page_route("analysis", page_routes),
+            "ANALYSIS",
             query_params=query_params,
         )
         return
@@ -415,293 +474,58 @@ def _render_first_proof_wizard_actions(
     page_routes: Dict[str, Any] | None,
 ) -> None:
     """Render executable wizard actions for the first-proof pipeline."""
-    st.markdown("**Wizard pipeline**")
-    st.caption("Click a step: AGILAB selects the demo when needed, then opens the right page.")
+    st.markdown("**First proof with flight-telemetry-project or from your own notebook**")
     next_step_id = _first_proof_next_wizard_step_id(state)
-    for step in _first_proof_wizard_steps(state):
-        st.markdown(f"**{step['title']}**")
-        st.caption(step["detail"])
-        button_type = "primary" if step["id"] == next_step_id else "secondary"
+    proof_actions = [
+        {
+            "id": str(step["id"]),
+            "button": str(step["button"]),
+            "hint": str(step["hint"]),
+            "type": "primary" if step["id"] == next_step_id else "secondary",
+        }
+        for step in _first_proof_wizard_steps(state)
+    ]
+    columns_spec, columns_width = _first_proof_action_columns_layout(proof_actions)
+    proof_column, separator_column, notebook_column = st.columns(
+        columns_spec,
+        gap="small",
+        vertical_alignment="top",
+        width=columns_width,
+    )
+    with proof_column:
+        for action in proof_actions:
+            if st.button(
+                action["button"],
+                key=f"first_proof:wizard:{action['id']}",
+                type=action["type"],
+                width="content",
+            ):
+                _handle_first_proof_wizard_action(
+                    action["id"],
+                    env,
+                    state,
+                    activate_project,
+                    page_routes,
+                )
+            st.caption(action["hint"])
+    with separator_column:
+        st.markdown("or")
+    with notebook_column:
         if st.button(
-            step["button"],
-            key=f"first_proof:wizard:{step['id']}",
-            type=button_type,
-            width="stretch",
+            "Import notebook",
+            key="first_proof:wizard:notebook",
+            type="secondary",
+            width="content",
         ):
             _handle_first_proof_wizard_action(
-                step["id"],
+                "notebook",
                 env,
                 state,
                 activate_project,
                 page_routes,
             )
-    st.markdown("**Alternative start**")
-    st.caption("Already have a notebook? Open PROJECT directly in Create mode with the notebook uploader visible.")
-    if st.button(
-        "Start from notebook",
-        key="first_proof:wizard:notebook",
-        type="secondary",
-        width="stretch",
-    ):
-        _handle_first_proof_wizard_action(
-            "notebook",
-            env,
-            state,
-            activate_project,
-            page_routes,
-        )
-
-
-def _first_proof_overview_html(
-    content: Dict[str, Any],
-    state: Dict[str, Any],
-    rows: List[Dict[str, str]],
-) -> str:
-    """Render the first-proof cockpit card."""
-    next_action = _first_proof_next_action_model(state)
-    cards_html = "".join(
-        (
-            f"""<article class="agilab-proof__status agilab-proof__status--{_first_proof_status_tone(row['status'])}">
-                  <span>{escape(str(row["status"]))}</span>
-                  <strong>{escape(str(row["step"]))}</strong>
-                  <p>{escape(str(row["detail"]))}</p>
-                </article>"""
-        )
-        for row in rows
-    )
-    target_seconds = float(state.get("target_seconds") or 0.0)
-    active_app = str(state.get("active_app_name") or "none")
-    route = str(state.get("recommended_path_label") or "recommended path")
-    return f"""
-        <style>
-          .agilab-proof {{
-            margin: 0.25rem 0 1.05rem;
-            padding: clamp(1rem, 2.2vw, 1.45rem);
-            border: 1px solid rgba(10, 31, 51, 0.11);
-            border-radius: 24px;
-            background:
-              radial-gradient(circle at 8% 0%, rgba(255, 190, 94, 0.24), transparent 32%),
-              radial-gradient(circle at 92% 15%, rgba(52, 211, 153, 0.16), transparent 32%),
-              linear-gradient(135deg, #ffffff 0%, #f4f8f5 100%);
-            box-shadow: 0 18px 48px rgba(12, 27, 42, 0.09);
-            font-family: "Aptos", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
-          }}
-          .agilab-proof__head {{
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 1rem;
-            align-items: start;
-          }}
-          .agilab-proof__kicker {{
-            margin: 0 0 0.45rem;
-            color: #39513f;
-            font-size: 0.72rem;
-            font-weight: 900;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-          }}
-          .agilab-proof h2 {{
-            margin: 0;
-            color: #0a1f33;
-            font-size: clamp(1.55rem, 3vw, 2.25rem);
-            letter-spacing: -0.055em;
-            line-height: 1.02;
-          }}
-          .agilab-proof__intro {{
-            max-width: 760px;
-            margin: 0.75rem 0 0;
-            color: #587064;
-            line-height: 1.55;
-            font-size: 0.98rem;
-          }}
-          .agilab-proof__seal {{
-            min-width: 170px;
-            padding: 0.75rem 0.85rem;
-            border: 1px solid rgba(10, 31, 51, 0.10);
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.72);
-            text-align: right;
-          }}
-          .agilab-proof__seal span {{
-            display: block;
-            color: #77877f;
-            font-size: 0.72rem;
-            font-weight: 800;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-          }}
-          .agilab-proof__seal strong {{
-            display: block;
-            margin-top: 0.15rem;
-            color: #0a1f33;
-            font-size: 1.08rem;
-          }}
-          .agilab-proof__action {{
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 0.85rem;
-            align-items: center;
-            margin-top: 1rem;
-            padding: 0.9rem;
-            border: 1px solid rgba(10, 31, 51, 0.12);
-            border-radius: 20px;
-            background:
-              linear-gradient(135deg, rgba(10, 31, 51, 0.92), rgba(35, 58, 50, 0.90));
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
-          }}
-          .agilab-proof__action--done {{
-            background: linear-gradient(135deg, #14532d, #2f5c40);
-          }}
-          .agilab-proof__action--attention {{
-            background: linear-gradient(135deg, #7f1d1d, #86450b);
-          }}
-          .agilab-proof__action span {{
-            display: inline-flex;
-            margin-bottom: 0.32rem;
-            color: #ffd28a;
-            font-size: 0.72rem;
-            font-weight: 900;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-          }}
-          .agilab-proof__action strong {{
-            display: block;
-            color: #fffaf0;
-            font-size: 1.05rem;
-          }}
-          .agilab-proof__action p {{
-            margin: 0.28rem 0 0;
-            color: rgba(255, 250, 240, 0.78);
-            line-height: 1.45;
-          }}
-          .agilab-proof__action aside {{
-            min-width: 190px;
-            padding: 0.7rem 0.75rem;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.09);
-            color: rgba(255, 250, 240, 0.86);
-            font-size: 0.84rem;
-            font-weight: 800;
-            text-align: right;
-          }}
-          .agilab-proof__action aside small {{
-            display: block;
-            margin-top: 0.25rem;
-            color: rgba(255, 250, 240, 0.62);
-            font-weight: 650;
-            line-height: 1.35;
-          }}
-          .agilab-proof__rail {{
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 0.72rem;
-            margin-top: 1rem;
-          }}
-          .agilab-proof__status {{
-            min-height: 132px;
-            padding: 0.9rem;
-            border: 1px solid rgba(10, 31, 51, 0.10);
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.76);
-          }}
-          .agilab-proof__status span {{
-            display: inline-flex;
-            margin-bottom: 0.65rem;
-            padding: 0.18rem 0.52rem;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 900;
-            letter-spacing: 0.06em;
-            text-transform: uppercase;
-          }}
-          .agilab-proof__status--done span {{
-            color: #14532d;
-            background: rgba(34, 197, 94, 0.16);
-          }}
-          .agilab-proof__status--next span {{
-            color: #7c4a03;
-            background: rgba(255, 190, 94, 0.24);
-          }}
-          .agilab-proof__status--attention span {{
-            color: #8a1f11;
-            background: rgba(248, 113, 113, 0.16);
-          }}
-          .agilab-proof__status--waiting span {{
-            color: #475569;
-            background: rgba(100, 116, 139, 0.13);
-          }}
-          .agilab-proof__status strong {{
-            display: block;
-            margin-bottom: 0.35rem;
-            color: #0a1f33;
-          }}
-          .agilab-proof__status p {{
-            margin: 0;
-            color: #60736c;
-            font-size: 0.9rem;
-            line-height: 1.42;
-          }}
-          .agilab-proof__meta {{
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.9rem;
-          }}
-          .agilab-proof__meta span {{
-            padding: 0.42rem 0.62rem;
-            border: 1px solid rgba(10, 31, 51, 0.10);
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.62);
-            color: #4d655b;
-            font-size: 0.84rem;
-            font-weight: 750;
-          }}
-          @media (max-width: 900px) {{
-            .agilab-proof__head,
-            .agilab-proof__rail,
-            .agilab-proof__action {{
-              grid-template-columns: 1fr;
-            }}
-            .agilab-proof__seal {{
-              text-align: left;
-            }}
-            .agilab-proof__action aside {{
-              text-align: left;
-            }}
-          }}
-        </style>
-        <section class="agilab-proof" aria-label="First proof onboarding">
-          <div class="agilab-proof__head">
-            <div>
-              <p class="agilab-proof__kicker">First proof path</p>
-              <h2>{escape(str(content["title"]))}</h2>
-              <p class="agilab-proof__intro">{escape(str(content["intro"]))}</p>
-            </div>
-            <div class="agilab-proof__seal">
-              <span>Target</span>
-              <strong>&lt;= {target_seconds:.0f}s</strong>
-            </div>
-          </div>
-          <div class="agilab-proof__action agilab-proof__action--{escape(next_action['tone'])}">
-            <div>
-              <span>{escape(next_action["phase"])}</span>
-              <strong>{escape(next_action["title"])}</strong>
-              <p>{escape(next_action["detail"])}</p>
-            </div>
-            <aside>
-              {escape(next_action["cta_label"])}
-              <small>{escape(next_action["proof_hint"])}</small>
-            </aside>
-          </div>
-          <div class="agilab-proof__rail">{cards_html}</div>
-          <div class="agilab-proof__meta">
-            <span>Route: {escape(route)}</span>
-            <span>Active project: {escape(active_app)}</span>
-            <span>PROJECT / ORCHESTRATE / ANALYSIS</span>
-          </div>
-        </section>
-        """
+        st.caption(FIRST_PROOF_NOTEBOOK_HINT)
+        _render_first_proof_notebook_upload_control(env, state, page_routes)
 
 
 def _render_first_proof_next_action(
@@ -720,7 +544,7 @@ def _render_first_proof_next_action(
             action["cta_label"],
             key="first_proof:activate",
             type="primary",
-            width="stretch",
+            width="content",
         ):
             if activate_project is not None and activate_project(env, state["project_path"]):
                 st.session_state["first_proof_feedback"] = "`flight_telemetry_project` selected."
@@ -746,36 +570,18 @@ def render_newcomer_first_proof(
         return
 
     state = _newcomer_first_proof_state(env)
-    content = state["content"]
     feedback = st.session_state.pop("first_proof_feedback", None)
     if feedback:
         st.success(str(feedback))
 
     progress_rows = _first_proof_progress_rows(state)
-    st.markdown(
-        _first_proof_overview_html(content, state, progress_rows),
-        unsafe_allow_html=True,
-    )
-    st.markdown("**1. Goal**")
-    st.write(content["intro"])
     _render_first_proof_wizard_actions(env, state, activate_project, page_routes)
-
-    st.markdown("**2. Do this now**")
-    step_lines = [
-        f"{index}. {detail}"
-        for index, (_, detail) in enumerate(content["steps"], start=1)
-    ]
-    st.markdown("\n".join(step_lines))
 
     if state["visible_outputs"]:
         preview = ", ".join(path.name for path in state["visible_outputs"][:3])
         if len(state["visible_outputs"]) > 3:
             preview += ", ..."
         st.caption(f"Generated files found: {preview}")
-
-    st.markdown("**3. Done when**")
-    st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
-    st.caption("After that: try another demo. Keep cluster and service mode for later.")
 
     with st.expander("If it fails / proof details", expanded=False):
         st.markdown("**Progress**")

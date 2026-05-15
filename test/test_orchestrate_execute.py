@@ -34,6 +34,7 @@ def _import_agilab_module(module_name: str):
 
 
 orchestrate_execute = _import_agilab_module("agilab.orchestrate_execute")
+orchestrate_pending_actions = _import_agilab_module("agilab.orchestrate_pending_actions")
 
 
 def _load_orchestrate_execute_with_missing(module_suffix: str, *missing_modules: str):
@@ -432,6 +433,64 @@ def test_pending_execute_action_round_trip():
     assert session_state[orchestrate_execute.PENDING_EXECUTE_ACTION_KEY] == "run"
     assert orchestrate_execute.consume_pending_execute_action(session_state) == "run"
     assert orchestrate_execute.consume_pending_execute_action(session_state) is None
+
+
+def test_pending_install_action_round_trip():
+    session_state = {}
+
+    assert orchestrate_pending_actions.consume_pending_install_action(session_state) is False
+
+    orchestrate_pending_actions.queue_pending_install_action(session_state)
+    assert session_state[orchestrate_pending_actions.PENDING_INSTALL_ACTION_KEY] == "install"
+    assert orchestrate_pending_actions.consume_pending_install_action(session_state) is True
+    assert orchestrate_pending_actions.consume_pending_install_action(session_state) is False
+
+
+def test_pending_install_action_rejects_stale_value_and_clears_key():
+    session_state = {
+        orchestrate_pending_actions.PENDING_INSTALL_ACTION_KEY: "run",
+        "unrelated": "kept",
+    }
+
+    assert orchestrate_pending_actions.consume_pending_install_action(session_state) is False
+    assert orchestrate_pending_actions.PENDING_INSTALL_ACTION_KEY not in session_state
+    assert session_state["unrelated"] == "kept"
+
+
+def test_pending_execute_action_stringifies_direct_session_value_and_clears_key():
+    session_state = {
+        orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: 123,
+    }
+
+    assert orchestrate_execute.consume_pending_execute_action(session_state) == "123"
+    assert orchestrate_execute.PENDING_EXECUTE_ACTION_KEY not in session_state
+    assert orchestrate_execute.consume_pending_execute_action(session_state) is None
+
+
+@pytest.mark.asyncio
+async def test_pending_run_action_reports_install_required_when_controls_hidden(monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(
+        {
+            "app_settings": {"args": {}},
+            orchestrate_execute.PENDING_EXECUTE_ACTION_KEY: "run",
+        },
+    )
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    env = SimpleNamespace(app="flight_telemetry_project", wenv_abs=tmp_path / "wenv")
+    deps = _make_execute_deps(fake_st.messages, fake_st.session_state)
+
+    await orchestrate_execute.render_execute_section(
+        env=env,
+        project_path=tmp_path / "project",
+        app_state_name="flight_telemetry_project",
+        controls_visible=False,
+        show_run_panel=False,
+        cmd=None,
+        deps=deps,
+    )
+
+    assert orchestrate_execute.PENDING_EXECUTE_ACTION_KEY not in fake_st.session_state
+    assert ("error", "RUN is not available yet. Run INSTALL first, then retry RUN.") in fake_st.messages
 
 
 def test_execute_notice_round_trip_renders_and_clears():

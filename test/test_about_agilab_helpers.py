@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -73,12 +74,27 @@ class _FakeSidebar:
         self._streamlit.events.append(("sidebar.markdown", str(body)))
 
 
+class _FakeColumn:
+    def __init__(self, streamlit, index: int):
+        self._streamlit = streamlit
+        self._index = index
+
+    def __enter__(self):
+        self._streamlit.events.append(("enter_column", str(self._index)))
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self._streamlit.events.append(("exit_column", str(self._index)))
+        return False
+
+
 class _FakeStreamlit:
-    def __init__(self, *, button_values=None, sidebar_button_values=None):
+    def __init__(self, *, button_values=None, file_uploader_values=None, sidebar_button_values=None):
         self.events: list[tuple[str, str]] = []
         self.session_state: dict[str, object] = {}
         self.query_params: dict[str, object] = {}
         self.button_values = button_values or {}
+        self.file_uploader_values = file_uploader_values or {}
         self.sidebar_button_values = sidebar_button_values or {}
         self.stopped = False
         self.sidebar = _FakeSidebar(self)
@@ -119,6 +135,24 @@ class _FakeStreamlit:
         key = _kwargs.get("key")
         return bool(self.button_values.get(label, self.button_values.get(key, False)))
 
+    def file_uploader(self, label: str, **_kwargs):
+        self.events.append(("file_uploader", label))
+        key = _kwargs.get("key")
+        return self.file_uploader_values.get(label, self.file_uploader_values.get(key))
+
+    def page_link(self, page: object, **kwargs):
+        self.events.append(("page_link", f"{kwargs.get('label', page)}:{page}:{kwargs}"))
+
+
+    def columns(self, spec, **_kwargs):
+        count = int(spec) if isinstance(spec, int) else len(spec)
+        self.events.append(("columns", str(count)))
+        if not isinstance(spec, int):
+            self.events.append(("columns_spec", ",".join(str(item) for item in spec)))
+        if "width" in _kwargs:
+            self.events.append(("columns_width", str(_kwargs["width"])))
+        return [_FakeColumn(self, index) for index in range(count)]
+
     def selectbox(self, label: str, options, **kwargs):
         self.events.append(("selectbox", label))
         key = kwargs.get("key")
@@ -133,8 +167,8 @@ class _FakeStreamlit:
             self.query_params = dict(query_params)
         self.events.append(("switch_page", str(page)))
 
-    def rerun(self):  # pragma: no cover - button is false in these tests
-        raise AssertionError("rerun should not be called")
+    def rerun(self):
+        self.events.append(("rerun", ""))
 
     def stop(self):
         self.stopped = True
@@ -1844,13 +1878,16 @@ def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides(
 def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
-    assert content["title"] == "First run: use the built-in flight-telemetry project"
+    assert content["title"] == (
+        "First proof with flight-telemetry-project or from your own notebook: "
+        "verify AGILAB end-to-end"
+    )
     assert "sample data and expected outputs" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["actionable_route_ids"] == ["source-checkout-first-proof"]
     assert content["documented_route_ids"] == ["notebook-quickstart"]
     assert [label for label, _ in content["steps"]] == [
-        "PROJECT",
+        "DEMO",
         "ORCHESTRATE",
         "ANALYSIS",
     ]
@@ -2075,6 +2112,33 @@ def test_about_layout_helpers_cover_display_fallbacks(tmp_path, monkeypatch):
     assert not any("2020-" in body for kind, body in fake_st.events if kind == "markdown")
 
 
+def test_landing_page_keeps_about_header_before_first_proof_only(tmp_path, monkeypatch):
+    fake_st = _FakeStreamlit()
+    rendered: list[tuple[str, str]] = []
+    env = SimpleNamespace(app="flight_telemetry_project")
+
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(about_agilab, "quick_logo", lambda _path: rendered.append(("logo", "")))
+    monkeypatch.setattr(
+        about_agilab,
+        "render_newcomer_first_proof",
+        lambda target_env: rendered.append(("first_proof", target_env.app)),
+    )
+    monkeypatch.setattr(
+        about_agilab,
+        "display_landing_page",
+        lambda _path: rendered.append(("unexpected_after_first_demo", "AGILAB")),
+    )
+
+    about_agilab.show_banner_and_intro(tmp_path, env)
+
+    assert not any(kind == "tabs" for kind, _body in fake_st.events)
+    assert rendered == [
+        ("logo", ""),
+        ("first_proof", "flight_telemetry_project"),
+    ]
+
+
 def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatch):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(about_agilab, "st", fake_st)
@@ -2125,6 +2189,7 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
     rendered_versions: list[str] = []
     monkeypatch.setattr(about_agilab, "render_sidebar_version", rendered_versions.append)
     monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
+    monkeypatch.setattr(about_agilab, "docs_menu_url", lambda _html_file: "https://docs.example/agilab-help.html")
     monkeypatch.setattr(about_agilab, "_render_env_editor", lambda _env: None)
     env = SimpleNamespace(
         app="flight_telemetry_project",
@@ -2143,9 +2208,12 @@ def test_main_page_sidebar_keeps_settings_link_without_execution_context(monkeyp
     assert "Installed package versions:False" not in expanders
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
-    sidebar_markup = "\n".join(body for kind, body in fake_st.events if kind == "sidebar.markdown")
+    sidebar_markdowns = [body for kind, body in fake_st.events if kind == "sidebar.markdown"]
+    sidebar_markup = "\n".join(sidebar_markdowns)
+    assert "[Settings](/SETTINGS)" in sidebar_markdowns
+    assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markdowns
     assert "[Settings](/SETTINGS)" in sidebar_markup
-    assert "Documentation" not in sidebar_markup
+    assert "[Documentation](https://docs.example/agilab-help.html)" in sidebar_markup
     assert "agilab-sidebar-system" not in sidebar_markup
     assert "Active project" not in sidebar_markup
     assert "Scheduler" not in sidebar_markup
@@ -2866,7 +2934,10 @@ def test_newcomer_first_proof_state_prefers_built_in_flight_telemetry_project(tm
     assert state["run_manifest_status"] == "missing"
     assert state["remediation_status"] == "missing"
     assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
-    assert state["next_step"] == "Go to `PROJECT`. Choose the built-in flight-telemetry project (`flight_telemetry_project`)."
+    assert (
+        state["next_step"]
+        == "Select the built-in flight-telemetry demo (`flight_telemetry_project`) from this page."
+    )
 
 
 def test_first_proof_progress_rows_prioritize_project_selection(tmp_path):
@@ -2906,10 +2977,10 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
 
     select_action = about_agilab._first_proof_next_action_model(select_state)
 
-    assert select_action["phase"] == "Stage 1"
+    assert select_action["phase"] == "Next action"
     assert select_action["tone"] == "next"
-    assert select_action["title"] == "Select the built-in flight-telemetry project"
-    assert select_action["cta_label"] == "Use flight-telemetry project"
+    assert select_action["title"] == "Start with the known demo project"
+    assert select_action["cta_label"] == "Select demo"
     assert "mycode_project" in select_action["detail"]
     assert "flight_telemetry_project" in select_action["detail"]
 
@@ -2922,8 +2993,9 @@ def test_first_proof_next_action_model_guides_first_click(tmp_path):
     )
     run_action = about_agilab._first_proof_next_action_model(run_state)
 
-    assert run_action["phase"] == "Stage 2"
-    assert run_action["title"] == "Install, then execute"
+    assert run_action["phase"] == "Next action"
+    assert run_action["title"] == "Run the demo once"
+    assert run_action["cta_label"] == "Open run page"
     assert "ORCHESTRATE" in run_action["detail"]
     assert "run_manifest.json" in run_action["proof_hint"]
 
@@ -3079,15 +3151,33 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
 
     about_agilab.render_newcomer_first_proof(env)
 
-    overview = _event_index(fake_st.events, "markdown", "agilab-proof")
-    action_strip = _event_index(fake_st.events, "markdown", "agilab-proof__action")
-    wizard = _event_index(fake_st.events, "markdown", "**Wizard pipeline**")
-    select_demo = _event_index(fake_st.events, "button", "1. Select demo")
-    open_orchestrate = _event_index(fake_st.events, "button", "2. Open ORCHESTRATE")
-    run_first = _event_index(fake_st.events, "button", "3. Run first")
-    notebook_start = _event_index(fake_st.events, "button", "Start from notebook")
-    do_this_now = _event_index(fake_st.events, "markdown", "**2. Do this now**")
-    done_when = _event_index(fake_st.events, "markdown", "**3. Done when**")
+    wizard = _event_index(
+        fake_st.events,
+        "markdown",
+        "**First proof with flight-telemetry-project or from your own notebook**",
+    )
+    proof_column = _event_index(fake_st.events, "enter_column", "0")
+    separator_column = _event_index(fake_st.events, "enter_column", "1")
+    notebook_column = _event_index(fake_st.events, "enter_column", "2")
+    install_button = _event_index(fake_st.events, "button", "1. INSTALL")
+    install_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE install")
+    run_button = _event_index(fake_st.events, "button", "2. RUN")
+    run_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE run")
+    open_analysis = _event_index(fake_st.events, "button", "3. ANALYSIS")
+    analysis_hint = next(
+        index
+        for index in range(open_analysis + 1, len(fake_st.events))
+        if fake_st.events[index][0] == "caption"
+        and "`view_maps`: [Open]" in fake_st.events[index][1]
+    )
+    separator = next(
+        index
+        for index, (kind, body) in enumerate(fake_st.events)
+        if kind == "markdown" and body == "or"
+    )
+    notebook_start = _event_index(fake_st.events, "button", "Import notebook")
+    notebook_hint = _event_index(fake_st.events, "caption", "From notebook")
+    notebook_upload = _event_index(fake_st.events, "file_uploader", "Upload")
     proof_details = _event_index(
         fake_st.events,
         "expander",
@@ -3095,26 +3185,246 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     )
     progress = _event_index(fake_st.events, "markdown", "**Progress**")
     validated_path = _event_index(fake_st.events, "caption", "Validated path:")
-    overview_markup = _event_body(fake_st.events, "markdown", "agilab-proof__action")
 
     assert [body for kind, body in fake_st.events if kind == "expander"] == [
         "If it fails / proof details:False",
     ]
-    assert "Select the built-in flight-telemetry project" in overview_markup
-    assert "Use flight-telemetry project" in overview_markup
-    assert "This keeps the first proof on the documented, supportable route." in overview_markup
-    assert overview <= action_strip < wizard < select_demo < open_orchestrate < run_first
-    assert run_first < notebook_start < do_this_now < done_when < proof_details < progress < validated_path
+    assert not any(
+        "First proof path:" in body
+        for kind, body in fake_st.events
+        if kind == "caption"
+    )
+    pre_details = fake_st.events[:proof_details]
+    assert [body for kind, body in pre_details if kind == "markdown"] == [
+        "**First proof with flight-telemetry-project or from your own notebook**",
+        "or",
+    ]
+    expected_spec, expected_width = about_agilab._about_onboarding._first_proof_action_columns_layout(
+        about_agilab._about_onboarding._first_proof_wizard_steps({}),
+    )
+    assert ("columns", "3") in pre_details
+    assert ("columns_spec", ",".join(str(item) for item in expected_spec)) in pre_details
+    assert ("columns_width", str(expected_width)) in pre_details
+    assert expected_width != 420
+    caption_bodies = [body for kind, body in pre_details if kind == "caption"]
+    assert len(caption_bodies) == 4
+    assert caption_bodies[0] == "Runs the ORCHESTRATE install."
+    assert caption_bodies[1] == "Starts the ORCHESTRATE run."
+    assert caption_bodies[2].startswith("`view_maps`: [Open](/ANALYSIS?")
+    assert "active_app=flight_telemetry_project" in caption_bodies[2]
+    assert "current_page=" in caption_bodies[2]
+    assert caption_bodies[3] == (
+        "Path: `ORCHESTRATE` -> `EDIT` -> `Create` -> `From notebook`."
+    )
+    assert [body for kind, body in pre_details if kind == "file_uploader"] == ["Upload"]
+    assert not [body for kind, body in pre_details if kind == "page_link"]
+    assert not any(
+        "agilab-proof" in body
+        for kind, body in fake_st.events
+        if kind == "markdown"
+    )
+    assert ("button", "1. Select demo") not in fake_st.events
+    assert wizard < proof_column < install_button < install_hint < run_button < run_hint < open_analysis
+    assert open_analysis < analysis_hint < separator_column < separator < notebook_column
+    assert notebook_column < notebook_start < notebook_hint < notebook_upload < proof_details
+    assert proof_details < progress < validated_path
 
 
-def test_first_proof_wizard_project_click_selects_demo_and_opens_project(
+def test_about_first_proof_buttons_keep_compact_width():
+    source = Path("src/agilab/about_page/onboarding.py").read_text(encoding="utf-8")
+
+    assert 'width="stretch"' not in source
+    assert "width=420" not in source
+    assert source.count('width="content"') >= 2
+
+
+def test_first_proof_action_columns_width_tracks_longest_text():
+    onboarding = about_agilab._about_onboarding
+    short_spec, short_width = onboarding._first_proof_action_columns_layout(
+        [{"button": "Run", "hint": "Then run."}],
+        notebook_hint="Upload.",
+    )
+    long_spec, long_width = onboarding._first_proof_action_columns_layout(
+        [{"button": "Run", "hint": "Then press `INSTALL`, then `EXECUTE`."}],
+        notebook_hint="Upload.",
+    )
+
+    assert long_spec[0] > short_spec[0]
+    assert long_width > short_width
+
+
+def test_first_proof_action_columns_width_uses_visible_link_text():
+    onboarding = about_agilab._about_onboarding
+
+    plain_width = onboarding._first_proof_visible_text_length("Open here.")
+    linked_width = onboarding._first_proof_visible_text_length(
+        "Open [Open](/ANALYSIS?current_page=/very/long/path/to/view_maps.py)."
+    )
+
+    assert linked_width == plain_width
+
+
+def test_first_proof_page_urls_preserve_targeted_query_params():
+    onboarding = about_agilab._about_onboarding
+
+    assert onboarding._first_proof_page_url("PROJECT") == "/PROJECT"
+
+    project_url = onboarding._first_proof_page_url(
+        "PROJECT",
+        {"active_app": "flight telemetry", "start": "notebook-import"},
+    )
+    parsed_project_url = urlparse(project_url)
+    assert parsed_project_url.path == "/PROJECT"
+    assert parse_qs(parsed_project_url.query) == {
+        "active_app": ["flight telemetry"],
+        "start": ["notebook-import"],
+    }
+
+    analysis_url = onboarding._first_proof_analysis_view_maps_url()
+    parsed_analysis_url = urlparse(analysis_url)
+    analysis_params = parse_qs(parsed_analysis_url.query)
+
+    assert parsed_analysis_url.path == "/ANALYSIS"
+    assert analysis_params["active_app"] == ["flight_telemetry_project"]
+    assert analysis_params["current_page"][0].endswith("view_maps.py")
+
+
+def test_first_proof_text_column_width_has_stable_floor():
+    onboarding = about_agilab._about_onboarding
+
+    assert (
+        onboarding._first_proof_text_column_width_px([])
+        == onboarding._FIRST_PROOF_ACTION_MIN_COLUMN_WIDTH_PX
+    )
+    assert (
+        onboarding._first_proof_text_column_width_px(["x"])
+        == onboarding._FIRST_PROOF_ACTION_MIN_COLUMN_WIDTH_PX
+    )
+
+
+def test_about_first_proof_removes_duplicate_overview_banner():
+    source = Path("src/agilab/about_page/onboarding.py").read_text(encoding="utf-8")
+
+    assert "_first_proof_overview_html" not in source
+    assert "agilab-proof" not in source
+    assert "radial-gradient" not in source
+    assert "linear-gradient" not in source
+    assert "box-shadow" not in source
+
+
+def test_first_proof_wizard_omits_redundant_select_demo_step(
     tmp_path,
     monkeypatch,
 ):
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"1. Select demo": True})
+    fake_st = _FakeStreamlit()
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="mycode_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+        st_resources=tmp_path / "resources",
+    )
+    activated: list[Path] = []
+
+    def activate_project(target_env, project_path):
+        activated.append(project_path)
+        target_env.app = "flight_telemetry_project"
+        return True
+
+    monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
+
+    about_agilab._about_onboarding.render_newcomer_first_proof(
+        env,
+        activate_project=activate_project,
+        display_landing_page=lambda _path: None,
+    )
+
+    assert activated == []
+    assert ("button", "1. Select demo") not in fake_st.events
+    assert ("button", "1. INSTALL") in fake_st.events
+    assert ("button", "2. RUN") in fake_st.events
+    assert ("button", "3. ANALYSIS") in fake_st.events
+    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
+
+
+def test_first_proof_wizard_project_action_selects_demo_and_reruns(
+    tmp_path,
+    monkeypatch,
+):
+    apps_path = tmp_path / "apps"
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
+    fake_st = _FakeStreamlit()
+    env = SimpleNamespace(app="mycode_project")
+    state = {
+        "project_available": True,
+        "project_path": flight_telemetry_project.resolve(),
+        "current_app_matches": False,
+    }
+    activated: list[Path] = []
+
+    def activate_project(target_env, project_path):
+        activated.append(project_path)
+        target_env.app = "flight_telemetry_project"
+        return True
+
+    monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
+
+    about_agilab._about_onboarding._handle_first_proof_wizard_action(
+        "project",
+        env,
+        state,
+        activate_project,
+        page_routes=None,
+    )
+
+    assert activated == [flight_telemetry_project.resolve()]
+    assert fake_st.session_state["first_proof_feedback"] == (
+        "`flight_telemetry_project` selected. Next: open the run page."
+    )
+    assert ("rerun", "") in fake_st.events
+    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
+
+
+def test_first_proof_wizard_install_missing_project_does_not_queue_action(
+    monkeypatch,
+):
+    fake_st = _FakeStreamlit(button_values={"1. INSTALL": True})
+    env = SimpleNamespace(app="mycode_project")
+    state = {
+        "project_available": False,
+        "project_path": None,
+        "current_app_matches": False,
+    }
+
+    monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
+
+    about_agilab._about_onboarding._handle_first_proof_wizard_action(
+        "install",
+        env,
+        state,
+        activate_project=lambda _env, _path: pytest.fail("missing project must not activate"),
+        page_routes=None,
+    )
+
+    assert any(
+        kind == "error" and "built-in flight-telemetry project is missing" in body
+        for kind, body in fake_st.events
+    )
+    assert "_orchestrate_pending_install_action" not in fake_st.session_state
+    assert not any(kind == "switch_page" for kind, _body in fake_st.events)
+
+
+def test_first_proof_wizard_install_click_selects_demo_and_queues_install(
+    tmp_path,
+    monkeypatch,
+):
+    apps_path = tmp_path / "apps"
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
+    fake_st = _FakeStreamlit(button_values={"1. INSTALL": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="mycode_project",
@@ -3137,18 +3447,19 @@ def test_first_proof_wizard_project_click_selects_demo_and_opens_project(
     )
 
     assert activated == [flight_telemetry_project.resolve()]
-    assert ("switch_page", "pages/1_PROJECT.py") in fake_st.events
-    assert fake_st.session_state["first_proof_feedback"] == "`flight_telemetry_project` selected."
+    assert fake_st.session_state["_orchestrate_pending_install_action"] == "install"
+    assert fake_st.session_state["show_install"] is True
+    assert ("switch_page", "pages/2_ORCHESTRATE.py") in fake_st.events
 
 
-def test_first_proof_wizard_orchestrate_click_selects_demo_and_opens_orchestrate(
+def test_first_proof_wizard_run_click_selects_demo_and_queues_run(
     tmp_path,
     monkeypatch,
 ):
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"2. Open ORCHESTRATE": True})
+    fake_st = _FakeStreamlit(button_values={"2. RUN": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="mycode_project",
@@ -3171,6 +3482,8 @@ def test_first_proof_wizard_orchestrate_click_selects_demo_and_opens_orchestrate
     )
 
     assert activated == [flight_telemetry_project.resolve()]
+    assert fake_st.session_state["_orchestrate_pending_action"] == "run"
+    assert fake_st.session_state["show_run"] is True
     assert ("switch_page", "pages/2_ORCHESTRATE.py") in fake_st.events
 
 
@@ -3188,7 +3501,7 @@ def test_first_proof_wizard_uses_registered_navigation_page_object(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"2. Open ORCHESTRATE": True})
+    fake_st = _FakeStreamlit(button_values={"1. INSTALL": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="flight_telemetry_project",
@@ -3210,6 +3523,8 @@ def test_first_proof_wizard_uses_registered_navigation_page_object(
 
     about_agilab.render_newcomer_first_proof(env)
 
+    assert ("button", "1. Demo selected") not in fake_st.events
+    assert ("button", "1. INSTALL") in fake_st.events
     assert ("switch_page", "ORCHESTRATE_PAGE_OBJECT") in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
     assert fake_st.query_params["active_app"] == "flight_telemetry_project"
@@ -3226,7 +3541,7 @@ def test_first_proof_wizard_notebook_start_opens_project_without_forcing_demo(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"Start from notebook": True})
+    fake_st = _FakeStreamlit(button_values={"Import notebook": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="mycode_project",
@@ -3249,14 +3564,53 @@ def test_first_proof_wizard_notebook_start_opens_project_without_forcing_demo(
     assert ("switch_page", "PROJECT_PAGE_OBJECT") in fake_st.events
 
 
-def test_first_proof_wizard_analysis_click_routes_to_orchestrate_until_run_exists(
+def test_first_proof_wizard_notebook_upload_opens_project_importer(
+    tmp_path,
+    monkeypatch,
+):
+    class PageRoute:
+        def __str__(self) -> str:
+            return "PROJECT_PAGE_OBJECT"
+
+    apps_path = tmp_path / "apps"
+    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
+    flight_telemetry_project.mkdir(parents=True)
+    fake_st = _FakeStreamlit(
+        file_uploader_values={"create_notebook_upload": SimpleNamespace(name="demo.ipynb")}
+    )
+    env = SimpleNamespace(
+        apps_path=apps_path,
+        app="mycode_project",
+        AGILAB_LOG_ABS=tmp_path / "log",
+        st_resources=tmp_path / "resources",
+    )
+
+    monkeypatch.setattr(about_agilab._about_onboarding, "st", fake_st)
+
+    about_agilab._about_onboarding.render_newcomer_first_proof(
+        env,
+        activate_project=lambda _env, _path: pytest.fail("notebook upload should not select demo"),
+        display_landing_page=lambda _path: None,
+        page_routes={"project": PageRoute()},
+    )
+
+    assert fake_st.session_state["sidebar_selection"] == "Create"
+    assert fake_st.session_state["create_mode"] == "From notebook"
+    assert fake_st.query_params == {
+        "start": "notebook-import",
+        "active_app": "mycode_project",
+    }
+    assert ("switch_page", "PROJECT_PAGE_OBJECT") in fake_st.events
+
+
+def test_first_proof_wizard_analysis_click_opens_analysis_without_run_evidence(
     tmp_path,
     monkeypatch,
 ):
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"3. Run first": True})
+    fake_st = _FakeStreamlit(button_values={"3. ANALYSIS": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="flight_telemetry_project",
@@ -3273,12 +3627,8 @@ def test_first_proof_wizard_analysis_click_routes_to_orchestrate_until_run_exist
     )
 
     assert fake_st.query_params["active_app"] == "flight_telemetry_project"
-    assert ("switch_page", "pages/2_ORCHESTRATE.py") in fake_st.events
-    assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
-    assert (
-        fake_st.session_state["first_proof_feedback"]
-        == "Run the built-in flight-telemetry project from ORCHESTRATE before opening ANALYSIS."
-    )
+    assert ("switch_page", "pages/4_ANALYSIS.py") in fake_st.events
+    assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 
 
 def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
@@ -3291,7 +3641,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
     output_dir = tmp_path / "log" / "execute" / "flight"
     output_dir.mkdir(parents=True)
     (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
-    fake_st = _FakeStreamlit(button_values={"3. Open ANALYSIS": True})
+    fake_st = _FakeStreamlit(button_values={"3. ANALYSIS": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="flight_telemetry_project",
@@ -3323,14 +3673,19 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
 
     about_agilab.render_newcomer_first_proof()
 
-    assert captured["unsafe_allow_html"] is True
+    assert captured["unsafe_allow_html"] is False
     body = str(captured["body"])
-    assert "First run: use the built-in flight-telemetry project" in body
+    assert (
+        "First proof with flight-telemetry-project or from your own notebook: "
+        "verify AGILAB end-to-end"
+    ) in body
+    assert "agilab-proof" not in body
+    assert "background:" not in body
     assert "Start here" not in body
-    assert "PROJECT" in body
+    assert "DEMO" in body
     assert "ORCHESTRATE" in body
     assert "ANALYSIS" in body
     assert "flight_telemetry_project" in body
     assert "run_manifest.json" in body
-    assert "Do this now" in body
-    assert "Done when" in body
+    assert "Follow these steps" in body
+    assert "Success criteria" in body

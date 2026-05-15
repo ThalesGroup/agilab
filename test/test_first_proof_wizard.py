@@ -23,7 +23,10 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
 
     content = module.newcomer_first_proof_content()
 
-    assert content["title"] == "First run: use the built-in flight-telemetry project"
+    assert content["title"] == (
+        "First proof with flight-telemetry-project or from your own notebook: "
+        "verify AGILAB end-to-end"
+    )
     assert "sample data and expected outputs" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["recommended_path_label"] == "Source checkout first proof"
@@ -33,7 +36,7 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == ["preinit smoke", "source ui smoke"]
     assert content["run_manifest_filename"] == "run_manifest.json"
-    assert [label for label, _ in content["steps"]] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+    assert [label for label, _ in content["steps"]] == ["DEMO", "ORCHESTRATE", "ANALYSIS"]
     assert any("cluster, benchmark, and service options off" in detail for _, detail in content["steps"])
     assert "tools/newcomer_first_proof.py --json" in content["cli_command"]
     assert any("run_manifest.json" in item for item in content["success_criteria"])
@@ -75,7 +78,10 @@ def test_first_proof_state_routes_only_to_flight_telemetry_project(tmp_path: Pat
     assert state["remediation_status"] == "missing"
     assert "tools/newcomer_first_proof.py --json" in state["evidence_commands"][0]
     assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
-    assert state["next_step"] == "Go to `PROJECT`. Choose the built-in flight-telemetry project (`flight_telemetry_project`)."
+    assert (
+        state["next_step"]
+        == "Select the built-in flight-telemetry demo (`flight_telemetry_project`) from this page."
+    )
 
 
 def test_first_proof_state_detects_installed_payload_provider(monkeypatch, tmp_path: Path) -> None:

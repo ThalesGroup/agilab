@@ -2194,7 +2194,7 @@ def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
         "create_notebook_upload",
     )
     assert uploader is not None
-    assert "start" not in at.query_params
+    assert at.query_params.get("start") == ["notebook-import"]
 
     notebook_payload = {
         "cells": [
@@ -2220,7 +2220,7 @@ def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
     assert at.session_state["create_notebook_upload"].name == "demo.ipynb"
 
 
-def test_project_page_notebook_import_query_is_consumed_before_upload_render():
+def test_project_page_notebook_import_query_does_not_rerun_during_upload_render():
     project_page = _load_project_page_module()
 
     class QueryParams(dict):
@@ -2244,13 +2244,16 @@ def test_project_page_notebook_import_query_is_consumed_before_upload_render():
     assert project_page._consume_notebook_import_query_seed(
         session_state,
         query_params,
-        rerun=lambda: rerun_calls.append("rerun"),
     )
 
     assert session_state["sidebar_selection"] == "Create"
     assert session_state["create_mode"] == "From notebook"
-    assert query_params == {"active_app": "flight_telemetry_project"}
-    assert rerun_calls == ["rerun"]
+    assert query_params == {
+        "active_app": "flight_telemetry_project",
+        "start": "notebook-import",
+        "sidebar_selection": "Create",
+    }
+    assert rerun_calls == []
 
 
 def test_project_page_notebook_import_query_cleanup_failure_does_not_recurse():
