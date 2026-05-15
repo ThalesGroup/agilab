@@ -431,6 +431,9 @@ def load_args_from_toml(path):
     env_file.write_text("CLUSTER_CREDENTIALS=\n", encoding="utf-8")
     about_env_editor = _import_agilab_module("agilab.about_page.env_editor")
     monkeypatch.setattr(about_env_editor, "ENV_FILE_PATH", env_file, raising=False)
+    about_main_page = _import_agilab_module("agilab.main_page")
+    monkeypatch.setattr(about_main_page, "ENV_FILE_PATH", env_file, raising=False)
+    monkeypatch.setattr(about_main_page._about_env_editor, "ENV_FILE_PATH", env_file, raising=False)
 
 
     # Mock CLI argv for AGILAB main page
@@ -473,9 +476,10 @@ def load_args_from_toml(path):
 
 
 def test_agilab_main_page_env_editor(mock_ui_env):
-    """Test the main AGILAB page and interacting with the .env editor form."""
+    """Test the settings page and interacting with the .env editor form."""
     home_root = mock_ui_env["apps_dir"].parent
     at = _app_test("src/agilab/main_page.py")
+    at.switch_page("pages/0_SETTINGS.py")
 
     # Run the app to initialize
     with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
@@ -483,16 +487,11 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     assert not at.exception
     
     # Find the environment editor form
-    # We expand the Environment Variables expander (Streamlit AppTest exposes them linearly, but we can look for the form)
-    # Actually, we can just interact with the text inputs directly by key
-    
-    # Wait, the form might not be rendered unless the expander is open. By default it's expanded=False
-    # However AppTest runs the whole script. In AppTest, expander contents are accessible
     assert "env_editor_new_key" in [ti.key for ti in at.text_input]
     assert "env_editor_new_value" in [ti.key for ti in at.text_input]
     assert at.text_input(key="env_editor_val_CLUSTER_CREDENTIALS").value == ""
-    assert "Runtime diagnostics" in _element_labels(at)
-    assert "Diagnostics level" in _element_labels(at)
+    labels = _element_labels(at)
+    assert "Diagnostics level" in labels
     assert "Runtime diagnostics" not in _element_labels(at.sidebar)
     assert "Diagnostics level" not in _element_labels(at.sidebar)
     _assert_docs_actions_absent(at)
@@ -567,6 +566,7 @@ def test_agilab_main_page_env_editor_does_not_render_secret_values(mock_ui_env):
     )
 
     at = _app_test("src/agilab/main_page.py")
+    at.switch_page("pages/0_SETTINGS.py")
     with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
         at.run()
 
@@ -592,16 +592,19 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
     assert "agilab-help.html" in sidebar_markdown
 
 
-def test_agilab_navigation_keeps_about_hidden_from_visible_page_list():
+def test_agilab_navigation_shows_about_then_settings_before_work_pages():
     source = Path("src/agilab/main_page.py").read_text(encoding="utf-8")
     selector_source = Path("src/agilab/page_project_selector.py").read_text(encoding="utf-8")
     pipeline_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
 
     assert "st.navigation(_navigation_pages()).run()" in source
-    assert 'title="Main Page"' in source
-    assert 'visibility="hidden"' in source
+    assert 'title="ABOUT"' in source
+    assert 'title="SETTINGS"' in source
+    assert 'url_path="SETTINGS"' in source
+    assert 'pages_root / "0_SETTINGS.py"' in source
     assert 'page_label="ABOUT"' not in source
     assert 'page_label="MAIN_PAGE"' in source
+    assert 'page_label="SETTINGS"' in source
     assert 'title="PROJECT"' in source
     assert 'url_path="PROJECT"' in source
     assert 'visibility="hidden"' in source
@@ -627,6 +630,7 @@ def test_agilab_main_page_env_editor_shows_worker_python_override(mock_ui_env):
         env_file.write_text(existing.rstrip("\n") + "\n127.0.0.1_PYTHON_VERSION=3.12\n", encoding="utf-8")
 
     at = _app_test("src/agilab/main_page.py")
+    at.switch_page("pages/0_SETTINGS.py")
     with patch.dict(os.environ, {"HOME": str(home_root)}, clear=False):
         at.run()
 
