@@ -9,13 +9,14 @@ If you are new to AGILab, choose one route first:
 
 - **See the UI now**: open :doc:`agilab-demo` for the public Hugging Face Space.
 - **Prove it locally**: follow :doc:`quick-start` with the built-in
-  ``flight_telemetry_project``. Target: pass the first proof in 10 minutes.
+  ``flight_telemetry_project`` or start from your own notebook through the
+  ABOUT wizard. Default target: pass the flight first proof in 10 minutes.
 - **Use the API/notebook**: follow :doc:`notebook-quickstart` for the smaller
   ``AgiEnv`` / ``AGI.run(...)`` surface.
 
-The fastest adoption ladder is browser preview, local first proof, evidence
-manifest, then expansion into notebooks, package mode, external apps, or
-cluster work.
+The fastest adoption ladder is browser preview, one local first-proof lane,
+evidence manifest, then expansion into package mode, external apps, or cluster
+work.
 
 If the local first proof fails, use :doc:`newcomer-troubleshooting` before
 branching into cluster mode, external app repositories, or broader workflows.

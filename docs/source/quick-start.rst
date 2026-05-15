@@ -164,16 +164,22 @@ machine-readable proof record.
    indicator such as ``AGILAB_TLS_TERMINATED=1`` before using
    ``--server.address 0.0.0.0``.
 
-4. **Keep the first run local and use the built-in flight-telemetry project**
+4. **Use the landing-page first-proof wizard**
 
-   The landing page first-proof wizard points to this same validated path. In
-   the UI, use:
+   The ABOUT landing page exposes the current first-proof path directly:
 
-   - ``PROJECT`` -> select ``src/agilab/apps/builtin/flight_telemetry_project``
-   - ``ORCHESTRATE`` -> click ``INSTALL``, then ``EXECUTE``
-   - ``WORKFLOW`` -> inspect the packaged recipe context
-   - ``ANALYSIS`` -> open the default built-in view and, when output exists,
-     the optional ``view_maps_network`` route
+   - click ``1. INSTALL`` to select ``flight_telemetry_project`` and run the
+     ORCHESTRATE install
+   - click ``2. RUN`` to start the local ORCHESTRATE execution with cluster,
+     benchmark, and service mode off
+   - click ``3. ANALYSIS`` after evidence exists to open the built-in analysis
+     route
+
+   If you already have a notebook, use the same wizard's ``Import notebook``
+   lane instead. It opens ``ORCHESTRATE`` -> ``EDIT`` -> ``Create`` ->
+   ``From notebook`` and provides the notebook upload control. Treat that as a
+   separate starting lane: prove either the built-in flight project or your own
+   notebook first, not both at the same time.
 
 5. **Check the first proof outcome**
 
@@ -184,10 +190,11 @@ machine-readable proof record.
    - you can open the default ``ANALYSIS`` view for ``flight_telemetry_project`` and see
      the bundled network view as an available route
 
-6. **Only after that, branch into alternative paths**
+6. **Only after one lane passes, branch into broader paths**
 
-   Do not switch to packaged install, notebook-first, or cluster setup before
-   this local proof works once from end to end.
+   Do not switch to packaged install, external apps, or cluster setup before
+   either the built-in flight proof or your notebook-import proof works once
+   from end to end.
 
 Why this path avoids common adoption friction
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
