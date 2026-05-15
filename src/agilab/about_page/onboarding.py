@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 
 
 _IMPORT_GUARD_PATH = Path(__file__).resolve().parents[1] / "import_guard.py"
@@ -32,6 +33,7 @@ _first_proof_wizard_module = import_agilab_module(
 FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
 FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _first_proof_wizard_module.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
+NOTEBOOK_START_CREATE_MODE = "From notebook"
 FIRST_PROOF_PAGE_ROUTES = {
     "project": Path("pages/1_PROJECT.py"),
     "orchestrate": Path("pages/2_ORCHESTRATE.py"),
@@ -298,13 +300,29 @@ def _first_proof_next_wizard_step_id(state: Dict[str, Any]) -> str:
     return "orchestrate"
 
 
-def _first_proof_open_page(page: Path, label: str) -> None:
+def _first_proof_page_route(action_id: str, page_routes: Dict[str, Any] | None) -> Any:
+    """Return the registered Streamlit page object or a legacy file-path fallback."""
+    if page_routes and action_id in page_routes:
+        return page_routes[action_id]
+    return FIRST_PROOF_PAGE_ROUTES[action_id]
+
+
+def _first_proof_open_page(
+    page: Any,
+    label: str,
+    *,
+    query_params: Dict[str, str] | None = None,
+) -> None:
     """Open a Streamlit page, or explain the fallback when switch_page is unavailable."""
     switch_page = getattr(st, "switch_page", None)
     if not callable(switch_page):
         st.info(f"Open `{label}` from the sidebar to continue.")
         return
-    switch_page(page)
+    try:
+        switch_page(page, query_params=query_params)
+    except StreamlitAPIException as exc:
+        st.info(f"Open `{label}` from the sidebar to continue.")
+        st.caption(str(exc))
 
 
 def _first_proof_prepare_project(
@@ -337,32 +355,63 @@ def _handle_first_proof_wizard_action(
     env: Any,
     state: Dict[str, Any],
     activate_project: Callable[[Any, Path], bool] | None,
+    page_routes: Dict[str, Any] | None,
 ) -> None:
     """Run the action behind a first-proof wizard step."""
+    query_params = {"active_app": FIRST_PROOF_PROJECT}
     if action_id == "project":
         if _first_proof_prepare_project(env, state, activate_project):
-            _first_proof_open_page(FIRST_PROOF_PAGE_ROUTES["project"], "PROJECT")
+            _first_proof_open_page(
+                _first_proof_page_route("project", page_routes),
+                "PROJECT",
+                query_params=query_params,
+            )
         return
     if action_id == "orchestrate":
         if _first_proof_prepare_project(env, state, activate_project):
-            _first_proof_open_page(FIRST_PROOF_PAGE_ROUTES["orchestrate"], "ORCHESTRATE")
+            _first_proof_open_page(
+                _first_proof_page_route("orchestrate", page_routes),
+                "ORCHESTRATE",
+                query_params=query_params,
+            )
         return
     if action_id == "analysis":
         if not _first_proof_prepare_project(env, state, activate_project):
             return
         if state["run_manifest_passed"] or state["run_manifest_loaded"] or state["run_output_detected"]:
-            _first_proof_open_page(FIRST_PROOF_PAGE_ROUTES["analysis"], "ANALYSIS")
+            _first_proof_open_page(
+                _first_proof_page_route("analysis", page_routes),
+                "ANALYSIS",
+                query_params=query_params,
+            )
             return
         st.session_state["first_proof_feedback"] = (
             "Run the built-in flight demo from ORCHESTRATE before opening ANALYSIS."
         )
-        _first_proof_open_page(FIRST_PROOF_PAGE_ROUTES["orchestrate"], "ORCHESTRATE")
+        _first_proof_open_page(
+            _first_proof_page_route("orchestrate", page_routes),
+            "ORCHESTRATE",
+            query_params=query_params,
+        )
+        return
+    if action_id == "notebook":
+        active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "")
+        st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
+        st.session_state["first_proof_feedback"] = (
+            "Notebook start selected. Upload an `.ipynb` from PROJECT to create a reusable AGILAB project."
+        )
+        _first_proof_open_page(
+            _first_proof_page_route("project", page_routes),
+            "PROJECT",
+            query_params={"active_app": active_app} if active_app else None,
+        )
 
 
 def _render_first_proof_wizard_actions(
     env: Any,
     state: Dict[str, Any],
     activate_project: Callable[[Any, Path], bool] | None,
+    page_routes: Dict[str, Any] | None,
 ) -> None:
     """Render executable wizard actions for the first-proof pipeline."""
     st.markdown("**Wizard pipeline**")
@@ -378,7 +427,28 @@ def _render_first_proof_wizard_actions(
             type=button_type,
             width="stretch",
         ):
-            _handle_first_proof_wizard_action(step["id"], env, state, activate_project)
+            _handle_first_proof_wizard_action(
+                step["id"],
+                env,
+                state,
+                activate_project,
+                page_routes,
+            )
+    st.markdown("**Alternative start**")
+    st.caption("Already have a notebook? Start from PROJECT and import it into a new AGILAB project.")
+    if st.button(
+        "Start from notebook",
+        key="first_proof:wizard:notebook",
+        type="secondary",
+        width="stretch",
+    ):
+        _handle_first_proof_wizard_action(
+            "notebook",
+            env,
+            state,
+            activate_project,
+            page_routes,
+        )
 
 
 def _first_proof_overview_html(
@@ -667,6 +737,7 @@ def render_newcomer_first_proof(
     *,
     activate_project: Callable[[Any, Path], bool] | None = None,
     display_landing_page: Callable[[Path], None] | None = None,
+    page_routes: Dict[str, Any] | None = None,
 ) -> None:
     """Render the first-proof onboarding surface."""
     if env is None:
@@ -686,7 +757,7 @@ def render_newcomer_first_proof(
     )
     st.markdown("**1. Goal**")
     st.write(content["intro"])
-    _render_first_proof_wizard_actions(env, state, activate_project)
+    _render_first_proof_wizard_actions(env, state, activate_project, page_routes)
 
     st.markdown("**2. Do this now**")
     step_lines = [
