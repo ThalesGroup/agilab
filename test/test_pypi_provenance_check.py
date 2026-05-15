@@ -99,3 +99,40 @@ def test_check_target_fails_when_provenance_endpoint_is_missing() -> None:
     assert check["status"] == "fail"
     assert check["reason"] == "missing_attestation"
     assert check["files"][0]["reason"] == "provenance_http_404"
+
+
+def test_check_target_with_retries_waits_for_pypi_release_visibility() -> None:
+    module = _load_module()
+    target = module.ReleaseTarget("agilab", "2026.05.15", ".")
+    calls = {"json": 0}
+
+    def fake_urlopen(request, *, timeout):
+        url = request.full_url
+        if url.endswith("/pypi/agilab/json"):
+            calls["json"] += 1
+            if calls["json"] == 1:
+                return _json_response({"releases": {}})
+            return _json_response(
+                {
+                    "releases": {
+                        "2026.5.15": [
+                            {"filename": "agilab-2026.5.15-py3-none-any.whl"},
+                        ]
+                    }
+                }
+            )
+        return _json_response({"attestation_bundles": [{"attestations": [{}]}]})
+
+    check = module.check_target_with_retries(
+        target,
+        attempts=2,
+        retry_delay=0,
+        sleep=lambda _seconds: None,
+        urlopen=fake_urlopen,
+    )
+
+    assert check["status"] == "pass"
+    assert check["attempt"] == 2
+    assert check["previous_failures"] == [
+        {"attempt": 1, "reason": "release_missing", "status": "fail"}
+    ]
