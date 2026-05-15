@@ -108,6 +108,7 @@ references, and example projects.
    :caption: Reference
 
    agilab-github
+   Security and adoption <security-adoption>
    package-publishing-policy
    beta-readiness
    strategic-potential

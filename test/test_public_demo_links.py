@@ -150,13 +150,16 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
     assert pyproject["project"]["readme"] == "README.pypi.md"
 
     synced_fragments = (
-        "AGILAB is a reproducible AI/ML workbench for engineering teams.",
-        "It turns notebooks and scripts into controlled, executable apps with:",
+        "AGILAB is an anti-lock-in reproducibility workbench for AI/ML engineering.",
+        "It turns notebooks and scripts into controlled, executable apps while preserving",
+        "you do not lose your work if AGILAB is no longer the right runtime.",
+        "runnable outside AGILAB as exported notebooks",
         "AGILAB complements MLflow and production MLOps platforms.",
         "## Core Flow",
         "### Local PyPI UI Proof",
         'uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"',
         "## Production Boundary",
+        "## Security Reporting",
         "## Dependency And Supply-Chain Boundaries",
         "## Evidence Taxonomy",
         "## Source Version vs Package Version",
@@ -214,8 +217,9 @@ def test_source_package_version_contract_is_explicit_and_current() -> None:
     agi_apps_version = agi_apps_pyproject["project"]["version"]
     optional_dependencies = pyproject["project"]["optional-dependencies"]
 
-    assert Version(source_version) >= Version(package_version)
-    assert Version(source_version) >= Version(core_version) >= Version(package_version)
+    assert Version(source_version) == Version(package_version)
+    assert Version(core_version) <= Version(source_version)
+    assert Version(agi_apps_version) <= Version(source_version)
     assert f"agi-apps=={agi_apps_version}" in optional_dependencies["ui"]
     assert f"agi-apps=={agi_apps_version}" in optional_dependencies["examples"]
     assert "version%20alignment-release%20proof" in readme
@@ -599,7 +603,7 @@ def test_readme_captures_overall_public_evaluation_evidence() -> None:
     assert "## Evaluation Snapshot" in readme
     assert "## CODEX 5.5 Evaluation Snapshot" not in readme
     assert "CODEX 5.5" not in readme
-    assert "reproducible AI/ML workbench" in readme
+    assert "anti-lock-in reproducibility workbench" in readme
     assert "complements MLflow and production MLOps platforms" in readme
     assert "project setup, environment management, execution, and result analysis" in readme
     assert "Overall public evaluation" in readme
@@ -714,6 +718,16 @@ def test_public_docs_expose_three_clear_adoption_routes() -> None:
         for phrase in ("See the UI now", "Prove it locally", "Use the API/notebook"):
             assert phrase in text
         assert "10 minutes" in text
+
+
+def test_public_docs_link_security_adoption_boundary() -> None:
+    index = Path("docs/source/index.rst").read_text(encoding="utf-8")
+    security = Path("docs/source/security-adoption.rst").read_text(encoding="utf-8")
+
+    assert "Security and adoption <security-adoption>" in index
+    assert "Do not use public GitHub issues" in security
+    assert "GitHub Private Vulnerability Reporting" in security
+    assert "No-go as a standalone production platform" in security
 
 
 def test_newcomer_docs_choose_first_example_without_deprecation_confusion() -> None:
