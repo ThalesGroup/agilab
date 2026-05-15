@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-05
+  updated: 2026-05-15
 ---
 
 # Docs Skill (AGILAB)
@@ -113,6 +113,31 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
   plainly. Example: AGILAB can express dynamic behavior inside Python stages, but
   it does not yet provide first-class runtime workflow-stage expansion in
   `WORKFLOW`.
+
+## Security / Adoption Audit Docs
+
+- When an audit points to security disclosure, shared-adoption, or production
+  boundary wording, check all public entry points together:
+  `SECURITY.md`, `README.md`, `README.pypi.md`, `ADOPTION.md`,
+  canonical `../thales_agilab/docs/source`, mirrored `docs/source`, and any
+  generated guardrail tests.
+- Never route suspected vulnerabilities to public GitHub issues, discussions,
+  pull requests, or comments. Public docs should route reporters to GitHub
+  Private Vulnerability Reporting when available, or to a private AGILAB security
+  intake through the usual Thales contact path.
+- Keep the audit-facing adoption boundary explicit:
+  controlled local evaluation, conditional shared/team use after hardening, and
+  no-go as a standalone production MLOps platform.
+- If adding or changing an audit/security page, add it to the canonical docs
+  toctree, sync the mirror, and update tests/guardrails so stale public-issue
+  disclosure wording such as `[SECURITY]` cannot reappear silently.
+- Run the security and docs checks that prove the public posture:
+  `uv --preview-features extra-build-dependencies run python tools/security_hygiene_report.py --compact`,
+  the targeted audit/security docs tests, mirror stamp verification, and
+  `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`.
+- After pushing docs changes, verify the published HTML page directly. Do not
+  call public docs aligned until the Pages workflow succeeds and the new text is
+  visible online.
 
 ## Build / Validate
 

@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-14T14:36:20Z",
+  "generated_at_utc": "2026-05-15T18:08:58Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -23,7 +23,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-05",
+      "updated": "2026-05-15",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
     },
@@ -39,7 +39,7 @@
       "name": "agilab-huggingface-spaces",
       "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-14",
+      "updated": "2026-05-15",
       "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
       "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is the sibling apps/docs checkout, normally\n`../thales_agilab` relative to the public `agilab` checkout:"
     },
