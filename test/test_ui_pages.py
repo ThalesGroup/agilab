@@ -592,7 +592,7 @@ def test_agilab_main_page_shows_agilab_version(mock_ui_env):
     assert "agilab-help.html" in sidebar_markdown
 
 
-def test_agilab_navigation_keeps_settings_route_available_from_system_menu():
+def test_agilab_navigation_shows_about_then_settings_before_work_pages():
     source = Path("src/agilab/main_page.py").read_text(encoding="utf-8")
     selector_source = Path("src/agilab/page_project_selector.py").read_text(encoding="utf-8")
     pipeline_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
@@ -602,7 +602,6 @@ def test_agilab_navigation_keeps_settings_route_available_from_system_menu():
     assert 'title="SETTINGS"' in source
     assert 'url_path="SETTINGS"' in source
     assert 'pages_root / "0_SETTINGS.py"' in source
-    assert 'visibility="hidden"' in source
     assert 'page_label="ABOUT"' not in source
     assert 'page_label="MAIN_PAGE"' in source
     assert 'page_label="SETTINGS"' in source

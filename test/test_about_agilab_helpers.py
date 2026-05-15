@@ -2094,7 +2094,6 @@ def test_about_page_local_theme_and_sidebar_version_helpers(tmp_path, monkeypatc
     assert about_agilab._sidebar_version_label("2026.4.28") == "AGILAB v2026.4.28"
     assert about_agilab._sidebar_version_label("") == ""
     assert "AGILAB" in about_menu["About"]
-    assert "[Open AGILAB Settings](/SETTINGS)" in about_menu["About"]
     assert "Reproducible AI engineering, from project to proof." in about_menu["About"]
     assert "Support: open a GitHub issue" in about_menu["About"]
     assert "Data Science in Engineering" not in about_menu["About"]
