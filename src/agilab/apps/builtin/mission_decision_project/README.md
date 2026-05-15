@@ -2,8 +2,8 @@
 
 Autonomous mission-data decision demo for AGILAB.
 
-`mission_decision_project` is the first-class public AGILAB demo for the Data IO
-2026 storyline. It is a deterministic mission-decision app, not a media-only
+`mission_decision_project` is the first-class public AGILAB demo for the Mission
+Decision storyline. It is a deterministic mission-decision app, not a media-only
 storyboard.
 
 ## What It Shows
