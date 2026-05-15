@@ -279,6 +279,6 @@ The overall score is the rounded category average, not a strategic score.
 - [Adoption guide](https://github.com/ThalesGroup/agilab/blob/main/ADOPTION.md)
 - [Notebook quickstart](https://thalesgroup.github.io/agilab/notebook-quickstart.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
-- [Flight telemetry project guide](https://thalesgroup.github.io/agilab/flight-telemetry-project.html)
+- [Flight-telemetry project guide](https://thalesgroup.github.io/agilab/flight-telemetry-project.html)
 - [Source repository](https://github.com/ThalesGroup/agilab)
 - [Issues](https://github.com/ThalesGroup/agilab/issues)

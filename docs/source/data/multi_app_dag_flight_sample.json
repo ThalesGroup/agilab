@@ -2,7 +2,7 @@
   "schema": "agilab.multi_app_dag.v1",
   "dag_id": "flight-to-weather-first-proof",
   "label": "Flight to weather first-proof handoff",
-  "description": "Minimal two-app global DAG contract for validating the operator runner state on the public flight first-proof path.",
+  "description": "Minimal two-app global DAG contract for validating the operator runner state on the public flight-telemetry first-proof path.",
   "execution": {
     "mode": "sequential_dependency_order",
     "runner_status": "contract_only"

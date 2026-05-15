@@ -127,14 +127,14 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
     if not state["project_available"]:
         project_status = "Blocked"
         project_detail = (
-            "The built-in flight demo (`flight_telemetry_project`) is missing from the app list."
+            "The built-in flight-telemetry project (`flight_telemetry_project`) is missing from the app list."
         )
     elif state["current_app_matches"]:
         project_status = "Done"
-        project_detail = "The built-in flight demo is selected."
+        project_detail = "The built-in flight-telemetry project is selected."
     else:
         project_status = "Next"
-        project_detail = f"Active project is `{active_app}`; choose the built-in flight demo."
+        project_detail = f"Active project is `{active_app}`; choose the built-in flight-telemetry project."
 
     if state["run_manifest_loaded"] or state["run_output_detected"]:
         run_status = "Done"
@@ -144,7 +144,7 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
         run_detail = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     else:
         run_status = "Waiting"
-        run_detail = "Select the built-in flight demo before running."
+        run_detail = "Select the built-in flight-telemetry project before running."
 
     if state["run_manifest_passed"]:
         manifest_status = "Done"
@@ -202,24 +202,24 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
         return {
             "tone": "attention",
             "phase": "Fix setup",
-            "title": "Restore the built-in flight demo",
+            "title": "Restore the built-in flight-telemetry project",
             "detail": (
                 next_step
-                or "The built-in flight demo (`flight_telemetry_project`) is missing from the app list."
+                or "The built-in flight-telemetry project (`flight_telemetry_project`) is missing from the app list."
             ),
             "cta_label": "Open troubleshooting",
-            "proof_hint": "The built-in demo must exist before the first proof can run.",
+            "proof_hint": "The built-in flight-telemetry project must exist before the first proof can run.",
         }
     if not state["current_app_matches"]:
         return {
             "tone": "next",
             "phase": "Stage 1",
-            "title": "Select the built-in flight demo",
+            "title": "Select the built-in flight-telemetry project",
             "detail": (
                 f"You are on `{active_app}`. Switch to `flight_telemetry_project`, "
                 "the guided demo with sample data, before running anything."
             ),
-            "cta_label": "Use built-in demo",
+            "cta_label": "Use flight-telemetry project",
             "proof_hint": "This keeps the first proof on the documented, supportable route.",
         }
     if state["run_manifest_passed"]:
@@ -254,7 +254,7 @@ def _first_proof_wizard_steps(state: Dict[str, Any]) -> List[Dict[str, str]]:
     """Return clickable wizard steps for the newcomer proof path."""
     project_label = "1. Open PROJECT" if state["current_app_matches"] else "1. Select demo"
     project_detail = (
-        "The built-in flight demo is already selected."
+        "The built-in flight-telemetry project is already selected."
         if state["current_app_matches"]
         else "Select the demo project and keep later steps on the validated path."
     )
@@ -333,7 +333,7 @@ def _first_proof_prepare_project(
     """Select the first-proof project before moving to another wizard stage."""
     project_path = state.get("project_path")
     if not state["project_available"] or project_path is None:
-        st.error("The built-in flight demo is missing. Restore it before continuing.")
+        st.error("The built-in flight-telemetry project is missing. Restore it before continuing.")
         return False
     if state["current_app_matches"]:
         try:
@@ -342,7 +342,7 @@ def _first_proof_prepare_project(
             pass
         return True
     if activate_project is None:
-        st.error("Unable to select the built-in flight demo from this page.")
+        st.error("Unable to select the built-in flight-telemetry project from this page.")
         return False
     selected = activate_project(env, Path(project_path))
     if selected:
@@ -386,7 +386,7 @@ def _handle_first_proof_wizard_action(
             )
             return
         st.session_state["first_proof_feedback"] = (
-            "Run the built-in flight demo from ORCHESTRATE before opening ANALYSIS."
+            "Run the built-in flight-telemetry project from ORCHESTRATE before opening ANALYSIS."
         )
         _first_proof_open_page(
             _first_proof_page_route("orchestrate", page_routes),

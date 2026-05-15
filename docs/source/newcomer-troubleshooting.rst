@@ -70,7 +70,7 @@ Failure 3: the built-in app path is not found
 Symptom:
 
 - ``Provided --active-app path not found``
-- the PROJECT page does not point to the built-in flight demo
+- the PROJECT page does not point to the built-in flight-telemetry project
 - the newcomer proof command fails before the UI smoke completes
 
 The expected built-in path in a source checkout is::

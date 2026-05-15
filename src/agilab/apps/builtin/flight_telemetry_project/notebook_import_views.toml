@@ -20,7 +20,7 @@ optional_artifacts = [
   "reduce_summary_worker_*.json",
   "*/reduce_summary_worker_*.json",
 ]
-launch_note = "Open this first for the public flight demo dataframe map."
+launch_note = "Open this first for the public flight-telemetry project dataframe map."
 
 [views.settings_hints]
 dataset_subpath = "flight/dataframe"

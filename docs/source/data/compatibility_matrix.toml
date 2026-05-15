@@ -13,7 +13,7 @@ surface = "local source checkout"
 primary_proof = "uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py --json (writes ~/log/execute/flight_telemetry/run_manifest.json)"
 python = ["3.11+"]
 platforms = ["macOS", "Linux", "WSL2"]
-scope = "Public built-in flight_telemetry_project, local execution, newcomer proof contract"
+scope = "Public built-in flight-telemetry project (`flight_telemetry_project`), local execution, newcomer proof contract"
 limits = ["No SSH", "No private apps", "No packaged install"]
 
 [[entries]]

@@ -23,7 +23,7 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
 
     content = module.newcomer_first_proof_content()
 
-    assert content["title"] == "First run: use the built-in flight demo"
+    assert content["title"] == "First run: use the built-in flight-telemetry project"
     assert "sample data and expected outputs" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
     assert content["recommended_path_label"] == "Source checkout first proof"
@@ -75,7 +75,7 @@ def test_first_proof_state_routes_only_to_flight_telemetry_project(tmp_path: Pat
     assert state["remediation_status"] == "missing"
     assert "tools/newcomer_first_proof.py --json" in state["evidence_commands"][0]
     assert "tools/compatibility_report.py --manifest" in state["evidence_commands"][1]
-    assert state["next_step"] == "Go to `PROJECT`. Choose the built-in flight demo (`flight_telemetry_project`)."
+    assert state["next_step"] == "Go to `PROJECT`. Choose the built-in flight-telemetry project (`flight_telemetry_project`)."
 
 
 def test_first_proof_state_detects_installed_payload_provider(monkeypatch, tmp_path: Path) -> None:

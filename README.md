@@ -350,7 +350,7 @@ The strategic score movement rule is tracked in the
 - [Strategic scorecard](https://thalesgroup.github.io/agilab/strategic-potential.html)
 - [Documentation](https://thalesgroup.github.io/agilab)
 - [Contributor onboarding](CONTRIBUTING.md)
-- [Flight telemetry project guide](https://thalesgroup.github.io/agilab/flight-telemetry-project.html)
+- [Flight-telemetry project guide](https://thalesgroup.github.io/agilab/flight-telemetry-project.html)
 - [Adoption guide](ADOPTION.md)
 - [Releases](https://github.com/ThalesGroup/agilab/releases)
 - [Changelog](CHANGELOG.md)

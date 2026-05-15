@@ -471,7 +471,7 @@ SB3_ROUTING_SCENES: tuple[Scene, ...] = (
 
 
 VARIANTS: dict[str, Variant] = {
-    "flight": Variant(key="flight", app_badge="FLIGHT PROJECT", scenes=FLIGHT_SCENES),
+    "flight": Variant(key="flight", app_badge="FLIGHT-TELEMETRY", scenes=FLIGHT_SCENES),
     "uav_queue": Variant(key="uav_queue", app_badge="UAV RELAY QUEUE", scenes=UAV_QUEUE_SCENES),
     "execution_pandas": Variant(
         key="execution_pandas",

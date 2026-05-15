@@ -1,4 +1,4 @@
-"""Shared validation and persistence helpers for Flight project arguments."""
+"""Shared validation and persistence helpers for flight-telemetry project arguments."""
 
 from __future__ import annotations
 

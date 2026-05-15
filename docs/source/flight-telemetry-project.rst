@@ -1,4 +1,4 @@
-Flight Telemetry Project
+Flight-Telemetry Project
 ========================
 
 Overview
@@ -73,7 +73,7 @@ API Reference
 -------------
 
 .. figure:: diagrams/packages_flight.svg
-   :alt: flight package dependencies
+   :alt: flight-telemetry project manager package dependencies
    :align: center
    :class: diagram-panel diagram-standard
 
@@ -82,7 +82,7 @@ API Reference
    :show-inheritance:
 
 .. figure:: diagrams/classes_flight.svg
-   :alt: flight class diagram
+   :alt: flight-telemetry project manager class diagram
    :align: center
    :class: diagram-panel diagram-standard
 
@@ -91,12 +91,12 @@ API Reference
    :show-inheritance:
 
 .. figure:: diagrams/classes_flight_args.svg
-   :alt: flight args class diagram
+   :alt: flight-telemetry project args class diagram
    :align: center
    :class: diagram-panel diagram-standard
 
 .. figure:: diagrams/packages_flight_worker.svg
-   :alt: flight worker package diagram
+   :alt: flight-telemetry project worker package diagram
    :align: center
    :class: diagram-panel diagram-standard
 
@@ -105,6 +105,6 @@ API Reference
    :show-inheritance:
 
 .. figure:: diagrams/classes_flight_worker.svg
-   :alt: flight worker class diagram
+   :alt: flight-telemetry project worker class diagram
    :align: center
    :class: diagram-panel diagram-standard

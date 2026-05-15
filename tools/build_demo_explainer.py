@@ -22,19 +22,19 @@ SHADOW = (130, 150, 180, 60)
 
 VARIANTS = {
     "flight": {
-        "name": "AGILAB FLIGHT DEMO",
+        "name": "AGILAB FLIGHT-TELEMETRY PROJECT",
         "title": "One control path from idea to results",
-        "subtitle": "Flight project explainer for YouTube and public demo assets",
+        "subtitle": "Flight-telemetry project explainer for YouTube and public demo assets",
         "footer": "PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS",
         "final_caption": "AGILAB keeps one app on one coherent path from setup to evidence.",
         "stage_captions": [
-            "PROJECT keeps the flight app context and settings together.",
+            "PROJECT keeps the flight-telemetry context and settings together.",
             "ORCHESTRATE removes shell glue and packages the run path.",
             "WORKFLOW makes the execution replayable and inspectable.",
             "ANALYSIS ends on a visible result, not on raw logs.",
         ],
         "boxes": [
-            ("PROJECT", "select flight app\nand settings", (85, 212, 240, 482), (217, 239, 255)),
+            ("PROJECT", "select flight-\ntelemetry settings", (85, 212, 240, 482), (217, 239, 255)),
             ("ORCHESTRATE", "package,\nrun,\nvalidate", (327, 182, 510, 482), (230, 223, 255)),
             ("WORKFLOW", "replay steps\nand inspect flow", (540, 152, 770, 482), (255, 244, 212)),
             ("ANALYSIS", "open views\non results", (800, 122, 1115, 482), (255, 230, 236)),

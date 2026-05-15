@@ -1,4 +1,4 @@
-"""Reduce-contract adoption for the built-in Flight app."""
+"""Reduce-contract adoption for the built-in flight-telemetry project."""
 
 from __future__ import annotations
 
