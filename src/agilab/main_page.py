@@ -538,25 +538,33 @@ def _store_global_runtime_diagnostics_verbose(env: Any, verbose: int) -> None:
     st.session_state["cluster_verbose"] = verbose
 
 
-def _render_global_runtime_diagnostics(env: Any) -> None:
+def _render_global_runtime_diagnostics(env: Any, container: Any | None = None) -> None:
     current_verbose = _global_runtime_diagnostics_verbose(env)
     settings: Dict[str, Any] = {"cluster": {"verbose": current_verbose}}
-    with st.expander("Runtime diagnostics", expanded=False) as diagnostics_container:
-        diagnostics_container.caption(
-            "Global log detail reused by ORCHESTRATE, WORKFLOW, generated snippets, and CLI runs."
-        )
-        selected_verbose = render_runtime_diagnostics_control(
-            st,
-            diagnostics_container,
-            settings,
-            app_name="global",
-            compact_choice_fn=compact_choice,
-            key=diagnostics_widget_key("global"),
-        )
+    diagnostics_container = container
+    if diagnostics_container is None:
+        with st.expander("Runtime diagnostics", expanded=False) as expander_container:
+            selected_verbose = _render_global_runtime_diagnostics_control(expander_container, settings)
+    else:
+        selected_verbose = _render_global_runtime_diagnostics_control(diagnostics_container, settings)
     if selected_verbose != current_verbose:
         _store_global_runtime_diagnostics_verbose(env, selected_verbose)
     else:
         st.session_state["cluster_verbose"] = selected_verbose
+
+
+def _render_global_runtime_diagnostics_control(container: Any, settings: Dict[str, Any]) -> int:
+    container.caption(
+        "Global log detail reused by ORCHESTRATE, WORKFLOW, generated snippets, and CLI runs."
+    )
+    return render_runtime_diagnostics_control(
+        st,
+        container,
+        settings,
+        app_name="global",
+        compact_choice_fn=compact_choice,
+        key=diagnostics_widget_key("global"),
+    )
 
 
 def _refresh_env_from_file(env: Any) -> None:
@@ -569,27 +577,46 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
     _about_env_editor._render_env_editor(env, help_file)
 
 
-def page(env: Any) -> None:
-    """Render the main landing page controls and footer for the lab."""
+def _render_navigation_context(env: Any, *, page_label: str) -> None:
     try:
         render_sidebar_version(detect_agilab_version(env))
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         pass
     render_sidebar_documentation_link()
     render_pinned_expanders(st)
-    render_page_context(st, page_label="MAIN_PAGE", env=env)
+    render_page_context(st, page_label=page_label, env=env)
 
-    with st.expander(f"Environment Variables ({ENV_FILE_PATH.expanduser()})", expanded=False):
-        _render_env_editor(env)
 
-    _render_global_runtime_diagnostics(env)
-
-    _sync_layout_module()
-    _about_layout.render_footer()
+def _seed_session_runtime_defaults(env: Any) -> None:
     if "TABLE_MAX_ROWS" not in st.session_state:
         st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
     if "GUI_SAMPLING" not in st.session_state:
         st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
+
+
+def page(env: Any) -> None:
+    """Render the main landing page controls and footer for the lab."""
+    _render_navigation_context(env, page_label="MAIN_PAGE")
+    _sync_layout_module()
+    _about_layout.render_footer()
+    _seed_session_runtime_defaults(env)
+
+
+def settings_page(env: Any) -> None:
+    """Render persistent environment and diagnostics settings."""
+    _render_navigation_context(env, page_label="SETTINGS")
+    st.markdown("## Settings")
+    st.caption(
+        "Persistent environment variables and global runtime diagnostics for AGILAB actions."
+    )
+    st.markdown("#### Runtime diagnostics")
+    _render_global_runtime_diagnostics(env, container=st)
+    st.divider()
+    st.markdown(f"#### Environment variables ({ENV_FILE_PATH.expanduser()})")
+    _render_env_editor(env)
+    _sync_layout_module()
+    _about_layout.render_footer()
+    _seed_session_runtime_defaults(env)
 
 
 def _about_resources_path() -> Path:
@@ -629,16 +656,12 @@ def _ensure_navigation_environment(resources_path: Path, *, rerun_after_bootstra
     return env
 
 
-# ------------------------- Main Entrypoint -------------------------
-
-def _render_about_page_entry() -> None:
-    """Initialise the main page and display the landing UI."""
+def _render_navigation_page_shell(resources_path: Path) -> None:
     st.set_page_config(
         page_title="AGILab",
         menu_items=get_about_content(),
         layout="wide",
     )
-    resources_path = _about_resources_path()
     try:
         inject_theme(resources_path)
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
@@ -654,6 +677,13 @@ def _render_about_page_entry() -> None:
         unsafe_allow_html=True
     )
 
+
+# ------------------------- Main Entrypoint -------------------------
+
+def _render_about_page_entry() -> None:
+    """Initialise the main page and display the landing UI."""
+    resources_path = _about_resources_path()
+    _render_navigation_page_shell(resources_path)
     env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
     if env is None:
         return
@@ -663,16 +693,30 @@ def _render_about_page_entry() -> None:
     page(env)
 
 
+def _render_settings_page_entry() -> None:
+    """Initialise the settings page and display persistent runtime controls."""
+    resources_path = _about_resources_path()
+    _render_navigation_page_shell(resources_path)
+    env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
+    if env is None:
+        return
+    settings_page(env)
+
+
 def _navigation_pages() -> list[Any]:
-    """Return the supported visible pages while keeping the main page hidden from the page list."""
+    """Return the supported navigation pages."""
     root = Path(__file__).resolve().parent
     pages_root = root / "pages"
     main_page = st.Page(
         _render_about_page_entry,
-        title="Main Page",
+        title="ABOUT",
         url_path="",
         default=True,
-        visibility="hidden",
+    )
+    settings_nav_page = st.Page(
+        pages_root / "0_SETTINGS.py",
+        title="SETTINGS",
+        url_path="SETTINGS",
     )
     project_page = st.Page(
         pages_root / "1_PROJECT.py",
@@ -698,13 +742,14 @@ def _navigation_pages() -> list[Any]:
     _NAVIGATION_PAGE_ROUTES.clear()
     _NAVIGATION_PAGE_ROUTES.update(
         {
+            "settings": settings_nav_page,
             "project": project_page,
             "orchestrate": orchestrate_page,
             "workflow": workflow_page,
             "analysis": analysis_page,
         }
     )
-    return [main_page, project_page, orchestrate_page, workflow_page, analysis_page]
+    return [main_page, settings_nav_page, project_page, orchestrate_page, workflow_page, analysis_page]
 
 
 def _page_file_runner(page_file: Path) -> Callable[[], None]:

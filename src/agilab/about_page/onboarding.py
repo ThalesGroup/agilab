@@ -396,9 +396,10 @@ def _handle_first_proof_wizard_action(
         return
     if action_id == "notebook":
         active_app = str(state.get("active_app_name") or getattr(env, "app", "") or "")
+        st.session_state["sidebar_selection"] = "Create"
         st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
         st.session_state["first_proof_feedback"] = (
-            "Notebook start selected. Upload an `.ipynb` from PROJECT to create a reusable AGILAB project."
+            "Notebook start selected. PROJECT is open in Create mode; upload an `.ipynb` to create a reusable AGILAB project."
         )
         _first_proof_open_page(
             _first_proof_page_route("project", page_routes),
@@ -435,7 +436,7 @@ def _render_first_proof_wizard_actions(
                 page_routes,
             )
     st.markdown("**Alternative start**")
-    st.caption("Already have a notebook? Start from PROJECT and import it into a new AGILAB project.")
+    st.caption("Already have a notebook? Open PROJECT directly in Create mode with the notebook uploader visible.")
     if st.button(
         "Start from notebook",
         key="first_proof:wizard:notebook",

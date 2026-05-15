@@ -119,6 +119,14 @@ class _FakeStreamlit:
         key = _kwargs.get("key")
         return bool(self.button_values.get(label, self.button_values.get(key, False)))
 
+    def selectbox(self, label: str, options, **kwargs):
+        self.events.append(("selectbox", label))
+        key = kwargs.get("key")
+        if key and key in self.session_state:
+            return self.session_state[key]
+        index = int(kwargs.get("index", 0) or 0)
+        return list(options)[index]
+
     def switch_page(self, page: object, **kwargs):
         query_params = kwargs.get("query_params")
         if query_params is not None:
@@ -2129,15 +2137,12 @@ def test_main_page_sidebar_keeps_docs_link_without_execution_context(monkeypatch
 
     about_agilab.page(env)
 
-    env_expander = _event_index(fake_st.events, "expander", "Environment Variables")
-    diagnostics_expander = _event_index(fake_st.events, "expander", "Runtime diagnostics:False")
     expanders = [body for kind, body in fake_st.events if kind == "expander"]
-    assert any("Environment Variables" in label for label in expanders)
-    assert "Runtime diagnostics:False" in expanders
+    assert not any("Environment Variables" in label for label in expanders)
+    assert "Runtime diagnostics:False" not in expanders
     assert "Installed package versions:False" not in expanders
     assert "System information:False" not in expanders
     assert rendered_versions == ["2026.4.28"]
-    assert env_expander < diagnostics_expander
     sidebar_markup = "\n".join(body for kind, body in fake_st.events if kind == "sidebar.markdown")
     assert "[Documentation](https://thalesgroup.github.io/agilab/agilab-help.html)" in sidebar_markup
     assert "agilab-sidebar-system" not in sidebar_markup
@@ -2145,7 +2150,35 @@ def test_main_page_sidebar_keeps_docs_link_without_execution_context(monkeypatch
     assert "Scheduler" not in sidebar_markup
     assert "Worker 192.168.20.130" not in sidebar_markup
     assert not any("OS:" in body for kind, body in fake_st.events if kind == "sidebar.caption")
-    assert env_expander >= 0
+
+
+def test_settings_page_renders_environment_and_runtime_controls(monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(
+        about_agilab,
+        "_render_env_editor",
+        lambda _env: fake_st.events.append(("env_editor", "rendered")),
+    )
+    rendered_versions: list[str] = []
+    monkeypatch.setattr(about_agilab, "render_sidebar_version", rendered_versions.append)
+    monkeypatch.setattr(about_agilab, "detect_agilab_version", lambda _env: "2026.4.28")
+    env = SimpleNamespace(
+        app="flight_telemetry_project",
+        apps_path=Path("/tmp/agilab/apps"),
+        agi_share_path_abs=Path("/tmp/agilab/localshare"),
+        AGILAB_LOG_ABS=Path("/tmp/agilab/log"),
+        TABLE_MAX_ROWS=100,
+        GUI_SAMPLING=10,
+    )
+
+    about_agilab.settings_page(env)
+
+    assert ("markdown", "## Settings") in fake_st.events
+    assert ("markdown", "#### Runtime diagnostics") in fake_st.events
+    assert ("selectbox", "Diagnostics level") in fake_st.events
+    assert ("env_editor", "rendered") in fake_st.events
+    assert rendered_versions == ["2026.4.28"]
 
 
 def test_navigation_page_file_runner_executes_guarded_page_main(tmp_path, monkeypatch) -> None:
@@ -3209,6 +3242,7 @@ def test_first_proof_wizard_notebook_start_opens_project_without_forcing_demo(
         page_routes={"project": PageRoute()},
     )
 
+    assert fake_st.session_state["sidebar_selection"] == "Create"
     assert fake_st.session_state["create_mode"] == "From notebook"
     assert fake_st.query_params["active_app"] == "mycode_project"
     assert ("switch_page", "PROJECT_PAGE_OBJECT") in fake_st.events
