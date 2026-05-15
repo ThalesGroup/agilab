@@ -119,13 +119,15 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
 
     if not state["project_available"]:
         project_status = "Blocked"
-        project_detail = "`flight_telemetry_project` is missing from the app list."
+        project_detail = (
+            "The built-in flight demo (`flight_telemetry_project`) is missing from the app list."
+        )
     elif state["current_app_matches"]:
         project_status = "Done"
-        project_detail = "Active project is `flight_telemetry_project`."
+        project_detail = "The built-in flight demo is selected."
     else:
         project_status = "Next"
-        project_detail = f"Active project is `{active_app}`; choose `flight_telemetry_project`."
+        project_detail = f"Active project is `{active_app}`; choose the built-in flight demo."
 
     if state["run_manifest_loaded"] or state["run_output_detected"]:
         run_status = "Done"
@@ -135,7 +137,7 @@ def _first_proof_progress_rows(state: Dict[str, Any]) -> List[Dict[str, str]]:
         run_detail = "Go to `ORCHESTRATE`. Click INSTALL, then EXECUTE."
     else:
         run_status = "Waiting"
-        run_detail = "Select `flight_telemetry_project` before running."
+        run_detail = "Select the built-in flight demo before running."
 
     if state["run_manifest_passed"]:
         manifest_status = "Done"
@@ -194,17 +196,23 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
             "tone": "attention",
             "phase": "Fix setup",
             "title": "Restore the built-in flight demo",
-            "detail": next_step or "`flight_telemetry_project` is missing from the app list.",
+            "detail": (
+                next_step
+                or "The built-in flight demo (`flight_telemetry_project`) is missing from the app list."
+            ),
             "cta_label": "Open troubleshooting",
-            "proof_hint": "`flight_telemetry_project` must exist before the first proof can run.",
+            "proof_hint": "The built-in demo must exist before the first proof can run.",
         }
     if not state["current_app_matches"]:
         return {
             "tone": "next",
             "phase": "Stage 1",
-            "title": "Select `flight_telemetry_project`",
-            "detail": f"You are on `{active_app}`. Switch to the guided demo before running anything.",
-            "cta_label": "Use `flight_telemetry_project`",
+            "title": "Select the built-in flight demo",
+            "detail": (
+                f"You are on `{active_app}`. Switch to `flight_telemetry_project`, "
+                "the guided demo with sample data, before running anything."
+            ),
+            "cta_label": "Use built-in demo",
             "proof_hint": "This keeps the first proof on the documented, supportable route.",
         }
     if state["run_manifest_passed"]:
@@ -533,83 +541,82 @@ def render_newcomer_first_proof(
     if feedback:
         st.success(str(feedback))
 
-    with st.expander(content["title"], expanded=False):
-        progress_rows = _first_proof_progress_rows(state)
-        st.markdown(
-            _first_proof_overview_html(content, state, progress_rows),
-            unsafe_allow_html=True,
+    progress_rows = _first_proof_progress_rows(state)
+    st.markdown(
+        _first_proof_overview_html(content, state, progress_rows),
+        unsafe_allow_html=True,
+    )
+    st.markdown("**1. Goal**")
+    st.write(content["intro"])
+    _render_first_proof_next_action(env, state, activate_project)
+
+    st.markdown("**2. Do this now**")
+    step_lines = [
+        f"{index}. {detail}"
+        for index, (_, detail) in enumerate(content["steps"], start=1)
+    ]
+    st.markdown("\n".join(step_lines))
+
+    if state["visible_outputs"]:
+        preview = ", ".join(path.name for path in state["visible_outputs"][:3])
+        if len(state["visible_outputs"]) > 3:
+            preview += ", ..."
+        st.caption(f"Generated files found: {preview}")
+
+    st.markdown("**3. Done when**")
+    st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
+    st.caption("After that: try another demo. Keep cluster and service mode for later.")
+
+    with st.expander("If it fails / proof details", expanded=False):
+        st.markdown("**Progress**")
+        st.markdown(_first_proof_progress_markdown(progress_rows))
+        st.caption(
+            "Validated path: "
+            f"{state['recommended_path_label']} "
+            f"({state['compatibility_status']}; report: {state['compatibility_report_status']})."
         )
-        st.markdown("**1. Goal**")
-        st.write(content["intro"])
-        _render_first_proof_next_action(env, state, activate_project)
-
-        st.markdown("**2. Do this now**")
-        step_lines = [
-            f"{index}. {detail}"
-            for index, (_, detail) in enumerate(content["steps"], start=1)
-        ]
-        st.markdown("\n".join(step_lines))
-
-        if state["visible_outputs"]:
-            preview = ", ".join(path.name for path in state["visible_outputs"][:3])
-            if len(state["visible_outputs"]) > 3:
-                preview += ", ..."
-            st.caption(f"Generated files found: {preview}")
-
-        st.markdown("**3. Done when**")
-        st.markdown("\n".join(f"- {item}" for item in content["success_criteria"]))
-        st.caption("After that: try another demo. Keep cluster and service mode for later.")
-
-        with st.expander("If it fails / proof details", expanded=False):
-            st.markdown("**Progress**")
-            st.markdown(_first_proof_progress_markdown(progress_rows))
+        st.caption(
+            "CLI proof command: "
+            f"`{state['cli_command']}` "
+            f"({', '.join(state['proof_command_labels'])}; "
+            f"target <= {state['target_seconds']:.0f}s)."
+        )
+        if state["run_manifest_loaded"]:
+            manifest_summary = state["run_manifest_summary"]
             st.caption(
-                "Validated path: "
-                f"{state['recommended_path_label']} "
-                f"({state['compatibility_status']}; report: {state['compatibility_report_status']})."
+                "Run manifest: "
+                f"`{state['run_manifest_path']}` "
+                f"({state['run_manifest_status']}; "
+                f"{manifest_summary.get('artifact_count', 0)} artifact refs)."
             )
-            st.caption(
-                "CLI proof command: "
-                f"`{state['cli_command']}` "
-                f"({', '.join(state['proof_command_labels'])}; "
-                f"target <= {state['target_seconds']:.0f}s)."
+        else:
+            st.caption(f"Run manifest expected at: `{state['run_manifest_path']}`.")
+
+        if state["remediation_status"] == "passed":
+            st.caption(state["remediation_title"])
+        elif state["remediation_status"] in {"missing", "missing_manifest_with_outputs"}:
+            st.info(state["remediation_title"])
+        else:
+            st.warning(state["remediation_title"])
+
+        st.markdown("**Recovery checklist**")
+        st.markdown("\n".join(f"- {item}" for item in state["remediation_actions"]))
+        st.markdown("**Evidence commands**")
+        st.code("\n".join(state["evidence_commands"]), language="bash")
+        if state["run_manifest_validation_rows"] and state["remediation_status"] != "passed":
+            validation_preview = "; ".join(
+                f"{row['label']}={row['status']}"
+                for row in state["run_manifest_validation_rows"]
             )
-            if state["run_manifest_loaded"]:
-                manifest_summary = state["run_manifest_summary"]
-                st.caption(
-                    "Run manifest: "
-                    f"`{state['run_manifest_path']}` "
-                    f"({state['run_manifest_status']}; "
-                    f"{manifest_summary.get('artifact_count', 0)} artifact refs)."
-                )
-            else:
-                st.caption(f"Run manifest expected at: `{state['run_manifest_path']}`.")
-
-            if state["remediation_status"] == "passed":
-                st.caption(state["remediation_title"])
-            elif state["remediation_status"] in {"missing", "missing_manifest_with_outputs"}:
-                st.info(state["remediation_title"])
-            else:
-                st.warning(state["remediation_title"])
-
-            st.markdown("**Recovery checklist**")
-            st.markdown("\n".join(f"- {item}" for item in state["remediation_actions"]))
-            st.markdown("**Evidence commands**")
-            st.code("\n".join(state["evidence_commands"]), language="bash")
-            if state["run_manifest_validation_rows"] and state["remediation_status"] != "passed":
-                validation_preview = "; ".join(
-                    f"{row['label']}={row['status']}"
-                    for row in state["run_manifest_validation_rows"]
-                )
-                st.caption(f"Manifest validations: {validation_preview}")
-            st.caption(
-                "Evidence links: "
-                + " | ".join(
-                    f"[{label}]({url})"
-                    for label, url in state["remediation_links"]
-                )
+            st.caption(f"Manifest validations: {validation_preview}")
+        st.caption(
+            "Evidence links: "
+            + " | ".join(
+                f"[{label}]({url})"
+                for label, url in state["remediation_links"]
             )
+        )
 
-        st.divider()
-        if display_landing_page is not None:
-            display_landing_page(Path(env.st_resources))
+    st.divider()
+    if display_landing_page is not None:
+        display_landing_page(Path(env.st_resources))
