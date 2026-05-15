@@ -32,7 +32,7 @@ Current public release
    * - Coverage
      - `coverage run 25864838468 <https://github.com/ThalesGroup/agilab/actions/runs/25864838468>`__ passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 25864840946 <https://github.com/ThalesGroup/agilab/actions/runs/25864840946>`__ passed the public release proof workflow gate
+     - `pypi-publish run 25931605796 <https://github.com/ThalesGroup/agilab/actions/runs/25931605796>`__ passed the public release proof workflow gate
 
 What was proved
 ---------------
