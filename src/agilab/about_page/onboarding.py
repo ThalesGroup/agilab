@@ -32,6 +32,11 @@ _first_proof_wizard_module = import_agilab_module(
 FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
 FIRST_PROOF_HELPER_SCRIPT_PREFIXES = _first_proof_wizard_module.FIRST_PROOF_HELPER_SCRIPT_PREFIXES
+FIRST_PROOF_PAGE_ROUTES = {
+    "project": Path("pages/1_PROJECT.py"),
+    "orchestrate": Path("pages/2_ORCHESTRATE.py"),
+    "analysis": Path("pages/4_ANALYSIS.py"),
+}
 
 
 def _newcomer_first_proof_content() -> Dict[str, Any]:
@@ -241,6 +246,139 @@ def _first_proof_next_action_model(state: Dict[str, Any]) -> Dict[str, str]:
         "cta_label": "Go to `ORCHESTRATE`",
         "proof_hint": "Done when ANALYSIS opens and `run_manifest.json` appears.",
     }
+
+
+def _first_proof_wizard_steps(state: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Return clickable wizard steps for the newcomer proof path."""
+    project_label = "1. Open PROJECT" if state["current_app_matches"] else "1. Select demo"
+    project_detail = (
+        "The built-in flight demo is already selected."
+        if state["current_app_matches"]
+        else "Select the demo project and keep later steps on the validated path."
+    )
+    analysis_ready = (
+        state["run_manifest_passed"]
+        or state["run_manifest_loaded"]
+        or state["run_output_detected"]
+    )
+    analysis_label = "3. Open ANALYSIS" if analysis_ready else "3. Run first"
+    analysis_detail = (
+        "Open the generated results."
+        if analysis_ready
+        else "No run evidence yet; this takes you to ORCHESTRATE first."
+    )
+    return [
+        {
+            "id": "project",
+            "title": "PROJECT",
+            "button": project_label,
+            "detail": project_detail,
+        },
+        {
+            "id": "orchestrate",
+            "title": "ORCHESTRATE",
+            "button": "2. Open ORCHESTRATE",
+            "detail": "Install and execute the demo with cluster and service mode off.",
+        },
+        {
+            "id": "analysis",
+            "title": "ANALYSIS",
+            "button": analysis_label,
+            "detail": analysis_detail,
+        },
+    ]
+
+
+def _first_proof_next_wizard_step_id(state: Dict[str, Any]) -> str:
+    """Return the wizard step that should be visually promoted."""
+    if not state["project_available"] or not state["current_app_matches"]:
+        return "project"
+    if state["run_manifest_passed"] or state["run_manifest_loaded"] or state["run_output_detected"]:
+        return "analysis"
+    return "orchestrate"
+
+
+def _first_proof_open_page(page: Path, label: str) -> None:
+    """Open a Streamlit page, or explain the fallback when switch_page is unavailable."""
+    switch_page = getattr(st, "switch_page", None)
+    if not callable(switch_page):
+        st.info(f"Open `{label}` from the sidebar to continue.")
+        return
+    switch_page(page)
+
+
+def _first_proof_prepare_project(
+    env: Any,
+    state: Dict[str, Any],
+    activate_project: Callable[[Any, Path], bool] | None,
+) -> bool:
+    """Select the first-proof project before moving to another wizard stage."""
+    project_path = state.get("project_path")
+    if not state["project_available"] or project_path is None:
+        st.error("The built-in flight demo is missing. Restore it before continuing.")
+        return False
+    if state["current_app_matches"]:
+        try:
+            st.query_params["active_app"] = FIRST_PROOF_PROJECT
+        except (AttributeError, RuntimeError, TypeError):
+            pass
+        return True
+    if activate_project is None:
+        st.error("Unable to select the built-in flight demo from this page.")
+        return False
+    selected = activate_project(env, Path(project_path))
+    if selected:
+        st.session_state["first_proof_feedback"] = "`flight_telemetry_project` selected."
+    return selected
+
+
+def _handle_first_proof_wizard_action(
+    action_id: str,
+    env: Any,
+    state: Dict[str, Any],
+    activate_project: Callable[[Any, Path], bool] | None,
+) -> None:
+    """Run the action behind a first-proof wizard step."""
+    if action_id == "project":
+        if _first_proof_prepare_project(env, state, activate_project):
+            _first_proof_open_page(FIRST_PROOF_PAGE_ROUTES["project"], "PROJECT")
+        return
+    if action_id == "orchestrate":
+        if _first_proof_prepare_project(env, state, activate_project):
+            _first_proof_open_page(FIRST_PROOF_PAGE_ROUTES["orchestrate"], "ORCHESTRATE")
+        return
+    if action_id == "analysis":
+        if not _first_proof_prepare_project(env, state, activate_project):
+            return
+        if state["run_manifest_passed"] or state["run_manifest_loaded"] or state["run_output_detected"]:
+            _first_proof_open_page(FIRST_PROOF_PAGE_ROUTES["analysis"], "ANALYSIS")
+            return
+        st.session_state["first_proof_feedback"] = (
+            "Run the built-in flight demo from ORCHESTRATE before opening ANALYSIS."
+        )
+        _first_proof_open_page(FIRST_PROOF_PAGE_ROUTES["orchestrate"], "ORCHESTRATE")
+
+
+def _render_first_proof_wizard_actions(
+    env: Any,
+    state: Dict[str, Any],
+    activate_project: Callable[[Any, Path], bool] | None,
+) -> None:
+    """Render executable wizard actions for the first-proof pipeline."""
+    st.markdown("**Wizard pipeline**")
+    st.caption("Click a step: AGILAB selects the demo when needed, then opens the right page.")
+    next_step_id = _first_proof_next_wizard_step_id(state)
+    for step in _first_proof_wizard_steps(state):
+        st.markdown(f"**{step['title']}**")
+        st.caption(step["detail"])
+        button_type = "primary" if step["id"] == next_step_id else "secondary"
+        if st.button(
+            step["button"],
+            key=f"first_proof:wizard:{step['id']}",
+            type=button_type,
+            width="stretch",
+        ):
+            _handle_first_proof_wizard_action(step["id"], env, state, activate_project)
 
 
 def _first_proof_overview_html(
@@ -548,7 +686,7 @@ def render_newcomer_first_proof(
     )
     st.markdown("**1. Goal**")
     st.write(content["intro"])
-    _render_first_proof_next_action(env, state, activate_project)
+    _render_first_proof_wizard_actions(env, state, activate_project)
 
     st.markdown("**2. Do this now**")
     step_lines = [
