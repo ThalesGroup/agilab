@@ -52,14 +52,14 @@ This is not a raw repo push and not a generic Space scaffold. The deploy script 
 
 Profile app/page sets:
 - `first-proof`
-  - apps: `flight_telemetry_project`, `weather_forecast_project`
+  - apps: `flight_project`, `meteo_forecast_project`
   - pages: `view_maps`, `view_forecast_analysis`, `view_release_decision`
 - `advanced`
-  - apps: `execution_pandas_project`, `execution_polars_project`,
-    `flight_telemetry_project`, `global_dag_project`,
+  - apps: `data_io_2026_project`, `execution_pandas_project`, `execution_polars_project`,
+    `flight_project`, `global_dag_project`,
     `mission_decision_project`, `mycode_project`, `tescia_diagnostic_project`,
     `uav_queue_project`, `uav_relay_queue_project`,
-    `weather_forecast_project`
+    `meteo_forecast_project`
   - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,
     `view_maps_network`, `view_queue_resilience`, `view_relay_resilience`,
     `view_release_decision`
@@ -79,6 +79,7 @@ find <agilab-checkout>/src/agilab/apps/builtin -maxdepth 1 -mindepth 1 -type d -
 find <agilab-checkout>/src/agilab/apps-pages -maxdepth 1 -mindepth 1 -type d -exec basename {} \; | sort
 rg -n "flight_project|meteo_forecast_project|data_io_2026_project|view_uav_queue_analysis|view_uav_relay_queue_analysis" \
   <apps-repo>/huggingface <agilab-checkout>/.claude/skills/agilab-huggingface-spaces <agilab-checkout>/.codex/skills/agilab-huggingface-spaces
+rg -n "flight_telemetry_project|weather_forecast_project" <apps-repo>/huggingface
 ```
 
 If stale names appear, fix the sibling `huggingface` bundle first, then update
@@ -176,8 +177,8 @@ Before touching the Space deployment, verify:
    - anti-lock-in / runnable-notebook-export positioning
    - profile app/page lists
    - target repo content
-   - current public app IDs, especially `flight_telemetry_project` and
-     `weather_forecast_project`
+   - current public app IDs, especially `flight_project` and
+     `meteo_forecast_project`
 5. `src/agilab/apps` in the deploy source contains only public entries such as
    `builtin`, `templates`, `install.py`, and package metadata. If the working
    checkout has ignored private app symlinks, deploy from a temporary clean
@@ -277,9 +278,11 @@ rg -n 'Anti-lock-in|anti-lock-in|runnable notebooks|Notebook export exit path|fl
   "$tmpdir/README.md" "$tmpdir/Dockerfile"
 ```
 
-Treat an old `pyproject.toml` version or old app IDs as a failed alignment, even
-if the live HTTP smoke passes. Treat missing anti-lock-in / notebook-export copy
-as a Space-card alignment failure, even when the runtime itself is healthy.
+Treat an old `pyproject.toml` version, missing current app IDs, or old app IDs
+such as `flight_telemetry_project` / `weather_forecast_project` in deployed
+profile files as a failed alignment, even if the live HTTP smoke passes. Treat
+missing anti-lock-in / notebook-export copy as a Space-card alignment failure,
+even when the runtime itself is healthy.
 
 If the Space is stuck in `RUNNING_BUILDING` or `RUNNING_APP_STARTING`, inspect
 the relevant logs before making another upload:

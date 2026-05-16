@@ -74,12 +74,12 @@ Current public matrix
      - Not the recommended first proof path
    * - Published package route
      - validated
-     - ``python -m pip install agilab`` then
+     - ``python -m pip install "agilab[examples]"`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - Clean public base package install outside the source checkout, followed
-       by the packaged CLI/core first-proof smoke
-     - Validates the released package, not unmerged branch contents; less
-       representative than the source-checkout first proof
+     - Clean public package install with example apps outside the source
+       checkout, followed by the packaged CLI/core first-proof smoke
+     - Validates the released package and public example payload, not unmerged
+       branch contents; less representative than the source-checkout first proof
 
 Platform coverage snapshot
 --------------------------
@@ -99,14 +99,15 @@ Platform coverage snapshot
      - not a cloud or SSH-cluster certification
    * - Linux package
      - validated
-     - GitHub Actions clean install: ``python -m pip install agilab`` then
+     - GitHub Actions clean install: ``python -m pip install "agilab[examples]"`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - validates the latest released base package, not the local web UI extra
+     - validates the latest released package plus public examples, not the
+       local web UI extra
    * - macOS package
      - validated
-     - GitHub Actions clean install: ``python -m pip install agilab`` then
+     - GitHub Actions clean install: ``python -m pip install "agilab[examples]"`` then
        ``python -m agilab.lab_run first-proof --json --max-seconds 60``
-     - validates the latest released base package on the macOS runner, not
+     - validates the latest released package plus public examples on the macOS runner, not
        every local Homebrew/PyCharm setup or UI extra combination
    * - Windows / WSL2
      - validated for the clean package smoke; documented for WSL2/source flows
