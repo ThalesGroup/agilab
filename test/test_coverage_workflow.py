@@ -5,6 +5,7 @@ import re
 
 
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
+AGI_ENV_COVERAGE_CONFIG = Path(".coveragerc.agi-env")
 
 
 def _workflow_text() -> str:
@@ -81,6 +82,12 @@ def test_agi_env_coverage_installs_streamlit_ui_dependency() -> None:
     run_block = _agi_env_run_block()
 
     assert "--with streamlit" in run_block
+
+
+def test_agi_env_coverage_excludes_ipython_signature_compatibility_line() -> None:
+    config_text = AGI_ENV_COVERAGE_CONFIG.read_text(encoding="utf-8")
+
+    assert r"_tb_kwargs\['theme_name'\] = 'NoColor'" in config_text
 
 
 def test_agi_core_coverage_installs_parquet_engine() -> None:
