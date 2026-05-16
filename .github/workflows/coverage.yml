@@ -257,7 +257,7 @@ jobs:
           run_gui_chunk() {
             local label="$1"
             shift
-            timeout 8m uv --preview-features extra-build-dependencies run --group dev --extra ui \
+            timeout 8m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
               python -m coverage run \
               --rcfile=.coveragerc.agi-gui \
               --data-file=.coverage.agi-gui \
@@ -364,7 +364,7 @@ jobs:
             test/test_ci_provider_artifacts.py \
             test/test_*_report.py
 
-          timeout 5m uv --preview-features extra-build-dependencies run --group dev --extra ui \
+          timeout 5m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
             python -m coverage xml \
             --rcfile=.coveragerc.agi-gui \
             --data-file=.coverage.agi-gui \

@@ -19,6 +19,13 @@ def _has_with_dependency(argv: list[str], dependency: str) -> bool:
     )
 
 
+def _has_extra(argv: list[str], extra: str) -> bool:
+    return any(
+        arg == "--extra" and index + 1 < len(argv) and argv[index + 1] == extra
+        for index, arg in enumerate(argv)
+    )
+
+
 def _load_module():
     spec = importlib.util.spec_from_file_location("workflow_parity_test_module", MODULE_PATH)
     assert spec and spec.loader
@@ -162,7 +169,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ]
     assert all(command.timeout_seconds == 8 * 60 for command in agi_gui_chunks)
     assert all(command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1" for command in agi_gui_commands)
-    assert all("--extra" in command.argv and "ui" in command.argv for command in agi_gui_commands)
+    assert all(_has_extra(command.argv, "ui") for command in agi_gui_commands)
+    assert all(_has_extra(command.argv, "viz") for command in agi_gui_commands)
     assert agi_gui_commands[0].remove_paths[:2] == [".coverage.agi-gui", "coverage-agi-gui.xml"]
     assert all("coverage" in command.argv for command in agi_gui_chunks)
     assert all("--append" not in command.argv for command in agi_gui_chunks)
