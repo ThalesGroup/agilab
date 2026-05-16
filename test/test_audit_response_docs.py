@@ -34,10 +34,8 @@ def test_compatibility_matrix_promotes_clean_package_install_evidence() -> None:
     assert 'id = "published-package-route"' in matrix
     assert 'status = "validated"' in matrix
     assert 'platforms = ["Linux CI", "macOS CI", "Windows CI"]' in matrix
-    assert (
-        "python -m pip install agilab && python -m agilab.lab_run first-proof --json"
-        in matrix
-    )
+    assert 'python -m pip install \\"agilab[examples]\\"' in matrix
+    assert "python -m agilab.lab_run first-proof --json" in matrix
     assert "60-second first-proof runtime budget" in matrix
     assert "Platform coverage snapshot" in docs
     assert "macOS local" in docs
