@@ -2720,7 +2720,7 @@ def _render_notebook_import_sample_download(target) -> None:
         target.caption(f"Sample notebook unavailable: {exc}")
         return
     download_button(
-        "Download example notebook",
+        "Download included notebook",
         data=sample_bytes,
         file_name=_notebook_import_sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME,
         mime=_notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME,
@@ -2733,7 +2733,7 @@ def _render_notebook_import_sample_actions(target, session_state) -> None:
     """Render direct and fallback actions for the packaged notebook sample."""
     button = getattr(target, "button", None)
     if callable(button) and button(
-        "Use example notebook",
+        "Use included notebook",
         key="create_notebook_use_sample",
         width="stretch",
     ):
@@ -2745,7 +2745,7 @@ def _render_notebook_import_sample_actions(target, session_state) -> None:
         if callable(rerun):
             rerun()
     if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
-        target.caption("Using the bundled example notebook.")
+        target.caption("Using the included notebook.")
     elif session_state.get(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY):
         target.caption(f"Sample notebook unavailable: {session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY]}")
     _render_notebook_import_sample_download(target)

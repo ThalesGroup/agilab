@@ -3157,7 +3157,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     wizard = _event_index(
         fake_st.events,
         "markdown",
-        "**First proof with flight-telemetry-project**",
+        "**First proof: run the demo or import the included notebook**",
     )
     proof_column = _event_index(fake_st.events, "enter_column", "0")
     separator_column = _event_index(fake_st.events, "enter_column", "1")
@@ -3178,11 +3178,11 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         for index, (kind, body) in enumerate(fake_st.events)
         if kind == "markdown" and body == "or"
     )
-    notebook_start = _event_index(fake_st.events, "button", "Use example notebook")
+    notebook_start = _event_index(fake_st.events, "button", "Use included notebook")
     notebook_hint = _event_index(
         fake_st.events,
         "caption",
-        "Creates `flight_telemetry_from_notebook_project`",
+        "Included notebook -> `flight_telemetry_from_notebook_project`",
     )
     notebook_upload = _event_index(fake_st.events, "file_uploader", "Upload your notebook")
     proof_details = _event_index(
@@ -3203,7 +3203,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     )
     pre_details = fake_st.events[:proof_details]
     assert [body for kind, body in pre_details if kind == "markdown"] == [
-        "**First proof with flight-telemetry-project**",
+        "**First proof: run the demo or import the included notebook**",
         "or",
     ]
     expected_spec, expected_width = about_agilab._about_onboarding._first_proof_action_columns_layout(
@@ -3221,7 +3221,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "active_app=flight_telemetry_project" in caption_bodies[2]
     assert "current_page=" in caption_bodies[2]
     assert caption_bodies[3] == (
-        "Creates `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
+        "Included notebook -> `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
     )
     assert [body for kind, body in pre_details if kind == "file_uploader"] == [
         "Upload your notebook"
@@ -3551,7 +3551,7 @@ def test_first_proof_wizard_sample_notebook_opens_project_without_forcing_demo(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"Use example notebook": True})
+    fake_st = _FakeStreamlit(button_values={"Use included notebook": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="mycode_project",

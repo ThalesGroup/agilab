@@ -52,8 +52,10 @@ FIRST_PROOF_PAGE_ROUTES = {
     "orchestrate": Path("pages/2_ORCHESTRATE.py"),
     "analysis": Path("pages/4_ANALYSIS.py"),
 }
+FIRST_PROOF_NOTEBOOK_BUTTON = "Use included notebook"
+FIRST_PROOF_NOTEBOOK_UPLOAD_LABEL = "Upload your notebook"
 FIRST_PROOF_NOTEBOOK_HINT = (
-    "Creates `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
+    "Included notebook -> `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
 )
 FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
 FIRST_PROOF_VIEW_MAPS_PATH = (
@@ -313,7 +315,7 @@ def _first_proof_action_columns_layout(
     ]
     proof_width = _first_proof_text_column_width_px(proof_texts)
     notebook_width = _first_proof_text_column_width_px(
-        ["Use example notebook", "Upload your notebook", notebook_hint]
+        [FIRST_PROOF_NOTEBOOK_BUTTON, FIRST_PROOF_NOTEBOOK_UPLOAD_LABEL, notebook_hint]
     )
     spec = [proof_width, _FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX, notebook_width]
     total_width = sum(spec) + (_FIRST_PROOF_ACTION_COLUMN_GAP_PX * (len(spec) - 1))
@@ -351,7 +353,7 @@ def _render_first_proof_notebook_upload_control(
     """Render a direct notebook upload control for the first-proof alternative."""
     query_params = _first_proof_notebook_query_params(env, state)
     uploaded_notebook = st.file_uploader(
-        "Upload your notebook",
+        FIRST_PROOF_NOTEBOOK_UPLOAD_LABEL,
         type="ipynb",
         key="create_notebook_upload",
         label_visibility="collapsed",
@@ -383,7 +385,7 @@ def _open_project_with_packaged_sample_notebook(
         _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
     ] = True
     st.session_state["first_proof_feedback"] = (
-        "Example notebook selected. PROJECT is open in Create mode; click Create to build "
+        "Included notebook selected. PROJECT is open in Create mode; click Create to build "
         "`flight_telemetry_from_notebook_project`, then run INSTALL and EXECUTE."
     )
     _first_proof_open_page(
@@ -504,7 +506,7 @@ def _render_first_proof_wizard_actions(
     page_routes: Dict[str, Any] | None,
 ) -> None:
     """Render executable wizard actions for the first-proof pipeline."""
-    st.markdown("**First proof with flight-telemetry-project**")
+    st.markdown("**First proof: run the demo or import the included notebook**")
     next_step_id = _first_proof_next_wizard_step_id(state)
     proof_actions = [
         {
@@ -542,7 +544,7 @@ def _render_first_proof_wizard_actions(
         st.markdown("or")
     with notebook_column:
         if st.button(
-            "Use example notebook",
+            FIRST_PROOF_NOTEBOOK_BUTTON,
             key="first_proof:wizard:sample_notebook",
             type="secondary",
             width="content",
