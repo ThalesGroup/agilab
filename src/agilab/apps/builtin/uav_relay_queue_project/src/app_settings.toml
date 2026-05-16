@@ -36,13 +36,12 @@ scenario_sql = "uav_relay_queue_scenarios_sql"
 operator_events = "uav_relay_queue_ops_opensearch"
 artifact_store = "uav_relay_queue_artifact_store"
 
-[page_connector_refs.view_relay_resilience]
+[page_connector_refs.view_scenario_cockpit]
 relay_metrics = "uav_relay_queue_artifact_store"
 operator_events = "uav_relay_queue_ops_opensearch"
 
-[page_connector_refs.view_scenario_cockpit]
-scenario_evidence = "uav_relay_queue_artifact_store"
-operator_events = "uav_relay_queue_ops_opensearch"
+[page_connector_refs.view_relay_resilience]
+relay_metrics = "uav_relay_queue_artifact_store"
 
 [page_connector_refs.view_maps_network]
 network_evidence = "uav_relay_queue_ops_opensearch"

@@ -40,7 +40,9 @@ from agilab.data_connector_app_catalogs import (
 EXPECTED_APPS = [
     "execution_pandas_project",
     "execution_polars_project",
+    "flight_project",
     "flight_telemetry_project",
+    "meteo_forecast_project",
     "uav_queue_project",
     "uav_relay_queue_project",
     "weather_forecast_project",
@@ -141,7 +143,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         _check_result(
             "data_connector_app_catalogs_discovery",
             "Data connector app catalogs discovery",
-            summary.get("app_catalog_count") == 6
+            summary.get("app_catalog_count") == len(EXPECTED_APPS)
             and set(EXPECTED_APPS) == set(apps)
             and all("/connectors/data_connectors.toml" in path for path in catalog_paths),
             "report discovers app-local connector catalogs from app_settings.toml",
@@ -166,7 +168,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
             "Data connector app catalogs resolution",
             all(row.get("resolution_run_status") == "resolved" for row in app_rows)
             and all(row.get("missing_ref_count") == 0 for row in app_rows)
-            and summary.get("page_connector_ref_count") == 15,
+            and summary.get("page_connector_ref_count") == 18,
             "app-local connector references resolve for app and page settings",
             evidence=[str(row.get("settings_path", "")) for row in app_rows],
             details={"apps": app_rows},
@@ -174,7 +176,7 @@ def _build_report_with_path(*, repo_root: Path, output_path: Path) -> dict[str, 
         _check_result(
             "data_connector_app_catalogs_legacy_fallbacks",
             "Data connector app catalogs legacy fallbacks",
-            summary.get("legacy_path_count") == 12
+            summary.get("legacy_path_count") == 16
             and all(row.get("legacy_path_count") == 2 for row in app_rows),
             "app-local catalog migration keeps legacy path fallbacks visible",
             evidence=[str(row.get("settings_path", "")) for row in app_rows],

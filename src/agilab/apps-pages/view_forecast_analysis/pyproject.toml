@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-timeseries-forecast"
-version = "2026.05.16"
+version = "2026.05.17"
 description = "AGILAB page bundle for time-series forecast review."
 readme = { text = "AGILAB page bundle for time-series forecast review.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -12,6 +12,7 @@ dependencies = [
 
 [project.entry-points."agilab.pages"]
 view_forecast_analysis = "view_forecast_analysis:bundle_root"
+
 
 
 [tool.uv.sources]

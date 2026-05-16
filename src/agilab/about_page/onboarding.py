@@ -52,11 +52,15 @@ FIRST_PROOF_PAGE_ROUTES = {
     "orchestrate": Path("pages/2_ORCHESTRATE.py"),
     "analysis": Path("pages/4_ANALYSIS.py"),
 }
-FIRST_PROOF_NOTEBOOK_BUTTON = "Use included notebook"
-FIRST_PROOF_NOTEBOOK_UPLOAD_LABEL = "Upload your notebook"
+FIRST_PROOF_NOTEBOOK_BUTTON = "Create from built-in notebook"
 FIRST_PROOF_NOTEBOOK_HINT = (
-    "Included notebook -> `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
+    "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
 )
+FIRST_PROOF_NOTEBOOK_LANE_LABEL = "Notebook import: included sample"
+FIRST_PROOF_NOTEBOOK_AFTER_HINT = (
+    "Then click PROJECT `Create`; it builds `flight_telemetry_from_notebook_project`."
+)
+FIRST_PROOF_NOTEBOOK_RUN_HINT = "After creation, run ORCHESTRATE `INSTALL` and `EXECUTE`."
 FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
 FIRST_PROOF_VIEW_MAPS_PATH = (
     _AGILAB_ROOT
@@ -249,17 +253,17 @@ def _first_proof_wizard_steps(state: Dict[str, Any]) -> List[Dict[str, str]]:
     return [
         {
             "id": "install",
-            "button": "1. INSTALL",
-            "hint": "Runs the ORCHESTRATE install.",
+            "button": "1. INSTALL demo",
+            "hint": "Runs ORCHESTRATE `INSTALL` for `flight_telemetry_project`.",
         },
         {
             "id": "run",
-            "button": "2. RUN",
-            "hint": "Starts the ORCHESTRATE run.",
+            "button": "2. EXECUTE demo",
+            "hint": "Runs ORCHESTRATE `EXECUTE` for the same demo.",
         },
         {
             "id": "analysis",
-            "button": "3. ANALYSIS",
+            "button": "3. OPEN ANALYSIS",
             "hint": (
                 "`view_maps`: "
                 f"[Open]({_first_proof_analysis_view_maps_url()})."
@@ -315,7 +319,13 @@ def _first_proof_action_columns_layout(
     ]
     proof_width = _first_proof_text_column_width_px(proof_texts)
     notebook_width = _first_proof_text_column_width_px(
-        [FIRST_PROOF_NOTEBOOK_BUTTON, FIRST_PROOF_NOTEBOOK_UPLOAD_LABEL, notebook_hint]
+        [
+            FIRST_PROOF_NOTEBOOK_BUTTON,
+            FIRST_PROOF_NOTEBOOK_LANE_LABEL,
+            notebook_hint,
+            FIRST_PROOF_NOTEBOOK_AFTER_HINT,
+            FIRST_PROOF_NOTEBOOK_RUN_HINT,
+        ]
     )
     spec = [proof_width, _FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX, notebook_width]
     total_width = sum(spec) + (_FIRST_PROOF_ACTION_COLUMN_GAP_PX * (len(spec) - 1))
@@ -345,34 +355,6 @@ def _first_proof_notebook_query_params(env: Any, state: Dict[str, Any]) -> Dict[
     return query_params
 
 
-def _render_first_proof_notebook_upload_control(
-    env: Any,
-    state: Dict[str, Any],
-    page_routes: Dict[str, Any] | None,
-) -> None:
-    """Render a direct notebook upload control for the first-proof alternative."""
-    query_params = _first_proof_notebook_query_params(env, state)
-    uploaded_notebook = st.file_uploader(
-        FIRST_PROOF_NOTEBOOK_UPLOAD_LABEL,
-        type="ipynb",
-        key="create_notebook_upload",
-        label_visibility="collapsed",
-    )
-    if uploaded_notebook is None:
-        return
-
-    st.session_state["sidebar_selection"] = "Create"
-    st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
-    st.session_state["first_proof_feedback"] = (
-        "Notebook selected. PROJECT is open in Create mode; create the imported project, then run INSTALL and EXECUTE."
-    )
-    _first_proof_open_page(
-        _first_proof_page_route("project", page_routes),
-        "PROJECT",
-        query_params=query_params,
-    )
-
-
 def _open_project_with_packaged_sample_notebook(
     env: Any,
     state: Dict[str, Any],
@@ -385,8 +367,8 @@ def _open_project_with_packaged_sample_notebook(
         _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
     ] = True
     st.session_state["first_proof_feedback"] = (
-        "Included notebook selected. PROJECT is open in Create mode; click Create to build "
-        "`flight_telemetry_from_notebook_project`, then run INSTALL and EXECUTE."
+        "AGILAB's built-in notebook is selected. PROJECT is open in Create mode; click Create to build "
+        "`flight_telemetry_from_notebook_project`, then run ORCHESTRATE INSTALL and EXECUTE."
     )
     _first_proof_open_page(
         _first_proof_page_route("project", page_routes),
@@ -490,7 +472,8 @@ def _handle_first_proof_wizard_action(
         st.session_state["sidebar_selection"] = "Create"
         st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
         st.session_state["first_proof_feedback"] = (
-            "Notebook start selected. PROJECT is open in Create mode; upload an `.ipynb` to create a reusable AGILAB project."
+            "PROJECT is open in Create mode. Use AGILAB's bundled notebook, or use PROJECT "
+            "Create later for your own local notebook file."
         )
         _first_proof_open_page(
             _first_proof_page_route("project", page_routes),
@@ -506,7 +489,11 @@ def _render_first_proof_wizard_actions(
     page_routes: Dict[str, Any] | None,
 ) -> None:
     """Render executable wizard actions for the first-proof pipeline."""
-    st.markdown("**First proof: run the demo or import the included notebook**")
+    st.markdown("**First proof: choose one path**")
+    st.caption(
+        "Recommended: run the built-in demo. Notebook import is optional: use AGILAB's included "
+        "notebook with no file to find."
+    )
     next_step_id = _first_proof_next_wizard_step_id(state)
     proof_actions = [
         {
@@ -543,6 +530,7 @@ def _render_first_proof_wizard_actions(
     with separator_column:
         st.markdown("or")
     with notebook_column:
+        st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)
         if st.button(
             FIRST_PROOF_NOTEBOOK_BUTTON,
             key="first_proof:wizard:sample_notebook",
@@ -555,7 +543,8 @@ def _render_first_proof_wizard_actions(
                 page_routes,
             )
         st.caption(FIRST_PROOF_NOTEBOOK_HINT)
-        _render_first_proof_notebook_upload_control(env, state, page_routes)
+        st.caption(FIRST_PROOF_NOTEBOOK_AFTER_HINT)
+        st.caption(FIRST_PROOF_NOTEBOOK_RUN_HINT)
 
 
 def _render_first_proof_next_action(

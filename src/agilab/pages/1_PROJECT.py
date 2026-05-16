@@ -24,11 +24,13 @@ from pathlib import Path
 import ast
 import re
 import importlib.util
+import sys
 from types import SimpleNamespace
 
 os.environ.setdefault("STREAMLIT_CONFIG_FILE", str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"))
 
 import streamlit as st
+from streamlit.errors import StreamlitAPIException
 import tomli_w
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -154,6 +156,7 @@ PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY = "_project_notebook_import_defau
 PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY = _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
 PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY = "_project_notebook_import_sample_error"
 PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = ("start", "create_mode", "sidebar_selection")
+NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
 NOTEBOOK_STEPS_FILE = "lab_stages.toml"
@@ -178,6 +181,33 @@ CLONE_ENV_STRATEGY_HELP = (
     f"{CLONE_ENV_STRATEGY_CAPTIONS['share_source_venv']}\n\n"
     f"{CLONE_ENV_STRATEGY_LABELS['detach_venv']}: "
     f"{CLONE_ENV_STRATEGY_CAPTIONS['detach_venv']}"
+)
+DELETE_RUNTIME_SESSION_KEYS_TO_CLEAR = (
+    "_last_execute_failed",
+    "_service_logs_expanded",
+    "_show_run_app",
+    "benchmark",
+    "dataframe_deleted",
+    "delete_data_main_confirm",
+    "delete_data_main_undo_payload",
+    "last_run_log_path",
+    "log_text",
+    "run_log_cache",
+    "service_health_cache",
+    "service_log_cache",
+    "service_snapshot_path_cache",
+    "service_status_cache",
+    "show_distribute",
+    "show_install",
+    "show_run",
+)
+DELETE_RUNTIME_SESSION_KEY_SUFFIXES = (
+    "__last_run_log_file",
+    "__last_run_status",
+)
+WORKFLOW_UI_SESSION_ROOT_KEYS = (
+    "agilab:workflow_ui_state",
+    "agilab:workflow_action_history",
 )
 EDITOR_PIN_RESPONSE = "editor_pin"
 EDITOR_UNPIN_RESPONSE = "editor_unpin"
@@ -2709,46 +2739,74 @@ def _apply_notebook_import_defaults_from_upload(
     return visible_defaults
 
 
-def _render_notebook_import_sample_download(target) -> None:
-    """Render a packaged sample notebook download for Create -> From notebook."""
-    download_button = getattr(target, "download_button", None)
-    if not callable(download_button):
-        return
-    try:
-        sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes()
-    except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        target.caption(f"Sample notebook unavailable: {exc}")
-        return
-    download_button(
-        "Download included notebook",
-        data=sample_bytes,
-        file_name=_notebook_import_sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME,
-        mime=_notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME,
-        key="create_notebook_sample_download",
-        width="stretch",
-    )
-
-
 def _render_notebook_import_sample_actions(target, session_state) -> None:
-    """Render direct and fallback actions for the packaged notebook sample."""
-    button = getattr(target, "button", None)
-    if callable(button) and button(
-        "Use included notebook",
-        key="create_notebook_use_sample",
-        width="stretch",
-    ):
-        session_state[PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] = True
-        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
-        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
-        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
-        rerun = getattr(st, "rerun", None)
-        if callable(rerun):
-            rerun()
+    """Render packaged notebook state without reselection UI."""
     if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
-        target.caption("Using the included notebook.")
+        target.caption("Using AGILAB's included notebook; no local file is needed.")
     elif session_state.get(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY):
         target.caption(f"Sample notebook unavailable: {session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY]}")
-    _render_notebook_import_sample_download(target)
+
+
+def _is_guided_notebook_import(session_state, active_notebook_source) -> bool:
+    """Return true when PROJECT was opened from the ABOUT built-in notebook wizard."""
+    return bool(session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY)) and active_notebook_source is not None
+
+
+def _guided_notebook_import_values(
+    session_state,
+    notebook_defaults: dict[str, str],
+    *,
+    default_project: str,
+    default_template: str,
+    template_options: list[str],
+) -> tuple[str, str]:
+    """Resolve the fixed project/template values for the guided sample import."""
+    project_name = str(
+        notebook_defaults.get("project_name_hint")
+        or session_state.get("clone_dest")
+        or default_project
+    ).strip()
+    template_name = str(
+        notebook_defaults.get("recommended_template")
+        or session_state.get("notebook_clone_src")
+        or default_template
+    ).strip()
+    if template_name not in template_options:
+        template_name = default_template
+    session_state["clone_dest"] = project_name
+    session_state["notebook_clone_src"] = template_name
+    return project_name, template_name
+
+
+def _registered_navigation_page(route_id: str):
+    """Return a registered ``st.Page`` object from the active main navigation run."""
+    for module_name in ("__main__", "agilab.main_page"):
+        module = sys.modules.get(module_name)
+        routes = getattr(module, NAVIGATION_PAGE_ROUTES_ATTR, None)
+        if isinstance(routes, dict) and routes.get(route_id) is not None:
+            return routes[route_id]
+    return None
+
+
+def _switch_to_registered_navigation_page(
+    route_id: str,
+    label: str,
+    *,
+    query_params: dict[str, str] | None = None,
+) -> bool:
+    """Switch to a callable ``st.Page`` from ``st.navigation`` without legacy path crashes."""
+    switch_page = getattr(st, "switch_page", None)
+    page = _registered_navigation_page(route_id)
+    if not callable(switch_page) or page is None:
+        return False
+    try:
+        switch_page(page, query_params=query_params)
+    except StreamlitAPIException as exc:
+        st.session_state["project_navigation_warning"] = (
+            f"Project was created, but AGILAB could not open {label} automatically: {exc}"
+        )
+        return False
+    return True
 
 
 def _notebook_project_source_options(env: AgiEnv, template_options: list[str]) -> list[str]:
@@ -3190,20 +3248,77 @@ def _delete_project_action(
     )
 
 
+def _clear_deleted_project_runtime_state(session_state, deleted_project: str) -> None:
+    """Drop transient runtime UI state that can outlive a deleted project."""
+    deleted_token = str(deleted_project or "").strip()
+    for key in DELETE_RUNTIME_SESSION_KEYS_TO_CLEAR:
+        session_state.pop(key, None)
+
+    for key in list(session_state.keys()):
+        key_text = str(key)
+        if key_text.endswith(DELETE_RUNTIME_SESSION_KEY_SUFFIXES):
+            session_state.pop(key, None)
+
+    if not deleted_token:
+        return
+    for root_key in WORKFLOW_UI_SESSION_ROOT_KEYS:
+        root = session_state.get(root_key)
+        if not isinstance(root, dict):
+            continue
+        for scope in list(root.keys()):
+            if deleted_token in str(scope):
+                root.pop(scope, None)
+
+
+def _run_clearable_streamlit_action(
+    streamlit,
+    spec: ActionSpec,
+    action,
+    *,
+    on_success=None,
+) -> ActionResult:
+    """Run a page action and explicitly remove its spinner before rendering the result."""
+    spinner_slot = streamlit.empty()
+    try:
+        with spinner_slot:
+            with streamlit.spinner(spec.start_message):
+                result = action()
+    except Exception as exc:
+        result = ActionResult.error(
+            spec.failure_title or f"{spec.name} failed.",
+            detail=str(exc),
+            next_action=spec.failure_next_action,
+        )
+    finally:
+        spinner_slot.empty()
+
+    render_action_result(streamlit, result)
+    if result.status == "success" and on_success is not None:
+        on_success(result)
+    return result
+
+
 def handle_project_creation():
     """
     Handle the 'Create' tab in the sidebar for project creation.
     """
     st.header("Create project")
-    create_mode = compact_choice(
-        st.sidebar,
-        "Create mode",
-        [CREATE_MODE_TEMPLATE, CREATE_MODE_NOTEBOOK],
-        key="create_mode",
-        inline_limit=2,
-        fallback="radio",
-    )
+    sample_import_requested = bool(st.session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY))
+    if sample_import_requested:
+        st.session_state["create_mode"] = CREATE_MODE_NOTEBOOK
+        create_mode = CREATE_MODE_NOTEBOOK
+    else:
+        create_mode = compact_choice(
+            st.sidebar,
+            "Create mode",
+            [CREATE_MODE_TEMPLATE, CREATE_MODE_NOTEBOOK],
+            key="create_mode",
+            inline_limit=2,
+            fallback="radio",
+        )
     env = st.session_state["env"]
+    guided_notebook_import = False
+    guided_project_name = ""
 
     if create_mode == CREATE_MODE_NOTEBOOK:
         st.caption(
@@ -3225,7 +3340,26 @@ def handle_project_creation():
             if NOTEBOOK_PROJECT_DEFAULT_TEMPLATE in template_options
             else template_options[0]
         )
-        if notebook_defaults:
+        guided_notebook_import = _is_guided_notebook_import(
+            st.session_state,
+            active_notebook_source,
+        )
+        if guided_notebook_import:
+            guided_project_name, guided_template_name = _guided_notebook_import_values(
+                st.session_state,
+                notebook_defaults,
+                default_project="flight-telemetry-from-notebook-project",
+                default_template=default_template,
+                template_options=template_options,
+            )
+            normalized_project_name = normalize_project_name(guided_project_name)
+            st.info(
+                "AGILAB's included notebook is selected. "
+                f"Click Create to build `{normalized_project_name}` from `{guided_template_name}`; "
+                "ORCHESTRATE opens next for INSTALL and EXECUTE."
+            )
+            st.sidebar.caption(f"Included notebook -> `{normalized_project_name}`.")
+        elif notebook_defaults:
             default_project = notebook_defaults.get("project_name_hint", "")
             default_template_hint = notebook_defaults.get("recommended_template", "")
             if default_template_hint not in template_options:
@@ -3240,20 +3374,21 @@ def handle_project_creation():
                 detail = ""
             if detail:
                 st.sidebar.caption(f"This notebook will create {detail}.")
-        compact_choice(
-            st.sidebar,
-            "Base project to clone",
-            template_options,
-            key="notebook_clone_src",
-            default=default_template,
-            inline_limit=5,
-        )
-        _render_notebook_import_sample_actions(st.sidebar, st.session_state)
-        st.sidebar.file_uploader(
-            "Upload your notebook",
-            type="ipynb",
-            key="create_notebook_upload",
-        )
+        if not guided_notebook_import:
+            compact_choice(
+                st.sidebar,
+                "Base project to clone",
+                template_options,
+                key="notebook_clone_src",
+                default=default_template,
+                inline_limit=5,
+            )
+            _render_notebook_import_sample_actions(st.sidebar, st.session_state)
+            st.sidebar.file_uploader(
+                "Upload your own notebook file",
+                type="ipynb",
+                key="create_notebook_upload",
+            )
     else:
         st.caption(
             "Create a new project from an existing template. "
@@ -3271,21 +3406,30 @@ def handle_project_creation():
             inline_limit=5,
         )
 
+    env_strategy_target = st.sidebar
+    if guided_notebook_import:
+        st.session_state.setdefault("clone_env_strategy", "detach_venv")
+        env_strategy_target = st.sidebar.expander("Advanced", expanded=False)
+
     clone_env_strategy = compact_choice(
-        st.sidebar,
+        env_strategy_target,
         "Environment strategy",
         list(CLONE_ENV_STRATEGY_LABELS),
         key="clone_env_strategy",
+        default="detach_venv" if guided_notebook_import else None,
         format_func=CLONE_ENV_STRATEGY_LABELS.get,
         help=CLONE_ENV_STRATEGY_HELP,
         fallback="radio",
     )
 
-    raw = st.sidebar.text_input(
-        "New project base name",
-        key="clone_dest",
-        help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
-    ).strip()
+    if guided_notebook_import:
+        raw = guided_project_name.strip()
+    else:
+        raw = st.sidebar.text_input(
+            "New project base name",
+            key="clone_dest",
+            help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
+        ).strip()
 
     create_clicked = st.sidebar.button("Create", type="primary", width="stretch")
     if create_clicked:
@@ -3299,15 +3443,20 @@ def handle_project_creation():
         def _activate_notebook_project(result):
             new_name = str(result.data["new_name"])
             env.change_app(new_name)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
+            st.session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
             st.session_state["project_changed"] = True
             st.session_state["_requested_lab_dir"] = new_name
-            st.session_state["lab_dir_selectbox"] = new_name
-            st.session_state["project_selectbox"] = new_name
             st.query_params["active_app"] = new_name
             st.query_params["lab_dir_selectbox"] = new_name
-            switch_page = getattr(st, "switch_page", None)
-            if callable(switch_page):
-                switch_page(Path("pages/3_WORKFLOW.py"))
+            st.session_state["show_install"] = True
+            if _switch_to_registered_navigation_page(
+                "orchestrate",
+                "ORCHESTRATE",
+                query_params={"active_app": new_name, "lab_dir_selectbox": new_name},
+            ):
                 return
             st.session_state["switch_to_edit"] = True
             st.rerun()
@@ -3439,6 +3588,8 @@ def handle_project_delete():
     delete_clicked = st.sidebar.button("Delete", type="primary", width="stretch")
     if delete_clicked:
         def _activate_after_delete(result):
+            deleted_project = str(result.data.get("app") or env.app)
+            _clear_deleted_project_runtime_state(st.session_state, deleted_project)
             next_app = result.data.get("next_app")
             if next_app:
                 on_project_change(str(next_app))
@@ -3447,7 +3598,7 @@ def handle_project_delete():
             st.session_state["switch_to_edit"] = True
             st.rerun()
 
-        run_streamlit_action(
+        _run_clearable_streamlit_action(
             st,
             ActionSpec(
                 name="Delete project",

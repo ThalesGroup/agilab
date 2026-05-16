@@ -162,6 +162,6 @@ else:
         "`shortest_path`, then improve when you switch to `queue_aware`."
     )
     st.caption(
-        "Each run also exports comparison, topology, and trajectory evidence so "
-        "`view_scenario_cockpit` and `view_maps_network` can reuse the same scenario."
+        "Each run also exports `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, and "
+        "per-node trajectory CSVs so `view_maps_network` can reuse the same scenario."
     )

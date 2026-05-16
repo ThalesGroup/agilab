@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-simplex-map"
-version = "2026.05.16"
+version = "2026.05.17"
 description = "AGILAB page bundle for simplex projection and barycentric analysis."
 readme = { text = "AGILAB page bundle for simplex projection and barycentric analysis.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -15,6 +15,7 @@ dependencies = [
 
 [project.entry-points."agilab.pages"]
 view_barycentric = "view_barycentric:bundle_root"
+
 
 
 [tool.uv.sources]

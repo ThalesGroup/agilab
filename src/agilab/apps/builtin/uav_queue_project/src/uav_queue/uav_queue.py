@@ -1,4 +1,4 @@
-"""Manager for the built-in UAV queue project."""
+"""Manager for the built-in UAV relay queue project."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class UavQueue(BaseWorker):
-    """Manager that turns a lightweight UAV queue scenario into a runnable app."""
+    """Manager that turns a lightweight UAV relay queue scenario into a runnable app."""
 
     worker_vars: dict[str, Any] = {}
 
@@ -70,7 +70,7 @@ class UavQueue(BaseWorker):
             raise FileNotFoundError(f"Bundled sample scenario missing: {sample}")
         destination = data_in / sample.name
         shutil.copy2(sample, destination)
-        logger.info("Seeded UAV queue sample scenario at %s", destination)
+        logger.info("Seeded UAV relay queue sample scenario at %s", destination)
 
     @classmethod
     def from_toml(
@@ -133,7 +133,7 @@ class UavQueueApp(UavQueue):
 
 
 class UavRelayQueue(UavQueue):
-    """Historical descriptive alias for the lightweight UAV queue manager."""
+    """Preferred descriptive alias for the lightweight UAV relay queue manager."""
 
 
 class UavRelayQueueApp(UavRelayQueue):

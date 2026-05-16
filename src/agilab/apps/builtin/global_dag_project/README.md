@@ -10,8 +10,8 @@ handoffs.
 ## What It Shows
 
 - a built-in app-owned DAG template under `dag_templates/`
-- a `flight_telemetry_project` stage that produces `flight_reduce_summary`
-- a `weather_forecast_project` stage that consumes that summary
+- a `flight_project` stage that produces `flight_reduce_summary`
+- a `meteo_forecast_project` stage that consumes that summary
 - a read-only runner-state preview before any app is executed
 
 ## Typical Flow
@@ -29,7 +29,7 @@ read-only and safe to inspect without running the downstream apps.
 
 ## Scope
 
-Use this project to learn cross-app orchestration. Use `flight_telemetry_project` or
+Use this project to learn cross-app orchestration. Use `flight_project` or
 `uav_queue_project` when you want a domain app that executes real worker code.
 
 ## Reducer Contract Status

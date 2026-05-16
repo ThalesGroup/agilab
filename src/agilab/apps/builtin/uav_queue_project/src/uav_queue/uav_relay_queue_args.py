@@ -1,4 +1,4 @@
-"""Compatibility wrapper for historical relay-queue argument imports."""
+"""Compatibility wrapper for descriptive UAV relay queue argument imports."""
 
 from .app_args import (
     UavRelayQueueArgs,

@@ -1,4 +1,4 @@
-# Polars Execution Project
+# Execution Polars Project
 
 `execution_polars_project` is a built-in AGILAB execution playground for the
 `PolarsWorker` path.

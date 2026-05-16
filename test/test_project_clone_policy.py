@@ -809,40 +809,8 @@ def test_create_project_clone_action_resolves_installed_app_project(
     assert result.data["resolved_clone_source"] == installed_root
 
 
-def test_render_notebook_import_sample_download_uses_packaged_payload():
+def test_render_notebook_import_sample_actions_only_reports_existing_packaged_source():
     module = _load_project_module()
-
-    class _Target:
-        def __init__(self):
-            self.downloads = []
-            self.captions = []
-
-        def download_button(self, *args, **kwargs):
-            self.downloads.append((args, kwargs))
-
-        def caption(self, message):
-            self.captions.append(message)
-
-    target = _Target()
-
-    module._render_notebook_import_sample_download(target)
-
-    assert target.captions == []
-    assert len(target.downloads) == 1
-    args, kwargs = target.downloads[0]
-    notebook = json.loads(kwargs["data"].decode("utf-8"))
-    assert args == ("Download included notebook",)
-    assert kwargs["file_name"] == "flight_telemetry_from_notebook.ipynb"
-    assert kwargs["mime"] == "application/x-ipynb+json"
-    assert kwargs["key"] == "create_notebook_sample_download"
-    assert notebook["metadata"]["agilab"]["import"]["recommended_template"] == (
-        "flight_telemetry_project"
-    )
-
-
-def test_render_notebook_import_sample_actions_selects_packaged_source(monkeypatch):
-    module = _load_project_module()
-    reruns: list[str] = []
 
     class _Target:
         def __init__(self):
@@ -860,20 +828,17 @@ def test_render_notebook_import_sample_actions_selects_packaged_source(monkeypat
         def caption(self, message):
             self.captions.append(message)
 
-    monkeypatch.setattr(module, "st", SimpleNamespace(rerun=lambda: reruns.append("rerun")))
     session_state: dict[str, object] = {
-        module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY: {"project_name_hint": "old_project"},
-        module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY: "old.ipynb:1:abc",
+        module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY: True,
     }
     target = _Target()
 
     module._render_notebook_import_sample_actions(target, session_state)
 
-    assert target.buttons[0][0] == ("Use included notebook",)
+    assert target.buttons == []
+    assert target.captions == ["Using AGILAB's included notebook; no local file is needed."]
     assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] is True
-    assert module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY not in session_state
-    assert module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY not in session_state
-    assert reruns == ["rerun"]
+    assert target.downloads == []
 
 
 def test_active_notebook_import_source_uses_sample_until_user_upload():
@@ -903,12 +868,80 @@ def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
     assert "Start from a notebook. AGILAB clones a base project" in source
     assert "Base project to clone" in source
     assert "This notebook will create" in source
-    assert "Use included notebook" in source
-    assert "Upload your notebook" in source
+    assert "Upload your own notebook file" in source
+    assert "AGILAB's included notebook is selected" in source
+    assert "ORCHESTRATE opens next for INSTALL and EXECUTE" in source
+    assert "Advanced" in source
     assert "then EXECUTE" in source
+    assert "create_notebook_use_sample" not in source
+    assert "create_notebook_sample_download" not in source
+    assert 'st.session_state["project_selectbox"] = new_name' not in source
+    assert 'st.session_state["lab_dir_selectbox"] = new_name' not in source
+    assert 'switch_page(Path("pages/3_WORKFLOW.py"))' not in source
+    assert '_switch_to_registered_navigation_page(\n                "orchestrate"' in source
     assert "Notebook source" not in source
     assert "INSTALL then RUN" not in source
     assert "chosen app or template source" not in source
+
+
+def test_project_navigation_uses_registered_orchestrate_page(monkeypatch):
+    module = _load_project_module()
+    route = object()
+
+    class _FakeStreamlit:
+        def __init__(self):
+            self.session_state = {}
+            self.calls = []
+
+        def switch_page(self, page, **kwargs):
+            self.calls.append((page, kwargs.get("query_params")))
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setitem(
+        module.sys.modules,
+        "__main__",
+        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={"orchestrate": route}),
+    )
+
+    assert module._switch_to_registered_navigation_page(
+        "orchestrate",
+        "ORCHESTRATE",
+        query_params={"active_app": "demo_project"},
+    ) is True
+    assert fake_st.calls == [(route, {"active_app": "demo_project"})]
+
+
+def test_project_navigation_without_registered_page_does_not_switch(monkeypatch):
+    module = _load_project_module()
+
+    class _FakeStreamlit:
+        def __init__(self):
+            self.session_state = {}
+            self.calls = []
+
+        def switch_page(self, page, **kwargs):
+            self.calls.append((page, kwargs.get("query_params")))
+
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setitem(
+        module.sys.modules,
+        "__main__",
+        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={}),
+    )
+    monkeypatch.setitem(
+        module.sys.modules,
+        "agilab.main_page",
+        SimpleNamespace(_NAVIGATION_PAGE_ROUTES={}),
+    )
+
+    assert module._switch_to_registered_navigation_page(
+        "orchestrate",
+        "ORCHESTRATE",
+        query_params={"active_app": "demo_project"},
+    ) is False
+    assert fake_st.calls == []
 
 
 def test_notebook_import_metadata_does_not_overwrite_custom_create_defaults():
@@ -1430,6 +1463,106 @@ def test_delete_project_action_reports_project_removal_failure(tmp_path: Path, m
     assert result.data["cleanup_errors"] == ("Project 'current_project': locked",)
     assert env.projects == ["current_project", "next_project"]
     assert project_path.exists()
+
+
+def test_clear_deleted_project_runtime_state_removes_stale_running_indicators():
+    module = _load_project_module()
+    session_state: dict[str, object] = {
+        "_last_execute_failed": True,
+        "current_project__last_run_log_file": "/tmp/run.log",
+        "current_project__last_run_status": "running",
+        "dataframe_deleted": True,
+        "keep_me": "value",
+        "last_run_log_path": "/tmp/run.log",
+        "run_log_cache": "still running",
+        "service_health_cache": [{"worker": "w1", "healthy": True}],
+        "service_snapshot_path_cache": "/tmp/snapshot.json",
+        "service_status_cache": "running",
+        "show_run": True,
+        "agilab:workflow_action_history": {
+            "ORCHESTRATE::current_project::current": [{"status": "Running"}],
+            "ORCHESTRATE::other_project::other": [{"status": "Done"}],
+        },
+        "agilab:workflow_ui_state": {
+            "WORKFLOW::current_project::current": {"expanded": True},
+            "WORKFLOW::other_project::other": {"expanded": False},
+        },
+    }
+
+    module._clear_deleted_project_runtime_state(session_state, "current_project")
+
+    for key in (
+        "_last_execute_failed",
+        "current_project__last_run_log_file",
+        "current_project__last_run_status",
+        "dataframe_deleted",
+        "last_run_log_path",
+        "run_log_cache",
+        "service_health_cache",
+        "service_snapshot_path_cache",
+        "service_status_cache",
+        "show_run",
+    ):
+        assert key not in session_state
+    assert session_state["keep_me"] == "value"
+    assert session_state["agilab:workflow_action_history"] == {
+        "ORCHESTRATE::other_project::other": [{"status": "Done"}],
+    }
+    assert session_state["agilab:workflow_ui_state"] == {
+        "WORKFLOW::other_project::other": {"expanded": False},
+    }
+
+
+def test_clearable_action_runner_empties_spinner_before_rendering_result():
+    module = _load_project_module()
+    events: list[object] = []
+
+    class _Context:
+        def __init__(self, name: str):
+            self.name = name
+
+        def __enter__(self):
+            events.append(f"{self.name}:enter")
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            events.append(f"{self.name}:exit")
+            return False
+
+    class _SpinnerSlot(_Context):
+        def empty(self):
+            events.append("spinner_slot:empty")
+
+    class _FakeStreamlit:
+        def empty(self):
+            return _SpinnerSlot("spinner_slot")
+
+        def spinner(self, message):
+            events.append(("spinner", message))
+            return _Context("spinner")
+
+        def success(self, message):
+            events.append(("success", message))
+
+        def info(self, message):
+            events.append(("info", message))
+
+    result = module._run_clearable_streamlit_action(
+        _FakeStreamlit(),
+        module.ActionSpec(
+            name="Delete project",
+            start_message="Deleting project 'current_project'...",
+            failure_title="Project deletion failed.",
+        ),
+        lambda: module.ActionResult.success("Project 'current_project' has been deleted."),
+        on_success=lambda _result: events.append("on_success"),
+    )
+
+    assert result.status == "success"
+    assert events.index("spinner_slot:empty") < events.index(
+        ("success", "Project 'current_project' has been deleted.")
+    )
+    assert events[-1] == "on_success"
 
 
 def test_safe_remove_path_collects_probe_errors(monkeypatch):

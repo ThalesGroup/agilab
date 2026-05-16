@@ -1,8 +1,8 @@
 [[steps]]
 D = "Inspect the global DAG contract"
-Q = "Open the bundled flight-to-weather DAG and identify stages, artifacts, and handoffs."
+Q = "Open the bundled flight-to-meteo DAG and identify stages, artifacts, and handoffs."
 M = ""
-C = "from pathlib import Path\nimport json\npath = Path('dag_templates/flight_to_weather_global_dag.json')\npayload = json.loads(path.read_text(encoding='utf-8'))\n[(node['id'], node['app']) for node in payload['nodes']]"
+C = "from pathlib import Path\nimport json\npath = Path('dag_templates/flight_to_meteo_global_dag.json')\npayload = json.loads(path.read_text(encoding='utf-8'))\n[(node['id'], node['app']) for node in payload['nodes']]"
 R = "runpy"
 
 [[steps]]

@@ -1,0 +1,6 @@
+meteo_forecast = [
+  { D = "Load the daily weather snapshot", Q = "Seed or load the local Meteo-France-style CSV snapshot and keep one station on a stable daily timeline.", M = "", C = "APP = 'meteo_forecast_project'\nstation = 'Paris-Montsouris'\ntarget_column = 'tmax_c'", R = "runpy" },
+  { D = "Configure the recursive forecasting frame", Q = "Prepare the lag-based forecasting problem with a small validation window and a short prediction horizon.", M = "", C = "lags = 7\nvalidation_days = 9\nhorizon_days = 7", R = "runpy" },
+  { D = "Backtest the skforecast forecaster", Q = "Run a recursive RandomForest forecaster on the validation window and compute MAE, RMSE, and MAPE.", M = "", C = "from sklearn.ensemble import RandomForestRegressor\nfrom skforecast.recursive import ForecasterRecursive\nfrom skforecast.model_selection import TimeSeriesFold, backtesting_forecaster", R = "runpy" },
+  { D = "Export reusable analysis artifacts", Q = "Write forecast_predictions.csv and forecast_metrics.json so ANALYSIS can compare runs without reopening the notebook kernel.", M = "", C = "artifact_dir = '~/export/meteo_forecast/forecast_analysis'", R = "runpy" }
+]

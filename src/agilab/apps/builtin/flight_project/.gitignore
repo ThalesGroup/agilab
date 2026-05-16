@@ -1,0 +1,14 @@
+setup
+.DS_Store
+.venv/
+dist/
+build/
+/**/__pycache__/
+pdm.lock
+.pdm-*
+*_pid
+src/*-info/
+src/*_worker_*/
+.mypy_cache/
+tests/
+__pypackages__/

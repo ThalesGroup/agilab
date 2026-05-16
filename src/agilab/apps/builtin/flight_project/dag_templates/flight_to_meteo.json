@@ -1,0 +1,92 @@
+{
+  "schema": "agilab.multi_app_dag.v1",
+  "dag_id": "flight-to-meteo-template",
+  "label": "Flight to meteo review",
+  "description": "App-owned DAG template that hands flight reduce context to the meteo forecast review app.",
+  "execution": {
+    "mode": "sequential_dependency_order",
+    "runner_status": "controlled_contract_stage_execution",
+    "adapter": "controlled_contract_dag",
+    "stage_bindings": {
+      "flight_context": "flight_project.flight_context",
+      "meteo_forecast_review": "meteo_forecast_project.meteo_forecast_review"
+    }
+  },
+  "nodes": [
+    {
+      "id": "flight_context",
+      "app": "flight_project",
+      "execution": {
+        "entrypoint": "flight_project.flight_context",
+        "params": {
+          "data_source": "file",
+          "files": "*",
+          "nfile": 1,
+          "nskip": 0,
+          "nread": 0,
+          "sampling_rate": 1.0,
+          "datemin": "2020-01-01",
+          "datemax": "2021-01-01",
+          "output_format": "parquet"
+        },
+        "stages": [],
+        "data_in": "flight/dataset",
+        "data_out": "flight/dataframe",
+        "reset_target": false
+      },
+      "purpose": "Run the flight scenario and produce trajectory summary context for downstream review.",
+      "produces": [
+        {
+          "id": "flight_reduce_summary",
+          "kind": "reduce_summary",
+          "path": "flight_analysis/reduce_summary_worker_0.json"
+        }
+      ]
+    },
+    {
+      "id": "meteo_forecast_review",
+      "app": "meteo_forecast_project",
+      "execution": {
+        "entrypoint": "meteo_forecast_project.meteo_forecast_review",
+        "params": {
+          "files": "*.csv",
+          "nfile": 1,
+          "station": "Paris-Montsouris",
+          "target_column": "tmax_c",
+          "lags": 7,
+          "horizon_days": 7,
+          "validation_days": 9,
+          "n_estimators": 100,
+          "random_state": 42
+        },
+        "stages": [],
+        "data_in": "meteo_forecast/dataset",
+        "data_out": "meteo_forecast/results",
+        "reset_target": false
+      },
+      "purpose": "Use flight summary context to produce forecast quality metrics for review.",
+      "consumes": [
+        {
+          "id": "flight_reduce_summary",
+          "kind": "reduce_summary",
+          "path": "flight_analysis/reduce_summary_worker_0.json"
+        }
+      ],
+      "produces": [
+        {
+          "id": "forecast_metrics",
+          "kind": "summary_metrics",
+          "path": "forecast_analysis/forecast_metrics.json"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "flight_context",
+      "to": "meteo_forecast_review",
+      "artifact": "flight_reduce_summary",
+      "handoff": "Use flight trajectory reduce summary as the forecast-review context."
+    }
+  ]
+}

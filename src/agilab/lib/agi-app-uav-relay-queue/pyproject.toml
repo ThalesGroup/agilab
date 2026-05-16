@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.16"
+version = "2026.05.17"
 name = "agi-app-uav-relay-queue"
 description = "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts"
 requires-python = ">=3.11"
@@ -44,6 +44,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 uav_relay_queue = "agi_app_uav_relay_queue:project_root"
 uav_relay_queue_project = "agi_app_uav_relay_queue:project_root"
+
 
 
 [dependency-groups]

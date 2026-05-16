@@ -1,9 +1,9 @@
 [project]
 name = "tescia_diagnostic_project"
-version = "2026.05.16"
+version = "2026.05.17"
 description = "Built-in AGILAB TeSciA-style diagnostic reasoning example"
-requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.16", "agi-node>=2026.05.16", "agi-cluster>=2026.05.16", "pandas>=2.3.0", "pydantic", "streamlit>=1.56.0"]
+requires-python = ">=3.13"
+dependencies = ["agi-env>=2026.05.17", "agi-node>=2026.05.17", "agi-cluster>=2026.05.17", "pandas>=2.3.0", "pydantic", "streamlit>=1.56.0"]
 
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }
