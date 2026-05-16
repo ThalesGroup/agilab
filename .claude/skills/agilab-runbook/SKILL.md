@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-05-12
+  updated: 2026-05-16
 ---
 
 # AGILab runbook (Agent Skill)
@@ -155,7 +155,8 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`
 - Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
   - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
-  - Real PyPI does not auto-select `.postN` when the date version already exists. If `YYYY.MM.DD` is already published, choose an explicit version such as `--version YYYY.MM.DD.post1`; dry-run that exact command first, then publish with the same explicit version.
+  - Real PyPI does not auto-select `.postN` when the date version already exists. If `YYYY.MM.DD` is already published, choose an explicit next version such as the next release date or `--version YYYY.MM.DD.post1`; dry-run that exact command first, then publish with the same explicit version.
+  - On publish retries, the top-level `agilab` artifact may already exist while split runtime/app/page packages still need publication. Let the preflight/release plan decide what remains instead of checking only the root package.
   - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
   - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.
 
@@ -177,6 +178,9 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - PyPI simple index: `https://pypi.org/simple/agilab/`
   - GitHub Release: `gh release list --limit 5` and `gh release view <tag>`
   - GitHub static badge: `https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg`
+  - If PyPI JSON is current but clean installs still resolve an old version, check
+    the Simple API and use `uv --refresh-package agilab` or a fresh cache before
+    declaring the publish broken.
 - Also verify the GitHub deployment environments, not only the workflow conclusion:
   - the split-package publisher now publishes runtime components, UI components,
     page bundles, app-project payloads, the `agi-pages` / `agi-apps` umbrellas,
@@ -199,6 +203,9 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     `success`
 - Verify the published wheel from outside the repo checkout so imports cannot resolve to local source:
   - `cd /tmp && uv run --refresh-package agilab --no-project --with agilab==<version> python -c "import importlib.metadata as m; print(m.version('agilab'))"`
+  - `cd /tmp && uv --preview-features extra-build-dependencies run --refresh-package agilab --no-project --with 'agilab[examples]==<version>' python -m agilab.lab_run first-proof --json --max-seconds 60`
+  - Use `agilab[examples]` for packaged first-proof smoke; the base `agilab`
+    wheel is intentionally lean and may not install demo payload dependencies.
 - If the release is followed by a Hugging Face deploy, refresh release proof metadata with the live Space commit after runtime cutover, then sync and push both docs repos:
   - `uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --docs-source ../thales_agilab/docs/source --refresh-from-local --hf-space-commit <space-sha> --render --check --compact`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --source ../thales_agilab/docs/source --target docs/source --apply --delete`

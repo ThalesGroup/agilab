@@ -119,6 +119,16 @@ Use this skill when editing:
   selected view list. Persist the selected list in `pages.view_module`; remove stale
   `default_view`/`default_views` values only when that behavior is intentionally
   replaced by the new launcher model.
+- With `st.navigation`, `st.switch_page` targets must be the main app file or an
+  exact file under `pages/` relative to the Streamlit entrypoint. Do not hard-code
+  stale numeric filenames such as `pages/3_WORKFLOW.py`; route through central
+  page constants and add a focused test when a wizard button or deep link opens
+  another page.
+- For wizard/deep-link actions that need the destination page to open a drawer,
+  selector, upload area, or run action, set a non-widget intent key before
+  navigation and consume it once on the destination page. Clear the intent before
+  rerunning so the link cannot recursively navigate or keep the app in a loading
+  loop.
 - Update focused page tests when changing visible labels, header cards, or sidebar
   structure. Grep old wording before closing the task so stale copy does not survive in
   tests, docs, or screenshots.
