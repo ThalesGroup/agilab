@@ -151,6 +151,8 @@ PROJECT_NOTEBOOK_IMPORT_START = "notebook-import"
 PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY = "_project_notebook_import_query_seed_consumed"
 PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY = "_project_notebook_import_defaults"
 PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY = "_project_notebook_import_defaults_signature"
+PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY = _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
+PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY = "_project_notebook_import_sample_error"
 PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = ("start", "create_mode", "sidebar_selection")
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
@@ -2593,6 +2595,34 @@ def _read_uploaded_notebook_bytes(uploaded_notebook) -> bytes:
     return bytes(raw)
 
 
+def _packaged_sample_notebook_upload():
+    """Return the packaged sample as an upload-like object without touching file_uploader state."""
+    sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes()
+    return SimpleNamespace(
+        name=_notebook_import_sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME,
+        type=_notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME,
+        getvalue=lambda sample_bytes=sample_bytes: sample_bytes,
+        read=lambda sample_bytes=sample_bytes: sample_bytes,
+    )
+
+
+def _active_notebook_import_source(session_state):
+    """Return the user upload, or the one-shot packaged sample selected by the wizard."""
+    uploaded_notebook = session_state.get("create_notebook_upload")
+    if uploaded_notebook is not None:
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+        return uploaded_notebook
+    if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
+        try:
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+            return _packaged_sample_notebook_upload()
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            session_state.pop(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY, None)
+            session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY] = str(exc)
+    return None
+
+
 def _uploaded_notebook_signature(uploaded_notebook, notebook_bytes: bytes) -> str:
     name = str(getattr(uploaded_notebook, "name", "") or "uploaded.ipynb")
     digest = hashlib.sha256(notebook_bytes).hexdigest()[:16]
@@ -2697,6 +2727,28 @@ def _render_notebook_import_sample_download(target) -> None:
         key="create_notebook_sample_download",
         width="stretch",
     )
+
+
+def _render_notebook_import_sample_actions(target, session_state) -> None:
+    """Render direct and fallback actions for the packaged notebook sample."""
+    button = getattr(target, "button", None)
+    if callable(button) and button(
+        "Use example notebook",
+        key="create_notebook_use_sample",
+        width="stretch",
+    ):
+        session_state[PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] = True
+        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY, None)
+        rerun = getattr(st, "rerun", None)
+        if callable(rerun):
+            rerun()
+    if session_state.get(PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY):
+        target.caption("Using the bundled example notebook.")
+    elif session_state.get(PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY):
+        target.caption(f"Sample notebook unavailable: {session_state[PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY]}")
+    _render_notebook_import_sample_download(target)
 
 
 def _notebook_project_source_options(env: AgiEnv, template_options: list[str]) -> list[str]:
@@ -3162,9 +3214,10 @@ def handle_project_creation():
             env,
             list(st.session_state["templates"]),
         )
+        active_notebook_source = _active_notebook_import_source(st.session_state)
         notebook_defaults = _apply_notebook_import_defaults_from_upload(
             st.session_state,
-            st.session_state.get("create_notebook_upload"),
+            active_notebook_source,
             template_options,
         )
         default_template = (
@@ -3195,9 +3248,9 @@ def handle_project_creation():
             default=default_template,
             inline_limit=5,
         )
-        _render_notebook_import_sample_download(st.sidebar)
+        _render_notebook_import_sample_actions(st.sidebar, st.session_state)
         st.sidebar.file_uploader(
-            "Upload notebook",
+            "Upload your notebook",
             type="ipynb",
             key="create_notebook_upload",
         )
@@ -3271,16 +3324,16 @@ def handle_project_creation():
                         "and filesystem permissions."
                     ),
                 ),
-                lambda: _create_project_from_notebook_action(
-                    env,
-                    template_source=st.session_state.get(
-                        "notebook_clone_src",
-                        NOTEBOOK_PROJECT_DEFAULT_TEMPLATE,
+                    lambda: _create_project_from_notebook_action(
+                        env,
+                        template_source=st.session_state.get(
+                            "notebook_clone_src",
+                            NOTEBOOK_PROJECT_DEFAULT_TEMPLATE,
+                        ),
+                        raw_project_name=raw,
+                        uploaded_notebook=_active_notebook_import_source(st.session_state),
+                        clone_env_strategy=clone_env_strategy,
                     ),
-                    raw_project_name=raw,
-                    uploaded_notebook=st.session_state.get("create_notebook_upload"),
-                    clone_env_strategy=clone_env_strategy,
-                ),
                 on_success=_activate_notebook_project,
             )
         else:

@@ -840,13 +840,71 @@ def test_render_notebook_import_sample_download_uses_packaged_payload():
     )
 
 
+def test_render_notebook_import_sample_actions_selects_packaged_source(monkeypatch):
+    module = _load_project_module()
+    reruns: list[str] = []
+
+    class _Target:
+        def __init__(self):
+            self.buttons = []
+            self.downloads = []
+            self.captions = []
+
+        def button(self, *args, **kwargs):
+            self.buttons.append((args, kwargs))
+            return True
+
+        def download_button(self, *args, **kwargs):
+            self.downloads.append((args, kwargs))
+
+        def caption(self, message):
+            self.captions.append(message)
+
+    monkeypatch.setattr(module, "st", SimpleNamespace(rerun=lambda: reruns.append("rerun")))
+    session_state: dict[str, object] = {
+        module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY: {"project_name_hint": "old_project"},
+        module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY: "old.ipynb:1:abc",
+    }
+    target = _Target()
+
+    module._render_notebook_import_sample_actions(target, session_state)
+
+    assert target.buttons[0][0] == ("Use example notebook",)
+    assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] is True
+    assert module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY not in session_state
+    assert module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY not in session_state
+    assert reruns == ["rerun"]
+
+
+def test_active_notebook_import_source_uses_sample_until_user_upload():
+    module = _load_project_module()
+    session_state: dict[str, object] = {module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY: True}
+
+    source = module._active_notebook_import_source(session_state)
+    notebook = json.loads(module._read_uploaded_notebook_bytes(source).decode("utf-8"))
+
+    assert source.name == "flight_telemetry_from_notebook.ipynb"
+    assert source.type == "application/x-ipynb+json"
+    assert notebook["metadata"]["agilab"]["import"]["project_name_hint"] == (
+        "flight-telemetry-from-notebook-project"
+    )
+    assert module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY in session_state
+
+    user_upload = SimpleNamespace(name="own.ipynb", getvalue=lambda: b"{}")
+    session_state["create_notebook_upload"] = user_upload
+
+    assert module._active_notebook_import_source(session_state) is user_upload
+    assert module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY not in session_state
+
+
 def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
     source = MODULE_PATH.read_text(encoding="utf-8")
 
     assert "Start from a notebook. AGILAB clones a base project" in source
     assert "Base project to clone" in source
     assert "This notebook will create" in source
-    assert "Upload notebook" in source
+    assert "Use example notebook" in source
+    assert "Upload your notebook" in source
     assert "then EXECUTE" in source
     assert "Notebook source" not in source
     assert "INSTALL then RUN" not in source
