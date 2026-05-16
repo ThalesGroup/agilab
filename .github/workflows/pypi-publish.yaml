@@ -36,6 +36,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -74,6 +75,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -142,6 +145,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -247,6 +252,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -339,8 +345,11 @@ jobs:
           packages-dir: ${{ matrix.dist }}
           skip-existing: true
   publish-agilab:
-    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
+    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' && needs.test.result == 'success' && needs.release-evidence.result == 'success' && needs.supply-chain-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') }}
     needs:
+      - test
+      - release-evidence
+      - supply-chain-evidence
       - release-plan
       - publish-library-packages
     runs-on: ubuntu-latest
@@ -358,6 +367,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
+          lfs: true
 
       - name: Setup Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
@@ -437,8 +447,11 @@ jobs:
           skip-existing: true
 
   pypi-provenance-evidence:
-    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.test.result == 'success' && needs.release-evidence.result == 'success' && needs.supply-chain-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
     needs:
+      - test
+      - release-evidence
+      - supply-chain-evidence
       - release-plan
       - publish-library-packages
       - publish-agilab

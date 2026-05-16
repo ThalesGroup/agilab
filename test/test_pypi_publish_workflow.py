@@ -36,6 +36,44 @@ def test_pypi_publish_runs_live_artifact_index_evidence_before_publish() -> None
     assert "      - release-plan" in text
 
 
+def test_pypi_publish_blocks_downstream_publish_jobs_when_preflight_fails() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "publish-agilab:" in text
+    assert "pypi-provenance-evidence:" in text
+    assert "needs.test.result == 'success'" in text
+    assert "needs.release-evidence.result == 'success'" in text
+    assert "needs.supply-chain-evidence.result == 'success'" in text
+    assert (
+        "publish-agilab:\n"
+        "    if: ${{ always() && needs.release-plan.outputs.umbrella_selected == 'true' "
+        "&& needs.test.result == 'success' "
+    ) in text
+    assert (
+        "pypi-provenance-evidence:\n"
+        "    if: ${{ always() && needs.release-plan.outputs.pypi_publish_selected == 'true' "
+        "&& needs.test.result == 'success' "
+    ) in text
+    assert (
+        "publish-agilab:\n"
+        "    if:"
+    ) in text and (
+        "    needs:\n"
+        "      - test\n"
+        "      - release-evidence\n"
+        "      - supply-chain-evidence\n"
+        "      - release-plan\n"
+        "      - publish-library-packages"
+    ) in text
+
+
+def test_pypi_publish_materializes_lfs_assets_before_tests_and_builds() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "lfs: true" in text
+    assert text.count("lfs: true") >= 5
+
+
 def test_pypi_publish_uploads_supply_chain_evidence_before_publish() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
 

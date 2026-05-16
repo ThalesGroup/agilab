@@ -313,7 +313,7 @@ def test_blank_env_assignments_are_treated_as_unset_globally(tmp_path: Path, mon
 
     env = AgiEnv(apps_path=agipath / "apps", app=None, verbose=1)
 
-    assert env.app == "flight_telemetry_project"
+    assert env.app == "flight_project"
     assert env.OPENAI_MODEL == get_default_openai_model()
     assert env.TABLE_MAX_ROWS == 1000000
     assert env.AGILAB_LOG_ABS == fake_home / "log"
