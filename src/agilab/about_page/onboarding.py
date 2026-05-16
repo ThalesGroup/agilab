@@ -55,8 +55,6 @@ FIRST_PROOF_PAGE_ROUTES = {
 FIRST_PROOF_NOTEBOOK_HINT = (
     "Creates `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
 )
-FIRST_PROOF_SAMPLE_NOTEBOOK_NAME = _notebook_import_sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME
-FIRST_PROOF_SAMPLE_NOTEBOOK_MIME = _notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME
 FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
 FIRST_PROOF_VIEW_MAPS_PATH = (
     _AGILAB_ROOT
@@ -315,7 +313,7 @@ def _first_proof_action_columns_layout(
     ]
     proof_width = _first_proof_text_column_width_px(proof_texts)
     notebook_width = _first_proof_text_column_width_px(
-        ["Import notebook", "Download example notebook", "Upload notebook", notebook_hint]
+        ["Use example notebook", "Upload your notebook", notebook_hint]
     )
     spec = [proof_width, _FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX, notebook_width]
     total_width = sum(spec) + (_FIRST_PROOF_ACTION_COLUMN_GAP_PX * (len(spec) - 1))
@@ -353,7 +351,7 @@ def _render_first_proof_notebook_upload_control(
     """Render a direct notebook upload control for the first-proof alternative."""
     query_params = _first_proof_notebook_query_params(env, state)
     uploaded_notebook = st.file_uploader(
-        "Upload notebook",
+        "Upload your notebook",
         type="ipynb",
         key="create_notebook_upload",
         label_visibility="collapsed",
@@ -373,23 +371,25 @@ def _render_first_proof_notebook_upload_control(
     )
 
 
-def _render_first_proof_sample_notebook_download() -> None:
-    """Render the importable sample notebook download when packaged."""
-    download_button = getattr(st, "download_button", None)
-    if not callable(download_button):
-        return
-    try:
-        sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes()
-    except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        st.caption(f"Sample notebook unavailable: {exc}")
-        return
-    download_button(
-        "Download example notebook",
-        data=sample_bytes,
-        file_name=FIRST_PROOF_SAMPLE_NOTEBOOK_NAME,
-        mime=FIRST_PROOF_SAMPLE_NOTEBOOK_MIME,
-        key="first_proof:wizard:sample_notebook",
-        width="content",
+def _open_project_with_packaged_sample_notebook(
+    env: Any,
+    state: Dict[str, Any],
+    page_routes: Dict[str, Any] | None,
+) -> None:
+    """Open PROJECT with the packaged notebook sample selected as source."""
+    st.session_state["sidebar_selection"] = "Create"
+    st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
+    st.session_state[
+        _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
+    ] = True
+    st.session_state["first_proof_feedback"] = (
+        "Example notebook selected. PROJECT is open in Create mode; click Create to build "
+        "`flight_telemetry_from_notebook_project`, then run INSTALL and EXECUTE."
+    )
+    _first_proof_open_page(
+        _first_proof_page_route("project", page_routes),
+        "PROJECT",
+        query_params=_first_proof_notebook_query_params(env, state),
     )
 
 
@@ -542,20 +542,17 @@ def _render_first_proof_wizard_actions(
         st.markdown("or")
     with notebook_column:
         if st.button(
-            "Import notebook",
-            key="first_proof:wizard:notebook",
+            "Use example notebook",
+            key="first_proof:wizard:sample_notebook",
             type="secondary",
             width="content",
         ):
-            _handle_first_proof_wizard_action(
-                "notebook",
+            _open_project_with_packaged_sample_notebook(
                 env,
                 state,
-                activate_project,
                 page_routes,
             )
         st.caption(FIRST_PROOF_NOTEBOOK_HINT)
-        _render_first_proof_sample_notebook_download()
         _render_first_proof_notebook_upload_control(env, state, page_routes)
 
 

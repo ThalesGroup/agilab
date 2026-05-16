@@ -3178,14 +3178,13 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         for index, (kind, body) in enumerate(fake_st.events)
         if kind == "markdown" and body == "or"
     )
-    notebook_start = _event_index(fake_st.events, "button", "Import notebook")
+    notebook_start = _event_index(fake_st.events, "button", "Use example notebook")
     notebook_hint = _event_index(
         fake_st.events,
         "caption",
         "Creates `flight_telemetry_from_notebook_project`",
     )
-    notebook_sample = _event_index(fake_st.events, "download_button", "Download example notebook")
-    notebook_upload = _event_index(fake_st.events, "file_uploader", "Upload notebook")
+    notebook_upload = _event_index(fake_st.events, "file_uploader", "Upload your notebook")
     proof_details = _event_index(
         fake_st.events,
         "expander",
@@ -3225,11 +3224,9 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         "Creates `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
     )
     assert [body for kind, body in pre_details if kind == "file_uploader"] == [
-        "Upload notebook"
+        "Upload your notebook"
     ]
-    assert [body for kind, body in pre_details if kind == "download_button"] == [
-        "Download example notebook"
-    ]
+    assert not [body for kind, body in pre_details if kind == "download_button"]
     assert not [body for kind, body in pre_details if kind == "page_link"]
     assert not any(
         "agilab-proof" in body
@@ -3239,7 +3236,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert ("button", "1. Select demo") not in fake_st.events
     assert wizard < proof_column < install_button < install_hint < run_button < run_hint < open_analysis
     assert open_analysis < analysis_hint < separator_column < separator < notebook_column
-    assert notebook_column < notebook_start < notebook_hint < notebook_sample < notebook_upload < proof_details
+    assert notebook_column < notebook_start < notebook_hint < notebook_upload < proof_details
     assert proof_details < progress < validated_path
 
 
@@ -3543,7 +3540,7 @@ def test_first_proof_wizard_uses_registered_navigation_page_object(
     assert fake_st.query_params["active_app"] == "flight_telemetry_project"
 
 
-def test_first_proof_wizard_notebook_start_opens_project_without_forcing_demo(
+def test_first_proof_wizard_sample_notebook_opens_project_without_forcing_demo(
     tmp_path,
     monkeypatch,
 ):
@@ -3554,7 +3551,7 @@ def test_first_proof_wizard_notebook_start_opens_project_without_forcing_demo(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"Import notebook": True})
+    fake_st = _FakeStreamlit(button_values={"Use example notebook": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="mycode_project",
@@ -3573,7 +3570,13 @@ def test_first_proof_wizard_notebook_start_opens_project_without_forcing_demo(
 
     assert fake_st.session_state["sidebar_selection"] == "Create"
     assert fake_st.session_state["create_mode"] == "From notebook"
-    assert fake_st.query_params["active_app"] == "mycode_project"
+    assert fake_st.session_state[
+        about_agilab._about_onboarding._notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
+    ] is True
+    assert fake_st.query_params == {
+        "start": "notebook-import",
+        "active_app": "mycode_project",
+    }
     assert ("switch_page", "PROJECT_PAGE_OBJECT") in fake_st.events
 
 

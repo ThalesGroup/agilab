@@ -5,8 +5,8 @@ If you are new to AGILab, optimize for one outcome only: one successful local
 proof from the web UI. The default lane is the built-in
 ``flight_telemetry_project`` through ABOUT -> ``INSTALL`` -> ``RUN`` ->
 ``ANALYSIS``. If you already have a notebook, use the ABOUT wizard's
-``Import notebook`` lane instead and prove that imported project before
-expanding.
+``Use example notebook`` or ``Upload your notebook`` lane instead and prove
+that imported project before expanding.
 
 This page gives the mental model only. :doc:`quick-start` owns the exact
 commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
@@ -57,7 +57,7 @@ Choose one route
      - :doc:`quick-start`
      - You want the real source-checkout path. Default target: pass the
        ``flight_telemetry_project`` proof in 10 minutes. Alternative: import
-       your own notebook from the ABOUT wizard.
+       the bundled notebook example or your own notebook from the ABOUT wizard.
    * - Use the API/notebook
      - :doc:`notebook-quickstart`
      - You want the smaller ``AgiEnv`` / ``AGI.run(...)`` surface before the
@@ -69,9 +69,9 @@ lane from the landing page:
 - built-in lane: run ``flight_telemetry_project`` locally, inspect the visible
   result under ``~/log/execute/flight_telemetry/``, and keep the passing
   ``run_manifest.json``
-- notebook lane: upload one notebook through ``Import notebook`` / ``Upload``,
-  create the project, then prove that imported project before adding
-  infrastructure variables
+- notebook lane: click ``Use example notebook`` for the bundled sample, or
+  ``Upload your notebook`` for your own file, create the project, then prove
+  that imported project before adding infrastructure variables
 
 That is enough for day 1. Do not widen the problem to package mode, private
 apps, or cluster setup until one lane works once and gives you a clear

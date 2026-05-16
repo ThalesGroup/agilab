@@ -8,6 +8,7 @@ from pathlib import Path
 SAMPLE_NOTEBOOK_RESOURCE_NAME = "notebook_pipeline_import_sample.ipynb"
 SAMPLE_NOTEBOOK_DOWNLOAD_NAME = "flight_telemetry_from_notebook.ipynb"
 SAMPLE_NOTEBOOK_MIME = "application/x-ipynb+json"
+SAMPLE_NOTEBOOK_SESSION_KEY = "_agilab_use_packaged_notebook_import_sample"
 
 
 def sample_notebook_path() -> Path:
