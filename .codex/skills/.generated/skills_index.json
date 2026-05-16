@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-15T18:08:58Z",
+  "generated_at_utc": "2026-05-16T15:00:35Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -79,7 +79,7 @@
       "name": "agilab-streamlit-pages",
       "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-10",
+      "updated": "2026-05-16",
       "path": ".codex/skills/agilab-streamlit-pages/SKILL.md",
       "body_preview": "# Streamlit Pages Skill (AGILAB)\nUse this skill when editing:\n- `src/agilab/main_page.py`\n- `src/agilab/pages/*.py`"
     },
@@ -87,7 +87,7 @@
       "name": "agilab-testing",
       "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-12",
+      "updated": "2026-05-16",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
     },
@@ -127,7 +127,7 @@
       "name": "notebook-to-agilab-project",
       "description": "Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-14",
+      "updated": "2026-05-16",
       "path": ".codex/skills/notebook-to-agilab-project/SKILL.md",
       "body_preview": "# Notebook To AGILAB Project\nUse this skill when the source material is a small set of local notebooks and the\ngoal is to turn them into an AGILAB-style workflow rather than keep a notebook-only\ndelivery."
     },

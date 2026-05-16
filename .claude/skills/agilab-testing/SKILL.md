@@ -3,7 +3,7 @@ name: agilab-testing
 description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-12
+  updated: 2026-05-16
 ---
 
 # Testing Skill (AGILAB)
@@ -239,6 +239,19 @@ validation, release, and Hugging Face sync in one flow.
 
 - CI combines `.coverage*` artifacts; keep service health smoke coverage in
   `.coverage.service-health` to match the workflow guardrails.
+- Treat committed coverage badges as CI-canonical for release/pre-release
+  freshness. Local macOS coverage can differ by one executable line from Ubuntu
+  because optional/runtime compatibility branches may execute differently. If a
+  local badge refresh disagrees with the latest green coverage workflow, inspect
+  the CI XML artifacts first and align the badge with the CI aggregate instead
+  of blindly committing the local percentage.
+- Badge-only commits normally do not trigger the coverage workflow. After a
+  badge correction, manually dispatch `coverage.yml` on `main` and wait for the
+  aggregate badge-freshness job before calling the badge fixed.
+- For `agi-gui` coverage parity, keep the optional visualization extra aligned
+  with CI (`--extra ui --extra viz`). Tests that import plotting-aware pages can
+  require `plotly` even when the touched code is not directly visualization
+  logic.
 - If a CI step fails before tests run, distinguish:
   - exit code `2`: often environment/tooling/collection failure
   - exit code `1`: often an actual test failure after collection
