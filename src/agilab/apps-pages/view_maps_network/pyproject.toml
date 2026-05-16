@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-network-map"
-version = "0.1.0"
+version = "2026.05.16"
 description = "AGILAB page bundle for network-aware geospatial analysis."
 readme = { text = "AGILAB page bundle for network-aware geospatial analysis.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -16,6 +16,7 @@ dependencies = [
 
 [project.entry-points."agilab.pages"]
 view_maps_network = "view_maps_network:bundle_root"
+
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

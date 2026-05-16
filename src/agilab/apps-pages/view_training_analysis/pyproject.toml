@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-training-report"
-version = "0.1.0"
+version = "2026.05.16"
 description = "AGILAB page bundle for training run reporting."
 readme = { text = "AGILAB page bundle for training run reporting.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -13,6 +13,7 @@ dependencies = [
 
 [project.entry-points."agilab.pages"]
 view_training_analysis = "view_training_analysis:bundle_root"
+
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

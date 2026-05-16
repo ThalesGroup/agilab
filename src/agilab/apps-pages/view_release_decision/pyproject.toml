@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-promotion-gate"
-version = "0.1.0"
+version = "2026.05.16"
 description = "AGILAB page bundle for promotion-gate evidence review."
 readme = { text = "AGILAB page bundle for promotion-gate evidence review.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -12,6 +12,7 @@ dependencies = [
 
 [project.entry-points."agilab.pages"]
 view_release_decision = "view_release_decision:bundle_root"
+
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

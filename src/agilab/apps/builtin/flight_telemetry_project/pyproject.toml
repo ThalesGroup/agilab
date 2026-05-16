@@ -1,9 +1,9 @@
 [project]
 name = "flight_telemetry_project"
-version = "0.1.0"
+version = "2026.05.16"
 description = "Built-in AGILab example app (flight-telemetry preprocessing)"
 requires-python = ">=3.11"
-dependencies = ["agi-env>=2026.05.13.post3,<2027.0", "agi-node>=2026.05.13.post3,<2027.0", "agi-cluster>=2026.05.13.post3,<2027.0", "polars[rtcompat]", "pydantic", "py7zr", "streamlit>=1.56.0"]
+dependencies = ["agi-env>=2026.05.16", "agi-node>=2026.05.16", "agi-cluster>=2026.05.16", "polars[rtcompat]", "pydantic", "py7zr", "streamlit>=1.56.0"]
 
 [tool.agilab]
 runtime_target = "flight"

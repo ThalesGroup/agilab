@@ -1,5 +1,5 @@
 [project]
-version = "0.1.0"
+version = "2026.05.16"
 name = "agi-app-uav-queue-project"
 description = "AGILAB UAV queue simulation demo with scenario evidence and network-map artifacts"
 requires-python = ">=3.11"
@@ -44,6 +44,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 uav_queue = "agi_app_uav_queue_project:project_root"
 uav_queue_project = "agi_app_uav_queue_project:project_root"
+
 
 [dependency-groups]
 dev = [

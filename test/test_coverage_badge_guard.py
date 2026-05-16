@@ -113,6 +113,46 @@ def test_expand_with_aggregates_adds_core_and_global_badges() -> None:
     assert module.expand_with_aggregates(["agi-gui"]) == ["agi-gui", "agilab"]
 
 
+def test_expected_svg_uses_generator_aggregate_policy() -> None:
+    module = _load_module()
+    calls = []
+
+    class FakeGenerator:
+        COMPONENTS = {
+            "agi-core": {
+                "aggregate": ("agi-env", "agi-node", "agi-cluster"),
+                "aggregate_policy": "minimum",
+                "label": "agi-core coverage",
+            }
+        }
+
+        @staticmethod
+        def compute_aggregate_percent(components, combined_xml, *, policy="weighted"):
+            calls.append((components, combined_xml.name, policy))
+            return 97.0 if policy == "minimum" else 98.0
+
+        @staticmethod
+        def format_percent(percent):
+            return f"{int(percent)}%"
+
+        @staticmethod
+        def badge_color(percent):
+            return "green"
+
+        @staticmethod
+        def render_badge(label, value, color):
+            return f"{label}: {value} ({color})"
+
+    assert module._expected_svg(FakeGenerator, "agi-core") == "agi-core coverage: 97% (green)"
+    assert calls == [
+        (
+            ("agi-env", "agi-node", "agi-cluster"),
+            "coverage-agilab.combined.xml",
+            "minimum",
+        )
+    ]
+
+
 def test_guard_commands_use_combined_core_coverage_profile() -> None:
     module = _load_module()
 

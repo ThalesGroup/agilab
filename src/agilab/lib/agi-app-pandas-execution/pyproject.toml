@@ -1,5 +1,5 @@
 [project]
-version = "0.1.0"
+version = "2026.05.16"
 name = "agi-app-pandas-execution"
 description = "AGILAB Pandas execution benchmark for deterministic worker and reducer validation"
 requires-python = ">=3.11"
@@ -44,6 +44,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 execution_pandas = "agi_app_pandas_execution:project_root"
 execution_pandas_project = "agi_app_pandas_execution:project_root"
+
 
 [dependency-groups]
 dev = [
