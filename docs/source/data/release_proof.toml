@@ -7,7 +7,7 @@ proof_bullets = [
   "The public GitHub Actions matrix validated the packaged first proof on Ubuntu, macOS, and Windows runners.",
   "The release proof records the hosted Hugging Face Space URL and commit. Live public-demo availability is checked only when a public-demo-smoke run is pinned or supplied separately.",
   "The checked-in ``docs/source/data/ui_robot_evidence.json`` records the latest successful all-built-in UI robot matrix sweep, including app/page/widget counts and zero detected UI failures.",
-  "The public demo scope includes the lightweight ``flight_telemetry_project`` and ``weather_forecast_project`` routes documented in :doc:`agilab-demo`.",
+  "The public demo scope includes the lightweight ``flight_project`` and ``meteo_forecast_project`` routes documented in :doc:`agilab-demo`.",
   "The release tag, PyPI package, public documentation, and hosted demo point to the same public product story: browser preview, local first proof, then source-checkout expansion.",
 ]
 related_pages = [
@@ -29,47 +29,47 @@ github_release_tag = "v2026.05.17"
 github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "03e71c35d1e0c7618214ce6cebd71cd3caa5f923"
+hf_space_commit = "540e3ec08d478239662a8c5030e5a11e69940aac"
 
 [[ci_runs]]
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "25866047931"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25866047931"
+run_id = "25970993906"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25970993906"
 summary = "passed repository guardrails and clean package first-proof jobs"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "25865661240"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25865661240"
+run_id = "25970993933"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25970993933"
 summary = "passed docs mirror and release-proof consistency checks"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "25865661274"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25865661274"
+run_id = "25971241902"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25971241902"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
 id = "coverage"
 label = "Coverage"
 workflow = "coverage"
-run_id = "25864838468"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25864838468"
+run_id = "25971242033"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25971242033"
 summary = "passed component coverage and badge freshness checks"
 
 [[ci_runs]]
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "25931605796"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/25931605796"
-summary = "passed the public release proof workflow gate"
+run_id = "25971244152"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/25971244152"
+summary = "published the 2026.05.17 package set and release assets after preflight, release evidence, and supply-chain evidence passed"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"

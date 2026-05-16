@@ -22,17 +22,17 @@ Current public release
    * - GitHub release
      - `v2026.05.17 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17>`__
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``03e71c35d1e0c7618214ce6cebd71cd3caa5f923``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``540e3ec08d478239662a8c5030e5a11e69940aac``
    * - Public guardrails
-     - `repo-guardrails run 25866047931 <https://github.com/ThalesGroup/agilab/actions/runs/25866047931>`__ passed repository guardrails and clean package first-proof jobs
+     - `repo-guardrails run 25970993906 <https://github.com/ThalesGroup/agilab/actions/runs/25970993906>`__ passed repository guardrails and clean package first-proof jobs
    * - Docs source guard
-     - `docs-source-guard run 25865661240 <https://github.com/ThalesGroup/agilab/actions/runs/25865661240>`__ passed docs mirror and release-proof consistency checks
+     - `docs-source-guard run 25970993933 <https://github.com/ThalesGroup/agilab/actions/runs/25970993933>`__ passed docs mirror and release-proof consistency checks
    * - Docs publish
-     - `docs-publish run 25865661274 <https://github.com/ThalesGroup/agilab/actions/runs/25865661274>`__ built the public documentation from the managed docs mirror
+     - `docs-publish run 25971241902 <https://github.com/ThalesGroup/agilab/actions/runs/25971241902>`__ built the public documentation from the managed docs mirror
    * - Coverage
-     - `coverage run 25864838468 <https://github.com/ThalesGroup/agilab/actions/runs/25864838468>`__ passed component coverage and badge freshness checks
+     - `coverage run 25971242033 <https://github.com/ThalesGroup/agilab/actions/runs/25971242033>`__ passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 25931605796 <https://github.com/ThalesGroup/agilab/actions/runs/25931605796>`__ passed the public release proof workflow gate
+     - `pypi-publish run 25971244152 <https://github.com/ThalesGroup/agilab/actions/runs/25971244152>`__ published the 2026.05.17 package set and release assets after preflight, release evidence, and supply-chain evidence passed
 
 What was proved
 ---------------
@@ -52,8 +52,8 @@ What was proved
 - The checked-in ``docs/source/data/ui_robot_evidence.json`` records the latest
   successful all-built-in UI robot matrix sweep, including app/page/widget
   counts and zero detected UI failures.
-- The public demo scope includes the lightweight ``flight_telemetry_project``
-  and ``weather_forecast_project`` routes documented in :doc:`agilab-demo`.
+- The public demo scope includes the lightweight ``flight_project`` and
+  ``meteo_forecast_project`` routes documented in :doc:`agilab-demo`.
 - The release tag, PyPI package, public documentation, and hosted demo point to
   the same public product story: browser preview, local first proof, then
   source-checkout expansion.
