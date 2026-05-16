@@ -24,8 +24,7 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
     content = module.newcomer_first_proof_content()
 
     assert content["title"] == (
-        "First proof with flight-telemetry-project or from your own notebook: "
-        "verify AGILAB end-to-end"
+        "First proof with flight-telemetry-project: verify AGILAB end-to-end"
     )
     assert "sample data and expected outputs" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"

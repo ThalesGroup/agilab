@@ -93,10 +93,10 @@
   <g transform="translate(150,108)">
     <rect class="card" width="320" height="126" fill="#d9f0ff" />
     <text class="card-title" x="160" y="34" text-anchor="middle">Web interface</text>
-    <text class="card-body" x="160" y="62" text-anchor="middle">agilab.py and built-in pages</text>
+    <text class="card-body" x="160" y="62" text-anchor="middle">agilab.py navigation pages</text>
     <text class="card-note" x="160" y="86" text-anchor="middle">
-      <tspan x="160" dy="0">HOME · PROJECT · ORCHESTRATE</tspan>
-      <tspan x="160" dy="18">WORKFLOW · ANALYSIS</tspan>
+      <tspan x="160" dy="0">ABOUT · SETTINGS · PROJECT</tspan>
+      <tspan x="160" dy="18">ORCHESTRATE · WORKFLOW · ANALYSIS</tspan>
     </text>
   </g>
 
@@ -112,8 +112,8 @@
   <g transform="translate(484,170)">
     <rect class="card" width="308" height="154" fill="#e3dcff" />
     <text class="card-title" x="154" y="38" text-anchor="middle">agi_core</text>
-    <text class="card-body" x="24" y="72">Resolve app and args, build run plans</text>
-    <text class="card-body" x="24" y="96">Drive lab_stages and structured telemetry</text>
+    <text class="card-body" x="24" y="72">Resolve app and args; build run plans</text>
+    <text class="card-body" x="24" y="96">Drive lab_stages and telemetry</text>
     <text class="card-note" x="24" y="128">
       <tspan x="24" dy="0">Reusable widgets, services, history,</tspan>
       <tspan x="24" dy="18">and orchestration helpers</tspan>

@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="430" viewBox="0 0 1120 430" role="img" aria-labelledby="title desc">
+  <title id="title">AGILAB web interface page routing</title>
+  <desc id="desc">Diagram showing agilab.py routing to ABOUT, SETTINGS, PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS and optional analysis page bundles through agi_core.</desc>
+  <defs>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #10223d; }
+      .title { font-size: 26px; font-weight: 700; }
+      .subtitle { font-size: 15px; fill: #586b83; }
+      .lane { font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; fill: #6c7f96; }
+      .card { stroke: #14233a; stroke-width: 2.2; rx: 18; ry: 18; }
+      .card-title { font-size: 20px; font-weight: 700; }
+      .body { font-size: 14px; fill: #334861; }
+      .note { font-size: 13px; fill: #586b83; }
+      .pill { stroke: #1c477a; stroke-width: 1.4; rx: 13; ry: 13; }
+      .pill-text { font-size: 13px; font-weight: 700; fill: #10223d; }
+      .arrow { stroke: #17253e; stroke-width: 2.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .arrow-soft { stroke: #58708b; stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-dasharray: 8 7; }
+    </style>
+    <marker id="arrowhead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#17253e" />
+    </marker>
+    <marker id="arrowhead-soft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#58708b" />
+    </marker>
+  </defs>
+
+  <rect width="1120" height="430" fill="#f7fbff" rx="28" ry="28"/>
+
+  <g transform="translate(44,38)">
+    <text class="title" x="0" y="0">AGILAB web interface routing</text>
+    <text class="subtitle" x="0" y="28">Current code path: main_page.py registers ABOUT, SETTINGS, PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS.</text>
+  </g>
+
+  <g id="entry" transform="translate(44,144)">
+    <text class="lane" x="0" y="-18">Entry</text>
+    <rect class="card" width="186" height="104" fill="#dbeafe"/>
+    <text class="card-title" x="93" y="35" text-anchor="middle">agilab.py</text>
+    <text class="body" x="93" y="61" text-anchor="middle">Streamlit entry</text>
+    <text class="note" x="93" y="82" text-anchor="middle">loads navigation pages</text>
+  </g>
+
+  <g id="core-pages" transform="translate(304,104)">
+    <text class="lane" x="0" y="-18">Core web pages</text>
+    <rect class="card" width="492" height="200" fill="#eaf5ff"/>
+    <text class="card-title" x="246" y="34" text-anchor="middle">Main navigation surface</text>
+    <text class="body" x="246" y="58" text-anchor="middle">landing and operational pages stay distinct from the workflow pages</text>
+
+    <text class="note" x="246" y="86" text-anchor="middle">entry + operations</text>
+    <rect class="pill" x="82" y="98" width="102" height="28" fill="#ffffff"/>
+    <text class="pill-text" x="133" y="117" text-anchor="middle">ABOUT</text>
+    <rect class="pill" x="196" y="98" width="112" height="28" fill="#ffffff"/>
+    <text class="pill-text" x="252" y="117" text-anchor="middle">SETTINGS</text>
+    <rect class="pill" x="320" y="98" width="106" height="28" fill="#ffffff"/>
+    <text class="pill-text" x="373" y="117" text-anchor="middle">PROJECT</text>
+
+    <text class="note" x="246" y="148" text-anchor="middle">workflow pages</text>
+    <rect class="pill" x="38" y="160" width="132" height="28" fill="#fef3c7"/>
+    <text class="pill-text" x="104" y="179" text-anchor="middle">ORCHESTRATE</text>
+    <rect class="pill" x="184" y="160" width="112" height="28" fill="#fef3c7"/>
+    <text class="pill-text" x="240" y="179" text-anchor="middle">WORKFLOW</text>
+    <rect class="pill" x="310" y="160" width="104" height="28" fill="#fef3c7"/>
+    <text class="pill-text" x="362" y="179" text-anchor="middle">ANALYSIS</text>
+  </g>
+
+  <g id="bundles" transform="translate(328,340)">
+    <text class="lane" x="0" y="-16">Analysis extensions</text>
+    <rect class="card" width="444" height="56" fill="#dcfce7"/>
+    <text class="card-title" x="222" y="24" text-anchor="middle">Page bundles</text>
+    <text class="body" x="222" y="43" text-anchor="middle">sidecar dashboards discovered from [pages].view_module</text>
+  </g>
+
+  <g id="core" transform="translate(884,154)">
+    <text class="lane" x="0" y="-18">Shared services</text>
+    <rect class="card" width="192" height="114" fill="#fef3c7"/>
+    <text class="card-title" x="96" y="36" text-anchor="middle">agi_core</text>
+    <text class="body" x="96" y="62" text-anchor="middle">routing, widgets,</text>
+    <text class="body" x="96" y="82" text-anchor="middle">telemetry, lab_stages</text>
+  </g>
+
+  <path class="arrow" d="M230 196 C258 196 270 196 304 196" marker-end="url(#arrowhead)"/>
+  <path class="arrow-soft" d="M230 230 C270 292 282 368 328 368" marker-end="url(#arrowhead-soft)"/>
+  <path class="arrow" d="M796 196 C826 196 848 202 884 206" marker-end="url(#arrowhead)"/>
+  <path class="arrow-soft" d="M772 368 C828 364 844 256 884 238" marker-end="url(#arrowhead-soft)"/>
+
+  <text class="note" x="248" y="183">navigation</text>
+  <text class="note" x="250" y="304">bundle discovery</text>
+  <text class="note" x="818" y="184">page calls</text>
+  <text class="note" x="812" y="342">embedded views</text>
+</svg>

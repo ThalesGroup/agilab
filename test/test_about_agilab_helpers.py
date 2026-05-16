@@ -140,6 +140,10 @@ class _FakeStreamlit:
         key = _kwargs.get("key")
         return self.file_uploader_values.get(label, self.file_uploader_values.get(key))
 
+    def download_button(self, label: str, **_kwargs):
+        self.events.append(("download_button", label))
+        return False
+
     def page_link(self, page: object, **kwargs):
         self.events.append(("page_link", f"{kwargs.get('label', page)}:{page}:{kwargs}"))
 
@@ -1879,8 +1883,7 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     content = about_agilab._newcomer_first_proof_content()
 
     assert content["title"] == (
-        "First proof with flight-telemetry-project or from your own notebook: "
-        "verify AGILAB end-to-end"
+        "First proof with flight-telemetry-project: verify AGILAB end-to-end"
     )
     assert "sample data and expected outputs" in content["intro"]
     assert content["recommended_path_id"] == "source-checkout-first-proof"
@@ -3154,7 +3157,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     wizard = _event_index(
         fake_st.events,
         "markdown",
-        "**First proof with flight-telemetry-project or from your own notebook**",
+        "**First proof with flight-telemetry-project**",
     )
     proof_column = _event_index(fake_st.events, "enter_column", "0")
     separator_column = _event_index(fake_st.events, "enter_column", "1")
@@ -3176,8 +3179,13 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
         if kind == "markdown" and body == "or"
     )
     notebook_start = _event_index(fake_st.events, "button", "Import notebook")
-    notebook_hint = _event_index(fake_st.events, "caption", "From notebook")
-    notebook_upload = _event_index(fake_st.events, "file_uploader", "Upload")
+    notebook_hint = _event_index(
+        fake_st.events,
+        "caption",
+        "Creates `flight_telemetry_from_notebook_project`",
+    )
+    notebook_sample = _event_index(fake_st.events, "download_button", "Download example notebook")
+    notebook_upload = _event_index(fake_st.events, "file_uploader", "Upload notebook")
     proof_details = _event_index(
         fake_st.events,
         "expander",
@@ -3196,7 +3204,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     )
     pre_details = fake_st.events[:proof_details]
     assert [body for kind, body in pre_details if kind == "markdown"] == [
-        "**First proof with flight-telemetry-project or from your own notebook**",
+        "**First proof with flight-telemetry-project**",
         "or",
     ]
     expected_spec, expected_width = about_agilab._about_onboarding._first_proof_action_columns_layout(
@@ -3214,9 +3222,14 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert "active_app=flight_telemetry_project" in caption_bodies[2]
     assert "current_page=" in caption_bodies[2]
     assert caption_bodies[3] == (
-        "Path: `ORCHESTRATE` -> `EDIT` -> `Create` -> `From notebook`."
+        "Creates `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
     )
-    assert [body for kind, body in pre_details if kind == "file_uploader"] == ["Upload"]
+    assert [body for kind, body in pre_details if kind == "file_uploader"] == [
+        "Upload notebook"
+    ]
+    assert [body for kind, body in pre_details if kind == "download_button"] == [
+        "Download example notebook"
+    ]
     assert not [body for kind, body in pre_details if kind == "page_link"]
     assert not any(
         "agilab-proof" in body
@@ -3226,7 +3239,7 @@ def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
     assert ("button", "1. Select demo") not in fake_st.events
     assert wizard < proof_column < install_button < install_hint < run_button < run_hint < open_analysis
     assert open_analysis < analysis_hint < separator_column < separator < notebook_column
-    assert notebook_column < notebook_start < notebook_hint < notebook_upload < proof_details
+    assert notebook_column < notebook_start < notebook_hint < notebook_sample < notebook_upload < proof_details
     assert proof_details < progress < validated_path
 
 
@@ -3675,10 +3688,7 @@ def test_render_newcomer_first_proof_uses_markdown(monkeypatch):
 
     assert captured["unsafe_allow_html"] is False
     body = str(captured["body"])
-    assert (
-        "First proof with flight-telemetry-project or from your own notebook: "
-        "verify AGILAB end-to-end"
-    ) in body
+    assert "First proof with flight-telemetry-project: verify AGILAB end-to-end" in body
     assert "agilab-proof" not in body
     assert "background:" not in body
     assert "Start here" not in body

@@ -39,22 +39,24 @@ Pipeline example
 agilab.py navigation
 --------------------
 
-.. figure:: diagrams/agilab_pages.png
+.. figure:: diagrams/agilab_pages.svg
    :alt: agilab.py web interface entry showing core pages vs page bundles
    :width: 90%
 
-   agilab.py exposes core pages (PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS) and optional page bundles
-   (sidecar dashboards), all routed into ``agi_core`` for orchestration.
+   agilab.py exposes the ABOUT and SETTINGS entry points plus core workflow pages
+   (PROJECT/ORCHESTRATE/WORKFLOW/ANALYSIS) and optional page bundles, all routed
+   into ``agi_core`` for orchestration.
 
 Manager vs worker responsibilities
 ----------------------------------
 
-.. figure:: diagrams/app_manager_worker.png
+.. figure:: diagrams/app_manager_worker.svg
    :alt: App manager orchestrates AGI.run; workers execute tasks
    :width: 90%
 
-   An app manager prepares arguments and submits plans via ``AGI.run``; workers
-   (BaseWorker subclasses) execute the distributed tasks.
+   An app manager prepares arguments and submits a ``WorkDispatcher`` plan through
+   ``AGI.run``; the selected local/pool/Dask back-plane executes packaged
+   worker runtimes.
 
    Why setup.py exists: Dask serialises and ships worker code as .egg archives.
    setup.py is the build hook that generates those archives when the cluster is initialised.
@@ -187,12 +189,13 @@ Refresh the tracked tree after repository-layout changes by updating ``docs/sour
 Core vs optional apps
 ---------------------
 
-.. figure:: diagrams/repo_split.png
+.. figure:: diagrams/repo_split.svg
    :alt: Repository split between AGILAB core and optional apps
    :width: 90%
 
-   AGILAB (open-source framework) underpins optional apps that can be installed
-   separately. Public docs only cover the open-source layers and built-in apps.
+   AGILAB contains the shared runtime plus public built-in seeds; focused
+   ``agi-app-*`` and ``agi-pages`` payloads make the same app/page contracts
+   installable without depending on a source checkout.
 
 Documentation map
 -----------------

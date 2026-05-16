@@ -1,7 +1,7 @@
 [project]
 version = "0.1.0"
 name = "agi-app-global-dag"
-description = "AGILAB global DAG app project"
+description = "AGILAB cross-app DAG preview showing artifact handoffs between demo projects"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [

@@ -1,7 +1,7 @@
 [project]
 version = "0.1.1"
 name = "agi-app-uav-relay-queue"
-description = "AGILAB UAV relay queue app project"
+description = "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
