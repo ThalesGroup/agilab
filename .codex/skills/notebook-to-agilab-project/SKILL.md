@@ -3,7 +3,7 @@ name: notebook-to-agilab-project
 description: Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-14
+  updated: 2026-05-16
 ---
 
 # Notebook To AGILAB Project
@@ -87,6 +87,23 @@ delivery.
 Use these checks whenever a notebook migration touches WORKFLOW import or the
 ANALYSIS notebook launcher:
 
+- For first-proof notebook import, keep the packaged sample discoverable from
+  the ABOUT wizard and PROJECT Create sidebar. Use explicit wording such as
+  `Use included notebook`, not a hidden or ambiguous `example` file reference.
+- The packaged notebook sample must carry AGILAB import metadata, especially the
+  `recommended_template` and `project_name_hint`, so PROJECT can preselect the
+  right base project and create a runnable imported project without guesswork.
+- The first-proof packaged notebook should create
+  `flight_telemetry_from_notebook_project` and remain installable/executable
+  through the same `INSTALL` / `EXECUTE` proof path as the built-in
+  `flight_telemetry_project`.
+- Do not silently infer manager versus worker ownership for imported executable
+  cells when the distinction changes generated project code. Preserve explicit
+  cell metadata when present; otherwise review or ask cell-by-cell and tag the
+  stage before generating project files.
+- Keep the included-sample path separate from the user-upload path. Selecting
+  the packaged sample should not require a browser file chooser; uploading a
+  user notebook should still clear the packaged sample source.
 - Keep project-owned notebooks under `<app_project>/notebooks/`.
 - Keep generated WORKFLOW exports and import sidecars in the selected project
   export workspace, normally under `exported_notebooks/<project>/`.

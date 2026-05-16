@@ -3,7 +3,7 @@ name: agilab-streamlit-pages
 description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-10
+  updated: 2026-05-16
 ---
 
 # Streamlit Pages Skill (AGILAB)
@@ -122,6 +122,20 @@ Use this skill when editing:
 - Update focused page tests when changing visible labels, header cards, or sidebar
   structure. Grep old wording before closing the task so stale copy does not survive in
   tests, docs, or screenshots.
+
+## First-Proof Onboarding UX
+
+- Treat the first-proof panel as a new-user wizard, not as an expert shortcut
+  list. Every visible action must state whether it runs the built-in demo,
+  imports AGILAB's included notebook, or uploads the user's own notebook.
+- Do not hide packaged sample assets behind vague labels such as `example
+  notebook` when the user cannot know where that file is. Prefer explicit copy
+  such as `Use included notebook`, and show the project that will be created.
+- Keep first-proof alternatives symmetric: the built-in demo lane should expose
+  install, run, and analysis actions; the notebook lane should expose the
+  included sample and a separate upload path for a user notebook.
+- When changing first-proof labels, update ABOUT tests, PROJECT notebook-import
+  tests, newcomer docs, and stale-wording greps in the same change.
 
 ## App-Specific Page Defaults
 

@@ -25,7 +25,7 @@ canonical source can serve both agents.
 - `agilab-example-maturity`: Improve packaged examples to external-beta quality with deterministic first-run behavior and newcomer-safe adaptation.
 - `agilab-local-llm`: Local LLM usage guidance (Ollama/GPT-OSS) with correctness emphasis.
 - `agilab-product-reels`: Build and refine short AGILAB product reels and demo videos.
-- `agilab-huggingface-spaces`: Package and publish a lightweight public AGILAB demo to Hugging Face Spaces.
+- `agilab-huggingface-spaces`: Maintain and deploy the official AGILAB Docker Space from the public checkout and sibling Hugging Face bundle.
 - `chat-export`: Export chat transcripts or conversation JSON into Markdown, JSON, text, or DOCX artifacts.
 - `codex-session-learning`: Turn prior Codex sessions into reusable bug-fix guidance, prompt routing, and validation rules.
 - `docs-publish-github-pages`: Review and fix GitHub Pages documentation publish workflows.
