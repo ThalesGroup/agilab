@@ -5,19 +5,10 @@ description = ""
 requires-python = ">=3.11,<3.14"
 readme = "README.md"
 dependencies = [
-    "cython",
-    "dask[distributed]",
-    "fastparquet",
-    "geopy",
-    "humanize",
-    "numpy",
-    "parso",
+    "agi-env>=2026.05.13.post3,<2027.0",
+    "agi-node>=2026.05.13.post3,<2027.0",
     "polars",
-    "psutil",
-    "py7zr",
-    "python-dotenv",
-    "scipy==1.15.2",
-    "setuptools",
+    "pydantic",
 ]
 
 [[project.authors]]
@@ -31,6 +22,14 @@ text = "Thales SIX GTS France SAS"
 [project.optional-dependencies]
 dag-worker = []
 polars-worker = []
+
+[tool.uv.sources]
+agi-env = { path = "../../../../../../../../core/agi-env", editable = true }
+agi-node = { path = "../../../../../../../../core/agi-node", editable = true }
+
+[build-system]
+requires = ["setuptools", "cython"]
+build-backend = "setuptools.build_meta"
 
 
 

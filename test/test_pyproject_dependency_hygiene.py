@@ -285,6 +285,7 @@ def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
             "setuptools",
             "tomli",
             "typing-inspection",
+            "urllib3",
             "wheel",
         },
     }
@@ -309,6 +310,13 @@ def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
         "scikit-learn",
         "tomlkit",
     } <= _dependency_names(REPO_ROOT / "src/agilab/core/agi-cluster/pyproject.toml")
+
+
+def test_agi_gui_uses_native_streamlit_dialogs_and_declares_only_used_ui_runtime() -> None:
+    deps = _dependency_names(REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml")
+
+    assert {"agi-env", "streamlit", "streamlit_code_editor", "watchdog"} <= deps
+    assert deps.isdisjoint({"gitpython", "streamlit-modal", "streamlit_extras"})
 
 
 def test_app_templates_keep_dependency_lists_app_local() -> None:

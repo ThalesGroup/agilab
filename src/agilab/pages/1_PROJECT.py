@@ -60,7 +60,6 @@ from agi_gui.pagelib import (
 from agi_gui.ux_widgets import compact_choice
 from pathspec import PathSpec
 from pathspec.patterns import GitWildMatchPattern
-from streamlit_modal import Modal
 from code_editor import code_editor
 from agi_env import AgiEnv
 from agi_env.app_provider_registry import resolve_installed_app_project
@@ -3440,7 +3439,6 @@ def handle_project_import():
         )
 
         target_dir = env.apps_path / import_target
-        overwrite_modal = Modal("Import project", key="import-modal", max_width=450)
 
         def _activate_import(result):
             imported_project = str(result.data["import_target"])
@@ -3467,6 +3465,15 @@ def handle_project_import():
                 on_success=_activate_import,
             )
 
+        @st.dialog("Import project")
+        def _confirm_import_overwrite() -> None:
+            st.write(f"Project '{import_target}' already exists. Overwrite it?")
+            cols = st.columns(2)
+            if cols[0].button("Overwrite", type="primary", width="stretch"):
+                _run_import_action(overwrite=True)
+            if cols[1].button("Cancel", width="stretch"):
+                st.rerun()
+
         import_clicked = st.sidebar.button(
             "Import", type="primary", width="stretch"
         )
@@ -3474,18 +3481,7 @@ def handle_project_import():
             if not target_dir.exists():
                 _run_import_action(overwrite=False)
             else:
-                overwrite_modal.open()
-
-        if overwrite_modal.is_open():
-            with overwrite_modal.container():
-                st.write(f"Project '{import_target}' already exists. Overwrite it?")
-                cols = st.columns(2)
-                if cols[0].button(
-                        "Overwrite", type="primary", width="stretch"
-                ):
-                    _run_import_action(overwrite=True)
-                if cols[1].button("Cancel", type="primary", width="stretch"):
-                    overwrite_modal.close()
+                _confirm_import_overwrite()
 
 
 # -------------------- Streamlit Page Rendering -------------------- #
