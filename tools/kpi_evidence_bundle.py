@@ -187,7 +187,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
             and wizard_content["proof_command_labels"] == labels
             and wizard_content["run_manifest_filename"] == "run_manifest.json"
             and [label for label, _ in wizard_content["steps"]] == [
-                "PROJECT",
+                "DEMO",
                 "ORCHESTRATE",
                 "ANALYSIS",
             ]

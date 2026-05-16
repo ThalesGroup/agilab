@@ -43,7 +43,7 @@ REQUIRED_VALIDATED_EVIDENCE = {
     "agilab-hf-demo": ("tools/hf_space_smoke.py", "--json"),
     "service-mode-operator-surface": ("tools/service_health_check.py", "health"),
     "published-package-route": (
-        "pip install agilab",
+        'pip install "agilab[examples]"',
         "python -m agilab.lab_run first-proof --json",
     ),
 }

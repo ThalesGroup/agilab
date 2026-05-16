@@ -172,7 +172,7 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     assert wizard["run_manifest_filename"] == "run_manifest.json"
     assert wizard["remediation_status"] == "missing"
     assert "tools/compatibility_report.py --manifest" in wizard["evidence_commands"][1]
-    assert wizard["steps"] == ["PROJECT", "ORCHESTRATE", "ANALYSIS"]
+    assert wizard["steps"] == ["DEMO", "ORCHESTRATE", "ANALYSIS"]
 
 
 def test_run_manifest_contract_reports_stable_schema() -> None:
