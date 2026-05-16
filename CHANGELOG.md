@@ -35,6 +35,16 @@ and adopters a versioned, repository-local upgrade trail.
 - Added a versioned generated-snippet API guard so stale ORCHESTRATE snippets
   ask users to clean up and regenerate after core API changes.
 
+## [2026.05.16] - 2026-05-16
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.16
+
+### Changed
+
+- Published AGILAB `2026.05.16` to PyPI for `agi-env`, `agi-gui`, `agi-page-simplex-map`, `agi-page-decision-evidence`, `agi-page-timeseries-forecast`, `agi-page-inference-report`, `agi-page-geospatial-map`, `agi-page-geospatial-3d`, `agi-page-network-map`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-promotion-gate`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-global-dag`, `agi-app-weather-forecast`, `agi-app-tescia-diagnostic-project`, `agi-app-uav-queue-project`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.05.15.post1] - 2026-05-15
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15-2
@@ -587,3 +597,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.04.25
 [2026.05.14]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.14
 [2026.05.15]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15
 [2026.05.15.post1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.15-2
+[2026.05.16]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.16

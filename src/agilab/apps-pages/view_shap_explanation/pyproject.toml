@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-feature-attribution"
-version = "0.1.0"
+version = "2026.05.16"
 description = "AGILAB page bundle for feature-attribution evidence."
 readme = { text = "AGILAB page bundle for feature-attribution evidence.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -12,6 +12,7 @@ dependencies = [
 
 [project.entry-points."agilab.pages"]
 view_shap_explanation = "view_shap_explanation:bundle_root"
+
 
 [tool.uv.sources]
 agi-gui = { path = "../../lib/agi-gui", editable = true }

@@ -1,5 +1,5 @@
 [project]
-version = "0.1.1"
+version = "2026.05.16"
 name = "agi-app-flight-telemetry"
 description = "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs"
 requires-python = ">=3.11"
@@ -44,6 +44,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 flight_telemetry = "agi_app_flight_telemetry:project_root"
 flight_telemetry_project = "agi_app_flight_telemetry:project_root"
+
 
 [dependency-groups]
 dev = [

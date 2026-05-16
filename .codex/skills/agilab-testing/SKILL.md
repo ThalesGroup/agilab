@@ -239,6 +239,11 @@ validation, release, and Hugging Face sync in one flow.
 
 - CI combines `.coverage*` artifacts; keep service health smoke coverage in
   `.coverage.service-health` to match the workflow guardrails.
+- Keep aggregate badge policy in one place. If a component such as `agi-core`
+  uses `aggregate_policy = "minimum"` in
+  `tools/generate_component_coverage_badges.py`, `tools/coverage_badge_guard.py`
+  must call the generator with the same policy before a release badge guard can
+  be trusted.
 - Treat committed coverage badges as CI-canonical for release/pre-release
   freshness. Local macOS coverage can differ by one executable line from Ubuntu
   because optional/runtime compatibility branches may execute differently. If a
