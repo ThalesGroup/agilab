@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-05-16T15:00:35Z",
+  "generated_at_utc": "2026-05-16T20:36:01Z",
   "tool": "tools/codex_skills.py",
   "count": 25,
   "skills": [
@@ -23,7 +23,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-15",
+      "updated": "2026-05-16",
       "path": ".codex/skills/agilab-docs/SKILL.md",
       "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
     },
@@ -39,7 +39,7 @@
       "name": "agilab-huggingface-spaces",
       "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-15",
+      "updated": "2026-05-16",
       "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
       "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is the sibling apps/docs checkout, normally\n`../thales_agilab` relative to the public `agilab` checkout:"
     },
@@ -71,7 +71,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-12",
+      "updated": "2026-05-16",
       "path": ".codex/skills/agilab-runbook/SKILL.md",
       "body_preview": "# AGILab runbook (Agent Skill)\nUse this skill when you need repo-specific \u201chow we do things\u201d guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.\n## AGILab working rules (repo policy)\n- **Use `uv` for all runs** so dependencies resolve in managed envs:"
     },

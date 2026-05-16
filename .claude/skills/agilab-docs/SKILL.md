@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-15
+  updated: 2026-05-16
 ---
 
 # Docs Skill (AGILAB)
@@ -80,6 +80,11 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 ## Public Docs Constraint
 
 - Public documentation must not mention non-public apps/repositories.
+- Release-proof and install-proof docs that execute the packaged first proof
+  should use `agilab[examples]`, not bare `agilab`, because the base package is
+  intentionally lean while the demo proof depends on packaged example payloads.
+  When changing this command, update canonical docs, the public mirror, and any
+  compatibility/report guard that asserts the proof command.
 - Keep examples generic and refer to “external apps repository” rather than naming private app modules.
 - Public examples should teach the current public API shape. Prefer exported
   constants, request objects, and stable wrappers over private `AGI._*`

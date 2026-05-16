@@ -108,6 +108,11 @@ ANALYSIS notebook launcher:
 - Keep the included-sample path separate from the user-upload path. Selecting
   the packaged sample should not require a browser file chooser; uploading a
   user notebook should still clear the packaged sample source.
+- Wizard buttons that select the packaged notebook should set an import intent
+  and let PROJECT consume it once. Do not add duplicate PROJECT buttons such as
+  `Import included notebook` or `Download included notebook file`; they make
+  users think they must locate a hidden file even though the packaged sample is
+  already embedded.
 - Keep project-owned notebooks under `<app_project>/notebooks/`.
 - Keep generated WORKFLOW exports and import sidecars in the selected project
   export workspace, normally under `exported_notebooks/<project>/`.

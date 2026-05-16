@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-15
+  updated: 2026-05-16
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -64,9 +64,9 @@ Profile app/page sets:
     `view_maps_network`, `view_queue_resilience`, `view_relay_resilience`,
     `view_release_decision`
 
-The advanced profile installs every current built-in demo app, but it still
-avoids unrelated historical heavyweight pages that are not part of the current
-Advanced Proof Pack.
+The advanced profile installs the current Advanced Proof Pack demo set. Do not
+describe it as "every built-in app" unless the deploy script, README, and
+Dockerfile actually include every public built-in app at that release.
 
 ## Profile Drift Guardrail
 
@@ -224,6 +224,13 @@ hf spaces info "$space_owner/agilab" --format json
 curl -I -L --max-time 20 "https://${space_owner}-agilab.hf.space/"
 ```
 
+If `hf spaces info` hangs or the CLI is unreliable, query the public API as the
+runtime cutover fallback instead of guessing from upload success:
+
+```bash
+curl -fsSL "https://huggingface.co/api/spaces/${space_owner}/agilab"
+```
+
 If the fix is about a deployed file, download that exact file from the Space and
 inspect it. Do not assume the runtime is serving the new code until
 `runtime.stage` is `RUNNING` and the runtime SHA matches the uploaded Space SHA.
@@ -306,10 +313,13 @@ uv --preview-features extra-build-dependencies run python tools/hf_space_smoke.p
 ```
 
 The Space source-tree verifier is an intentional deployment contract, not a
-generic linter. If it fails on an expected public core page such as
-`0_SETTINGS.py`, update `tools/hf_space_smoke.py` and
-`test/test_hf_space_smoke.py` first, run the targeted test, commit that
-guardrail fix, then rerun the deploy script:
+generic linter. It must verify both public route behavior and the exact staged
+profile tree under `src/agilab/apps/builtin`; stale `active_app` URLs can still
+return HTTP 200 because AGILAB may fall back to a default app. If the smoke only
+checks route status, strengthen it before trusting a deployment. If it fails on
+an expected public core page such as `0_SETTINGS.py`, update
+`tools/hf_space_smoke.py` and `test/test_hf_space_smoke.py` first, run the
+targeted test, commit that guardrail fix, then rerun the deploy script:
 
 ```bash
 uv --preview-features extra-build-dependencies run pytest -q test/test_hf_space_smoke.py
@@ -326,7 +336,8 @@ bash -n huggingface/hf_space_deploy.sh
 ```
 
 If this deployment is part of a release, update release proof with the live
-Space commit after the smoke passes, then sync and push both docs repos:
+Space commit after the package examples smoke and Space smoke pass, then sync
+and push both docs repos:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
