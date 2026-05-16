@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Iterable
+import copy
 from dataclasses import dataclass
 import fnmatch
 import hashlib
@@ -26,6 +27,7 @@ PIPELINE_VIEW_SCHEMA = "agilab.notebook_import_pipeline_view.v1"
 VIEW_PLAN_SCHEMA = "agilab.notebook_import_view_plan.v1"
 VIEW_MANIFEST_SCHEMA = "agilab.notebook_import_views.v1"
 VIEW_MANIFEST_NAME = "notebook_import_views.toml"
+NOTEBOOK_IMPORT_METADATA_SCHEMA = "agilab.notebook_import.v1"
 DEFAULT_RUN_ID = "notebook-pipeline-import-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:20Z"
@@ -46,6 +48,22 @@ ARTIFACT_SUFFIXES = (
 
 INPUT_PATH_PREFIXES = ("data/", "input/", "inputs/", "raw/")
 OUTPUT_PATH_PREFIXES = ("artifact", "artifacts/", "output/", "outputs/", "result", "results/")
+NOTEBOOK_RUNTIME_ROLE_MANAGER = "manager"
+NOTEBOOK_RUNTIME_ROLE_WORKER = "worker"
+NOTEBOOK_RUNTIME_ENGINE_BY_ROLE = {
+    NOTEBOOK_RUNTIME_ROLE_MANAGER: "runpy",
+    NOTEBOOK_RUNTIME_ROLE_WORKER: "agi.run",
+}
+NOTEBOOK_RUNTIME_TAGS = {
+    "agilab.manager": NOTEBOOK_RUNTIME_ROLE_MANAGER,
+    "agilab-runtime-manager": NOTEBOOK_RUNTIME_ROLE_MANAGER,
+    "agilab.runtime.manager": NOTEBOOK_RUNTIME_ROLE_MANAGER,
+    "agilab:manager": NOTEBOOK_RUNTIME_ROLE_MANAGER,
+    "agilab.worker": NOTEBOOK_RUNTIME_ROLE_WORKER,
+    "agilab-runtime-worker": NOTEBOOK_RUNTIME_ROLE_WORKER,
+    "agilab.runtime.worker": NOTEBOOK_RUNTIME_ROLE_WORKER,
+    "agilab:worker": NOTEBOOK_RUNTIME_ROLE_WORKER,
+}
 READ_MARKERS = (
     "read_csv",
     "read_parquet",
@@ -171,6 +189,101 @@ def _hash_source(source: str) -> str:
 
 def _module_root(name: str) -> str:
     return name.split(".", 1)[0]
+
+
+def normalize_notebook_runtime_role(value: Any) -> str:
+    """Normalize a notebook import runtime role into manager/worker."""
+    normalized = str(value or "").strip().lower().replace("_", "-")
+    if normalized in {"manager", "local", "runpy", "main", "driver"}:
+        return NOTEBOOK_RUNTIME_ROLE_MANAGER
+    if normalized in {"worker", "app", "app-runtime", "agi", "agi.run", "agirun"}:
+        return NOTEBOOK_RUNTIME_ROLE_WORKER
+    return ""
+
+
+def _runtime_engine_for_role(role: str) -> str:
+    return NOTEBOOK_RUNTIME_ENGINE_BY_ROLE.get(role, "")
+
+
+def _cell_runtime_role_from_metadata(cell: Mapping[str, Any]) -> str:
+    metadata = cell.get("metadata", {})
+    if not isinstance(metadata, Mapping):
+        return ""
+
+    tags = metadata.get("tags", [])
+    if isinstance(tags, Iterable) and not isinstance(tags, (str, bytes)):
+        for tag in tags:
+            role = NOTEBOOK_RUNTIME_TAGS.get(str(tag or "").strip().lower())
+            if role:
+                return role
+
+    agilab_metadata = metadata.get("agilab", {})
+    if isinstance(agilab_metadata, Mapping):
+        for key in ("runtime_role", "runtime", "execution_role", "execution_location"):
+            role = normalize_notebook_runtime_role(agilab_metadata.get(key))
+            if role:
+                return role
+
+    for key in ("agilab_runtime_role", "agilab_runtime", "runtime_role"):
+        role = normalize_notebook_runtime_role(metadata.get(key))
+        if role:
+            return role
+
+    return ""
+
+
+def extract_notebook_import_defaults(notebook: Mapping[str, Any]) -> dict[str, str]:
+    """Return trusted UI defaults declared by notebook-level AGILAB metadata."""
+    metadata = notebook.get("metadata", {})
+    if not isinstance(metadata, Mapping):
+        return {}
+    agilab_metadata = metadata.get("agilab", {})
+    if not isinstance(agilab_metadata, Mapping):
+        return {}
+    import_metadata = agilab_metadata.get("import", {})
+    if not isinstance(import_metadata, Mapping):
+        import_metadata = agilab_metadata.get("notebook_import", {})
+    if not isinstance(import_metadata, Mapping):
+        return {}
+
+    defaults: dict[str, str] = {}
+    schema = str(import_metadata.get("schema", "") or "").strip()
+    if schema:
+        defaults["schema"] = schema
+    for key in ("recommended_template", "project_name_hint"):
+        value = str(import_metadata.get(key, "") or "").strip()
+        if value:
+            defaults[key] = value
+    return defaults
+
+
+def apply_notebook_runtime_roles(
+    notebook_import: Mapping[str, Any],
+    runtime_roles: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Return a notebook import copy with explicit manager/worker runtime roles applied."""
+    updated = copy.deepcopy(dict(notebook_import))
+    stages = updated.get("pipeline_stages", [])
+    if not isinstance(stages, list):
+        return updated
+
+    role_map = runtime_roles or {}
+    for stage in stages:
+        if not isinstance(stage, dict):
+            continue
+        stage_id = str(stage.get("id", "") or "")
+        role = normalize_notebook_runtime_role(role_map.get(stage_id))
+        if not role:
+            role = normalize_notebook_runtime_role(stage.get("runtime_role"))
+        if not role:
+            continue
+        stage["runtime_role"] = role
+        engine = _runtime_engine_for_role(role)
+        if engine:
+            stage["runtime"] = engine
+        if role == NOTEBOOK_RUNTIME_ROLE_MANAGER:
+            stage.pop("env", None)
+    return updated
 
 
 def _extract_imports_from_ast(code: str) -> list[str]:
@@ -510,39 +623,56 @@ def _build_from_supervisor_metadata(
         artifact_references = extract_artifact_references(source, stage_index)
         all_env_hints.extend(env_hints)
         all_artifact_references.extend(artifact_references)
-        pipeline_stages.append(
-            {
-                "id": f"supervisor-stage-{stage_index}",
-                "order": len(pipeline_stages) + 1,
-                "source_cell_index": stage_index,
-                "cell_type": "code",
-                "execution_count": None,
-                "source_lines": source.splitlines(keepends=True),
-                "source_hash": _hash_source(source),
-                "context_ids": [context_id],
-                "env_hints": env_hints,
-                "artifact_references": artifact_references,
-                "runnable": True,
-                "description": str(stage.get("description", "") or ""),
-                "question": str(stage.get("question", "") or ""),
-                "model": str(stage.get("model", "") or ""),
-                "runtime": str(stage.get("runtime", "") or ""),
-                "env": str(stage.get("env", "") or ""),
-                "pipeline_mapping": {
-                    "format": "lab_stages.toml-preview",
-                    "description_field": "D",
-                    "question_field": "Q",
-                    "model_field": "M",
-                    "code_field": "C",
-                    "runtime_field": "R",
-                    "environment_field": "E",
-                },
-            }
-        )
+        runtime_role = normalize_notebook_runtime_role(stage.get("runtime"))
+        stage_payload = {
+            "id": f"supervisor-stage-{stage_index}",
+            "order": len(pipeline_stages) + 1,
+            "source_cell_index": stage_index,
+            "cell_type": "code",
+            "execution_count": None,
+            "source_lines": source.splitlines(keepends=True),
+            "source_hash": _hash_source(source),
+            "context_ids": [context_id],
+            "env_hints": env_hints,
+            "artifact_references": artifact_references,
+            "runnable": True,
+            "description": str(stage.get("description", "") or ""),
+            "question": str(stage.get("question", "") or ""),
+            "model": str(stage.get("model", "") or ""),
+            "runtime": str(stage.get("runtime", "") or ""),
+            "env": str(stage.get("env", "") or ""),
+            "pipeline_mapping": {
+                "format": "lab_stages.toml-preview",
+                "description_field": "D",
+                "question_field": "Q",
+                "model_field": "M",
+                "code_field": "C",
+                "runtime_field": "R",
+                "environment_field": "E",
+            },
+        }
+        if runtime_role:
+            stage_payload["runtime_role"] = runtime_role
+        pipeline_stages.append(stage_payload)
 
     code_cell_count = sum(1 for cell in cells if cell.get("cell_type") == "code")
     markdown_cell_count = sum(1 for cell in cells if cell.get("cell_type") == "markdown")
     env_hints_unique = sorted(dict.fromkeys(all_env_hints))
+    source_metadata = {
+        "source_notebook": str(source_notebook),
+        "source_format": "ipynb",
+        "import_mode": "agilab_supervisor_metadata",
+        "nbformat": notebook.get("nbformat"),
+        "nbformat_minor": notebook.get("nbformat_minor"),
+        "kernel_name": _kernel_name(notebook),
+        "export_mode": str(payload.get("export_mode", "") or ""),
+        "project_name": str(payload.get("project_name", "") or ""),
+        "stages_file": str(payload.get("stages_file", "") or ""),
+    }
+    import_defaults = extract_notebook_import_defaults(notebook)
+    if import_defaults:
+        source_metadata["import_defaults"] = import_defaults
+
     return {
         "schema": SCHEMA,
         "run_id": run_id,
@@ -551,17 +681,7 @@ def _build_from_supervisor_metadata(
         "execution_mode": "not_executed_import",
         "created_at": CREATED_AT,
         "updated_at": UPDATED_AT,
-        "source": {
-            "source_notebook": str(source_notebook),
-            "source_format": "ipynb",
-            "import_mode": "agilab_supervisor_metadata",
-            "nbformat": notebook.get("nbformat"),
-            "nbformat_minor": notebook.get("nbformat_minor"),
-            "kernel_name": _kernel_name(notebook),
-            "export_mode": str(payload.get("export_mode", "") or ""),
-            "project_name": str(payload.get("project_name", "") or ""),
-            "stages_file": str(payload.get("stages_file", "") or ""),
-        },
+        "source": source_metadata,
         "summary": {
             "cell_count": len(cells),
             "code_cell_count": code_cell_count,
@@ -640,33 +760,50 @@ def build_notebook_pipeline_import(
         all_artifact_references.extend(artifact_references)
         if cell.get("execution_count") is not None:
             execution_count_present += 1
-        pipeline_stages.append(
-            {
-                "id": f"cell-{cell_index}",
-                "order": len(pipeline_stages) + 1,
-                "source_cell_index": cell_index,
-                "cell_type": cell_type,
-                "execution_count": cell.get("execution_count"),
-                "source_lines": lines,
-                "source_hash": _hash_source(source),
-                "context_ids": list(pending_context_ids),
-                "env_hints": env_hints,
-                "artifact_references": artifact_references,
-                "runnable": True,
-                "pipeline_mapping": {
-                    "format": "lab_stages.toml-preview",
-                    "description_field": "D",
-                    "question_field": "Q",
-                    "model_field": "M",
-                    "code_field": "C",
-                },
-            }
-        )
+        runtime_role = _cell_runtime_role_from_metadata(cell)
+        stage_payload = {
+            "id": f"cell-{cell_index}",
+            "order": len(pipeline_stages) + 1,
+            "source_cell_index": cell_index,
+            "cell_type": cell_type,
+            "execution_count": cell.get("execution_count"),
+            "source_lines": lines,
+            "source_hash": _hash_source(source),
+            "context_ids": list(pending_context_ids),
+            "env_hints": env_hints,
+            "artifact_references": artifact_references,
+            "runnable": True,
+            "pipeline_mapping": {
+                "format": "lab_stages.toml-preview",
+                "description_field": "D",
+                "question_field": "Q",
+                "model_field": "M",
+                "code_field": "C",
+            },
+        }
+        if runtime_role:
+            stage_payload["runtime_role"] = runtime_role
+            runtime_engine = _runtime_engine_for_role(runtime_role)
+            if runtime_engine:
+                stage_payload["runtime"] = runtime_engine
+                stage_payload["pipeline_mapping"]["runtime_field"] = "R"
+        pipeline_stages.append(stage_payload)
         pending_context_ids.clear()
 
     code_cell_count = sum(1 for cell in cells if cell.get("cell_type") == "code")
     markdown_cell_count = sum(1 for cell in cells if cell.get("cell_type") == "markdown")
     env_hints_unique = sorted(dict.fromkeys(all_env_hints))
+    source_metadata = {
+        "source_notebook": str(source_notebook),
+        "source_format": "ipynb",
+        "nbformat": notebook.get("nbformat"),
+        "nbformat_minor": notebook.get("nbformat_minor"),
+        "kernel_name": _kernel_name(notebook),
+    }
+    import_defaults = extract_notebook_import_defaults(notebook)
+    if import_defaults:
+        source_metadata["import_defaults"] = import_defaults
+
     return {
         "schema": SCHEMA,
         "run_id": run_id,
@@ -675,13 +812,7 @@ def build_notebook_pipeline_import(
         "execution_mode": "not_executed_import",
         "created_at": CREATED_AT,
         "updated_at": UPDATED_AT,
-        "source": {
-            "source_notebook": str(source_notebook),
-            "source_format": "ipynb",
-            "nbformat": notebook.get("nbformat"),
-            "nbformat_minor": notebook.get("nbformat_minor"),
-            "kernel_name": _kernel_name(notebook),
-        },
+        "source": source_metadata,
         "summary": {
             "cell_count": len(cells),
             "code_cell_count": code_cell_count,
@@ -810,6 +941,9 @@ def build_lab_stages_preview(
             "NB_EXECUTION_MODE": execution_mode,
             "NB_SOURCE_NOTEBOOK": source_notebook,
         }
+        runtime_role = normalize_notebook_runtime_role(stage.get("runtime_role"))
+        if runtime_role:
+            entry["NB_RUNTIME_ROLE"] = runtime_role
         execution_count = stage.get("execution_count")
         if execution_count is not None:
             entry["NB_EXECUTION_COUNT"] = int(execution_count)
@@ -986,6 +1120,9 @@ def build_notebook_import_contract(
                 "env_hints": list(stage.get("env_hints", []) or []),
                 "artifact_references": _artifact_paths(stage),
                 "execution_count": stage.get("execution_count"),
+                "runtime_role": normalize_notebook_runtime_role(stage.get("runtime_role")),
+                "runtime": str(stage.get("runtime", "") or ""),
+                "env": str(stage.get("env", "") or ""),
             }
         )
 
@@ -1137,6 +1274,8 @@ def build_notebook_import_pipeline_view(
                 "context_ids": context_ids,
                 "env_hints": _stage_env_hints(stage),
                 "artifact_references": artifact_paths,
+                "runtime_role": normalize_notebook_runtime_role(stage.get("runtime_role")),
+                "runtime": str(stage.get("runtime", "") or ""),
             }
         )
         for context_id in context_ids:

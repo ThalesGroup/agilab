@@ -1,7 +1,7 @@
 [project]
 version = "0.1.0"
 name = "agi-app-polars-execution"
-description = "AGILAB Polars execution app project"
+description = "AGILAB Polars execution benchmark for deterministic worker and reducer validation"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [

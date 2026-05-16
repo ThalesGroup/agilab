@@ -1,7 +1,7 @@
 [project]
 version = "0.1.1"
 name = "agi-app-mission-decision"
-description = "AGILAB mission decision app project"
+description = "Deterministic AGILAB mission-decision workflow with scenario scoring and evidence artifacts"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [

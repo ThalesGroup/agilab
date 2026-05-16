@@ -1,7 +1,7 @@
 [project]
 version = "0.1.1"
 name = "agi-app-flight-telemetry"
-description = "AGILAB flight-telemetry app project"
+description = "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [

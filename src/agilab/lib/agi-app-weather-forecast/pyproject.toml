@@ -1,7 +1,7 @@
 [project]
 version = "0.1.1"
 name = "agi-app-weather-forecast"
-description = "AGILAB weather forecast app project"
+description = "AGILAB weather-forecast notebook-migration demo with forecast analysis artifacts"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [

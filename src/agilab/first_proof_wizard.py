@@ -254,8 +254,7 @@ def newcomer_first_proof_content(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     compatibility = first_proof_compatibility(repo_root)
     content = FirstProofContent(
         title=(
-            "First proof with flight-telemetry-project or from your own notebook: "
-            "verify AGILAB end-to-end"
+            "First proof with flight-telemetry-project: verify AGILAB end-to-end"
         ),
         intro=(
             "Run one packaged demo with sample data and expected outputs to "

@@ -1,7 +1,7 @@
 [project]
 version = "0.1.0"
 name = "agi-app-tescia-diagnostic-project"
-description = "AGILAB TESCIA diagnostic app project"
+description = "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [

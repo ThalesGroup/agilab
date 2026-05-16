@@ -18,6 +18,8 @@ import json
 import time
 import zipfile
 import html
+import hashlib
+import tomllib
 from pathlib import Path
 import ast
 import re
@@ -61,6 +63,7 @@ from pathspec.patterns import GitWildMatchPattern
 from streamlit_modal import Modal
 from code_editor import code_editor
 from agi_env import AgiEnv
+from agi_env.app_provider_registry import resolve_installed_app_project
 
 _code_editor_support_module = import_agilab_module(
     "agilab.code_editor_support",
@@ -130,8 +133,15 @@ _build_notebook_import_pipeline_view = (
 _build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 _build_notebook_import_view_plan = _notebook_pipeline_import_module.build_notebook_import_view_plan
 _build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
+_extract_notebook_import_defaults = _notebook_pipeline_import_module.extract_notebook_import_defaults
 _discover_notebook_import_view_manifest = (
     _notebook_pipeline_import_module.discover_notebook_import_view_manifest
+)
+_notebook_import_sample_module = import_agilab_module(
+    "agilab.notebook_import_sample",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "notebook_import_sample.py",
+    fallback_name="agilab_notebook_import_sample_project_fallback",
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -140,6 +150,8 @@ CREATE_MODE_TEMPLATE = "Template clone"
 CREATE_MODE_NOTEBOOK = "From notebook"
 PROJECT_NOTEBOOK_IMPORT_START = "notebook-import"
 PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY = "_project_notebook_import_query_seed_consumed"
+PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY = "_project_notebook_import_defaults"
+PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY = "_project_notebook_import_defaults_signature"
 PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = ("start", "create_mode", "sidebar_selection")
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
@@ -618,7 +630,7 @@ def _update_function_source_action(
     )
 
 
-def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
+def _resolve_clone_source_project(env: AgiEnv, target_project: Path) -> Path:
     source_project = target_project
     templates_root = env.apps_path / "templates"
     if not source_project.name.endswith("_project"):
@@ -626,6 +638,38 @@ def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
         if (env.apps_path / candidate).exists() or (templates_root / candidate).exists():
             source_project = candidate
 
+    if (env.apps_path / source_project).exists() or (templates_root / source_project).exists():
+        return source_project
+
+    if len(source_project.parts) == 1:
+        builtin_candidate = Path("builtin") / source_project
+        if (env.apps_path / builtin_candidate).exists():
+            return builtin_candidate
+
+    if len(source_project.parts) == 1:
+        active_app = getattr(env, "active_app", None)
+        if active_app is not None:
+            try:
+                active_app_path = Path(active_app).expanduser().resolve(strict=False)
+            except (OSError, RuntimeError, TypeError, ValueError):
+                active_app_path = None
+            if active_app_path is not None and active_app_path.name == source_project.name:
+                if active_app_path.exists():
+                    return active_app_path
+
+        try:
+            installed_project = resolve_installed_app_project(source_project.name)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            installed_project = None
+        if installed_project is not None:
+            return installed_project
+
+    return source_project
+
+
+def _resolve_clone_source_root(env: AgiEnv, target_project: Path) -> Path:
+    source_project = _resolve_clone_source_project(env, target_project)
+    templates_root = env.apps_path / "templates"
     source_root = env.apps_path / source_project
     if not source_root.exists() and templates_root.exists():
         source_root = templates_root / source_project
@@ -663,6 +707,58 @@ def _finalize_cloned_project_environment(
         )
 
     raise ValueError(f"Unknown clone environment strategy: {strategy}")
+
+
+def _repair_cloned_builtin_core_source_paths(
+    env: AgiEnv,
+    source_root: Path,
+    dest_root: Path,
+) -> str | None:
+    """Rewrite local core uv source paths after cloning a builtin app to user apps."""
+    try:
+        source_root.relative_to(env.apps_path / "builtin")
+    except ValueError:
+        return None
+
+    core_root = env.apps_path.parent / "core"
+    repaired: list[Path] = []
+    for pyproject_path in sorted(dest_root.rglob("pyproject.toml")):
+        try:
+            data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+
+        sources = data.get("tool", {}).get("uv", {}).get("sources", {})
+        if not isinstance(sources, dict):
+            continue
+
+        modified = False
+        for source in sources.values():
+            if not isinstance(source, dict):
+                continue
+            raw_path = source.get("path")
+            if not isinstance(raw_path, str):
+                continue
+            parts = Path(raw_path).parts
+            if "core" not in parts:
+                continue
+            core_index = parts.index("core")
+            core_suffix = Path(*parts[core_index + 1 :])
+            if not core_suffix.parts:
+                continue
+            source["path"] = os.path.relpath(core_root / core_suffix, pyproject_path.parent)
+            modified = True
+
+        if modified:
+            with pyproject_path.open("wb") as handle:
+                tomli_w.dump(data, handle)
+            repaired.append(pyproject_path.relative_to(dest_root))
+
+    if not repaired:
+        return None
+    return "Repaired local core source paths in " + ", ".join(
+        path.as_posix() for path in repaired
+    )
 
 
 def _repair_renamed_project_environment(source_root: Path, dest_root: Path) -> str | None:
@@ -2375,9 +2471,10 @@ def _create_project_clone_action(
         )
 
     clone_source_path = Path(clone_source)
-    clone_source_root = _resolve_clone_source_root(env, clone_source_path)
+    resolved_clone_source_path = _resolve_clone_source_project(env, clone_source_path)
+    clone_source_root = _resolve_clone_source_root(env, resolved_clone_source_path)
     try:
-        env.clone_project(clone_source_path, Path(new_name))
+        env.clone_project(resolved_clone_source_path, Path(new_name))
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         return ActionResult.error(
             f"Project '{new_name}' could not be cloned.",
@@ -2387,6 +2484,7 @@ def _create_project_clone_action(
                 "new_name": new_name,
                 "dest_root": dest_root,
                 "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
             },
         )
 
@@ -2394,7 +2492,31 @@ def _create_project_clone_action(
         return ActionResult.error(
             f"Error while creating '{new_name}'.",
             next_action="Check the clone source, destination path, and filesystem permissions.",
-            data={"new_name": new_name, "dest_root": dest_root},
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
+            },
+        )
+
+    try:
+        source_path_repair_message = _repair_cloned_builtin_core_source_paths(
+            env,
+            clone_source_root,
+            dest_root,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return ActionResult.error(
+            f"Project '{new_name}' was created, but local source paths could not be repaired.",
+            detail=str(exc),
+            next_action="Inspect the cloned pyproject.toml files, then rerun INSTALL before EXECUTE.",
+            data={
+                "new_name": new_name,
+                "dest_root": dest_root,
+                "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
+            },
         )
 
     try:
@@ -2412,16 +2534,21 @@ def _create_project_clone_action(
                 "new_name": new_name,
                 "dest_root": dest_root,
                 "clone_source": clone_source_path,
+                "resolved_clone_source": resolved_clone_source_path,
                 "clone_env_strategy": clone_env_strategy,
             },
         )
     return ActionResult.success(
         f"Project '{new_name}' created.",
-        detail=status_message,
+        detail="\n\n".join(
+            part for part in (status_message, source_path_repair_message) if part
+        )
+        or None,
         data={
             "new_name": new_name,
             "dest_root": dest_root,
             "clone_source": clone_source_path,
+            "resolved_clone_source": resolved_clone_source_path,
             "clone_env_strategy": clone_env_strategy,
         },
     )
@@ -2465,6 +2592,140 @@ def _read_uploaded_notebook_bytes(uploaded_notebook) -> bytes:
     if raw is None:
         return b""
     return bytes(raw)
+
+
+def _uploaded_notebook_signature(uploaded_notebook, notebook_bytes: bytes) -> str:
+    name = str(getattr(uploaded_notebook, "name", "") or "uploaded.ipynb")
+    digest = hashlib.sha256(notebook_bytes).hexdigest()[:16]
+    return f"{name}:{len(notebook_bytes)}:{digest}"
+
+
+def _notebook_import_defaults_from_upload(uploaded_notebook) -> dict[str, str]:
+    if uploaded_notebook is None:
+        return {}
+    notebook_bytes = _read_uploaded_notebook_bytes(uploaded_notebook)
+    if not notebook_bytes.strip():
+        return {}
+    payload = json.loads(notebook_bytes.decode("utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+    defaults = _extract_notebook_import_defaults(payload)
+    defaults["_signature"] = _uploaded_notebook_signature(uploaded_notebook, notebook_bytes)
+    return defaults
+
+
+def _apply_notebook_import_defaults_from_upload(
+    session_state,
+    uploaded_notebook,
+    template_options: list[str],
+) -> dict[str, str]:
+    """Apply notebook metadata as UI defaults without overwriting user edits."""
+    if uploaded_notebook is None:
+        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, None)
+        session_state.pop(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, None)
+        return {}
+
+    try:
+        defaults = _notebook_import_defaults_from_upload(uploaded_notebook)
+    except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+
+    signature = str(defaults.get("_signature", "") or "")
+    if not signature:
+        return {}
+
+    previous_signature = str(session_state.get(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY, "") or "")
+    previous_defaults = session_state.get(PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY, {})
+    if not isinstance(previous_defaults, dict):
+        previous_defaults = {}
+    if signature == previous_signature:
+        return {key: value for key, value in defaults.items() if not key.startswith("_")}
+
+    visible_defaults = {key: value for key, value in defaults.items() if not key.startswith("_")}
+
+    previous_project_name = str(previous_defaults.get("project_name_hint", "") or "").strip()
+    if "project_name_hint" not in visible_defaults and previous_project_name:
+        current_project_name = str(session_state.get("clone_dest", "") or "").strip()
+        if current_project_name == previous_project_name:
+            session_state.pop("clone_dest", None)
+
+    previous_template = str(previous_defaults.get("recommended_template", "") or "").strip()
+    current_template = str(session_state.get("notebook_clone_src", "") or "").strip()
+    if previous_template and current_template == previous_template:
+        if "recommended_template" not in visible_defaults:
+            session_state.pop("notebook_clone_src", None)
+            current_template = ""
+    elif current_template and current_template not in template_options:
+        session_state.pop("notebook_clone_src", None)
+        current_template = ""
+
+    project_name_hint = str(defaults.get("project_name_hint", "") or "").strip()
+    if project_name_hint:
+        current_project_name = str(session_state.get("clone_dest", "") or "").strip()
+        if not current_project_name or current_project_name == previous_project_name:
+            session_state["clone_dest"] = project_name_hint
+
+    recommended_template = str(defaults.get("recommended_template", "") or "").strip()
+    if recommended_template in template_options:
+        current_template = str(session_state.get("notebook_clone_src", "") or "").strip()
+        if (
+            not current_template
+            or current_template == previous_template
+            or current_template not in template_options
+        ):
+            session_state["notebook_clone_src"] = recommended_template
+
+    session_state[PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY] = visible_defaults
+    session_state[PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY] = signature
+    return visible_defaults
+
+
+def _render_notebook_import_sample_download(target) -> None:
+    """Render a packaged sample notebook download for Create -> From notebook."""
+    download_button = getattr(target, "download_button", None)
+    if not callable(download_button):
+        return
+    try:
+        sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes()
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        target.caption(f"Sample notebook unavailable: {exc}")
+        return
+    download_button(
+        "Download example notebook",
+        data=sample_bytes,
+        file_name=_notebook_import_sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME,
+        mime=_notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME,
+        key="create_notebook_sample_download",
+        width="stretch",
+    )
+
+
+def _notebook_project_source_options(env: AgiEnv, template_options: list[str]) -> list[str]:
+    """Return cloneable sources for notebook import: app projects first, then templates."""
+    options: list[str] = []
+
+    def is_available_app_source(value: object) -> bool:
+        name = str(value or "").strip()
+        if not name:
+            return False
+        try:
+            source_project = _resolve_clone_source_project(env, Path(name))
+            source_root = _resolve_clone_source_root(env, source_project)
+            return source_root.exists()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def add(value: object, *, require_available: bool = False) -> None:
+        name = str(value or "").strip()
+        if name and name not in options and (not require_available or is_available_app_source(name)):
+            options.append(name)
+
+    add(getattr(env, "app", ""), require_available=True)
+    for project in getattr(env, "projects", []) or []:
+        add(project, require_available=True)
+    for template in template_options:
+        add(template)
+    return options
 
 
 def _decode_notebook_upload(uploaded_notebook) -> dict:
@@ -2695,6 +2956,10 @@ def _create_project_from_notebook_action(
     return ActionResult.success(
         f"Project '{new_name}' created from notebook.",
         detail=_notebook_project_detail(clone_result.detail, preflight, cell_count),
+        next_action=(
+            "Project created. Open ORCHESTRATE, run INSTALL, then EXECUTE. Open WORKFLOW to inspect "
+            "the imported notebook stages."
+        ),
         data={
             **dict(clone_result.data),
             "new_name": new_name,
@@ -2891,24 +3156,49 @@ def handle_project_creation():
 
     if create_mode == CREATE_MODE_NOTEBOOK:
         st.caption(
-            "Create a project from a notebook by importing code cells into a template pipeline."
+            "Start from a notebook. AGILAB clones a base project, imports the notebook steps, "
+            "then you can install and run the new project."
         )
-        template_options = list(st.session_state["templates"]) or [env.app]
+        template_options = _notebook_project_source_options(
+            env,
+            list(st.session_state["templates"]),
+        )
+        notebook_defaults = _apply_notebook_import_defaults_from_upload(
+            st.session_state,
+            st.session_state.get("create_notebook_upload"),
+            template_options,
+        )
         default_template = (
             NOTEBOOK_PROJECT_DEFAULT_TEMPLATE
             if NOTEBOOK_PROJECT_DEFAULT_TEMPLATE in template_options
             else template_options[0]
         )
+        if notebook_defaults:
+            default_project = notebook_defaults.get("project_name_hint", "")
+            default_template_hint = notebook_defaults.get("recommended_template", "")
+            if default_template_hint not in template_options:
+                default_template_hint = ""
+            if default_project and default_template_hint:
+                detail = f"`{default_project}` from `{default_template_hint}`"
+            elif default_project:
+                detail = f"`{default_project}`"
+            elif default_template_hint:
+                detail = f"a project from `{default_template_hint}`"
+            else:
+                detail = ""
+            if detail:
+                st.sidebar.caption(f"This notebook will create {detail}.")
         compact_choice(
             st.sidebar,
-            "Notebook template",
+            "Base project to clone",
             template_options,
             key="notebook_clone_src",
             default=default_template,
             inline_limit=5,
         )
+        _render_notebook_import_sample_download(st.sidebar)
         st.sidebar.file_uploader(
-            "Notebook",
+            "Upload notebook",
             type="ipynb",
             key="create_notebook_upload",
         )

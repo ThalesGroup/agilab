@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPORT_PATH = Path("tools/notebook_import_preflight.py").resolve()
 CORE_PATH = Path("src/agilab/notebook_pipeline_import.py").resolve()
+SAMPLE_HELPER_PATH = Path("src/agilab/notebook_import_sample.py").resolve()
 
 
 def _load_module(path: Path, name: str):
@@ -167,6 +168,195 @@ def test_supervisor_notebook_import_preserves_artifact_role_inference() -> None:
     assert preflight["artifact_contract"]["inputs"] == ["shared/orders.csv"]
     assert preflight["artifact_contract"]["outputs"] == ["shared/summary.parquet"]
     assert preflight["artifact_contract"]["unknown"] == []
+
+
+def test_notebook_import_metadata_prefills_project_defaults_and_runtime_tags() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_metadata_defaults_module")
+    notebook = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "metadata": {"tags": ["agilab.manager"]},
+                "source": ["print('manager')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"agilab": {"runtime_role": "worker"}},
+                "source": ["print('worker')\n"],
+            },
+        ],
+        "metadata": {
+            "agilab": {
+                "import": {
+                    "schema": "agilab.notebook_import.v1",
+                    "recommended_template": "flight_telemetry_project",
+                    "project_name_hint": "flight-telemetry-from-notebook-project",
+                }
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook="sample.ipynb",
+    )
+    preview = core_module.build_lab_stages_preview(imported, module_name="demo_project")
+
+    assert core_module.extract_notebook_import_defaults(notebook) == {
+        "schema": "agilab.notebook_import.v1",
+        "recommended_template": "flight_telemetry_project",
+        "project_name_hint": "flight-telemetry-from-notebook-project",
+    }
+    assert imported["source"]["import_defaults"]["project_name_hint"] == (
+        "flight-telemetry-from-notebook-project"
+    )
+    assert [stage["NB_RUNTIME_ROLE"] for stage in preview["demo_project"]] == [
+        "manager",
+        "worker",
+    ]
+    assert [stage["R"] for stage in preview["demo_project"]] == ["runpy", "agi.run"]
+
+
+def test_notebook_runtime_role_aliases_and_invalid_metadata_are_handled() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_runtime_role_aliases_module")
+    notebook = {
+        "cells": [
+            {
+                "cell_type": "code",
+                "metadata": {"tags": ["ignored", "agilab.runtime.worker"]},
+                "source": ["print('tagged worker')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {
+                    "tags": "agilab.worker",
+                    "agilab": {"execution_location": "driver"},
+                },
+                "source": ["print('metadata manager')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"agilab_runtime": "app-runtime"},
+                "source": ["print('top-level worker')\n"],
+            },
+            {
+                "cell_type": "code",
+                "metadata": [],
+                "source": ["print('no metadata')\n"],
+            },
+        ],
+        "metadata": {},
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook="roles.ipynb",
+    )
+    preview = core_module.build_lab_stages_preview(imported, module_name="demo_project")
+    stages = imported["pipeline_stages"]
+
+    assert core_module.normalize_notebook_runtime_role(" MAIN ") == "manager"
+    assert core_module.normalize_notebook_runtime_role("agi.run") == "worker"
+    assert core_module.normalize_notebook_runtime_role("not-a-runtime") == ""
+    assert [stage.get("runtime_role", "") for stage in stages] == [
+        "worker",
+        "manager",
+        "worker",
+        "",
+    ]
+    assert [stage.get("runtime", "") for stage in stages] == [
+        "agi.run",
+        "runpy",
+        "agi.run",
+        "",
+    ]
+    assert [
+        entry.get("NB_RUNTIME_ROLE", "")
+        for entry in preview["demo_project"]
+    ] == ["worker", "manager", "worker", ""]
+
+
+def test_notebook_import_defaults_falls_back_to_legacy_metadata_key() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_legacy_defaults_module")
+    notebook = {
+        "metadata": {
+            "agilab": {
+                "import": [],
+                "notebook_import": {
+                    "schema": " agilab.notebook_import.v1 ",
+                    "recommended_template": " flight_telemetry_project ",
+                    "project_name_hint": " flight-telemetry-from-notebook-project ",
+                }
+            }
+        }
+    }
+
+    assert core_module.extract_notebook_import_defaults(notebook) == {
+        "schema": "agilab.notebook_import.v1",
+        "recommended_template": "flight_telemetry_project",
+        "project_name_hint": "flight-telemetry-from-notebook-project",
+    }
+    assert core_module.extract_notebook_import_defaults({"metadata": []}) == {}
+    assert core_module.extract_notebook_import_defaults({"metadata": {"agilab": []}}) == {}
+
+
+def test_apply_notebook_runtime_roles_sets_engines_without_mutating_source() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_runtime_role_apply_module")
+    notebook_import = {
+        "pipeline_stages": [
+            {"id": "load", "runtime_role": "manager", "runtime": "agi.run", "env": ["pandas"]},
+            {"id": "score", "runtime": "runpy", "env": ["numpy"]},
+            {"id": "notes", "runtime": "runpy"},
+        ]
+    }
+
+    updated = core_module.apply_notebook_runtime_roles(
+        notebook_import,
+        {"score": "worker", "notes": "unknown"},
+    )
+
+    assert notebook_import["pipeline_stages"][0]["env"] == ["pandas"]
+    assert updated["pipeline_stages"][0]["runtime_role"] == "manager"
+    assert updated["pipeline_stages"][0]["runtime"] == "runpy"
+    assert "env" not in updated["pipeline_stages"][0]
+    assert updated["pipeline_stages"][1]["runtime_role"] == "worker"
+    assert updated["pipeline_stages"][1]["runtime"] == "agi.run"
+    assert updated["pipeline_stages"][1]["env"] == ["numpy"]
+    assert updated["pipeline_stages"][2]["runtime"] == "runpy"
+
+
+def test_packaged_notebook_import_sample_declares_first_proof_defaults() -> None:
+    core_module = _load_module(CORE_PATH, "notebook_import_packaged_sample_defaults_module")
+    sample_module = _load_module(SAMPLE_HELPER_PATH, "notebook_import_packaged_sample_module")
+    sample_path = sample_module.sample_notebook_path()
+    notebook = json.loads(sample_module.read_sample_notebook_bytes().decode("utf-8"))
+
+    defaults = core_module.extract_notebook_import_defaults(notebook)
+    imported = core_module.build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook=sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME,
+    )
+    preview = core_module.build_lab_stages_preview(
+        imported,
+        module_name="flight_telemetry_from_notebook_project",
+    )
+
+    assert sample_module.SAMPLE_NOTEBOOK_MIME == "application/x-ipynb+json"
+    assert sample_path.name == sample_module.SAMPLE_NOTEBOOK_RESOURCE_NAME
+    assert sample_path.is_file()
+    assert defaults["recommended_template"] == "flight_telemetry_project"
+    assert defaults["project_name_hint"] == "flight-telemetry-from-notebook-project"
+    assert [stage["R"] for stage in preview["flight_telemetry_from_notebook_project"]] == [
+        "runpy",
+        "runpy",
+    ]
+    assert "pd.read_csv(\"data/flights.csv\")" in preview[
+        "flight_telemetry_from_notebook_project"
+    ][1]["C"]
 
 
 def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> None:

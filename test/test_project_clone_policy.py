@@ -343,6 +343,175 @@ def test_create_project_clone_action_creates_project_and_reports_strategy(tmp_pa
     assert (tmp_path / "new_demo_project").is_dir()
 
 
+def test_create_project_clone_action_resolves_builtin_source_project(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+    (tmp_path / "builtin" / "flight_telemetry_project").mkdir(parents=True)
+
+    def _clone_project(source: Path, target: Path):
+        clone_calls.append((source, target))
+        (tmp_path / target).mkdir()
+
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="flight_telemetry_project",
+        raw_project_name="Flight Telemetry From Notebook",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "success"
+    assert clone_calls == [
+        (
+            Path("builtin") / "flight_telemetry_project",
+            Path("flight_telemetry_from_notebook_project"),
+        )
+    ]
+    assert result.data["clone_source"] == Path("flight_telemetry_project")
+    assert result.data["resolved_clone_source"] == Path("builtin") / "flight_telemetry_project"
+
+
+def test_create_project_clone_action_repairs_builtin_core_paths(tmp_path: Path):
+    module = _load_project_module()
+    (tmp_path / "builtin" / "flight_telemetry_project").mkdir(parents=True)
+
+    def _clone_project(_source: Path, target: Path):
+        dest = tmp_path / target
+        worker = dest / "src" / "flight_telemetry_from_notebook_worker"
+        worker.mkdir(parents=True)
+        (dest / "pyproject.toml").write_text(
+            """
+[project]
+name = "flight_telemetry_from_notebook_project"
+
+[tool.uv.sources]
+agi-env = { path = "../../../core/agi-env", editable = true }
+agi-node = { path = "../../../core/agi-node", editable = true }
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+        (worker / "pyproject.toml").write_text(
+            """
+[project]
+name = "flight_telemetry_from_notebook_worker"
+
+[tool.uv.sources]
+agi-env = { path = "../../../../../core/agi-env", editable = true }
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="flight_telemetry_project",
+        raw_project_name="Flight Telemetry From Notebook",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "success"
+    assert "Repaired local core source paths" in str(result.detail)
+    dest = tmp_path / "flight_telemetry_from_notebook_project"
+    app_pyproject = tomllib.loads((dest / "pyproject.toml").read_text(encoding="utf-8"))
+    worker_pyproject = tomllib.loads(
+        (
+            dest
+            / "src"
+            / "flight_telemetry_from_notebook_worker"
+            / "pyproject.toml"
+        ).read_text(encoding="utf-8")
+    )
+    assert app_pyproject["tool"]["uv"]["sources"]["agi-env"]["path"] == "../../core/agi-env"
+    assert worker_pyproject["tool"]["uv"]["sources"]["agi-env"]["path"] == (
+        "../../../../core/agi-env"
+    )
+
+
+def test_repair_cloned_builtin_core_paths_ignores_non_builtin_source(tmp_path: Path):
+    module = _load_project_module()
+    source_root = tmp_path / "templates" / "pandas_app_template"
+    dest_root = tmp_path / "clone_project"
+    source_root.mkdir(parents=True)
+    dest_root.mkdir()
+    pyproject = dest_root / "pyproject.toml"
+    original = """
+[project]
+name = "clone_project"
+
+[tool.uv.sources]
+agi-env = { path = "../../../core/agi-env", editable = true }
+""".strip() + "\n"
+    pyproject.write_text(original, encoding="utf-8")
+    env = SimpleNamespace(apps_path=tmp_path)
+
+    message = module._repair_cloned_builtin_core_source_paths(env, source_root, dest_root)
+
+    assert message is None
+    assert pyproject.read_text(encoding="utf-8") == original
+
+
+def test_repair_cloned_builtin_core_paths_skips_invalid_and_non_core_sources(tmp_path: Path):
+    module = _load_project_module()
+    source_root = tmp_path / "builtin" / "flight_telemetry_project"
+    dest_root = tmp_path / "clone_project"
+    source_root.mkdir(parents=True)
+    invalid = dest_root / "invalid" / "pyproject.toml"
+    valid = dest_root / "valid" / "pyproject.toml"
+    invalid.parent.mkdir(parents=True)
+    valid.parent.mkdir(parents=True)
+    invalid.write_text("[project\n", encoding="utf-8")
+    original_valid = """
+[project]
+name = "clone_project"
+
+[tool.uv.sources]
+demo = { path = "../not-core/demo", editable = true }
+plain = "not-a-table"
+""".strip() + "\n"
+    valid.write_text(original_valid, encoding="utf-8")
+    env = SimpleNamespace(apps_path=tmp_path)
+
+    message = module._repair_cloned_builtin_core_source_paths(env, source_root, dest_root)
+
+    assert message is None
+    assert valid.read_text(encoding="utf-8") == original_valid
+
+
+def test_create_project_clone_action_reports_core_source_repair_failure(
+    tmp_path: Path,
+    monkeypatch,
+):
+    module = _load_project_module()
+
+    def _clone_project(_source: Path, target: Path) -> None:
+        (tmp_path / target).mkdir()
+
+    def _raise_repair(*_args, **_kwargs) -> None:
+        raise ValueError("rewrite failed")
+
+    monkeypatch.setattr(module, "_repair_cloned_builtin_core_source_paths", _raise_repair)
+    env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="source_project",
+        raw_project_name="Needs Repair",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "error"
+    assert result.title == (
+        "Project 'needs_repair_project' was created, but local source paths could not be repaired."
+    )
+    assert result.detail == "rewrite failed"
+    assert "pyproject.toml" in str(result.next_action)
+    assert result.data["resolved_clone_source"] == Path("source_project")
+
+
 def test_create_project_clone_action_rejects_duplicate_names(tmp_path: Path):
     module = _load_project_module()
     clone_calls: list[tuple[Path, Path]] = []
@@ -479,6 +648,9 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
     dest_root = tmp_path / "notebook_demo_project"
     assert result.status == "success"
     assert result.title == "Project 'notebook_demo_project' created from notebook."
+    assert "ORCHESTRATE" in str(result.next_action)
+    assert "EXECUTE" in str(result.next_action)
+    assert "WORKFLOW" in str(result.next_action)
     assert clone_calls == [(Path("pandas_app_template"), Path("notebook_demo_project"))]
     assert (dest_root / "notebooks/source/Demo_Notebook.ipynb").is_file()
     assert result.data["source_notebook"] == "notebooks/source/Demo_Notebook.ipynb"
@@ -495,6 +667,415 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
     assert contract["artifact_contract"]["outputs"] == ["outputs/orders.csv"]
     assert (dest_root / "notebook_import_pipeline_view.json").is_file()
     assert (dest_root / "notebook_import_view_plan.json").is_file()
+
+
+def test_notebook_import_metadata_prefills_create_defaults():
+    module = _load_project_module()
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {
+            "agilab": {
+                "import": {
+                    "schema": "agilab.notebook_import.v1",
+                    "recommended_template": "flight_telemetry_project",
+                    "project_name_hint": "flight-telemetry-from-notebook-project",
+                }
+            }
+        },
+        "cells": [{"cell_type": "code", "source": ["print('hello')\n"]}],
+    }
+    uploaded = SimpleNamespace(
+        name="flight_sample.ipynb",
+        getvalue=lambda: json.dumps(notebook).encode("utf-8"),
+    )
+    session_state: dict[str, object] = {}
+
+    defaults = module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        uploaded,
+        ["flight_telemetry_project", "pandas_app_template", "other_template"],
+    )
+
+    assert defaults["recommended_template"] == "flight_telemetry_project"
+    assert defaults["project_name_hint"] == "flight-telemetry-from-notebook-project"
+    assert session_state["notebook_clone_src"] == "flight_telemetry_project"
+    assert session_state["clone_dest"] == "flight-telemetry-from-notebook-project"
+
+
+def test_notebook_project_source_options_include_apps_before_templates(tmp_path: Path):
+    module = _load_project_module()
+    (tmp_path / "builtin" / "flight_telemetry_project").mkdir(parents=True)
+    (tmp_path / "mycode_project").mkdir()
+    env = SimpleNamespace(
+        app="flight_telemetry_project",
+        projects=["flight_telemetry_project", "mycode_project"],
+        apps_path=tmp_path,
+    )
+
+    assert module._notebook_project_source_options(
+        env,
+        ["pandas_app_template", "flight_telemetry_project"],
+    ) == [
+        "flight_telemetry_project",
+        "mycode_project",
+        "pandas_app_template",
+    ]
+
+
+def test_notebook_project_source_options_skip_app_sources_without_apps_path():
+    module = _load_project_module()
+    env = SimpleNamespace(
+        app="flight_telemetry_project",
+        projects=["flight_telemetry_project", "mycode_project"],
+    )
+
+    assert module._notebook_project_source_options(env, ["pandas_app_template"]) == [
+        "pandas_app_template"
+    ]
+
+
+def test_notebook_project_source_options_resolve_installed_apps_and_skip_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    module = _load_project_module()
+    installed_root = tmp_path / "site-packages" / "flight_telemetry_project"
+    installed_root.mkdir(parents=True)
+    (installed_root / "pyproject.toml").write_text(
+        "[project]\nname = 'agi-app-flight-telemetry'\n",
+        encoding="utf-8",
+    )
+
+    def _resolve_installed_app_project(name: str):
+        return installed_root if name == "flight_telemetry_project" else None
+
+    monkeypatch.setattr(
+        module,
+        "resolve_installed_app_project",
+        _resolve_installed_app_project,
+    )
+    env = SimpleNamespace(
+        app="missing_project",
+        projects=["flight_telemetry_project", "ghost_project"],
+        apps_path=tmp_path / "workspace-apps",
+    )
+
+    assert module._notebook_project_source_options(
+        env,
+        ["pandas_app_template"],
+    ) == ["flight_telemetry_project", "pandas_app_template"]
+
+
+def test_create_project_clone_action_resolves_installed_app_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    module = _load_project_module()
+    apps_path = tmp_path / "workspace-apps"
+    installed_root = tmp_path / "site-packages" / "flight_telemetry_project"
+    installed_root.mkdir(parents=True)
+    (installed_root / "pyproject.toml").write_text(
+        "[project]\nname = 'agi-app-flight-telemetry'\n",
+        encoding="utf-8",
+    )
+    clone_calls: list[tuple[Path, Path]] = []
+
+    def _resolve_installed_app_project(name: str):
+        return installed_root if name == "flight_telemetry_project" else None
+
+    def _clone_project(source: Path, target: Path):
+        clone_calls.append((source, target))
+        (apps_path / target).mkdir(parents=True)
+
+    monkeypatch.setattr(
+        module,
+        "resolve_installed_app_project",
+        _resolve_installed_app_project,
+    )
+    env = SimpleNamespace(apps_path=apps_path, clone_project=_clone_project)
+
+    result = module._create_project_clone_action(
+        env,
+        clone_source="flight_telemetry_project",
+        raw_project_name="Flight Telemetry From Notebook",
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "success"
+    assert clone_calls == [
+        (installed_root, Path("flight_telemetry_from_notebook_project"))
+    ]
+    assert result.data["resolved_clone_source"] == installed_root
+
+
+def test_render_notebook_import_sample_download_uses_packaged_payload():
+    module = _load_project_module()
+
+    class _Target:
+        def __init__(self):
+            self.downloads = []
+            self.captions = []
+
+        def download_button(self, *args, **kwargs):
+            self.downloads.append((args, kwargs))
+
+        def caption(self, message):
+            self.captions.append(message)
+
+    target = _Target()
+
+    module._render_notebook_import_sample_download(target)
+
+    assert target.captions == []
+    assert len(target.downloads) == 1
+    args, kwargs = target.downloads[0]
+    notebook = json.loads(kwargs["data"].decode("utf-8"))
+    assert args == ("Download example notebook",)
+    assert kwargs["file_name"] == "flight_telemetry_from_notebook.ipynb"
+    assert kwargs["mime"] == "application/x-ipynb+json"
+    assert kwargs["key"] == "create_notebook_sample_download"
+    assert notebook["metadata"]["agilab"]["import"]["recommended_template"] == (
+        "flight_telemetry_project"
+    )
+
+
+def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
+    source = MODULE_PATH.read_text(encoding="utf-8")
+
+    assert "Start from a notebook. AGILAB clones a base project" in source
+    assert "Base project to clone" in source
+    assert "This notebook will create" in source
+    assert "Upload notebook" in source
+    assert "then EXECUTE" in source
+    assert "Notebook source" not in source
+    assert "INSTALL then RUN" not in source
+    assert "chosen app or template source" not in source
+
+
+def test_notebook_import_metadata_does_not_overwrite_custom_create_defaults():
+    module = _load_project_module()
+    first_notebook = {
+        "metadata": {
+            "agilab": {
+                "import": {
+                    "recommended_template": "pandas_app_template",
+                    "project_name_hint": "flight-telemetry-from-notebook-project",
+                }
+            }
+        },
+        "cells": [],
+    }
+    second_notebook = {
+        "metadata": {
+            "agilab": {
+                "import": {
+                    "recommended_template": "pandas_app_template",
+                    "project_name_hint": "other-notebook-project",
+                }
+            }
+        },
+        "cells": [{"cell_type": "markdown", "source": ["changed"]}],
+    }
+    session_state: dict[str, object] = {}
+    module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        SimpleNamespace(
+            name="first.ipynb",
+            getvalue=lambda: json.dumps(first_notebook).encode("utf-8"),
+        ),
+        ["pandas_app_template", "other_template"],
+    )
+    session_state["clone_dest"] = "custom-project"
+    session_state["notebook_clone_src"] = "other_template"
+
+    module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        SimpleNamespace(
+            name="second.ipynb",
+            getvalue=lambda: json.dumps(second_notebook).encode("utf-8"),
+        ),
+        ["pandas_app_template", "other_template"],
+    )
+
+    assert session_state["clone_dest"] == "custom-project"
+    assert session_state["notebook_clone_src"] == "other_template"
+
+
+def test_notebook_import_defaults_cache_same_upload_and_clear_state():
+    module = _load_project_module()
+    notebook = {
+        "metadata": {
+            "agilab": {
+                "import": {
+                    "recommended_template": "pandas_app_template",
+                    "project_name_hint": "cached-notebook-project",
+                }
+            }
+        },
+        "cells": [],
+    }
+
+    class _ReadUpload:
+        name = "cached.ipynb"
+
+        def __init__(self, text: str):
+            self.text = text
+            self.seek_calls: list[int] = []
+
+        def seek(self, offset: int):
+            self.seek_calls.append(offset)
+
+        def read(self):
+            return self.text
+
+    uploaded = _ReadUpload(json.dumps(notebook))
+    session_state: dict[str, object] = {}
+
+    defaults = module._notebook_import_defaults_from_upload(uploaded)
+    visible = module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        uploaded,
+        ["pandas_app_template", "other_template"],
+    )
+    session_state["clone_dest"] = "user-kept-project"
+    session_state["notebook_clone_src"] = "user_template"
+    visible_again = module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        uploaded,
+        ["pandas_app_template", "other_template"],
+    )
+
+    assert defaults["_signature"].startswith("cached.ipynb:")
+    assert uploaded.seek_calls == [0, 0, 0, 0, 0, 0]
+    assert visible == {
+        "recommended_template": "pandas_app_template",
+        "project_name_hint": "cached-notebook-project",
+    }
+    assert visible_again == visible
+    assert session_state["clone_dest"] == "user-kept-project"
+    assert session_state["notebook_clone_src"] == "user_template"
+
+    cleared = module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        None,
+        ["pandas_app_template"],
+    )
+
+    assert cleared == {}
+    assert module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY not in session_state
+    assert module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY not in session_state
+
+
+def test_notebook_import_defaults_clear_previous_metadata_when_new_upload_has_none():
+    module = _load_project_module()
+    first_notebook = {
+        "metadata": {
+            "agilab": {
+                "import": {
+                    "recommended_template": "pandas_app_template",
+                    "project_name_hint": "cached-notebook-project",
+                }
+            }
+        },
+        "cells": [],
+    }
+    plain_notebook = {
+        "metadata": {},
+        "cells": [{"cell_type": "markdown", "source": ["# no defaults\n"]}],
+    }
+    session_state: dict[str, object] = {}
+    module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        SimpleNamespace(
+            name="first.ipynb",
+            getvalue=lambda: json.dumps(first_notebook).encode("utf-8"),
+        ),
+        ["pandas_app_template", "other_template"],
+    )
+
+    defaults = module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        SimpleNamespace(
+            name="plain.ipynb",
+            getvalue=lambda: json.dumps(plain_notebook).encode("utf-8"),
+        ),
+        ["pandas_app_template", "other_template"],
+    )
+
+    assert defaults == {}
+    assert "clone_dest" not in session_state
+    assert "notebook_clone_src" not in session_state
+    assert session_state[module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY] == {}
+    assert session_state[module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY].startswith(
+        "plain.ipynb:"
+    )
+
+
+def test_notebook_import_defaults_preserve_user_edits_when_new_upload_has_none():
+    module = _load_project_module()
+    first_notebook = {
+        "metadata": {
+            "agilab": {
+                "import": {
+                    "recommended_template": "pandas_app_template",
+                    "project_name_hint": "cached-notebook-project",
+                }
+            }
+        },
+        "cells": [],
+    }
+    plain_notebook = {
+        "metadata": {},
+        "cells": [{"cell_type": "markdown", "source": ["# no defaults\n"]}],
+    }
+    session_state: dict[str, object] = {}
+    module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        SimpleNamespace(
+            name="first.ipynb",
+            getvalue=lambda: json.dumps(first_notebook).encode("utf-8"),
+        ),
+        ["pandas_app_template", "other_template"],
+    )
+    session_state["clone_dest"] = "custom-project"
+    session_state["notebook_clone_src"] = "other_template"
+
+    defaults = module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        SimpleNamespace(
+            name="plain.ipynb",
+            getvalue=lambda: json.dumps(plain_notebook).encode("utf-8"),
+        ),
+        ["pandas_app_template", "other_template"],
+    )
+
+    assert defaults == {}
+    assert session_state["clone_dest"] == "custom-project"
+    assert session_state["notebook_clone_src"] == "other_template"
+
+
+def test_notebook_import_defaults_ignore_empty_non_dict_and_invalid_uploads():
+    module = _load_project_module()
+
+    assert module._notebook_import_defaults_from_upload(None) == {}
+    assert module._notebook_import_defaults_from_upload(
+        SimpleNamespace(name="empty.ipynb", getvalue=lambda: b"   "),
+    ) == {}
+    assert module._notebook_import_defaults_from_upload(
+        SimpleNamespace(name="list.ipynb", getvalue=lambda: b"[]"),
+    ) == {}
+
+    session_state: dict[str, object] = {"clone_dest": "keep-project"}
+
+    defaults = module._apply_notebook_import_defaults_from_upload(
+        session_state,
+        SimpleNamespace(name="broken.ipynb", getvalue=lambda: b"{"),
+        ["pandas_app_template"],
+    )
+
+    assert defaults == {}
+    assert session_state == {"clone_dest": "keep-project"}
 
 
 def test_create_project_from_notebook_blocks_non_runnable_notebook(tmp_path: Path):

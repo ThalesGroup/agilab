@@ -36,6 +36,12 @@ _pending_actions_module = import_agilab_module(
     fallback_path=_AGILAB_ROOT / "orchestrate_pending_actions.py",
     fallback_name="agilab_orchestrate_pending_actions_onboarding_fallback",
 )
+_notebook_import_sample_module = import_agilab_module(
+    "agilab.notebook_import_sample",
+    current_file=__file__,
+    fallback_path=_AGILAB_ROOT / "notebook_import_sample.py",
+    fallback_name="agilab_notebook_import_sample_onboarding_fallback",
+)
 
 FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_COMPATIBILITY_SLICE = _first_proof_wizard_module.FIRST_PROOF_RECOMMENDED_LABEL
@@ -47,8 +53,10 @@ FIRST_PROOF_PAGE_ROUTES = {
     "analysis": Path("pages/4_ANALYSIS.py"),
 }
 FIRST_PROOF_NOTEBOOK_HINT = (
-    "Path: `ORCHESTRATE` -> `EDIT` -> `Create` -> `From notebook`."
+    "Creates `flight_telemetry_from_notebook_project`; then run `INSTALL` and `EXECUTE`."
 )
+FIRST_PROOF_SAMPLE_NOTEBOOK_NAME = _notebook_import_sample_module.SAMPLE_NOTEBOOK_DOWNLOAD_NAME
+FIRST_PROOF_SAMPLE_NOTEBOOK_MIME = _notebook_import_sample_module.SAMPLE_NOTEBOOK_MIME
 FIRST_PROOF_NOTEBOOK_QUERY_PARAMS = {"start": "notebook-import"}
 FIRST_PROOF_VIEW_MAPS_PATH = (
     _AGILAB_ROOT
@@ -306,7 +314,9 @@ def _first_proof_action_columns_layout(
         for text in (str(action["button"]), str(action["hint"]))
     ]
     proof_width = _first_proof_text_column_width_px(proof_texts)
-    notebook_width = _first_proof_text_column_width_px(["Import notebook", notebook_hint])
+    notebook_width = _first_proof_text_column_width_px(
+        ["Import notebook", "Download example notebook", "Upload notebook", notebook_hint]
+    )
     spec = [proof_width, _FIRST_PROOF_ACTION_SEPARATOR_WIDTH_PX, notebook_width]
     total_width = sum(spec) + (_FIRST_PROOF_ACTION_COLUMN_GAP_PX * (len(spec) - 1))
     return spec, total_width
@@ -343,7 +353,7 @@ def _render_first_proof_notebook_upload_control(
     """Render a direct notebook upload control for the first-proof alternative."""
     query_params = _first_proof_notebook_query_params(env, state)
     uploaded_notebook = st.file_uploader(
-        "Upload",
+        "Upload notebook",
         type="ipynb",
         key="create_notebook_upload",
         label_visibility="collapsed",
@@ -354,12 +364,32 @@ def _render_first_proof_notebook_upload_control(
     st.session_state["sidebar_selection"] = "Create"
     st.session_state["create_mode"] = NOTEBOOK_START_CREATE_MODE
     st.session_state["first_proof_feedback"] = (
-        "Notebook selected. PROJECT is open in Create mode; complete the project name and create it."
+        "Notebook selected. PROJECT is open in Create mode; create the imported project, then run INSTALL and EXECUTE."
     )
     _first_proof_open_page(
         _first_proof_page_route("project", page_routes),
         "PROJECT",
         query_params=query_params,
+    )
+
+
+def _render_first_proof_sample_notebook_download() -> None:
+    """Render the importable sample notebook download when packaged."""
+    download_button = getattr(st, "download_button", None)
+    if not callable(download_button):
+        return
+    try:
+        sample_bytes = _notebook_import_sample_module.read_sample_notebook_bytes()
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        st.caption(f"Sample notebook unavailable: {exc}")
+        return
+    download_button(
+        "Download example notebook",
+        data=sample_bytes,
+        file_name=FIRST_PROOF_SAMPLE_NOTEBOOK_NAME,
+        mime=FIRST_PROOF_SAMPLE_NOTEBOOK_MIME,
+        key="first_proof:wizard:sample_notebook",
+        width="content",
     )
 
 
@@ -474,7 +504,7 @@ def _render_first_proof_wizard_actions(
     page_routes: Dict[str, Any] | None,
 ) -> None:
     """Render executable wizard actions for the first-proof pipeline."""
-    st.markdown("**First proof with flight-telemetry-project or from your own notebook**")
+    st.markdown("**First proof with flight-telemetry-project**")
     next_step_id = _first_proof_next_wizard_step_id(state)
     proof_actions = [
         {
@@ -525,6 +555,7 @@ def _render_first_proof_wizard_actions(
                 page_routes,
             )
         st.caption(FIRST_PROOF_NOTEBOOK_HINT)
+        _render_first_proof_sample_notebook_download()
         _render_first_proof_notebook_upload_control(env, state, page_routes)
 
 

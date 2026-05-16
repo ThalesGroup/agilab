@@ -119,6 +119,16 @@ APP_PROJECT_BY_DISTRIBUTION = {
     "agi-app-uav-queue-project": "uav_queue_project",
     "agi-app-uav-relay-queue": "uav_relay_queue_project",
 }
+APP_PACKAGE_README_REQUIRED_SECTIONS = (
+    "## Purpose",
+    "## Installed Project",
+    "## Install",
+    "## Run In AGILAB",
+    "## Expected Inputs",
+    "## Expected Outputs",
+    "## Change One Thing",
+    "## Scope",
+)
 
 
 def _expected_script_paths() -> list[Path]:
@@ -187,6 +197,18 @@ def _agi_pages_package_data() -> list[str]:
 
 def _agi_app_project_pyproject(distribution: str) -> dict:
     return tomllib.loads((ROOT / "src/agilab/lib" / distribution / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def _builtin_project_pyproject(project_name: str) -> dict:
+    return tomllib.loads((BUILTIN_APPS_ROOT / project_name / "pyproject.toml").read_text(encoding="utf-8"))
+
+
+def _python_floor(requires_python: str) -> tuple[int, int]:
+    prefix = ">="
+    assert requires_python.startswith(prefix), requires_python
+    version = requires_python.removeprefix(prefix).split(",", 1)[0]
+    major, minor, *_ = version.split(".")
+    return int(major), int(minor)
 
 
 def _packaged_app_dirs() -> list[Path]:
@@ -475,6 +497,90 @@ def test_per_app_project_packages_expose_self_contained_project_payloads() -> No
             missing_entry_points.append(distribution)
 
     assert not missing_entry_points
+
+
+def test_per_app_project_package_readmes_are_useful_for_pypi() -> None:
+    for distribution, project_path in APP_PROJECT_PACKAGE_SPECS:
+        package_dir = ROOT / project_path
+        readme = (package_dir / "README.md").read_text(encoding="utf-8")
+        pyproject = _agi_app_project_pyproject(distribution)
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        description = pyproject["project"]["description"]
+
+        assert len(readme.split()) >= 160, distribution
+        for section in APP_PACKAGE_README_REQUIRED_SECTIONS:
+            assert section in readme, f"{distribution}: missing {section}"
+        assert f"pip install {distribution}" in readme
+        assert project_name in readme
+        assert f'AgiEnv(app="{project_name}")' in readme
+        assert "Most users install these app packages through the umbrella" not in readme
+        assert "## Install\n\n```bash" in readme
+        assert len(description.split()) >= 7, distribution
+        assert "app project" not in description.lower()
+
+
+def test_per_app_project_package_python_floor_matches_payload() -> None:
+    for distribution, _project_path in APP_PROJECT_PACKAGE_SPECS:
+        package_pyproject = _agi_app_project_pyproject(distribution)
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        payload_pyproject = _builtin_project_pyproject(project_name)
+        package_floor = _python_floor(package_pyproject["project"]["requires-python"])
+        payload_floor = _python_floor(payload_pyproject["project"]["requires-python"])
+
+        assert package_floor == payload_floor, distribution
+
+        advertised_versions = {
+            tuple(int(part) for part in classifier.rsplit(" :: ", 1)[-1].split("."))
+            for classifier in package_pyproject["project"]["classifiers"]
+            if classifier.startswith("Programming Language :: Python :: 3.")
+        }
+        assert advertised_versions
+        assert min(advertised_versions) >= package_floor
+        assert package_floor in advertised_versions
+
+
+def test_builtin_app_worker_python_floor_matches_manager_payload() -> None:
+    for distribution, _project_path in APP_PROJECT_PACKAGE_SPECS:
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        project_root = BUILTIN_APPS_ROOT / project_name
+        manager_floor = _python_floor(_builtin_project_pyproject(project_name)["project"]["requires-python"])
+        worker_manifests = sorted(project_root.glob("src/*_worker/pyproject.toml"))
+
+        assert worker_manifests, distribution
+        for worker_manifest in worker_manifests:
+            worker_pyproject = tomllib.loads(worker_manifest.read_text(encoding="utf-8"))
+            worker_floor = _python_floor(worker_pyproject["project"]["requires-python"])
+            assert worker_floor == manager_floor, worker_manifest.relative_to(ROOT).as_posix()
+
+
+def test_app_project_payload_copy_produces_self_contained_project_dirs(tmp_path: Path) -> None:
+    support = _load_app_project_build_support()
+
+    for distribution, _project_path in APP_PROJECT_PACKAGE_SPECS:
+        project_name = APP_PROJECT_BY_DISTRIBUTION[distribution]
+        target_root = tmp_path / distribution / "project"
+
+        changed = support.copy_app_project_payload(project_name, target_root)
+
+        payload_root = target_root / project_name
+        assert payload_root.is_dir(), distribution
+        for rel_path in (
+            "README.md",
+            "pyproject.toml",
+            "src/app_args_form.py",
+            "src/app_settings.toml",
+            "src/pre_prompt.json",
+        ):
+            assert (payload_root / rel_path).is_file(), f"{distribution}: missing {rel_path}"
+        assert any((payload_root / "src").glob("*/__init__.py")), distribution
+        assert list((payload_root / "src").glob("*_worker/pyproject.toml")), distribution
+        assert not any(part.name in APP_GENERATED_DIRS for part in payload_root.rglob("*") if part.is_dir())
+        assert not any(part.name in APP_GENERATED_NAMES for part in payload_root.rglob("*") if part.is_file())
+        assert not any(part.suffix in APP_GENERATED_SUFFIXES for part in payload_root.rglob("*") if part.is_file())
+        assert not list(payload_root.rglob("uv.lock"))
+        assert changed, f"{distribution}: expected packaged pyproject source sanitization"
+        for pyproject_path in payload_root.rglob("pyproject.toml"):
+            assert "[tool.uv.sources]" not in pyproject_path.read_text(encoding="utf-8")
 
 
 def test_agi_apps_umbrella_bundles_only_the_base_mycode_template() -> None:
