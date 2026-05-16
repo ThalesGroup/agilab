@@ -1,0 +1,22 @@
+{
+  "schema": "agilab.example.mlflow_auto_tracking.v1",
+  "app": "meteo_forecast_project",
+  "pipeline": "notebook_migration_forecast",
+  "run_name": "meteo_forecast_preview",
+  "experiment_name": "AGILAB Preview",
+  "tracking_uri": "file:~/log/mlflow",
+  "params": {
+    "dataset": "meteo_fr_daily_sample",
+    "model_family": "skforecast_baseline",
+    "horizon_days": 7,
+    "execution_backend": "agilab_local"
+  },
+  "metrics": {
+    "forecast_mae": 1.84,
+    "forecast_rmse": 2.37,
+    "coverage_ratio": 0.93
+  },
+  "artifacts": {
+    "summary_name": "run_summary.json"
+  }
+}

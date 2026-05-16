@@ -3,30 +3,27 @@
 [[notebook_export.related_pages]]
 module = "view_scenario_cockpit"
 label = "Scenario Cockpit"
-description = "Compare UAV relay queue scenario runs, inspect baseline/candidate deltas, and export a hashed evidence bundle."
+description = "Inspect scenario setup, queue depth, packet delivery, relay routing summary, and node positions for the relay-queue demo."
 artifacts = [
   "*_summary_metrics.json",
   "*_queue_timeseries.csv",
   "*_packet_events.csv",
   "*_node_positions.csv",
   "*_routing_summary.csv",
-  "pipeline/topology.gml",
-  "pipeline/allocations_steps.csv",
 ]
-launch_note = "Open this first when you need a reviewable baseline/candidate evidence bundle."
+launch_note = "Open this first for the scenario-level view over the exported run artifacts."
 
 [[notebook_export.related_pages]]
 module = "view_relay_resilience"
-label = "UAV Relay Queue Analysis"
-description = "Inspect queue depth, packet delivery, relay routing summary, and node positions for the relay-queue demo."
+label = "Relay Resilience"
+description = "Inspect relay queue health, congestion pressure, and packet delivery evidence for the same run."
 artifacts = [
   "*_summary_metrics.json",
   "*_queue_timeseries.csv",
   "*_packet_events.csv",
-  "*_node_positions.csv",
   "*_routing_summary.csv",
 ]
-launch_note = "Open this first for the dedicated relay queue analysis view over the exported run artifacts."
+launch_note = "Use this to focus on relay resilience metrics."
 
 [[notebook_export.related_pages]]
 module = "view_maps_network"

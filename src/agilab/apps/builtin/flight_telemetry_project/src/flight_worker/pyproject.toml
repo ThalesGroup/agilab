@@ -1,10 +1,10 @@
 [project]
 name = "flight_telemetry_project"
-version = "2026.05.16"
+version = "2026.05.17"
 description = ""
 requires-python = ">=3.11,<3.14"
 readme = "README.md"
-dependencies = ["agi-env>=2026.05.16", "agi-node>=2026.05.16", "polars", "pydantic"]
+dependencies = ["agi-env>=2026.05.17", "agi-node>=2026.05.17", "polars", "pydantic"]
 
 [[project.authors]]
 name = "Jean-Pierre Morard"
@@ -17,6 +17,10 @@ text = "Thales SIX GTS France SAS"
 [project.optional-dependencies]
 dag-worker = []
 polars-worker = []
+
+
+
+
 
 
 

@@ -4,7 +4,7 @@ digraph uav_queue_pipeline {
 
   scenario [label="Scenario JSON\nUAV nodes + relay caps"];
   policy [label="Routing policy\nshortest_path or queue_aware"];
-  sim [label="SimPy UAV queue loop\nsource + background traffic"];
+  sim [label="SimPy UAV relay queue loop\nsource + background traffic"];
   artifacts [label="summary_metrics.json\nqueue_timeseries.csv\npacket_events.csv\npipeline/topology.gml\npipeline/allocations_steps.csv"];
   analysis [label="AGILAB ANALYSIS\nview_scenario_cockpit\nview_queue_resilience\nview_maps_network"];
 

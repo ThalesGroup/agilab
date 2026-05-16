@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.16"
+version = "2026.05.17"
 name = "agilab"
 description = "AGILAB is a reproducible AI/ML workbench for engineering teams."
 requires-python = ">=3.11"
@@ -45,7 +45,7 @@ keywords = [
     "codex",
     "claude",
 ]
-dependencies = ["agi-core==2026.05.16", "legacy-cgi>=2.6.4; python_version >= '3.13'", "standard-imghdr>=3.13.0; python_version >= '3.13'"]
+dependencies = ["agi-core==2026.05.17", "legacy-cgi>=2.6.4; python_version >= '3.13'", "standard-imghdr>=3.13.0; python_version >= '3.13'"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -60,15 +60,17 @@ agilab = "agilab.lab_run:main"
 
 [project.optional-dependencies]
 ai = ["openai>=2.32.0"]
-ui = ["agi-apps==2026.05.16", "agi-pages==2026.05.16", "agi-gui==2026.05.16", "networkx>=3.6.1", "pandas>=2.3.0", "streamlit>=1.56.0", "tomli_w>=1.2.0"]
+ui = ["agi-apps==2026.05.17", "agi-pages==2026.05.17", "agi-gui==2026.05.17", "networkx>=3.6.1", "pandas>=2.3.0", "streamlit>=1.56.0", "tomli_w>=1.2.0"]
 viz = ["matplotlib>=3.10.0", "plotly>=6.7.0"]
 mlflow = ["mlflow>=3.11.1"]
-examples = ["agi-apps==2026.05.16", "jupyterlab>=4.4.0", "matplotlib>=3.10.0", "plotly>=6.7.0"]
-pages = ["agi-pages==2026.05.16"]
+examples = ["agi-apps==2026.05.17", "jupyterlab>=4.4.0", "matplotlib>=3.10.0", "plotly>=6.7.0"]
+pages = ["agi-pages==2026.05.17"]
 agents = ["openai>=2.32.0"]
 local-llm = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "langchain-core>=1.3.3; python_version >= '3.12'", "mlx>=0.31.2; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-lm>=0.31.3; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-vlm>=0.5.0; sys_platform == 'darwin' and platform_machine == 'arm64'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
 offline = ["accelerate>=0.34.2; python_version >= '3.12'", "gpt-oss>=0.0.8; python_version >= '3.12'", "langchain-core>=1.3.3; python_version >= '3.12'", "mlx>=0.31.2; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-lm>=0.31.3; sys_platform == 'darwin' and platform_machine == 'arm64'", "mlx-vlm>=0.5.0; sys_platform == 'darwin' and platform_machine == 'arm64'", "requests>=2.32.0; python_version >= '3.12'", "torch>=2.8.0; python_version >= '3.12'", "transformers>=4.57.0; python_version >= '3.12'", "universal-offline-ai-chatbot>=0.1.0; python_version >= '3.12'"]
 dev = ["build>=1.3.0", "cyclonedx-bom>=7.2.1", "pip-audit>=2.9.0", "pytest>=9.0.0", "pytest-asyncio>=1.3.0", "pytest-cov>=7.0.0", "tomlkit>=0.13.0", "twine>=6.2.0", "wheel>=0.45.0"]
+
+
 
 
 

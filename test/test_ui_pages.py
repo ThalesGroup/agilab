@@ -770,7 +770,7 @@ def test_execute_page_realigns_stale_agi_space_session_env(mock_ui_env, tmp_path
     """Source ORCHESTRATE must not keep an old installed agi-space active app."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     source_apps = (Path(__file__).resolve().parents[1] / "src/agilab/apps").resolve()
-    source_project = source_apps / "builtin" / "flight_telemetry_project"
+    source_project = source_apps / "builtin" / "flight_project"
     stale_apps = tmp_path / "agi-space" / "apps"
     stale_project = stale_apps / "builtin" / "flight_telemetry_project"
     stale_project.mkdir(parents=True)
@@ -798,7 +798,7 @@ def test_execute_page_realigns_stale_active_app_only_for_source_root(mock_ui_env
     """ORCHESTRATE header must not use an old agi-space active app when apps_path is already source."""
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     source_apps = (Path(__file__).resolve().parents[1] / "src/agilab/apps").resolve()
-    source_project = source_apps / "builtin" / "flight_telemetry_project"
+    source_project = source_apps / "builtin" / "flight_project"
     stale_project = tmp_path / "agi-space" / "apps" / "builtin" / "flight_telemetry_project"
     stale_project.mkdir(parents=True)
 
@@ -2218,6 +2218,44 @@ def test_project_page_notebook_import_query_opens_file_selector(mock_ui_env):
     assert not at.exception
     assert at.session_state["create_notebook_upload"] is not None
     assert at.session_state["create_notebook_upload"].name == "demo.ipynb"
+
+
+def test_project_page_guided_sample_import_hides_manual_sidebar_controls(mock_ui_env):
+    project_page = _load_project_page_module()
+    at = _app_test("src/agilab/pages/1_PROJECT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=["flight_telemetry_project"])
+    at.session_state["env"] = env
+    at.session_state["sidebar_selection"] = "Create"
+    at.session_state[project_page.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] = True
+
+    at.run()
+    assert not at.exception
+
+    assert at.session_state["create_mode"] == "From notebook"
+    assert at.session_state["clone_dest"] == "flight-telemetry-from-notebook-project"
+    assert at.session_state["notebook_clone_src"] == "flight_telemetry_project"
+    assert _widget_or_none(
+        [
+            getattr(at.sidebar, "file_uploader", []),
+            getattr(at, "file_uploader", []),
+        ],
+        "create_notebook_upload",
+    ) is None
+    assert _widget_or_none([getattr(at.sidebar, "text_input", [])], "clone_dest") is None
+    choice_widgets = [
+        widget_collection
+        for widget_name in ("segmented_control", "pills", "radio", "selectbox")
+        if callable(widget_collection := getattr(at.sidebar, widget_name, None))
+    ]
+    assert _widget_or_none(choice_widgets, "create_mode") is None
+    assert _widget_or_none(choice_widgets, "notebook_clone_src") is None
+    assert "clone_env_strategy" in at.session_state
+    info_text = "\n".join(str(item.value) for item in at.info)
+    assert "AGILAB's included notebook is selected" in info_text
 
 
 def test_project_page_notebook_import_query_does_not_rerun_during_upload_render():

@@ -1,4 +1,4 @@
-# Pandas Execution Project
+# Execution Pandas Project
 
 `execution_pandas_project` is a built-in AGILAB execution playground for the
 `PandasWorker` path.

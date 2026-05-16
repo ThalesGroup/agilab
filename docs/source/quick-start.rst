@@ -168,20 +168,22 @@ machine-readable proof record.
 
    The ABOUT landing page exposes the current first-proof path directly:
 
-   - click ``1. INSTALL`` to select ``flight_telemetry_project`` and run the
-     ORCHESTRATE install
-   - click ``2. RUN`` to start the local ORCHESTRATE execution with cluster,
-     benchmark, and service mode off
-   - click ``3. ANALYSIS`` after evidence exists to open the built-in analysis
-     route
+   - click ``1. INSTALL demo`` to select ``flight_telemetry_project`` and run
+     the ORCHESTRATE install
+   - click ``2. EXECUTE demo`` to start the local ORCHESTRATE execution with
+     cluster, benchmark, and service mode off
+   - click ``3. OPEN ANALYSIS`` after evidence exists to open the built-in
+     analysis route
 
    If you want to start from a notebook, use the same wizard's
-   ``Use included notebook`` button for AGILAB's packaged sample, or
-   ``Upload your notebook`` for your own file. It opens ``ORCHESTRATE`` ->
-   ``OPEN AND UPLOAD`` -> ``Create`` -> ``From notebook`` with the notebook
-   source already selected or ready to upload. Treat that as a separate
-   starting lane: prove either the built-in flight project or a
-   notebook-imported project first, not both at the same time.
+   ``Create from built-in notebook`` button for AGILAB's packaged sample; there
+   is no notebook file to locate or upload. The wizard opens ``PROJECT`` ->
+   ``Create`` -> ``From notebook`` with the bundled sample already selected;
+   then you click PROJECT ``Create`` and prove the imported project with
+   ORCHESTRATE ``INSTALL`` and ``EXECUTE``. For your own local notebook, use
+   PROJECT -> ``Create`` -> ``From notebook`` instead of the first-proof wizard.
+   Treat that as a separate starting lane: prove either the built-in flight
+   project or a notebook-imported project first, not both at the same time.
 
 5. **Check the first proof outcome**
 

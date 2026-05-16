@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.16"
+version = "2026.05.17"
 name = "agi-pages"
 description = "AGILAB public analysis page umbrella and provider package"
 requires-python = ">=3.11"
@@ -31,7 +31,7 @@ keywords = [
     "page-bundles",
 ]
 
-dependencies = ["agi-gui==2026.05.16"]
+dependencies = ["agi-gui==2026.05.17"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -41,6 +41,8 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
 
 
 

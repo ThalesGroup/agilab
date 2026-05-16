@@ -1,6 +1,6 @@
 [project]
 name = "agi-page-geospatial-3d"
-version = "2026.05.16"
+version = "2026.05.17"
 description = "AGILAB page bundle for 3D geospatial exploration."
 readme = { text = "AGILAB page bundle for 3D geospatial exploration.", content-type = "text/markdown" }
 requires-python = ">=3.11"
@@ -14,6 +14,7 @@ dependencies = [
 
 [project.entry-points."agilab.pages"]
 view_maps_3d = "view_maps_3d:bundle_root"
+
 
 
 [tool.uv.sources]

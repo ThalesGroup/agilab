@@ -30,16 +30,18 @@ def test_data_connector_app_catalogs_report_passes(tmp_path: Path) -> None:
     assert report["summary"]["schema"] == "agilab.data_connector_app_catalogs.v1"
     assert report["summary"]["run_status"] == "validated"
     assert report["summary"]["execution_mode"] == "app_catalog_validation_only"
-    assert report["summary"]["app_catalog_count"] == 6
-    assert report["summary"]["connector_count"] == 18
-    assert report["summary"]["page_connector_ref_count"] == 15
-    assert report["summary"]["legacy_path_count"] == 12
+    assert report["summary"]["app_catalog_count"] == 8
+    assert report["summary"]["connector_count"] == 24
+    assert report["summary"]["page_connector_ref_count"] == 18
+    assert report["summary"]["legacy_path_count"] == 16
     assert report["summary"]["missing_ref_count"] == 0
     assert report["summary"]["network_probe_count"] == 0
     assert report["summary"]["apps"] == [
         "execution_pandas_project",
         "execution_polars_project",
+        "flight_project",
         "flight_telemetry_project",
+        "meteo_forecast_project",
         "uav_queue_project",
         "uav_relay_queue_project",
         "weather_forecast_project",
@@ -76,7 +78,11 @@ def test_data_connector_app_catalogs_resolve_relative_to_app_settings(tmp_path: 
     assert paths["execution_polars_project"].endswith(
         "execution_polars_project/src/connectors/data_connectors.toml"
     )
+    assert paths["flight_project"].endswith("flight_project/src/connectors/data_connectors.toml")
     assert paths["flight_telemetry_project"].endswith("flight_telemetry_project/src/connectors/data_connectors.toml")
+    assert paths["meteo_forecast_project"].endswith(
+        "meteo_forecast_project/src/connectors/data_connectors.toml"
+    )
     assert paths["weather_forecast_project"].endswith(
         "weather_forecast_project/src/connectors/data_connectors.toml"
     )

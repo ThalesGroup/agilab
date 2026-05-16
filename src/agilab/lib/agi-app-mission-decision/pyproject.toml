@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.16"
+version = "2026.05.17"
 name = "agi-app-mission-decision"
 description = "Deterministic AGILAB mission-decision workflow with scenario scoring and evidence artifacts"
 requires-python = ">=3.11"
@@ -44,6 +44,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 mission_decision = "agi_app_mission_decision:project_root"
 mission_decision_project = "agi_app_mission_decision:project_root"
+
 
 
 [dependency-groups]

@@ -50,7 +50,7 @@ def test_supply_chain_attestation_report_passes_contract(supply_chain_attestatio
     assert report["summary"]["app_lib_release_graph_aligned"] is True
     assert report["summary"]["aligned_internal_dependency_pins"] is True
     assert report["summary"]["mismatched_internal_dependency_pin_count"] == 0
-    assert report["summary"]["builtin_app_pyproject_count"] == 10
+    assert report["summary"]["builtin_app_pyproject_count"] == 13
     assert report["summary"]["package_data_pattern_count"] >= 1
     assert report["summary"]["builtin_payload_file_count"] >= 1
     assert report["summary"]["builtin_payload_bytes"] >= 1
@@ -127,10 +127,13 @@ def test_supply_chain_attestation_records_core_and_app_manifests(supply_chain_at
         "agi-apps",
     }
     assert [row["app"] for row in state["builtin_app_pyprojects"]] == [
+        "data_io_2026_project",
         "execution_pandas_project",
         "execution_polars_project",
+        "flight_project",
         "flight_telemetry_project",
         "global_dag_project",
+        "meteo_forecast_project",
         "mission_decision_project",
         "mycode_project",
         "tescia_diagnostic_project",

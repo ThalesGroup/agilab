@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.16"
+version = "2026.05.17"
 name = "agi-cluster"
 description = "Distributed cluster orchestration layer for AGILAB workers over local and SSH backends"
 requires-python = ">=3.11"
@@ -35,7 +35,7 @@ keywords = [
     "job-scheduling",
     "mlops",
 ]
-dependencies = ["agi-env==2026.05.16", "agi-node==2026.05.16", "asyncssh", "dask[distributed]", "humanize", "numpy", "packaging", "polars", "psutil", "scikit-learn", "tomlkit"]
+dependencies = ["agi-env==2026.05.17", "agi-node==2026.05.17", "asyncssh", "dask[distributed]", "humanize", "numpy", "packaging", "polars", "psutil", "scikit-learn", "tomlkit"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -45,6 +45,8 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
+
 
 
 

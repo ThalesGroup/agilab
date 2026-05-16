@@ -130,10 +130,12 @@ Use this skill when editing:
   imports AGILAB's included notebook, or uploads the user's own notebook.
 - Do not hide packaged sample assets behind vague labels such as `example
   notebook` when the user cannot know where that file is. Prefer explicit copy
-  such as `Use included notebook`, and show the project that will be created.
-- Keep first-proof alternatives symmetric: the built-in demo lane should expose
+  such as `Create from built-in notebook`, say that no file needs to be found
+  or uploaded, and show the project that will be created.
+- Keep first-proof alternatives simple: the built-in demo lane should expose
   install, run, and analysis actions; the notebook lane should expose the
-  included sample and a separate upload path for a user notebook.
+  included sample. Keep local notebook upload in PROJECT Create instead of
+  adding another direct uploader to the ABOUT wizard.
 - When changing first-proof labels, update ABOUT tests, PROJECT notebook-import
   tests, newcomer docs, and stale-wording greps in the same change.
 

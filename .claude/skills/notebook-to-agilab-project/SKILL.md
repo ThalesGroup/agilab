@@ -87,9 +87,13 @@ delivery.
 Use these checks whenever a notebook migration touches WORKFLOW import or the
 ANALYSIS notebook launcher:
 
-- For first-proof notebook import, keep the packaged sample discoverable from
-  the ABOUT wizard and PROJECT Create sidebar. Use explicit wording such as
-  `Use included notebook`, not a hidden or ambiguous `example` file reference.
+- For first-proof notebook import, keep the packaged sample selected from the
+  ABOUT wizard only. PROJECT Create may show the selected state, but it must
+  not add a second packaged-sample selection or download button.
+  Use explicit wording such as `Create from built-in notebook` in ABOUT, not a
+  hidden or ambiguous `example` file reference; say that no file needs to be
+  found or uploaded for AGILAB's packaged sample. Keep direct local notebook
+  upload in PROJECT Create, not in the ABOUT wizard.
 - The packaged notebook sample must carry AGILAB import metadata, especially the
   `recommended_template` and `project_name_hint`, so PROJECT can preselect the
   right base project and create a runnable imported project without guesswork.

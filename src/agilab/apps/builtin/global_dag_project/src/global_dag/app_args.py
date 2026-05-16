@@ -15,7 +15,7 @@ class GlobalDagArgs(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    dag_path: Path = Field(default_factory=lambda: Path("dag_templates/flight_to_weather_global_dag.json"))
+    dag_path: Path = Field(default_factory=lambda: Path("dag_templates/flight_to_meteo_global_dag.json"))
     output_path: Path = Field(default_factory=lambda: Path("~/log/execute/global_dag/runner_state.json"))
     reset_target: bool = False
 

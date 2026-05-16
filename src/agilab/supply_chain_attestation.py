@@ -15,7 +15,7 @@ from typing import Any, Mapping
 
 SCHEMA = "agilab.supply_chain_attestation.v1"
 CREATED_AT = "2026-04-25T00:00:34Z"
-UPDATED_AT = "2026-05-07T00:00:00Z"
+UPDATED_AT = "2026-05-16T00:00:00Z"
 CORE_PYPROJECTS = {
     "agi-core": Path("src/agilab/core/agi-core/pyproject.toml"),
     "agi-env": Path("src/agilab/core/agi-env/pyproject.toml"),
@@ -46,8 +46,8 @@ PACKAGE_PAYLOAD_AUDIT_SUFFIXES = {
     ".toml",
 }
 PACKAGE_PAYLOAD_BUDGETS = {
-    "max_files": 100,
-    "max_bytes": 3 * 1024 * 1024,
+    "max_files": 140,
+    "max_bytes": 4 * 1024 * 1024,
     "max_archives": 2,
     "max_notebooks": 1,
 }

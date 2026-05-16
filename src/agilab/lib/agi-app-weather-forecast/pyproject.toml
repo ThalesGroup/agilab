@@ -1,5 +1,5 @@
 [project]
-version = "2026.05.16"
+version = "2026.05.17"
 name = "agi-app-weather-forecast"
 description = "AGILAB weather-forecast notebook-migration demo with forecast analysis artifacts"
 requires-python = ">=3.11"
@@ -44,6 +44,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 [project.entry-points."agilab.apps"]
 weather_forecast = "agi_app_weather_forecast:project_root"
 weather_forecast_project = "agi_app_weather_forecast:project_root"
+
 
 
 [dependency-groups]

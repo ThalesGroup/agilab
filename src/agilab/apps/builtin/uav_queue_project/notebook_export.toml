@@ -3,30 +3,26 @@
 [[notebook_export.related_pages]]
 module = "view_scenario_cockpit"
 label = "Scenario Cockpit"
-description = "Compare UAV queue scenario runs, inspect baseline/candidate deltas, and export a hashed evidence bundle."
+description = "Inspect scenario setup, queue buildup, drops, per-packet events, node positions, and route usage for the lightweight UAV queue demo."
 artifacts = [
   "*_summary_metrics.json",
   "*_queue_timeseries.csv",
   "*_packet_events.csv",
   "*_node_positions.csv",
   "*_routing_summary.csv",
-  "pipeline/topology.gml",
-  "pipeline/allocations_steps.csv",
 ]
-launch_note = "Open this first when you need a reviewable baseline/candidate evidence bundle."
+launch_note = "Open this first for the scenario-level view over the current run directory."
 
 [[notebook_export.related_pages]]
 module = "view_queue_resilience"
-label = "UAV Queue Analysis"
-description = "Inspect queue buildup, drops, per-packet events, node positions, and route usage for the lightweight UAV queue demo."
+label = "Queue Resilience"
+description = "Inspect queue health, congestion pressure, and packet delivery evidence for the same run."
 artifacts = [
   "*_summary_metrics.json",
   "*_queue_timeseries.csv",
   "*_packet_events.csv",
-  "*_node_positions.csv",
-  "*_routing_summary.csv",
 ]
-launch_note = "Open this first for the domain-specific queue view over the current run directory."
+launch_note = "Use this to focus on queue and delivery resilience metrics."
 
 [[notebook_export.related_pages]]
 module = "view_maps_network"

@@ -1,0 +1,13 @@
+digraph meteo_forecast_pipeline {
+  rankdir=LR;
+  node [shape=box, style="rounded,filled", fillcolor="#eef4ff", color="#4a6990", fontname="Helvetica"];
+
+  notebooks [label="Notebook source\nprepare -> backtest -> compare"];
+  data [label="Daily weather snapshot\nlocal CSV"];
+  series [label="Station filter +\nlag features"];
+  model [label="skforecast recursive\nRandomForest"];
+  artifacts [label="forecast_metrics.json\nforecast_predictions.csv"];
+  analysis [label="AGILAB ANALYSIS\nview_forecast_analysis"];
+
+  notebooks -> data -> series -> model -> artifacts -> analysis;
+}
