@@ -831,7 +831,7 @@ def test_render_notebook_import_sample_download_uses_packaged_payload():
     assert len(target.downloads) == 1
     args, kwargs = target.downloads[0]
     notebook = json.loads(kwargs["data"].decode("utf-8"))
-    assert args == ("Download example notebook",)
+    assert args == ("Download included notebook",)
     assert kwargs["file_name"] == "flight_telemetry_from_notebook.ipynb"
     assert kwargs["mime"] == "application/x-ipynb+json"
     assert kwargs["key"] == "create_notebook_sample_download"
@@ -869,7 +869,7 @@ def test_render_notebook_import_sample_actions_selects_packaged_source(monkeypat
 
     module._render_notebook_import_sample_actions(target, session_state)
 
-    assert target.buttons[0][0] == ("Use example notebook",)
+    assert target.buttons[0][0] == ("Use included notebook",)
     assert session_state[module.PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY] is True
     assert module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY not in session_state
     assert module.PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY not in session_state
@@ -903,7 +903,7 @@ def test_notebook_import_create_copy_uses_newcomer_friendly_labels():
     assert "Start from a notebook. AGILAB clones a base project" in source
     assert "Base project to clone" in source
     assert "This notebook will create" in source
-    assert "Use example notebook" in source
+    assert "Use included notebook" in source
     assert "Upload your notebook" in source
     assert "then EXECUTE" in source
     assert "Notebook source" not in source

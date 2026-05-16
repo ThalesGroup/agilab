@@ -175,13 +175,13 @@ machine-readable proof record.
    - click ``3. ANALYSIS`` after evidence exists to open the built-in analysis
      route
 
-   If you want to start from a notebook, use the same wizard's ``Use example
-   notebook`` button for the bundled sample, or ``Upload your notebook`` for
-   your own file. It opens ``ORCHESTRATE`` -> ``OPEN AND UPLOAD`` ->
-   ``Create`` -> ``From notebook`` with the notebook source already selected or
-   ready to upload. Treat that as a separate starting lane: prove either the
-   built-in flight project or a notebook-imported project first, not both at
-   the same time.
+   If you want to start from a notebook, use the same wizard's
+   ``Use included notebook`` button for AGILAB's packaged sample, or
+   ``Upload your notebook`` for your own file. It opens ``ORCHESTRATE`` ->
+   ``OPEN AND UPLOAD`` -> ``Create`` -> ``From notebook`` with the notebook
+   source already selected or ready to upload. Treat that as a separate
+   starting lane: prove either the built-in flight project or a
+   notebook-imported project first, not both at the same time.
 
 5. **Check the first proof outcome**
 
