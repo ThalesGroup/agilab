@@ -32,7 +32,7 @@ keywords = [
     "python",
 ]
 
-dependencies = ["agi-env==2026.05.13.post3", "gitpython>=3.1.50", "streamlit>=1.56.0", "streamlit-modal", "streamlit_code_editor", "streamlit_extras", "watchdog"]
+dependencies = ["agi-env==2026.05.13.post3", "streamlit>=1.56.0", "streamlit_code_editor", "watchdog"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
