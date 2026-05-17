@@ -239,18 +239,25 @@ def _find_form(
     raise RuntimeError(f"no csrf-bearing form found for {target_path}")
 
 
+def _summarize_forms(html: str) -> str:
+    parser = FormParser()
+    parser.feed(html)
+    if not parser.forms:
+        return "forms=none"
+    parts = []
+    for form in parser.forms:
+        inputs = ",".join(sorted(form.inputs)) or "none"
+        parts.append(f"action={form.action or '(current)'} inputs={inputs}")
+    return "forms=[" + "; ".join(parts) + "]"
+
+
 def _find_reauth_form(html: str) -> HtmlForm | None:
     parser = FormParser()
     parser.feed(html)
     for form in parser.forms:
-        if {
-            "csrf_token",
-            "password",
-            "username",
-            "next_route",
-            "next_route_matchdict",
-            "next_route_query",
-        }.issubset(form.inputs):
+        if {"csrf_token", "password", "next_route", "next_route_matchdict"}.issubset(
+            form.inputs
+        ):
             return form
     return None
 
@@ -272,6 +279,7 @@ def _submit_reauthentication_if_needed(
     *,
     response: Any,
     base_url: str,
+    username: str,
     password: str,
 ) -> Any:
     reauth_form = _find_reauth_form(response.text)
@@ -280,6 +288,8 @@ def _submit_reauthentication_if_needed(
 
     reauth_path = urlparse(reauth_form.action or "/account/reauthenticate/").path
     reauth_data = dict(reauth_form.inputs)
+    reauth_data.setdefault("username", username)
+    reauth_data.setdefault("next_route_query", "{}")
     reauth_data["password"] = password
     response = session.post(
         urljoin(base_url, reauth_form.action or reauth_path),
@@ -360,13 +370,19 @@ def delete_release_via_pypi_web(
             session,
             response=response,
             base_url=base_url,
+            username=username,
             password=password,
         )
-        delete_form = _find_form(
-            response.text,
-            target_path=delete_path,
-            required_input="confirm_delete_version",
-        )
+        try:
+            delete_form = _find_form(
+                response.text,
+                target_path=delete_path,
+                required_input="confirm_delete_version",
+            )
+        except RuntimeError as exc:
+            raise RuntimeError(
+                f"{exc}; url={response.url}; {_summarize_forms(response.text)}"
+            ) from exc
         delete_data = _prepare_delete_form_data(
             delete_form,
             package=package,
