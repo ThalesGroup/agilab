@@ -88,6 +88,7 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_nightly_only() -> None:
     assert "--scenario isolated-entry-and-app-pages" in text
     assert "--scenario isolated-project-page" in text
     assert "--scenario isolated-project-notebook-import" in text
+    assert "--scenario isolated-project-import-sidebar" in text
     assert "--scenario isolated-settings-page" in text
     assert "--apps \"${robot_apps}\"" in text
     assert "--json" in text
