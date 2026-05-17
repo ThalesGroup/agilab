@@ -128,6 +128,12 @@ def test_agi_gui_coverage_includes_first_proof_and_notebook_import_helpers() -> 
     assert "test/test_notebook_import_doctor.py" in run_block
 
 
+def test_agi_gui_coverage_includes_widget_robot_matrix_contract() -> None:
+    run_block = _agi_gui_run_block()
+
+    assert "test/test_agilab_widget_robot_matrix.py" in run_block
+
+
 def test_agi_gui_coverage_includes_pages_lib_package_tests() -> None:
     run_block = _agi_gui_run_block()
 

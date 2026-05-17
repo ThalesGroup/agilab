@@ -200,6 +200,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "test/test_pinned_expander.py" in agi_gui_argv
     assert "test/test_workflow_ui.py" in agi_gui_argv
     assert "test/test_agilab_web_robot.py" in agi_gui_argv
+    assert "test/test_agilab_widget_robot_matrix.py" in agi_gui_argv
     assert "test/test_agilab_widget_robot.py" in agi_gui_argv
     assert "test/test_first_launch_robot.py" in agi_gui_argv
     assert "test/test_screenshot_manifest.py" in agi_gui_argv
@@ -246,6 +247,8 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert ui_robot_matrix.timeout_seconds == 60 * 60
     assert ui_robot_matrix.remove_paths == ["test-results/ui-robot-matrix", "screenshots/ui-robot-matrix"]
     assert "tools/agilab_widget_robot_matrix.py" in ui_robot_matrix.argv
+    assert "isolated-core-pages" in ui_robot_matrix.argv
+    assert "isolated-entry-and-app-pages" in ui_robot_matrix.argv
     assert "--quiet-progress" in ui_robot_matrix.argv
     assert "--json" in ui_robot_matrix.argv
     assert "--screenshot-dir" in ui_robot_matrix.argv

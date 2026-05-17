@@ -258,6 +258,7 @@ def _agi_gui_profile() -> list[CommandSpec]:
             "robots",
             [
                 "test/test_agilab_web_robot.py",
+                "test/test_agilab_widget_robot_matrix.py",
                 "test/test_agilab_widget_robot.py",
                 "test/test_first_launch_robot.py",
                 "test/test_screenshot_manifest.py",
@@ -916,6 +917,10 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "playwright",
                 "python",
                 "tools/agilab_widget_robot_matrix.py",
+                "--scenario",
+                "isolated-core-pages",
+                "--scenario",
+                "isolated-entry-and-app-pages",
                 "--json",
                 "--quiet-progress",
                 "--output-dir",

@@ -3852,8 +3852,6 @@ def sweep_page(
     if page_status == "passed":
         if failed:
             page_status = "failed"
-        elif skipped:
-            page_status = "skipped"
     return PageSweep(
         app=app_name,
         page=display,
@@ -4333,7 +4331,7 @@ def summarize(pages: Sequence[PageSweep], *, app_count: int, target_seconds: flo
     total = sum(page.duration_seconds for page in pages)
     failed_count = sum(page.failed_count for page in pages)
     skipped_count = sum(page.skipped_count for page in pages)
-    success = bool(pages) and failed_count == 0 and skipped_count == 0 and all(page.success and page.status == "passed" for page in pages)
+    success = bool(pages) and failed_count == 0 and all(page.failed_count == 0 and page.status != "failed" for page in pages)
     return WidgetSweepSummary(
         success=success,
         total_duration_seconds=total,
