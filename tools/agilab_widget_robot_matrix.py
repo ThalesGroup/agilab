@@ -29,6 +29,7 @@ class RobotScenario:
     action_button_policy: str
     click_action_labels: str = ""
     preselect_labels: str = ""
+    route_query: str = ""
     missing_selected_action_policy: str = "fail"
     action_timeout_seconds: float = 90.0
     page_timeout_seconds: float = 420.0
@@ -123,6 +124,21 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         apps_pages="none",
         runtime_isolation="isolated",
         action_button_policy="safe-click",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+    ),
+    "isolated-project-notebook-import": RobotScenario(
+        name="isolated-project-notebook-import",
+        description=(
+            "Open the PROJECT notebook-import deep link for every built-in app "
+            "and exercise its guarded upload/create controls without firing "
+            "destructive project actions."
+        ),
+        pages="PROJECT",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="safe-click",
+        route_query="start=notebook-import",
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
     ),
@@ -293,6 +309,8 @@ def build_robot_command(
         argv.extend(["--click-action-labels", scenario.click_action_labels])
     if scenario.preselect_labels:
         argv.extend(["--preselect-labels", scenario.preselect_labels])
+    if scenario.route_query:
+        argv.extend(["--route-query", scenario.route_query])
     if scenario.assert_orchestrate_artifacts:
         argv.append("--assert-orchestrate-artifacts")
     if scenario.assert_workflow_artifacts:

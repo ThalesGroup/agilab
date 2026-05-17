@@ -924,6 +924,8 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "--scenario",
                 "isolated-project-page",
                 "--scenario",
+                "isolated-project-notebook-import",
+                "--scenario",
                 "isolated-settings-page",
                 "--json",
                 "--quiet-progress",

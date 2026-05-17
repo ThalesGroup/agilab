@@ -28,11 +28,12 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "isolated-core-pages",
         "isolated-entry-and-app-pages",
         "isolated-project-page",
+        "isolated-project-notebook-import",
         "isolated-settings-page",
         "current-home-actions",
         "current-home-orchestrate-journey",
     ]
-    isolated, entry, project, settings, current_home, journey = scenarios
+    isolated, entry, project, project_notebook, settings, current_home, journey = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
@@ -47,6 +48,11 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert project.runtime_isolation == "isolated"
     assert project.action_button_policy == "safe-click"
     assert project.action_timeout_seconds == 30.0
+    assert project_notebook.pages == "PROJECT"
+    assert project_notebook.route_query == "start=notebook-import"
+    assert project_notebook.apps_pages == "none"
+    assert project_notebook.runtime_isolation == "isolated"
+    assert project_notebook.action_button_policy == "safe-click"
     assert settings.pages == "SETTINGS"
     assert settings.apps_pages == "none"
     assert settings.runtime_isolation == "isolated"
@@ -193,6 +199,33 @@ def test_build_robot_command_covers_project_page(tmp_path) -> None:
     assert progress_path == tmp_path / "isolated-project-page.ndjson"
 
 
+def test_build_robot_command_covers_project_notebook_import_deep_link(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-notebook-import"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "PROJECT"
+    assert argv[argv.index("--apps-pages") + 1] == "none"
+    assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
+    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--route-query") + 1] == "start=notebook-import"
+    assert argv[argv.index("--screenshot-dir") + 1] == str(
+        tmp_path / "screenshots" / "isolated-project-notebook-import"
+    )
+    assert summary_path == tmp_path / "isolated-project-notebook-import.json"
+    assert progress_path == tmp_path / "isolated-project-notebook-import.ndjson"
+
+
 def test_build_robot_command_covers_settings_page(tmp_path) -> None:
     module = _load_module()
     scenario = module.DEFAULT_SCENARIOS["isolated-settings-page"]
@@ -280,16 +313,17 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "isolated-core-pages",
         "isolated-entry-and-app-pages",
         "isolated-project-page",
+        "isolated-project-notebook-import",
         "isolated-settings-page",
         "current-home-actions",
         "current-home-orchestrate-journey",
     ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 6
-    assert summary["page_count"] == 12
-    assert summary["widget_count"] == 30
-    assert summary["interacted_count"] == 18
-    assert summary["probed_count"] == 12
+    assert summary["scenario_count"] == 7
+    assert summary["page_count"] == 14
+    assert summary["widget_count"] == 35
+    assert summary["interacted_count"] == 21
+    assert summary["probed_count"] == 14
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
 
