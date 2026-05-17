@@ -584,6 +584,8 @@ jobs:
     env:
       PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
       PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
+      PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
+      PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
       PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
     steps:
       - name: Checkout repository
@@ -615,7 +617,6 @@ jobs:
             --repo pypi
             --protect-version "$current_version"
             --confirm-delete
-            --allow-delete-failure
             --json
             --github-step-summary "$GITHUB_STEP_SUMMARY"
           )

@@ -205,10 +205,13 @@ the current committed release version and deletes every older release for each
 selected project before GitHub release assets are published. This is a
 destructive PyPI web-management operation, separate from Trusted Publishing, so
 the workflow requires ``PYPI_RELEASE_PRUNE_USERNAME`` and
-``PYPI_RELEASE_PRUNE_PASSWORD`` repository secrets. If the current version is
-not visible on PyPI or old releases cannot be removed, the release must fail
-instead of publishing GitHub release assets or syncing the Hugging Face Space
-against a partially-retained package set.
+``PYPI_RELEASE_PRUNE_PASSWORD`` repository secrets. PyPI accounts with two-factor
+authentication also require non-interactive authentication through
+``PYPI_RELEASE_PRUNE_TOTP_SECRET``. ``PYPI_RELEASE_PRUNE_OTP`` exists only as a
+short-lived manual rerun fallback. If the current version is not visible on PyPI
+or old releases cannot be removed, the release must fail instead of publishing
+GitHub release assets or syncing the Hugging Face Space against a
+partially-retained package set.
 
 The required preflight is the place to catch synchronization drift. It should
 validate package metadata, internal pins, dependency-policy hygiene, docs mirror

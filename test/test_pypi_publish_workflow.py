@@ -232,11 +232,12 @@ def test_pypi_publish_prunes_previous_pypi_releases_before_release_assets() -> N
     assert "needs.pypi-provenance-evidence.result == 'success'" in text
     assert "PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}" in text
     assert "PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}" in text
+    assert "PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}" in text
+    assert "PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}" in text
     assert "PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
     assert "python -m pip install --upgrade --no-cache-dir packaging pypi-cleanup" in text
     assert "tools/pypi_release_retention.py" in text
     assert "--confirm-delete" in text
-    assert "--allow-delete-failure" in text
     assert "--protect-version \"$current_version\"" in text
     assert "needs.pypi-release-retention.result == 'success'" in text
     assert "      - pypi-release-retention" in text
