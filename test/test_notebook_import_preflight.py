@@ -2,13 +2,24 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
+import tomllib
 from pathlib import Path
 
 
 REPORT_PATH = Path("tools/notebook_import_preflight.py").resolve()
 CORE_PATH = Path("src/agilab/notebook_pipeline_import.py").resolve()
 SAMPLE_HELPER_PATH = Path("src/agilab/notebook_import_sample.py").resolve()
+PYPROJECT_PATH = Path("pyproject.toml").resolve()
+LAB_STAGE_SOURCES = {
+    "weather_forecast": Path(
+        "src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml"
+    ).resolve(),
+    "mission_decision": Path(
+        "src/agilab/apps/builtin/mission_decision_project/lab_stages.toml"
+    ).resolve(),
+}
 
 
 def _load_module(path: Path, name: str):
@@ -18,6 +29,21 @@ def _load_module(path: Path, name: str):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _normalize_project_name(raw: str) -> str:
+    name = raw.strip().lower()
+    name = re.sub(r"[^0-9a-z_]+", "_", name)
+    name = re.sub(r"_+", "_", name).strip("_")
+    return name if name.endswith("_project") else name + "_project"
+
+
+def _first_lab_stage_list(path: Path) -> list[dict[str, object]]:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    for value in data.values():
+        if isinstance(value, list):
+            return [stage for stage in value if isinstance(stage, dict)]
+    return []
 
 
 def _risky_notebook() -> dict[str, object]:
@@ -433,6 +459,76 @@ def test_packaged_notebook_import_sample_declares_first_proof_defaults() -> None
     assert "pd.read_csv(\"data/flights.csv\")" in preview[
         "flight_telemetry_from_notebook_project"
     ][1]["C"]
+
+
+def test_packaged_notebook_import_samples_create_equivalent_from_notebook_projects() -> None:
+    core_module = _load_module(
+        CORE_PATH,
+        "notebook_import_packaged_sample_catalog_core_module",
+    )
+    sample_module = _load_module(
+        SAMPLE_HELPER_PATH,
+        "notebook_import_packaged_sample_catalog_module",
+    )
+
+    expected_samples = {
+        "flight_telemetry": (
+            "flight_telemetry_project",
+            "flight_telemetry_from_notebook_project",
+        ),
+        "mycode": ("mycode_project", "mycode_from_notebook_project"),
+        "weather_forecast": (
+            "weather_forecast_project",
+            "weather_forecast_from_notebook_project",
+        ),
+        "mission_decision": (
+            "mission_decision_project",
+            "mission_decision_from_notebook_project",
+        ),
+    }
+    samples = sample_module.list_sample_notebooks()
+
+    assert [sample.sample_id for sample in samples] == list(expected_samples)
+    for sample in samples:
+        sample_path = sample_module.sample_notebook_path(sample.sample_id)
+        notebook = json.loads(
+            sample_module.read_sample_notebook_bytes(sample.sample_id).decode("utf-8")
+        )
+        defaults = core_module.extract_notebook_import_defaults(notebook)
+        module_name = _normalize_project_name(sample.project_name_hint)
+        imported = core_module.build_notebook_pipeline_import(
+            notebook=notebook,
+            source_notebook=sample.download_name,
+        )
+        preview = core_module.build_lab_stages_preview(imported, module_name=module_name)
+        stages = preview[module_name]
+
+        expected_template, expected_project = expected_samples[sample.sample_id]
+        assert sample_path.is_file()
+        assert sample.project_name_hint.endswith("-from-notebook-project")
+        assert defaults["recommended_template"] == expected_template
+        assert defaults["project_name_hint"] == sample.project_name_hint
+        assert module_name == expected_project
+        assert stages
+        assert all(stage["NB_SOURCE_NOTEBOOK"] == sample.download_name for stage in stages)
+        assert all(stage["NB_RUNTIME_ROLE"] == "manager" for stage in stages)
+        assert all(stage["R"] == "runpy" for stage in stages)
+        if sample.sample_id in LAB_STAGE_SOURCES:
+            source_stages = _first_lab_stage_list(LAB_STAGE_SOURCES[sample.sample_id])
+            assert [
+                (stage["D"], stage["Q"], stage["M"], stage["C"], stage["R"])
+                for stage in stages
+            ] == [
+                (stage["D"], stage["Q"], stage.get("M", ""), stage["C"], stage["R"])
+                for stage in source_stages
+            ]
+
+
+def test_packaged_notebook_import_samples_are_included_in_root_package_data() -> None:
+    config = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
+    package_data = config["tool"]["setuptools"]["package-data"]["agilab"]
+
+    assert "resources/notebook_import_samples/*.ipynb" in package_data
 
 
 def test_notebook_import_preflight_report_writes_contract(tmp_path: Path) -> None:
