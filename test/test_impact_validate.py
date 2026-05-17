@@ -56,6 +56,25 @@ def test_analyze_paths_adds_skill_sync_and_index_refresh() -> None:
     assert "tools/workflow_parity.py --profile skills" in parity.commands[0]
 
 
+def test_analyze_paths_keeps_skill_badges_out_of_coverage_badge_refresh() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(
+        [
+            ".claude/skills/agilab-ui-robot-validation/SKILL.md",
+            ".codex/skills/agilab-ui-robot-validation/SKILL.md",
+            "badges/skills-codex.svg",
+            "badges/skills-claude.svg",
+        ]
+    )
+
+    assert any(zone.key == "skills" for zone in report.risk_zones)
+    assert all(zone.key != "badges" for zone in report.risk_zones)
+    assert any(action.key == "workflow-parity-skills" for action in report.artifact_actions)
+    assert all(action.key != "badge-refresh" for action in report.artifact_actions)
+    assert all(action.key != "workflow-parity-badges" for action in report.artifact_actions)
+
+
 def test_analyze_paths_adds_badge_refresh_with_component_hint() -> None:
     module = _load_module()
 

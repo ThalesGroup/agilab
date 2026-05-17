@@ -20,6 +20,7 @@ canonical source can serve both agents.
 - `agilab-runbook`: Core repo runbook (uv, Streamlit, run configs, troubleshooting).
 - `agilab-installer`: Installer + apps/pages installation conventions and triage.
 - `agilab-streamlit-pages`: Streamlit session-state patterns and page authoring rules.
+- `agilab-ui-robot-validation`: Validate AGILAB Streamlit user journeys with the repo browser/widget robots.
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
 - `agilab-testing`: Test strategy and quick commands to validate changes.
 - `agilab-code-statistics`: Generate tracked-file LOC, language, file-count, and churn summaries without builds.
