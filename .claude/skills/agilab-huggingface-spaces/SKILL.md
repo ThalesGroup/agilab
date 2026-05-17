@@ -117,6 +117,16 @@ The current README advertises these Hugging Face secrets:
 
 When updating docs or deploy instructions, keep the wording aligned with the README and do not invent new required secrets unless the Space contract actually changed.
 
+For the GitHub release workflow, distinguish Hugging Face Space runtime secrets
+from repository automation secrets. `HF_TOKEN` is required by the AGILAB release
+workflow to upload and validate the Space, but it is not a Space runtime secret
+advertised to end users. Verify it with `gh secret list -R ThalesGroup/agilab`
+and set it without printing the token when needed:
+
+```bash
+hf auth token | gh secret set HF_TOKEN -R ThalesGroup/agilab
+```
+
 ## Deployment Workflow
 
 Use the documented flow:
@@ -176,6 +186,8 @@ Before touching the Space deployment, verify:
      a literal emoji such as `emoji: 🧪` rather than an emoji name like `lab_coat`
    - exposed port
    - secret names
+   - Space-card metadata, including a real pictographic `emoji:` value such as
+     `🧪` rather than a textual alias like `lab_coat`
    - anti-lock-in / runnable-notebook-export positioning
    - profile app/page lists
    - target repo content
@@ -183,8 +195,9 @@ Before touching the Space deployment, verify:
      `meteo_forecast_project`
 5. `src/agilab/apps` in the deploy source contains only public entries such as
    `builtin`, `templates`, `install.py`, and package metadata. If the working
-   checkout has ignored private app symlinks, deploy from a temporary clean
-   worktree at `origin/main` rather than from the dirty checkout.
+   checkout has ignored private app symlinks, unrelated dirty files, or local
+   release-experiment commits, deploy from a temporary clean worktree at
+   `origin/main` rather than from the dirty checkout.
    Also verify LFS-backed built-in assets are present in that clean worktree
    before staging the Space.
 6. Any public-facing AGILAB docs that link to the Space are updated only after the deployment contract is stable.
@@ -337,6 +350,41 @@ uv run pytest -q apps/test/test_hf_space_deploy_contract.py
 bash -n huggingface/hf_space_deploy.sh
 ```
 
+## Release Workflow Recovery
+
+The public release workflow uses `tools/hf_space_release_sync.py`, not the
+sibling shell deploy script, for the automated release job. If the release has
+already published PyPI packages and release assets but the HF job failed, recover
+from a clean public worktree at the intended `origin/main` commit:
+
+```bash
+tmpdir=$(mktemp -d /tmp/agilab-hf-public.XXXXXX)
+git worktree add --detach "$tmpdir" origin/main
+git -C "$tmpdir" lfs pull
+(
+  cd "$tmpdir"
+  HF_TOKEN="$(hf auth token)" \
+    uv --preview-features extra-build-dependencies run --python 3.13 \
+    python tools/hf_space_release_sync.py \
+    --repo-root "$tmpdir" \
+    --space <space-owner>/agilab \
+    --profile first-proof \
+    --dry-run \
+    --json
+  HF_TOKEN="$(hf auth token)" \
+    uv --preview-features extra-build-dependencies run --python 3.13 \
+    python tools/hf_space_release_sync.py \
+    --repo-root "$tmpdir" \
+    --space <space-owner>/agilab \
+    --profile first-proof \
+    --json
+)
+```
+
+Use the returned `hf_space_commit` for release proof. Do not remove the
+temporary worktree until runtime cutover, Space smoke, release proof refresh,
+and public docs verification have passed.
+
 If this deployment is part of a release, update release proof with the live
 Space commit after the package examples smoke and Space smoke pass, then sync
 and push both docs repos:
@@ -345,9 +393,12 @@ and push both docs repos:
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
   --docs-source ../thales_agilab/docs/source \
   --refresh-from-local \
+  --github-release-tag <tag> \
+  --github-release-url "https://github.com/ThalesGroup/agilab/releases/tag/<tag>" \
   --hf-space-commit <space-sha> \
   --render \
   --check \
+  --check-github-runs \
   --compact
 uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
   --source ../thales_agilab/docs/source \
@@ -369,12 +420,13 @@ PY
 Do not call the release fully synced until `runtime.stage` is `RUNNING`, the
 runtime SHA matches the uploaded Space SHA, `tools/hf_space_smoke.py --json`
 passes, release proof records that Space SHA, the docs index points at the
-current release tag, and the published docs page contains the new Space commit.
-Verify the last point against the published page, not only raw GitHub content:
+current release tag, the release-proof CI summaries do not mention stale tags,
+and the published docs page contains the new Space commit. Verify the last point
+against the published page, not only raw GitHub content:
 
 ```bash
 curl -fsSL https://thalesgroup.github.io/agilab/release-proof.html | \
-  rg '<space-sha>'
+  rg '<space-sha>|<tag>|old-tag-that-should-not-remain'
 ```
 
 ## When Editing the Space Contract

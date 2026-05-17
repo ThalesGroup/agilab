@@ -53,6 +53,10 @@ delivery.
 2. Define the artifact contract first.
    - Decide which files must survive the migration.
    - Prefer stable files such as CSV, Parquet, JSON, and PNG over notebook state.
+   - For executable worker stages, use the shared `ArtifactContract` inherited
+     by `BaseWorker` and `DagWorker`: call `record_artifact(...)`,
+     `record_metric(...)`, and `write_manifest(...)` instead of inventing
+     project-local manifest formats.
 
 3. Map the sequence into AGILAB.
    - `PROJECT`: args and dataset location
@@ -105,6 +109,10 @@ ANALYSIS notebook launcher:
   cells when the distinction changes generated project code. Preserve explicit
   cell metadata when present; otherwise review or ask cell-by-cell and tag the
   stage before generating project files.
+- Use `DagWorker` for dependency-ordered imported stages. Do not add a separate
+  artifact worker class just to capture outputs; `DagWorker` already inherits
+  `ArtifactContract`, so notebook-derived DAG stages can produce standard
+  artifact and metric manifests directly.
 - Keep the included-sample path separate from the user-upload path. Selecting
   the packaged sample should not require a browser file chooser; uploading a
   user notebook should still clear the packaged sample source.

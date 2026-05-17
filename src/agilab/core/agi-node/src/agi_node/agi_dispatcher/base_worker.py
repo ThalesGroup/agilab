@@ -55,6 +55,7 @@ from copy import deepcopy
 from agi_env import AgiEnv, normalize_path
 
 from agi_env.agi_logger import AgiLogger
+from agi_node.artifact_contract import ArtifactContract
 from . import base_worker_execution_support as execution_support
 from . import base_worker_path_support as path_support
 from . import base_worker_runtime_support as runtime_support
@@ -63,7 +64,7 @@ from . import base_worker_service_support as service_support
 logger = AgiLogger.get_logger(__name__)
 
 warnings.filterwarnings("ignore")
-class BaseWorker(abc.ABC):
+class BaseWorker(ArtifactContract, abc.ABC):
     """
     class BaseWorker v1.0
     """

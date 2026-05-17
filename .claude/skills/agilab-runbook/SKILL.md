@@ -109,6 +109,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   the dataframe schema, and AGILAB converts it into deterministic pandas code. Treat raw Python
   generation as explicit advanced mode; reserve process/container/VM sandbox guidance for raw
   Python execution, untrusted apps, or shared sensitive deployments, not the normal lightweight path.
+- **Worker artifact evidence**: do not create a new worker subclass just to record outputs.
+  `BaseWorker` exposes the shared artifact contract, so `DagWorker`, `PandasWorker`, `PolarsWorker`,
+  and app workers can call `record_artifact(...)`, `record_metric(...)`, and `write_manifest(...)`
+  to produce standard worker evidence without adding dataframe or UI dependencies.
 - **Skill placement guardrail**: repo-managed skills under `.claude/skills/` and `.codex/skills/`
   must stay AGILAB-specific, cross-repo reusable for AGILAB work, or directly support this
   repository’s workflows. Personal skills or skills for non-AGILAB domains belong in
