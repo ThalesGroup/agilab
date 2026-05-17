@@ -963,6 +963,76 @@ def _related_page_manifest_records(metadata: Mapping[str, Any]) -> list[dict[str
     return records
 
 
+def _path_kind(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return "missing"
+    if Path(text).is_absolute() or (len(text) >= 3 and text[1] == ":" and text[2] in {"\\", "/"}):
+        return "absolute"
+    return "relative"
+
+
+def build_notebook_export_portability_review(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    """Return an honest portability review for a notebook export handoff."""
+    path_fields = [
+        ("notebook", manifest.get("notebook_path")),
+        ("manifest", manifest.get("manifest_path")),
+        ("handoff", manifest.get("handoff_path")),
+        ("artifact_dir", manifest.get("artifact_dir")),
+        ("active_app", manifest.get("active_app")),
+        ("stages_file", manifest.get("stages_file")),
+        ("mirror", manifest.get("mirror_path")),
+        ("sitecustomize", manifest.get("sitecustomize_path")),
+    ]
+    paths = [
+        {"label": label, "path": str(path or ""), "kind": _path_kind(path)}
+        for label, path in path_fields
+        if str(path or "").strip()
+    ]
+    stages = manifest.get("stages", [])
+    stage_records = [stage for stage in stages if isinstance(stage, Mapping)] if isinstance(stages, list) else []
+    worker_stage_count = sum(
+        1
+        for stage in stage_records
+        if str(stage.get("runtime_role", "") or "") == "worker"
+        or str(stage.get("runtime", "") or "") in {"agi", "agi.run"}
+    )
+    env_path_count = sum(1 for stage in stage_records if str(stage.get("env", "") or "").strip())
+    absolute_path_count = sum(1 for path in paths if path["kind"] == "absolute")
+    related_page_count = int(manifest.get("related_page_count", 0) or 0)
+
+    actions = ["Run `validate_agilab_export()` after moving or editing the notebook."]
+    if str(manifest.get("active_app", "") or "").strip():
+        actions.append("Keep or reinstall the active app root before replaying AGILAB runner cells.")
+    if worker_stage_count:
+        actions.append("Worker stages still need AGILAB runtime access, or must be rewritten as local notebook code.")
+    if env_path_count:
+        actions.append("Check recorded stage environment paths before executing on another machine.")
+    if absolute_path_count:
+        actions.append("Update absolute paths if the export is shared outside this workstation.")
+    if related_page_count:
+        actions.append("Recreate expected artifacts before opening related analysis pages.")
+
+    project_bound = bool(worker_stage_count or env_path_count or str(manifest.get("active_app", "") or "").strip())
+    level = "project-bound" if project_bound else "notebook-local"
+    summary = (
+        "Project-bound export: the notebook is runnable, but AGILAB app/runtime paths remain part of the contract."
+        if project_bound
+        else "Notebook-local export: no AGILAB worker/runtime path was recorded, but validation is still required."
+    )
+    return {
+        "schema": "agilab.notebook_export_portability.v1",
+        "level": level,
+        "summary": summary,
+        "absolute_path_count": absolute_path_count,
+        "worker_stage_count": worker_stage_count,
+        "env_path_count": env_path_count,
+        "related_page_count": related_page_count,
+        "paths": paths,
+        "actions": actions,
+    }
+
+
 def build_notebook_export_manifest(
     notebook_data: Mapping[str, Any],
     notebook_path: str | Path,
@@ -976,7 +1046,7 @@ def build_notebook_export_manifest(
     cells = _notebook_cells(notebook_data)
     stages = metadata.get("stages", [])
     related_pages = metadata.get("related_pages", [])
-    return {
+    manifest = {
         "schema": NOTEBOOK_EXPORT_MANIFEST_SCHEMA,
         "version": NOTEBOOK_EXPORT_SCHEMA_VERSION,
         "notebook_path": str(Path(notebook_path)),
@@ -1001,6 +1071,8 @@ def build_notebook_export_manifest(
         "stage_source_hashes": _stage_source_hashes(metadata),
         "stage_cells": _stage_cell_manifest_records(notebook_data),
     }
+    manifest["portability_review"] = build_notebook_export_portability_review(manifest)
+    return manifest
 
 
 def _markdown_code(value: Any) -> str:
@@ -1016,6 +1088,9 @@ def build_notebook_export_handoff_markdown(manifest: Mapping[str, Any]) -> str:
     stages = [stage for stage in stage_records if isinstance(stage, Mapping)] if isinstance(stage_records, list) else []
     pages = manifest.get("related_pages", [])
     related_pages = [page for page in pages if isinstance(page, Mapping)] if isinstance(pages, list) else []
+    portability_review = manifest.get("portability_review", {})
+    if not isinstance(portability_review, Mapping) or not portability_review:
+        portability_review = build_notebook_export_portability_review(manifest)
 
     quoted_notebook_path = shlex.quote(notebook_path)
     open_prefix = "uv run"
@@ -1062,11 +1137,28 @@ def build_notebook_export_handoff_markdown(manifest: Mapping[str, Any]) -> str:
         f"- Notebook SHA-256: `{manifest.get('notebook_sha256', '')}`",
         "- Handoff SHA-256: recorded in the manifest field `handoff_sha256`.",
         "",
+        "## Portability Review",
+        "",
+        f"- Status: **{portability_review.get('level', 'unknown')}**",
+        f"- Critic note: {portability_review.get('summary', 'Run validation before trusting this export.')}",
+        f"- Absolute paths: {int(portability_review.get('absolute_path_count', 0) or 0)}",
+        f"- Worker/runtime stages: {int(portability_review.get('worker_stage_count', 0) or 0)}",
+        f"- Recorded stage environments: {int(portability_review.get('env_path_count', 0) or 0)}",
+        "",
+        "Recommended checks:",
+    ]
+    actions = portability_review.get("actions", [])
+    if isinstance(actions, list) and actions:
+        lines.extend(f"- {action}" for action in actions if str(action or "").strip())
+    else:
+        lines.append("- Run `validate_agilab_export()` before executing workflow code.")
+    lines.extend([
+        "",
         "## Stages",
         "",
         "| Stage | Role | Runtime | Source hash | Description |",
         "|---:|---|---|---|---|",
-    ]
+    ])
     if stages:
         for stage in stages:
             description = str(stage.get("description", "") or "").replace("|", "\\|")
@@ -1531,6 +1623,29 @@ def _helper_cell(payload: dict[str, Any]) -> str:
         def export_handoff_markdown():
             stages = AGILAB_NOTEBOOK_EXPORT.get("stages", [])
             related_pages = AGILAB_NOTEBOOK_EXPORT.get("related_pages", [])
+            worker_stage_count = 0
+            env_path_count = 0
+            if isinstance(stages, list):
+                for stage in stages:
+                    if not isinstance(stage, dict):
+                        continue
+                    runtime = str(stage.get("runtime") or "")
+                    role = "worker" if runtime in {{"agi.run", "agi"}} else "manager"
+                    if role == "worker":
+                        worker_stage_count += 1
+                    if str(stage.get("env") or "").strip():
+                        env_path_count += 1
+            project_bound = bool(
+                worker_stage_count
+                or env_path_count
+                or str(AGILAB_NOTEBOOK_EXPORT.get("active_app") or "").strip()
+            )
+            portability_status = "project-bound" if project_bound else "notebook-local"
+            portability_note = (
+                "The notebook is runnable, but AGILAB app/runtime paths remain part of the contract."
+                if project_bound
+                else "No AGILAB worker/runtime path was recorded, but validation is still required."
+            )
             lines = [
                 "# AGILAB notebook handoff: " + str(AGILAB_NOTEBOOK_EXPORT.get("project_name") or "AGILAB project"),
                 "",
@@ -1548,6 +1663,14 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 "- Artifact directory: `" + str(AGILAB_NOTEBOOK_EXPORT.get("artifact_dir") or "(not set)") + "`",
                 "- Active app root: `" + str(AGILAB_NOTEBOOK_EXPORT.get("active_app") or "(not set)") + "`",
                 "- Stages file: `" + str(AGILAB_NOTEBOOK_EXPORT.get("stages_file") or "(not set)") + "`",
+                "",
+                "## Portability Review",
+                "",
+                "- Status: **" + portability_status + "**",
+                "- Critic note: " + portability_note,
+                "- Worker/runtime stages: " + str(worker_stage_count),
+                "- Recorded stage environments: " + str(env_path_count),
+                "- Recommended check: run validate_agilab_export() after moving or editing the notebook.",
                 "",
                 "## Stages",
                 "",
