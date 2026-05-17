@@ -92,6 +92,24 @@ def build_plan(package: str, repo: str, protect_version: str) -> ReleasePlan:
     )
 
 
+def wait_for_protected_releases(
+    *,
+    packages: Sequence[str],
+    repo: str,
+    protect_version: str,
+    attempts: int,
+    retry_delay: float,
+) -> list[ReleasePlan]:
+    latest: list[ReleasePlan] = []
+    for attempt in range(1, max(1, attempts) + 1):
+        latest = [build_plan(package, repo, protect_version) for package in packages]
+        if all(not plan.missing_protected_version for plan in latest):
+            return latest
+        if attempt < attempts:
+            time.sleep(max(0.0, retry_delay))
+    return latest
+
+
 def require_credentials(username: str | None, password: str | None) -> tuple[str, str]:
     user = (username or os.environ.get("PYPI_RELEASE_PRUNE_USERNAME") or "").strip()
     secret = (password or os.environ.get("PYPI_RELEASE_PRUNE_PASSWORD") or "").strip()
@@ -251,7 +269,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("ERROR: at least one --package or --packages value is required")
     protect_version = normalize_version(args.protect_version)
 
-    plans = [build_plan(package, args.repo, protect_version) for package in packages]
+    plans = wait_for_protected_releases(
+        packages=packages,
+        repo=args.repo,
+        protect_version=protect_version,
+        attempts=args.verify_attempts,
+        retry_delay=args.retry_delay,
+    )
     missing = [plan.package for plan in plans if plan.missing_protected_version]
     if missing:
         raise SystemExit(

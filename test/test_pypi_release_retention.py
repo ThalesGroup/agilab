@@ -51,6 +51,37 @@ def test_main_refuses_to_delete_without_confirmation(monkeypatch, capsys) -> Non
     assert capsys.readouterr().out == ""
 
 
+def test_main_retries_until_protected_release_is_visible(monkeypatch, capsys) -> None:
+    module = _load_module()
+    calls = 0
+
+    def fake_fetch_releases(package, repo):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return ["2026.04.16"]
+        return ["2026.04.16", "2026.05.17"]
+
+    monkeypatch.setattr(module, "fetch_releases", fake_fetch_releases)
+
+    status = module.main(
+        [
+            "--package",
+            "agilab",
+            "--protect-version",
+            "2026.05.17",
+            "--dry-run",
+            "--json",
+            "--retry-delay",
+            "0",
+        ]
+    )
+
+    assert status == 0
+    assert calls == 2
+    assert '"missing_protected_version": false' in capsys.readouterr().out
+
+
 def test_main_requires_web_cleanup_credentials_for_deletion(monkeypatch) -> None:
     module = _load_module()
 
@@ -114,4 +145,13 @@ def test_main_rejects_missing_protected_release(monkeypatch) -> None:
     monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.04.16"])
 
     with pytest.raises(SystemExit, match="protected version 2026.5.17 is not visible"):
-        module.main(["--package", "agilab", "--protect-version", "2026.05.17"])
+        module.main(
+            [
+                "--package",
+                "agilab",
+                "--protect-version",
+                "2026.05.17",
+                "--verify-attempts",
+                "1",
+            ]
+        )
