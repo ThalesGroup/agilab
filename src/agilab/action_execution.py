@@ -6,6 +6,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from agilab.runtime_failure_diagnostics import classify_runtime_failure
+
 ActionStatus = Literal["success", "warning", "error", "info"]
 
 
@@ -98,10 +100,12 @@ def run_streamlit_action(
         with streamlit.spinner(spec.start_message):
             result = action()
     except Exception as exc:
+        diagnostic = classify_runtime_failure(str(exc), phase=spec.name)
         result = ActionResult.error(
-            spec.failure_title or f"{spec.name} failed.",
-            detail=str(exc),
-            next_action=spec.failure_next_action,
+            spec.failure_title or (diagnostic.title if diagnostic else f"{spec.name} failed."),
+            detail=diagnostic.detail if diagnostic else str(exc),
+            next_action=spec.failure_next_action or (diagnostic.next_action if diagnostic else None),
+            data={"failure_category": diagnostic.category} if diagnostic else {},
         )
 
     render_action_result(streamlit, result)

@@ -808,6 +808,9 @@ def test_log_indicates_install_failure():
     assert orchestrate_page_support.log_indicates_install_failure(
         ["worker deploy failed: Process exited with non-zero exit status 2"]
     )
+    assert orchestrate_page_support.log_indicates_install_failure(
+        ["Failed to extract '/tmp/dataset.7z': not a 7z file"]
+    )
     assert not orchestrate_page_support.log_indicates_install_failure([])
 
 

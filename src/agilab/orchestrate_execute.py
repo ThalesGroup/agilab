@@ -64,6 +64,14 @@ _import_guard_module = importlib.util.module_from_spec(_import_guard_spec)
 _import_guard_spec.loader.exec_module(_import_guard_module)
 import_agilab_module = _import_guard_module.import_agilab_module
 
+_runtime_failure_diagnostics = import_agilab_module(
+    "agilab.runtime_failure_diagnostics",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parent / "runtime_failure_diagnostics.py",
+    fallback_name="agilab_runtime_failure_diagnostics_fallback",
+)
+classify_runtime_failure = _runtime_failure_diagnostics.classify_runtime_failure
+
 _orchestrate_page_state = import_agilab_module(
     "agilab.orchestrate_page_state",
     current_file=__file__,
@@ -448,7 +456,15 @@ async def render_execute_section(
             log_placeholder.empty()
             log_body = st.session_state["run_log_cache"]
             if run_error is not None or fatal_stderr:
+                diagnostic = classify_runtime_failure(
+                    "\n".join(str(item) for item in (log_body, stderr)),
+                    phase="execute",
+                )
                 st.error("AGI execution failed.")
+                if diagnostic is not None:
+                    st.info(diagnostic.title)
+                    st.info(diagnostic.detail)
+                    st.info(f"Next: {diagnostic.next_action}")
                 if log_body:
                     st.caption("Full run diagnostic")
                     st.code(log_body, language="text")

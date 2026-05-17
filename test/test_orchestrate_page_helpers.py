@@ -1480,6 +1480,36 @@ async def test_install_worker_action_reports_log_detected_failure(tmp_path: Path
 
 
 @pytest.mark.asyncio
+async def test_install_worker_action_classifies_corrupted_dataset_archive(tmp_path: Path):
+    module = _load_orchestrate_module()
+    local_log: list[str] = []
+
+    async def _run_agi(_cmd, log_callback=None, venv=None):
+        log_callback("agilab.data_archive_support.unzip_data Failed to extract '/tmp/dataset.7z': not a 7z file")
+        log_callback("py7zr.exceptions.Bad7zFile: not a 7z file")
+        return "", ""
+
+    env = SimpleNamespace(run_agi=_run_agi)
+
+    result = await module._install_worker_action(
+        env,
+        install_command="install command",
+        venv=tmp_path,
+        local_log=local_log,
+    )
+
+    assert result.status == "error"
+    assert result.title == "Dataset archive is invalid."
+    assert result.detail == (
+        "dataset.7z could not be extracted. The archive is missing, truncated, "
+        "or not a valid .7z dataset archive."
+    )
+    assert result.data["failure_category"] == "archive"
+    assert "rerun INSTALL" in str(result.next_action)
+    assert "not a 7z file" not in str((result.title, result.detail, result.next_action))
+
+
+@pytest.mark.asyncio
 async def test_install_worker_action_reports_run_exception(tmp_path: Path):
     module = _load_orchestrate_module()
     local_log: list[str] = []

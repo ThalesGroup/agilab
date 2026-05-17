@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +12,16 @@ SPEC = importlib.util.spec_from_file_location("agilab_runtime_diagnostics_test",
 assert SPEC and SPEC.loader
 runtime_diagnostics = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runtime_diagnostics)
+
+FAILURE_MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "runtime_failure_diagnostics.py"
+FAILURE_SPEC = importlib.util.spec_from_file_location(
+    "agilab_runtime_failure_diagnostics_test",
+    FAILURE_MODULE_PATH,
+)
+assert FAILURE_SPEC and FAILURE_SPEC.loader
+runtime_failure_diagnostics = importlib.util.module_from_spec(FAILURE_SPEC)
+sys.modules[FAILURE_SPEC.name] = runtime_failure_diagnostics
+FAILURE_SPEC.loader.exec_module(runtime_failure_diagnostics)
 
 
 def test_diagnostics_verbose_mapping_is_user_facing_and_bounded() -> None:
@@ -157,3 +168,39 @@ def test_settings_file_helpers_handle_empty_missing_and_malformed_paths(tmp_path
 
     assert persisted == {"cluster": {"verbose": 0}}
     assert tomllib.loads(new_settings.read_text(encoding="utf-8")) == persisted
+
+
+def test_classify_runtime_failure_reports_invalid_dataset_archive() -> None:
+    diagnostic = runtime_failure_diagnostics.classify_runtime_failure(
+        "agilab.data_archive_support.unzip_data Failed to extract "
+        "'/tmp/app/src/worker/dataset.7z': not a 7z file\n"
+        "py7zr.exceptions.Bad7zFile: not a 7z file",
+        phase="install",
+    )
+
+    assert diagnostic is not None
+    assert diagnostic.category == "archive"
+    assert diagnostic.title == "Dataset archive is invalid."
+    assert "dataset.7z could not be extracted" in diagnostic.detail
+    assert "rerun INSTALL" in diagnostic.next_action
+
+
+def test_classify_runtime_failure_reports_dependency_and_scheduler() -> None:
+    dependency = runtime_failure_diagnostics.classify_runtime_failure(
+        "ModuleNotFoundError: No module named 'polars_worker'"
+    )
+    scheduler = runtime_failure_diagnostics.classify_runtime_failure(
+        "ConnectionError: scheduler host is invalid",
+        phase="execute",
+    )
+
+    assert dependency is not None
+    assert dependency.category == "dependency"
+    assert "`polars_worker`" in dependency.detail
+    assert scheduler is not None
+    assert scheduler.category == "scheduler"
+    assert "execute action" in scheduler.detail
+
+
+def test_classify_runtime_failure_returns_none_for_unknown_text() -> None:
+    assert runtime_failure_diagnostics.classify_runtime_failure("Command failed with exit code 1") is None
