@@ -127,13 +127,12 @@ rather than shown as one of the workflow pages.
      - Includes unvalidated candidate snippets in retrieval when set to a
        truthy value. Leave disabled for normal use so only validated or executed
        recipes influence generation.
-   * - ``AGI_SHARE_DIR``
+   * - ``AGI_CLUSTER_SHARE``
      - ``clustershare/<user>`` (resolved under ``$HOME`` if relative).
      - User-facing knob for the shared datasets/outputs root. Prefer the relative
        user-scoped form so mixed macOS/Linux/Windows nodes can resolve it under
-       their own home directory. When cluster mode is enabled, this value is
-       applied to ``AGI_CLUSTER_SHARE``; ORCHESTRATE and remote deployment
-       re-root home-based absolute paths such as ``/Users/<user>/...`` or
+       their own home directory. ORCHESTRATE and remote deployment re-root
+       home-based absolute paths such as ``/Users/<user>/...`` or
        ``C:\Users\<user>\...`` to the portable suffix before writing worker
        settings. Operators can still override it with an explicit mounted path
        such as ``/mnt/agilab`` when the same mount point exists on every node.
