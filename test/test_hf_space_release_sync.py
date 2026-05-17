@@ -33,3 +33,9 @@ def test_parse_upload_commit_url() -> None:
         "0123456789abcdef0123456789abcdef01234567"
     ) == "0123456789abcdef0123456789abcdef01234567"
 
+
+def test_generated_space_readme_uses_valid_hf_emoji_metadata() -> None:
+    module = _load_module()
+
+    assert "emoji: 🧪" in module.README_TEMPLATE
+    assert "emoji: lab_coat" not in module.README_TEMPLATE
