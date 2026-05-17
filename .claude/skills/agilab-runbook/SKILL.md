@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-05-16
+  updated: 2026-05-17
 ---
 
 # AGILab runbook (Agent Skill)
@@ -160,6 +160,15 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run streamlit run src/agilab/main_page.py -- --openai-api-key "…" --apps-path src/agilab/apps`
 - Apps-pages smoke: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/smoke_preinit.py --active-app src/agilab/apps/builtin/flight_project --timeout 20`
 - Apps-pages regression (AppTest): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
+- First-adoption handoff:
+  - run `agilab first-proof --json --with-ui` or the equivalent source command
+    to create `~/log/execute/flight_telemetry/run_manifest.json`
+  - run `agilab adoption-report` for the human checkpoint, or
+    `agilab adoption-report --json --strict` for automation
+  - treat `safe_to_expand=true` as permission to try the next demo/notebook lane,
+    not as production, shared-workstation, secrets, public-exposure, or cluster approval
+  - for team handoff, keep the manifest, exported `notebooks/lab_stages.ipynb`,
+    compatibility-report output, and redacted strict security-check output together
 - Publish dry-run (TestPyPI): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo testpypi --dry-run --verbose`
 - Publish to PyPI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/pypi_publish.py --repo pypi --verbose --git-tag --git-commit-version --git-reset-on-failure`
   - Real PyPI publishes now require the GitHub CLI (`gh`) because `tools/pypi_publish.py` creates or updates the matching GitHub Release after pushing the tag.
@@ -167,12 +176,21 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - On publish retries, the top-level `agilab` artifact may already exist while split runtime/app/page packages still need publication. Let the preflight/release plan decide what remains instead of checking only the root package.
   - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
   - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.
+  - PyPI "confirmed device" state is browser/account state, not a CLI or macOS-wide setting.
+    For web cleanup flows, log into `https://pypi.org/` from a normal browser profile on the
+    maintainer machine, keep PyPI cookies/site data, and add the Mac Touch ID/passkey under
+    PyPI account two-factor security-device settings if needed. Do not commit passwords,
+    recovery codes, cookies, browser profiles, or PyPI session material.
 
 ## CI and badge checks
 
 - Prefer local reproduction before rerunning workflows:
   - if a failing step has a local command equivalent, run that first and fix locally
   - only rerun a workflow after the local equivalent is green or when the issue is GitHub-specific
+- If a workflow is `cancelled`, fetch and compare the cancelled run head SHA with current
+  `origin/main` before debugging. A newer push often supersedes coverage on `main`; follow
+  the current head's run instead of fixing a cancelled predecessor unless the same failure
+  reproduces on the latest head.
 - CI badge is pinned to `main`:
   - `https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main`
 - When checking recent workflow state, prefer the GitHub Actions runs API:
@@ -243,6 +261,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - `pytest-asyncio`
 - Coverage combine/XML generation should use an isolated coverage toolchain too:
   - `uv --preview-features extra-build-dependencies run --no-project --with coverage --with pytest-cov python -m coverage ...`
+- Internal package exact-pin tests must account for valid environment markers. If an app
+  package raises its Python floor, keep the umbrella dependency marker such as
+  `; python_version >= '3.13'` instead of downgrading the app or broadening unsupported
+  Python versions. Tests should parse requirements or compare the unmarked exact pin plus
+  marker validity, not raw strings only.
 
 ## Troubleshooting reminders
 
