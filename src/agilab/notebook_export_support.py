@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ast
+import hashlib
 import json
 import os
+import shlex
 import sys
 import textwrap
 from dataclasses import asdict, dataclass
@@ -19,6 +22,8 @@ DEFAULT_NOTEBOOK_EXPORT_MODE = "supervisor"
 NOTEBOOK_EXPORT_SCHEMA = "agilab.notebook_export.v1"
 NOTEBOOK_EXPORT_SCHEMA_VERSION = 1
 NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA = "agilab.notebook_export.stage_cell.v1"
+NOTEBOOK_EXPORT_MANIFEST_SCHEMA = "agilab.notebook_export_manifest.v1"
+NOTEBOOK_EXPORT_HANDOFF_SCHEMA = "agilab.notebook_export_handoff.v1"
 PYCHARM_NOTEBOOK_MIRROR_ROOT = "exported_notebooks"
 PROJECT_NOTEBOOK_MIRROR_DIR = "notebooks"
 ALLOW_WORKSPACE_SIBLING_APPS_ENV = "AGILAB_NOTEBOOK_EXPORT_ALLOW_WORKSPACE_SIBLINGS"
@@ -754,21 +759,487 @@ def _stage_records(toml_data: Dict[str, Any]) -> list[dict[str, Any]]:
     return records
 
 
-def _markdown_cell(text: str) -> dict[str, Any]:
-    return {
+def _cell_id(*parts: Any) -> str:
+    raw = "-".join(str(part or "").strip().lower() for part in parts if str(part or "").strip())
+    normalized = "".join(char if char.isalnum() else "-" for char in raw)
+    normalized = "-".join(part for part in normalized.split("-") if part)
+    return (normalized or "agilab-cell")[:64]
+
+
+def _with_cell_id(cell: dict[str, Any], cell_id: str | None) -> dict[str, Any]:
+    if cell_id:
+        cell["id"] = cell_id
+    return cell
+
+
+def _markdown_cell(text: str, *, cell_id: str | None = None) -> dict[str, Any]:
+    return _with_cell_id({
         "cell_type": "markdown",
         "metadata": {},
         "source": [line if line.endswith("\n") else line + "\n" for line in text.splitlines()],
-    }
+    }, cell_id)
 
 
-def _code_cell(code: str, *, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
-    return {
+def _code_cell(
+    code: str,
+    *,
+    metadata: Mapping[str, Any] | None = None,
+    cell_id: str | None = None,
+) -> dict[str, Any]:
+    return _with_cell_id({
         "cell_type": "code",
         "execution_count": None,
         "metadata": dict(metadata or {}),
         "outputs": [],
         "source": code.splitlines(keepends=True),
+    }, cell_id)
+
+
+def notebook_export_manifest_path(notebook_path: str | Path) -> Path:
+    path = Path(notebook_path)
+    return path.with_suffix(".notebook_export.json")
+
+
+def notebook_export_handoff_path(notebook_path: str | Path) -> Path:
+    path = Path(notebook_path)
+    return path.with_suffix(".notebook_export.md")
+
+
+def notebook_export_json_text(payload: Mapping[str, Any]) -> str:
+    return json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
+
+
+def notebook_export_sha256(payload: Mapping[str, Any]) -> str:
+    return hashlib.sha256(notebook_export_json_text(payload).encode("utf-8")).hexdigest()
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _notebook_agilab_metadata(notebook_data: Mapping[str, Any]) -> Mapping[str, Any]:
+    metadata = notebook_data.get("metadata", {})
+    if not isinstance(metadata, Mapping):
+        return {}
+    agilab_metadata = metadata.get("agilab", {})
+    return agilab_metadata if isinstance(agilab_metadata, Mapping) else {}
+
+
+def _notebook_cells(notebook_data: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    cells = notebook_data.get("cells", [])
+    if not isinstance(cells, list):
+        return []
+    return [cell for cell in cells if isinstance(cell, Mapping)]
+
+
+def _stage_cell_manifest_records(notebook_data: Mapping[str, Any]) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for index, cell in enumerate(_notebook_cells(notebook_data)):
+        metadata = cell.get("metadata", {})
+        if not isinstance(metadata, Mapping):
+            continue
+        agilab_metadata = metadata.get("agilab", {})
+        if not isinstance(agilab_metadata, Mapping):
+            continue
+        stage_cell = agilab_metadata.get("stage_cell", {})
+        if not isinstance(stage_cell, Mapping) or not stage_cell:
+            continue
+        records.append(
+            {
+                "cell_index": index,
+                "cell_id": str(cell.get("id", "") or ""),
+                "kind": str(stage_cell.get("kind", "") or ""),
+                "stage_index": stage_cell.get("stage_index"),
+                "stage_id": str(stage_cell.get("stage_id", "") or ""),
+                "module": str(stage_cell.get("module", "") or ""),
+                "module_index": stage_cell.get("module_index"),
+                "runtime": str(stage_cell.get("runtime", "") or ""),
+                "runtime_role": str(stage_cell.get("runtime_role", "") or agilab_metadata.get("runtime_role", "") or ""),
+                "env": str(stage_cell.get("env", "") or ""),
+            }
+        )
+    return records
+
+
+def _cell_source_text(cell: Mapping[str, Any]) -> str:
+    source = cell.get("source", [])
+    if isinstance(source, str):
+        return source
+    if isinstance(source, Iterable):
+        return "".join(str(line) for line in source)
+    return str(source or "")
+
+
+def _extract_stage_source_from_exported_cell(cell: Mapping[str, Any], stage_index: int) -> str:
+    source_text = _cell_source_text(cell)
+    variable_name = f"STAGE_{stage_index:03d}_CODE"
+    try:
+        tree = ast.parse(source_text or "")
+    except SyntaxError:
+        return source_text
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name) or target.id != variable_name:
+            continue
+        try:
+            value = ast.literal_eval(node.value)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(value, str):
+            return value
+    return source_text
+
+
+def _stage_source_hashes(metadata: Mapping[str, Any]) -> list[dict[str, Any]]:
+    stages = metadata.get("stages", [])
+    if not isinstance(stages, list):
+        return []
+    records: list[dict[str, Any]] = []
+    for offset, stage in enumerate(stage for stage in stages if isinstance(stage, Mapping)):
+        stage_index = int(stage.get("index", offset) or 0)
+        source = str(stage.get("code", "") or "")
+        records.append(
+            {
+                "stage_index": stage_index,
+                "stage_id": f"supervisor-stage-{stage_index + 1}",
+                "module": str(stage.get("module", "") or ""),
+                "module_index": stage.get("module_index"),
+                "source_sha256": _sha256_text(source),
+                "source_hash": _sha256_text(source)[:16],
+                "runtime": str(stage.get("runtime", "") or ""),
+                "runtime_role": _runtime_role_from_engine(stage.get("runtime", "")),
+            }
+        )
+    return records
+
+
+def _stage_manifest_records(metadata: Mapping[str, Any]) -> list[dict[str, Any]]:
+    stages = metadata.get("stages", [])
+    if not isinstance(stages, list):
+        return []
+    records: list[dict[str, Any]] = []
+    for offset, stage in enumerate(stage for stage in stages if isinstance(stage, Mapping)):
+        stage_index = int(stage.get("index", offset) or 0)
+        runtime = str(stage.get("runtime", "") or "")
+        records.append(
+            {
+                "stage_index": stage_index,
+                "stage_id": f"supervisor-stage-{stage_index + 1}",
+                "module": str(stage.get("module", "") or ""),
+                "module_index": stage.get("module_index"),
+                "description": str(stage.get("description", "") or ""),
+                "question": str(stage.get("question", "") or ""),
+                "model": str(stage.get("model", "") or ""),
+                "runtime": runtime,
+                "runtime_role": _runtime_role_from_engine(runtime),
+                "env": str(stage.get("env", "") or ""),
+                "source_hash": _sha256_text(str(stage.get("code", "") or ""))[:16],
+            }
+        )
+    return records
+
+
+def _related_page_manifest_records(metadata: Mapping[str, Any]) -> list[dict[str, Any]]:
+    pages = metadata.get("related_pages", [])
+    if not isinstance(pages, list):
+        return []
+    records: list[dict[str, Any]] = []
+    for page in (page for page in pages if isinstance(page, Mapping)):
+        records.append(
+            {
+                "module": str(page.get("module", "") or ""),
+                "label": str(page.get("label", "") or ""),
+                "description": str(page.get("description", "") or ""),
+                "artifacts": [str(item) for item in page.get("artifacts", []) if str(item or "").strip()]
+                if isinstance(page.get("artifacts", []), list)
+                else [],
+                "launch_note": str(page.get("launch_note", "") or ""),
+                "script_path": str(page.get("script_path", "") or ""),
+                "inline_renderer": str(page.get("inline_renderer", "") or ""),
+            }
+        )
+    return records
+
+
+def build_notebook_export_manifest(
+    notebook_data: Mapping[str, Any],
+    notebook_path: str | Path,
+    *,
+    mirror_path: str | Path | None = None,
+    sitecustomize_path: str | Path | None = None,
+    handoff_path: str | Path | None = None,
+    handoff_sha256: str = "",
+) -> dict[str, Any]:
+    metadata = _notebook_agilab_metadata(notebook_data)
+    cells = _notebook_cells(notebook_data)
+    stages = metadata.get("stages", [])
+    related_pages = metadata.get("related_pages", [])
+    return {
+        "schema": NOTEBOOK_EXPORT_MANIFEST_SCHEMA,
+        "version": NOTEBOOK_EXPORT_SCHEMA_VERSION,
+        "notebook_path": str(Path(notebook_path)),
+        "manifest_path": str(notebook_export_manifest_path(notebook_path)),
+        "handoff_path": str(Path(handoff_path)) if handoff_path else str(notebook_export_handoff_path(notebook_path)),
+        "handoff_sha256": str(handoff_sha256 or ""),
+        "mirror_path": str(Path(mirror_path)) if mirror_path else "",
+        "sitecustomize_path": str(Path(sitecustomize_path)) if sitecustomize_path else "",
+        "project_name": str(metadata.get("project_name", "") or ""),
+        "module_path": str(metadata.get("module_path", "") or ""),
+        "artifact_dir": str(metadata.get("artifact_dir", "") or ""),
+        "active_app": str(metadata.get("active_app", "") or ""),
+        "stages_file": str(metadata.get("stages_file", "") or ""),
+        "export_mode": str(metadata.get("export_mode", "") or ""),
+        "stage_count": len(stages) if isinstance(stages, list) else 0,
+        "related_page_count": len(related_pages) if isinstance(related_pages, list) else 0,
+        "cell_count": len(cells),
+        "cell_ids": [str(cell.get("id", "") or "") for cell in cells],
+        "notebook_sha256": notebook_export_sha256(notebook_data),
+        "stages": _stage_manifest_records(metadata),
+        "related_pages": _related_page_manifest_records(metadata),
+        "stage_source_hashes": _stage_source_hashes(metadata),
+        "stage_cells": _stage_cell_manifest_records(notebook_data),
+    }
+
+
+def _markdown_code(value: Any) -> str:
+    text = str(value or "").strip()
+    return f"`{text}`" if text else "`(not set)`"
+
+
+def build_notebook_export_handoff_markdown(manifest: Mapping[str, Any]) -> str:
+    project = str(manifest.get("project_name", "") or "AGILAB project")
+    notebook_path = str(manifest.get("notebook_path", "") or "")
+    active_app = str(manifest.get("active_app", "") or "")
+    stage_records = manifest.get("stages", [])
+    stages = [stage for stage in stage_records if isinstance(stage, Mapping)] if isinstance(stage_records, list) else []
+    pages = manifest.get("related_pages", [])
+    related_pages = [page for page in pages if isinstance(page, Mapping)] if isinstance(pages, list) else []
+
+    quoted_notebook_path = shlex.quote(notebook_path)
+    open_prefix = "uv run"
+    if active_app:
+        open_prefix = f"uv --project {shlex.quote(active_app)} run"
+    jupyter_command = f"{open_prefix} --with jupyterlab jupyter lab {quoted_notebook_path}".strip()
+    execute_command = (
+        f"{open_prefix} --with nbconvert python -m jupyter nbconvert "
+        f"--to notebook --execute --inplace {quoted_notebook_path}"
+    ).strip()
+
+    lines = [
+        f"# AGILAB notebook handoff: {project}",
+        "",
+        f"Schema: `{NOTEBOOK_EXPORT_HANDOFF_SCHEMA}`",
+        "",
+        "This folder is a durable exit path from AGILAB: the notebook contains editable stage source cells, runner cells, validation helpers, and enough metadata to verify that the export has not drifted.",
+        "",
+        "## Files",
+        "",
+        f"- Notebook: {_markdown_code(notebook_path)}",
+        f"- Manifest: {_markdown_code(manifest.get('manifest_path'))}",
+        f"- Handoff: {_markdown_code(manifest.get('handoff_path'))}",
+        f"- PyCharm/Jupyter mirror: {_markdown_code(manifest.get('mirror_path'))}",
+        f"- Artifact directory: {_markdown_code(manifest.get('artifact_dir'))}",
+        f"- Active app root: {_markdown_code(active_app)}",
+        "",
+        "## First actions",
+        "",
+        "1. Open the notebook.",
+        "2. Run `validate_agilab_export()` before executing workflow code.",
+        "3. Run `run_agilab_stage(i)` for one stage, or `run_agilab_pipeline()` for the full workflow.",
+        "4. Edit `STAGE_###_CODE` cells when you want the notebook to become the new source of truth.",
+        "",
+        "## Commands",
+        "",
+        "```bash",
+        jupyter_command,
+        execute_command,
+        "```",
+        "",
+        "## Integrity",
+        "",
+        f"- Notebook SHA-256: `{manifest.get('notebook_sha256', '')}`",
+        "- Handoff SHA-256: recorded in the manifest field `handoff_sha256`.",
+        "",
+        "## Stages",
+        "",
+        "| Stage | Role | Runtime | Source hash | Description |",
+        "|---:|---|---|---|---|",
+    ]
+    if stages:
+        for stage in stages:
+            description = str(stage.get("description", "") or "").replace("|", "\\|")
+            lines.append(
+                "| "
+                f"{stage.get('stage_index', '')} | "
+                f"{stage.get('runtime_role', '') or 'manager'} | "
+                f"{stage.get('runtime', '') or 'runpy'} | "
+                f"`{stage.get('source_hash', '')}` | "
+                f"{description or '(no description)'} |"
+            )
+    else:
+        lines.append("| - | - | - | - | No executable stages exported. |")
+
+    if related_pages:
+        lines.extend(["", "## Related Analysis Pages", ""])
+        for page in related_pages:
+            label = str(page.get("label", "") or page.get("module", "") or "analysis page")
+            lines.append(f"- **{label}** ({page.get('module', '')})")
+            description = str(page.get("description", "") or "")
+            if description:
+                lines.append(f"  - {description}")
+            artifacts = page.get("artifacts", [])
+            if isinstance(artifacts, list) and artifacts:
+                lines.append("  - Expected artifacts: " + ", ".join(f"`{artifact}`" for artifact in artifacts))
+            if page.get("inline_renderer"):
+                lines.append(f"  - Inline renderer: `{page.get('inline_renderer')}`")
+            if page.get("script_path"):
+                lines.append(f"  - Streamlit script: `{page.get('script_path')}`")
+
+    lines.extend(["", "## Re-import Contract", "", "Supervisor metadata and per-cell AGILAB stage metadata are preserved so AGILAB can import edited stage source cells back into `lab_stages.toml` without guessing manager versus worker ownership.", ""])
+    return "\n".join(lines)
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected JSON object in {path}")
+    return payload
+
+
+def _verification_check(checks: list[dict[str, Any]], check_id: str, ok: bool, summary: str, **details: Any) -> bool:
+    checks.append(
+        {
+            "id": check_id,
+            "status": "pass" if ok else "fail",
+            "summary": summary,
+            "details": details,
+        }
+    )
+    return ok
+
+
+def verify_notebook_export_manifest(
+    notebook_path: str | Path,
+    manifest_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Verify an exported notebook against its sidecar manifest without executing it."""
+    notebook_file = Path(notebook_path)
+    manifest_file = Path(manifest_path) if manifest_path is not None else notebook_export_manifest_path(notebook_file)
+    checks: list[dict[str, Any]] = []
+
+    if not notebook_file.is_file():
+        _verification_check(checks, "notebook_exists", False, "Notebook file exists.", notebook_path=str(notebook_file))
+        return {"ok": False, "notebook_path": str(notebook_file), "manifest_path": str(manifest_file), "checks": checks}
+    _verification_check(checks, "notebook_exists", True, "Notebook file exists.", notebook_path=str(notebook_file))
+
+    if not manifest_file.is_file():
+        _verification_check(checks, "manifest_exists", False, "Notebook export manifest exists.", manifest_path=str(manifest_file))
+        return {"ok": False, "notebook_path": str(notebook_file), "manifest_path": str(manifest_file), "checks": checks}
+    _verification_check(checks, "manifest_exists", True, "Notebook export manifest exists.", manifest_path=str(manifest_file))
+
+    notebook = _read_json_object(notebook_file)
+    manifest = _read_json_object(manifest_file)
+    expected_schema = str(manifest.get("schema", "") or "")
+    _verification_check(
+        checks,
+        "manifest_schema",
+        expected_schema == NOTEBOOK_EXPORT_MANIFEST_SCHEMA,
+        "Notebook export manifest schema is supported.",
+        schema=expected_schema,
+        expected_schema=NOTEBOOK_EXPORT_MANIFEST_SCHEMA,
+    )
+
+    expected_hash = str(manifest.get("notebook_sha256", "") or "")
+    actual_hash = _sha256_text(notebook_file.read_text(encoding="utf-8"))
+    _verification_check(
+        checks,
+        "notebook_sha256",
+        bool(expected_hash) and expected_hash == actual_hash,
+        "Notebook file hash matches the export manifest.",
+        expected_sha256=expected_hash,
+        actual_sha256=actual_hash,
+    )
+
+    manifest_cell_ids = [str(value or "") for value in manifest.get("cell_ids", []) if isinstance(value, str)]
+    actual_cell_ids = [str(cell.get("id", "") or "") for cell in _notebook_cells(notebook)]
+    _verification_check(
+        checks,
+        "cell_ids",
+        manifest_cell_ids == actual_cell_ids,
+        "Notebook cell IDs match the export manifest.",
+        expected_cell_ids=manifest_cell_ids,
+        actual_cell_ids=actual_cell_ids,
+    )
+
+    handoff_path = str(manifest.get("handoff_path", "") or "")
+    expected_handoff_hash = str(manifest.get("handoff_sha256", "") or "")
+    if handoff_path:
+        handoff_file = Path(handoff_path)
+        handoff_exists = handoff_file.is_file()
+        _verification_check(
+            checks,
+            "handoff_exists",
+            handoff_exists,
+            "Notebook export handoff file exists.",
+            handoff_path=handoff_path,
+        )
+        actual_handoff_hash = _sha256_text(handoff_file.read_text(encoding="utf-8")) if handoff_exists else ""
+        _verification_check(
+            checks,
+            "handoff_sha256",
+            handoff_exists and bool(expected_handoff_hash) and expected_handoff_hash == actual_handoff_hash,
+            "Notebook export handoff hash matches the manifest.",
+            expected_sha256=expected_handoff_hash,
+            actual_sha256=actual_handoff_hash,
+        )
+
+    source_cells_by_stage: dict[int, Mapping[str, Any]] = {}
+    for cell in _notebook_cells(notebook):
+        metadata = cell.get("metadata", {})
+        if not isinstance(metadata, Mapping):
+            continue
+        agilab_metadata = metadata.get("agilab", {})
+        if not isinstance(agilab_metadata, Mapping):
+            continue
+        stage_cell = agilab_metadata.get("stage_cell", {})
+        if not isinstance(stage_cell, Mapping):
+            continue
+        if str(stage_cell.get("kind", "") or "") != "source":
+            continue
+        try:
+            stage_index = int(stage_cell.get("stage_index", 0) or 0)
+        except (TypeError, ValueError):
+            continue
+        source_cells_by_stage.setdefault(stage_index, cell)
+
+    for record in manifest.get("stage_source_hashes", []):
+        if not isinstance(record, Mapping):
+            continue
+        try:
+            stage_index = int(record.get("stage_index", 0) or 0)
+        except (TypeError, ValueError):
+            stage_index = -1
+        expected_source_hash = str(record.get("source_sha256", "") or "")
+        cell = source_cells_by_stage.get(stage_index)
+        source = _extract_stage_source_from_exported_cell(cell, stage_index) if cell is not None else ""
+        actual_source_hash = _sha256_text(source) if source or cell is not None else ""
+        _verification_check(
+            checks,
+            f"stage_source_{stage_index}",
+            cell is not None and bool(expected_source_hash) and expected_source_hash == actual_source_hash,
+            f"Stage {stage_index} source hash matches the export manifest.",
+            stage_index=stage_index,
+            expected_sha256=expected_source_hash,
+            actual_sha256=actual_source_hash,
+        )
+
+    return {
+        "ok": all(check["status"] == "pass" for check in checks),
+        "notebook_path": str(notebook_file),
+        "manifest_path": str(manifest_file),
+        "checks": checks,
     }
 
 
@@ -782,6 +1253,7 @@ def _helper_cell(payload: dict[str, Any]) -> str:
         import importlib.util
         import os
         import shlex
+        import shutil
         import socket
         import subprocess
         import sys
@@ -1056,6 +1528,75 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return summary
 
 
+        def export_handoff_markdown():
+            stages = AGILAB_NOTEBOOK_EXPORT.get("stages", [])
+            related_pages = AGILAB_NOTEBOOK_EXPORT.get("related_pages", [])
+            lines = [
+                "# AGILAB notebook handoff: " + str(AGILAB_NOTEBOOK_EXPORT.get("project_name") or "AGILAB project"),
+                "",
+                "This notebook is a durable exit path from AGILAB. Keep the editable STAGE_###_CODE cells, run validation before execution, and use the runner cells only when you want to replay the workflow.",
+                "",
+                "## Run Order",
+                "",
+                "1. Run validate_agilab_export().",
+                "2. Run one runner cell or run_agilab_pipeline().",
+                "3. Render related analysis pages if configured.",
+                "4. If you edit stage code, re-import the notebook into AGILAB when you want lab_stages.toml to become the source of truth again.",
+                "",
+                "## Paths",
+                "",
+                "- Artifact directory: `" + str(AGILAB_NOTEBOOK_EXPORT.get("artifact_dir") or "(not set)") + "`",
+                "- Active app root: `" + str(AGILAB_NOTEBOOK_EXPORT.get("active_app") or "(not set)") + "`",
+                "- Stages file: `" + str(AGILAB_NOTEBOOK_EXPORT.get("stages_file") or "(not set)") + "`",
+                "",
+                "## Stages",
+                "",
+                "| Stage | Role | Runtime | Description |",
+                "|---:|---|---|---|",
+            ]
+            if isinstance(stages, list) and stages:
+                for stage in stages:
+                    if not isinstance(stage, dict):
+                        continue
+                    runtime = str(stage.get("runtime") or "runpy")
+                    role = "worker" if runtime in {{"agi.run", "agi"}} else "manager"
+                    description = str(stage.get("description") or "(no description)").replace("|", "\\\\|")
+                    lines.append(
+                        "| "
+                        + str(stage.get("index", ""))
+                        + " | "
+                        + role
+                        + " | "
+                        + runtime
+                        + " | "
+                        + description
+                        + " |"
+                    )
+            else:
+                lines.append("| - | - | - | No executable stages exported. |")
+
+            if isinstance(related_pages, list) and related_pages:
+                lines.extend(["", "## Related Analysis Pages", ""])
+                for page in related_pages:
+                    if not isinstance(page, dict):
+                        continue
+                    label = str(page.get("label") or page.get("module") or "analysis page")
+                    module = str(page.get("module") or "")
+                    lines.append("- " + label + " (`" + module + "`)")
+            return "\\n".join(lines)
+
+
+        def show_agilab_export_handoff():
+            markdown = export_handoff_markdown()
+            try:
+                from IPython.display import Markdown, display
+            except Exception:
+                print(markdown)
+                return markdown
+            display(Markdown(markdown))
+            return markdown
+
+
         def _path_exists(path_value):
             if not path_value:
                 return False
@@ -1063,6 +1604,32 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 return Path(path_value).expanduser().exists()
             except Exception:
                 return False
+
+
+        def _command_or_path_exists(value):
+            text = str(value or "").strip()
+            if not text:
+                return False
+            try:
+                if Path(text).expanduser().exists():
+                    return True
+            except Exception:
+                pass
+            return shutil.which(text) is not None
+
+
+        def _validation_check(checks, check_id, ok, summary, *, severity="error", **details):
+            status = "pass" if ok else "fail"
+            checks.append(
+                {{
+                    "id": check_id,
+                    "status": status,
+                    "severity": severity,
+                    "summary": summary,
+                    "details": details,
+                }}
+            )
+            return ok or severity != "error"
 
 
         def _inline_renderer_target_exists(target):
@@ -1392,6 +1959,132 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             return ""
 
 
+        def _stage_app_name(stage):
+            assignments = _stage_assignments(stage.get("code") or "")
+            return str(assignments.get("APP") or "").strip()
+
+
+        def validate_agilab_export(*, verbose=True):
+            stages = AGILAB_NOTEBOOK_EXPORT.get("stages", [])
+            related_pages = AGILAB_NOTEBOOK_EXPORT.get("related_pages", [])
+            checks = []
+            ok = True
+
+            ok = _validation_check(
+                checks,
+                "schema",
+                AGILAB_NOTEBOOK_EXPORT.get("schema") == "agilab.notebook_export.v1",
+                "AGILAB notebook export schema is supported.",
+                schema=AGILAB_NOTEBOOK_EXPORT.get("schema"),
+            ) and ok
+            stage_count = len(stages) if isinstance(stages, list) else 0
+            ok = _validation_check(
+                checks,
+                "stages",
+                stage_count > 0,
+                f"Notebook declares {{stage_count}} workflow stage(s).",
+                stage_count=stage_count,
+            ) and ok
+
+            artifact_dir = _normalized_path(AGILAB_NOTEBOOK_EXPORT.get("artifact_dir"))
+            artifact_parent = ""
+            artifact_ok = False
+            if artifact_dir:
+                try:
+                    artifact_path = Path(artifact_dir).expanduser()
+                    artifact_parent = str(artifact_path.parent)
+                    artifact_ok = artifact_path.exists() or artifact_path.parent.exists()
+                except Exception:
+                    artifact_ok = False
+            ok = _validation_check(
+                checks,
+                "artifact_dir",
+                bool(artifact_dir) and artifact_ok,
+                "Artifact directory or its parent is reachable.",
+                artifact_dir=artifact_dir,
+                artifact_parent=artifact_parent,
+            ) and ok
+
+            for stage_index, stage in enumerate(stages if isinstance(stages, list) else []):
+                if not isinstance(stage, dict):
+                    ok = _validation_check(
+                        checks,
+                        f"stage_{{stage_index}}_record",
+                        False,
+                        "Stage record is not a dictionary.",
+                        stage_index=stage_index,
+                    ) and ok
+                    continue
+
+                python_exe = _resolve_stage_python(stage)
+                python_ok = _command_or_path_exists(python_exe)
+                ok = _validation_check(
+                    checks,
+                    f"stage_{{stage_index}}_python",
+                    python_ok,
+                    f"Stage {{stage_index}} Python interpreter is reachable.",
+                    stage_index=stage_index,
+                    python=python_exe,
+                    runtime=stage.get("runtime") or "",
+                    env=stage.get("env") or "",
+                ) and ok
+
+                app_name = _stage_app_name(stage)
+                if app_name:
+                    try:
+                        active_app = resolve_active_app_root(app_name)
+                        app_ok = True
+                        app_error = ""
+                    except Exception as exc:
+                        active_app = ""
+                        app_ok = False
+                        app_error = str(exc)
+                    ok = _validation_check(
+                        checks,
+                        f"stage_{{stage_index}}_active_app",
+                        app_ok,
+                        f"Stage {{stage_index}} app root is resolvable.",
+                        stage_index=stage_index,
+                        app_name=app_name,
+                        active_app=active_app,
+                        error=app_error,
+                    ) and ok
+
+            for page in related_pages if isinstance(related_pages, list) else []:
+                if not isinstance(page, dict):
+                    continue
+                page_name = str(page.get("module") or "").strip()
+                if not page_name:
+                    continue
+                record = _enrich_page_record(page)
+                script_path = _normalized_path(record.get("script_path"))
+                inline_renderer = str(record.get("inline_renderer") or "").strip()
+                page_ok = bool(script_path) and _path_exists(script_path)
+                inline_ok = not inline_renderer or _inline_renderer_target_exists(inline_renderer)
+                ok = _validation_check(
+                    checks,
+                    f"analysis_page_{{page_name}}",
+                    page_ok and inline_ok,
+                    f"Analysis page {{page_name}} can be resolved.",
+                    page=page_name,
+                    script_path=script_path,
+                    inline_renderer=inline_renderer,
+                    inline_renderer_exists=inline_ok,
+                ) and ok
+
+            report = {{
+                "ok": ok,
+                "project_name": AGILAB_NOTEBOOK_EXPORT.get("project_name"),
+                "export_mode": AGILAB_NOTEBOOK_EXPORT.get("export_mode"),
+                "stage_count": stage_count,
+                "related_page_count": len(related_pages) if isinstance(related_pages, list) else 0,
+                "checks": checks,
+            }}
+            if verbose:
+                print(json.dumps(report, indent=2))
+            return report
+
+
         def _build_shorthand_agi_script(stage, code_text):
             assignments = _stage_assignments(code_text)
             app_name = str(assignments.pop("APP", "") or "").strip()
@@ -1604,6 +2297,14 @@ def _analysis_cell(page: RelatedPageExport) -> str:
     ).strip() + "\n"
 
 
+def _validation_cell() -> str:
+    return "validate_agilab_export()\n"
+
+
+def _handoff_cell() -> str:
+    return "show_agilab_export_handoff()\n"
+
+
 def _stage_code_variable_name(stage: dict[str, Any]) -> str:
     return f"STAGE_{int(stage['index']):03d}_CODE"
 
@@ -1706,6 +2407,8 @@ def build_notebook_document(
 
     stage_records = _stage_records(toml_data)
     payload = {
+        "schema": NOTEBOOK_EXPORT_SCHEMA,
+        "version": NOTEBOOK_EXPORT_SCHEMA_VERSION,
         "project_name": export_context.project_name,
         "module_path": export_context.module_path,
         "artifact_dir": export_context.artifact_dir,
@@ -1733,12 +2436,16 @@ def build_notebook_document(
                     f"- Module: `{export_context.module_path}`",
                     f"- Artifact directory: `{export_context.artifact_dir}`",
                     f"- Export mode: `{export_context.export_mode}`",
+                    "- First run `validate_agilab_export()` to check local paths before executing workflow code.",
                     "- Use `run_agilab_stage(i)` or `run_agilab_pipeline()` to execute workflow stages in their recorded runtime.",
                     "- The code cells below stay readable/editable, but they do not replace the recorded per-stage environment.",
                 ]
-            )
+            ),
+            cell_id="agilab-export-intro",
         ),
-        _code_cell(_helper_cell(payload)),
+        _code_cell(_helper_cell(payload), cell_id="agilab-export-helper"),
+        _code_cell(_validation_cell(), cell_id="agilab-export-validate"),
+        _code_cell(_handoff_cell(), cell_id="agilab-export-handoff"),
     ]
 
     for stage in stage_records:
@@ -1756,11 +2463,24 @@ def build_notebook_document(
                         f"- Edit the next cell if you want to override the saved stage source.",
                         f"- The runner cell below it replays the stage with its recorded runtime. Running the whole notebook executes those runner cells too.",
                     ]
-                )
+                ),
+                cell_id=_cell_id("stage", f"{int(stage['index']):03d}", "context"),
             )
         )
-        cells.append(_code_cell(_stage_source_cell(stage), metadata=_stage_cell_metadata(stage, kind="source")))
-        cells.append(_code_cell(_stage_runner_cell(stage), metadata=_stage_cell_metadata(stage, kind="runner")))
+        cells.append(
+            _code_cell(
+                _stage_source_cell(stage),
+                metadata=_stage_cell_metadata(stage, kind="source"),
+                cell_id=_cell_id("stage", f"{int(stage['index']):03d}", "source"),
+            )
+        )
+        cells.append(
+            _code_cell(
+                _stage_runner_cell(stage),
+                metadata=_stage_cell_metadata(stage, kind="runner"),
+                cell_id=_cell_id("stage", f"{int(stage['index']):03d}", "runner"),
+            )
+        )
 
     if export_context.related_pages:
         cells.append(
@@ -1772,7 +2492,8 @@ def build_notebook_document(
                         "These helper cells try notebook-native renderers for the pages configured under `[pages].view_module` in the app settings.",
                         "If a page does not provide an inline notebook renderer yet, the helper falls back to launching the external Streamlit dashboard over the same exported artifacts.",
                     ]
-                )
+                ),
+                cell_id="agilab-analysis-pages",
             )
         )
         for page in export_context.related_pages:
@@ -1789,10 +2510,11 @@ def build_notebook_document(
                             *(["- " + page.launch_note] if page.launch_note else []),
                             "- Run the next cell to render notebook-native output when available, otherwise it launches the page and prints the exact command.",
                         ]
-                    )
+                    ),
+                    cell_id=_cell_id("analysis", page.module, "context"),
                 )
             )
-            cells.append(_code_cell(_analysis_cell(page)))
+            cells.append(_code_cell(_analysis_cell(page), cell_id=_cell_id("analysis", page.module, "render")))
 
     return {
         "cells": cells,

@@ -134,7 +134,9 @@ _build_notebook_import_pipeline_view = (
 _build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 _build_notebook_import_view_plan = _notebook_pipeline_import_module.build_notebook_import_view_plan
 _build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
+_apply_notebook_runtime_roles = _notebook_pipeline_import_module.apply_notebook_runtime_roles
 _extract_notebook_import_defaults = _notebook_pipeline_import_module.extract_notebook_import_defaults
+_normalize_notebook_runtime_role = _notebook_pipeline_import_module.normalize_notebook_runtime_role
 _discover_notebook_import_view_manifest = (
     _notebook_pipeline_import_module.discover_notebook_import_view_manifest
 )
@@ -153,6 +155,7 @@ PROJECT_NOTEBOOK_IMPORT_START = "notebook-import"
 PROJECT_NOTEBOOK_IMPORT_CONSUMED_KEY = "_project_notebook_import_query_seed_consumed"
 PROJECT_NOTEBOOK_IMPORT_DEFAULTS_KEY = "_project_notebook_import_defaults"
 PROJECT_NOTEBOOK_IMPORT_DEFAULTS_SIGNATURE_KEY = "_project_notebook_import_defaults_signature"
+PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX = "_project_notebook_runtime_role"
 PROJECT_NOTEBOOK_SAMPLE_SOURCE_KEY = _notebook_import_sample_module.SAMPLE_NOTEBOOK_SESSION_KEY
 PROJECT_NOTEBOOK_SAMPLE_ERROR_KEY = "_project_notebook_import_sample_error"
 PROJECT_NOTEBOOK_IMPORT_QUERY_KEYS = ("start", "create_mode", "sidebar_selection")
@@ -160,6 +163,12 @@ NAVIGATION_PAGE_ROUTES_ATTR = "_NAVIGATION_PAGE_ROUTES"
 NOTEBOOK_PROJECT_DEFAULT_TEMPLATE = "pandas_app_template"
 NOTEBOOK_SOURCE_DIR = Path("notebooks") / "source"
 NOTEBOOK_STEPS_FILE = "lab_stages.toml"
+NOTEBOOK_RUNTIME_ROLE_LABELS = {
+    "": "Select runtime role",
+    "manager": "Manager (local runpy)",
+    "worker": "Worker (AGILAB worker)",
+}
+NOTEBOOK_RUNTIME_ROLE_BY_LABEL = {label: role for role, label in NOTEBOOK_RUNTIME_ROLE_LABELS.items()}
 
 CLONE_ENV_STRATEGY_LABELS = {
     "share_source_venv": "Temporary clone (share source .venv)",
@@ -2873,6 +2882,176 @@ def _build_project_notebook_import_preview(uploaded_notebook, module_dir: Path) 
     }
 
 
+def _project_notebook_stage_identity(stage: dict, index: int) -> str:
+    return str(stage.get("id", "") or f"cell-{index}")
+
+
+def _project_notebook_string_list(value, limit: int = 5) -> str:
+    if not isinstance(value, list):
+        return "none"
+    items = [str(item) for item in value if str(item)]
+    if not items:
+        return "none"
+    visible = items[:limit]
+    suffix = f", +{len(items) - limit} more" if len(items) > limit else ""
+    return ", ".join(visible) + suffix
+
+
+def _project_notebook_artifact_paths(stage: dict) -> list[str]:
+    references = stage.get("artifact_references", [])
+    if not isinstance(references, list):
+        return []
+    paths: list[str] = []
+    for reference in references:
+        if not isinstance(reference, dict):
+            continue
+        path = str(reference.get("path", "") or "")
+        if path:
+            paths.append(path)
+    return paths
+
+
+def _project_notebook_first_code_line(stage: dict) -> str:
+    source_lines = stage.get("source_lines", [])
+    if not isinstance(source_lines, list):
+        return ""
+    for line in source_lines:
+        text = str(line).strip()
+        if text:
+            return text[:96] + ("..." if len(text) > 96 else "")
+    return ""
+
+
+def _project_notebook_runtime_role_cell_hint(stage: dict, index: int) -> str:
+    source_cell_index = int(stage.get("source_cell_index", index) or index)
+    env_hints = stage.get("env_hints", [])
+    if not isinstance(env_hints, list):
+        env_hints = []
+    return (
+        f"Cell {source_cell_index}: {_project_notebook_first_code_line(stage) or 'code cell'}; "
+        f"artifacts: {_project_notebook_string_list(_project_notebook_artifact_paths(stage), limit=3)}; "
+        f"environment hints: {_project_notebook_string_list(env_hints, limit=4)}."
+    )
+
+
+def _project_notebook_import_stages(preview: dict) -> list[dict]:
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, dict):
+        return []
+    stages = notebook_import.get("pipeline_stages", [])
+    return [stage for stage in stages if isinstance(stage, dict)]
+
+
+def _project_notebook_runtime_role_review_detail(preview: dict) -> str:
+    missing = [
+        _project_notebook_stage_identity(stage, index)
+        for index, stage in enumerate(_project_notebook_import_stages(preview), start=1)
+        if not _normalize_notebook_runtime_role(stage.get("runtime_role"))
+    ]
+    if not missing:
+        return ""
+    visible = ", ".join(missing[:8])
+    suffix = f", +{len(missing) - 8} more" if len(missing) > 8 else ""
+    return f"Select Manager or Worker for: {visible}{suffix}."
+
+
+def _project_notebook_import_preview_with_runtime_roles(preview: dict, runtime_roles: dict | None) -> dict:
+    role_map = runtime_roles or {}
+    if not role_map:
+        return preview
+    notebook_import = preview.get("notebook_import", {})
+    if not isinstance(notebook_import, dict):
+        return preview
+
+    module = str(preview.get("module", "") or "notebook_import_project")
+    updated_import = _apply_notebook_runtime_roles(notebook_import, role_map)
+    preflight = _build_notebook_import_preflight(updated_import)
+    updated = dict(preview)
+    updated.update(
+        {
+            "notebook_import": updated_import,
+            "preflight": preflight,
+            "toml_content": _build_lab_stages_preview(updated_import, module_name=module),
+            "contract": _build_notebook_import_contract(
+                updated_import,
+                preflight=preflight,
+                module_name=module,
+            ),
+        }
+    )
+    return updated
+
+
+def _project_notebook_preview_from_upload(uploaded_notebook, project_name: str) -> tuple[dict | None, str]:
+    if uploaded_notebook is None:
+        return None, ""
+    try:
+        notebook_bytes = _read_uploaded_notebook_bytes(uploaded_notebook)
+        preview_upload = SimpleNamespace(
+            name=_safe_uploaded_notebook_name(uploaded_notebook),
+            type=getattr(uploaded_notebook, "type", "application/x-ipynb+json"),
+            read=lambda notebook_bytes=notebook_bytes: notebook_bytes,
+        )
+        module_name = normalize_project_name(project_name) or "notebook_import_project"
+        preview = _build_project_notebook_import_preview(preview_upload, Path(module_name))
+        preview["source_signature"] = _uploaded_notebook_signature(uploaded_notebook, notebook_bytes)
+        return preview, ""
+    except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return None, str(exc)
+
+
+def _render_project_notebook_runtime_role_review(target, uploaded_notebook, project_name: str) -> tuple[dict, str]:
+    preview, error = _project_notebook_preview_from_upload(uploaded_notebook, project_name)
+    if preview is None:
+        if error:
+            target.caption(f"Notebook runtime review unavailable: {error}")
+        return {}, ""
+
+    preflight = preview.get("preflight", {})
+    if not isinstance(preflight, dict) or not preflight.get("safe_to_import"):
+        return {}, ""
+
+    stages = _project_notebook_import_stages(preview)
+    if not stages:
+        return {}, ""
+
+    detail_before_review = _project_notebook_runtime_role_review_detail(preview)
+    expander = target.expander("Notebook runtime roles", expanded=bool(detail_before_review))
+    expander.caption("Select Manager or Worker for every runnable cell before creating the project.")
+
+    labels = list(NOTEBOOK_RUNTIME_ROLE_BY_LABEL)
+    source_signature = re.sub(r"[^A-Za-z0-9_]+", "_", str(preview.get("source_signature", "") or "")).strip("_")
+    selected_roles: dict[str, str] = {}
+    for index, stage in enumerate(stages, start=1):
+        stage_id = _project_notebook_stage_identity(stage, index)
+        current_role = _normalize_notebook_runtime_role(stage.get("runtime_role"))
+        default_label = NOTEBOOK_RUNTIME_ROLE_LABELS.get(current_role, NOTEBOOK_RUNTIME_ROLE_LABELS[""])
+        try:
+            default_index = labels.index(default_label)
+        except ValueError:
+            default_index = 0
+        selected_label = expander.selectbox(
+            f"Cell {int(stage.get('source_cell_index', index) or index)} runtime",
+            labels,
+            index=default_index,
+            key=f"{PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX}_{source_signature}_{stage_id}",
+            help=(
+                "Manager runs locally with runpy. Worker persists the stage for "
+                "AGILAB worker execution with agi.run."
+            ),
+        )
+        expander.caption(_project_notebook_runtime_role_cell_hint(stage, index))
+        role = NOTEBOOK_RUNTIME_ROLE_BY_LABEL.get(str(selected_label), "")
+        if role:
+            selected_roles[stage_id] = role
+
+    reviewed_preview = _project_notebook_import_preview_with_runtime_roles(preview, selected_roles)
+    detail = _project_notebook_runtime_role_review_detail(reviewed_preview)
+    if detail:
+        expander.warning(f"Runtime review required: {detail}")
+    return selected_roles, detail
+
+
 def _write_project_notebook_import_preview(
     preview: dict,
     module_dir: Path,
@@ -2972,6 +3151,7 @@ def _create_project_from_notebook_action(
     raw_project_name: str,
     uploaded_notebook,
     clone_env_strategy: str,
+    runtime_roles: dict | None = None,
 ) -> ActionResult:
     raw = raw_project_name.strip()
     if not raw:
@@ -3028,6 +3208,15 @@ def _create_project_from_notebook_action(
             "Notebook cannot create a project yet.",
             detail=_notebook_import_blocking_detail(preflight),
             next_action="Fix the notebook import errors, then retry project creation.",
+            data={"new_name": new_name, "dest_root": dest_root, "preflight": preflight},
+        )
+    preview = _project_notebook_import_preview_with_runtime_roles(preview, runtime_roles)
+    role_detail = _project_notebook_runtime_role_review_detail(preview)
+    if role_detail:
+        return ActionResult.error(
+            "Notebook runtime role review is incomplete.",
+            detail=role_detail,
+            next_action="Select Manager or Worker for each notebook code cell, then retry project creation.",
             data={"new_name": new_name, "dest_root": dest_root, "preflight": preflight},
         )
 
@@ -3319,6 +3508,7 @@ def handle_project_creation():
     env = st.session_state["env"]
     guided_notebook_import = False
     guided_project_name = ""
+    active_notebook_source = None
 
     if create_mode == CREATE_MODE_NOTEBOOK:
         st.caption(
@@ -3431,7 +3621,24 @@ def handle_project_creation():
             help="Enter the destination project name. AGILAB appends '_project' if it is missing.",
         ).strip()
 
-    create_clicked = st.sidebar.button("Create", type="primary", width="stretch")
+    notebook_runtime_roles: dict[str, str] = {}
+    notebook_role_detail = ""
+    notebook_source_missing = create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is None
+    if create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is not None:
+        notebook_runtime_roles, notebook_role_detail = _render_project_notebook_runtime_role_review(
+            st.sidebar,
+            active_notebook_source,
+            raw,
+        )
+    elif notebook_source_missing:
+        st.sidebar.info("Upload a notebook before creating the project.")
+
+    create_clicked = st.sidebar.button(
+        "Create",
+        type="primary",
+        width="stretch",
+        disabled=create_mode == CREATE_MODE_NOTEBOOK and (notebook_source_missing or bool(notebook_role_detail)),
+    )
     if create_clicked:
         def _activate_clone(result):
             new_name = str(result.data["new_name"])
@@ -3482,6 +3689,7 @@ def handle_project_creation():
                         raw_project_name=raw,
                         uploaded_notebook=_active_notebook_import_source(st.session_state),
                         clone_env_strategy=clone_env_strategy,
+                        runtime_roles=notebook_runtime_roles,
                     ),
                 on_success=_activate_notebook_project,
             )
