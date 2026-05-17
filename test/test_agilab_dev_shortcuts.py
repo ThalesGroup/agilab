@@ -231,8 +231,16 @@ def test_release_shortcut_runs_local_release_guards():
             "shared-core-typing",
             "--profile",
             "docs",
-            "--profile",
-            "badges",
+        ],
+        [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "python",
+            "tools/coverage_badge_guard.py",
+            "--changed-only",
+            "--require-fresh-xml",
         ],
     ]
 

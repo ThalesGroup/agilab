@@ -49,6 +49,7 @@ NON_GUI_ROOT_TESTS = {
     "test/test_pypi_publish.py",
     "test/test_pypi_publish_workflow.py",
     "test/test_impact_validate.py",
+    "test/test_agilab_dev_shortcuts.py",
     "test/test_workflow_parity.py",
 }
 
