@@ -146,8 +146,10 @@ RUN locale-gen en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 ENV LANG=en_US.UTF-8
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \\
+RUN curl -LsSf https://astral.sh/uv/install.sh -o /tmp/uv-install.sh && \\
+    sh /tmp/uv-install.sh && \\
     cp /root/.local/bin/uv /usr/local/bin/uv && \\
+    rm -f /tmp/uv-install.sh && \\
     uv --version
 
 RUN if ! getent group 1000 > /dev/null 2>&1; then groupadd -g 1000 user; fi && \\
