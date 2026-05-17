@@ -70,6 +70,7 @@ jobs:
             --scenario isolated-project-page \
             --scenario isolated-project-notebook-import \
             --scenario isolated-project-import-sidebar \
+            --scenario isolated-project-rename-sidebar \
             --scenario isolated-settings-page \
             --apps "${robot_apps}" \
             --timeout "${robot_timeout}" \

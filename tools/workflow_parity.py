@@ -959,6 +959,8 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "--scenario",
                 "isolated-project-import-sidebar",
                 "--scenario",
+                "isolated-project-rename-sidebar",
+                "--scenario",
                 "isolated-settings-page",
                 "--json",
                 "--quiet-progress",
