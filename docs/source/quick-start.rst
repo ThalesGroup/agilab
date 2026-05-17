@@ -63,6 +63,7 @@ If startup fails, run a local fallback first:
 
    uv --preview-features extra-build-dependencies run agilab dry-run
    uv --preview-features extra-build-dependencies run agilab first-proof --json --with-ui
+   uv --preview-features extra-build-dependencies run agilab adoption-report
 
 **Published package install or upgrade, CLI proof only**::
 
@@ -93,7 +94,9 @@ If you installed AGILAB inside an activated project environment instead of as a
 The adoption checkpoint is always the same: ``run_manifest.json`` reports
 ``status: pass`` and the default ``flight_telemetry_project`` analysis view opens. If it
 does not pass, stay on this lane and use :doc:`newcomer-troubleshooting`
-before changing install route.
+before changing install route. ``agilab adoption-report`` reads that manifest
+and turns the checkpoint into a short report with missing handoff evidence and
+the exact next command.
 
 Recommended first proof path
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -204,6 +207,9 @@ machine-readable proof record.
    the compatibility-report output for that manifest, and a redacted
    ``agilab security-check --json --strict`` result. That bundle makes the proof
    portable for review without pretending it is production certification.
+   ``agilab adoption-report`` is the shortcut for checking that bundle from the
+   shell; add ``--json`` when a workflow needs the same status in machine-readable
+   form.
 
 5. **Check the first proof outcome**
 

@@ -101,12 +101,15 @@ If startup fails, run a progressive fallback:
 ```bash
 agilab dry-run
 agilab first-proof --json --with-ui
+agilab adoption-report
 ```
 
 `agilab dry-run` is the fast alias for `agilab first-proof --dry-run`; it
 verifies CLI/core readiness only.
 `agilab first-proof --json --with-ui` does the local onboarding contract
 including manifest generation for the UI path.
+`agilab adoption-report` reads the manifest and tells you whether the first
+proof is a safe baseline before trying notebooks, private apps, or cluster work.
 
 ### Maturity snapshot
 
@@ -298,6 +301,7 @@ Follow the in-app pages from `PROJECT` to `ORCHESTRATE`, `WORKFLOW`, and
 
 ```bash
 uv --preview-features extra-build-dependencies run agilab first-proof --json
+uv --preview-features extra-build-dependencies run agilab adoption-report
 ```
 
 The JSON proof writes `run_manifest.json` under `~/log/execute/flight_telemetry/`. For

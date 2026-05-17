@@ -753,6 +753,7 @@ def test_newcomer_docs_capture_adoption_evidence() -> None:
     text = Path("docs/source/newcomer-guide.rst").read_text(encoding="utf-8")
 
     assert "Adoption evidence" in text
+    assert "agilab adoption-report" in text
     assert "Ease of adoption" in text
     assert _kpi_score("Ease of adoption") in text
     assert "5.86s" in text

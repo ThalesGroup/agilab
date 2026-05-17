@@ -11,6 +11,7 @@ external apps, or cluster work after the local proof succeeds once.
 | Preview | Open the public [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab). | The hosted UI opens the lightweight `flight_telemetry_project` path. |
 | Prove locally | Clone the source checkout and use the landing-page first-proof wizard. | The wizard installs, runs, and opens `ANALYSIS` for `flight_telemetry_project`. |
 | Record evidence | Run `agilab first-proof --json`. | `~/log/execute/flight_telemetry/run_manifest.json` reports `status: pass`. |
+| Check adoption gate | Run `agilab adoption-report`. | The report says the first proof is safe to use as the next-demo baseline. |
 | Expand | Move to notebooks, PyPI package checks, external apps, or cluster work. | You have one known-good baseline to compare against. |
 
 ## Choose Your First Path
@@ -49,10 +50,13 @@ For a machine-readable proof:
 
 ```bash
 uv --preview-features extra-build-dependencies run agilab first-proof --json
+uv --preview-features extra-build-dependencies run agilab adoption-report
 ```
 
 You are past the newcomer hurdle when the proof exits 0, fresh output exists
-under `~/log/execute/flight_telemetry/`, and `run_manifest.json` is present.
+under `~/log/execute/flight_telemetry/`, `run_manifest.json` is present, and
+`agilab adoption-report` marks the first proof safe to use as the baseline for
+the next lane.
 
 ## Shared Or Security-Sensitive Adoption
 
@@ -91,6 +95,7 @@ Keep the scope narrow and rerun the proof command before changing routes:
 
 ```bash
 uv --preview-features extra-build-dependencies run agilab first-proof
+uv --preview-features extra-build-dependencies run agilab adoption-report
 ```
 
 Use the public troubleshooting page for first-run failures:

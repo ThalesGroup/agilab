@@ -186,6 +186,27 @@ def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch)
     assert captured == [["--json", "--strict"]]
 
 
+def test_main_dispatches_adoption_report_without_launching_streamlit(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    captured: list[list[str]] = []
+
+    def fake_adoption_report(argv: list[str]) -> int:
+        captured.append(argv)
+        return 39
+
+    monkeypatch.setattr(lab_run, "_run_adoption_report", fake_adoption_report)
+    monkeypatch.setattr(
+        lab_run,
+        "_load_streamlit_cli",
+        lambda: (_ for _ in ()).throw(AssertionError("streamlit should not be launched")),
+    )
+
+    rc = lab_run.main(["adoption-report", "--json", "--strict"])
+
+    assert rc == 39
+    assert captured == [["--json", "--strict"]]
+
+
 def test_main_reports_missing_ui_dependencies(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: None)
