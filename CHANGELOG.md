@@ -37,14 +37,12 @@ and adopters a versioned, repository-local upgrade trail.
 
 ## [2026.05.17.post1] - 2026-05-17
 
-GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-2
-Follow-up release evidence: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-4
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.05.17-5
 
 ### Changed
 
-- Published AGILAB `2026.05.17.post1` to PyPI for `agilab`.
-- Updated GitHub release evidence under `v2026.05.17-2`, the latest public release tag available on GitHub.
-- Added follow-up release evidence under `v2026.05.17-4` so the Hugging Face Space sync uses the fixed release source snapshot.
+- Published AGILAB `2026.05.17.post1` to PyPI for the public AGILAB package set.
+- Updated GitHub release evidence under `v2026.05.17-5` so the release proof records the full public package publish and Hugging Face Space sync source snapshot.
 - Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.05.17] - 2026-05-17
