@@ -30,11 +30,12 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
         "isolated-project-page",
         "isolated-project-notebook-import",
         "isolated-project-import-sidebar",
+        "isolated-project-rename-sidebar",
         "isolated-settings-page",
         "current-home-actions",
         "current-home-orchestrate-journey",
     ]
-    isolated, entry, project, project_notebook, project_import, settings, current_home, journey = scenarios
+    isolated, entry, project, project_notebook, project_import, project_rename, settings, current_home, journey = scenarios
     assert isolated.pages == "ORCHESTRATE,WORKFLOW,ANALYSIS"
     assert isolated.runtime_isolation == "isolated"
     assert isolated.action_button_policy == "trial"
@@ -59,6 +60,11 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert project_import.apps_pages == "none"
     assert project_import.runtime_isolation == "isolated"
     assert project_import.action_button_policy == "safe-click"
+    assert project_rename.pages == "PROJECT"
+    assert project_rename.preselect_labels == "Rename"
+    assert project_rename.apps_pages == "none"
+    assert project_rename.runtime_isolation == "isolated"
+    assert project_rename.action_button_policy == "safe-click"
     assert settings.pages == "SETTINGS"
     assert settings.apps_pages == "none"
     assert settings.runtime_isolation == "isolated"
@@ -259,6 +265,33 @@ def test_build_robot_command_covers_project_import_sidebar(tmp_path) -> None:
     assert progress_path == tmp_path / "isolated-project-import-sidebar.ndjson"
 
 
+def test_build_robot_command_covers_project_rename_sidebar(tmp_path) -> None:
+    module = _load_module()
+    scenario = module.DEFAULT_SCENARIOS["isolated-project-rename-sidebar"]
+    options = module.MatrixOptions(
+        apps="flight_telemetry_project",
+        output_dir=tmp_path,
+        screenshot_dir=tmp_path / "screenshots",
+        timeout_seconds=12.0,
+        widget_timeout_seconds=2.0,
+        quiet_progress=True,
+        no_seed_demo_artifacts=False,
+    )
+
+    argv, summary_path, progress_path = module.build_robot_command(scenario, options=options)
+
+    assert argv[argv.index("--pages") + 1] == "PROJECT"
+    assert argv[argv.index("--apps-pages") + 1] == "none"
+    assert argv[argv.index("--runtime-isolation") + 1] == "isolated"
+    assert argv[argv.index("--action-button-policy") + 1] == "safe-click"
+    assert argv[argv.index("--preselect-labels") + 1] == "Rename"
+    assert argv[argv.index("--screenshot-dir") + 1] == str(
+        tmp_path / "screenshots" / "isolated-project-rename-sidebar"
+    )
+    assert summary_path == tmp_path / "isolated-project-rename-sidebar.json"
+    assert progress_path == tmp_path / "isolated-project-rename-sidebar.ndjson"
+
+
 def test_build_robot_command_covers_settings_page(tmp_path) -> None:
     module = _load_module()
     scenario = module.DEFAULT_SCENARIOS["isolated-settings-page"]
@@ -348,16 +381,17 @@ def test_run_matrix_aggregates_json_summaries(tmp_path) -> None:
         "isolated-project-page",
         "isolated-project-notebook-import",
         "isolated-project-import-sidebar",
+        "isolated-project-rename-sidebar",
         "isolated-settings-page",
         "current-home-actions",
         "current-home-orchestrate-journey",
     ]
     assert summary["success"] is True
-    assert summary["scenario_count"] == 8
-    assert summary["page_count"] == 16
-    assert summary["widget_count"] == 40
-    assert summary["interacted_count"] == 24
-    assert summary["probed_count"] == 16
+    assert summary["scenario_count"] == 9
+    assert summary["page_count"] == 18
+    assert summary["widget_count"] == 45
+    assert summary["interacted_count"] == 27
+    assert summary["probed_count"] == 18
     assert summary["failed_scenarios"] == []
     assert summary["failure_samples"] == []
 
