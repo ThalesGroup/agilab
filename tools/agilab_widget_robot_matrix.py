@@ -126,6 +126,19 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
     ),
+    "isolated-settings-page": RobotScenario(
+        name="isolated-settings-page",
+        description=(
+            "Sweep the hidden SETTINGS route for every built-in app through the "
+            "guarded source navigation wrapper."
+        ),
+        pages="SETTINGS",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="safe-click",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+    ),
     "current-home-actions": RobotScenario(
         name="current-home-actions",
         description=(

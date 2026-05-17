@@ -923,6 +923,8 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 "isolated-entry-and-app-pages",
                 "--scenario",
                 "isolated-project-page",
+                "--scenario",
+                "isolated-settings-page",
                 "--json",
                 "--quiet-progress",
                 "--output-dir",
