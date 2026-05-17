@@ -363,15 +363,21 @@ def test_docs_sidebar_exposes_both_public_demo_lanes() -> None:
     index = Path("docs/source/index.rst").read_text(encoding="utf-8")
     demos = Path("docs/source/demos.rst").read_text(encoding="utf-8")
     agilab_demo = Path("docs/source/agilab-demo.rst").read_text(encoding="utf-8")
-    use_sidebar_block = index.split(":caption: Use", 1)[1].split(":caption: Build", 1)[0]
+    product_sidebar_block = index.split(":caption: Product", 1)[1].split(
+        ":caption: Notebooks and API",
+        1,
+    )[0]
+    notebook_sidebar_block = index.split(":caption: Notebooks and API", 1)[1].split(
+        ":caption: Build",
+        1,
+    )[0]
 
-    assert "AGILAB Demo <agilab-demo>" in index
-    assert "Advanced Proof Pack <advanced-proof-pack>" in index
-    assert "notebook-quickstart" in index
-    assert "AGILAB Demo <agilab-demo>" in use_sidebar_block
-    assert "Advanced Proof Pack <advanced-proof-pack>" in use_sidebar_block
-    assert "notebook-quickstart" in use_sidebar_block
-    assert use_sidebar_block.index("AGILAB Demo <agilab-demo>") < use_sidebar_block.index("notebook-quickstart")
+    assert "Public web demo <agilab-demo>" in index
+    assert "Advanced proof pack <advanced-proof-pack>" in index
+    assert "Notebook quickstart with agi-core <notebook-quickstart>" in index
+    assert "Public web demo <agilab-demo>" in product_sidebar_block
+    assert "Advanced proof pack <advanced-proof-pack>" in product_sidebar_block
+    assert "Notebook quickstart with agi-core <notebook-quickstart>" in notebook_sidebar_block
     assert ":doc:`agilab-demo`" in demos
     assert ":doc:`advanced-proof-pack`" in demos
     assert ":doc:`notebook-quickstart`" in demos
