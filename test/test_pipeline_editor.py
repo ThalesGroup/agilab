@@ -1791,7 +1791,8 @@ def test_notebook_export_handoff_quotes_paths_with_spaces():
             "manifest_path": "/tmp/agilab exports/demo project/lab stages.notebook_export.json",
             "handoff_path": "/tmp/agilab exports/demo project/lab stages.notebook_export.md",
             "stage_count": 0,
-            "stages": [],
+            "related_page_count": 1,
+            "stages": [{"runtime_role": "worker", "runtime": "agi.run", "env": "/tmp/worker env"}],
             "related_pages": [],
         }
     )
@@ -1799,6 +1800,11 @@ def test_notebook_export_handoff_quotes_paths_with_spaces():
     assert "uv --project '/tmp/agilab apps/demo project' run" in handoff
     assert "jupyter lab '/tmp/agilab exports/demo project/lab stages.ipynb'" in handoff
     assert "--inplace '/tmp/agilab exports/demo project/lab stages.ipynb'" in handoff
+    assert "- Status: **project-bound**" in handoff
+    assert "- Worker/runtime stages: 1" in handoff
+    assert "- Recorded stage environments: 1" in handoff
+    assert "Worker stages still need AGILAB runtime access" in handoff
+    assert "Update absolute paths if the export is shared outside this workstation." in handoff
 
 
 def test_save_stage_handles_invalid_indices_and_runtime_map_failures(monkeypatch, tmp_path):
@@ -2693,6 +2699,11 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert manifest["stages"][0]["description"] == "Prepare data"
     assert manifest["stages"][0]["source_hash"] == hashlib.sha256(stage_code.encode("utf-8")).hexdigest()[:16]
     assert manifest["related_pages"][0]["module"] == "view_demo"
+    assert manifest["portability_review"]["level"] == "project-bound"
+    assert manifest["portability_review"]["worker_stage_count"] == 1
+    assert manifest["portability_review"]["env_path_count"] == 1
+    assert manifest["portability_review"]["absolute_path_count"] >= 4
+    assert "AGILAB app/runtime paths" in manifest["portability_review"]["summary"]
     assert [record["kind"] for record in manifest["stage_cells"]] == ["source", "runner"]
     assert [record["cell_id"] for record in manifest["stage_cells"]] == [
         "stage-000-source",
@@ -2710,6 +2721,9 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "validate_agilab_export()" in handoff_text
     assert "run_agilab_pipeline()" in handoff_text
     assert "Prepare data" in handoff_text
+    assert "## Portability Review" in handoff_text
+    assert "- Status: **project-bound**" in handoff_text
+    assert "Worker stages still need AGILAB runtime access" in handoff_text
     assert str(toml_path.with_suffix(".ipynb")) in handoff_text
     assert str(pycharm_mirror) in mirror_handoff_text
     assert "Prepare data" in mirror_handoff_text
@@ -2736,6 +2750,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "validate_agilab_export" in helper_source
     assert "show_agilab_export_handoff" in helper_source
     assert "export_handoff_markdown" in helper_source
+    assert "Portability Review" in helper_source
     assert "_command_or_path_exists" in helper_source
     assert "analysis_launch_command" in helper_source
     assert "analysis_launch_argv" in helper_source
