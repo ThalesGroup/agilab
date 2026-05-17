@@ -196,6 +196,18 @@ def _redact_auth_code(output: str, auth_code: str | None) -> str:
     return output
 
 
+def _fresh_totp_code(previous: str | None) -> str | None:
+    secret = (os.environ.get("PYPI_RELEASE_PRUNE_TOTP_SECRET") or "").strip()
+    if not secret:
+        return previous
+    deadline = time.time() + 35
+    code = generate_totp(secret)
+    while previous and code == previous and time.time() < deadline:
+        time.sleep(1)
+        code = generate_totp(secret)
+    return code
+
+
 def _form_action_matches(action: str | None, target_path: str) -> bool:
     if not action:
         return True
@@ -227,6 +239,22 @@ def _find_form(
     raise RuntimeError(f"no csrf-bearing form found for {target_path}")
 
 
+def _find_reauth_form(html: str) -> HtmlForm | None:
+    parser = FormParser()
+    parser.feed(html)
+    for form in parser.forms:
+        if {
+            "csrf_token",
+            "password",
+            "username",
+            "next_route",
+            "next_route_matchdict",
+            "next_route_query",
+        }.issubset(form.inputs):
+            return form
+    return None
+
+
 def _prepare_delete_form_data(form: HtmlForm, *, package: str, version: str) -> dict[str, str]:
     data = dict(form.inputs)
     data.setdefault("confirm_delete_version", version)
@@ -237,6 +265,31 @@ def _prepare_delete_form_data(form: HtmlForm, *, package: str, version: str) -> 
         elif "project" in lowered and ("confirm" in lowered or "delete" in lowered):
             data[key] = package
     return data
+
+
+def _submit_reauthentication_if_needed(
+    session: Any,
+    *,
+    response: Any,
+    base_url: str,
+    password: str,
+) -> Any:
+    reauth_form = _find_reauth_form(response.text)
+    if reauth_form is None:
+        return response
+
+    reauth_path = urlparse(reauth_form.action or "/account/reauthenticate/").path
+    reauth_data = dict(reauth_form.inputs)
+    reauth_data["password"] = password
+    response = session.post(
+        urljoin(base_url, reauth_form.action or reauth_path),
+        data=reauth_data,
+        headers={"referer": response.url},
+    )
+    response.raise_for_status()
+    if _find_reauth_form(response.text) is not None:
+        raise RuntimeError("PyPI rejected the re-authentication password")
+    return response
 
 
 def delete_release_via_pypi_web(
@@ -281,6 +334,7 @@ def delete_release_via_pypi_web(
 
         two_factor_prefix = f"{base_url}/account/two-factor/"
         if response.url.startswith(two_factor_prefix):
+            auth_code = _fresh_totp_code(auth_code)
             if auth_code is None:
                 raise RuntimeError(
                     "PyPI requested 2FA but no non-interactive code was available"
@@ -302,6 +356,12 @@ def delete_release_via_pypi_web(
         delete_url = f"{base_url}{delete_path}"
         response = session.get(delete_url)
         response.raise_for_status()
+        response = _submit_reauthentication_if_needed(
+            session,
+            response=response,
+            base_url=base_url,
+            password=password,
+        )
         delete_form = _find_form(
             response.text,
             target_path=delete_path,

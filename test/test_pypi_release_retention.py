@@ -215,6 +215,118 @@ def test_delete_form_parser_accepts_empty_action_and_fills_confirmation_fields()
     ) == {"csrf_token": "token", "confirm_delete_version": "2026.5.17"}
 
 
+def test_direct_pypi_delete_submits_reauth_before_delete_form() -> None:
+    module = _load_module()
+
+    class FakeResponse:
+        def __init__(self, *, text: str, url: str) -> None:
+            self.text = text
+            self.url = url
+
+        def raise_for_status(self) -> None:
+            return None
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.headers = {}
+            self.posts = []
+            self.gets = [
+                FakeResponse(
+                    url="https://pypi.org/account/login/",
+                    text="""
+                    <form method="post" action="/account/login/">
+                      <input name="csrf_token" value="login-csrf">
+                    </form>
+                    """,
+                ),
+                FakeResponse(
+                    url="https://pypi.org/manage/project/agilab/release/2026.5.17/",
+                    text="""
+                    <form method="post" action="/account/reauthenticate/">
+                      <input name="csrf_token" value="reauth-csrf">
+                      <input name="username" value="maintainer">
+                      <input name="next_route" value="manage.project.release">
+                      <input name="next_route_matchdict" value="{}">
+                      <input name="next_route_query" value="{}">
+                      <input name="password" type="password">
+                    </form>
+                    """,
+                ),
+            ]
+            self.post_responses = [
+                FakeResponse(
+                    url="https://pypi.org/manage/projects/",
+                    text="<html></html>",
+                ),
+                FakeResponse(
+                    url="https://pypi.org/manage/project/agilab/release/2026.5.17/",
+                    text="""
+                    <form method="post" action="/manage/project/agilab/release/2026.5.17/">
+                      <input name="csrf_token" value="delete-csrf">
+                      <input name="confirm_delete_version" value="">
+                    </form>
+                    """,
+                ),
+                FakeResponse(
+                    url="https://pypi.org/manage/project/agilab/releases/",
+                    text="<html></html>",
+                ),
+            ]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url):
+            response = self.gets.pop(0)
+            response.url = url
+            return response
+
+        def post(self, url, **kwargs):
+            self.posts.append((url, kwargs))
+            return self.post_responses.pop(0)
+
+    session = FakeSession()
+
+    module.delete_release_via_pypi_web(
+        package="agilab",
+        version="2026.5.17",
+        repo="pypi",
+        username="maintainer",
+        password="secret",
+        session_factory=lambda: session,
+    )
+
+    assert session.posts[0][1]["data"] == {
+        "csrf_token": "login-csrf",
+        "username": "maintainer",
+        "password": "secret",
+    }
+    assert session.posts[1][0] == "https://pypi.org/account/reauthenticate/"
+    assert session.posts[1][1]["data"]["password"] == "secret"
+    assert session.posts[1][1]["data"]["username"] == "maintainer"
+    assert session.posts[2][1]["data"] == {
+        "csrf_token": "delete-csrf",
+        "confirm_delete_version": "2026.5.17",
+    }
+
+
+def test_fresh_totp_code_waits_until_reused_code_changes(monkeypatch) -> None:
+    module = _load_module()
+    codes = iter(["123456", "123456", "654321"])
+    sleeps = []
+
+    monkeypatch.setenv("PYPI_RELEASE_PRUNE_TOTP_SECRET", "seed")
+    monkeypatch.setattr(module, "generate_totp", lambda secret: next(codes))
+    monkeypatch.setattr(module.time, "sleep", lambda seconds: sleeps.append(seconds))
+    monkeypatch.setattr(module.time, "time", lambda: 0)
+
+    assert module._fresh_totp_code("123456") == "654321"
+    assert sleeps == [1, 1]
+
+
 def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -> None:
     module = _load_module()
     releases = {
