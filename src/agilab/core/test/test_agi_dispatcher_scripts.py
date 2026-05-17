@@ -2380,6 +2380,29 @@ def test_build_inject_shared_site_packages_appends_candidates_once(tmp_path, mon
     assert build_mod.sys.path == expected
 
 
+def test_build_inject_shared_site_packages_skips_foreign_home_checkout(tmp_path, monkeypatch):
+    fake_home = tmp_path / "home"
+    foreign_checkout = fake_home / "agilab"
+    current_checkout = tmp_path / "current"
+    source_file = current_checkout / "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py"
+    (foreign_checkout / "src/agilab").mkdir(parents=True)
+    (foreign_checkout / "src/agilab/main_page.py").write_text("", encoding="utf-8")
+    (current_checkout / "src/agilab").mkdir(parents=True)
+    (current_checkout / "src/agilab/main_page.py").write_text("", encoding="utf-8")
+    source_file.parent.mkdir(parents=True)
+    source_file.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(build_mod.Path, "home", staticmethod(lambda: fake_home))
+    monkeypatch.setattr(build_mod.sys, "path", [], raising=False)
+    monkeypatch.setattr(build_mod.sys, "version_info", SimpleNamespace(major=3, minor=13), raising=False)
+
+    build_mod._inject_shared_site_packages(source_file=source_file)
+
+    assert build_mod.sys.path == [
+        str(fake_home / ".agilab/.venv/lib/python3.13/site-packages"),
+    ]
+
+
 def test_build_create_symlink_for_module_uses_symlink_on_unmanaged_host(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     src_abs = tmp_path / "app-src" / "demo_worker"

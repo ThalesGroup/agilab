@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib
 import json
 import sys
+import types
 from pathlib import Path
 from types import SimpleNamespace
 
 
 REPORT_PATH = Path("tools/global_pipeline_dag_report.py").resolve()
 CORE_PATH = Path("src/agilab/global_pipeline_dag.py").resolve()
+SRC_ROOT = Path("src").resolve()
 
 
 def _load_report_module():
@@ -21,9 +24,21 @@ def _load_report_module():
 
 
 def _load_core_module():
-    from test import import_agilab_module
-
-    return import_agilab_module("agilab.global_pipeline_dag")
+    package_root = str(SRC_ROOT / "agilab")
+    src_root_str = str(SRC_ROOT)
+    if src_root_str not in sys.path:
+        sys.path.insert(0, src_root_str)
+    pkg = sys.modules.get("agilab")
+    if pkg is None or not hasattr(pkg, "__path__"):
+        pkg = types.ModuleType("agilab")
+        pkg.__path__ = [package_root]
+        sys.modules["agilab"] = pkg
+    else:
+        package_path = list(pkg.__path__)
+        if package_root not in package_path:
+            pkg.__path__ = [package_root, *package_path]
+    importlib.invalidate_caches()
+    return importlib.import_module("agilab.global_pipeline_dag")
 
 
 def test_global_pipeline_dag_report_builds_checked_in_graph() -> None:

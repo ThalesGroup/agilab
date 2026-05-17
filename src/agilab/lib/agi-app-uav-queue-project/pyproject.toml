@@ -2,7 +2,7 @@
 version = "2026.05.17.post1"
 name = "agi-app-uav-queue-project"
 description = "AGILAB UAV queue simulation demo with scenario evidence and network-map artifacts"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 readme = "README.md"
 authors = [
     { name = "Jean-Pierre Morard" }
@@ -15,8 +15,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Operating System :: MacOS",
     "Operating System :: Microsoft :: Windows",

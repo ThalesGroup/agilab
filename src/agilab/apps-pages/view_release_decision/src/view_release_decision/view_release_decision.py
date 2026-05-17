@@ -72,6 +72,12 @@ APP_DEFAULT_METRICS_GLOBS = {
 APP_DEFAULT_REQUIRED_PATTERNS = {
     "weather_forecast_project": ("forecast_metrics.json", "forecast_predictions.csv"),
 }
+APP_SCOPED_SESSION_DEFAULT_KEYS = (
+    "release_decision_datadir",
+    "release_decision_metrics_glob",
+    "release_decision_required_patterns",
+    "release_decision_run_manifest_path",
+)
 
 
 def _load_run_manifest_module() -> Any:
@@ -123,12 +129,24 @@ def _default_artifact_root(env: AgiEnv) -> Path:
     return _connector_path_registry(env).path("artifact_root")
 
 
+def _app_default_key(env: AgiEnv) -> str:
+    for raw_value in (
+        getattr(env, "app", ""),
+        getattr(env, "target", ""),
+        getattr(getattr(env, "active_app", None), "name", ""),
+    ):
+        value = str(raw_value)
+        if value in APP_DEFAULT_METRICS_GLOBS or value in APP_DEFAULT_REQUIRED_PATTERNS:
+            return value
+    return str(getattr(env, "app", ""))
+
+
 def _default_metrics_glob(env: AgiEnv) -> str:
-    return APP_DEFAULT_METRICS_GLOBS.get(str(env.app), "**/*metrics*.json")
+    return APP_DEFAULT_METRICS_GLOBS.get(_app_default_key(env), "**/*metrics*.json")
 
 
 def _default_required_patterns(env: AgiEnv) -> list[str]:
-    patterns = APP_DEFAULT_REQUIRED_PATTERNS.get(str(env.app))
+    patterns = APP_DEFAULT_REQUIRED_PATTERNS.get(_app_default_key(env))
     if patterns:
         return list(patterns)
     return ["*.json"]
@@ -136,6 +154,20 @@ def _default_required_patterns(env: AgiEnv) -> list[str]:
 
 def _default_run_manifest_path(env: AgiEnv) -> Path:
     return _connector_path_registry(env).path("first_proof_manifest")
+
+
+def _session_app_scope_key(env: AgiEnv) -> str:
+    return f"{getattr(env, 'app', '')}:{getattr(env, 'active_app', '')}"
+
+
+def _reset_app_scoped_session_defaults(streamlit: Any, env: AgiEnv) -> None:
+    current_scope = _session_app_scope_key(env)
+    scope_key = "release_decision_app_scope"
+    if streamlit.session_state.get(scope_key) == current_scope:
+        return
+    for key in APP_SCOPED_SESSION_DEFAULT_KEYS:
+        streamlit.session_state.pop(key, None)
+    streamlit.session_state[scope_key] = current_scope
 
 
 def _dedupe_paths(paths: list[tuple[Path, str]]) -> list[tuple[Path, str]]:
@@ -1886,6 +1918,7 @@ if "env" not in st.session_state:
     st.session_state["env"] = env
 else:
     env = st.session_state["env"]
+_reset_app_scoped_session_defaults(st, env)
 
 render_logo("Release Decision")
 st.title("Release decision")

@@ -931,7 +931,7 @@ def sidebar_controls() -> None:
         "Edit",
         key="project_selectbox__edit",
         help=f"Edit {selected_lab}.",
-        use_container_width=True,
+        width="stretch",
     ):
         st.query_params["active_app"] = selected_lab
         st.switch_page(Path("pages/1_PROJECT.py"))

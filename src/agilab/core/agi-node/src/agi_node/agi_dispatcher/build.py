@@ -26,13 +26,47 @@ bootstrap_core_source_paths(source_file=__file__)
 from setuptools import setup, find_packages, Extension, SetuptoolsDeprecationWarning
 from Cython.Build import cythonize
 
-def _inject_shared_site_packages() -> None:
+def _source_checkout_root(source_file: str | Path) -> Path | None:
+    try:
+        source_path = Path(source_file).resolve()
+    except OSError:
+        return None
+    for parent in (source_path.parent, *source_path.parents):
+        if (parent / "src" / "agilab" / "main_page.py").exists():
+            return parent
+    return None
+
+
+def _checkout_root_for_site_packages(candidate: Path) -> Path | None:
+    try:
+        candidate_path = candidate.resolve()
+    except OSError:
+        candidate_path = candidate
+    for parent in candidate_path.parents:
+        if parent.name != ".venv":
+            continue
+        checkout_root = parent.parent
+        if (checkout_root / "src" / "agilab" / "main_page.py").exists():
+            return checkout_root.resolve()
+        return None
+    return None
+
+
+def _inject_shared_site_packages(*, source_file: str | Path = __file__) -> None:
     version = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    current_checkout_root = _source_checkout_root(source_file)
     candidates = [
         Path.home() / "agilab/.venv/lib" / version / "site-packages",
         Path.home() / ".agilab/.venv/lib" / version / "site-packages",
     ]
     for candidate in candidates:
+        candidate_checkout_root = _checkout_root_for_site_packages(candidate)
+        if (
+            current_checkout_root is not None
+            and candidate_checkout_root is not None
+            and candidate_checkout_root != current_checkout_root
+        ):
+            continue
         path_str = str(candidate)
         if path_str not in sys.path:
             sys.path.append(path_str)
