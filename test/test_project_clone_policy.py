@@ -3,6 +3,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
+import sys
 import tomllib
 import zipfile
 from pathlib import Path
@@ -12,6 +14,12 @@ import pytest
 
 
 MODULE_PATH = Path("src/agilab/pages/1_PROJECT.py")
+SAMPLE_HELPER_PATH = Path("src/agilab/notebook_import_sample.py")
+BUILTIN_APPS_ROOT = Path("src/agilab/apps/builtin")
+LAB_STAGE_SOURCES = {
+    "weather_forecast": BUILTIN_APPS_ROOT / "weather_forecast_project" / "lab_stages.toml",
+    "mission_decision": BUILTIN_APPS_ROOT / "mission_decision_project" / "lab_stages.toml",
+}
 
 
 def _load_project_module():
@@ -20,6 +28,23 @@ def _load_project_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _load_module(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _first_lab_stage_list(path: Path) -> list[dict[str, object]]:
+    data = tomllib.loads(path.read_text(encoding="utf-8"))
+    for value in data.values():
+        if isinstance(value, list):
+            return [stage for stage in value if isinstance(stage, dict)]
+    return []
 
 
 def _extract_toolbar_buttons(payload):
@@ -643,6 +668,7 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
         raw_project_name="Notebook Demo",
         uploaded_notebook=uploaded,
         clone_env_strategy="detach_venv",
+        runtime_roles={"cell-2": "worker"},
     )
 
     dest_root = tmp_path / "notebook_demo_project"
@@ -661,12 +687,196 @@ def test_create_project_from_notebook_writes_project_import_artifacts(
     assert steps["notebook_demo_project"][0]["NB_SOURCE_NOTEBOOK"] == (
         "notebooks/source/Demo_Notebook.ipynb"
     )
+    assert steps["notebook_demo_project"][0]["NB_RUNTIME_ROLE"] == "worker"
+    assert steps["notebook_demo_project"][0]["R"] == "agi.run"
 
     contract = json.loads((dest_root / "notebook_import_contract.json").read_text(encoding="utf-8"))
     assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
     assert contract["artifact_contract"]["outputs"] == ["outputs/orders.csv"]
     assert (dest_root / "notebook_import_pipeline_view.json").is_file()
     assert (dest_root / "notebook_import_view_plan.json").is_file()
+
+
+def test_packaged_notebook_samples_create_projects_that_preserve_base_app_contracts(
+    tmp_path: Path,
+):
+    module = _load_project_module()
+    sample_module = _load_module(
+        SAMPLE_HELPER_PATH,
+        "notebook_import_sample_project_clone_policy_module",
+    )
+    expected_projects = {
+        "flight_telemetry": "flight_telemetry_from_notebook_project",
+        "mycode": "mycode_from_notebook_project",
+        "weather_forecast": "weather_forecast_from_notebook_project",
+        "mission_decision": "mission_decision_from_notebook_project",
+    }
+    apps_root = tmp_path / "apps"
+    builtin_root = apps_root / "builtin"
+    builtin_root.mkdir(parents=True)
+    clone_calls: list[tuple[Path, Path]] = []
+
+    for sample in sample_module.list_sample_notebooks():
+        source_root = BUILTIN_APPS_ROOT / sample.recommended_template
+        assert source_root.is_dir()
+        shutil.copytree(source_root, builtin_root / sample.recommended_template)
+
+    def _clone_project(source: Path, target: Path) -> None:
+        clone_calls.append((source, target))
+        source_root = apps_root / source
+        shutil.copytree(source_root, apps_root / target, ignore=shutil.ignore_patterns(".venv"))
+
+    env = SimpleNamespace(apps_path=apps_root, clone_project=_clone_project)
+
+    for sample in sample_module.list_sample_notebooks():
+        notebook_bytes = sample_module.read_sample_notebook_bytes(sample.sample_id)
+        uploaded = SimpleNamespace(
+            name=sample.download_name,
+            type=sample_module.SAMPLE_NOTEBOOK_MIME,
+            getvalue=lambda notebook_bytes=notebook_bytes: notebook_bytes,
+        )
+
+        result = module._create_project_from_notebook_action(
+            env,
+            template_source=sample.recommended_template,
+            raw_project_name=sample.project_name_hint,
+            uploaded_notebook=uploaded,
+            clone_env_strategy="detach_venv",
+        )
+
+        expected_project = expected_projects[sample.sample_id]
+        dest_root = apps_root / expected_project
+        assert result.status == "success"
+        assert result.data["new_name"] == expected_project
+        assert clone_calls[-1] == (
+            Path("builtin") / sample.recommended_template,
+            Path(expected_project),
+        )
+        assert (dest_root / "pyproject.toml").is_file()
+        assert (dest_root / "README.md").is_file()
+        assert (dest_root / "src" / "app_settings.toml").is_file()
+        assert (dest_root / "src" / "pre_prompt.json").is_file()
+        assert (dest_root / "notebooks" / "source" / sample.download_name).is_file()
+        assert (dest_root / "notebook_import_contract.json").is_file()
+        assert (dest_root / "notebook_import_pipeline_view.json").is_file()
+        assert (dest_root / "notebook_import_view_plan.json").is_file()
+
+        stages = tomllib.loads((dest_root / "lab_stages.toml").read_text(encoding="utf-8"))
+        imported_stages = stages[expected_project]
+        assert imported_stages
+        assert all(stage["NB_RUNTIME_ROLE"] == "manager" for stage in imported_stages)
+        assert all(
+            stage["NB_SOURCE_NOTEBOOK"] == f"notebooks/source/{sample.download_name}"
+            for stage in imported_stages
+        )
+        if sample.sample_id in LAB_STAGE_SOURCES:
+            source_stages = _first_lab_stage_list(LAB_STAGE_SOURCES[sample.sample_id])
+            assert [
+                (stage["D"], stage["Q"], stage["M"], stage["C"], stage["R"])
+                for stage in imported_stages
+            ] == [
+                (stage["D"], stage["Q"], stage.get("M", ""), stage["C"], stage["R"])
+                for stage in source_stages
+            ]
+
+
+def test_create_project_from_notebook_blocks_unreviewed_runtime_roles(tmp_path: Path):
+    module = _load_project_module()
+    clone_calls: list[tuple[Path, Path]] = []
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "cells": [{"cell_type": "code", "source": ["print('needs role')\n"]}],
+    }
+    uploaded = SimpleNamespace(
+        name="needs-role.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps(notebook).encode("utf-8"),
+    )
+    env = SimpleNamespace(
+        apps_path=tmp_path,
+        clone_project=lambda source, target: clone_calls.append((source, target)),
+    )
+
+    result = module._create_project_from_notebook_action(
+        env,
+        template_source="pandas_app_template",
+        raw_project_name="Needs Role",
+        uploaded_notebook=uploaded,
+        clone_env_strategy="detach_venv",
+    )
+
+    assert result.status == "error"
+    assert result.title == "Notebook runtime role review is incomplete."
+    assert result.detail == "Select Manager or Worker for: cell-1."
+    assert clone_calls == []
+    assert not (tmp_path / "needs_role_project").exists()
+
+
+def test_project_notebook_runtime_role_review_shows_cell_context() -> None:
+    module = _load_project_module()
+    messages: list[tuple] = []
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "cells": [
+            {
+                "cell_type": "code",
+                "source": [
+                    "import pandas as pd\n",
+                    "df = pd.read_csv('data/orders.csv')\n",
+                    "df.to_csv('outputs/orders.csv')\n",
+                ],
+            }
+        ],
+    }
+    uploaded = SimpleNamespace(
+        name="orders.ipynb",
+        type="application/x-ipynb+json",
+        getvalue=lambda: json.dumps(notebook).encode("utf-8"),
+    )
+
+    class _ReviewBox:
+        def caption(self, message, *args, **kwargs):
+            messages.append(("caption", message))
+
+        def selectbox(self, label, options, *args, **kwargs):
+            messages.append(("selectbox", label, list(options), kwargs))
+            return "Worker (AGILAB worker)"
+
+        def warning(self, message, *args, **kwargs):
+            messages.append(("warning", message))
+
+    class _Target:
+        def expander(self, label, *args, **kwargs):
+            messages.append(("expander", label, kwargs))
+            return _ReviewBox()
+
+        def caption(self, message, *args, **kwargs):
+            messages.append(("target-caption", message))
+
+    roles, detail = module._render_project_notebook_runtime_role_review(
+        _Target(),
+        uploaded,
+        "Orders Demo",
+    )
+
+    assert roles == {"cell-1": "worker"}
+    assert detail == ""
+    assert any(
+        item[0] == "caption"
+        and "Cell 1: import pandas as pd" in item[1]
+        and "data/orders.csv" in item[1]
+        and "outputs/orders.csv" in item[1]
+        and "pandas" in item[1]
+        for item in messages
+    )
+    assert any(
+        item[0] == "selectbox"
+        and item[3]["key"].startswith(module.PROJECT_NOTEBOOK_RUNTIME_ROLE_KEY_PREFIX)
+        and item[3]["key"].endswith("_cell-1")
+        for item in messages
+    )
 
 
 def test_notebook_import_metadata_prefills_create_defaults():

@@ -42,6 +42,26 @@ so dependencies resolve through the checkout environment. Commands under
 `~/log/execute/<app>/` are installed helper scripts and are normally run after
 AGILAB has initialized the target app environment.
 
+## Notebook Import Samples
+
+AGILAB also packages notebook-import versions of the executable examples. In a
+source checkout they live under `src/agilab/resources/notebook_import_samples/`
+except for the first-proof flight sample in `src/agilab/resources/`. Importing one
+of these notebooks from `PROJECT -> Create -> From notebook` clones the matching
+base app and names the result as an imported project:
+
+| Notebook sample | Base app | Imported project |
+|---|---|---|
+| `flight_telemetry_from_notebook.ipynb` | `flight_telemetry_project` | `flight_telemetry_from_notebook_project` |
+| `mycode_from_notebook.ipynb` | `mycode_project` | `mycode_from_notebook_project` |
+| `weather_forecast_from_notebook.ipynb` | `weather_forecast_project` | `weather_forecast_from_notebook_project` |
+| `mission_decision_from_notebook.ipynb` | `mission_decision_project` | `mission_decision_from_notebook_project` |
+
+These samples carry AGILAB import metadata, so the create form can preselect the
+right base project and every runnable cell is tagged with its manager/worker role.
+From an installed package, locate one with
+`python -c "from agilab.notebook_import_sample import sample_notebook_path; print(sample_notebook_path('weather_forecast'))"`.
+
 ## What To Notice
 
 - `AGI_install_*.py` prepares the app environment and worker runtime.

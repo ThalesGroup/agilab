@@ -424,6 +424,7 @@ exclude = [
 [tool.setuptools.package-data]
 agilab = [
     "resources/*.*",
+    "resources/notebook_import_samples/*.ipynb",
     "resources/help/*",
     "pages/*.py",
     "*.toml",
