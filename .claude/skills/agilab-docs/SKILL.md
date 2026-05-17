@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-16
+  updated: 2026-05-17
 ---
 
 # Docs Skill (AGILAB)
@@ -30,8 +30,11 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 1. Edit the canonical source file under `../thales_agilab/docs/source`.
 2. Sync the public mirror from the AGILAB repo root:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
-3. If the change touches an SVG diagram, validate the SVG as XML and confirm the
-   referencing `.rst` page still points to the intended file.
+3. If the change touches an SVG diagram, validate the SVG as XML, render a local
+   preview at the intended docs width, and confirm the referencing `.rst` page
+   still points to the intended file. Do not rely on XML validity alone; inspect
+   the rendered preview for clipped text, overlong labels, hidden cards, and
+   unreadable feedback arrows.
 4. Validate the mirror stamp before committing:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
 5. Rebuild or run the docs profile when the rendered page matters:
@@ -149,6 +152,13 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Public mirror sync (from `agilab` repo root):
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
+- SVG docs figure preview:
+  - Parse the canonical and mirrored SVG with `xml.etree.ElementTree`.
+  - Prefer `rsvg-convert -w 1600 -o /tmp/<name>.png <figure>.svg` when available
+    because it matches the Sphinx/browser rendering path better than Quick Look.
+  - On macOS, `qlmanage -t -s 1600 -o /tmp <figure>.svg` is a useful second
+    preview, but check its aspect-ratio behavior before trusting layout.
+  - Inspect the PNG at full size; labels must fit their boxes at docs scale.
 - Docs alignment check without editing files:
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --delete`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
