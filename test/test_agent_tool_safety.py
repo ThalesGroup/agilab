@@ -60,6 +60,19 @@ def test_safe_agent_tool_invocation_is_allowed_without_confirmation() -> None:
     assert decision.confirmation_token is None
 
 
+def test_metadata_can_mark_tool_invocation_as_destructive() -> None:
+    module = _load_module()
+
+    explicit = module.evaluate_tool_invocation("archive_project", metadata={"destructive": True})
+    by_kind = module.evaluate_tool_invocation("archive_project", metadata={"kind": "destructive"})
+
+    assert explicit.allowed is False
+    assert explicit.risk == "destructive"
+    assert explicit.confirmation_token == module.confirmation_token("archive_project")
+    assert by_kind.allowed is False
+    assert by_kind.risk == "destructive"
+
+
 def test_destructive_agent_tool_invocation_requires_stable_confirmation() -> None:
     module = _load_module()
     args = {"path": "/tmp/output"}
@@ -79,6 +92,17 @@ def test_require_tool_invocation_allowed_raises_for_unconfirmed_destructive_acti
     module = _load_module()
     with pytest.raises(module.ToolConfirmationRequired, match="requires explicit operator confirmation"):
         module.require_tool_invocation_allowed("reset_cluster", {"scheduler": "127.0.0.1"})
+
+
+def test_require_tool_invocation_allowed_returns_confirmed_decision() -> None:
+    module = _load_module()
+    args = {"path": "/tmp/output"}
+    token = module.confirmation_token("delete_output", args)
+
+    decision = module.require_tool_invocation_allowed("delete_output", args, confirmation=token)
+
+    assert decision.allowed is True
+    assert decision.confirmation_token == token
 
 
 def test_progress_recorder_writes_append_only_redacted_ndjson(tmp_path) -> None:
@@ -110,3 +134,9 @@ def test_progress_recorder_writes_append_only_redacted_ndjson(tmp_path) -> None:
     assert rows[0]["metadata"]["safe"] == "visible"
     assert "sk-real-secret" not in raw
     assert "env://OPENAI_API_KEY" not in raw
+
+
+def test_load_progress_events_returns_empty_list_for_missing_path(tmp_path) -> None:
+    module = _load_module()
+
+    assert module.load_progress_events(tmp_path / "missing.ndjson") == []
