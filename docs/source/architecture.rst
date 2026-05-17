@@ -9,11 +9,12 @@ New to AGILab? Start with :doc:`quick-start` for a first run, use
 :doc:`architecture-five-minutes` for the compact layer map, then return here
 when you need the big picture of how the layers fit together.
 
-.. figure:: Agilab-Overview.svg
-   :alt: High-level view of AGILab runtime
+.. figure:: diagrams/agilab_global_architecture.svg
+   :alt: Global view of AGILAB entry surfaces, project contract, control plane, execution targets, evidence, portability, and guardrails.
    :class: diagram-panel diagram-hero
 
-   AGILab layers from the web interface down to worker clusters.
+   Global AGILAB architecture from entry surfaces to the reusable app contract,
+   runtime back-planes, evidence, portability, and operational guardrails.
 
 Component view
 --------------

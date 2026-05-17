@@ -7,10 +7,215 @@ This page tracks planned work only.
 
 The goal here is to rank future work, not to restate the current feature set.
 
-## Recommended near-term execution order
+## Professionalization priority order
+
+Use this order when the goal is to make AGILab feel professional, adoptable,
+and maintainable rather than just richer in features.
+
+### P0. Release and runtime integrity
+
+Goal:
+
+- every public release can be installed, launched, and validated from a clean
+  public environment without relying on the developer checkout
+
+Concrete items:
+
+- keep the release guard as the mandatory pre-tag path: install smoke,
+  first-proof, security check, docs mirror check, badge freshness, dependency
+  policy, and trusted-publisher contract
+- make imported-notebook projects part of the release smoke, not a separate
+  best-effort demo path
+- require each shipped notebook sample to create an installable and runnable app
+  equivalent to its packaged example
+- keep PyPI, GitHub release proof, public docs, and Hugging Face demo text
+  aligned before publication
+- fail fast on local-path, stale-worker, missing-share, or stale-app-repository
+  states instead of silently degrading
+
+Done means:
+
+- a clean install can run the default first proof and at least one imported
+  notebook project end to end
+- release proof points to the exact version, commands, evidence, and known
+  limitations
+- no release badge, docs mirror, dependency-policy, or trusted-publisher guard
+  is knowingly stale
+
+### P1. First-run product experience
+
+Goal:
+
+- a new user understands what to click, what will happen, and how to recover if
+  it fails
+
+Concrete items:
+
+- keep ABOUT focused on the first proof and remove redundant call-to-action
+  clutter
+- make every wizard action direct: install really installs, execute really runs,
+  analysis opens the right result page, notebook import creates the project
+  without asking the user to locate packaged files
+- keep PROJECT sidebars and advanced controls out of the default path unless
+  they are needed for the current task
+- add deterministic error messages for install/run/delete/import flows and keep
+  spinners scoped to the action that is still running
+- keep examples small enough to finish locally before users attempt cluster,
+  service mode, or external app repositories
+
+Done means:
+
+- a user can complete the built-in first proof or the notebook first proof
+  without reading source code, finding hidden files, or guessing page actions
+
+### P2. Notebook interop and no-lock-in
+
+Goal:
+
+- teams can enter AGILab from notebooks and leave AGILab back to notebooks
+  without losing the useful work
+
+Concrete items:
+
+- provide one importable notebook for every public packaged example that is
+  suitable for notebook import
+- preserve explicit manager/worker role metadata while still requiring clear
+  cell-by-cell review when metadata is missing or ambiguous
+- name imported projects predictably, for example
+  `flight-telemetry-from-notebook-project`
+- keep notebook export positioned as the exit and handoff path, not just a
+  convenience download
+- round-trip the stage order, code, runtime hints, artifacts, and provenance
+  enough for review and reuse outside the AGILab UI
+
+Done means:
+
+- import and export are documented as a reversible adoption bridge: notebooks
+  can become AGILab projects, and AGILab work can be handed back as notebooks
+  when the workbench is no longer needed
+
+### P3. Security and supply-chain posture
+
+Goal:
+
+- AGILab is safe by default for controlled R&D and explicit about what remains
+  outside the default threat model
+
+Concrete items:
+
+- keep public UI binding local by default and document the reverse-proxy,
+  authentication, TLS, and network controls required for exposure
+- treat apps, notebooks, generated snippets, and external repositories as
+  executable code that needs review, allowlisting, and isolation
+- keep secrets out of command lines, logs, committed files, generated notebooks,
+  and release evidence
+- regenerate SBOM and dependency audit evidence for the actual install profiles
+  being adopted
+- keep PyPI trusted publishing and action pinning as mandatory release gates
+
+Done means:
+
+- the docs do not imply production, multi-tenant, regulated-data, or public
+  exposure readiness without the external controls required to make that true
+
+### P4. Team and cluster operation
+
+Goal:
+
+- shared-team and cluster use is diagnosable, bounded, and repeatable
+
+Concrete items:
+
+- make cluster share setup explicit and refuse cluster mode when no usable
+  shared path is configured
+- keep SSH, SSHFS, LAN discovery, remote path, and share-sentinel diagnostics
+  actionable from both CLI and UI
+- provide a small validation matrix for local, bare-metal cluster, VM-based
+  cluster, AI Lightning, Hugging Face, and cloud targets when evidence exists
+- add service-health gates for long-running service mode: idle policy,
+  unhealthy limit, restart-rate threshold, and machine-readable status
+- separate single-user convenience from multi-user isolation, quotas, and
+  account policy
+
+Done means:
+
+- a team can distinguish local failure, share failure, worker dependency
+  failure, scheduler failure, and service-health failure without reading
+  tracebacks first
+
+### P5. Evidence-driven MLOps bridge
+
+Goal:
+
+- AGILab stays a workbench, but hands clean evidence to the MLOps and platform
+  systems that own production
+
+Concrete items:
+
+- strengthen run evidence, release decisions, run diff, artifact provenance,
+  and compatibility profiles as first-class outputs
+- keep MLflow integration focused on tracking, artifacts, model registry
+  handoff, and comparison rather than replacing AGILab execution
+- define promotion-ready evidence bundles for apps, imported notebooks, and
+  cluster runs
+- add hooks for monitoring, drift, feature stores, orchestration engines, and
+  serving platforms without claiming those systems are built into AGILab
+
+Done means:
+
+- an experiment can be reviewed, compared, promoted, or rejected from evidence
+  that is versioned, portable, and honest about its execution environment
+
+### P6. Extension architecture and maintainability
+
+Goal:
+
+- new apps, pages, connectors, and workflow features follow stable patterns
+  instead of accumulating one-off glue
+
+Concrete items:
+
+- keep public APIs, app templates, page metadata, connector models, reducer
+  contracts, and workflow stage contracts explicit and tested
+- use design patterns to separate UI, orchestration, runtime execution,
+  artifacts, and evidence generation
+- add pattern-gated checks before new workflow or notebook-import behavior can
+  bypass existing contracts
+- keep strict typing and focused tests on shared helpers that affect many apps
+- document deprecations with migration paths and removal dates
+
+Done means:
+
+- future features can be added by extending clear contracts, not by duplicating
+  page-specific or app-specific behavior
+
+### P7. Ecosystem and distribution
+
+Goal:
+
+- AGILab is easy to adopt incrementally through public packages, app packages,
+  demos, and external repositories without locking users into one layout
+
+Concrete items:
+
+- keep PyPI packages for publishable apps small, named consistently, and backed
+  by trusted publishing
+- keep Hugging Face and public demos aligned with the same release evidence as
+  the repository
+- provide clear app repository update, install, rename, and migration behavior
+  instead of compatibility aliases for stale local copies
+- publish only examples that meet content-quality, install/run, README, and
+  notebook-import criteria
+
+Done means:
+
+- users can adopt one app, one notebook import, one demo, or the full workbench
+  without discovering different contracts for each path
+
+## Feature sequencing after the professional baseline
 
 If the goal is near-term product sequencing rather than broad idea collection,
-use this order:
+use this order after the P0-P2 professionalization gates are under control:
 
 1. **Multi-app DAG orchestration productization**
    - let `WORKFLOW` represent one orchestrated DAG across the full workflow,
@@ -910,8 +1115,10 @@ Why it matters:
 
 Use this rule of thumb:
 
-- if the goal is near-term execution order rather than thematic discussion, use
-  the ordered list from **Recommended near-term execution order** first
+- if the goal is professionalization, use the ordered list from
+  **Professionalization priority order** first
+- if the professional baseline is already under control and the goal is feature
+  sequencing, use **Feature sequencing after the professional baseline**
 
 - choose **Experiment Cockpit** if the next need is better daily usability for
   engineers comparing runs
@@ -965,11 +1172,15 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 
 ### Current candidate priorities
 
-- Multi-app DAG orchestration productization
-- Bidirectional notebook interop
-- Data connector facility
-- Reduce contract adoption
-- Intent-first operator mode
+- P0 release and runtime integrity
+- P1 first-run product experience
+- P2 notebook interop and no-lock-in
+- P3 security and supply-chain posture
+- P4 team and cluster operation
+- Multi-app DAG orchestration productization, once the professional baseline is
+  stable
+- Data connector facility and connector-aware views, once first-run and
+  evidence paths are predictable
 
 If the `roadmap` label is not visible yet in GitHub, the issue form still
 works. The repository workflow will create or update that label on the next

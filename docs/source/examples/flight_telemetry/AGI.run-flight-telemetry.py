@@ -6,7 +6,7 @@ from agi_env import AgiEnv
 
 
 APP = "flight_telemetry_project"
-LOCAL_RUN_MODES = AGI.PYTHON_MODE | AGI.CYTHON_MODE | AGI.DASK_MODE
+LOCAL_RUN_MODES = AGI.PYTHON_MODE | AGI.DASK_MODE
 
 
 def agilab_apps_path() -> Path:
@@ -16,7 +16,7 @@ def agilab_apps_path() -> Path:
             "AGILAB is not initialized. Run the AGILAB installer or "
             "`agilab first-proof --json` before this example."
         )
-    return Path(marker.read_text(encoding="utf-8").strip()) / "apps"
+    return Path(marker.read_text(encoding="utf-8").strip()) / "apps" / "builtin"
 
 
 async def main():
@@ -26,6 +26,12 @@ async def main():
             "data_source": "file",
             "files": "*",
             "nfile": 1,
+            "nskip": 0,
+            "nread": 0,
+            "sampling_rate": 1.0,
+            "datemin": "2020-01-01",
+            "datemax": "2021-01-01",
+            "output_format": "parquet",
         },
         data_in="flight/dataset",
         data_out="flight/dataframe",
