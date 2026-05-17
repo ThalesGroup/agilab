@@ -1024,6 +1024,25 @@ def active_app_route_matches(url: str, expected_active_app: str) -> bool:
     return routed_active_app_slug(url) in active_app_aliases(expected_active_app)
 
 
+def append_route_query(url: str, route_query: str) -> str:
+    """Append scenario-specific query parameters without changing the route label."""
+
+    if not route_query.strip():
+        return url
+    parsed = urllib.parse.urlsplit(url)
+    query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+    query.update(urllib.parse.parse_qsl(route_query.lstrip("?"), keep_blank_values=True))
+    return urllib.parse.urlunsplit(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            urllib.parse.urlencode(query),
+            parsed.fragment,
+        )
+    )
+
+
 def remote_apps_page_path(route: AppsPageRoute, *, remote_app_root: str = "/app") -> str:
     try:
         relative_path = route.path.resolve().relative_to(REPO_ROOT)
@@ -3609,6 +3628,7 @@ def sweep_page(
     runtime_isolation: str = "isolated",
     server_env: dict[str, str] | None = None,
     home_root: Path | None = None,
+    route_query: str = "",
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
 ) -> PageSweep:
@@ -3618,6 +3638,7 @@ def sweep_page(
     action_timeout_ms = action_timeout * 1000.0
     page_deadline = None if page_timeout is None or page_timeout <= 0 else started + page_timeout
     target_url = web_robot.build_url(base_url, active_app=active_app_query) if not page_name else web_robot.build_page_url(base_url, page_name, active_app=active_app_query, current_page=str(current_page) if current_page else None)
+    target_url = append_route_query(target_url, route_query)
     display = display_page or page_label(page_name)
     expect_any = tuple(expected_text) if expected_text is not None else (("View:",) if current_page else PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)))
     probes: list[WidgetProbe] = []
@@ -4040,6 +4061,7 @@ def sweep_app(
     runtime_isolation: str,
     assert_orchestrate_artifacts: bool = False,
     assert_workflow_artifacts: bool = False,
+    route_query: str = "",
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -4132,6 +4154,7 @@ def sweep_app(
                                 runtime_isolation=runtime_isolation,
                                 server_env=seeded_runtime.env,
                                 home_root=seeded_runtime.home_root,
+                                route_query=route_query,
                                 assert_orchestrate_artifacts=assert_orchestrate_artifacts,
                                 assert_workflow_artifacts=assert_workflow_artifacts,
                             )
@@ -4197,6 +4220,7 @@ def sweep_remote_app(
     browser_name: str,
     headless: bool,
     screenshot_dir: Path | None,
+    route_query: str = "",
     page_timeout: float | None = DEFAULT_PAGE_TIMEOUT_SECONDS,
     progress: ProgressReporter | None = None,
     resume_page_results: dict[str, PageSweep] | None = None,
@@ -4272,6 +4296,7 @@ def sweep_remote_app(
                         max_action_clicks_per_page=max_action_clicks_per_page,
                         upload_file=upload_file,
                         screenshot_dir=screenshot_dir,
+                        route_query=route_query,
                         page_timeout=page_timeout,
                         browser_issues=browser_issues,
                     )
@@ -4415,6 +4440,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-options-per-widget", type=int, default=8, help="Maximum selectbox options included in combination coverage per widget.")
     parser.add_argument("--discovery-passes", type=int, default=2, help="Number of repeated widget-discovery passes per page state, used to catch widgets revealed by safe callbacks.")
     parser.add_argument("--max-action-clicks-per-page", type=int, default=25, help="Maximum real action-button clicks per page sweep. Use 0 to trial-probe all action buttons without firing callbacks.")
+    parser.add_argument("--route-query", default="", help="Extra query string to append to every top-level route, for example 'start=notebook-import'.")
     parser.add_argument("--target-seconds", type=float, default=DEFAULT_TARGET_SECONDS)
     parser.add_argument("--screenshot-dir")
     parser.add_argument("--no-seed-demo-artifacts", action="store_true", help="Disable temporary demo artifacts used to exercise configured apps-pages more deeply.")
@@ -4521,6 +4547,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 browser_name=args.browser,
                 headless=not args.headful,
                 screenshot_dir=screenshot_dir,
+                route_query=args.route_query,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,
@@ -4551,6 +4578,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 runtime_isolation=args.runtime_isolation,
                 assert_orchestrate_artifacts=args.assert_orchestrate_artifacts,
                 assert_workflow_artifacts=args.assert_workflow_artifacts,
+                route_query=args.route_query,
                 page_timeout=args.page_timeout,
                 progress=progress,
                 resume_page_results=resume_page_results,

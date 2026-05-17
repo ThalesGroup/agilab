@@ -63,6 +63,17 @@ def test_settings_page_has_stable_robot_expectations() -> None:
     assert module.PAGE_MIN_WIDGETS["SETTINGS"] == 5
 
 
+def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:
+    module = _load_module()
+
+    url = module.append_route_query(
+        "http://127.0.0.1:8501/PROJECT?active_app=flight_project",
+        "start=notebook-import",
+    )
+
+    assert url == "http://127.0.0.1:8501/PROJECT?active_app=flight_project&start=notebook-import"
+
+
 def test_streamlit_health_failure_detail_includes_process_output() -> None:
     module = _load_module()
 
