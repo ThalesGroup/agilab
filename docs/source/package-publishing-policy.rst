@@ -199,19 +199,19 @@ regenerate the release commit, rerun preflight, and publish from that committed
 state. TestPyPI rehearsals may still use retry-oriented ``.postN`` versions,
 but those rehearsals are not the source of truth for a real release.
 
-After PyPI provenance passes, the release workflow enforces one retained PyPI
-release per selected PyPI project. ``tools/pypi_release_retention.py`` keeps
-the current committed release version and deletes every older release for each
-selected project before GitHub release assets are published. This is a
+After PyPI provenance passes, the release workflow attempts to keep one retained
+PyPI release per selected PyPI project. ``tools/pypi_release_retention.py`` first
+confirms that the current committed release version is visible, then tries to
+delete older releases before GitHub release assets are published. This is a
 destructive PyPI web-management operation, separate from Trusted Publishing, so
-the workflow requires ``PYPI_RELEASE_PRUNE_USERNAME`` and
+the workflow uses ``PYPI_RELEASE_PRUNE_USERNAME`` and
 ``PYPI_RELEASE_PRUNE_PASSWORD`` repository secrets. PyPI accounts with two-factor
-authentication also require non-interactive authentication through
+authentication can use non-interactive authentication through
 ``PYPI_RELEASE_PRUNE_TOTP_SECRET``. ``PYPI_RELEASE_PRUNE_OTP`` exists only as a
-short-lived manual rerun fallback. If the current version is not visible on PyPI
-or old releases cannot be removed, the release must fail instead of publishing
-GitHub release assets or syncing the Hugging Face Space against a
-partially-retained package set.
+short-lived manual rerun fallback. If PyPI still requires interactive cleanup,
+the job records the stale releases as a warning and lets release assets and the
+Hugging Face sync continue, because upload and provenance have already been
+validated. A missing current version remains a hard failure.
 
 The required preflight is the place to catch synchronization drift. It should
 validate package metadata, internal pins, dependency-policy hygiene, docs mirror
