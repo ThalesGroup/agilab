@@ -142,6 +142,21 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         action_timeout_seconds=30.0,
         page_timeout_seconds=300.0,
     ),
+    "isolated-project-import-sidebar": RobotScenario(
+        name="isolated-project-import-sidebar",
+        description=(
+            "Select the PROJECT Import sidebar mode for every built-in app and "
+            "exercise the archive import controls without firing destructive "
+            "project import callbacks."
+        ),
+        pages="PROJECT",
+        apps_pages="none",
+        runtime_isolation="isolated",
+        action_button_policy="safe-click",
+        preselect_labels="Import",
+        action_timeout_seconds=30.0,
+        page_timeout_seconds=300.0,
+    ),
     "isolated-settings-page": RobotScenario(
         name="isolated-settings-page",
         description=(

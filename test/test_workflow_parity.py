@@ -251,6 +251,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert "isolated-entry-and-app-pages" in ui_robot_matrix.argv
     assert "isolated-project-page" in ui_robot_matrix.argv
     assert "isolated-project-notebook-import" in ui_robot_matrix.argv
+    assert "isolated-project-import-sidebar" in ui_robot_matrix.argv
     assert "isolated-settings-page" in ui_robot_matrix.argv
     assert "--quiet-progress" in ui_robot_matrix.argv
     assert "--json" in ui_robot_matrix.argv

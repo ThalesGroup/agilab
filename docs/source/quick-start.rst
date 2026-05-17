@@ -403,14 +403,15 @@ present::
 
 The opt-in UI robot matrix used by GitHub Actions covers isolated core pages,
 the entry shell plus configured app pages, the default ``PROJECT`` route, the
-``PROJECT`` notebook-import deep link, and the ``SETTINGS`` route for every
-built-in app::
+``PROJECT`` notebook-import deep link, the ``PROJECT`` Import sidebar mode, and
+the ``SETTINGS`` route for every built-in app::
 
     uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot_matrix.py \
       --scenario isolated-core-pages \
       --scenario isolated-entry-and-app-pages \
       --scenario isolated-project-page \
       --scenario isolated-project-notebook-import \
+      --scenario isolated-project-import-sidebar \
       --scenario isolated-settings-page \
       --json \
       --quiet-progress
